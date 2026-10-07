@@ -33,8 +33,7 @@ import { LocalPTYProvider } from './local-pty-provider';
  * A git fixture in `dir`, a bare upstream at `upstream` and a clone of it
  * at `work` holding one pushed commit `sha` that adds `README.md`. Fixture
  * git commands run with `env`, which reads neither the host's system nor
- * its global git config. `withStore` runs a read or write against a state
- * store.
+ * its global git config.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
@@ -51,15 +50,6 @@ async function setupTest() {
     upstream: git.upstream,
     work: git.work,
     sha: git.sha,
-    async withStore<T>(dbPath: string, run: (store: StateStore) => Promise<T>): Promise<T> {
-      await using held = new AsyncDisposableStack();
-
-      const store = await StateStore.open(dbPath);
-
-      held.defer(() => store.stop());
-
-      return await run(store);
-    },
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
@@ -301,11 +291,13 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect(spawn).rejects.toMatchObject({
-    code: 'workspace_mismatch',
-    message: expect.toInclude('README.md'),
-    data: { phase: 'verifying', expected: ctx.sha, actual: ctx.sha },
-  });
+  expect(spawn).rejects.toStrictEqual(
+    new DaemonError(
+      'workspace_mismatch',
+      `the checkout on target 'box' does not match ${ctx.sha} in its tracked files:  D README.md`,
+      { phase: 'verifying', expected: ctx.sha, actual: ctx.sha },
+    ),
+  );
 
   expect(listed).toStrictEqual({ sessions: [] });
   expect(existsSync(dest)).toBeFalse();
@@ -750,7 +742,7 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'lfs_unsupported', data: { phase: 'cloning' } });
-  expect(box.calls.filter((call) => call.op === 'transfer')).toStrictEqual([]);
+  expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
   expect(existsSync(dest)).toBeFalse();
 });
 
@@ -829,7 +821,7 @@ test('it refuses a git source whose URL carries a token', async () => {
   expect(box.calls).toStrictEqual([]);
 });
 
-test('it keeps a workspace credential out of every row, the session, and the fleet', async () => {
+test('it keeps a workspace credential out of every row, the session, the fleet, and the log', async () => {
   await using ctx = await setupTest();
 
   await using daemon = await startTestDaemon({
@@ -878,6 +870,7 @@ test('it keeps a workspace credential out of every row, the session, and the fle
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
   expect(JSON.stringify(spawned)).not.toInclude('tok-7d1e5a');
   expect(JSON.stringify(fleet)).not.toInclude('tok-7d1e5a');
+  expect(daemon.logs).toStrictEqual([]);
 });
 
 test("it keeps a workspace credential out of a refusal that carries git's error, its log line, and every row", async () => {
@@ -926,13 +919,11 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
   const state = readdirSync(daemon.dir).filter((name) => name.startsWith('state.db'));
   const stored = state.map((name) => readFileSync(join(daemon.dir, name)).toString('latin1'));
 
-  expect(spawn).rejects.toMatchObject({
-    code: 'ref_not_found',
-    message: expect.toSatisfy(
-      (message: string) => message.includes('[credential]') && !message.includes('tok-7d1e5a'),
-    ),
-    data: { phase: 'cloning' },
-  });
+  expect(spawn).rejects.toStrictEqual(
+    new DaemonError('ref_not_found', "origin has no branch or tag '[credential]'", {
+      phase: 'cloning',
+    }),
+  );
 
   expect(state).not.toBeEmpty();
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
@@ -1031,34 +1022,36 @@ test('it starts a revived harness after a restart without the workspace credenti
     options: async (paths) => {
       // The fleet holds a ready git workspace on box, as a spawn under a
       // workspace credential leaves it.
-      await ctx.withStore(paths.dbPath, async (store) => {
-        await store.createMaterialization(
-          {
-            sessionID: toSessionID('s-ws'),
-            target: 'box',
-            dir: dest,
-            sourceKind: 'git',
-            withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
-          },
-          1000,
-        );
+      const store = await StateStore.open(paths.dbPath);
 
-        await store.updateMaterialization(
-          toSessionID('s-ws'),
-          { phase: 'ready', repoURL: ctx.upstream, sha: 'a'.repeat(40), materializedAt: 1000 },
-          1000,
-        );
+      await store.createMaterialization(
+        {
+          sessionID: toSessionID('s-ws'),
+          target: 'box',
+          dir: dest,
+          sourceKind: 'git',
+          withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
+        },
+        1000,
+      );
 
-        await store.writeFleet([
-          buildMockFleetEntry({
-            sessionID: toSessionID('s-ws'),
-            cwd: dest,
-            agentSessionID: toAgentSessionID('agent-ws'),
-            target: 'box',
-            targetIdentity: 'test:box',
-          }),
-        ]);
-      });
+      await store.updateMaterialization(
+        toSessionID('s-ws'),
+        { phase: 'ready', repoURL: ctx.upstream, sha: 'a'.repeat(40), materializedAt: 1000 },
+        1000,
+      );
+
+      await store.writeFleet([
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-ws'),
+          cwd: dest,
+          agentSessionID: toAgentSessionID('agent-ws'),
+          target: 'box',
+          targetIdentity: 'test:box',
+        }),
+      ]);
+
+      await store.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1330,7 +1323,7 @@ test('it refuses to materialize into a directory that already exists and leaves 
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: dest } });
-  expect(box.calls.filter((call) => call.op === 'transfer')).toStrictEqual([]);
+  expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
   expect(readdirSync(dest)).toStrictEqual(['mine.txt']);
 });
 
@@ -1340,7 +1333,6 @@ test('it removes the checkout it created and keeps the files beside it when its 
   // A provider whose harness start throws, as a refused launch does.
   const box = buildStubExecutionProvider({
     kind: 'fixture-dir',
-    capabilities: {},
     onSpawn: () => {
       throw new DaemonError('host_unavailable', 'the harness could not start');
     },
@@ -1386,7 +1378,6 @@ test('it spawns a retry into the directory a harness that failed to start left',
   // A provider whose first harness start throws, as a refused launch does.
   const box = buildStubExecutionProvider({
     kind: 'fixture-dir',
-    capabilities: {},
     onSpawn: mock(() => {}).mockImplementationOnce(() => {
       throw new DaemonError('host_unavailable', 'the harness could not start');
     }),
@@ -2223,6 +2214,11 @@ test('it refuses a git source on a local transport before it runs git, transferr
     }),
   });
 
+  // A git first on the PATH records each run, so a refusal that runs git
+  // leaves the record behind.
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
+  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
     target: 'box',
@@ -2231,9 +2227,16 @@ test('it refuses a git source on a local transport before it runs git, transferr
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'invalid_git_url' });
-  expect(spawn).rejects.toThrow("git transport 'file' is not allowed");
+  expect(spawn).rejects.toStrictEqual(
+    new DaemonError(
+      'invalid_git_url',
+      "git transport 'file' is not allowed; the daemon fetches over https and ssh",
+      { phase: 'resolving' },
+    ),
+  );
+
   expect(box.calls).toStrictEqual([]);
+  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeFalse();
 });
 
 test('it refuses a path source whose origin is a local repository, in git, transferring nothing', async () => {
@@ -2266,8 +2269,11 @@ test('it refuses a path source whose origin is a local repository, in git, trans
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toThrow("transport 'file' not allowed");
-  expect(box.calls).not.toContainEqual(expect.objectContaining({ op: 'transfer' }));
+  expect(spawn).rejects.toStrictEqual(
+    new DaemonError('clone_failed', "fatal: transport 'file' not allowed", { phase: 'cloning' }),
+  );
+
+  expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
 });
 
 test('it holds a probe to the configured transports whatever transports it carries', async () => {
@@ -2412,8 +2418,11 @@ test('it holds git to the configured transports whatever the daemon environment 
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toThrow("transport 'file' not allowed");
-  expect(box.calls).not.toContainEqual(expect.objectContaining({ op: 'transfer' }));
+  expect(spawn).rejects.toStrictEqual(
+    new DaemonError('clone_failed', "fatal: transport 'file' not allowed", { phase: 'cloning' }),
+  );
+
+  expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
 });
 
 test('it materializes a spawn from the owner/repo shorthand at its GitHub https URL', async () => {

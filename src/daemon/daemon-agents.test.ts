@@ -58,7 +58,16 @@ test('it lists each registered agent with what it can do and the host it runs on
             supported: true,
             available: true,
             values: null,
-            examples: expect.toBeArrayOfSize(8),
+            examples: [
+              { value: 'best', resolvesTo: null },
+              { value: 'fable', resolvesTo: null },
+              { value: 'opus', resolvesTo: null },
+              { value: 'sonnet', resolvesTo: null },
+              { value: 'haiku', resolvesTo: null },
+              { value: 'opus[1m]', resolvesTo: null },
+              { value: 'sonnet[1m]', resolvesTo: null },
+              { value: 'opusplan', resolvesTo: null },
+            ],
             default: null,
             backendEffect: 'applied',
             note: 'An alias or a full model name, passed as --model.',
@@ -260,12 +269,14 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
 
   const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
 
+  await spawn.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
     message: "agent 'codex' is registered but not installed on this host",
   });
-
-  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
@@ -287,10 +298,11 @@ test('it refuses to spawn an agent id the daemon never registered', async () => 
 
   const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'gemini' });
 
-  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
+  await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
@@ -304,10 +316,11 @@ test('it refuses a model shaped like a flag before spawning anything', async () 
     model: '--dangerously-skip-permissions',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+  await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
@@ -336,10 +349,11 @@ test('it refuses a gateway effort outside the levels the CLI accepts', async () 
     effort: 'ultra',
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+  await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
@@ -356,12 +370,14 @@ test('it refuses an option the agent takes no value for', async () => {
     model: 'grok-4',
   });
 
+  await spawn.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
     message: "agent 'grok' takes no model",
   });
-
-  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
@@ -450,5 +466,6 @@ test('it lists a spawned session without a model key when it runs the default', 
 
   const list = await daemon.client.sendRequest('session.list');
 
+  expect(list).toStrictEqual({ sessions: [expect.toBeObject()] });
   expect(list).toStrictEqual({ sessions: [expect.not.toContainKey('model')] });
 });

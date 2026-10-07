@@ -1,26 +1,24 @@
 import { expect, test } from 'bun:test';
-import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
-import type { FleetEntry } from '../store/fleet-entry';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
+import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
 
 /**
- * The daemon's stand-ins. `buildTargetOptions` turns the raw `targets` and
- * `defaultTarget` keys of a config into daemon options through the real
- * parse: a `local-pty` target runs harnesses on a real pseudo-terminal, a
- * `no-headless` target's provider can neither start a terminal nor run a
- * headless turn, and any other kind has no provider; the target id of each
- * harness started lands in `harnesses`. `writeFleet` stores fleet rows in a
- * state database before a boot restores them. The agent's headless runner
- * records each prompt in `runs` and finishes the turn on the next tick.
+ * The daemon's stand-ins. `providers` builds, for a target id, the provider
+ * of each kind a test's config may hold: a `local-pty` target runs harnesses
+ * on a real pseudo-terminal, and a `no-headless` target's provider can
+ * neither start a terminal nor run a headless turn. The target id of each
+ * harness started lands in `harnesses`. The agent's headless runner records
+ * each prompt in `runs` and finishes the turn on the next tick with a
+ * message that holds the prompt.
  */
 function setupTest() {
   const harnesses: string[] = [];
@@ -31,7 +29,7 @@ function setupTest() {
       runs.push(opts.prompt);
 
       setTimeout(() => {
-        hooks.onDone('turn finished');
+        hooks.onDone(`finished: ${opts.prompt}`);
       }, 0);
 
       return { stop: () => {} };
@@ -44,7 +42,6 @@ function setupTest() {
       (id: string) =>
         buildStubExecutionProvider({
           kind: 'local-pty',
-          capabilities: {},
           onSpawn: () => {
             harnesses.push(id);
           },
@@ -63,32 +60,7 @@ function setupTest() {
     ],
   ]);
 
-  return {
-    adapter,
-    harnesses,
-    runs,
-    buildTargetOptions(raw: Partial<Readonly<Record<'targets' | 'defaultTarget', unknown>>>) {
-      const parsed = collectTargets(raw.targets, raw.defaultTarget);
-
-      return {
-        targets: parsed.targets.map((target) => ({
-          id: target.id,
-          kind: target.provider,
-          options: target.options,
-          identity: buildTargetIdentity(target.provider, target.options),
-          provider: providers.get(target.provider)?.(target.id) ?? null,
-        })),
-        defaultTarget: parsed.defaultTarget,
-        targetErrors: parsed.errors,
-      };
-    },
-    async writeFleet(dbPath: string, fleet: readonly FleetEntry[]) {
-      const store = await StateStore.open(dbPath);
-
-      await store.writeFleet(fleet);
-      await store.stop();
-    },
-  };
+  return { adapter, harnesses, runs, providers };
 }
 
 test('it spawns a session on the target the spawn names and records it in the fleet', async () => {
@@ -99,9 +71,12 @@ test('it spawns a session on the target the spawn names and records it in the fl
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -142,7 +117,7 @@ test('it spawns a session without a target on the local target when the config s
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({}),
+      ...buildTargetOptionsFromConfig({}, ctx.providers),
     }),
   });
 
@@ -164,7 +139,7 @@ test('it refuses a spawn to a target the config does not hold with unknown_targe
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({}),
+      ...buildTargetOptionsFromConfig({}, ctx.providers),
     }),
   });
 
@@ -183,9 +158,12 @@ test('it refuses a spawn to a target this daemon has no provider for with target
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' } },
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' } },
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -208,7 +186,10 @@ test('it refuses a spawn to the local target when the targets map leaves it out'
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({ targets: { box: { provider: 'local-pty' } } }),
+      ...buildTargetOptionsFromConfig(
+        { targets: { box: { provider: 'local-pty' } } },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -226,7 +207,7 @@ test('it refuses a spawn without a target, and starts no terminal, for a malform
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({ targets: ['local'] }),
+      ...buildTargetOptionsFromConfig({ targets: ['local'] }, ctx.providers),
     }),
   });
 
@@ -249,7 +230,7 @@ test('it refuses a spawn to local, and starts no terminal, for a malformed targe
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({ targets: 'local' }),
+      ...buildTargetOptionsFromConfig({ targets: 'local' }, ctx.providers),
     }),
   });
 
@@ -267,9 +248,12 @@ test('it refuses a spawn to a malformed target entry', async () => {
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { image: 'dev' } },
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { image: 'dev' } },
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -287,9 +271,12 @@ test('it spawns on a well-formed target beside a malformed target entry', async 
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { image: 'dev' } },
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { image: 'dev' } },
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -311,10 +298,13 @@ test('it refuses a spawn without a target, and starts no terminal, for an unknow
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' } },
-        defaultTarget: 'gone',
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' } },
+          defaultTarget: 'gone',
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -336,10 +326,13 @@ test('it lists each target and each config error', async () => {
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' }, bad: 3 },
-        defaultTarget: 'box',
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'imp' }, bad: 3 },
+          defaultTarget: 'box',
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -425,7 +418,9 @@ test.each([
     await using daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: async (paths) => {
-        await ctx.writeFleet(paths.dbPath, [
+        const store = await StateStore.open(paths.dbPath);
+
+        await store.writeFleet([
           buildMockFleetEntry({
             sessionID: toSessionID('s-box'),
             cwd: paths.dir,
@@ -435,10 +430,12 @@ test.each([
           }),
         ]);
 
+        await store.stop();
+
         return {
           adapter: ctx.adapter,
           ejectSettleMs: 0,
-          ...ctx.buildTargetOptions({ targets }),
+          ...buildTargetOptionsFromConfig({ targets }, ctx.providers),
         };
       },
     });
@@ -459,7 +456,9 @@ test('it refuses input to a restored headless session on local once the targets 
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      await ctx.writeFleet(paths.dbPath, [
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-old'),
           cwd: paths.dir,
@@ -467,10 +466,15 @@ test('it refuses input to a restored headless session on local once the targets 
         }),
       ]);
 
+      await store.stop();
+
       return {
         adapter: ctx.adapter,
         ejectSettleMs: 0,
-        ...ctx.buildTargetOptions({ targets: { box: { provider: 'local-pty' } } }),
+        ...buildTargetOptionsFromConfig(
+          { targets: { box: { provider: 'local-pty' } } },
+          ctx.providers,
+        ),
       };
     },
   });
@@ -490,7 +494,9 @@ test('it refuses input to a restored headless session whose provider runs no hea
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      await ctx.writeFleet(paths.dbPath, [
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-box'),
           cwd: paths.dir,
@@ -500,12 +506,17 @@ test('it refuses input to a restored headless session whose provider runs no hea
         }),
       ]);
 
+      await store.stop();
+
       return {
         adapter: ctx.adapter,
         ejectSettleMs: 0,
-        ...ctx.buildTargetOptions({
-          targets: { local: { provider: 'local-pty' }, box: { provider: 'no-headless' } },
-        }),
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'no-headless' } },
+          },
+          ctx.providers,
+        ),
       };
     },
   });
@@ -528,7 +539,9 @@ test('it refuses input to a killed headless session on a working target, without
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      await ctx.writeFleet(paths.dbPath, [
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-old'),
           cwd: paths.dir,
@@ -537,10 +550,12 @@ test('it refuses input to a killed headless session on a working target, without
         }),
       ]);
 
+      await store.stop();
+
       return {
         adapter: ctx.adapter,
         ejectSettleMs: 0,
-        ...ctx.buildTargetOptions({}),
+        ...buildTargetOptionsFromConfig({}, ctx.providers),
       };
     },
   });
@@ -561,7 +576,7 @@ test('it runs a local headless turn through the runner once per request', async 
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({}),
+      ...buildTargetOptionsFromConfig({}, ctx.providers),
     }),
   });
 
@@ -585,7 +600,7 @@ test('it runs a local headless turn through the runner once per request', async 
   await waitFor(async () => {
     const listed = await daemon.client.sendRequest('session.list');
 
-    expect(listed).toMatchObject({ sessions: [{ id, lastMsg: 'turn finished' }] });
+    expect(listed).toMatchObject({ sessions: [{ id, lastMsg: 'finished: next step' }] });
   });
 
   expect(ctx.runs).toStrictEqual(['carry on', 'next step']);
@@ -604,9 +619,12 @@ test.each([
       options: () => ({
         adapter: ctx.adapter,
         ejectSettleMs: 0,
-        ...ctx.buildTargetOptions({
-          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-        }),
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          },
+          ctx.providers,
+        ),
       }),
     });
 
@@ -629,7 +647,10 @@ test.each([
     await daemon.restart(() => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({ targets: { local: { provider: 'local-pty' }, box: changed } }),
+      ...buildTargetOptionsFromConfig(
+        { targets: { local: { provider: 'local-pty' }, box: changed } },
+        ctx.providers,
+      ),
     }));
 
     await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
@@ -655,9 +676,12 @@ test.each([
       options: () => ({
         adapter: ctx.adapter,
         ejectSettleMs: 0,
-        ...ctx.buildTargetOptions({
-          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-        }),
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          },
+          ctx.providers,
+        ),
       }),
     });
 
@@ -680,7 +704,10 @@ test.each([
     await daemon.restart(() => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({ targets: { local: { provider: 'local-pty' }, box: changed } }),
+      ...buildTargetOptionsFromConfig(
+        { targets: { local: { provider: 'local-pty' }, box: changed } },
+        ctx.providers,
+      ),
     }));
 
     await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
@@ -705,9 +732,12 @@ test.each([
       options: () => ({
         adapter: ctx.adapter,
         ejectSettleMs: 0,
-        ...ctx.buildTargetOptions({
-          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-        }),
+        ...buildTargetOptionsFromConfig(
+          {
+            targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          },
+          ctx.providers,
+        ),
       }),
     });
 
@@ -730,7 +760,10 @@ test.each([
     await daemon.restart(() => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({ targets: { local: { provider: 'local-pty' }, box: changed } }),
+      ...buildTargetOptionsFromConfig(
+        { targets: { local: { provider: 'local-pty' }, box: changed } },
+        ctx.providers,
+      ),
     }));
 
     await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
@@ -753,9 +786,12 @@ test('it revives a session on its target after a restart with the config unchang
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -776,9 +812,12 @@ test('it revives a session on its target after a restart with the config unchang
   await daemon.restart(() => ({
     adapter: ctx.adapter,
     ejectSettleMs: 0,
-    ...ctx.buildTargetOptions({
-      targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-    }),
+    ...buildTargetOptionsFromConfig(
+      {
+        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+      },
+      ctx.providers,
+    ),
   }));
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
@@ -797,10 +836,13 @@ test('it spawns a new session on the default a restart changed', async () => {
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-        defaultTarget: 'local',
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          defaultTarget: 'local',
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -820,10 +862,13 @@ test('it spawns a new session on the default a restart changed', async () => {
   await daemon.restart(() => ({
     adapter: ctx.adapter,
     ejectSettleMs: 0,
-    ...ctx.buildTargetOptions({
-      targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-      defaultTarget: 'box',
-    }),
+    ...buildTargetOptionsFromConfig(
+      {
+        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+        defaultTarget: 'box',
+      },
+      ctx.providers,
+    ),
   }));
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
@@ -846,10 +891,13 @@ test('it keeps a restored session on its target after a restart changed the defa
     options: () => ({
       adapter: ctx.adapter,
       ejectSettleMs: 0,
-      ...ctx.buildTargetOptions({
-        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-        defaultTarget: 'local',
-      }),
+      ...buildTargetOptionsFromConfig(
+        {
+          targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+          defaultTarget: 'local',
+        },
+        ctx.providers,
+      ),
     }),
   });
 
@@ -869,10 +917,13 @@ test('it keeps a restored session on its target after a restart changed the defa
   await daemon.restart(() => ({
     adapter: ctx.adapter,
     ejectSettleMs: 0,
-    ...ctx.buildTargetOptions({
-      targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
-      defaultTarget: 'box',
-    }),
+    ...buildTargetOptionsFromConfig(
+      {
+        targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } },
+        defaultTarget: 'box',
+      },
+      ctx.providers,
+    ),
   }));
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
@@ -889,7 +940,9 @@ test('it revives a restored session without a stored target on the implicit loca
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
-      await ctx.writeFleet(paths.dbPath, [
+      const store = await StateStore.open(paths.dbPath);
+
+      await store.writeFleet([
         buildMockFleetEntry({
           sessionID: toSessionID('s-old'),
           cwd: paths.dir,
@@ -897,10 +950,12 @@ test('it revives a restored session without a stored target on the implicit loca
         }),
       ]);
 
+      await store.stop();
+
       return {
         adapter: ctx.adapter,
         ejectSettleMs: 0,
-        ...ctx.buildTargetOptions({}),
+        ...buildTargetOptionsFromConfig({}, ctx.providers),
       };
     },
   });
