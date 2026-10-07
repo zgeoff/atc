@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolveRepoRoot } from './resolve-repo-root';
@@ -70,4 +70,20 @@ test('it walks past a .git directory that holds no HEAD', () => {
   mkdirSync(loose, { recursive: true });
 
   expect(resolveRepoRoot(loose)).toBe(loose);
+});
+
+test('it resolves a directory under an unreadable ancestor to itself', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'atc-repo-root-'));
+  const locked = join(dir, 'locked');
+  const cwd = join(locked, 'work');
+
+  onTestFinished(() => {
+    chmodSync(locked, 0o700);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  mkdirSync(cwd, { recursive: true });
+  chmodSync(locked, 0o000);
+
+  expect(resolveRepoRoot(cwd)).toBe(cwd);
 });

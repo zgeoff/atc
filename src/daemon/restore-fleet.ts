@@ -80,13 +80,26 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // until revived by hand, so no terminal is adopted for them. An entry
   // whose session is still listed, dead, revives that session in place
   // rather than listing a second session under the same id.
-  const registered = entries.map((entry) => {
-    const listed = mgr.sessions.find((s) => s.id === entry.sessionID);
+  // A row that cannot be registered is logged and skipped, so one bad row
+  // never keeps the rest of the fleet down.
+  const registered: { session: Session; revive: boolean }[] = [];
 
-    return listed === undefined
-      ? { session: mgr.restore(entry), revive: false }
-      : { session: listed, revive: true };
-  });
+  for (const entry of entries) {
+    try {
+      const listed = mgr.sessions.find((s) => s.id === entry.sessionID);
+
+      const row =
+        listed === undefined
+          ? { session: mgr.restore(entry), revive: false }
+          : { session: listed, revive: true };
+
+      registered.push(row);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+
+      mgr.log(`atc could not restore session ${entry.sessionID} (${reason})`);
+    }
+  }
 
   const queued = registered
     .filter((r) => r.revive || r.session.state !== 'exited')
