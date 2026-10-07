@@ -608,11 +608,12 @@ guest `.claude.json` byte for byte, so its trust decision takes precedence.
 The placeholders must include `ANTHROPIC_AUTH_TOKEN`, and the profile for the `baseURL` host must
 set a bearer `authorization` header, since that is the header Claude sends the variable in. Any
 other placeholder variable reaches the session as it is, for a tool that runs in it, and a selected
-profile for that tool's host lets impd's broker fill it. `ANTHROPIC_API_KEY` and
-`CLAUDE_CODE_OAUTH_TOKEN` are the exception: Claude reads them as its own credential beside
-`ANTHROPIC_AUTH_TOKEN`, and the broker never fills the header they feed. Any other pairing fails
-with `auth_placeholder_unsupported`, on every target and before anything is prepared, and
-`agents.list` lists the gateway as unable to spawn.
+profile for that tool's host lets impd's broker fill it. `ANTHROPIC_API_KEY`,
+`CLAUDE_CODE_OAUTH_TOKEN`, and `CLAUDE_CONFIG_DIR` are the exception: Claude reads the first two as
+its own credential beside `ANTHROPIC_AUTH_TOKEN`, and the broker never fills the header they feed,
+while atc sets the third to the session's own config folder. Any other pairing fails with
+`auth_placeholder_unsupported`, on every target and before anything is prepared, and `agents.list`
+lists the gateway as unable to spawn.
 
 A gateway that runs the auto-mode mod on an imp, with its Jev key held by impd, looks like this:
 

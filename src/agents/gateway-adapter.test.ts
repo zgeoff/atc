@@ -621,6 +621,13 @@ test.each([
       CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
     },
   },
+  {
+    name: 'CLAUDE_CONFIG_DIR beside the bearer variable',
+    env: {
+      ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+      CLAUDE_CONFIG_DIR: 'imp-broker-placeholder',
+    },
+  },
   { name: 'a value other than the placeholder', env: { ANTHROPIC_AUTH_TOKEN: 'sk-real' } },
 ])('it refuses a brokered guest spawn whose placeholders hold $name', (row) => {
   const config = parseConfig({
