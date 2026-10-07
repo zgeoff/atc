@@ -1991,9 +1991,7 @@ test('it holds a lease acquisition while the lease hold lasts', async () => {
     expect(ctx.port.countHeldLeases()).toBe(1);
   });
 
-  const raced = await Promise.race([acquiring, Promise.resolve('held')]);
-
-  expect(raced).toBe('held');
+  expect(Bun.peek.status(acquiring)).toBe('pending');
 });
 
 test('it lets a held lease acquisition through once the lease hold stops', async () => {
@@ -2026,9 +2024,7 @@ test('it holds a lease release while the release hold lasts', async () => {
     expect(ctx.port.countHeldReleases()).toBe(1);
   });
 
-  const raced = await Promise.race([releasing, Promise.resolve('held')]);
-
-  expect(raced).toBe('held');
+  expect(Bun.peek.status(releasing)).toBe('pending');
 });
 
 test('it lets a held lease release through once the release hold stops', async () => {
