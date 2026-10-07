@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import { isDaemonProcess } from './is-daemon-process';
 
 async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
   const dir = await mkdtemp(join(tmpdir(), 'is-daemon-process-'));
+
+  stack.defer(() => rm(dir, { recursive: true, force: true }));
 
   const cliPath = join(dir, 'checkout', 'src', 'cli.ts');
 
@@ -18,20 +22,19 @@ async function setupTest() {
     stderr: 'ignore',
   });
 
+  stack.defer(async () => {
+    proc.kill();
+
+    await proc.exited;
+  });
+
   // Until the child prints, its /proc entry can still hold the command line
   // it was forked with, before the exec that makes it the daemon.
   await proc.stdout.getReader().read();
 
-  return {
-    dir,
-    proc,
-    async [Symbol.asyncDispose]() {
-      proc.kill();
+  const owned = stack.move();
 
-      await proc.exited;
-      await rm(dir, { recursive: true, force: true });
-    },
-  };
+  return { dir, proc, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it accepts a daemon process whose home holds this state directory', async () => {
