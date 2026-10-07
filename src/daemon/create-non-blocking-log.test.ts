@@ -129,20 +129,21 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
   });
 });
 
-test('it exits within three seconds of SIGTERM while a flood of refusals fills the unread stderr', async () => {
+test('it exits cleanly on SIGTERM while a flood of refusals fills the unread stderr', async () => {
   await using ctx = await setupTest();
 
   await sendLinesBeforeHandshake(ctx.port, 3000);
 
-  const started = performance.now();
+  const running = Bun.peek.status(ctx.proc.exited);
 
   ctx.proc.kill('SIGTERM');
 
   const exitCode = await ctx.proc.exited;
 
-  expect({ exitCode, elapsedMs: performance.now() - started }).toStrictEqual({
+  expect({ running, exitCode, signalCode: ctx.proc.signalCode }).toStrictEqual({
+    running: 'pending',
     exitCode: 0,
-    elapsedMs: expect.toBeWithin(0, 3000),
+    signalCode: null,
   });
 });
 

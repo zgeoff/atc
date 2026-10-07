@@ -44,7 +44,14 @@ test('it lets a scoped token that may grant every bound secret activate the brok
 test('it refuses an impd without grantable tokens, secret rebinds and exec requirements after reading only its features', () => {
   using ctx = setupTest();
 
-  ctx.port.setOldDaemonFeatures();
+  ctx.port.features = {
+    sessionOffsets: true,
+    leases: true,
+    grantableTokens: false,
+    secretRebind: false,
+    execRequire: false,
+    oauthSecrets: false,
+  };
 
   ctx.port.setIdentity({
     kind: 'token',

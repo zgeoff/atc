@@ -8,23 +8,16 @@ import { waitFor } from '../test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit } from './execution-provider';
 import { ImpHarness } from './imp-harness';
 
-interface SetupConfig {
-  // What the harness waits on before it sends its start.
-  readonly ready: Promise<void>;
-}
-
 /**
- * A harness on imp `imp-a` over a fixture imp port, which starts at once,
- * or once `ready` resolves when the config gives it. Its script prints its
- * pid and the terminal size it started at, echoes each line it reads,
- * prints the terminal size on `size`, exits 3 on `quit`, and on `later`
- * prints 300000 bytes, more than impd's ring keeps, once a line is written
- * to the `burst` pipe in `dir`. Its output, exits, and attachment changes
- * collect in `output`, `exits`, and `attachments`.
+ * A fixture imp port and the script a harness on it runs, in a temp
+ * directory of the test's own. The script prints its pid and the terminal
+ * size it started at, echoes each line it reads, prints the terminal size
+ * on `size`, exits 3 on `quit`, and on `later` prints 300000 bytes, more
+ * than impd's ring keeps, once a line is written to the `burst` pipe in
+ * `dir`.
  */
-// oxlint-disable-next-line prefer-readonly-parameter-types -- the config holds a live promise
-async function setupTest(config?: SetupConfig) {
-  await using stack = new AsyncDisposableStack();
+function setupTest() {
+  using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-imp-harness-'));
   const port = stack.use(new FixtureImpPort());
@@ -48,17 +41,32 @@ done
 `,
   );
 
-  await port.createImp({ name: 'imp-a' });
+  const owned = stack.move();
+
+  return {
+    dir: tmp.dir,
+    port,
+    script,
+    [Symbol.dispose]: () => {
+      owned.dispose();
+    },
+  };
+}
+
+test('it reconnects after impd drops a send and resumes after the last byte it has', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
 
   const harness = new ImpHarness(
-    port,
+    ctx.port,
     {
       kind: 'start',
       name: 'imp-a',
       session: 's1',
-      argv: [script],
+      argv: [ctx.script],
       env: {},
-      cwd: tmp.dir,
+      cwd: ctx.dir,
       cols: 80,
       rows: 24,
     },
@@ -67,54 +75,39 @@ done
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
-      ...config,
     },
   );
 
-  stack.defer(() => {
+  onTestFinished(() => {
     harness.detach();
   });
 
   const output: string[] = [];
-  const exits: HarnessExit[] = [];
-  const attachments: HarnessAttachment[] = [];
 
   harness.onData((data) => {
     output.push(data);
   });
 
+  const exits: HarnessExit[] = [];
+
   harness.onExit((exit) => {
     exits.push(exit);
   });
+
+  const attachments: HarnessAttachment[] = [];
 
   harness.onAttachment((attachment) => {
     attachments.push(attachment);
   });
 
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    port,
-    harness,
-    output,
-    exits,
-    attachments,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
-}
-
-test('it reconnects after impd drops a send and resumes after the last byte it has', async () => {
-  await using ctx = await setupTest();
-
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
-  ctx.harness.write('one\r');
+  harness.write('one\r');
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:one');
+    expect(output.join('')).toInclude('GOT:one');
   });
 
   const end = ctx.port.getEnd('imp-a', 's1');
@@ -122,13 +115,13 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.attachments.slice(1)).toStrictEqual(['reattaching', 'attached']);
+    expect(attachments.slice(1)).toStrictEqual(['reattaching', 'attached']);
   });
 
-  ctx.harness.write('two\r');
+  harness.write('two\r');
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:two');
+    expect(output.join('')).toInclude('GOT:two');
   });
 
   expect(ctx.port.sessionRequests[1]).toMatchObject({
@@ -137,52 +130,128 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
     resumeFrom: { executionGeneration: ctx.port.getGeneration('imp-a', 's1'), offset: end },
   });
 
-  expect(ctx.attachments).toStrictEqual(['attached', 'reattaching', 'attached']);
-  expect(ctx.exits).toBeEmpty();
+  expect(attachments).toStrictEqual(['attached', 'reattaching', 'attached']);
+  expect(exits).toBeEmpty();
 });
 
 test('it drops the bytes a resume repeats below its high-water offset', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const attachments: HarnessAttachment[] = [];
+
+  harness.onAttachment((attachment) => {
+    attachments.push(attachment);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.resumeOverlap = 4096;
 
-  ctx.harness.write('one\r');
+  harness.write('one\r');
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:one');
+    expect(output.join('')).toInclude('GOT:one');
   });
 
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.attachments.slice(1)).toStrictEqual(['reattaching', 'attached']);
+    expect(attachments.slice(1)).toStrictEqual(['reattaching', 'attached']);
   });
 
-  ctx.harness.write('two\r');
+  harness.write('two\r');
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:two');
+    expect(output.join('')).toInclude('GOT:two');
   });
 
-  expect(ctx.output.join('').split('GOT:one')).toHaveLength(2);
-  expect(ctx.output.join('').split('UP:')).toHaveLength(2);
+  expect(output.join('').split('GOT:one')).toHaveLength(2);
+  expect(output.join('').split('UP:')).toHaveLength(2);
 });
 
 test('it does a fresh attach that clears the screen when the resume finds a gap', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
   });
 
-  ctx.harness.write('later\r');
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:later');
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  harness.write('later\r');
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('GOT:later');
   });
 
   const end = ctx.port.getEnd('imp-a', 's1');
@@ -199,7 +268,7 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
   ctx.port.stopAnswerHold();
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('BURST_DONE');
+    expect(output.join('')).toInclude('BURST_DONE');
   });
 
   expect(
@@ -210,28 +279,66 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
     ['attach', false],
   ]);
 
-  expect(ctx.output.join('')).toInclude('\u001B[0m\u001B[H\u001B[2J');
-  expect(ctx.exits).toBeEmpty();
+  expect(output.join('')).toInclude('\u001B[0m\u001B[H\u001B[2J');
+  expect(exits).toBeEmpty();
 });
 
 test('it does a fresh attach when impd refuses its resume offset', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const attachments: HarnessAttachment[] = [];
+
+  harness.onAttachment((attachment) => {
+    attachments.push(attachment);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.setNextSessionFailure('INVALID_RESUME', { end: 0, bufferStart: 0 });
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.attachments.slice(1)).toStrictEqual(['reattaching', 'reattaching', 'attached']);
+    expect(attachments.slice(1)).toStrictEqual(['reattaching', 'reattaching', 'attached']);
   });
 
-  ctx.harness.write('three\r');
+  harness.write('three\r');
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:three');
+    expect(output.join('')).toInclude('GOT:three');
   });
 
   expect(
@@ -242,14 +349,46 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
     ['attach', false],
   ]);
 
-  expect(ctx.output.join('')).toInclude('\u001B[0m\u001B[H\u001B[2J');
+  expect(output.join('')).toInclude('\u001B[0m\u001B[H\u001B[2J');
 });
 
-test('it reattaches after another connection takes the session over', async () => {
-  await using ctx = await setupTest();
+test('it takes the session back from another connection that takes it over', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   const other = ctx.port.openSession(
@@ -258,27 +397,111 @@ test('it reattaches after another connection takes the session over', async () =
   );
 
   expect(other.outcome).resolves.toMatchObject({ kind: 'detached', reason: 'taken_over' });
-
-  ctx.harness.write('four\r');
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:four');
-  });
-
   expect(ctx.port.sessionRequests[2]).toMatchObject({ kind: 'attach', wake: false });
 });
 
-test('it ends a harness whose imp booted cold with the cause of the first boot after its own', async () => {
-  await using ctx = await setupTest();
+test('it carries input once it takes the session back from another connection', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  const other = ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await other.outcome;
+
+  harness.write('four\r');
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('GOT:four');
+  });
+});
+
+test('it ends a harness whose imp booted cold with the cause of the first boot after its own', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.bootImpCold('imp-a', 'watchdog');
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([
+    expect(exits).toStrictEqual([
       { exitCode: 1, reason: 'ended', detail: 'imp rebooted (watchdog)' },
     ]);
   });
@@ -287,30 +510,105 @@ test('it ends a harness whose imp booted cold with the cause of the first boot a
 test('it ends a harness without a boot id as ended with the cause unknown', async () => {
   const ready = Promise.withResolvers<void>();
 
-  await using ctx = await setupTest({ ready: ready.promise });
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      ready: ready.promise,
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   ctx.port.continuity = 'none';
 
   ready.resolve();
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.bootImpCold('imp-a', 'watchdog');
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([
-      { exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' },
-    ]);
+    expect(exits).toStrictEqual([{ exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' }]);
   });
 });
 
 test('it ends with the kept exit code of its own generation when impd no longer holds it', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.setNextSessionFailure('NO_SESSION', {
@@ -326,22 +624,60 @@ test('it ends with the kept exit code of its own generation when impd no longer 
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([{ exitCode: 7, reason: 'exited' }]);
+    expect(exits).toStrictEqual([{ exitCode: 7, reason: 'exited' }]);
   });
 });
 
 test('it ends with the refusal message in the detail when impd refuses without a code', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.setNextSessionFailure(null, undefined, 'the sentinel refusal reason');
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([
+    expect(exits).toStrictEqual([
       {
         exitCode: 1,
         reason: 'ended',
@@ -352,10 +688,48 @@ test('it ends with the refusal message in the detail when impd refuses without a
 });
 
 test('it redacts credential-shaped runs from a refusal message it shows', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.setNextSessionFailure(
@@ -367,7 +741,7 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([
+    expect(exits).toStrictEqual([
       {
         exitCode: 1,
         reason: 'ended',
@@ -379,10 +753,48 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
 });
 
 test('it redacts short credentials in URL, header, and authorization shapes it shows', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.setNextSessionFailure(
@@ -394,7 +806,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([
+    expect(exits).toStrictEqual([
       {
         exitCode: 1,
         reason: 'ended',
@@ -408,37 +820,76 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
 test('it never sends a resume offset to a session whose agent carries none', async () => {
   const ready = Promise.withResolvers<void>();
 
-  await using ctx = await setupTest({ ready: ready.promise });
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      ready: ready.promise,
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const attachments: HarnessAttachment[] = [];
+
+  harness.onAttachment((attachment) => {
+    attachments.push(attachment);
+  });
 
   ctx.port.continuity = 'none';
 
   ready.resolve();
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.attachments.slice(1)).toStrictEqual(['reattaching', 'attached']);
+    expect(attachments.slice(1)).toStrictEqual(['reattaching', 'attached']);
   });
 
-  ctx.harness.write('five\r');
+  harness.write('five\r');
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('GOT:five');
+    expect(output.join('')).toInclude('GOT:five');
   });
 
   expect(ctx.port.sessionRequests).toSatisfyAll(
     (request: Readonly<Record<string, unknown>>) => !('resumeFrom' in request),
   );
 
-  expect(ctx.output.join('')).toInclude('\u001B[0m\u001B[H\u001B[2J');
+  expect(output.join('')).toInclude('\u001B[0m\u001B[H\u001B[2J');
 });
 
 test('it never sends a resume offset when impd carries no offsets', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -451,7 +902,7 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
       kind: 'start',
       name: 'imp-b',
       session: 's2',
-      argv: [join(ctx.dir, 'harness')],
+      argv: [ctx.script],
       env: {},
       cwd: ctx.dir,
       cols: 80,
@@ -499,16 +950,54 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
 });
 
 test('it reports a harness whose imp another owner put to sleep as suspended, without waking it', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.suspendWithForce('imp-a');
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([{ exitCode: 0, reason: 'suspended' }]);
+    expect(exits).toStrictEqual([{ exitCode: 0, reason: 'suspended' }]);
   });
 
   expect(ctx.port.sessionRequests[1]).toMatchObject({ kind: 'attach', wake: false });
@@ -516,39 +1005,135 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
 });
 
 test('it confirms the exit of a killed harness once impd reports its process exited', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
   });
 
-  ctx.harness.kill();
+  const output: string[] = [];
 
-  const exited = await ctx.harness.waitForExit(5000);
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  harness.kill();
+
+  const exited = await harness.waitForExit(5000);
 
   expect(exited).toBeTrue();
 });
 
 test('it reports no exit for a running harness whose wait runs out', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
   });
 
-  const exited = await ctx.harness.waitForExit(0);
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  const exited = await harness.waitForExit(0);
 
   expect(exited).toBeFalse();
 });
 
 test('it reports no exit for a harness whose imp went to sleep with the process inside', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
   });
 
-  const waited = ctx.harness.waitForExit(5000);
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  const waited = harness.waitForExit(5000);
 
   ctx.port.suspendWithForce('imp-a');
 
@@ -558,17 +1143,55 @@ test('it reports no exit for a harness whose imp went to sleep with the process 
 });
 
 test('it counts connections impd drops before they start, and ends once its reconnects run out', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+    expect(output.join('')).toInclude('UP:');
   });
 
   ctx.port.setSessionDrops(10, 1011);
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([
+    expect(exits).toStrictEqual([
       { exitCode: 1, reason: 'ended', detail: 'imp connection closed (code 1011)' },
     ]);
   });
@@ -577,13 +1200,51 @@ test('it counts connections impd drops before they start, and ends once its reco
 });
 
 test('it ends once its reconnects run out when a listener throws on every connection that starts', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
   });
 
-  ctx.harness.onAttachment((attachment) => {
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  harness.onAttachment((attachment) => {
     if (attachment === 'attached') {
       throw new Error('write EPIPE');
     }
@@ -592,7 +1253,7 @@ test('it ends once its reconnects run out when a listener throws on every connec
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
-    expect(ctx.exits).toStrictEqual([
+    expect(exits).toStrictEqual([
       {
         exitCode: 1,
         reason: 'ended',
@@ -607,13 +1268,46 @@ test('it ends once its reconnects run out when a listener throws on every connec
 test('it starts at the size a resize asked for while its host was still readying', async () => {
   const ready = Promise.withResolvers<void>();
 
-  await using ctx = await setupTest({ ready: ready.promise });
+  using ctx = setupTest();
 
-  ctx.harness.resize(100, 40);
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      ready: ready.promise,
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  harness.resize(100, 40);
   ready.resolve();
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('START:40 100');
+    expect(output.join('')).toInclude('START:40 100');
   });
 
   expect(ctx.port.sessionRequests).toMatchObject([{ kind: 'start', cols: 100, rows: 40 }]);
@@ -622,7 +1316,40 @@ test('it starts at the size a resize asked for while its host was still readying
 test('it applies a resize that arrived before impd answered the start', async () => {
   const ready = Promise.withResolvers<void>();
 
-  await using ctx = await setupTest({ ready: ready.promise });
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+      ready: ready.promise,
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
 
   ctx.port.startAnswerHold();
   ready.resolve();
@@ -631,33 +1358,67 @@ test('it applies a resize that arrived before impd answered the start', async ()
     expect(ctx.port.sessionRequests).toHaveLength(1);
   });
 
-  ctx.harness.resize(100, 40);
-  ctx.harness.write('size\n');
+  harness.resize(100, 40);
+  harness.write('size\n');
   ctx.port.stopAnswerHold();
 
   await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('SIZE:40 100');
+    expect(output.join('')).toInclude('SIZE:40 100');
   });
 });
 
 test('it settles its start once impd starts the process', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [ctx.script],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  onTestFinished(() => {
+    harness.detach();
   });
 
-  await ctx.harness.waitForStart();
+  const output: string[] = [];
 
-  expect(ctx.exits).toStrictEqual([]);
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  await harness.waitForStart();
+
+  expect(exits).toStrictEqual([]);
 });
 
 test('it rejects its start as broker_not_ready and ends without running when impd finds the broker not ready', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -705,11 +1466,7 @@ test('it rejects its start as broker_not_ready and ends without running when imp
 });
 
 test('it requires the broker again on the attach that reconnects a harness whose start required it', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -772,11 +1529,7 @@ test('it requires the broker again on the attach that reconnects a harness whose
 });
 
 test('it refuses a start that requires the broker on an impd without exec requirements and sends no exec', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -830,11 +1583,7 @@ test('it refuses a start that requires the broker on an impd without exec requir
 });
 
 test('it rejects its start as auth_impd_too_old when impd refuses it as outdated', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -869,11 +1618,7 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
 });
 
 test('it starts a harness that requires the broker after one failed feature read, sending the start again rather than an attach', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -928,11 +1673,7 @@ test('it starts a harness that requires the broker after one failed feature read
 });
 
 test('it refuses a harness that requires the broker once its feature reads keep failing, sending no exec', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -983,11 +1724,7 @@ test('it refuses a harness that requires the broker once its feature reads keep 
 });
 
 test('it refuses a harness whose admission check throws as its connection opens, sending no exec', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1033,13 +1770,22 @@ test('it refuses a harness whose admission check throws as its connection opens,
 });
 
 test('it sends the start of a harness whose admission check passes as its connection opens', async () => {
-  await using ctx = await setupTest();
+  using ctx = setupTest();
 
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['imp-*'],
+    grantable: ['glm'],
   });
 
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   await ctx.port.createImp({ name: 'imp-b' });
+  await ctx.port.createGrant('imp-b', 'glm');
 
   const harness = new ImpHarness(
     ctx.port,
@@ -1071,7 +1817,7 @@ test('it sends the start of a harness whose admission check passes as its connec
     harness.kill();
   });
 
-  await Promise.allSettled([harness.waitForStart()]);
+  expect(harness.waitForStart()).resolves.toBeUndefined();
 
   expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toMatchObject([
     { kind: 'start', name: 'imp-b' },
@@ -1079,11 +1825,7 @@ test('it sends the start of a harness whose admission check passes as its connec
 });
 
 test('it tells its host the harness is done only after every exit listener has run', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1125,11 +1867,7 @@ test('it tells its host the harness is done only after every exit listener has r
 });
 
 test('it tells its host the harness is done once when the daemon lets go of it, with no exit', async () => {
-  await using ctx = await setupTest();
-
-  await waitFor(() => {
-    expect(ctx.output.join('')).toInclude('UP:');
-  });
+  using ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 

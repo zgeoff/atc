@@ -23,6 +23,8 @@ import type { MessageID } from '../shared/message-id';
 import { isRecord } from '../shared/report';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
 import type { SessionID } from '../shared/session-id';
+import { systemClock } from '../shared/system-clock';
+import type { Clock } from '../shared/system-clock';
 import { toMessageID } from '../shared/to-message-id';
 import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { SourceProvider } from '../sources/types';
@@ -161,6 +163,10 @@ export interface DaemonOptions {
   // session that never reports cannot stall the rest. Zero waits forever.
   readonly restoreBootTimeoutMs?: number;
   readonly tapGraceMs?: number;
+
+  // The clock the event trail stamps each hook event with; the wall clock
+  // when unset.
+  readonly clock?: Clock;
 
   // Whether the daemon restores the stored fleet by itself once it is
   // listening, when that fleet holds sessions; off when unset.
@@ -304,6 +310,7 @@ const LOCK_WAIT_MS = 2000;
  */
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
+  const clock = opts.clock ?? systemClock;
 
   // The listener's address and tokens are checked before the daemon takes
   // anything, so a refused listener leaves no state behind.
@@ -864,7 +871,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const recordHookEvent = async (e: HookEvent, ev: Readonly<AdapterEvent> | null) => {
-    await store.recordEvent(e, ev);
+    await store.recordEvent(e, ev, clock.now());
 
     eventSignal.emit();
   };

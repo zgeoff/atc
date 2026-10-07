@@ -2,19 +2,22 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { basename, join } from 'node:path';
 import { z } from 'zod';
 import { DaemonClient } from '../client/daemon-client';
 import { buildPrincipalCaller } from '../mcp/build-principal-caller';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { runTool } from '../mcp/run-tool';
+import { DaemonError } from '../protocol/daemon-error';
 import { encodeCursor } from '../protocol/encode-cursor';
-import { PROTOCOL_V } from '../protocol/protocol';
+import { PROTOCOL_V, encodeMessage } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import { collectPrincipals } from '../shared/collect-principals';
 import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
 import { buildStubAttentionAdapter } from '../test-utils/build-stub-attention-adapter';
+import { buildStubClock } from '../test-utils/build-stub-clock';
 import { buildStubHostHold } from '../test-utils/build-stub-host-hold';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -1268,6 +1271,7 @@ test("it lists a principal no message of a hidden session that one turn answered
 
 test('it keeps the activity of a forgotten hidden session out of a principal session that shares its agent session id', async () => {
   const harnesses: string[] = [];
+  const clock = buildStubClock(1_700_000_000_000);
 
   await using daemon = await startTestDaemon({
     options: () => {
@@ -1278,6 +1282,7 @@ test('it keeps the activity of a forgotten hidden session out of a principal ses
 
       return {
         adapter: buildStubAttentionAdapter(),
+        clock,
         targets: buildStubTargets(targets.targets, { spawned: harnesses }),
         defaultTarget: targets.defaultTarget,
         targetErrors: targets.errors,
@@ -1311,12 +1316,9 @@ test('it keeps the activity of a forgotten hidden session out of a principal ses
 
   const before = await daemon.client.sendRequest('session.get', { session: shown }, 'narrow');
 
-  // The trail stores times to the millisecond, so the hidden session's
-  // event is sent only once the clock has passed anything the shown session
-  // holds, and a leak would change what the principal reads.
-  await waitFor(() => {
-    expect(Date.now()).toBeGreaterThan(Number(before['lastActivityAt']));
-  });
+  // The hidden session's event lands a minute after anything the shown
+  // session holds, so a leak would change what the principal reads.
+  clock.advance(60_000);
 
   await daemon.sendHookLines({
     atcId: hidden,
@@ -2308,7 +2310,7 @@ test('it reads the whole text of only the reports of sessions a principal may se
   });
 });
 
-test('it reads the first of many large reports a principal may see with no lost reply or timeout', async () => {
+test('it reads the first of many large reports a principal may see while another connection never reads', async () => {
   const harnesses: string[] = [];
 
   await using daemon = await startTestDaemon({
@@ -2330,6 +2332,38 @@ test('it reads the first of many large reports a principal may see with no lost 
   );
 
   onTestFinished(() => caller.stop());
+
+  // A connection that reads its handshake answer and then holds its next
+  // read on a promise that never resolves, so whatever the daemon sends it
+  // backs up.
+  const held = Promise.withResolvers<void>();
+  const slow = createConnection(daemon.socketPath);
+  const reads: unknown[] = [];
+
+  onTestFinished(() => {
+    slow.destroy();
+  });
+
+  slow.write(
+    encodeMessage({
+      v: PROTOCOL_V,
+      id: 1,
+      m: 'daemon.hello',
+      p: { client: 'atc/test-build', auth: { scheme: 'none' } },
+    }),
+  );
+
+  void (async () => {
+    for await (const chunk of slow) {
+      reads.push(chunk);
+
+      await held.promise;
+    }
+  })();
+
+  await waitFor(() => {
+    expect(reads).toBeArrayOfSize(1);
+  });
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -2359,6 +2393,8 @@ test('it reads the first of many large reports a principal may see with no lost 
     { limit: 50, reportText: true },
     { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
   );
+
+  expect(reads).toBeArrayOfSize(1);
 
   expect(read.structured).toMatchObject({
     events: [{ kind: 'report', session: shown, text: '0'.padEnd(60_000, 'x'), complete: true }],
@@ -2551,6 +2587,7 @@ test('it refuses a connection a spawn on a target only a wider principal than it
     client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'box' }, 'wide'),
   ).rejects.toMatchObject({ code: 'target_forbidden', data: { target: 'box' } });
 
+  expect(client.sendRequest('daemon.ping')).resolves.toStrictEqual({});
   expect(harnesses).toStrictEqual([]);
 });
 
@@ -2582,6 +2619,7 @@ test.each(['daemon.quit', 'fleet.restore'])(
     const client = await daemon.openClient({ principal: 'narrow' });
 
     expect(client.sendRequest(method)).rejects.toMatchObject({ code: 'unauthorized' });
+    expect(client.sendRequest('daemon.ping')).resolves.toStrictEqual({});
   },
 );
 
@@ -3018,14 +3056,11 @@ test('it answers a second kill of a dead session with a dead sub-session out of 
 
   await daemon.client.sendRequest('session.kill', { session: parent });
 
-  const refused = await trySendRequest(
-    () => daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
-    parent,
-  );
+  const refused = daemon.client.sendRequest('session.kill', { session: parent }, 'narrow');
+
+  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
   const listed = await daemon.client.sendRequest('session.list');
-
-  expect(refused).toMatchObject({ error: { code: 'no_such_session' } });
 
   expect(listed).toMatchObject({
     sessions: [
@@ -3078,14 +3113,11 @@ test('it answers a second kill that would move a live sub-session out of reach a
   await daemon.client.sendRequest('session.kill', { session: parent });
   await daemon.client.sendRequest('session.adopt', { session: child, cols: 80, rows: 24 });
 
-  const refused = await trySendRequest(
-    () => daemon.client.sendRequest('session.kill', { session: parent }, 'narrow'),
-    parent,
-  );
+  const refused = daemon.client.sendRequest('session.kill', { session: parent }, 'narrow');
+
+  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
   const listed = await daemon.client.sendRequest('session.list');
-
-  expect(refused).toMatchObject({ error: { code: 'no_such_session' } });
 
   expect(listed).toMatchObject({
     sessions: [
@@ -3138,14 +3170,15 @@ test.each([
       parent,
     });
 
-    const refused = await trySendRequest(
-      () => daemon.client.sendRequest('session.update', { session: parent, ...change }, 'narrow'),
-      parent,
+    const refused = daemon.client.sendRequest(
+      'session.update',
+      { session: parent, ...change },
+      'narrow',
     );
 
-    const listed = await daemon.client.sendRequest('session.list');
+    expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
 
-    expect(refused).toMatchObject({ error: { code: 'no_such_session' } });
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed).toMatchObject({
       sessions: [{ id: parent, name: basename(daemon.dir), pinned: false }, {}],
@@ -3175,13 +3208,6 @@ test('it refuses the replay of a held spawn key once the grant no longer reaches
       };
     },
   });
-
-  const spawn = () =>
-    daemon.client.sendRequest(
-      'session.spawn',
-      { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
-      'narrow',
-    );
 
   await daemon.client.sendRequest(
     'session.spawn',
@@ -3217,7 +3243,15 @@ test('it refuses the replay of a held spawn key once the grant no longer reaches
     'k-1',
   );
 
-  const fresh = await trySendRequest(spawn, 'k-1');
+  const fresh = await trySendRequest(
+    () =>
+      daemon.client.sendRequest(
+        'session.spawn',
+        { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+        'narrow',
+      ),
+    'k-1',
+  );
 
   expect(replayed).toStrictEqual(fresh);
   expect(replayed).toMatchObject({ error: { code: 'target_forbidden' } });
@@ -3247,38 +3281,34 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
     },
   });
 
-  const spawn = () =>
-    daemon.client.sendRequest(
-      'session.spawn',
-      { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
-      'narrow',
-    );
-
-  const spawned = await spawn();
+  const spawned = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    'narrow',
+  );
 
   const parent = String(getRecord(spawned, 'session')['id']);
 
-  const childSpawned = await daemon.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
   });
 
-  const child = String(getRecord(childSpawned, 'session')['id']);
+  const replayed = daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    'narrow',
+  );
 
-  const replayed = await trySendRequest(spawn, 'k-1');
+  expect(replayed).rejects.toThrowWithMessage(
+    DaemonError,
+    "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
+  );
 
-  expect(replayed).toStrictEqual({
-    error: {
-      code: 'target_forbidden',
-      message: expect.toInclude("'local'"),
-      data: { target: 'local' },
-    },
-  });
-
-  expect(JSON.stringify(replayed)).not.toInclude(parent);
-  expect(JSON.stringify(replayed)).not.toInclude(child);
+  expect(replayed).rejects.toHaveProperty('code', 'target_forbidden');
+  expect(replayed).rejects.toHaveProperty('data', { target: 'local' });
   expect(harnesses).toStrictEqual(['local', 'box']);
 });
 
@@ -3305,25 +3335,20 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
     },
   });
 
-  const spawn = () =>
-    daemon.client.sendRequest(
-      'session.spawn',
-      { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
-      'narrow',
-    );
-
-  const spawned = await spawn();
+  const spawned = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    'narrow',
+  );
 
   const parent = String(getRecord(spawned, 'session')['id']);
 
-  const childSpawned = await daemon.client.sendRequest('session.spawn', {
+  await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
     target: 'box',
     resume: `a-${randomUUID()}`,
     parent,
   });
-
-  const child = String(getRecord(childSpawned, 'session')['id']);
 
   await daemon.restart(() => {
     const targets = collectTargets(
@@ -3344,20 +3369,22 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
   });
 
   const listed = await daemon.client.sendRequest('session.list', {});
-  const replayed = await trySendRequest(spawn, 'k-1');
+
+  const replayed = daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    'narrow',
+  );
 
   expect(listed).toStrictEqual({ sessions: [] });
 
-  expect(replayed).toStrictEqual({
-    error: {
-      code: 'target_forbidden',
-      message: expect.toInclude("'local'"),
-      data: { target: 'local' },
-    },
-  });
+  expect(replayed).rejects.toThrowWithMessage(
+    DaemonError,
+    "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
+  );
 
-  expect(JSON.stringify(replayed)).not.toInclude(parent);
-  expect(JSON.stringify(replayed)).not.toInclude(child);
+  expect(replayed).rejects.toHaveProperty('code', 'target_forbidden');
+  expect(replayed).rejects.toHaveProperty('data', { target: 'local' });
   expect(harnesses).toStrictEqual(['local', 'box']);
 });
 
@@ -3721,14 +3748,11 @@ test('it answers the replay of a held spawn key with its session while the grant
     },
   });
 
-  const spawn = () =>
-    daemon.client.sendRequest(
-      'session.spawn',
-      { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
-      'wide',
-    );
-
-  const first = await spawn();
+  const first = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+    'wide',
+  );
 
   await daemon.restart(() => {
     const targets = collectTargets(
@@ -3748,7 +3772,11 @@ test('it answers the replay of a held spawn key with its session while the grant
     };
   });
 
-  const replayed = await spawn();
+  const replayed = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'box', idempotencyKey: 'k-1' },
+    'wide',
+  );
 
   expect(getRecord(replayed, 'session')['id']).toBe(getRecord(first, 'session')['id']);
   expect(harnesses).toStrictEqual(['box']);
@@ -3832,15 +3860,17 @@ test('it runs one spawn for one key on a principal connection, whatever principa
 
   const client = await daemon.openClient({ principal: 'wide' });
 
-  const spawn = (as: string) =>
-    client.sendRequest(
-      'session.spawn',
-      { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
-      as,
-    );
+  const first = await client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    'wide',
+  );
 
-  const first = await spawn('wide');
-  const second = await spawn('narrow');
+  const second = await client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', idempotencyKey: 'k-1' },
+    'narrow',
+  );
 
   expect(getRecord(second, 'session')['id']).toBe(getRecord(first, 'session')['id']);
   expect(harnesses).toStrictEqual(['local']);
@@ -3892,26 +3922,19 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
     };
   });
 
-  const replayed = await trySendRequest(
-    () =>
-      daemon.client.sendRequest(
-        'session.spawn',
-        { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-        'p',
-      ),
-    'unused',
+  const replayed = daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    'p',
   );
 
-  expect(replayed).toStrictEqual({
-    error: {
-      code: 'target_forbidden',
-      message:
-        "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
-      data: { target: 'box' },
-    },
-  });
+  expect(replayed).rejects.toThrowWithMessage(
+    DaemonError,
+    "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
+  );
 
-  expect(JSON.stringify(replayed)).not.toContain(id);
+  expect(replayed).rejects.toHaveProperty('code', 'target_forbidden');
+  expect(replayed).rejects.toHaveProperty('data', { target: 'box' });
   expect(harnesses).toStrictEqual(['box']);
 });
 
@@ -4009,10 +4032,9 @@ test('it refuses a principal the replay of a held spawn key that records no targ
   });
 
   await daemon.restart(() => {
-    const db = new Database(daemon.dbPath);
+    using db = new Database(daemon.dbPath);
 
     db.run('UPDATE idempotency SET effect_target = NULL, effect_target_identity = NULL');
-    db.close();
 
     const targets = collectTargets(
       { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4028,18 +4050,19 @@ test('it refuses a principal the replay of a held spawn key that records no targ
     };
   });
 
-  const replayed = await trySendRequest(
-    () =>
-      daemon.client.sendRequest(
-        'session.spawn',
-        { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
-        'p',
-      ),
-    'unused',
+  const replayed = daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, name: 'secret-work', target: 'box', idempotencyKey: 'k-1' },
+    'p',
   );
 
-  expect(replayed).toMatchObject({ error: { code: 'target_forbidden', data: { target: 'box' } } });
-  expect(JSON.stringify(replayed)).not.toContain(id);
+  expect(replayed).rejects.toThrowWithMessage(
+    DaemonError,
+    "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
+  );
+
+  expect(replayed).rejects.toHaveProperty('code', 'target_forbidden');
+  expect(replayed).rejects.toHaveProperty('data', { target: 'box' });
   expect(harnesses).toStrictEqual(['box', 'box']);
 });
 
@@ -4081,10 +4104,9 @@ test('it answers the owner the replay of a held spawn key that records no target
   });
 
   await daemon.restart(() => {
-    const db = new Database(daemon.dbPath);
+    using db = new Database(daemon.dbPath);
 
     db.run('UPDATE idempotency SET effect_target = NULL, effect_target_identity = NULL');
-    db.close();
 
     const targets = collectTargets(
       { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },

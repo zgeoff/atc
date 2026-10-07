@@ -31,7 +31,7 @@ async function setupTest() {
     }),
   });
 
-  return Object.assign(daemon, { runs: headless.runs });
+  return Object.assign(daemon, { runs: headless.runs, waitForRun: headless.waitForRun });
 }
 
 test('it answers the eject of a terminal session with an empty reply', async () => {
@@ -149,11 +149,9 @@ test('it reports a finished headless turn as done', async () => {
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitFor(() => {
-    expect(ctx.runs).toHaveLength(1);
-  });
+  const run = await ctx.waitForRun(0);
 
-  ctx.runs[0]?.events.onDone('wrapped up cleanly');
+  run.events.onDone('wrapped up cleanly');
 
   await waitFor(() => {
     expect(
@@ -181,11 +179,9 @@ test('it reports a stuck headless turn as needs_you', async () => {
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitFor(() => {
-    expect(ctx.runs).toHaveLength(1);
-  });
+  const run = await ctx.waitForRun(0);
 
-  ctx.runs[0]?.events.onNeedsYou('stuck on a decision');
+  run.events.onNeedsYou('stuck on a decision');
 
   await waitFor(() => {
     expect(
@@ -215,11 +211,9 @@ test("it keeps a finished headless turn's whole final message as the latest resu
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitFor(() => {
-    expect(ctx.runs).toHaveLength(1);
-  });
+  const run = await ctx.waitForRun(0);
 
-  ctx.runs[0]?.events.onDone(result);
+  run.events.onDone(result);
 
   await waitFor(() => {
     expect(
@@ -247,11 +241,9 @@ test("it shows a finished headless turn's result as the session's latest detail"
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitFor(() => {
-    expect(ctx.runs).toHaveLength(1);
-  });
+  const run = await ctx.waitForRun(0);
 
-  ctx.runs[0]?.events.onDone('all green after the retry fix');
+  run.events.onDone('all green after the retry fix');
 
   await waitFor(() => {
     expect(
@@ -313,7 +305,9 @@ test("it records a headless turn's finish in the event trail", async () => {
     waitMs: 5000,
   });
 
-  ctx.runs[0]?.events.onDone('all green');
+  const run = await ctx.waitForRun(0);
+
+  run.events.onDone('all green');
 
   const finished = await ctx.client.sendRequest('events.read', {
     cursor: started['cursor'],
@@ -347,7 +341,9 @@ test('it records a stuck headless turn as needs-input in the event trail', async
     waitMs: 5000,
   });
 
-  ctx.runs[0]?.events.onNeedsYou('stuck on a decision');
+  const run = await ctx.waitForRun(0);
+
+  run.events.onNeedsYou('stuck on a decision');
 
   const stuck = await ctx.client.sendRequest('events.read', {
     cursor: started['cursor'],
@@ -378,11 +374,9 @@ test('it starts the next headless turn from session input once idle', async () =
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitFor(() => {
-    expect(ctx.runs).toHaveLength(1);
-  });
+  const run = await ctx.waitForRun(0);
 
-  ctx.runs[0]?.events.onDone('wrapped up cleanly');
+  run.events.onDone('wrapped up cleanly');
 
   await waitFor(() => {
     expect(
@@ -395,7 +389,7 @@ test('it starts the next headless turn from session input once idle', async () =
     d: 'next task\n',
   });
 
-  expect({ answered, requests: ctx.runs.map((run) => run.request) }).toStrictEqual({
+  expect({ answered, requests: ctx.runs.map((started) => started.request) }).toStrictEqual({
     answered: {},
     requests: [
       {
@@ -449,11 +443,9 @@ test('it adopts a headless session back into a terminal', async () => {
 
   await ctx.client.sendRequest('session.eject', { session: sessionID });
 
-  await waitFor(() => {
-    expect(ctx.runs).toHaveLength(1);
-  });
+  const run = await ctx.waitForRun(0);
 
-  ctx.runs[0]?.events.onDone('wrapped up cleanly');
+  run.events.onDone('wrapped up cleanly');
 
   await waitFor(() => {
     expect(
@@ -469,8 +461,9 @@ test('it adopts a headless session back into a terminal', async () => {
 
   const listed = await ctx.client.sendRequest('session.list');
 
-  expect({ adopted, sessions: listed['sessions'] }).toMatchObject({
-    adopted: {},
+  expect(adopted).toStrictEqual({});
+
+  expect(listed).toMatchObject({
     sessions: [{ id: sessionID, kind: 'pty', alive: true, state: 'running' }],
   });
 });

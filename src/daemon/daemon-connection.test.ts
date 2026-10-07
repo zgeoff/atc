@@ -11,7 +11,7 @@ test('it drops an overflowing session backlog and reports the dropped bytes on d
   const resyncs: SessionID[] = [];
 
   const conn = new DaemonConnection(
-    peer,
+    peer.socket,
     buildStubDaemonContext({
       queueBytes: 64,
       resyncClient: (sessionID) => {
@@ -49,9 +49,9 @@ test('it drops an overflowing session backlog and reports the dropped bytes on d
   peer.setAccepting(true);
   conn.drain();
 
-  expect(peer.collectWrittenLines()).toStrictEqual([
-    JSON.stringify({ v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'a'.repeat(40) }),
-    JSON.stringify({ v: PROTOCOL_V, ev: 'SessionDesync', s: 's1', dropped: 150 }),
+  expect(peer.collectFrames()).toStrictEqual([
+    { v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'a'.repeat(40) },
+    { v: PROTOCOL_V, ev: 'SessionDesync', s: 's1', dropped: 150 },
   ]);
 
   expect(resyncs).toStrictEqual([toSessionID('s1')]);
@@ -62,7 +62,7 @@ test('it delivers output again after the desync is reported', () => {
   const resyncs: SessionID[] = [];
 
   const conn = new DaemonConnection(
-    peer,
+    peer.socket,
     buildStubDaemonContext({
       queueBytes: 64,
       resyncClient: (sessionID) => {
@@ -100,9 +100,12 @@ test('it delivers output again after the desync is reported', () => {
     40,
   );
 
-  expect(peer.collectWrittenLines().at(-1)).toBe(
-    JSON.stringify({ v: PROTOCOL_V, ev: 'SessionOutput', s: 's1', d: 'z'.repeat(40) }),
-  );
+  expect(peer.collectFrames().at(-1)).toStrictEqual({
+    v: PROTOCOL_V,
+    ev: 'SessionOutput',
+    s: 's1',
+    d: 'z'.repeat(40),
+  });
 
   expect(resyncs).toStrictEqual([toSessionID('s1')]);
 });
@@ -112,7 +115,7 @@ test('it reports no desync while the queue still holds a backlog', () => {
   const resyncs: SessionID[] = [];
 
   const conn = new DaemonConnection(
-    peer,
+    peer.socket,
     buildStubDaemonContext({
       queueBytes: 64,
       resyncClient: (sessionID) => {
@@ -143,7 +146,7 @@ test('it reports no desync while the queue still holds a backlog', () => {
 
   conn.drain();
 
-  expect(peer.collectWrittenLines()).toStrictEqual([]);
+  expect(peer.collectFrames()).toStrictEqual([]);
   expect(resyncs).toStrictEqual([]);
 });
 
@@ -153,7 +156,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
   let visible = true;
 
   const conn = new DaemonConnection(
-    peer,
+    peer.socket,
     buildStubDaemonContext({
       queueBytes: 150,
       canSeeSession: () => visible,
@@ -210,9 +213,9 @@ test('it sends a principal no output of a session whose tree left its view, a re
 
   conn.drain();
 
-  const lines = peer.collectWrittenLines();
+  const frames = peer.collectFrames();
 
-  expect(lines.at(-1)).toBe(JSON.stringify({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's1' }));
-  expect(lines.join('\n')).not.toInclude('secret');
+  expect(frames.at(-1)).toStrictEqual({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's1' });
+  expect(JSON.stringify(frames)).not.toInclude('secret');
   expect(resyncs).toStrictEqual([]);
 });

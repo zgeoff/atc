@@ -50,12 +50,12 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
 
   expect(restored).toStrictEqual({ restored: 4 });
 
-  expect(listed['sessions']).toIncludeAllPartialMembers([
-    { id: 's-live-a', name: 'live-a', alive: true },
-    { id: 's-live-b', name: 'live-b', alive: true },
-    { id: 's-exited-a', name: 'exited-a', alive: false },
-    { id: 's-exited-b', name: 'exited-b', alive: false },
-    { name: 'fresh', alive: true },
+  expect(listed['sessions']).toIncludeSameMembers([
+    expect.objectContaining({ id: 's-live-a', name: 'live-a', alive: true }),
+    expect.objectContaining({ id: 's-live-b', name: 'live-b', alive: true }),
+    expect.objectContaining({ id: 's-exited-a', name: 'exited-a', alive: false }),
+    expect.objectContaining({ id: 's-exited-b', name: 'exited-b', alive: false }),
+    expect.objectContaining({ name: 'fresh', alive: true }),
   ]);
 });
 
