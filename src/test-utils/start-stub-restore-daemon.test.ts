@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
@@ -64,6 +64,33 @@ test('it records the method of each request in order', async () => {
   await ctx.client.sendRequest('session.list');
 
   expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'session.list']);
+});
+
+test('it answers a client whose line another client left half written', async () => {
+  await using ctx = await setupTest();
+
+  const answered = Promise.withResolvers<void>();
+
+  const raw = await Bun.connect({
+    unix: join(ctx.dir, 'daemon.sock'),
+    socket: {
+      data() {
+        answered.resolve();
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    raw.end();
+  });
+
+  raw.write('{"v":4,"id":1,"m":"fleet.restore","p":{"cols":80,"rows":24}}\n{"v":4,"id":2,');
+
+  await answered.promise;
+
+  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  expect(restored).toStrictEqual({});
 });
 
 test('it stops listening once disposed', async () => {

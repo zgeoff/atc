@@ -14,13 +14,16 @@ export function startStubRestoreDaemon(socketPath: string) {
   const lists: Readonly<Record<string, unknown>>[] = [];
   const methods: string[] = [];
 
-  const lines = new LineDecoder();
-
-  const server = Bun.listen({
+  // Each connection gets a decoder of its own, so a partial line from one
+  // client never joins a line from another.
+  const server = Bun.listen<{ lines: LineDecoder }>({
     unix: socketPath,
     socket: {
+      open(socket) {
+        socket.data = { lines: new LineDecoder() };
+      },
       data(socket, buf) {
-        const requests = lines
+        const requests = socket.data.lines
           .splitChunk(buf)
           .map((line) => decodeMessage(line))
           .filter((decoded) => decoded.kind === 'request');

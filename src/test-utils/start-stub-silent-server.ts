@@ -11,6 +11,10 @@ export function startStubSilentServer() {
   const server = Bun.serve({
     port: 0,
     hostname: '127.0.0.1',
+
+    // A held request would otherwise end after Bun's idle timeout, and the
+    // upstream would stop being one that never answers.
+    idleTimeout: 0,
     fetch: (request) => {
       paths.push(new URL(request.url).pathname);
 
