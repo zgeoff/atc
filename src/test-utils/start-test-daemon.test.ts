@@ -287,16 +287,19 @@ test('it delivers every hook line of a large batch', async () => {
     throw new Error('the spawn returned no session');
   }
 
+  // 64 lines of 32 KiB each hold more than a socket buffer takes at once.
+  const padding = 'x'.repeat(32 * 1024);
+
   await harness.sendHookLines(
-    ...Array.from({ length: 10_000 }, (_, index) => ({
+    ...Array.from({ length: 64 }, (_, index) => ({
       atcId: session.id,
       event: 'Notification',
-      payload: { index },
+      payload: { index, padding },
     })),
   );
 
   await waitFor(() => {
-    expect(seen).toHaveLength(10_000);
+    expect(seen).toHaveLength(64);
   });
 });
 
