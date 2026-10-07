@@ -11,7 +11,7 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 
 test('it restores the stored sessions by itself after a restart', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -31,7 +31,7 @@ test('it restores the stored sessions by itself after a restart', async () => {
   });
 
   await waitFor(async () => {
-    const listed = await ctx.client.sendRequest('session.list');
+    const listed = await daemon.client.sendRequest('session.list');
 
     expect(listed['sessions']).toMatchObject([
       { id: 's-a', alive: true },
@@ -41,7 +41,7 @@ test('it restores the stored sessions by itself after a restart', async () => {
 });
 
 test('it sends no message to the sessions it restores after a restart', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -70,10 +70,10 @@ test('it sends no message to the sessions it restores after a restart', async ()
   });
 
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_settled restored=2');
+    expect(daemon.logs).toContain('atc fleet event=restore_settled restored=2');
   });
 
-  const store = await StateStore.open(ctx.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
 
   onTestFinished(() => store.stop());
 
@@ -88,7 +88,7 @@ test('it sends no message to the sessions it restores after a restart', async ()
 test('it starts none of the stored sessions when the option is unset', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -106,10 +106,10 @@ test('it starts none of the stored sessions when the option is unset', async () 
   });
 
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_skipped stored=1');
+    expect(daemon.logs).toContain('atc fleet event=restore_skipped stored=1');
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect({ sessions: listed['sessions'], spawns: planSpawn.mock.calls }).toStrictEqual({
     sessions: [],
@@ -118,7 +118,7 @@ test('it starts none of the stored sessions when the option is unset', async () 
 });
 
 test('it restores the stored sessions on fleet.restore when the option is unset', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -135,9 +135,9 @@ test('it restores the stored sessions on fleet.restore when the option is unset'
     },
   });
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed['sessions']).toMatchObject([{ id: 's-a', alive: true }]);
 });
@@ -145,7 +145,7 @@ test('it restores the stored sessions on fleet.restore when the option is unset'
 test('it starts none of the stored sessions when the option is false', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -164,10 +164,10 @@ test('it starts none of the stored sessions when the option is false', async () 
   });
 
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_skipped stored=1');
+    expect(daemon.logs).toContain('atc fleet event=restore_skipped stored=1');
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect({ sessions: listed['sessions'], spawns: planSpawn.mock.calls }).toStrictEqual({
     sessions: [],
@@ -178,7 +178,7 @@ test('it starts none of the stored sessions when the option is false', async () 
 test('it joins a fleet.restore to the automatic restore while its stagger runs', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -204,8 +204,8 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
     expect(planSpawn).toHaveBeenCalledOnce();
   });
 
-  const joined = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-  const listed = await ctx.client.sendRequest('session.list');
+  const joined = await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect({
     joined,
@@ -221,7 +221,7 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
 test('it starts no queued session once the daemon stops while the stagger runs', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -247,11 +247,11 @@ test('it starts no queued session once the daemon stops while the stagger runs',
     expect(planSpawn).toHaveBeenCalledOnce();
   });
 
-  await ctx.stop();
+  await daemon.stop();
 
   // The stopped restore settles once it has decided what else to start.
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_settled restored=2');
+    expect(daemon.logs).toContain('atc fleet event=restore_settled restored=2');
   });
 
   expect(planSpawn).toHaveBeenCalledOnce();
@@ -260,7 +260,7 @@ test('it starts no queued session once the daemon stops while the stagger runs',
 test('it spawns nothing for a fleet.restore after the automatic restore settled', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -281,10 +281,10 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
   });
 
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_settled restored=2');
+    expect(daemon.logs).toContain('atc fleet event=restore_settled restored=2');
   });
 
-  const again = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const again = await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   expect({ again, spawns: planSpawn.mock.calls.length }).toStrictEqual({
     again: { restored: 0 },
@@ -303,7 +303,7 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
   await mkdir(join(locked, 'work'));
   await chmod(locked, 0o000);
 
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -335,10 +335,10 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
   });
 
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_settled restored=5');
+    expect(daemon.logs).toContain('atc fleet event=restore_settled restored=5');
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(listed['sessions']).toIncludeSameMembers([
     expect.objectContaining({ id: 's-local', kind: 'pty', alive: true }),
@@ -350,7 +350,7 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
 });
 
 test('it forgets an exited session on a target the daemon cannot use', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
@@ -374,18 +374,18 @@ test('it forgets an exited session on a target the daemon cannot use', async () 
   });
 
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_settled restored=1');
+    expect(daemon.logs).toContain('atc fleet event=restore_settled restored=1');
   });
 
-  await ctx.client.sendRequest('session.forget', { session: 's-cloud' });
+  await daemon.client.sendRequest('session.forget', { session: 's-cloud' });
 
-  const after = await ctx.client.sendRequest('session.list');
+  const after = await daemon.client.sendRequest('session.list');
 
   expect(after['sessions']).toStrictEqual([]);
 });
 
 test('it regroups a revived exited worktree session under its repository', async () => {
-  await using ctx = await startTestDaemon({
+  await using daemon = await startTestDaemon({
     options: async (paths) => {
       const worktree = join(paths.dir, 'wt');
 
@@ -410,14 +410,14 @@ test('it regroups a revived exited worktree session under its repository', async
   });
 
   await waitFor(() => {
-    expect(ctx.logs).toContain('atc fleet event=restore_settled restored=1');
+    expect(daemon.logs).toContain('atc fleet event=restore_settled restored=1');
   });
 
-  await ctx.client.sendRequest('session.adopt', { session: 's-wt', cols: 80, rows: 24 });
+  await daemon.client.sendRequest('session.adopt', { session: 's-wt', cols: 80, rows: 24 });
 
-  const after = await ctx.client.sendRequest('session.list');
+  const after = await daemon.client.sendRequest('session.list');
 
   expect(after['sessions']).toMatchObject([
-    { id: 's-wt', alive: true, repoRoot: join(ctx.dir, 'main') },
+    { id: 's-wt', alive: true, repoRoot: join(daemon.dir, 'main') },
   ]);
 });

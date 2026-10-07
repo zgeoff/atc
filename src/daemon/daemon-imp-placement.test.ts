@@ -8,18 +8,13 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
-/**
- * A real daemon with three targets: `local` on the daemon's machine, the
- * default, and two imp targets, `box` and `other`, over one fixture imp
- * port, so every imp either one makes lists in the same place.
- */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+test("it runs a sub-session on its parent's target as another session in its parent's imp", async () => {
+  // Three targets: `local` on the daemon's machine, the default, and two
+  // imp targets, `box` and `other`, over one fixture imp port, so every imp
+  // either one makes lists in the same place.
+  using port = new FixtureImpPort();
 
-  const port = stack.use(new FixtureImpPort());
-
-  const started = await startTestDaemon({
-    prefix: 'atc-imp-placement-',
+  await using daemon = await startTestDaemon({
     options: (paths) => {
       // Every session runs an agent that stays up reading its input, on
       // any target.
@@ -52,34 +47,25 @@ async function setupTest() {
     },
   });
 
-  const daemon = stack.use(started);
-  const owned = stack.move();
-
-  return { daemon, port, [Symbol.asyncDispose]: () => owned.disposeAsync() };
-}
-
-test("it runs a sub-session on its parent's target as another session in its parent's imp", async () => {
-  await using ctx = await setupTest();
-
-  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
-  await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'box',
     parent: getRecord(parent, 'session')['id'],
   });
 
-  const imps = ctx.port.collectImpNames();
-  const names = ctx.port.sessionRequests.map((request) => request.name);
+  const imps = port.collectImpNames();
+  const names = port.sessionRequests.map((request) => request.name);
 
-  const sessions = new Set(ctx.port.sessionRequests.map((request) => request.session));
+  const sessions = new Set(port.sessionRequests.map((request) => request.session));
 
   expect<Record<string, unknown>>({ imps, names, sessions: sessions.size }).toStrictEqual({
     imps: [expect.any(String)],
@@ -89,41 +75,113 @@ test("it runs a sub-session on its parent's target as another session in its par
 });
 
 test("it puts a parent's imp to sleep once its only session is killed", async () => {
-  await using ctx = await setupTest();
+  // Three targets: `local` on the daemon's machine, the default, and two
+  // imp targets, `box` and `other`, over one fixture imp port, so every imp
+  // either one makes lists in the same place.
+  using port = new FixtureImpPort();
 
-  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: (paths) => {
+      // Every session runs an agent that stays up reading its input, on
+      // any target.
+      writeFileSync(join(paths.dir, 'fake-claude'), '#!/usr/bin/env bash\necho UP\nexec cat\n', {
+        mode: 0o755,
+      });
+
+      return {
+        adapter: buildMockAgentAdapter({
+          planSpawn: () => ({ bin: join(paths.dir, 'fake-claude'), args: [] }),
+        }),
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local-pty:test',
+            provider: new LocalPTYProvider(),
+          },
+          ...['box', 'other'].map((id) => ({
+            id,
+            kind: 'imp',
+            options: { image: id },
+            identity: `imp:${id}`,
+            provider: new ImpProvider(port, { guestDir: join(paths.dir, id) }),
+          })),
+        ],
+        defaultTarget: 'local',
+      };
+    },
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
-  const [imp] = ctx.port.collectImpNames();
+  const [imp] = port.collectImpNames();
 
-  await ctx.daemon.client.sendRequest('session.kill', {
+  await daemon.client.sendRequest('session.kill', {
     session: getRecord(parent, 'session')['id'],
   });
 
-  expect(ctx.port.findState(String(imp))).toBe('sleeping');
+  expect(port.findState(String(imp))).toBe('sleeping');
 });
 
 test("it wakes a sleeping parent's imp to start a sub-session there", async () => {
-  await using ctx = await setupTest();
+  // Three targets: `local` on the daemon's machine, the default, and two
+  // imp targets, `box` and `other`, over one fixture imp port, so every imp
+  // either one makes lists in the same place.
+  using port = new FixtureImpPort();
 
-  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: (paths) => {
+      // Every session runs an agent that stays up reading its input, on
+      // any target.
+      writeFileSync(join(paths.dir, 'fake-claude'), '#!/usr/bin/env bash\necho UP\nexec cat\n', {
+        mode: 0o755,
+      });
+
+      return {
+        adapter: buildMockAgentAdapter({
+          planSpawn: () => ({ bin: join(paths.dir, 'fake-claude'), args: [] }),
+        }),
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local-pty:test',
+            provider: new LocalPTYProvider(),
+          },
+          ...['box', 'other'].map((id) => ({
+            id,
+            kind: 'imp',
+            options: { image: id },
+            identity: `imp:${id}`,
+            provider: new ImpProvider(port, { guestDir: join(paths.dir, id) }),
+          })),
+        ],
+        defaultTarget: 'local',
+      };
+    },
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
   const parentID = getRecord(parent, 'session')['id'];
-  const [imp] = ctx.port.collectImpNames();
+  const [imp] = port.collectImpNames();
 
-  await ctx.daemon.client.sendRequest('session.kill', { session: parentID });
+  await daemon.client.sendRequest('session.kill', { session: parentID });
 
-  await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'box',
@@ -131,23 +189,59 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
   });
 
   expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames(),
-    state: ctx.port.findState(String(imp)),
+    imps: port.collectImpNames(),
+    state: port.findState(String(imp)),
   }).toStrictEqual({ imps: [imp], state: 'running' });
 });
 
 test('it gives a sub-session without a target a host of its own on the default target', async () => {
-  await using ctx = await setupTest();
+  // Three targets: `local` on the daemon's machine, the default, and two
+  // imp targets, `box` and `other`, over one fixture imp port, so every imp
+  // either one makes lists in the same place.
+  using port = new FixtureImpPort();
 
-  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: (paths) => {
+      // Every session runs an agent that stays up reading its input, on
+      // any target.
+      writeFileSync(join(paths.dir, 'fake-claude'), '#!/usr/bin/env bash\necho UP\nexec cat\n', {
+        mode: 0o755,
+      });
+
+      return {
+        adapter: buildMockAgentAdapter({
+          planSpawn: () => ({ bin: join(paths.dir, 'fake-claude'), args: [] }),
+        }),
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local-pty:test',
+            provider: new LocalPTYProvider(),
+          },
+          ...['box', 'other'].map((id) => ({
+            id,
+            kind: 'imp',
+            options: { image: id },
+            identity: `imp:${id}`,
+            provider: new ImpProvider(port, { guestDir: join(paths.dir, id) }),
+          })),
+        ],
+        defaultTarget: 'local',
+      };
+    },
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
-  const child = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  const child = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     parent: getRecord(parent, 'session')['id'],
@@ -155,8 +249,8 @@ test('it gives a sub-session without a target a host of its own on the default t
 
   expect({
     locator: getRecord(getRecord(child, 'session'), 'locator'),
-    imps: ctx.port.collectImpNames(),
-    requests: ctx.port.sessionRequests,
+    imps: port.collectImpNames(),
+    requests: port.sessionRequests,
   }).toMatchObject({
     locator: { targetID: 'local' },
     imps: [expect.any(String)],
@@ -165,22 +259,58 @@ test('it gives a sub-session without a target a host of its own on the default t
 });
 
 test('it gives a sub-session on another imp target an imp of its own', async () => {
-  await using ctx = await setupTest();
+  // Three targets: `local` on the daemon's machine, the default, and two
+  // imp targets, `box` and `other`, over one fixture imp port, so every imp
+  // either one makes lists in the same place.
+  using port = new FixtureImpPort();
 
-  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await using daemon = await startTestDaemon({
+    options: (paths) => {
+      // Every session runs an agent that stays up reading its input, on
+      // any target.
+      writeFileSync(join(paths.dir, 'fake-claude'), '#!/usr/bin/env bash\necho UP\nexec cat\n', {
+        mode: 0o755,
+      });
+
+      return {
+        adapter: buildMockAgentAdapter({
+          planSpawn: () => ({ bin: join(paths.dir, 'fake-claude'), args: [] }),
+        }),
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local-pty:test',
+            provider: new LocalPTYProvider(),
+          },
+          ...['box', 'other'].map((id) => ({
+            id,
+            kind: 'imp',
+            options: { image: id },
+            identity: `imp:${id}`,
+            provider: new ImpProvider(port, { guestDir: join(paths.dir, id) }),
+          })),
+        ],
+        defaultTarget: 'local',
+      };
+    },
+  });
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'box',
   });
 
-  await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.daemon.dir,
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 80,
     rows: 24,
     target: 'other',
     parent: getRecord(parent, 'session')['id'],
   });
 
-  expect(ctx.port.collectImpNames()).toHaveLength(2);
+  expect(port.collectImpNames()).toHaveLength(2);
 });
