@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.2.0...@zgeoff/atc@3.3.0) (2026-10-07)
+
+
+### Features
+
+* **daemon:** add atc daemon restart ([#359](https://github.com/zgeoff/atc/issues/359)) ([2879ff8](https://github.com/zgeoff/atc/commit/2879ff8a7c6a99b35ad94627abec099029ece39c))
+
 ## [3.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.1.1...@zgeoff/atc@3.2.0) (2026-10-07)
 
 ### Features
