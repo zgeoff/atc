@@ -17,26 +17,77 @@ test('it reads each principal with the target names it may use', () => {
   });
 });
 
-test.each([
-  ['a string', 'client-a'],
-  ['an array', [{ targets: ['local'] }]],
-  ['null', null],
-])('it grants nothing to anyone, with an error, when principals is %s', (_label, raw) => {
-  expect(collectPrincipals(raw)).toStrictEqual({
+test('it grants nothing to anyone, with an error, when principals is a string', () => {
+  expect(collectPrincipals('client-a')).toStrictEqual({
     principals: new Map(),
     errors: ['principals must be an object of principal ids, so no principal gets a target'],
   });
 });
 
-test.each([
-  ['an entry that is not an object', 'local'],
-  ['an entry without targets', { image: 'dev' }],
-  ['an entry whose targets is not an array', { targets: 'local' }],
-  ['an entry whose targets holds a non-string', { targets: ['local', 3] }],
-  ['an entry whose targets holds an empty name', { targets: [''] }],
-])('it grants nothing to %s and keeps the other entries', (_label, entry) => {
+test('it grants nothing to anyone, with an error, when principals is an array', () => {
+  expect(collectPrincipals([{ targets: ['local'] }])).toStrictEqual({
+    principals: new Map(),
+    errors: ['principals must be an object of principal ids, so no principal gets a target'],
+  });
+});
+
+test('it grants nothing to anyone, with an error, when principals is null', () => {
+  expect(collectPrincipals(null)).toStrictEqual({
+    principals: new Map(),
+    errors: ['principals must be an object of principal ids, so no principal gets a target'],
+  });
+});
+
+test('it grants nothing to an entry that is not an object and keeps the other entries', () => {
   expect(
-    collectPrincipals({ 'client-a': { targets: ['local'] }, 'client-b': entry }),
+    collectPrincipals({ 'client-a': { targets: ['local'] }, 'client-b': 'local' }),
+  ).toStrictEqual({
+    principals: new Map([['client-a', ['local']]]),
+    errors: [
+      'principal "client-b" must be an object whose targets is an array of target names, so it gets no target',
+    ],
+  });
+});
+
+test('it grants nothing to an entry without targets and keeps the other entries', () => {
+  expect(
+    collectPrincipals({ 'client-a': { targets: ['local'] }, 'client-b': { image: 'dev' } }),
+  ).toStrictEqual({
+    principals: new Map([['client-a', ['local']]]),
+    errors: [
+      'principal "client-b" must be an object whose targets is an array of target names, so it gets no target',
+    ],
+  });
+});
+
+test('it grants nothing to an entry whose targets is not an array and keeps the other entries', () => {
+  expect(
+    collectPrincipals({ 'client-a': { targets: ['local'] }, 'client-b': { targets: 'local' } }),
+  ).toStrictEqual({
+    principals: new Map([['client-a', ['local']]]),
+    errors: [
+      'principal "client-b" must be an object whose targets is an array of target names, so it gets no target',
+    ],
+  });
+});
+
+test('it grants nothing to an entry whose targets holds a non-string and keeps the other entries', () => {
+  expect(
+    collectPrincipals({
+      'client-a': { targets: ['local'] },
+      'client-b': { targets: ['local', 3] },
+    }),
+  ).toStrictEqual({
+    principals: new Map([['client-a', ['local']]]),
+    errors: [
+      'principal "client-b" must be an object whose targets is an array of target names, so it gets no target',
+    ],
+  });
+});
+
+test('it grants nothing to an entry whose targets holds an empty name and keeps the other entries', () => {
+  expect(
+    collectPrincipals({ 'client-a': { targets: ['local'] }, 'client-b': { targets: [''] } }),
   ).toStrictEqual({
     principals: new Map([['client-a', ['local']]]),
     errors: [

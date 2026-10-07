@@ -2,14 +2,16 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { CompiledQuery } from 'kysely';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { readQueryPlan } from '../test-utils/read-query-plan';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import type { FleetEntry } from './fleet-entry';
-import type { MessageRecord } from './message-record';
 import { StateStore } from './state-store';
 
 async function setupTest() {
@@ -20,208 +22,87 @@ async function setupTest() {
 
   await createMigratedStateDB(dbPath);
 
-  const store = await StateStore.open(dbPath);
+  const queries: CompiledQuery[] = [];
+
+  const store = await StateStore.open(dbPath, undefined, (query) => {
+    queries.push(query);
+  });
 
   stack.defer(() => store.stop());
 
   const owned = stack.move();
 
-  return { dbPath, store, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { dbPath, store, queries, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it round-trips the fleet', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'auth-bug',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'refactor',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  const first = buildMockFleetEntry();
+  const second = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([first, second]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'auth-bug',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'refactor',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([first, second]);
 });
 
 test('it keeps a stored row that a later write does not cover', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'one',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  const first = buildMockFleetEntry();
+  const second = buildMockFleetEntry();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'two',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  await ctx.store.writeFleet([first]);
+  await ctx.store.writeFleet([second]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'one',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'two',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([first, second]);
 });
 
 test('it drops the row of a session the write removes', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    { sessionID: toSessionID('s-c1'), name: 'one', cwd: '/x', agent: 'claude' },
-    { sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' },
-  ]);
+  const removed = buildMockFleetEntry();
+  const kept = buildMockFleetEntry();
 
-  await ctx.store.writeFleet(
-    [{ sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' }],
-    [toSessionID('s-c1')],
-  );
+  await ctx.store.writeFleet([removed, kept]);
+  await ctx.store.writeFleet([kept], [removed.sessionID]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    { sessionID: toSessionID('s-c2'), name: 'two', cwd: '/y', agent: 'claude' },
-  ]);
+  expect(fleet).toStrictEqual([kept]);
 });
 
 test('it drops a stored row whose agent session id a written entry holds', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-old'),
-      name: 'old',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      exited: true,
-    },
-  ]);
+  const old = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-old'), exited: true });
+  const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-old') });
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-new'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  await ctx.store.writeFleet([old]);
+  await ctx.store.writeFleet([resumed]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-new'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([resumed]);
 });
 
 test('it relinks a stored sub-session to the session that replaced its parent', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-old'),
-      name: 'parent',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      exited: true,
-    },
-    {
-      sessionID: toSessionID('s-child'),
-      name: 'child',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-      exited: true,
-      parent: toSessionID('s-old'),
-    },
-  ]);
+  const old = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-old'), exited: true });
+  const child = buildMockFleetEntry({ exited: true, parent: old.sessionID });
+  const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-old') });
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-new'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  await ctx.store.writeFleet([old, child]);
+  await ctx.store.writeFleet([resumed]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-child'),
-      name: 'child',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-      exited: true,
-      parent: toSessionID('s-new'),
-    },
-    {
-      sessionID: toSessionID('s-new'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([{ ...child, parent: resumed.sessionID }, resumed]);
 });
 
 test('it never lets two overlapping writes leave a mixed or half-written fleet', async () => {
@@ -230,65 +111,30 @@ test('it never lets two overlapping writes leave a mixed or half-written fleet',
   // A seeded fleet is what makes the between-read meaningful: with rows
   // already stored, an empty result can only mean a read landed between a
   // write's delete and its inserts.
-  const seed: FleetEntry[] = [
-    {
-      sessionID: toSessionID('s-c0'),
-      name: 'seed',
-      cwd: '/s',
-      agentSessionID: toAgentSessionID('c0'),
-      agent: 'claude',
-    },
-  ];
+  const seed = buildMockFleetEntry();
+  const first = buildMockFleetEntry({ sessionID: seed.sessionID });
+  const second = buildMockFleetEntry({ sessionID: seed.sessionID });
 
-  const first: FleetEntry[] = [
-    {
-      sessionID: toSessionID('s-c0'),
-      name: 'one',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ];
+  await ctx.store.writeFleet([seed]);
 
-  const second: FleetEntry[] = [
-    {
-      sessionID: toSessionID('s-c0'),
-      name: 'two',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ];
-
-  await ctx.store.writeFleet(seed);
-
-  const writeFirst = ctx.store.writeFleet(first);
+  const writeFirst = ctx.store.writeFleet([first]);
   const readBetween = ctx.store.loadFleet();
-  const writeSecond = ctx.store.writeFleet(second);
+  const writeSecond = ctx.store.writeFleet([second]);
 
   await Promise.all([writeFirst, writeSecond]);
 
   const between = await readBetween;
   const final = await ctx.store.loadFleet();
 
-  expect(between).toBeOneOf([seed, first, second]);
-  expect(final).toBeOneOf([first, second]);
+  expect(between).toBeOneOf([[seed], [first], [second]]);
+  expect(final).toBeOneOf([[first], [second]]);
 });
 
 test('it resolves stop only after an unawaited fleet write lands', async () => {
   await using ctx = await setupTest();
 
-  const entries: FleetEntry[] = [
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'one',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ];
-
-  const write = ctx.store.writeFleet(entries);
+  const entry = buildMockFleetEntry();
+  const write = ctx.store.writeFleet([entry]);
 
   await ctx.store.stop();
 
@@ -302,7 +148,7 @@ test('it resolves stop only after an unawaited fleet write lands', async () => {
 
   const rows = db.query<{ name: string }, []>('SELECT name FROM fleet').all();
 
-  expect(rows).toStrictEqual([{ name: 'one' }]);
+  expect(rows).toStrictEqual([{ name: entry.name }]);
 });
 
 test('it seeds the fleet from a legacy fleet.json once', async () => {
@@ -343,16 +189,9 @@ test('it never overwrites an existing fleet table from the legacy file', async (
 
   onTestFinished(() => first.stop());
 
-  await first.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'fresh',
-      cwd: '/new',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  const fresh = buildMockFleetEntry();
 
+  await first.writeFleet([fresh]);
   await first.stop();
 
   const second = await StateStore.open(dbPath, legacy);
@@ -371,13 +210,7 @@ test('it never overwrites an existing fleet table from the legacy file', async (
       agentSessionID: toAgentSessionID('c0'),
       agent: 'claude',
     },
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'fresh',
-      cwd: '/new',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
+    fresh,
   ]);
 });
 
@@ -561,237 +394,87 @@ test('it carries spawn directories from before their target was recorded over as
 test('it round-trips a grok fleet row', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-g1'),
-      name: 'mixed',
-      cwd: '/g',
-      agentSessionID: toAgentSessionID('g1'),
-      agent: 'grok',
-    },
-  ]);
+  const entry = buildMockFleetEntry({ agent: 'grok' });
+
+  await ctx.store.writeFleet([entry]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-g1'),
-      name: 'mixed',
-      cwd: '/g',
-      agentSessionID: toAgentSessionID('g1'),
-      agent: 'grok',
-    },
-  ]);
+  expect(fleet).toStrictEqual([entry]);
 });
 
 test('it round-trips an exited fleet row', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'archived',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      exited: true,
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'live',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  const archived = buildMockFleetEntry({ exited: true });
+  const live = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([archived, live]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'archived',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      exited: true,
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'live',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([archived, live]);
 });
 
 test('it round-trips a sub-session fleet row', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'wrangler',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'worker',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-      parent: toSessionID('s-c1'),
-    },
-  ]);
+  const wrangler = buildMockFleetEntry();
+  const worker = buildMockFleetEntry({ parent: wrangler.sessionID });
+
+  await ctx.store.writeFleet([wrangler, worker]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'wrangler',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'worker',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-      parent: toSessionID('s-c1'),
-    },
-  ]);
+  expect(fleet).toStrictEqual([wrangler, worker]);
 });
 
 test('it round-trips a fleet row with its model and effort', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'tuned',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      model: 'opus[1m]',
-      effort: 'xhigh',
-    },
-  ]);
+  const entry = buildMockFleetEntry({ model: 'opus[1m]', effort: 'xhigh' });
+
+  await ctx.store.writeFleet([entry]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'tuned',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      model: 'opus[1m]',
-      effort: 'xhigh',
-    },
-  ]);
+  expect(fleet).toStrictEqual([entry]);
 });
 
 test('it round-trips a fleet row with what the operator asked of it and its host', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'sleeper',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      exited: true,
-      desired: 'sleep',
-      hostKey: toSessionID('s-c1'),
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'helper',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-      parent: toSessionID('s-c1'),
-      desired: 'stop',
-      hostKey: toSessionID('s-c1'),
-    },
-  ]);
+  const sleeper = buildMockFleetEntry({
+    sessionID: toSessionID('s-c1'),
+    exited: true,
+    desired: 'sleep',
+    hostKey: toSessionID('s-c1'),
+  });
+
+  const helper = buildMockFleetEntry({
+    parent: toSessionID('s-c1'),
+    desired: 'stop',
+    hostKey: toSessionID('s-c1'),
+  });
+
+  await ctx.store.writeFleet([sleeper, helper]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'sleeper',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      exited: true,
-      desired: 'sleep',
-      hostKey: toSessionID('s-c1'),
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'helper',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-      parent: toSessionID('s-c1'),
-      desired: 'stop',
-      hostKey: toSessionID('s-c1'),
-    },
-  ]);
+  expect(fleet).toStrictEqual([sleeper, helper]);
 });
 
 test('it round-trips a fleet row with its execution target and identity', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'remote',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'untargeted',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  const remote = buildMockFleetEntry({ target: 'box', targetIdentity: 'imp:0123456789abcdef' });
+  const untargeted = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([remote, untargeted]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-c1'),
-      name: 'remote',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-    },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'untargeted',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([remote, untargeted]);
 });
 
 test('it adds parent to a fleet row that predates it', async () => {
@@ -1137,7 +820,7 @@ test('it adds exited to a fleet row that predates it', async () => {
   ]);
 });
 
-test('it opens a database twice without re-running migrations or corrupting data', async () => {
+test('it runs every migration once on the first open of a legacy database', async () => {
   await using tmp = setupTempDir('atc-store-');
 
   const dbPath = join(tmp.dir, 'state.db');
@@ -1159,37 +842,24 @@ test('it opens a database twice without re-running migrations or corrupting data
   legacy.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
   legacy.close();
 
-  const first = await StateStore.open(dbPath);
+  const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => first.stop());
+  onTestFinished(() => store.stop());
 
-  const seededFleet = await first.loadFleet();
+  await store.stop();
 
-  await first.writeFleet([
-    ...seededFleet,
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'second',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
-  ]);
-
-  await first.stop();
-
-  const ledger = new Database(dbPath);
+  const ledger = new Database(dbPath, { readonly: true });
 
   onTestFinished(() => {
     ledger.close();
   });
 
-  const namesAfterFirstOpen = ledger
+  const names = ledger
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name);
 
-  expect(namesAfterFirstOpen).toStrictEqual([
+  expect(names).toStrictEqual([
     '001_create_initial_schema',
     '002_rename_fleet_claude_id_to_agent_session_id',
     '003_add_fleet_pinned',
@@ -1217,8 +887,88 @@ test('it opens a database twice without re-running migrations or corrupting data
     '025_create_runtime_auth',
     '026_add_fleet_resume_interrupted_turns',
   ]);
+});
+
+test('it re-runs no migration when it reopens a migrated database', async () => {
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
+
+  const legacy = new Database(dbPath);
+
+  onTestFinished(() => {
+    legacy.close();
+  });
+
+  legacy.run(`
+    CREATE TABLE fleet (
+      claude_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL
+    );
+  `);
+
+  legacy.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
+  legacy.close();
+
+  const first = await StateStore.open(dbPath);
+
+  onTestFinished(() => first.stop());
+
+  await first.stop();
+
+  const ledger = new Database(dbPath);
+
+  onTestFinished(() => {
+    ledger.close();
+  });
 
   ledger.run("UPDATE kysely_migration SET timestamp = 'sentinel'");
+
+  const second = await StateStore.open(dbPath);
+
+  onTestFinished(() => second.stop());
+
+  await second.stop();
+
+  const stamps = ledger
+    .query<{ timestamp: string }, []>('SELECT timestamp FROM kysely_migration')
+    .all()
+    .map((row) => row.timestamp);
+
+  expect(stamps).toStrictEqual(Array.from({ length: 26 }, () => 'sentinel'));
+});
+
+test('it keeps the fleet of a migrated database across a reopen', async () => {
+  await using tmp = setupTempDir('atc-store-');
+
+  const dbPath = join(tmp.dir, 'state.db');
+
+  const legacy = new Database(dbPath);
+
+  onTestFinished(() => {
+    legacy.close();
+  });
+
+  legacy.run(`
+    CREATE TABLE fleet (
+      claude_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cwd TEXT NOT NULL
+    );
+  `);
+
+  legacy.run("INSERT INTO fleet (claude_id, name, cwd) VALUES ('c1', 'first', '/x')");
+  legacy.close();
+
+  const first = await StateStore.open(dbPath);
+
+  onTestFinished(() => first.stop());
+
+  const added = buildMockFleetEntry();
+
+  await first.writeFleet([...(await first.loadFleet()), added]);
+  await first.stop();
 
   const second = await StateStore.open(dbPath);
 
@@ -1236,25 +986,8 @@ test('it opens a database twice without re-running migrations or corrupting data
       agentSessionID: toAgentSessionID('c1'),
       agent: 'claude',
     },
-    {
-      sessionID: toSessionID('s-c2'),
-      name: 'second',
-      cwd: '/y',
-      agentSessionID: toAgentSessionID('c2'),
-      agent: 'claude',
-    },
+    added,
   ]);
-
-  await second.stop();
-
-  const stamps = ledger
-    .query<{ timestamp: string }, []>('SELECT timestamp FROM kysely_migration')
-    .all()
-    .map((row) => row.timestamp);
-
-  expect(stamps).toStrictEqual(
-    Array.from({ length: namesAfterFirstOpen.length }, () => 'sentinel'),
-  );
 });
 
 test('it ends a fresh database at the same fleet schema as a fully migrated old one', async () => {
@@ -1434,16 +1167,11 @@ test('it records a last-used agent in a database that predates prefs', async () 
 test("it round-trips a fleet row's prompt, result, and transcript path", async () => {
   await using ctx = await setupTest();
 
-  const entry: FleetEntry = {
-    sessionID: toSessionID('s-c1'),
-    name: 'a',
-    cwd: '/x',
-    agentSessionID: toAgentSessionID('c1'),
-    agent: 'claude',
+  const entry = buildMockFleetEntry({
     prompt: 'fix the auth bug',
     result: 'All green.',
     transcriptPath: '/t/c1.jsonl',
-  };
+  });
 
   await ctx.store.writeFleet([entry]);
 
@@ -1629,24 +1357,12 @@ test('it loads no last activity time for a session that never reported', async (
 test('it updates one fleet row without touching its siblings', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-a1'),
-      name: 'a',
-      cwd: '/a',
-      agentSessionID: toAgentSessionID('a1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-b1'),
-      name: 'b',
-      cwd: '/b',
-      agentSessionID: toAgentSessionID('b1'),
-      agent: 'claude',
-    },
-  ]);
+  const updated = buildMockFleetEntry();
+  const sibling = buildMockFleetEntry();
 
-  await ctx.store.updateFleetEntry(toSessionID('s-a1'), {
+  await ctx.store.writeFleet([updated, sibling]);
+
+  await ctx.store.updateFleetEntry(updated.sessionID, {
     result: 'done',
     transcriptPath: '/a.jsonl',
   });
@@ -1654,22 +1370,8 @@ test('it updates one fleet row without touching its siblings', async () => {
   const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toIncludeSameMembers([
-    {
-      sessionID: toSessionID('s-a1'),
-      name: 'a',
-      cwd: '/a',
-      agentSessionID: toAgentSessionID('a1'),
-      agent: 'claude',
-      result: 'done',
-      transcriptPath: '/a.jsonl',
-    },
-    {
-      sessionID: toSessionID('s-b1'),
-      name: 'b',
-      cwd: '/b',
-      agentSessionID: toAgentSessionID('b1'),
-      agent: 'claude',
-    },
+    { ...updated, result: 'done', transcriptPath: '/a.jsonl' },
+    sibling,
   ]);
 });
 
@@ -1686,19 +1388,15 @@ test('it ignores an update for a session with no fleet row', async () => {
 test('it serves the trail read after an id from an index', async () => {
   await using ctx = await setupTest();
 
-  const sqlite = new Database(ctx.dbPath, { readonly: true });
+  await ctx.store.collectEventsAfter(5, 5);
 
-  onTestFinished(() => {
-    sqlite.close();
-  });
+  const query = ctx.queries.at(-1);
 
-  const plan = sqlite
-    .query<{ detail: string }, []>(
-      "EXPLAIN QUERY PLAN SELECT id FROM events WHERE id > 5 AND kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id LIMIT 5",
-    )
-    .all()
-    .map((row) => row.detail)
-    .join('\n');
+  if (query === undefined) {
+    throw new Error('the store ran no query');
+  }
+
+  const plan = readQueryPlan(ctx.dbPath, query);
 
   expect(plan).toInclude('USING INDEX events_trail');
 });
@@ -1706,19 +1404,15 @@ test('it serves the trail read after an id from an index', async () => {
 test('it serves the latest trail read from an index', async () => {
   await using ctx = await setupTest();
 
-  const sqlite = new Database(ctx.dbPath, { readonly: true });
+  await ctx.store.collectLatestEvents(5);
 
-  onTestFinished(() => {
-    sqlite.close();
-  });
+  const query = ctx.queries.at(-1);
 
-  const plan = sqlite
-    .query<{ detail: string }, []>(
-      "EXPLAIN QUERY PLAN SELECT id FROM events WHERE kind IS NOT NULL AND kind != 'heartbeat' ORDER BY id DESC LIMIT 5",
-    )
-    .all()
-    .map((row) => row.detail)
-    .join('\n');
+  if (query === undefined) {
+    throw new Error('the store ran no query');
+  }
+
+  const plan = readQueryPlan(ctx.dbPath, query);
 
   expect(plan).toInclude('USING INDEX events_trail');
 });
@@ -1726,19 +1420,15 @@ test('it serves the latest trail read from an index', async () => {
 test('it serves the last activity lookup from an index on each id', async () => {
   await using ctx = await setupTest();
 
-  const sqlite = new Database(ctx.dbPath, { readonly: true });
+  await ctx.store.loadLastActivityAt(toSessionID('s1'), toAgentSessionID('c1'));
 
-  onTestFinished(() => {
-    sqlite.close();
-  });
+  const query = ctx.queries.at(-1);
 
-  const plan = sqlite
-    .query<{ detail: string }, []>(
-      "EXPLAIN QUERY PLAN SELECT MAX(ts) FROM events WHERE atc_id = 'a' OR session_id = 'b'",
-    )
-    .all()
-    .map((row) => row.detail)
-    .join('\n');
+  if (query === undefined) {
+    throw new Error('the store ran no query');
+  }
+
+  const plan = readQueryPlan(ctx.dbPath, query);
 
   expect(plan).toInclude('USING INDEX events_atc_id_ts');
   expect(plan).toInclude('USING INDEX events_session_id_ts');
@@ -1747,18 +1437,11 @@ test('it serves the last activity lookup from an index on each id', async () => 
 test('it lists an accepted message as pending for the session it was sent to', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
 
-  const pending = await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
+  const pending = await ctx.store.collectPendingMessages({ atcID: record.atcID });
 
   expect(pending).toStrictEqual([record]);
 });
@@ -1766,32 +1449,23 @@ test('it lists an accepted message as pending for the session it was sent to', a
 test('it lists pending messages in the order they were sent', async () => {
   await using ctx = await setupTest();
 
-  const first: MessageRecord = {
+  const first = buildMockMessageRecord({
     id: toMessageID('m-z'),
     atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-z',
-    status: 'accepted',
     sentAt: 1000,
-  };
+  });
 
-  const second: MessageRecord = {
+  const second = buildMockMessageRecord({
     id: toMessageID('m-a'),
     atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-a',
-    status: 'accepted',
     sentAt: 1000,
-  };
+  });
 
-  const third: MessageRecord = {
+  const third = buildMockMessageRecord({
     id: toMessageID('m-m'),
     atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-m',
-    status: 'accepted',
     sentAt: 1001,
-  };
+  });
 
   await ctx.store.writeMessage(first);
   await ctx.store.writeMessage(second);
@@ -1805,15 +1479,10 @@ test('it lists pending messages in the order they were sent', async () => {
 test('it finds pending messages by agent session id under a new atc id', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
+  const record = buildMockMessageRecord({
     atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
     agentSessionID: toAgentSessionID('a1'),
-  };
+  });
 
   await ctx.store.writeMessage(record);
 
@@ -1828,20 +1497,15 @@ test('it finds pending messages by agent session id under a new atc id', async (
 test('it moves an accepted message to delivered', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
-
-  const owner = { atcID: toSessionID('s1') };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
 
-  const delivered = await ctx.store.updateMessageDelivered(record.id, owner, 2000);
+  const delivered = await ctx.store.updateMessageDelivered(
+    record.id,
+    { atcID: record.atcID },
+    2000,
+  );
 
   expect(delivered).toStrictEqual({ ...record, status: 'delivered', deliveredAt: 2000 });
 });
@@ -1849,21 +1513,12 @@ test('it moves an accepted message to delivered', async () => {
 test('it refuses to deliver a message a second time', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
-
-  const owner = { atcID: toSessionID('s1') };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, owner, 2000);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
 
-  const second = await ctx.store.updateMessageDelivered(record.id, owner, 3000);
+  const second = await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 3000);
 
   expect(second).toBeNull();
 });
@@ -1871,21 +1526,12 @@ test('it refuses to deliver a message a second time', async () => {
 test('it drops a delivered message from the pending list', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
-
-  const owner = { atcID: toSessionID('s1') };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, owner, 2000);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
 
-  const pending = await ctx.store.collectPendingMessages(owner);
+  const pending = await ctx.store.collectPendingMessages({ atcID: record.atcID });
 
   expect(pending).toStrictEqual([]);
 });
@@ -1893,21 +1539,17 @@ test('it drops a delivered message from the pending list', async () => {
 test('it moves a delivered message to answered with the final text', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
-
-  const owner = { atcID: toSessionID('s1') };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessageDelivered(record.id, owner, 2000);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
 
-  const answered = await ctx.store.updateMessagesAnswered([record.id], owner, 'done', 3000);
+  const answered = await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    'done',
+    3000,
+  );
 
   expect(answered).toStrictEqual([
     {
@@ -1923,20 +1565,16 @@ test('it moves a delivered message to answered with the final text', async () =>
 test('it answers an accepted message that was never acked', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
-
-  const owner = { atcID: toSessionID('s1') };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
 
-  const answered = await ctx.store.updateMessagesAnswered([record.id], owner, 'done', 3000);
+  const answered = await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    'done',
+    3000,
+  );
 
   expect(answered).toStrictEqual([
     {
@@ -1951,14 +1589,7 @@ test('it answers an accepted message that was never acked', async () => {
 test('it refuses to deliver a message owned by another session', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
   await ctx.store.writeMessage(record);
 
@@ -1974,14 +1605,7 @@ test('it refuses to deliver a message owned by another session', async () => {
 test('it refuses to answer a message owned by another session', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
   await ctx.store.writeMessage(record);
 
@@ -1998,14 +1622,7 @@ test('it refuses to answer a message owned by another session', async () => {
 test('it gives messages sent before SessionStart their agent session id', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
   await ctx.store.writeMessage(record);
   await ctx.store.updateMessageOwner(toSessionID('s1'), undefined, toAgentSessionID('a1'));
@@ -2021,15 +1638,10 @@ test('it gives messages sent before SessionStart their agent session id', async 
 test('it moves messages to a changed agent session id', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
+  const record = buildMockMessageRecord({
     atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
     agentSessionID: toAgentSessionID('a1'),
-  };
+  });
 
   await ctx.store.writeMessage(record);
 
@@ -2050,14 +1662,7 @@ test('it moves messages to a changed agent session id', async () => {
 test('it keeps messages across a store reopen', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
   await ctx.store.stop();
@@ -2066,7 +1671,7 @@ test('it keeps messages across a store reopen', async () => {
 
   onTestFinished(() => second.stop());
 
-  const pending = await second.collectPendingMessages({ atcID: toSessionID('s1') });
+  const pending = await second.collectPendingMessages({ atcID: record.atcID });
 
   expect(pending).toStrictEqual([record]);
 });
@@ -2074,18 +1679,11 @@ test('it keeps messages across a store reopen', async () => {
 test('it finds a message for its own session', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
 
-  const own = await ctx.store.findMessage(record.id, { atcID: toSessionID('s1') });
+  const own = await ctx.store.findMessage(record.id, { atcID: record.atcID });
 
   expect(own).toStrictEqual(record);
 });
@@ -2093,14 +1691,7 @@ test('it finds a message for its own session', async () => {
 test('it finds no message for another session', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
   await ctx.store.writeMessage(record);
 
@@ -2112,19 +1703,15 @@ test('it finds no message for another session', async () => {
 test('it serves the pending messages of an atc id from an index', async () => {
   await using ctx = await setupTest();
 
-  const db = new Database(ctx.dbPath, { readonly: true });
+  await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
 
-  onTestFinished(() => {
-    db.close();
-  });
+  const query = ctx.queries.at(-1);
 
-  const plan = db
-    .query<{ detail: string }, []>(
-      "EXPLAIN QUERY PLAN SELECT * FROM messages WHERE status = 'accepted' AND atc_id = 's1' ORDER BY sent_at",
-    )
-    .all()
-    .map((row) => row.detail)
-    .join('\n');
+  if (query === undefined) {
+    throw new Error('the store ran no query');
+  }
+
+  const plan = readQueryPlan(ctx.dbPath, query);
 
   expect(plan).toInclude('USING INDEX messages_atc_id_status_sent_at');
 });
@@ -2132,19 +1719,18 @@ test('it serves the pending messages of an atc id from an index', async () => {
 test('it serves the pending messages of an agent session id from an index', async () => {
   await using ctx = await setupTest();
 
-  const db = new Database(ctx.dbPath, { readonly: true });
-
-  onTestFinished(() => {
-    db.close();
+  await ctx.store.collectPendingMessages({
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('a1'),
   });
 
-  const plan = db
-    .query<{ detail: string }, []>(
-      "EXPLAIN QUERY PLAN SELECT * FROM messages WHERE status = 'accepted' AND agent_session_id = 'a1' ORDER BY sent_at",
-    )
-    .all()
-    .map((row) => row.detail)
-    .join('\n');
+  const query = ctx.queries.at(-1);
+
+  if (query === undefined) {
+    throw new Error('the store ran no query');
+  }
+
+  const plan = readQueryPlan(ctx.dbPath, query);
 
   expect(plan).toInclude('USING INDEX messages_agent_session_id_status_sent_at');
 });
@@ -2152,14 +1738,7 @@ test('it serves the pending messages of an agent session id from an index', asyn
 test('it finds a message by its id alone', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
+  const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
 
@@ -2171,16 +1750,7 @@ test('it finds a message by its id alone', async () => {
 test('it finds no message for an unknown id', async () => {
   await using ctx = await setupTest();
 
-  const record: MessageRecord = {
-    id: toMessageID('m-1'),
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    text: 'hello m-1',
-    status: 'accepted',
-    sentAt: 1000,
-  };
-
-  await ctx.store.writeMessage(record);
+  await ctx.store.writeMessage(buildMockMessageRecord({ id: toMessageID('m-1') }));
 
   const missing = await ctx.store.findMessageByID(toMessageID('m-2'));
 
@@ -2583,74 +2153,44 @@ test("it counts a trail entry toward its session's last activity time", async ()
 test('it answers every message of one turn in one call and returns them oldest first', async () => {
   await using ctx = await setupTest();
 
-  const owner = { atcID: toSessionID('s1') };
+  const two = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
+  const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
 
-  const base = {
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    status: 'accepted' as const,
-  };
-
-  await ctx.store.writeMessage({ ...base, id: toMessageID('m-2'), text: 'two', sentAt: 2000 });
-  await ctx.store.writeMessage({ ...base, id: toMessageID('m-1'), text: 'one', sentAt: 1000 });
+  await ctx.store.writeMessage(two);
+  await ctx.store.writeMessage(one);
 
   const answered = await ctx.store.updateMessagesAnswered(
-    [toMessageID('m-2'), toMessageID('m-1')],
-    owner,
+    [two.id, one.id],
+    { atcID: toSessionID('s1') },
     'both',
     3000,
     't-1',
   );
 
   expect(answered).toStrictEqual([
-    {
-      id: toMessageID('m-1'),
-      atcID: toSessionID('s1'),
-      from: 'alice',
-      text: 'one',
-      status: 'answered',
-      sentAt: 1000,
-      answeredAt: 3000,
-      answer: 'both',
-      turn: 't-1',
-    },
-    {
-      id: toMessageID('m-2'),
-      atcID: toSessionID('s1'),
-      from: 'alice',
-      text: 'two',
-      status: 'answered',
-      sentAt: 2000,
-      answeredAt: 3000,
-      answer: 'both',
-      turn: 't-1',
-    },
+    { ...one, status: 'answered', answeredAt: 3000, answer: 'both', turn: 't-1' },
+    { ...two, status: 'answered', answeredAt: 3000, answer: 'both', turn: 't-1' },
   ]);
 });
 
 test('it lists the other messages answered in the same turn as siblings', async () => {
   await using ctx = await setupTest();
 
-  const owner = { atcID: toSessionID('s1') };
+  const two = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
+  const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
 
-  const base = {
-    atcID: toSessionID('s1'),
-    from: 'alice',
-    status: 'accepted' as const,
-  };
-
-  await ctx.store.writeMessage({ ...base, id: toMessageID('m-2'), text: 'two', sentAt: 2000 });
-  await ctx.store.writeMessage({ ...base, id: toMessageID('m-1'), text: 'one', sentAt: 1000 });
+  await ctx.store.writeMessage(two);
+  await ctx.store.writeMessage(one);
 
   await ctx.store.updateMessagesAnswered(
-    [toMessageID('m-2'), toMessageID('m-1')],
-    owner,
+    [two.id, one.id],
+    { atcID: toSessionID('s1') },
     'both',
     3000,
     't-1',
   );
 
-  const oldest = await ctx.store.findMessage(toMessageID('m-1'), owner);
+  const oldest = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
 
   if (oldest === null) {
     throw new Error('oldest message missing');
@@ -2658,40 +2198,49 @@ test('it lists the other messages answered in the same turn as siblings', async 
 
   const siblings = await ctx.store.collectTurnSiblings(oldest);
 
-  expect(siblings).toStrictEqual([{ id: toMessageID('m-2'), atcID: toSessionID('s1') }]);
+  expect(siblings).toStrictEqual([{ id: two.id, atcID: toSessionID('s1') }]);
 });
 
 test('it lists the other messages of one turn in send order when they share a send time', async () => {
   await using ctx = await setupTest();
 
-  const owner = { atcID: toSessionID('s1') };
-
-  const base = {
+  const first = buildMockMessageRecord({
+    id: toMessageID('m-c'),
     atcID: toSessionID('s1'),
-    from: 'alice',
-    status: 'accepted' as const,
     sentAt: 1000,
-  };
+  });
 
-  await ctx.store.writeMessage({ ...base, id: toMessageID('m-c'), text: 'first' });
-  await ctx.store.writeMessage({ ...base, id: toMessageID('m-b'), text: 'second' });
-  await ctx.store.writeMessage({ ...base, id: toMessageID('m-a'), text: 'third' });
+  const second = buildMockMessageRecord({
+    id: toMessageID('m-b'),
+    atcID: toSessionID('s1'),
+    sentAt: 1000,
+  });
+
+  const third = buildMockMessageRecord({
+    id: toMessageID('m-a'),
+    atcID: toSessionID('s1'),
+    sentAt: 1000,
+  });
+
+  await ctx.store.writeMessage(first);
+  await ctx.store.writeMessage(second);
+  await ctx.store.writeMessage(third);
 
   await ctx.store.updateMessagesAnswered(
-    [toMessageID('m-c'), toMessageID('m-b'), toMessageID('m-a')],
-    owner,
+    [first.id, second.id, third.id],
+    { atcID: toSessionID('s1') },
     'all',
     2000,
     't-1',
   );
 
-  const first = await ctx.store.findMessage(toMessageID('m-c'), owner);
+  const answered = await ctx.store.findMessage(first.id, { atcID: toSessionID('s1') });
 
-  if (first === null) {
+  if (answered === null) {
     throw new Error('first message missing');
   }
 
-  const siblings = await ctx.store.collectTurnSiblings(first);
+  const siblings = await ctx.store.collectTurnSiblings(answered);
 
   expect(siblings).toStrictEqual([
     { id: toMessageID('m-b'), atcID: toSessionID('s1') },
@@ -2899,6 +2448,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 test('it keeps a fleet row that has no agent session id', async () => {
   await using ctx = await setupTest();
 
+  // The factory always sets an agent session id, so this row is written out.
   await ctx.store.writeFleet([
     { sessionID: toSessionID('s-new'), name: 'booting', cwd: '/x', agent: 'claude' },
   ]);
@@ -2913,34 +2463,22 @@ test('it keeps a fleet row that has no agent session id', async () => {
 test('it keeps the later of two fleet entries that share an agent session id', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-first'),
-      name: 'first',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  const first = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-first') });
+  const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-first') });
+
+  await ctx.store.writeFleet([first, resumed]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([resumed]);
+});
+
+test('it mints a random uuid as the daemon id', async () => {
+  await using ctx = await setupTest();
+
+  expect(ctx.store.daemonID).toMatch(
+    /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/,
+  );
 });
 
 test('it keeps the same daemon id across a reopen', async () => {
@@ -2954,7 +2492,6 @@ test('it keeps the same daemon id across a reopen', async () => {
 
   onTestFinished(() => second.stop());
 
-  expect(firstID).toMatch(/^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
   expect(second.daemonID).toBe(firstID);
 });
 
@@ -3036,14 +2573,11 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
 
   other.close();
 
-  await ctx.store.writeFleet([
-    { sessionID: toSessionID('s-mine'), name: 'mine', cwd: '/x', agent: 'claude' },
-  ]);
+  const mine = buildMockFleetEntry({ sessionID: toSessionID('s-mine') });
+  const next = buildMockFleetEntry({ sessionID: toSessionID('s-next') });
 
-  await ctx.store.writeFleet(
-    [{ sessionID: toSessionID('s-next'), name: 'next', cwd: '/y', agent: 'claude' }],
-    [toSessionID('s-mine')],
-  );
+  await ctx.store.writeFleet([mine]);
+  await ctx.store.writeFleet([next], [mine.sessionID]);
 
   const reader = new Database(ctx.dbPath, { readonly: true });
 
@@ -3059,18 +2593,15 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
   const fleet = await ctx.store.loadFleet();
 
   expect(stored).toStrictEqual(['s-next', 's-theirs']);
-
-  expect(fleet).toStrictEqual([
-    { sessionID: toSessionID('s-next'), name: 'next', cwd: '/y', agent: 'claude' },
-  ]);
+  expect(fleet).toStrictEqual([next]);
 });
 
 test('it rejects a fleet write for a session whose ownership epoch moved on as stale_epoch', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    { sessionID: toSessionID('s-1'), name: 'before', cwd: '/x', agent: 'claude' },
-  ]);
+  const before = buildMockFleetEntry({ sessionID: toSessionID('s-1') });
+
+  await ctx.store.writeFleet([before]);
 
   const other = new Database(ctx.dbPath);
 
@@ -3081,17 +2612,13 @@ test('it rejects a fleet write for a session whose ownership epoch moved on as s
   other.run("UPDATE session_owner SET owner_epoch = 2 WHERE session_id = 's-1'");
   other.close();
 
-  const write = ctx.store.writeFleet([
-    { sessionID: toSessionID('s-1'), name: 'after', cwd: '/x', agent: 'claude' },
-  ]);
+  const write = ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-1') })]);
 
   expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    { sessionID: toSessionID('s-1'), name: 'before', cwd: '/x', agent: 'claude' },
-  ]);
+  expect(fleet).toStrictEqual([before]);
 });
 
 test('it rejects a fleet write for a session another daemon owns as stale_epoch', async () => {
@@ -3109,9 +2636,7 @@ test('it rejects a fleet write for a session another daemon owns as stale_epoch'
 
   other.close();
 
-  const write = ctx.store.writeFleet([
-    { sessionID: toSessionID('s-theirs'), name: 'stolen', cwd: '/x', agent: 'claude' },
-  ]);
+  const write = ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-theirs') })]);
 
   expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
 });
@@ -3119,9 +2644,7 @@ test('it rejects a fleet write for a session another daemon owns as stale_epoch'
 test('it rejects a fleet row update for a session whose ownership epoch moved on as stale_epoch', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    { sessionID: toSessionID('s-1'), name: 'one', cwd: '/x', agent: 'claude' },
-  ]);
+  await ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-1') })]);
 
   const other = new Database(ctx.dbPath);
 
@@ -3226,11 +2749,7 @@ test('it reconciles an interrupted spawn key by whether its session reached the 
 
   await ctx.store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 's-landed' });
   await ctx.store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 's-lost' });
-
-  await ctx.store.writeFleet([
-    { sessionID: toSessionID('s-landed'), name: 'landed', cwd: '/x', agent: 'claude' },
-  ]);
-
+  await ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-landed') })]);
   await ctx.store.reconcileIdempotencyKeys(5000);
 
   const landed = await ctx.store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 'x' });
@@ -3303,108 +2822,39 @@ test('it expires completed idempotency keys and keeps unknown outcomes of the sa
 test('it writes no row as its own parent when every row in a chain shares one agent session id', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-top'),
-      name: 'top',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-sub'),
-      name: 'sub',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      parent: toSessionID('s-top'),
-    },
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      parent: toSessionID('s-sub'),
-    },
-  ]);
+  const top = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-top') });
+
+  const sub = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-top'),
+    parent: top.sessionID,
+  });
+
+  const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-top') });
+
+  await ctx.store.writeFleet([top, sub, { ...resumed, parent: sub.sessionID }]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-  ]);
+  expect(fleet).toStrictEqual([resumed]);
 });
 
 test('it moves the sub-sessions of a replaced row up to the parent of the sub-session that replaced it', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-other'),
-      name: 'other',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-other'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-first'),
-      name: 'first',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-worker'),
-      name: 'worker',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-worker'),
-      agent: 'claude',
-      parent: toSessionID('s-first'),
-    },
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      parent: toSessionID('s-other'),
-    },
-  ]);
+  const other = buildMockFleetEntry();
+  const first = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-first') });
+  const worker = buildMockFleetEntry({ parent: first.sessionID });
+
+  const resumed = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-first'),
+    parent: other.sessionID,
+  });
+
+  await ctx.store.writeFleet([other, first, worker, resumed]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-other'),
-      name: 'other',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-other'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-worker'),
-      name: 'worker',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-worker'),
-      agent: 'claude',
-      parent: toSessionID('s-other'),
-    },
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c1'),
-      agent: 'claude',
-      parent: toSessionID('s-other'),
-    },
-  ]);
+  expect(fleet).toStrictEqual([other, { ...worker, parent: other.sessionID }, resumed]);
 });
 
 test('it breaks the cycle two crossed resumes make by keeping the earlier row top-level', async () => {
@@ -3412,345 +2862,112 @@ test('it breaks the cycle two crossed resumes make by keeping the earlier row to
 
   // R resumes P's agent session under Q, and S resumes Q's under P: replacing
   // P with R and Q with S links R under S and S under R.
+  const p = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const q = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
+  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const s = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q'), parent: p.sessionID });
+
+  await ctx.store.writeFleet([p, q, { ...r, parent: q.sessionID }, s]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([r, { ...s, parent: r.sessionID }]);
+});
+
+test('it moves a worker under a row that a resume of its own parent replaced', async () => {
+  await using ctx = await setupTest();
+
+  const p = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const w = buildMockFleetEntry({ parent: p.sessionID });
+  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+
+  await ctx.store.writeFleet([p, w, { ...r, parent: p.sessionID }]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([{ ...w, parent: r.sessionID }, r]);
+});
+
+test('it writes three resumes crossed in a ring as one top-level row with every other row under it', async () => {
+  await using ctx = await setupTest();
+
+  // R resumes P under Q, S resumes Q under T, and U resumes T under P, and
+  // each replaced row has a worker of its own.
+  const p = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const q = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
+  const t = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-t') });
+  const wp = buildMockFleetEntry({ parent: p.sessionID });
+  const wq = buildMockFleetEntry({ parent: q.sessionID });
+  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
+  const s = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
+  const u = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-t') });
+
   await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-p'),
-      name: 'p',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-a'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-q'),
-      name: 'q',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-b'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-r'),
-      name: 'r',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-a'),
-      agent: 'claude',
-      parent: toSessionID('s-q'),
-    },
-    {
-      sessionID: toSessionID('s-s'),
-      name: 's',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-b'),
-      agent: 'claude',
-      parent: toSessionID('s-p'),
-    },
+    p,
+    q,
+    t,
+    wp,
+    wq,
+    { ...r, parent: q.sessionID },
+    { ...s, parent: t.sessionID },
+    { ...u, parent: p.sessionID },
   ]);
 
   const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-r'),
-      name: 'r',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-a'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-s'),
-      name: 's',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-b'),
-      agent: 'claude',
-      parent: toSessionID('s-r'),
-    },
+    { ...wp, parent: r.sessionID },
+    { ...wq, parent: r.sessionID },
+    r,
+    { ...s, parent: r.sessionID },
+    { ...u, parent: r.sessionID },
   ]);
 });
 
-test.each([
-  {
-    shape: 'a resume under the session whose agent session it resumes',
-    kept: ['w', 'r'],
-    fixture: [
-      {
-        sessionID: toSessionID('p'),
-        name: 'p',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('w'),
-        name: 'w',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('w'),
-        agent: 'claude',
-        parent: toSessionID('p'),
-      },
-      {
-        sessionID: toSessionID('r'),
-        name: 'r',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-        parent: toSessionID('p'),
-      },
-    ] satisfies FleetEntry[],
-  },
-  {
-    shape: 'two crossed resumes',
-    kept: ['r', 's'],
-    fixture: [
-      {
-        sessionID: toSessionID('p'),
-        name: 'p',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('q'),
-        name: 'q',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('b'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('r'),
-        name: 'r',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-        parent: toSessionID('q'),
-      },
-      {
-        sessionID: toSessionID('s'),
-        name: 's',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('b'),
-        agent: 'claude',
-        parent: toSessionID('p'),
-      },
-    ] satisfies FleetEntry[],
-  },
-  {
-    shape: 'three resumes crossed in a ring, each with a worker under the row it replaces',
-    kept: ['wp', 'wq', 'r', 's', 'u'],
-    fixture: [
-      {
-        sessionID: toSessionID('p'),
-        name: 'p',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('q'),
-        name: 'q',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('b'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('t'),
-        name: 't',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('c'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('wp'),
-        name: 'wp',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('wp'),
-        agent: 'claude',
-        parent: toSessionID('p'),
-      },
-      {
-        sessionID: toSessionID('wq'),
-        name: 'wq',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('wq'),
-        agent: 'claude',
-        parent: toSessionID('q'),
-      },
-      {
-        sessionID: toSessionID('r'),
-        name: 'r',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-        parent: toSessionID('q'),
-      },
-      {
-        sessionID: toSessionID('s'),
-        name: 's',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('b'),
-        agent: 'claude',
-        parent: toSessionID('t'),
-      },
-      {
-        sessionID: toSessionID('u'),
-        name: 'u',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('c'),
-        agent: 'claude',
-        parent: toSessionID('p'),
-      },
-    ] satisfies FleetEntry[],
-  },
-  {
-    shape: 'a chain where every row shares one agent session id',
-    kept: ['res'],
-    fixture: [
-      {
-        sessionID: toSessionID('top'),
-        name: 'top',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('sub'),
-        name: 'sub',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-        parent: toSessionID('top'),
-      },
-      {
-        sessionID: toSessionID('res'),
-        name: 'res',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-        parent: toSessionID('sub'),
-      },
-    ] satisfies FleetEntry[],
-  },
-  {
-    shape: "a worker under a sub-session that took over its parent's place",
-    kept: ['o', 'w', 'r'],
-    fixture: [
-      {
-        sessionID: toSessionID('o'),
-        name: 'o',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('o'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('f'),
-        name: 'f',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-      },
-      {
-        sessionID: toSessionID('w'),
-        name: 'w',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('w'),
-        agent: 'claude',
-        parent: toSessionID('f'),
-      },
-      {
-        sessionID: toSessionID('r'),
-        name: 'r',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('a'),
-        agent: 'claude',
-        parent: toSessionID('o'),
-      },
-    ] satisfies FleetEntry[],
-  },
-  {
-    shape: 'a link to a row the write does not hold',
-    kept: ['orphan'],
-    fixture: [
-      {
-        sessionID: toSessionID('orphan'),
-        name: 'orphan',
-        cwd: '/x',
-        agentSessionID: toAgentSessionID('o'),
-        agent: 'claude',
-        parent: toSessionID('gone'),
-      },
-    ] satisfies FleetEntry[],
-  },
-])('it writes $shape as a one-level hierarchy of rows it holds', async (row) => {
+test("it moves a worker of a replaced row under the parent of the sub-session that took the row's place", async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet(row.fixture);
+  const o = buildMockFleetEntry();
+  const f = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-f') });
+  const w = buildMockFleetEntry({ parent: f.sessionID });
+  const r = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-f'), parent: o.sessionID });
+
+  await ctx.store.writeFleet([o, f, w, r]);
 
   const fleet = await ctx.store.loadFleet();
 
-  const parents = new Map(fleet.map((entry) => [entry.sessionID, entry.parent]));
+  expect(fleet).toStrictEqual([o, { ...w, parent: o.sessionID }, r]);
+});
 
-  const violations = [
-    ...fleet
-      .filter((entry) => entry.parent === entry.sessionID)
-      .map((entry) => `${entry.sessionID} is its own parent`),
-    ...fleet
-      .filter((entry) => entry.parent !== undefined && !parents.has(entry.parent))
-      .map((entry) => `${entry.sessionID} has a parent the fleet lacks`),
-    ...fleet
-      .filter((entry) => entry.parent !== undefined && parents.get(entry.parent) !== undefined)
-      .map((entry) => `${entry.sessionID} sits two levels deep or in a cycle`),
-  ];
+test('it writes a row whose parent the write does not hold as a top-level row', async () => {
+  await using ctx = await setupTest();
 
-  expect(violations).toStrictEqual([]);
-  expect(fleet.map((entry) => entry.sessionID)).toIncludeSameMembers(row.kept);
+  const orphan = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([{ ...orphan, parent: toSessionID('s-gone') }]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([orphan]);
 });
 
 test("it moves a row that replaced its own parent under that parent's parent", async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s-top'),
-      name: 'top',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-top'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-sub'),
-      name: 'sub',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-a'),
-      agent: 'claude',
-      parent: toSessionID('s-top'),
-    },
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-a'),
-      agent: 'claude',
-      parent: toSessionID('s-sub'),
-    },
-  ]);
+  const top = buildMockFleetEntry();
+
+  const sub = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-sub'),
+    parent: top.sessionID,
+  });
+
+  const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-sub') });
+
+  await ctx.store.writeFleet([top, sub, { ...resumed, parent: sub.sessionID }]);
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
-    {
-      sessionID: toSessionID('s-top'),
-      name: 'top',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-top'),
-      agent: 'claude',
-    },
-    {
-      sessionID: toSessionID('s-resumed'),
-      name: 'resumed',
-      cwd: '/x',
-      agentSessionID: toAgentSessionID('c-a'),
-      agent: 'claude',
-      parent: toSessionID('s-top'),
-    },
-  ]);
+  expect(fleet).toStrictEqual([top, { ...resumed, parent: top.sessionID }]);
 });
 
 test('it records a workspace materialization through its phases', async () => {
@@ -4035,20 +3252,17 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     2000,
   );
 
-  await ctx.store.writeFleet([
-    { sessionID: toSessionID('s-ready'), name: 'ready', cwd: '/w/s-ready', agent: 'claude' },
-    { sessionID: toSessionID('s-verifying'), name: 'mid', cwd: '/w/s-verifying', agent: 'claude' },
-    { sessionID: toSessionID('s-plain'), name: 'plain', cwd: '/x', agent: 'claude' },
-  ]);
+  const ready = buildMockFleetEntry({ sessionID: toSessionID('s-ready') });
+  const verifying = buildMockFleetEntry({ sessionID: toSessionID('s-verifying') });
+  const plain = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([ready, verifying, plain]);
 
   const fleet = await ctx.store.loadFleet();
 
   expect(fleet).toStrictEqual([
     {
-      sessionID: toSessionID('s-ready'),
-      name: 'ready',
-      cwd: '/w/s-ready',
-      agent: 'claude',
+      ...ready,
       workspace: {
         repoURL: 'https://example.com/r.git',
         sha: 'b'.repeat(40),
@@ -4056,24 +3270,21 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
       },
       withheldEnv: ['APP_GIT_TOKEN', 'GIT_ASKPASS'],
     },
-    { sessionID: toSessionID('s-verifying'), name: 'mid', cwd: '/w/s-verifying', agent: 'claude' },
-    { sessionID: toSessionID('s-plain'), name: 'plain', cwd: '/x', agent: 'claude' },
+    verifying,
+    plain,
   ]);
 });
 
 test('it upgrades a database from before runtime auth and keeps every existing row', async () => {
   await using ctx = await setupTest();
 
-  await ctx.store.writeFleet([
-    {
-      sessionID: toSessionID('s1'),
-      name: 'auth-bug',
-      cwd: '/x',
-      agent: 'claude',
-      target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-    },
-  ]);
+  const entry = buildMockFleetEntry({
+    sessionID: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:0123456789abcdef',
+  });
+
+  await ctx.store.writeFleet([entry]);
 
   await ctx.store.recordSpawnDir(
     '/x',
@@ -4116,16 +3327,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     binding: await upgraded.findAuthBinding(toSessionID('s1')),
     ledger,
   }).toStrictEqual({
-    fleet: [
-      {
-        sessionID: toSessionID('s1'),
-        name: 'auth-bug',
-        cwd: '/x',
-        agent: 'claude',
-        target: 'box',
-        targetIdentity: 'imp:0123456789abcdef',
-      },
-    ],
+    fleet: [entry],
     dirs: [{ cwd: '/x', grant: { target: 'box', targetIdentity: 'imp:0123456789abcdef' } }],
     binding: null,
     ledger: ['025_create_runtime_auth', '026_add_fleet_resume_interrupted_turns'],

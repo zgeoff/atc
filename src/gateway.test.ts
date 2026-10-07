@@ -9,8 +9,7 @@ import { setupTempDir } from './test-utils/setup-temp-dir';
  * a free port for a gateway that serves, and the command and environment
  * to run one with: `PATH` and a `HOME` inside the temp directory that
  * nothing creates, so a write under it shows in the directory listing.
- * `run` runs the gateway in the temp directory to its exit. Disposal kills
- * every gateway `run` started and removes the directory.
+ * Disposal removes the directory.
  */
 function setupTest() {
   using stack = new DisposableStack();
@@ -24,52 +23,27 @@ function setupTest() {
 
   probe.stop(true);
 
-  const command = resolveGatewayCommand(process.env['ATC_GATEWAY_BIN']);
-
-  // Bun's transpiler cache would write under HOME when the source entry runs.
-  const env = {
-    PATH: process.env['PATH'] ?? '',
-    HOME: join(tmp.dir, 'home'),
-    BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
-  };
-
   const owned = stack.move();
-
-  const running = new AsyncDisposableStack();
 
   return {
     dir: tmp.dir,
     port,
-    command,
-    env,
-    async run(args: readonly string[], extraEnv: Readonly<Record<string, string>>) {
-      const proc = running.use(
-        Bun.spawn([...command, ...args], {
-          cwd: tmp.dir,
-          env: { ...env, ...extraEnv },
-          stdout: 'pipe',
-          stderr: 'pipe',
-        }),
-      );
+    command: resolveGatewayCommand(process.env['ATC_GATEWAY_BIN']),
 
-      const [exitCode, stdout, stderr] = await Promise.all([
-        proc.exited,
-        new Response(proc.stdout).text(),
-        new Response(proc.stderr).text(),
-      ]);
-
-      return { exitCode, stdout, stderr };
+    // Bun's transpiler cache would write under HOME when the source entry runs.
+    env: {
+      PATH: process.env['PATH'] ?? '',
+      HOME: join(tmp.dir, 'home'),
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },
-    async [Symbol.asyncDispose]() {
-      await running.disposeAsync();
-
+    [Symbol.dispose]: () => {
       owned.dispose();
     },
   };
 }
 
 test('it answers both probes for the host of its public URL', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -121,7 +95,7 @@ test('it answers both probes for the host of its public URL', async () => {
 });
 
 test('it refuses a probe from a foreign host', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -169,7 +143,7 @@ test('it refuses a probe from a foreign host', async () => {
 });
 
 test('it keeps both databases in the state directory', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -220,8 +194,8 @@ test('it keeps both databases in the state directory', async () => {
   });
 });
 
-test('it exits 1 naming the token variable a daemon lacks', async () => {
-  await using ctx = setupTest();
+test('it exits 1 naming the token variable a daemon lacks', () => {
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -233,8 +207,9 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
     }),
   );
 
-  const result = await ctx.run(
+  const result = Bun.spawnSync(
     [
+      ...ctx.command,
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
@@ -243,22 +218,23 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
       '--state-dir',
       join(ctx.dir, 'state'),
     ],
-    {},
+    { cwd: ctx.dir, env: ctx.env },
   );
 
-  expect({ exitCode: result.exitCode, stderr: result.stderr }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stderr: result.stderr.toString() }).toStrictEqual({
     exitCode: 1,
     stderr: "atc-gateway: daemon 'cloud' has no token: set ATC_GATEWAY_TOKEN_CLOUD\n",
   });
 });
 
-test('it exits 1 on a registry that is not JSON', async () => {
-  await using ctx = setupTest();
+test('it exits 1 on a registry that is not JSON', () => {
+  using ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'bad.json'), 'not json');
 
-  const result = await ctx.run(
+  const result = Bun.spawnSync(
     [
+      ...ctx.command,
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
@@ -267,15 +243,18 @@ test('it exits 1 on a registry that is not JSON', async () => {
       '--state-dir',
       join(ctx.dir, 'state'),
     ],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) } },
   );
 
   expect(result.exitCode).toBe(1);
-  expect(result.stderr).toMatch(/^atc-gateway: cannot read the registry at .*bad\.json: .+\n$/u);
+
+  expect(result.stderr.toString()).toMatch(
+    /^atc-gateway: cannot read the registry at .*bad\.json: .+\n$/u,
+  );
 });
 
-test('it exits 1 when it has no state directory', async () => {
-  await using ctx = setupTest();
+test('it exits 1 when it has no state directory', () => {
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -287,25 +266,26 @@ test('it exits 1 when it has no state directory', async () => {
     }),
   );
 
-  const result = await ctx.run(
+  const result = Bun.spawnSync(
     [
+      ...ctx.command,
       'serve',
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
       join(ctx.dir, 'registry.json'),
     ],
-    { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) } },
   );
 
-  expect({ exitCode: result.exitCode, stderr: result.stderr }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stderr: result.stderr.toString() }).toStrictEqual({
     exitCode: 1,
     stderr: 'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR\n',
   });
 });
 
 test('it exits 0 on SIGTERM', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -357,7 +337,7 @@ test.each([
   { args: ['serve', '--state-dir', 'flagged'] },
   { args: ['serve', '--state-dir=flagged'] },
 ])('it serves from the state directory in $args over the environment', async (row) => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -415,36 +395,40 @@ test.each([
   { before: ['clients', '--state-dir=flagged', 'add'], after: [] },
   { before: ['clients', 'add'], after: ['--state-dir', 'flagged'] },
   { before: ['clients', 'add'], after: ['--state-dir=flagged'] },
-])(
-  'it adds a client to the state directory in $before $after over the environment',
-  async (row) => {
-    await using ctx = setupTest();
+])('it adds a client to the state directory in $before $after over the environment', (row) => {
+  using ctx = setupTest();
 
-    const added = await ctx.run(
-      [
-        ...row.before,
-        'Claude',
-        '--redirect-uri',
-        'https://claude.ai/api/mcp/auth_callback',
-        ...row.after,
-      ],
-      { ATC_GATEWAY_STATE_DIR: 'from-env' },
-    );
+  const added = Bun.spawnSync(
+    [
+      ...ctx.command,
+      ...row.before,
+      'Claude',
+      '--redirect-uri',
+      'https://claude.ai/api/mcp/auth_callback',
+      ...row.after,
+    ],
+    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
+  );
 
-    const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
 
-    if (clientID === undefined) {
-      throw new Error(`no client ID in: ${added.stdout}${added.stderr}`);
-    }
+  if (clientID === undefined) {
+    throw new Error(`no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`);
+  }
 
-    const listed = await ctx.run(['clients', 'list', '--state-dir=flagged'], {});
+  const listed = Bun.spawnSync([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+    cwd: ctx.dir,
+    env: ctx.env,
+  });
 
-    expect({ listed: listed.stdout, entries: readdirSync(ctx.dir).toSorted() }).toStrictEqual({
-      listed: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
-      entries: ['flagged'],
-    });
-  },
-);
+  expect({
+    listed: listed.stdout.toString(),
+    entries: readdirSync(ctx.dir).toSorted(),
+  }).toStrictEqual({
+    listed: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
+    entries: ['flagged'],
+  });
+});
 
 test.each([
   { args: ['--state-dir', 'flagged', 'clients'] },
@@ -453,11 +437,12 @@ test.each([
   { args: ['clients', '--state-dir=flagged', 'list'] },
   { args: ['clients', 'list', '--state-dir', 'flagged'] },
   { args: ['clients', 'list', '--state-dir=flagged'] },
-])('it lists the clients in the state directory in $args over the environment', async (row) => {
-  await using ctx = setupTest();
+])('it lists the clients in the state directory in $args over the environment', (row) => {
+  using ctx = setupTest();
 
-  const added = await ctx.run(
+  const added = Bun.spawnSync(
     [
+      ...ctx.command,
       'clients',
       'add',
       'Claude',
@@ -465,20 +450,23 @@ test.each([
       'https://claude.ai/api/mcp/auth_callback',
       '--state-dir=flagged',
     ],
-    {},
+    { cwd: ctx.dir, env: ctx.env },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
 
   if (clientID === undefined) {
-    throw new Error(`no client ID in: ${added.stdout}${added.stderr}`);
+    throw new Error(`no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`);
   }
 
-  const listed = await ctx.run(row.args, { ATC_GATEWAY_STATE_DIR: 'from-env' });
+  const listed = Bun.spawnSync([...ctx.command, ...row.args], {
+    cwd: ctx.dir,
+    env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' },
+  });
 
   expect({
     exitCode: listed.exitCode,
-    listed: listed.stdout,
+    listed: listed.stdout.toString(),
     entries: readdirSync(ctx.dir).toSorted(),
   }).toStrictEqual({
     exitCode: 0,
@@ -494,52 +482,55 @@ test.each([
   { before: ['clients', '--state-dir=flagged', 'remove'], after: [] },
   { before: ['clients', 'remove'], after: ['--state-dir', 'flagged'] },
   { before: ['clients', 'remove'], after: ['--state-dir=flagged'] },
-])(
-  'it removes a client from the state directory in $before $after over the environment',
-  async (row) => {
-    await using ctx = setupTest();
+])('it removes a client from the state directory in $before $after over the environment', (row) => {
+  using ctx = setupTest();
 
-    const added = await ctx.run(
-      [
-        'clients',
-        'add',
-        'Claude',
-        '--redirect-uri',
-        'https://claude.ai/api/mcp/auth_callback',
-        '--state-dir=flagged',
-      ],
-      {},
-    );
-
-    const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
-
-    if (clientID === undefined) {
-      throw new Error(`no client ID in: ${added.stdout}${added.stderr}`);
-    }
-
-    const removed = await ctx.run([...row.before, clientID, ...row.after], {
-      ATC_GATEWAY_STATE_DIR: 'from-env',
-    });
-
-    const listed = await ctx.run(['clients', 'list', '--state-dir=flagged'], {});
-
-    expect({
-      removed: removed.stdout,
-      listed: listed.stdout,
-      entries: readdirSync(ctx.dir).toSorted(),
-    }).toStrictEqual({
-      removed: `Removed client ${clientID} and revoked every grant it held\n`,
-      listed: 'No clients. Add one with: atc-gateway clients add <name> --redirect-uri <uri>\n',
-      entries: ['flagged'],
-    });
-  },
-);
-
-test('it exits 1 on two state directories that differ', async () => {
-  await using ctx = setupTest();
-
-  const added = await ctx.run(
+  const added = Bun.spawnSync(
     [
+      ...ctx.command,
+      'clients',
+      'add',
+      'Claude',
+      '--redirect-uri',
+      'https://claude.ai/api/mcp/auth_callback',
+      '--state-dir=flagged',
+    ],
+    { cwd: ctx.dir, env: ctx.env },
+  );
+
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+
+  if (clientID === undefined) {
+    throw new Error(`no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`);
+  }
+
+  const removed = Bun.spawnSync([...ctx.command, ...row.before, clientID, ...row.after], {
+    cwd: ctx.dir,
+    env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' },
+  });
+
+  const listed = Bun.spawnSync([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+    cwd: ctx.dir,
+    env: ctx.env,
+  });
+
+  expect({
+    removed: removed.stdout.toString(),
+    listed: listed.stdout.toString(),
+    entries: readdirSync(ctx.dir).toSorted(),
+  }).toStrictEqual({
+    removed: `Removed client ${clientID} and revoked every grant it held\n`,
+    listed: 'No clients. Add one with: atc-gateway clients add <name> --redirect-uri <uri>\n',
+    entries: ['flagged'],
+  });
+});
+
+test('it exits 1 on two state directories that differ', () => {
+  using ctx = setupTest();
+
+  const added = Bun.spawnSync(
+    [
+      ...ctx.command,
       '--state-dir=first',
       'clients',
       'add',
@@ -549,10 +540,15 @@ test('it exits 1 on two state directories that differ', async () => {
       '--state-dir',
       'second',
     ],
-    {},
+    { cwd: ctx.dir, env: ctx.env },
   );
 
-  expect({ ...added, entries: readdirSync(ctx.dir) }).toStrictEqual({
+  expect({
+    exitCode: added.exitCode,
+    stdout: added.stdout.toString(),
+    stderr: added.stderr.toString(),
+    entries: readdirSync(ctx.dir),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: '',
     stderr: "atc-gateway: --state-dir gives different directories: 'first', 'second'\n",
@@ -560,15 +556,20 @@ test('it exits 1 on two state directories that differ', async () => {
   });
 });
 
-test('it exits 1 when a flag takes the state directory flag as its value', async () => {
-  await using ctx = setupTest();
+test('it exits 1 when a flag takes the state directory flag as its value', () => {
+  using ctx = setupTest();
 
-  const added = await ctx.run(
-    ['clients', 'add', 'Claude', '--redirect-uri', '--state-dir', 'flagged'],
-    { ATC_GATEWAY_STATE_DIR: 'from-env' },
+  const added = Bun.spawnSync(
+    [...ctx.command, 'clients', 'add', 'Claude', '--redirect-uri', '--state-dir', 'flagged'],
+    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
   );
 
-  expect({ ...added, entries: readdirSync(ctx.dir) }).toStrictEqual({
+  expect({
+    exitCode: added.exitCode,
+    stdout: added.stdout.toString(),
+    stderr: added.stderr.toString(),
+    entries: readdirSync(ctx.dir),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: '',
     stderr: 'atc-gateway: --redirect-uri needs a value; write --redirect-uri=<value>\n',
@@ -576,11 +577,12 @@ test('it exits 1 when a flag takes the state directory flag as its value', async
   });
 });
 
-test('it exits 1 on a flag it does not know at the root', async () => {
-  await using ctx = setupTest();
+test('it exits 1 on a flag it does not know at the root', () => {
+  using ctx = setupTest();
 
-  const added = await ctx.run(
+  const added = Bun.spawnSync(
     [
+      ...ctx.command,
       '--stat-dir=flagged',
       'clients',
       'add',
@@ -588,10 +590,15 @@ test('it exits 1 on a flag it does not know at the root', async () => {
       '--redirect-uri',
       'https://claude.ai/api/mcp/auth_callback',
     ],
-    { ATC_GATEWAY_STATE_DIR: 'from-env' },
+    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
   );
 
-  expect({ ...added, entries: readdirSync(ctx.dir) }).toStrictEqual({
+  expect({
+    exitCode: added.exitCode,
+    stdout: added.stdout.toString(),
+    stderr: added.stderr.toString(),
+    entries: readdirSync(ctx.dir),
+  }).toStrictEqual({
     exitCode: 1,
     stdout: '',
     stderr: "atc-gateway: unknown flag '--stat-dir=flagged'\n",

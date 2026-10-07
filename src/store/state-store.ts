@@ -2,7 +2,14 @@ import { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
-import type { Expression, ExpressionBuilder, SqlBool, Transaction } from 'kysely';
+import type {
+  CompiledQuery,
+  Expression,
+  ExpressionBuilder,
+  LogEvent,
+  SqlBool,
+  Transaction,
+} from 'kysely';
 import type { AdapterEvent } from '../protocol/adapter-event';
 import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
@@ -136,8 +143,13 @@ export class StateStore {
   }
 
   // Migrations run statements that cannot happen inside a constructor, so
-  // opening a store is this factory instead of `new`.
-  static async open(dbPath: string, legacyFleetPath?: string): Promise<StateStore> {
+  // opening a store is this factory instead of `new`. A caller that passes
+  // a query listener receives each statement the store runs once it ran.
+  static async open(
+    dbPath: string,
+    legacyFleetPath?: string,
+    onQuery?: (query: CompiledQuery) => void,
+  ): Promise<StateStore> {
     const sqlite = new Database(dbPath, { create: true });
 
     sqlite.run('PRAGMA journal_mode = WAL;');
@@ -149,6 +161,15 @@ export class StateStore {
         createIntrospector: (kysely) => new SqliteIntrospector(kysely),
         createQueryCompiler: () => new SqliteQueryCompiler(),
       },
+      ...(onQuery === undefined
+        ? {}
+        : {
+            log: (event: LogEvent) => {
+              if (event.level === 'query') {
+                onQuery(event.query);
+              }
+            },
+          }),
     });
 
     await runMigrations(db);

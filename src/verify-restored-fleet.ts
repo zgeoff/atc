@@ -3,6 +3,8 @@ import type { RestartFailedRow } from './parse-restart-result';
 import type { StoredRow } from './read-stored-rows';
 import { readStoredRows } from './read-stored-rows';
 import { isRecord } from './shared/report';
+import { systemClock } from './shared/system-clock';
+import type { Clock } from './shared/system-clock';
 
 interface FleetVerdict {
   // The rows the daemon stored, exited ones included.
@@ -30,14 +32,16 @@ const UNSIZED_READ_MS = 30_000;
  * at the deadline failed to revive. The deadline counts from the call, and
  * every request to the daemon is held to it: the daemon must answer the first
  * list before it, and when it overtakes a later list, the verdict comes from
- * the last list the daemon answered.
+ * the last list the daemon answered. The deadline, the waits between lists,
+ * and every request's time limit run on `clock`, the wall clock unless given.
  */
 export async function verifyRestoredFleet(
   client: Pick<DaemonClient, 'sendRequest'>,
   timeoutSeconds: number | null,
   snapshot: readonly StoredRow[] | null,
+  clock: Clock = systemClock,
 ): Promise<FleetVerdict> {
-  const startedAt = Date.now();
+  const startedAt = clock.now();
 
   // Without a snapshot the rows come from the new daemon, and its count is
   // not known until they are read, so that read gets the fixed allowance.
@@ -46,19 +50,22 @@ export async function verifyRestoredFleet(
       ? await sendBounded(
           () => readStoredRows(client),
           startedAt + (timeoutSeconds === null ? UNSIZED_READ_MS : timeoutSeconds * 1000),
+          clock,
         )
       : null;
 
   const stored = snapshot ?? read ?? [];
   const deadline = startedAt + pickDeadlineMs(stored, timeoutSeconds);
 
-  const restored = await tryRestore(client, deadline);
-  let found = await sendBounded(() => collectFailedRows(client, stored, restored), deadline);
+  const restored = await tryRestore(client, deadline, clock);
+  let found = await sendBounded(() => collectFailedRows(client, stored, restored), deadline, clock);
 
-  while (found.pending && Date.now() < deadline) {
-    await Bun.sleep(Math.min(250, deadline - Date.now()));
+  while (found.pending && clock.now() < deadline) {
+    await new Promise<void>((resolve) => {
+      clock.schedule(resolve, Math.min(250, deadline - clock.now()));
+    });
 
-    const polled = await tryCollectFailedRows(client, stored, restored, deadline);
+    const polled = await tryCollectFailedRows(client, stored, restored, deadline, clock);
 
     if (polled === null) {
       break;
@@ -74,22 +81,22 @@ export async function verifyRestoredFleet(
  * Runs a request and rejects once the deadline passes, so a daemon that
  * stops answering cannot hold the restart, and its lock, open.
  */
-async function sendBounded<T>(send: () => Promise<T>, deadline: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+async function sendBounded<T>(send: () => Promise<T>, deadline: number, clock: Clock): Promise<T> {
+  let stopTimer: (() => void) | undefined;
 
   const expired = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(
+    stopTimer = clock.schedule(
       () => {
         reject(new Error('the new daemon stopped answering before the restore deadline'));
       },
-      Math.max(0, deadline - Date.now()),
+      Math.max(0, deadline - clock.now()),
     );
   });
 
   try {
     return await Promise.race([send(), expired]);
   } finally {
-    clearTimeout(timer);
+    stopTimer?.();
   }
 }
 
@@ -107,9 +114,14 @@ function pickDeadlineMs(stored: readonly StoredRow[], timeoutSeconds: number | n
 async function tryRestore(
   client: Pick<DaemonClient, 'sendRequest'>,
   deadline: number,
+  clock: Clock,
 ): Promise<boolean> {
   try {
-    await sendBounded(() => client.sendRequest('fleet.restore', { cols: 80, rows: 24 }), deadline);
+    await sendBounded(
+      () => client.sendRequest('fleet.restore', { cols: 80, rows: 24 }),
+      deadline,
+      clock,
+    );
 
     return true;
   } catch {
@@ -126,22 +138,23 @@ async function tryCollectFailedRows(
   stored: readonly StoredRow[],
   restored: boolean,
   deadline: number,
+  clock: Clock,
 ): Promise<FailedRows | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let stopTimer: (() => void) | undefined;
 
   const expired = new Promise<null>((resolve) => {
-    timer = setTimeout(
+    stopTimer = clock.schedule(
       () => {
         resolve(null);
       },
-      Math.max(0, deadline - Date.now()),
+      Math.max(0, deadline - clock.now()),
     );
   });
 
   try {
     return await Promise.race([collectFailedRows(client, stored, restored), expired]);
   } finally {
-    clearTimeout(timer);
+    stopTimer?.();
   }
 }
 
