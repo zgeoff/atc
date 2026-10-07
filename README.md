@@ -91,11 +91,12 @@ zoxide is installed. A typed path such as `~/pro` completes like a shell. Inside
 your statusline gains a fleet segment, so `● 2 need you: auth-bug` is visible without opening the
 list.
 
-If the daemon dies, press `R` on the home screen and every session respawns from its transcript.
-After you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and
-restores the fleet when you are ready. The bar shows `⟳ restarting daemon` until the restart
-finishes. When the running daemon speaks another protocol version, `atc` asks before it restarts the
-daemon, since the restart ends every session the daemon hosts.
+When the daemon restarts, it restores the fleet by itself and every session respawns from its
+transcript; set `restoreFleetOnRestart` to `false` to wait for `R` on the home screen instead. After
+you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and restores the
+fleet when you are ready. The bar shows `⟳ restarting daemon` until the restart finishes. When the
+running daemon speaks another protocol version, `atc` asks before it restarts the daemon, since the
+restart ends every session the daemon hosts.
 
 atc runs inside zellij or tmux. Give the pane locked mode so the leader key reaches atc.
 

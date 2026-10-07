@@ -435,6 +435,12 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     );
   }
 
+  if (cfg.removedKeys.length > 0) {
+    console.error(
+      `atc daemon: config: config.json sets ${cfg.removedKeys.join(', ')}, which atc no longer reads; run 'atc config migrate' to drop it`,
+    );
+  }
+
   const sources = sourceOrder.buildSources(
     builtinSources.collectBuiltinSources({
       roots: cfg.dirs.roots,
@@ -489,7 +495,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
         ? {}
         : { listen: { host: listen.host, port: listen.port, tokenFile } }),
       restoreBootTimeoutMs,
-      resumeInterruptedTurns: cfg.resumeInterruptedTurns,
+      restoreFleetOnRestart: cfg.restoreFleetOnRestart,
       ...(Number.isFinite(graceOverride) && graceOverride >= 0
         ? { tapGraceMs: graceOverride }
         : {}),

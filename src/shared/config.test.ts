@@ -47,7 +47,8 @@ test('it leaves every target unusable, local included, and grants no principal a
     principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
-    resumeInterruptedTurns: false,
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
@@ -114,7 +115,8 @@ test('it falls back field by field when a field is wrong-typed instead of failin
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
-    resumeInterruptedTurns: false,
+    restoreFleetOnRestart: true,
+    removedKeys: [],
   });
 });
 
@@ -499,4 +501,31 @@ test('it writes the default config when the file is missing', () => {
     ids: config.agents.map((entry) => entry.id),
     written: getRecord({ written }, 'written')['agents'],
   }).toStrictEqual({ ids: ['claude'], written: { claude: {} } });
+});
+
+test('it restores the fleet on restart by default', () => {
+  const config = parseConfig({});
+
+  expect({ restore: config.restoreFleetOnRestart, removed: config.removedKeys }).toStrictEqual({
+    restore: true,
+    removed: [],
+  });
+});
+
+test('it reads restoreFleetOnRestart set to false', () => {
+  expect(parseConfig({ restoreFleetOnRestart: false }).restoreFleetOnRestart).toBe(false);
+});
+
+test('it loads a config that still sets resumeInterruptedTurns and reports the key without its value', () => {
+  const config = parseConfig({ resumeInterruptedTurns: true, leader: 'ctrl-a' });
+
+  expect({
+    removed: config.removedKeys,
+    restore: config.restoreFleetOnRestart,
+    leader: config.leader,
+  }).toStrictEqual({
+    removed: ['resumeInterruptedTurns'],
+    restore: true,
+    leader: { code: 1, label: '^A' },
+  });
 });

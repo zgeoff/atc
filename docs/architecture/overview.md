@@ -187,3 +187,9 @@ attaches at once so the caller can attach, and each later one waits for the prev
 report its `SessionStart` hook, so an update-triggered restart does not boot a dozen agent processes
 in the same instant and stall the machine. A per-session cap (`restoreBootTimeoutMs`) keeps a
 session that never reports — or dies mid-resume — from holding up the rest.
+
+A daemon started with `restoreFleetOnRestart` on (the default) runs this restore itself once it is
+listening, when its store holds sessions, at 80x24 until the first attach resizes each terminal. The
+daemon keeps one restore in flight: a `fleet.restore` that arrives while its stagger runs joins it
+and returns its count. After the stagger finishes, `fleet.restore` runs a real restore again, which
+skips every live session and revives one that died since.

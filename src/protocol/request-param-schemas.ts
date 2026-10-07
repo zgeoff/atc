@@ -196,12 +196,6 @@ export const REQUEST_PARAM_SCHEMAS = {
       .boolean({ error: 'session.spawn trustClonedWorkspace must be a boolean' })
       .optional(),
 
-    // Whether a fleet restore after a daemon restart sends the session one
-    // message to carry on an interrupted turn; absent follows the config.
-    resumeInterruptedTurns: z
-      .boolean({ error: 'session.spawn resumeInterruptedTurns must be a boolean' })
-      .optional(),
-
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.
     parent: z.preprocess(

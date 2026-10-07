@@ -35,9 +35,9 @@ A daemon on another protocol version refuses the handshake, so a client cannot a
 non-interactive client, such as `atc mcp` or `atc mcp --http`, then exits with an error holding both
 builds, both protocol versions, the daemon's pid, and how to restart it. The TUI shows the same
 facts and asks before it restarts the daemon. On `y`, the TUI sends the daemon SIGTERM, boots one
-from its own build, and restores the fleet; any other key exits and leaves the daemon running.
-Without a handshake a client cannot learn whether the daemon hosts live sessions, so the TUI asks
-even when it hosts none.
+from its own build, which restores the fleet itself; any other key exits and leaves the daemon
+running. Without a handshake a client cannot learn whether the daemon hosts live sessions, so the
+TUI asks even when it hosts none.
 
 Clients are disposable. A client crash or terminal close costs nothing; the daemon detaches its
 subscriptions and the fleet runs on. Each client has its own focused session, and a session streams
@@ -366,7 +366,7 @@ holds in `prefs`, and at which ownership epoch. A restore loads only the rows th
 A fleet write rewrites this daemon's rows for the sessions it lists and deletes its rows for the
 sessions it dropped on purpose since the last write. The write also deletes this daemon's row for
 any agent session id a listed session holds, so the fleet keeps one row per agent session id. Every
-other row stays as it is: after a restart, a spawn or rename before `fleet.restore` leaves the
+other row stays as it is: after a restart, a spawn or rename before the fleet restore leaves the
 stored fleet restorable. A write that touches a session another daemon owns, or one whose stored
 epoch is past this daemon's, fails whole with `stale_epoch`. Every row this daemon writes holds
 epoch 1.

@@ -23,6 +23,7 @@ import { formatJSONKind } from './format-json-kind';
 import { formatMixedAgentKeys } from './format-mixed-agent-keys';
 import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
 import { pickDefaultAgent } from './pick-default-agent';
+import { REMOVED_CONFIG_KEYS } from './removed-config-keys';
 import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
 
@@ -65,10 +66,12 @@ export interface Config {
   // The workspace config problems, one line each.
   workspaceErrors: readonly string[];
 
-  // Whether a fleet restore after a daemon restart sends a session that
-  // was mid-turn one message to carry on; a spawn can override it per
-  // session.
-  resumeInterruptedTurns: boolean;
+  // Whether the daemon restores the stored fleet by itself after a restart.
+  restoreFleetOnRestart: boolean;
+
+  // The keys the file sets that atc no longer reads, in the order the file
+  // holds them. Values are never recorded.
+  removedKeys: readonly string[];
 }
 
 /**
@@ -117,7 +120,8 @@ const DEFAULTS: Config = {
   principals: null,
   principalErrors: [],
   workspaceErrors: [],
-  resumeInterruptedTurns: false,
+  restoreFleetOnRestart: true,
+  removedKeys: [],
 };
 
 const configDir = join(resolveHomeDir(), '.config', 'atc');
@@ -158,7 +162,7 @@ const CONFIG_SCHEMA = z.object({
   targets: z.unknown().optional(),
   defaultTarget: z.unknown().optional(),
   principals: z.unknown().optional(),
-  resumeInterruptedTurns: buildOptionalBoolean(),
+  restoreFleetOnRestart: buildOptionalBoolean(),
 });
 
 /**
@@ -259,6 +263,7 @@ export function renderDefaultConfig(): string {
     principals: _principals,
     principalErrors: _principalErrors,
     workspaceErrors: _workspaceErrors,
+    removedKeys: _removedKeys,
     workspaces,
     ...written
   } = DEFAULTS;
@@ -354,7 +359,8 @@ export function parseConfig(raw: unknown, file: string = configFile): Config {
     principals: principals.principals,
     principalErrors: principals.errors,
     workspaceErrors: workspaces.errors,
-    resumeInterruptedTurns: parsed.data.resumeInterruptedTurns ?? DEFAULTS.resumeInterruptedTurns,
+    restoreFleetOnRestart: parsed.data.restoreFleetOnRestart ?? DEFAULTS.restoreFleetOnRestart,
+    removedKeys: REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key)),
   };
 }
 

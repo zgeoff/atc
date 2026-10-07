@@ -185,10 +185,6 @@ export interface Session {
   // The epoch of the session's latest harness start or attach, which the
   // daemon's bridge to that harness is bound to; 0 before the first.
   bridgeEpoch: number;
-
-  // Whether a fleet restore sends the session one message to carry on a
-  // turn a daemon restart cut off; absent follows the daemon's config.
-  resumeInterruptedTurns?: boolean;
 }
 
 // A session's ready workspace and the variables its harnesses go without.
@@ -606,9 +602,6 @@ export class SessionManager {
       attachment: this.hasHostLifecycle(target) ? 'detached' : 'local',
       hostKey: entry.hostKey ?? entry.sessionID,
       bridgeEpoch: 0,
-      ...(entry.resumeInterruptedTurns === undefined
-        ? {}
-        : { resumeInterruptedTurns: entry.resumeInterruptedTurns }),
     };
 
     this.sessions.push(session);
@@ -1179,9 +1172,6 @@ export class SessionManager {
       suspended: false,
       hostKey,
       bridgeEpoch: binding.epoch,
-      ...(overrides.resumeInterruptedTurns === undefined
-        ? {}
-        : { resumeInterruptedTurns: overrides.resumeInterruptedTurns }),
     };
 
     this.attachHarness(session, pty, this.hasHostLifecycle(target));
@@ -3050,9 +3040,6 @@ export class SessionManager {
         targetIdentity: s.targetIdentity,
         ...(s.desired === 'run' ? {} : { desired: s.desired }),
         ...(s.hostKey === s.id ? {} : { hostKey: s.hostKey }),
-        ...(s.resumeInterruptedTurns === undefined
-          ? {}
-          : { resumeInterruptedTurns: s.resumeInterruptedTurns }),
       });
     }
 
