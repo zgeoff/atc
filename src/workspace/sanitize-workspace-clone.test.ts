@@ -181,14 +181,21 @@ test('it never removes an ordinary work-tree file', async () => {
   await mkdir(join(ctx.work, 'src'), { recursive: true });
   await writeFile(join(ctx.work, 'notes.md'), 'remember the milk\n');
   await writeFile(join(ctx.work, 'src', 'index.ts'), 'export {};\n');
-  await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
+
+  const sanitized = await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
 
   const kept = {
     notes: await readFile(join(ctx.work, 'notes.md'), 'utf8'),
     index: await readFile(join(ctx.work, 'src', 'index.ts'), 'utf8'),
   };
 
-  expect(kept).toStrictEqual({ notes: 'remember the milk\n', index: 'export {};\n' });
+  expect({ sanitized, kept }).toStrictEqual({
+    sanitized: {
+      ok: true,
+      provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: expect.toBeString() },
+    },
+    kept: { notes: 'remember the milk\n', index: 'export {};\n' },
+  });
 });
 
 test('it removes the reflogs that record the clone URL', async () => {
