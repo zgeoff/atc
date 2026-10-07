@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.42.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.41.0...@zgeoff/atc@2.42.0) (2026-10-07)
+
+
+### Features
+
+* **geo-133:** add the atc_session_forget MCP tool ([#345](https://github.com/zgeoff/atc/issues/345)) ([921a015](https://github.com/zgeoff/atc/commit/921a015e4d88cca5860380adb715dc009c193594))
+
 ## [2.41.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@2.40.0...@zgeoff/atc@2.41.0) (2026-10-07)
 
 ### Features
