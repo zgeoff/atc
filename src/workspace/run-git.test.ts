@@ -28,3 +28,15 @@ test('it stops a command that runs past its time limit and reports it timed out'
   expect(run).toStrictEqual({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
   expect(Date.now() - started).toBeLessThan(5000);
 });
+
+test('it reports the pid of the git it starts', async () => {
+  const spawned: number[] = [];
+
+  const run = await runGit(['-c', 'alias.parent=!echo $PPID', 'parent'], {
+    onSpawn: (pid) => {
+      spawned.push(pid);
+    },
+  });
+
+  expect(spawned).toStrictEqual([Number(run.stdout.trim())]);
+});

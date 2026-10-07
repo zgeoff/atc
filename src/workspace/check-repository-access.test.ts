@@ -1,10 +1,8 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { expect, test } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
-import { collectProcessTree } from '../test-utils/collect-process-tree';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
@@ -12,7 +10,8 @@ import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
 import { checkRepositoryAccess } from './check-repository-access';
 
-// The fixture upstream served over smart HTTP behind basic auth.
+// The fixture upstream served over smart HTTP behind basic auth, and a
+// server that holds every request without ever answering it.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -24,6 +23,14 @@ async function setupTest() {
 
   stack.defer(() => server.stop());
 
+  const silent = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch: () => new Promise<Response>(() => {}),
+  });
+
+  stack.defer(() => silent.stop(true));
+
   const owned = stack.move();
 
   return {
@@ -34,6 +41,7 @@ async function setupTest() {
     sha: fixture.sha,
     httpURL: `${server.url}upstream.git`,
     authorizations: server.authorizations,
+    silentURL: `http://127.0.0.1:${silent.port}/silent.git`,
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
@@ -233,61 +241,38 @@ test('it authenticates with an env credential through the askpass helper', async
   );
 });
 
-// The git processes are read from /proc, which only Linux has.
-test.skipIf(process.platform !== 'linux')(
-  'it refuses an upstream that does not answer within its time limit and leaves no git process behind',
-  async () => {
-    const recorded = Promise.withResolvers<number[]>();
+test('it refuses an upstream that does not answer within its time limit and leaves no git process behind', async () => {
+  await using ctx = await setupTest();
 
-    // The server holds every request forever. While it holds the first, it
-    // records the processes that carry its URL: git and its HTTP helper.
-    const server = Bun.serve({
-      port: 0,
-      hostname: '127.0.0.1',
-      fetch: async () => {
-        const tree = await collectProcessTree(process.pid);
+  const groups: number[] = [];
+  const started = Date.now();
 
-        recorded.resolve(
-          tree
-            .filter((entry) => entry.argv.join(' ').includes(`127.0.0.1:${server.port}/`))
-            .map((entry) => entry.pid),
-        );
+  const access = await checkRepositoryAccess({
+    url: ctx.silentURL,
+    timeoutMs: 300,
+    transports: ['https', 'ssh', 'http', 'file'],
+    onSpawn: (pid) => {
+      groups.push(pid);
+    },
+  });
 
-        return new Promise<Response>(() => {});
-      },
-    });
+  const elapsed = Date.now() - started;
 
-    onTestFinished(async () => {
-      await server.stop(true);
-    });
+  expect(access).toStrictEqual({
+    ok: false,
+    code: 'clone_failed',
+    message: 'git ls-remote did not answer within 0.3 s',
+  });
 
-    const started = Date.now();
+  expect(elapsed).toBeLessThan(5000);
+  expect(groups).toHaveLength(1);
 
-    const access = await checkRepositoryAccess({
-      url: `http://127.0.0.1:${server.port}/silent.git`,
-      timeoutMs: 1000,
-      transports: ['https', 'ssh', 'http', 'file'],
-    });
-
-    const elapsed = Date.now() - started;
-
-    const pids = await recorded.promise;
-
-    expect(access).toStrictEqual({
-      ok: false,
-      code: 'clone_failed',
-      message: 'git ls-remote did not answer within 1 s',
-    });
-
-    expect(elapsed).toBeLessThan(5000);
-    expect(pids).not.toBeEmpty();
-
-    // A killed process is gone once it is reaped, a moment after the signal.
-    await waitFor(() => {
-      expect(pids).toSatisfyAll((pid: number) => !existsSync(join('/proc', String(pid))));
-    });
-  },
-);
+  // The listing's git leads its own process group. A killed group is gone
+  // once the kernel reaps it, a moment after the signal.
+  await waitFor(() => {
+    expect(() => process.kill(-(groups[0] ?? 0), 0)).toThrow('ESRCH');
+  });
+});
 
 test.each([
   [

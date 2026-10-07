@@ -13,6 +13,10 @@ interface GitRunOptions {
 
   // The transports git may fetch over; https and ssh when unset.
   readonly transports?: readonly string[];
+
+  // Called with the pid of the started git right after it starts; with a
+  // time limit, that pid is also its process group's id.
+  readonly onSpawn?: ((pid: number) => void) | undefined;
 }
 
 interface GitRun {
@@ -83,6 +87,8 @@ export async function runGit(
     // it stops the helpers it started, such as `git remote-http`, too.
     detached: options.timeoutMs !== undefined,
   });
+
+  options.onSpawn?.(proc.pid);
 
   const finished = Promise.all([
     new Response(proc.stdout).text(),

@@ -30,19 +30,24 @@ test.skipIf(process.platform !== 'linux')(
 );
 
 test.skipIf(process.platform !== 'linux')(
-  'it collects the descendants of the root and leaves out the root itself',
+  'it collects the children and grandchildren of the root and leaves out the root itself',
   async () => {
-    const child = Bun.spawn(['sh', '-c', 'sleep 31 & wait']);
+    const child = Bun.spawn(['sh', '-c', 'sh -c "sleep 32 & wait" & sleep 31 & wait'], {
+      detached: true,
+    });
 
     onTestFinished(() => {
-      Bun.spawnSync(['pkill', '-KILL', '-P', String(child.pid)]);
-      child.kill('SIGKILL');
+      process.kill(-child.pid, 'SIGKILL');
     });
 
     await waitFor(async () => {
       const tree = await collectProcessTree(child.pid);
 
-      expect(tree.map((entry) => entry.argv)).toStrictEqual([['sleep', '31']]);
+      expect(tree.map((entry) => entry.argv)).toIncludeSameMembers([
+        ['sh', '-c', 'sleep 32 & wait'],
+        ['sleep', '31'],
+        ['sleep', '32'],
+      ]);
     });
   },
 );

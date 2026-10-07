@@ -4,50 +4,53 @@ import { $ } from 'bun';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { collectRemoteRefs } from './collect-remote-refs';
 
-test('it lists the branches, the peeled tags, and the default branch of an upstream', async () => {
-  await using fixture = await createGitFixture();
+// A bare upstream holding one commit and a work clone that pushes to it.
+function setupTest() {
+  return createGitFixture({ prefix: 'atc-remote-refs-' });
+}
 
-  await $`git tag --no-sign -a v1 -m release`.env(fixture.env).cwd(fixture.work).quiet();
-  await $`git tag light`.env(fixture.env).cwd(fixture.work).quiet();
-  await $`git branch feat/x`.env(fixture.env).cwd(fixture.work).quiet();
-  await $`git push --quiet origin feat/x v1 light`.env(fixture.env).cwd(fixture.work).quiet();
-  await $`git push --quiet origin main:refs/pull/1/head`.env(fixture.env).cwd(fixture.work).quiet();
+test('it lists the branches, the peeled tags, and the default branch of an upstream', async () => {
+  await using ctx = await setupTest();
+
+  await $`git tag --no-sign -a v1 -m release`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git tag light`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git branch feat/x`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin feat/x v1 light`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main:refs/pull/1/head`.env(ctx.env).cwd(ctx.work).quiet();
 
   const tagObject = await $`git rev-parse v1`
-    .env(fixture.env)
-    .cwd(fixture.work)
+    .env(ctx.env)
+    .cwd(ctx.work)
     .text()
     .then((text) => text.trim());
 
-  const listing = await collectRemoteRefs(fixture.upstream, undefined, ['https', 'ssh', 'file']);
+  const listing = await collectRemoteRefs(ctx.upstream, undefined, ['https', 'ssh', 'file']);
 
   expect(listing).toStrictEqual({
     ok: true,
     head: 'main',
     refs: [
-      { name: 'feat/x', kind: 'branch', sha: fixture.sha },
-      { name: 'main', kind: 'branch', sha: fixture.sha },
-      { name: 'light', kind: 'tag', sha: fixture.sha },
-      { name: 'v1', kind: 'tag', sha: fixture.sha },
+      { name: 'feat/x', kind: 'branch', sha: ctx.sha },
+      { name: 'main', kind: 'branch', sha: ctx.sha },
+      { name: 'light', kind: 'tag', sha: ctx.sha },
+      { name: 'v1', kind: 'tag', sha: ctx.sha },
     ],
     byName: new Map([
-      ['refs/heads/feat/x', fixture.sha],
-      ['refs/heads/main', fixture.sha],
-      ['refs/tags/light', fixture.sha],
+      ['refs/heads/feat/x', ctx.sha],
+      ['refs/heads/main', ctx.sha],
+      ['refs/tags/light', ctx.sha],
       ['refs/tags/v1', tagObject],
-      ['refs/tags/v1^{}', fixture.sha],
+      ['refs/tags/v1^{}', ctx.sha],
     ]),
   });
 });
 
 test('it lists an empty upstream as no refs and no default branch', async () => {
-  await using fixture = await createGitFixture();
+  await using ctx = await setupTest();
 
-  await $`git init --quiet --bare --template= ${join(fixture.dir, 'empty.git')}`
-    .env(fixture.env)
-    .quiet();
+  await $`git init --quiet --bare --template= ${join(ctx.dir, 'empty.git')}`.env(ctx.env).quiet();
 
-  const listing = await collectRemoteRefs(join(fixture.dir, 'empty.git'), undefined, [
+  const listing = await collectRemoteRefs(join(ctx.dir, 'empty.git'), undefined, [
     'https',
     'ssh',
     'file',
@@ -57,9 +60,9 @@ test('it lists an empty upstream as no refs and no default branch', async () => 
 });
 
 test("it refuses an upstream git cannot read with git's own message", async () => {
-  await using fixture = await createGitFixture();
+  await using ctx = await setupTest();
 
-  const listing = await collectRemoteRefs(join(fixture.dir, 'missing.git'), undefined, [
+  const listing = await collectRemoteRefs(join(ctx.dir, 'missing.git'), undefined, [
     'https',
     'ssh',
     'file',
@@ -68,15 +71,15 @@ test("it refuses an upstream git cannot read with git's own message", async () =
   expect(listing).toStrictEqual({
     ok: false,
     code: 'clone_failed',
-    message: expect.toInclude(join(fixture.dir, 'missing.git')),
+    message: expect.toInclude(join(ctx.dir, 'missing.git')),
   });
 });
 
 test('it refuses an env credential whose variable is unset', async () => {
-  await using fixture = await createGitFixture();
+  await using ctx = await setupTest();
 
   const listing = await collectRemoteRefs(
-    fixture.upstream,
+    ctx.upstream,
     { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
     ['https', 'ssh', 'file'],
   );
