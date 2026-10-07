@@ -1027,9 +1027,7 @@ test('it starts a revived harness after a restart without the workspace credenti
     options: async (paths) => {
       // The fleet holds a ready git workspace on box, as a spawn under a
       // workspace credential leaves it.
-      const store = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.createMaterialization(
         {
@@ -1057,8 +1055,6 @@ test('it starts a revived harness after a restart without the workspace credenti
           targetIdentity: 'test:box',
         }),
       ]);
-
-      await store.stop();
 
       return {
         adapter: buildMockAgentAdapter(),

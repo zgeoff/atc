@@ -104,6 +104,7 @@ test('it holds no agent session id when neither the session nor the message has 
     undefined,
     buildMockMessageRecord({
       id: toMessageID('m-1'),
+      agentSessionID: undefined,
       text: 'hello',
       status: 'accepted',
       sentAt: 1000,

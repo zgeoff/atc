@@ -39,6 +39,30 @@ test('it clears its resize, detect, and boot timers on dispose so they never fir
   expect(boot).not.toHaveBeenCalled();
 });
 
+test('it leaves its resize, detect, and boot timers to fire when it stops only its headless run', () => {
+  jest.useFakeTimers();
+
+  onTestFinished(() => jest.useRealTimers());
+
+  const runtime = new SessionRuntime();
+
+  const resize = mock(() => {});
+  const detect = mock(() => {});
+  const boot = mock(() => {});
+
+  runtime.resizeTimer = setTimeout(resize, 20);
+  runtime.detectTimer = setTimeout(detect, 20);
+  runtime.bootTimer = setTimeout(boot, 20);
+  runtime.headlessRun = { stop: () => {} };
+
+  runtime.stopHeadlessRun();
+  jest.advanceTimersByTime(20);
+
+  expect(resize).toHaveBeenCalledOnce();
+  expect(detect).toHaveBeenCalledOnce();
+  expect(boot).toHaveBeenCalledOnce();
+});
+
 test('it stops a live headless run on dispose', () => {
   const runtime = new SessionRuntime();
 

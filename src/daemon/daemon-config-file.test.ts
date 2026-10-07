@@ -381,19 +381,35 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = await Promise.all([
+    daemon.client
+      .sendRequest('session.spawn', { cwd: daemon.dir })
+      .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data })),
+    daemon.client
+      .sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' })
+      .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data })),
+  ]);
 
-  expect(refused).toStrictEqual({
-    code: 'target_config_invalid',
-    data: {
-      problem: 'config_malformed',
-      path: ctx.configPath,
-      detail:
-        "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+  expect(refused).toStrictEqual([
+    {
+      code: 'target_config_invalid',
+      data: {
+        problem: 'config_malformed',
+        path: ctx.configPath,
+        detail:
+          "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+      },
     },
-  });
+    {
+      code: 'target_config_invalid',
+      data: {
+        problem: 'config_malformed',
+        path: ctx.configPath,
+        detail:
+          "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
+      },
+    },
+  ]);
 
   expect(ctx.harnesses).toStrictEqual([]);
 });
