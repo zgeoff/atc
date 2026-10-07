@@ -35,7 +35,7 @@ function setupTest() {
     }),
   );
 
-  return { home: tmp.dir, atc, [Symbol.asyncDispose]: tmp[Symbol.asyncDispose] };
+  return { home: tmp.dir, atc, [Symbol.dispose]: tmp[Symbol.dispose] };
 }
 
 test.each([
@@ -45,7 +45,7 @@ test.each([
 ])(
   'it starts a session with TERM $sessionTERM when the daemon starts with TERM $daemonTERM',
   async (row) => {
-    await using ctx = setupTest();
+    using ctx = setupTest();
 
     await using daemon = startDaemonProcess({
       command: ctx.atc,
@@ -74,7 +74,7 @@ test.each([
 );
 
 test('it starts a session without a parent-session variable the daemon started with', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await using daemon = startDaemonProcess({
     command: ctx.atc,
@@ -102,7 +102,8 @@ test('it starts a session without a parent-session variable the daemon started w
 });
 
 test('it unpacks every tracked file of a local workspace when the daemon env asks tar to exclude some', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
+
   await using fixture = await createGitFixture({ prefix: 'atc-e2e-env-git-' });
 
   writeFileSync(join(fixture.work, 'notes.txt'), 'kept\n');

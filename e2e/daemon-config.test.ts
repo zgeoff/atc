@@ -36,12 +36,12 @@ function setupTest() {
     claude: createStubClaude(tmp.dir, { atc, composer }),
     grok: createStubGrok(tmp.dir, { atc, composer }),
     codex: createStubCodex(tmp.dir, { atc, composer }),
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it starts with a broken config, prints the problem, and refuses every spawn, local included', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(ctx.configPath, '{ "targets": { "box": { "provider": "imp" } },');
 
@@ -76,7 +76,7 @@ test('it starts with a broken config, prints the problem, and refuses every spaw
 });
 
 test('it prints one line naming the old agent keys a config still uses and loads them as before', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -112,7 +112,7 @@ test('it prints one line naming the old agent keys a config still uses and loads
 });
 
 test('it lists exactly the agents of an agents map and prints no old-key line', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -155,7 +155,7 @@ test.each([
     '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
   ],
 ])('it prints the config problem without the config value for %s', async (_label, text) => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(ctx.configPath, text);
 
@@ -172,7 +172,7 @@ test.each([
 });
 
 test('it keeps the configured model and effort when a spawn sets neither', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -220,7 +220,7 @@ test('it keeps the configured model and effort when a spawn sets neither', async
 });
 
 test("it replaces the configured model and effort with a spawn's overrides", async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -274,7 +274,7 @@ test("it replaces the configured model and effort with a spawn's overrides", asy
 });
 
 test('it restores the stored fleet by itself when the config leaves restoreFleetOnRestart unset', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: { bin: ctx.claude } } }));
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');

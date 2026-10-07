@@ -9,7 +9,7 @@ function setupTest() {
 }
 
 test('it resolves with the exit code and output of a subcommand', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const result = await runATC({
     command: resolveATCCommand(),
@@ -26,7 +26,7 @@ test('it resolves with the exit code and output of a subcommand', async () => {
 });
 
 test('it lays the run variables over the home', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const result = await runATC({
     command: resolveATCCommand(),
@@ -39,7 +39,7 @@ test('it lays the run variables over the home', async () => {
 });
 
 test('it removes a variable the run sets to undefined', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const result = await runATC({
     command: ['/usr/bin/env'],
@@ -53,7 +53,7 @@ test('it removes a variable the run sets to undefined', async () => {
 });
 
 test('it feeds the run its standard input in the directory it names', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const result = await runATC({
     command: ['/bin/sh', '-c', 'pwd; cat'],

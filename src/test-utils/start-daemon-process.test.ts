@@ -16,7 +16,8 @@ function setupTest() {
 }
 
 test('it starts a daemon that answers a handshake on the socket in the home', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
+
   await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   const client = await daemon.openClient();
@@ -25,7 +26,8 @@ test('it starts a daemon that answers a handshake on the socket in the home', as
 });
 
 test('it keeps the daemon state in the home and records the daemon process there', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
+
   await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   const client = await daemon.openClient();
@@ -40,7 +42,7 @@ test('it keeps the daemon state in the home and records the daemon process there
 });
 
 test('it hands the daemon the arguments and keeps its stderr readable', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await using daemon = startDaemonProcess({
     command: resolveATCCommand(),
@@ -55,7 +57,7 @@ test('it hands the daemon the arguments and keeps its stderr readable', async ()
 });
 
 test('it rejects a client with the daemon stderr when the daemon exits before it listens', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await using daemon = startDaemonProcess({
     command: resolveATCCommand(),
@@ -74,7 +76,7 @@ test('it rejects a client with the daemon stderr when the daemon exits before it
 });
 
 test('it lays the config variables over the environment of the daemon', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await using daemon = startDaemonProcess({
     command: resolveATCCommand(),
@@ -92,7 +94,7 @@ test('it lays the config variables over the environment of the daemon', async ()
 });
 
 test('it removes a variable the config sets to undefined from the environment of the daemon', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   await using daemon = startDaemonProcess({
     command: resolveATCCommand(),
@@ -114,7 +116,8 @@ test('it removes a variable the config sets to undefined from the environment of
 });
 
 test('it restarts the daemon on the same home after the signal stops it', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
+
   await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   const first = await daemon.openClient();
@@ -133,7 +136,8 @@ test('it restarts the daemon on the same home after the signal stops it', async 
 });
 
 test('it kills the daemon on disposal', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
+
   await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   await daemon.openClient();
@@ -143,7 +147,8 @@ test('it kills the daemon on disposal', async () => {
 });
 
 test('it kills the daemon the state directory records on disposal', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
+
   await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   const recorded = Bun.spawn(['sleep', '30']);
