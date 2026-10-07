@@ -1,11 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockKeyBindingClaim } from '../test-utils/build-mock-key-binding-claim';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
@@ -19,11 +21,11 @@ import type { RegistryDaemon } from './types';
 
 /**
  * Two real daemons, `cloud` (the default) and `pc`, each with a TCP
- * listener on a loopback port that takes `token` and a principals key that
- * lets `gw` use the local target, and `registry`, which lists both at
- * their listeners. `router` routes over a pool that dials each listener
- * and over `store`, the binding store at `storePath`, which a test opens
- * again for a second gateway on the same bindings. `dir` takes any other
+ * listener on a loopback port that takes one fixed token and a principals
+ * key that lets `gw` use the local target, and `registry`, which lists
+ * both at their listeners. `router` routes over a pool that dials each
+ * listener and over `store`, the binding store at `storePath`, which a
+ * test opens again for a second gateway on the same bindings. `dir` takes any other
  * file a test needs.
  */
 async function setupTest() {
@@ -31,10 +33,8 @@ async function setupTest() {
 
   const tmp = stack.use(setupTempDir('atc-routing-caller-'));
 
-  // The token both listeners take, which every pool presents.
-  const token = randomBytes(16).toString('hex');
-
-  writeFileSync(join(tmp.dir, 'token'), `${token}\n`);
+  // The token both listeners take, which every pool here presents.
+  writeFileSync(join(tmp.dir, 'token'), `${'a'.repeat(32)}\n`);
 
   const cloud = await startTestDaemon({
     prefix: 'atc-routing-cloud-',
@@ -84,23 +84,21 @@ async function setupTest() {
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: Number(cloud.daemon.listenPort) },
           daemonID: cloudID,
-          incarnation: cloudID.slice(0, 8),
-          token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
       [
         'pc',
-        {
+        buildMockRegistryDaemon({
           name: 'pc',
           address: { host: '127.0.0.1', port: Number(pc.daemon.listenPort) },
           daemonID: pcID,
-          incarnation: pcID.slice(0, 8),
-          token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',
@@ -128,7 +126,6 @@ async function setupTest() {
     cloud,
     pc,
     cloudID,
-    token,
     registry,
     storePath,
     store,
@@ -170,13 +167,12 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: proxy.port },
           daemonID: ctx.cloudID,
-          incarnation: ctx.cloudID.slice(0, 8),
-          token: ctx.token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',
@@ -527,13 +523,12 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: proxy.port },
           daemonID: ctx.cloudID,
-          incarnation: ctx.cloudID.slice(0, 8),
-          token: ctx.token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',
@@ -594,13 +589,12 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: proxy.port },
           daemonID: ctx.cloudID,
-          incarnation: ctx.cloudID.slice(0, 8),
-          token: ctx.token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',
@@ -668,13 +662,12 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: proxy.port },
           daemonID: ctx.cloudID,
-          incarnation: ctx.cloudID.slice(0, 8),
-          token: ctx.token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',
@@ -759,7 +752,7 @@ test('it makes the first send of a binding a gateway restart left claimed but un
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-unsent' };
 
   ctx.store.claimBinding(
-    {
+    buildMockKeyBindingClaim({
       principal: 'gw',
       operation: 'session.spawn',
       key: 'spawn-unsent',
@@ -767,8 +760,7 @@ test('it makes the first send of a binding a gateway restart left claimed but un
       daemonID: ctx.cloudID,
       retentionMs: 86_400_000,
       payloadHash: buildBindingPayloadHash(params),
-      claimID: randomUUID(),
-    },
+    }),
     Date.now(),
   );
 
@@ -797,7 +789,7 @@ test('it replays the first send of a binding a gateway restart left claimed but 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-unsent' };
 
   ctx.store.claimBinding(
-    {
+    buildMockKeyBindingClaim({
       principal: 'gw',
       operation: 'session.spawn',
       key: 'spawn-unsent',
@@ -805,8 +797,7 @@ test('it replays the first send of a binding a gateway restart left claimed but 
       daemonID: ctx.cloudID,
       retentionMs: 86_400_000,
       payloadHash: buildBindingPayloadHash(params),
-      claimID: randomUUID(),
-    },
+    }),
     Date.now(),
   );
 
@@ -837,7 +828,7 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-sent' };
 
   ctx.store.claimBinding(
-    {
+    buildMockKeyBindingClaim({
       principal: 'gw',
       operation: 'session.spawn',
       key: 'spawn-sent',
@@ -845,8 +836,7 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
       daemonID: ctx.cloudID,
       retentionMs: 86_400_000,
       payloadHash: buildBindingPayloadHash(params),
-      claimID: randomUUID(),
-    },
+    }),
     Date.now(),
   );
 
@@ -881,13 +871,12 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: proxy.port },
           daemonID: ctx.cloudID,
-          incarnation: ctx.cloudID.slice(0, 8),
-          token: ctx.token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',
@@ -954,13 +943,12 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: proxy.port },
           daemonID: ctx.cloudID,
-          incarnation: ctx.cloudID.slice(0, 8),
-          token: ctx.token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',
@@ -1041,13 +1029,12 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
     daemons: new Map([
       [
         'cloud',
-        {
+        buildMockRegistryDaemon({
           name: 'cloud',
           address: { host: '127.0.0.1', port: proxy.port },
           daemonID: ctx.cloudID,
-          incarnation: ctx.cloudID.slice(0, 8),
-          token: ctx.token,
-        },
+          token: 'a'.repeat(32),
+        }),
       ],
     ]),
     defaultDaemon: 'cloud',

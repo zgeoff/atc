@@ -1,17 +1,22 @@
 import { expect, test } from 'bun:test';
 import { encodeCursor } from '../protocol/encode-cursor';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
+import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 
-test('it decodes the worst-case events cursor of 34 daemons with the longest names', () => {
-  const daemons = Array.from({ length: 34 }, (_, i) => ({
-    name: `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
-    address: { host: '100.64.0.2', port: 8415 },
-    daemonID: `${String(i).padStart(8, 'f')}-0000-4000-8000-000000000000`,
-    incarnation: String(i).padStart(8, 'f'),
-    token: 't',
-  }));
+test('it lets a registry list 34 daemons', () => {
+  expect(MAX_REGISTRY_DAEMONS).toBe(34);
+});
+
+test('it decodes the worst-case events cursor of the most daemons a registry lists, each with the longest name', () => {
+  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS }, (_, i) =>
+    buildMockRegistryDaemon({
+      name: `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
+      incarnation: String(i).padStart(8, 'f'),
+    }),
+  );
 
   const registry = {
     daemons: new Map(daemons.map((daemon) => [daemon.name, daemon])),
@@ -31,14 +36,13 @@ test('it decodes the worst-case events cursor of 34 daemons with the longest nam
   );
 });
 
-test('it refuses the worst-case events cursor of 35 daemons with the longest names as too long', () => {
-  const daemons = Array.from({ length: 35 }, (_, i) => ({
-    name: `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
-    address: { host: '100.64.0.2', port: 8415 },
-    daemonID: `${String(i).padStart(8, 'f')}-0000-4000-8000-000000000000`,
-    incarnation: String(i).padStart(8, 'f'),
-    token: 't',
-  }));
+test('it refuses the worst-case events cursor of one daemon more than a registry lists as too long', () => {
+  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS + 1 }, (_, i) =>
+    buildMockRegistryDaemon({
+      name: `${'d'.repeat(29)}${String(i).padStart(2, '0')}`,
+      incarnation: String(i).padStart(8, 'f'),
+    }),
+  );
 
   const registry = {
     daemons: new Map(daemons.map((daemon) => [daemon.name, daemon])),

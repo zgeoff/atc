@@ -1,27 +1,25 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonPool } from './daemon-pool';
 
 /**
  * Two real daemons, `cloud` and `pc`, each with a TCP listener on a
- * loopback port that takes `token`, and `cloudID` and `pcID`, the state
- * identity each one's handshake returns.
+ * loopback port that takes one fixed token, and `cloudID` and `pcID`, the
+ * state identity each one's handshake returns.
  */
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-daemon-pool-'));
 
-  // The token both listeners take, which every pool presents.
-  const token = randomBytes(16).toString('hex');
-
-  writeFileSync(join(tmp.dir, 'token'), `${token}\n`);
+  // The token both listeners take, which every pool here presents.
+  writeFileSync(join(tmp.dir, 'token'), `${'a'.repeat(32)}\n`);
 
   const cloud = await startTestDaemon({
     prefix: 'atc-daemon-pool-cloud-',
@@ -67,7 +65,6 @@ async function setupTest() {
   const owned = stack.move();
 
   return {
-    token,
     cloud,
     pc,
     cloudID: String(cloudHello['daemonID']),
@@ -79,29 +76,25 @@ async function setupTest() {
 test('it gives each registry daemon its own caller that reaches only that daemon', async () => {
   await using ctx = await setupTest();
 
+  const cloud = buildMockRegistryDaemon({
+    name: 'cloud',
+    address: { host: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
+    daemonID: ctx.cloudID,
+    token: 'a'.repeat(32),
+  });
+
+  const pc = buildMockRegistryDaemon({
+    name: 'pc',
+    address: { host: '127.0.0.1', port: Number(ctx.pc.daemon.listenPort) },
+    daemonID: ctx.pcID,
+    token: 'a'.repeat(32),
+  });
+
   const pool = new DaemonPool({
     registry: {
       daemons: new Map([
-        [
-          'cloud',
-          {
-            name: 'cloud',
-            address: { host: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
-            daemonID: ctx.cloudID,
-            incarnation: ctx.cloudID.slice(0, 8),
-            token: ctx.token,
-          },
-        ],
-        [
-          'pc',
-          {
-            name: 'pc',
-            address: { host: '127.0.0.1', port: Number(ctx.pc.daemon.listenPort) },
-            daemonID: ctx.pcID,
-            incarnation: ctx.pcID.slice(0, 8),
-            token: ctx.token,
-          },
-        ],
+        ['cloud', cloud],
+        ['pc', pc],
       ]),
       defaultDaemon: 'cloud',
     },

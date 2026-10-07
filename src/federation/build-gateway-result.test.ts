@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildGatewayResult } from './build-gateway-result';
 import { parseGatewayID } from './parse-gateway-id';
 
@@ -162,14 +163,7 @@ test('it refuses to pass on the answer of a method without id rules', () => {
 });
 
 test('it routes every rewritten id back to the daemon id it came from', () => {
-  const cloud = {
-    name: 'cloud',
-    address: { host: '100.64.0.2', port: 8415 },
-    daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30',
-    incarnation: '0f6c2a8e',
-    token: 't',
-  };
-
+  const cloud = buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' });
   const registry = { daemons: new Map([['cloud', cloud]]), defaultDaemon: 'cloud' };
 
   const result = buildGatewayResult(
