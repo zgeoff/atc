@@ -3999,8 +3999,7 @@ function readDaemonPID(home: string): number {
 
 // Stops whichever daemon the state directory records when the test ends: a
 // restart starts a daemon the test never spawned. Hooks run in the order
-// they register, so call this before `setupDaemonProc`, whose own hook
-// removes the home, and give the returned function the home once it exists.
+// they register, so call this before the hook that removes the home registers, and give the returned function the home once it exists.
 function registerRecordedDaemonKill(): (home: string) => void {
   let watched: string | null = null;
 
@@ -4395,6 +4394,29 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
   expect(code).toBe(0);
   expect(output).toInclude(`daemon: pid ${oldPID}`);
   expect(output).toInclude('the interrupted turn does not continue');
+  expect(readDaemonPID(ctx.home)).toBe(oldPID);
+  expect(ctx.proc.exitCode).toBeNull();
+});
+
+test('it refuses a --listen without a token file before it stops the daemon', async () => {
+  using fake = setupFakeSystemd(atcCommand);
+
+  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
+  const ctx = setupDaemonProc(undefined, { PATH: path });
+
+  const client = await ctx.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = readDaemonPID(ctx.home);
+  const restart = spawnRestart(ctx.home, { PATH: path }, ['--listen', '127.0.0.1:8499']);
+
+  const output = await new Response(restart.stdout).text();
+
+  const code = await restart.exited;
+
+  expect(code).toBe(1);
+  expect(output).toInclude('--listen and --token-file go together; the daemon was left running');
   expect(readDaemonPID(ctx.home)).toBe(oldPID);
   expect(ctx.proc.exitCode).toBeNull();
 });
