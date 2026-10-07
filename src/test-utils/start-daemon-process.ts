@@ -1,0 +1,159 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { Subprocess } from 'bun';
+import { DaemonClient } from '../client/daemon-client';
+import { findDaemonRecord } from '../shared/find-daemon-record';
+import { waitFor } from './wait-for';
+
+interface DaemonProcessConfig {
+  // The command atc runs as, such as the source entry under bun or a
+  // compiled binary.
+  readonly command: readonly string[];
+
+  // HOME and XDG_RUNTIME_DIR of the daemon, so its config, state, and
+  // sockets all sit under this directory.
+  readonly home: string;
+
+  // Variables laid over the inherited environment and the default PATH;
+  // `undefined` removes one.
+  readonly env?: Readonly<Record<string, string | undefined>>;
+
+  // Arguments after `atc daemon`.
+  readonly args?: readonly string[];
+}
+
+/**
+ * One boot of the daemon: its process and the file its stderr goes to.
+ */
+interface DaemonBoot {
+  readonly proc: Subprocess;
+  readonly stderrPath: string;
+}
+
+/**
+ * Starts `atc daemon` as its own process on a home, with the test's
+ * environment, HOME and XDG_RUNTIME_DIR at the home, and a PATH of the system
+ * directories alone unless the config's variables set another. It returns at
+ * once; `openClient` waits up to 15 seconds for the socket and connects,
+ * sending no handshake, and fails at once with the daemon's stderr when the
+ * daemon exits before it listens. `restart` stops the daemon with the given
+ * signal, waits for it to exit, and starts another on the same home with the
+ * same config. `readStderr` reads what the current boot printed. Disposal
+ * closes every client it opened, kills the daemon and waits for it to exit,
+ * then kills the daemon the home's state directory records, which a restart
+ * the test asked atc for may have started; a second disposal does nothing.
+ */
+export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
+  const socketPath = join(config.home, 'atc-daemon.sock');
+  const stateDir = join(config.home, '.local', 'state', 'atc');
+
+  const clients = new Set<DaemonClient>();
+
+  let boots = 0;
+  let disposed = false;
+
+  const boot = (): DaemonBoot => {
+    boots++;
+
+    const stderrPath = join(config.home, `daemon-${boots}.stderr`);
+
+    const proc = Bun.spawn([...config.command, 'daemon', ...(config.args ?? [])], {
+      env: Object.fromEntries(
+        Object.entries({
+          ...process.env,
+          HOME: config.home,
+          XDG_RUNTIME_DIR: config.home,
+          PATH: '/usr/sbin:/usr/bin:/bin',
+          ...config.env,
+        }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+      ),
+      stdout: 'ignore',
+      stderr: Bun.file(stderrPath),
+    });
+
+    return { proc, stderrPath };
+  };
+
+  let current = boot();
+
+  const readStderr = () => {
+    try {
+      return readFileSync(current.stderrPath, 'utf8');
+    } catch {
+      return '';
+    }
+  };
+
+  const openTrackedClient = async () => {
+    const client = await DaemonClient.open(socketPath);
+
+    clients.add(client);
+
+    return client;
+  };
+
+  return {
+    home: config.home,
+    socketPath,
+    reporterSocketPath: join(config.home, 'atc.sock'),
+    stateDir,
+    get proc(): Subprocess {
+      return current.proc;
+    },
+    readStderr,
+    openClient(): Promise<DaemonClient> {
+      const watched = current.proc;
+      const listening = waitFor(openTrackedClient, { timeoutMs: 15_000, intervalMs: 50 });
+
+      if (watched.exitCode !== null || watched.signalCode !== null) {
+        return listening;
+      }
+
+      // A daemon that exits mid-wait either refused to start or handed its
+      // socket to a replacement, so one more connect tells the two apart.
+      const openAfterExit = async () => {
+        await watched.exited;
+
+        try {
+          return await openTrackedClient();
+        } catch {
+          throw new Error(
+            `the daemon exited (${String(watched.exitCode ?? watched.signalCode)}) before it listened:\n${readStderr()}`,
+          );
+        }
+      };
+
+      return Promise.race([listening, openAfterExit()]);
+    },
+    async restart(signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
+      current.proc.kill(signal);
+
+      await current.proc.exited;
+
+      current = boot();
+    },
+    async [Symbol.asyncDispose](): Promise<void> {
+      if (disposed) {
+        return;
+      }
+
+      disposed = true;
+
+      for (const client of clients) {
+        client.stop();
+      }
+
+      current.proc.kill('SIGKILL');
+
+      await current.proc.exited;
+
+      const recorded = findDaemonRecord(join(stateDir, 'daemon.json'));
+
+      if (recorded !== null && recorded.pid !== current.proc.pid) {
+        try {
+          process.kill(recorded.pid, 'SIGKILL');
+        } catch {}
+      }
+    },
+  };
+}
