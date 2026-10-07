@@ -414,7 +414,13 @@ export class StateStore {
     });
   }
 
-  async recordEvent(e: HookEvent, ev: Readonly<AdapterEvent> | null = null): Promise<void> {
+  // Records a hook event in the trail, stamped with the given time in epoch
+  // milliseconds, or the wall clock's when absent.
+  async recordEvent(
+    e: HookEvent,
+    ev: Readonly<AdapterEvent> | null = null,
+    at: number = Date.now(),
+  ): Promise<void> {
     const rawMessage = e.payload['message'];
     const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];
     const message = typeof rawMessage === 'string' ? rawMessage : null;
@@ -424,7 +430,7 @@ export class StateStore {
     await this.db
       .insertInto('events')
       .values({
-        ts: new Date().toISOString(),
+        ts: new Date(at).toISOString(),
         atc_id: atcID,
         event: e.event,
         message,

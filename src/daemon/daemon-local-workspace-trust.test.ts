@@ -1,58 +1,43 @@
 import { expect, test } from 'bun:test';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { $ } from 'bun';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { parseConfig } from '../shared/config';
+import { buildStubPTYProvider } from '../test-utils/build-stub-pty-provider';
+import { createGitFixture } from '../test-utils/create-git-fixture';
+import { createStubBin } from '../test-utils/create-stub-bin';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
-import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 
-async function setupTest(
-  options: { readonly targetTrust?: boolean; readonly failHarnessAfterTrust?: boolean } = {},
-) {
-  const tmp = setupTempDir('atc-local-workspace-trust-');
-  const marker = join(tmp.dir, 'started');
-  const fakeClaude = join(tmp.dir, 'fake-claude');
-  const upstream = join(tmp.dir, 'upstream.git');
-  const work = join(tmp.dir, 'work');
-  const claudeConfigDir = join(tmp.dir, 'claude-home');
+/**
+ * What a local clone launch needs before its daemon starts: a git fixture
+ * whose upstream a spawn clones, a Claude config folder of its own, a stock
+ * Claude adapter whose CLI is a script that appends its arguments to
+ * `marker` and then sleeps, and a gateway adapter named `plain`. Each test
+ * starts its own daemon with the adapters and the target options it needs.
+ */
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
 
-  const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null',
-  };
+  const git = await createGitFixture({ prefix: 'atc-local-workspace-trust-' });
 
-  await $`git init --quiet --bare --template= --initial-branch=main ${upstream}`.env(env).quiet();
-  await $`git clone --quiet --template= ${upstream} ${work}`.env(env).quiet();
-  await $`git config user.name atc`.env(env).cwd(work).quiet();
-  await $`git config user.email atc@example.com`.env(env).cwd(work).quiet();
-  await $`git config commit.gpgsign false`.env(env).cwd(work).quiet();
+  stack.use(git);
 
-  writeFileSync(join(work, 'README.md'), 'hello\n');
+  const marker = join(git.dir, 'started');
+  const claudeConfigDir = join(git.dir, 'claude-home');
 
-  await $`git add README.md`.env(env).cwd(work).quiet();
-  await $`git commit --quiet -m initial`.env(env).cwd(work).quiet();
-  await $`git push --quiet origin main`.env(env).cwd(work).quiet();
+  const fakeClaude = createStubBin(
+    join(git.dir, 'bin'),
+    'claude',
+    `#!/bin/sh\nprintf '%s\\n' "$@" >> "${marker}"\nexec sleep 30\n`,
+  );
 
-  writeFileSync(fakeClaude, `#!/bin/sh\nprintf '%s\\n' "$@" >> "${marker}"\nexec sleep 30\n`, {
-    mode: 0o755,
-  });
-
+  // The adapter reads and writes the user's Claude config under this folder.
   mkdirSync(claudeConfigDir);
   updateEnv('CLAUDE_CONFIG_DIR', claudeConfigDir);
 
@@ -61,77 +46,50 @@ async function setupTest(
     gateways: { plain: { baseURL: 'https://gateway.example.com' } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
-
-  // Once the real trust write lands, the CLI stops being executable, so
-  // the harness start that follows it fails.
-  if (options.failHarnessAfterTrust === true) {
-    adapter.updateLocalWorkspaceTrust = async (root) => {
-      const remove = await ClaudeAdapter.prototype.updateLocalWorkspaceTrust.call(adapter, root);
-
-      chmodSync(fakeClaude, 0o644);
-
-      return remove;
-    };
-  }
-
-  const socketPath = join(tmp.dir, 'daemon.sock');
-
-  const daemon = await startDaemon({
-    socketPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapters: [adapter, new GatewayAdapter(getGatewayConfig(config, 'plain'), config)],
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
-    gitTransports: ['file'],
-    targets: [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options:
-          options.targetTrust === undefined ? {} : { trustClonedWorkspace: options.targetTrust },
-        identity: 'local:test',
-        provider: new LocalPTYProvider(),
-      },
-    ],
-    defaultTarget: 'local',
-  });
-
-  const client = await DaemonClient.open(socketPath);
-
-  await client.sendHello('atc/test-build');
+  const owned = stack.move();
 
   return {
-    client,
+    dir: git.dir,
+    upstream: git.upstream,
     marker,
-    upstream,
     claudeConfig: join(claudeConfigDir, '.claude.json'),
-    dir: tmp.dir,
-    async [Symbol.asyncDispose]() {
-      client.stop();
-
-      await daemon.stop();
-
-      tmp[Symbol.dispose]();
-    },
+    adapters: [
+      new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      new GatewayAdapter(getGatewayConfig(config, 'plain'), config),
+    ],
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it trusts only the resolved clone root in the user config after an opted-in local launch', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const parent = join(daemon.dir, 'physical');
-  const alias = join(daemon.dir, 'alias');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  const parent = join(ctx.dir, 'physical');
+  const alias = join(ctx.dir, 'alias');
 
   mkdirSync(parent);
   symlinkSync(parent, alias);
   mkdirSync(join(parent, 'sibling'));
 
-  const root = join(parent, 'clone');
-
   writeFileSync(
-    daemon.claudeConfig,
+    ctx.claudeConfig,
     JSON.stringify(
       {
         numStartups: 4,
@@ -151,110 +109,289 @@ test('it trusts only the resolved clone root in the user config after an opted-i
     agent: 'claude',
     target: 'local',
     prompt: 'start the task',
-    workspace: { kind: 'git', url: `file://${daemon.upstream}`, ref: 'main' },
+    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
   });
 
   await waitFor(() => {
-    expect(existsSync(daemon.marker)).toBeTrue();
-
-    return true;
+    expect(readFileSync(ctx.marker, 'utf8').trimEnd().split('\n').at(-1)).toBe('start the task');
   });
 
-  const config: unknown = JSON.parse(readFileSync(daemon.claudeConfig, 'utf8'));
+  const config: unknown = JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'));
 
-  expect(config).toStrictEqual({
-    numStartups: 4,
-    projects: {
-      '/home/me/projects': { hasTrustDialogAccepted: true, allowedTools: [] },
-      '/home/me/scratch': { hasTrustDialogAccepted: false },
-      [root]: { hasTrustDialogAccepted: true },
+  expect({
+    config,
+    readme: readFileSync(join(parent, 'clone', 'README.md'), 'utf8'),
+  }).toStrictEqual({
+    config: {
+      numStartups: 4,
+      projects: {
+        '/home/me/projects': { hasTrustDialogAccepted: true, allowedTools: [] },
+        '/home/me/scratch': { hasTrustDialogAccepted: false },
+        [join(parent, 'clone')]: { hasTrustDialogAccepted: true },
+      },
     },
+    readme: 'hello\n',
   });
-
-  expect(readFileSync(daemon.marker, 'utf8').trimEnd().split('\n').at(-1)).toBe('start the task');
-  expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe('hello\n');
 });
 
-test.each([undefined, false])(
-  'it leaves the user config byte for byte after a local clone launch with opt-in %s',
-  async (enabled) => {
-    await using daemon = await setupTest();
+test('it leaves the user config byte for byte after a local clone launch with no opt-in', async () => {
+  await using ctx = await setupTest();
 
-    const original = JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } });
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
 
-    writeFileSync(daemon.claudeConfig, original);
-
-    await daemon.client.sendRequest('session.spawn', {
-      ...(enabled === undefined ? {} : { trustClonedWorkspace: enabled }),
-      cwd: join(daemon.dir, 'clone'),
-      agent: 'claude',
-      target: 'local',
-      workspace: { kind: 'git', url: `file://${daemon.upstream}`, ref: 'main' },
-    });
-
-    await waitFor(() => {
-      expect(existsSync(daemon.marker)).toBeTrue();
-
-      return true;
-    });
-
-    expect(readFileSync(daemon.claudeConfig, 'utf8')).toBe(original);
-  },
-);
-
-test('it trusts a local clone when the target defaults trust on', async () => {
-  await using daemon = await setupTest({ targetTrust: true });
-
-  const root = join(daemon.dir, 'clone');
-
-  writeFileSync(daemon.claudeConfig, '{}');
+  writeFileSync(
+    ctx.claudeConfig,
+    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
+  );
 
   await daemon.client.sendRequest('session.spawn', {
-    cwd: root,
+    cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'local',
-    workspace: { kind: 'git', url: `file://${daemon.upstream}`, ref: 'main' },
+    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
   });
 
   await waitFor(() => {
-    expect(existsSync(daemon.marker)).toBeTrue();
-
-    return true;
+    expect(existsSync(ctx.marker)).toBeTrue();
   });
 
-  const config: unknown = JSON.parse(readFileSync(daemon.claudeConfig, 'utf8'));
-
-  expect(config).toStrictEqual({ projects: { [root]: { hasTrustDialogAccepted: true } } });
+  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(
+    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
+  );
 });
 
-test('it refuses local trust for an existing folder without touching the user config', async () => {
-  await using daemon = await setupTest();
+test('it leaves the user config byte for byte after a local clone launch that opts out', async () => {
+  await using ctx = await setupTest();
 
-  const folder = join(daemon.dir, 'existing');
-  const original = '{"projects":{}}';
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
 
-  mkdirSync(folder);
-  writeFileSync(daemon.claudeConfig, original);
+  writeFileSync(
+    ctx.claudeConfig,
+    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
+  );
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    trustClonedWorkspace: true,
-    cwd: folder,
+  await daemon.client.sendRequest('session.spawn', {
+    trustClonedWorkspace: false,
+    cwd: join(ctx.dir, 'clone'),
     agent: 'claude',
     target: 'local',
+    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'bad_args' });
+  await waitFor(() => {
+    expect(existsSync(ctx.marker)).toBeTrue();
+  });
 
-  await spawn.catch(() => null);
-
-  expect(readFileSync(daemon.claudeConfig, 'utf8')).toBe(original);
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(
+    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
+  );
 });
 
-test('it takes the local trust back when the harness fails to start', async () => {
-  await using daemon = await setupTest({ failHarnessAfterTrust: true });
+test('it trusts a local clone when the target defaults trust on', async () => {
+  await using ctx = await setupTest();
 
-  const root = join(daemon.dir, 'clone');
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: { trustClonedWorkspace: true },
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  writeFileSync(ctx.claudeConfig, '{}');
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'clone'),
+    agent: 'claude',
+    target: 'local',
+    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+  });
+
+  await waitFor(() => {
+    expect(existsSync(ctx.marker)).toBeTrue();
+  });
+
+  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual({
+    projects: { [join(ctx.dir, 'clone')]: { hasTrustDialogAccepted: true } },
+  });
+});
+
+test('it refuses local trust for an existing folder', async () => {
+  await using ctx = await setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  mkdirSync(join(ctx.dir, 'existing'));
+  writeFileSync(ctx.claudeConfig, '{"projects":{}}');
+
+  expect(
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'existing'),
+      agent: 'claude',
+      target: 'local',
+    }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
+});
+
+test('it leaves the user config and starts nothing when it refuses local trust for an existing folder', async () => {
+  await using ctx = await setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  mkdirSync(join(ctx.dir, 'existing'));
+  writeFileSync(ctx.claudeConfig, '{"projects":{}}');
+
+  await Promise.allSettled([
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'existing'),
+      agent: 'claude',
+      target: 'local',
+    }),
+  ]);
+
+  expect({
+    config: readFileSync(ctx.claudeConfig, 'utf8'),
+    started: existsSync(ctx.marker),
+  }).toStrictEqual({ config: '{"projects":{}}', started: false });
+});
+
+test('it refuses a local launch whose harness fails to start after the trust write', async () => {
+  await using ctx = await setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: buildStubPTYProvider({
+            onSpawn: () => {
+              throw new Error('PTY spawn failed: the host refused the harness');
+            },
+          }),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  writeFileSync(ctx.claudeConfig, '{"projects":{}}');
+
+  expect(
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'clone'),
+      agent: 'claude',
+      target: 'local',
+      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    }),
+  ).rejects.toMatchObject({
+    code: 'internal',
+    message: 'PTY spawn failed: the host refused the harness',
+  });
+});
+
+test('it takes the local trust back and removes the clone when the harness fails to start', async () => {
+  await using ctx = await setupTest();
+
+  const atSpawn: unknown[] = [];
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: buildStubPTYProvider({
+            onSpawn: () => {
+              atSpawn.push(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8')));
+              throw new Error('PTY spawn failed: the host refused the harness');
+            },
+          }),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
 
   const original = JSON.stringify(
     { projects: { '/home/me': { hasTrustDialogAccepted: true } } },
@@ -262,70 +399,180 @@ test('it takes the local trust back when the harness fails to start', async () =
     2,
   );
 
-  writeFileSync(daemon.claudeConfig, original);
+  writeFileSync(ctx.claudeConfig, original);
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    trustClonedWorkspace: true,
-    cwd: root,
-    agent: 'claude',
-    target: 'local',
-    workspace: { kind: 'git', url: `file://${daemon.upstream}`, ref: 'main' },
+  await Promise.allSettled([
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'clone'),
+      agent: 'claude',
+      target: 'local',
+      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    }),
+  ]);
+
+  expect({
+    atSpawn,
+    config: readFileSync(ctx.claudeConfig, 'utf8'),
+    cloned: existsSync(join(ctx.dir, 'clone')),
+  }).toStrictEqual({
+    atSpawn: [
+      {
+        projects: {
+          '/home/me': { hasTrustDialogAccepted: true },
+          [join(ctx.dir, 'clone')]: { hasTrustDialogAccepted: true },
+        },
+      },
+    ],
+    config: original,
+    cloned: false,
   });
-
-  expect(spawn).rejects.toThrow('PTY spawn failed');
-
-  await spawn.catch(() => null);
-
-  expect(readFileSync(daemon.claudeConfig, 'utf8')).toBe(original);
-  expect(existsSync(root)).toBeFalse();
 });
 
-test('it removes the clone and keeps the user config when the trust write fails', async () => {
-  await using daemon = await setupTest();
+test('it refuses a local launch whose trust write fails', async () => {
+  await using ctx = await setupTest();
 
-  const root = join(daemon.dir, 'clone');
-
-  writeFileSync(daemon.claudeConfig, '{"projects":');
-
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    trustClonedWorkspace: true,
-    cwd: root,
-    agent: 'claude',
-    target: 'local',
-    workspace: { kind: 'git', url: `file://${daemon.upstream}`, ref: 'main' },
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
   });
 
-  expect(spawn).rejects.toThrow();
+  writeFileSync(ctx.claudeConfig, '{"projects":');
 
-  await spawn.catch(() => null);
+  expect(
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'clone'),
+      agent: 'claude',
+      target: 'local',
+      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    }),
+  ).rejects.toMatchObject({ code: 'internal', message: 'JSON Parse error: Unexpected EOF' });
+});
 
-  expect(readFileSync(daemon.claudeConfig, 'utf8')).toBe('{"projects":');
-  expect(existsSync(root)).toBeFalse();
-  expect(existsSync(daemon.marker)).toBeFalse();
+test('it removes the clone, keeps the user config, and starts nothing when the trust write fails', async () => {
+  await using ctx = await setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  writeFileSync(ctx.claudeConfig, '{"projects":');
+
+  await Promise.allSettled([
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'clone'),
+      agent: 'claude',
+      target: 'local',
+      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    }),
+  ]);
+
+  expect({
+    config: readFileSync(ctx.claudeConfig, 'utf8'),
+    cloned: existsSync(join(ctx.dir, 'clone')),
+    started: existsSync(ctx.marker),
+  }).toStrictEqual({ config: '{"projects":', cloned: false, started: false });
+});
+
+test('it refuses local trust for a gateway', async () => {
+  await using ctx = await setupTest();
+
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  writeFileSync(ctx.claudeConfig, '{"projects":{}}');
+
+  expect(
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'clone'),
+      agent: 'plain',
+      target: 'local',
+      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    }),
+  ).rejects.toMatchObject({
+    code: 'unsupported',
+    message:
+      'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on an imp target',
+  });
 });
 
 test('it refuses local trust for a gateway before cloning or touching the user config', async () => {
-  await using daemon = await setupTest();
+  await using ctx = await setupTest();
 
-  const root = join(daemon.dir, 'clone');
-  const original = '{"projects":{}}';
-
-  writeFileSync(daemon.claudeConfig, original);
-
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    trustClonedWorkspace: true,
-    cwd: root,
-    agent: 'plain',
-    target: 'local',
-    workspace: { kind: 'git', url: `file://${daemon.upstream}`, ref: 'main' },
+  await using daemon = await startTestDaemon({
+    options: () => ({
+      adapters: ctx.adapters,
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: new LocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
   });
 
-  expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
-  expect(spawn).rejects.toThrow('trustClonedWorkspace requires stock Claude on the local target');
+  writeFileSync(ctx.claudeConfig, '{"projects":{}}');
 
-  await spawn.catch(() => null);
+  await Promise.allSettled([
+    daemon.client.sendRequest('session.spawn', {
+      trustClonedWorkspace: true,
+      cwd: join(ctx.dir, 'clone'),
+      agent: 'plain',
+      target: 'local',
+      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    }),
+  ]);
 
-  expect(readFileSync(daemon.claudeConfig, 'utf8')).toBe(original);
-  expect(existsSync(root)).toBeFalse();
-  expect(existsSync(daemon.marker)).toBeFalse();
+  expect({
+    config: readFileSync(ctx.claudeConfig, 'utf8'),
+    cloned: existsSync(join(ctx.dir, 'clone')),
+    started: existsSync(ctx.marker),
+  }).toStrictEqual({ config: '{"projects":{}}', cloned: false, started: false });
 });

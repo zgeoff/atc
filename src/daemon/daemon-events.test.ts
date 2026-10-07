@@ -1,141 +1,84 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
-import { DaemonClient } from '../client/daemon-client';
 import { decodeMessage } from '../protocol/protocol';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
-import { startDaemon } from './daemon';
 
 // Events-socket tests: snapshot-then-stream and read-only behavior. The
 // overflow disconnect lives in start-events-server.test.ts, and protocol
 // behavior in daemon.test.ts.
-const idleAdapter: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: null,
-  takesMessages: false,
-  planSpawn: () => ({ bin: 'sleep', args: ['30'] }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
 
-interface EventsDaemon {
-  readonly eventsPath: string;
-  readonly actor: DaemonClient;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-}
-
-async function setupTest(): Promise<EventsDaemon> {
-  const tmp = setupTempDir('atc-events-');
-  const sockPath = join(tmp.dir, 'daemon.sock');
-  const eventsPath = join(tmp.dir, 'events.sock');
-
-  const daemon = await startDaemon({
-    socketPath: sockPath,
-    reporterSocketPath: join(tmp.dir, 'reporter.sock'),
-    eventsSocketPath: eventsPath,
-    build: 'atc/test-build',
-    adapter: idleAdapter,
-    dbPath: join(tmp.dir, 'state.db'),
-    statusPath: join(tmp.dir, 'status.json'),
+/**
+ * A real daemon with its events socket, whose sessions run a sleep with no
+ * agent CLI behind them.
+ */
+function setupTest() {
+  return startTestDaemon({
+    prefix: 'atc-events-',
+    options: () => ({ adapter: buildMockAgentAdapter() }),
   });
-
-  const actor = await DaemonClient.open(sockPath);
-
-  await actor.sendHello('atc/test-build');
-
-  return {
-    eventsPath,
-    actor,
-    [Symbol.asyncDispose]: async () => {
-      actor.stop();
-
-      await daemon.stop();
-      await tmp[Symbol.asyncDispose]();
-    },
-  };
 }
 
-test('it replays the fleet as SessionAdded lines on connect, then streams live events', async () => {
-  await using setup = await setupTest();
+test('it replays the fleet as SessionAdded lines on connect', async () => {
+  await using ctx = await setupTest();
 
-  const firstID = await spawnNamedSession((m, p) => setup.actor.sendRequest(m, p), 'one', '/tmp');
+  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'two', ctx.dir);
 
-  await spawnNamedSession((m, p) => setup.actor.sendRequest(m, p), 'two', '/tmp');
-
-  await using subscriber = await subscribeToSocketLines(setup.eventsPath);
+  await using subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
 
   const initial = await subscriber.waitForLine(2);
 
-  const snapshot = initial.slice(0, 2).map((line) => {
-    const decoded = decodeMessage(line);
-
-    if (decoded.kind !== 'event') {
-      throw new Error(`not an event line: ${line}`);
-    }
-
-    return decoded.msg;
-  });
-
-  expect(snapshot).toMatchObject([
+  expect(initial.map((line) => decodeMessage(line))).toMatchObject([
     {
-      v: 4,
-      ev: 'SessionAdded',
-      session: { name: 'one', cwd: '/tmp', agent: 'claude', alive: true },
+      kind: 'event',
+      msg: {
+        v: 4,
+        ev: 'SessionAdded',
+        session: { name: 'one', cwd: ctx.dir, agent: 'claude', alive: true },
+      },
     },
     {
-      v: 4,
-      ev: 'SessionAdded',
-      session: { name: 'two', cwd: '/tmp', agent: 'claude', alive: true },
+      kind: 'event',
+      msg: {
+        v: 4,
+        ev: 'SessionAdded',
+        session: { name: 'two', cwd: ctx.dir, agent: 'claude', alive: true },
+      },
     },
   ]);
+});
 
-  await setup.actor.sendRequest('session.update', { session: firstID, name: 'renamed-one' });
+test('it streams a live event after the replay', async () => {
+  await using ctx = await setupTest();
 
-  const afterRename = await subscriber.waitForLine(3);
+  const sessionID = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
 
-  const renamed = afterRename
-    .map((line) => {
-      const decoded = decodeMessage(line);
+  await using subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
 
-      if (decoded.kind !== 'event') {
-        throw new Error(`not an event line: ${line}`);
-      }
+  await subscriber.waitForLine(1);
+  await ctx.client.sendRequest('session.update', { session: sessionID, name: 'renamed-one' });
 
-      return decoded.msg;
-    })
-    .find((e) => e.ev === 'SessionRenamed');
+  const streamed = await subscriber.waitForLine(2);
 
-  expect(renamed).toMatchObject({ v: 4, ev: 'SessionRenamed', s: firstID, name: 'renamed-one' });
+  expect(streamed.map((line) => decodeMessage(line))).toPartiallyContain({
+    kind: 'event',
+    msg: { v: 4, ev: 'SessionRenamed', s: sessionID, name: 'renamed-one', namedBy: 'user' },
+  });
 });
 
 test('it ignores subscriber input and keeps streaming', async () => {
-  await using setup = await setupTest();
-  await using subscriber = await subscribeToSocketLines(setup.eventsPath);
+  await using ctx = await setupTest();
+  await using subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
 
   subscriber.write('{"m":"session.kill"}\nnot even json\n');
 
-  await spawnNamedSession((m, p) => setup.actor.sendRequest(m, p), 'after-garbage', '/tmp');
+  await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'after-garbage', ctx.dir);
 
   const streamed = await subscriber.waitForLine(1);
 
-  const added = streamed.map((line) => {
-    const decoded = decodeMessage(line);
-
-    if (decoded.kind !== 'event') {
-      throw new Error(`not an event line: ${line}`);
-    }
-
-    return decoded.msg;
-  });
-
-  expect(added[0]).toMatchObject({
-    v: 4,
-    ev: 'SessionAdded',
-    session: { name: 'after-garbage' },
-  });
+  expect(streamed.map((line) => decodeMessage(line))).toMatchObject([
+    { kind: 'event', msg: { v: 4, ev: 'SessionAdded', session: { name: 'after-garbage' } } },
+  ]);
 });

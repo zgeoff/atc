@@ -576,7 +576,9 @@ test('it keeps a headless run going when the forget of its session fails to dest
 
   expect(forgotten).rejects.toMatchObject({ code: 'internal' });
 
-  expect<readonly unknown[]>(headless.runs).toStrictEqual([
+  expect<readonly unknown[]>(
+    headless.runs.map((run) => ({ request: run.request, stopped: run.stopped })),
+  ).toStrictEqual([
     {
       request: {
         cwd: daemon.dir,
