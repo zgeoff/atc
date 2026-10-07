@@ -479,7 +479,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: DESTRUCTIVE,
     scope: 'kill',
     description:
-      'Forget a session for good: it and its sub-sessions leave the list. On a target that can destroy its host (an imp), the first call changes nothing and returns { confirmToken, expiresAt }, a token good for 60 seconds; a second call with that token destroys the host and returns { forgotten: true, destroyed: true }. On any other target one call forgets and returns { forgotten: true, destroyed: false }. A live session is refused unless stop is true, which stops it as part of the forget. A pinned session, or a sub-session of a pinned session, is refused: unpin it with atc_session_update first.',
+      'Forget a session for good: it leaves the list. A live local sub-session of the session is not stopped: it stays alive and moves to the top level. On a target that can destroy its host (an imp), the first call changes nothing and returns { confirmToken, expiresAt }, a token good for 60 seconds; a second call with that token destroys the host and returns { forgotten: true, destroyed: true }, except that a sub-session on the imp host of its parent does not destroy that host and returns destroyed: false. On any other target one call forgets and returns { forgotten: true, destroyed: false }. A live session is refused unless stop is true, which stops it as part of the forget. A pinned session, or a sub-session of a pinned session, is refused: unpin it with atc_session_update first.',
     inputSchema: {
       type: 'object',
       properties: {
