@@ -64,11 +64,30 @@ test('it parses a SessionState event into a mirror session', () => {
 
   const event = parseDaemonEvent(raw);
 
-  if (event === null || event.ev !== 'SessionState') {
-    throw new Error('expected a SessionState event');
-  }
-
-  expect(event.session.state).toBe('needs_you');
+  expect(event).toStrictEqual({
+    ev: 'SessionState',
+    session: {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      pinned: false,
+      lastAttachedAt: 1000,
+      repoRoot: '/repo',
+      state: 'needs_you',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      kind: 'pty',
+      alive: true,
+      resumable: false,
+      canEject: false,
+      agent: 'claude',
+      parent: null,
+      target: 'local',
+      model: null,
+      harness: 'running',
+    },
+  });
 });
 
 test('it parses a SessionRenamed event', () => {
@@ -105,14 +124,21 @@ test('it parses a SessionResized event', () => {
 });
 
 test('it parses a SessionOutput event', () => {
-  const raw: EventMsg = { v: 4, ev: 'SessionOutput', s: 's-1', seq: 41, d: '[1mhello[0m' };
+  const raw: EventMsg = {
+    v: 4,
+    ev: 'SessionOutput',
+    s: 's-1',
+    seq: 41,
+    d: '\u001B[1mhello\u001B[0m',
+  };
+
   const event = parseDaemonEvent(raw);
 
   expect(event).toStrictEqual({
     ev: 'SessionOutput',
     s: 's-1',
     seq: 41,
-    d: '[1mhello[0m',
+    d: '\u001B[1mhello\u001B[0m',
   });
 });
 
@@ -167,11 +193,7 @@ test('it still parses a known event that carries extra fields', () => {
 
 test('it misses on an unknown event kind instead of throwing', () => {
   const raw: EventMsg = { v: 4, ev: 'session.teleported', s: 's-1' };
-  let event: unknown = 'not called';
-
-  expect(() => {
-    event = parseDaemonEvent(raw);
-  }).not.toThrow();
+  const event = parseDaemonEvent(raw);
 
   expect(event).toBeNull();
 });

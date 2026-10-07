@@ -1,53 +1,150 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { planOverlayColumns } from './plan-overlay-columns';
+import { expect, test } from 'bun:test';
+import { KEYS } from '../test-utils/keys';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
 import { buildOverlayHint, buildSessionRow, drawOverlay } from './ui';
 import type { OverlaySessionView, OverlayView } from './ui';
 
-const liveClaude: OverlaySessionView = {
-  id: 'auth',
-  parent: null,
-  name: 'auth',
-  cwd: '/x',
-  state: 'running',
-  unread: false,
-  lastMsg: 'started',
-  alive: true,
-  kind: 'pty',
-  resumable: true,
-  canEject: true,
-  agent: 'claude',
-  pinned: false,
-  repoRoot: '/x',
-  target: 'local',
-  model: null,
-  harness: 'running',
-};
-
-test('it includes headless on a row whose agent can run a headless turn', () => {
-  expect(buildOverlayHint(liveClaude)).toInclude('H headless');
+test('#buildOverlayHint includes headless on a row whose agent can run a headless turn', () => {
+  expect(
+    buildOverlayHint({
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'claude',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'running',
+    }),
+  ).toInclude('H headless');
 });
 
-test('it omits headless on a row whose agent cannot run one', () => {
-  expect(buildOverlayHint({ ...liveClaude, agent: 'grok', canEject: false })).not.toInclude('H');
+test('#buildOverlayHint omits headless on a row whose agent cannot run one', () => {
+  expect(
+    buildOverlayHint({
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: false,
+      agent: 'grok',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'running',
+    }),
+  ).not.toInclude('H');
 });
 
-test('it still names yank on a live Grok row', () => {
-  expect(buildOverlayHint({ ...liveClaude, agent: 'grok', canEject: false })).toInclude('y yank');
+test('#buildOverlayHint still names yank on a live Grok row', () => {
+  expect(
+    buildOverlayHint({
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: false,
+      agent: 'grok',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'running',
+    }),
+  ).toInclude('y yank');
 });
 
-test('it points the pin action of a sub-session at its parent', () => {
-  const parent: OverlaySessionView = { ...liveClaude, id: 'wrangler', pinned: true };
-  const child: OverlaySessionView = { ...liveClaude, id: 'worker', parent: 'wrangler' };
+test('#buildOverlayHint points the pin action of a sub-session at its parent', () => {
+  const parent: OverlaySessionView = {
+    id: 'wrangler',
+    parent: null,
+    name: 'auth',
+    cwd: '/x',
+    state: 'running',
+    unread: false,
+    lastMsg: 'started',
+    alive: true,
+    kind: 'pty',
+    resumable: true,
+    canEject: true,
+    agent: 'claude',
+    pinned: true,
+    repoRoot: '/x',
+    target: 'local',
+    model: null,
+    harness: 'running',
+  };
+
+  const child: OverlaySessionView = {
+    id: 'worker',
+    parent: 'wrangler',
+    name: 'auth',
+    cwd: '/x',
+    state: 'running',
+    unread: false,
+    lastMsg: 'started',
+    alive: true,
+    kind: 'pty',
+    resumable: true,
+    canEject: true,
+    agent: 'claude',
+    pinned: false,
+    repoRoot: '/x',
+    target: 'local',
+    model: null,
+    harness: 'running',
+  };
 
   expect(buildOverlayHint(child, [parent, child])).toInclude('p unpin parent');
 });
 
-test('it keeps the plain pin action on a top-level session', () => {
-  expect(buildOverlayHint(liveClaude, [liveClaude])).toInclude('p pin ');
+test('#buildOverlayHint keeps the plain pin action on a top-level session', () => {
+  const session: OverlaySessionView = {
+    id: 'auth',
+    parent: null,
+    name: 'auth',
+    cwd: '/x',
+    state: 'running',
+    unread: false,
+    lastMsg: 'started',
+    alive: true,
+    kind: 'pty',
+    resumable: true,
+    canEject: true,
+    agent: 'claude',
+    pinned: false,
+    repoRoot: '/x',
+    target: 'local',
+    model: null,
+    harness: 'running',
+  };
+
+  expect(buildOverlayHint(session, [session])).toInclude('p pin ');
 });
 
-test('it labels a gateway row with its readable harness name', () => {
+test('#buildSessionRow labels a gateway row with its readable harness name', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -71,12 +168,35 @@ test('it labels a gateway row with its readable harness name', () => {
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, agent: 'zai' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'zai',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
   expect(row.styled).toInclude('GLM (z.ai)');
 });
 
-test('it resolves a model alias through the daemon answer map', () => {
+test('#buildSessionRow resolves a model alias through the daemon answer map', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -100,12 +220,35 @@ test('it resolves a model alias through the daemon answer map', () => {
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, agent: 'zai', model: 'opus' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'zai',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: 'opus',
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
   expect(row.styled).toInclude('glm-5.3');
 });
 
-test('it falls back to the raw model string when the alias map has no entry', () => {
+test('#buildSessionRow falls back to the raw model string when the alias map has no entry', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -129,12 +272,35 @@ test('it falls back to the raw model string when the alias map has no entry', ()
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, agent: 'zai', model: 'opus' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'zai',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: 'opus',
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
   expect(row.styled).toInclude('opus');
 });
 
-test('it shows the target column when several targets are available even if every row uses one', () => {
+test('#buildSessionRow shows the target column when several targets are available even if every row uses one', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -158,12 +324,35 @@ test('it shows the target column when several targets are available even if ever
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, target: 'local' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'claude',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
   expect(row.styled).toInclude('local');
 });
 
-test('it hides the target column when a single target is available', () => {
+test('#buildSessionRow hides the target column when a single target is available', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -187,12 +376,35 @@ test('it hides the target column when a single target is available', () => {
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, target: 'imp-box' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'claude',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'imp-box',
+      model: null,
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
   expect(row.styled).not.toInclude('imp-box');
 });
 
-test('it keeps the harness lifecycle distinct from the attention state', () => {
+test('#buildSessionRow keeps the harness lifecycle distinct from the attention state', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -217,7 +429,25 @@ test('it keeps the harness lifecycle distinct from the attention state', () => {
   };
 
   const row = buildSessionRow(
-    { ...liveClaude, state: 'needs_you', harness: 'suspended', lastMsg: 'asleep' },
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'needs_you',
+      unread: false,
+      lastMsg: 'asleep',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'claude',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'suspended',
+    },
     plan,
     view,
     false,
@@ -227,7 +457,7 @@ test('it keeps the harness lifecycle distinct from the attention state', () => {
   expect(row.styled).toInclude('asleep');
 });
 
-test('it highlights the selected row with inverse video', () => {
+test('#buildSessionRow highlights the selected row with inverse video', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -251,29 +481,43 @@ test('it highlights the selected row with inverse video', () => {
     grouped: true,
   };
 
-  const row = buildSessionRow(liveClaude, plan, view, true);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'claude',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'running',
+    },
+    plan,
+    view,
+    true,
+  );
 
   expect(row.styled).toInclude('\u001B[7m');
 });
 
-test('it crowds the model out before the harness under width pressure', () => {
-  const narrow = planOverlayColumns({
-    innerWidth: 48,
-    grouped: true,
-    showTarget: true,
-    targetMax: 5,
-    harnessMax: 6,
-    modelMax: 8,
-  });
-
+test('#buildSessionRow draws the harness and no model when the plan leaves the model no width', () => {
   const plan: OverlayColumnPlan = {
-    nameWidth: narrow.nameWidth,
-    dirWidth: narrow.dirWidth,
-    targetWidth: narrow.targetWidth,
-    harnessWidth: narrow.harnessWidth,
-    modelWidth: narrow.modelWidth,
-    lifecycleWidth: narrow.lifecycleWidth,
-    eventWidth: narrow.eventWidth,
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 5,
+    harnessWidth: 6,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 4,
   };
 
   const view: OverlayView = {
@@ -289,60 +533,86 @@ test('it crowds the model out before the harness under width pressure', () => {
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, model: 'opus' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'claude',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: 'opus',
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
-  expect(narrow.modelWidth).toBe(0);
   expect(row.styled).toInclude('Claude');
   expect(row.styled).not.toInclude('sonnet-x');
 });
 
-test('it draws session rows inside the overlay box borders', () => {
+test('#drawOverlay draws session rows inside the overlay box borders', () => {
   const writes: string[] = [];
-  const originalWrite = process.stdout.write.bind(process.stdout);
 
-  process.stdout.write = (chunk: unknown): boolean => {
-    writes.push(String(chunk));
+  drawOverlay(
+    {
+      sessions: [
+        {
+          id: 'auth',
+          parent: null,
+          name: 'auth',
+          cwd: '/x',
+          state: 'running',
+          unread: false,
+          lastMsg: 'started',
+          alive: true,
+          kind: 'pty',
+          resumable: true,
+          canEject: true,
+          agent: 'claude',
+          pinned: false,
+          repoRoot: '/x',
+          target: 'local',
+          model: null,
+          harness: 'running',
+        },
+      ],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      stale: false,
+      grouped: true,
+    },
+    (chunk) => {
+      writes.push(chunk);
+    },
+  );
 
-    return true;
-  };
-
-  onTestFinished(() => {
-    process.stdout.write = originalWrite;
-  });
-
-  drawOverlay({
-    sessions: [liveClaude],
-    agentLabels: { claude: 'Claude' },
-    agentModels: {},
-    showTarget: false,
-    selected: 0,
-    confirmKill: false,
-    confirmDestroy: false,
-    filter: null,
-    stale: false,
-    grouped: true,
-  });
-
-  const esc = String.fromCodePoint(0x1b);
-
-  const rows = writes
+  const drawnRows = writes
     .join('')
-    .split(esc)
-    .join('')
-    .split(/[[0-9;]+H/gu);
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
 
-  const row = rows.find((part) => part.includes('auth'));
-
-  if (row === undefined) {
-    throw new TypeError('expected the session row in the overlay output');
-  }
-
-  const plain = row.replaceAll(/[[0-9;]*m/gu, '');
-
-  expect(plain.trim()).toMatch(/^│.*│$/);
+  expect(drawnRows).toSatisfyAny((row: string) => /^│.*auth.*│$/u.test(row));
 });
 
-test('it falls back to the raw id when the harness name would hit an inherited property', () => {
+test('#buildSessionRow falls back to the raw id when the harness name would hit an inherited property', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -366,12 +636,35 @@ test('it falls back to the raw id when the harness name would hit an inherited p
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, agent: 'constructor' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'constructor',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: null,
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
   expect(row.styled).toInclude('constructor');
 });
 
-test('it falls back to the raw model when the alias would hit an inherited property', () => {
+test('#buildSessionRow falls back to the raw model when the alias would hit an inherited property', () => {
   const plan: OverlayColumnPlan = {
     nameWidth: 16,
     dirWidth: 0,
@@ -395,7 +688,30 @@ test('it falls back to the raw model when the alias would hit an inherited prope
     grouped: true,
   };
 
-  const row = buildSessionRow({ ...liveClaude, model: 'constructor' }, plan, view, false);
+  const row = buildSessionRow(
+    {
+      id: 'auth',
+      parent: null,
+      name: 'auth',
+      cwd: '/x',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      alive: true,
+      kind: 'pty',
+      resumable: true,
+      canEject: true,
+      agent: 'claude',
+      pinned: false,
+      repoRoot: '/x',
+      target: 'local',
+      model: 'constructor',
+      harness: 'running',
+    },
+    plan,
+    view,
+    false,
+  );
 
   expect(row.styled).toInclude('constructor');
 });

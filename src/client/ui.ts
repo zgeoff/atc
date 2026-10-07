@@ -132,7 +132,7 @@ interface Row {
 // no-op, so a stale extent after a full clear is harmless.
 let lastBoxExtent: BoxExtent | null = null;
 
-function drawBox(rowsList: readonly Row[]) {
+function drawBox(rowsList: readonly Row[], write: (chunk: string) => void) {
   const boxWidth = Math.max(...rowsList.map((r) => r.width));
   const top = Math.max(1, Math.floor((rows() - 1 - rowsList.length) / 2));
   const left = Math.max(1, Math.floor((cols() - boxWidth) / 2));
@@ -149,7 +149,7 @@ function drawBox(rowsList: readonly Row[]) {
     buf += ansi.moveTo(top + i, left) + r.styled;
   }
 
-  out(buf);
+  write(buf);
 }
 
 function boxTop(width: number, title: string): Row {
@@ -280,7 +280,7 @@ export function buildSessionRow(
   };
 }
 
-export function drawOverlay(view: OverlayView) {
+export function drawOverlay(view: OverlayView, write: (chunk: string) => void = out) {
   const width = Math.min(cols() - 4, 90);
   const rowsList: Row[] = [boxTop(width, 'sessions')];
 
@@ -372,7 +372,7 @@ export function drawOverlay(view: OverlayView) {
 
   rowsList.push(dimRow(width, hint), boxBottom(width));
 
-  drawBox(rowsList);
+  drawBox(rowsList, write);
 }
 
 // A kill acts on the selected session's whole set, so the confirm counts
@@ -467,7 +467,7 @@ export function drawHelp() {
 
   rowsList.push(boxDivider(width), dimRow(width, 'esc/? back'), boxBottom(width));
 
-  drawBox(rowsList);
+  drawBox(rowsList, out);
 }
 
 export interface PickerView {
@@ -482,7 +482,7 @@ export interface PickerView {
   dimmed?: ReadonlySet<number>;
 }
 
-export function drawPicker(view: PickerView) {
+export function drawPicker(view: PickerView, write: (chunk: string) => void = out) {
   const width = getPickerWidth();
   const rowsList: Row[] = [boxTop(width, view.title)];
   const shown = view.items.slice(0, 10);
@@ -525,7 +525,7 @@ export function drawPicker(view: PickerView) {
     boxBottom(width),
   );
 
-  drawBox(rowsList);
+  drawBox(rowsList, write);
 }
 
 export function drawHome(fleetCount = 0, leaderLabel = '^Space') {

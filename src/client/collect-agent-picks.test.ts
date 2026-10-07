@@ -1,39 +1,23 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '../shared/config';
+import { createStubBin } from '../test-utils/create-stub-bin';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { collectAgentPicks } from './collect-agent-picks';
 
-function setupBinDir(bins: readonly { readonly name: string; readonly executable: boolean }[]) {
-  const prefix = join(tmpdir(), 'atc-picks-');
-  const dir = realpathSync(mkdtempSync(prefix));
-
-  for (const bin of bins) {
-    writeFileSync(join(dir, bin.name), '#!/bin/sh\nexit 0\n', {
-      mode: bin.executable ? 0o755 : 0o644,
-    });
-  }
-
-  onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  return dir;
-}
-
 test('it lists only the agents whose configured binary resolves', () => {
-  const dir = setupBinDir([
-    { name: 'my-claude', executable: true },
-    { name: 'my-codex', executable: true },
-  ]);
+  using tmp = setupTempDir('atc-picks-');
+
+  createStubBin(tmp.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
+  createStubBin(tmp.dir, 'my-codex', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig({
     agents: {
-      claude: { bin: join(dir, 'my-claude') },
-      grok: { bin: join(dir, 'my-grok') },
-      codex: { bin: join(dir, 'my-codex') },
+      claude: { bin: join(tmp.dir, 'my-claude') },
+      grok: { bin: join(tmp.dir, 'my-grok') },
+      codex: { bin: join(tmp.dir, 'my-codex') },
     },
   });
 
@@ -43,16 +27,16 @@ test('it lists only the agents whose configured binary resolves', () => {
   ]);
 });
 
-test('it lists a file with the old agent keys the same way', () => {
-  const dir = setupBinDir([
-    { name: 'my-claude', executable: true },
-    { name: 'my-codex', executable: true },
-  ]);
+test('it lists only the agents whose binary resolves from a config with the old agent keys', () => {
+  using tmp = setupTempDir('atc-picks-');
+
+  createStubBin(tmp.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
+  createStubBin(tmp.dir, 'my-codex', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig({
-    claudeBin: join(dir, 'my-claude'),
-    grokBin: join(dir, 'my-grok'),
-    codexBin: join(dir, 'my-codex'),
+    claudeBin: join(tmp.dir, 'my-claude'),
+    grokBin: join(tmp.dir, 'my-grok'),
+    codexBin: join(tmp.dir, 'my-codex'),
   });
 
   expect(collectAgentPicks(config)).toStrictEqual([
@@ -62,9 +46,10 @@ test('it lists a file with the old agent keys the same way', () => {
 });
 
 test('it resolves a bare binary name off PATH', () => {
-  const dir = setupBinDir([{ name: 'grok', executable: true }]);
+  using tmp = setupTempDir('atc-picks-');
 
-  updateEnv('PATH', dir);
+  createStubBin(tmp.dir, 'grok', '#!/bin/sh\nexit 0\n');
+  updateEnv('PATH', tmp.dir);
 
   const picks = collectAgentPicks(parseConfig({}));
 
@@ -72,12 +57,14 @@ test('it resolves a bare binary name off PATH', () => {
 });
 
 test('it leaves out a binary that exists without the executable bit', () => {
-  const dir = setupBinDir([{ name: 'my-codex', executable: false }]);
+  using tmp = setupTempDir('atc-picks-');
+
+  writeFileSync(join(tmp.dir, 'my-codex'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
 
   const config = parseConfig({
     agents: {
-      claude: { bin: join(dir, 'my-claude') },
-      codex: { bin: join(dir, 'my-codex') },
+      claude: { bin: join(tmp.dir, 'my-claude') },
+      codex: { bin: join(tmp.dir, 'my-codex') },
     },
   });
 
@@ -85,18 +72,20 @@ test('it leaves out a binary that exists without the executable bit', () => {
 });
 
 test('it lists agents in registry order with their labels', () => {
-  const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
+  using tmp = setupTempDir('atc-picks-');
+
+  createStubBin(tmp.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig({
     agents: {
       zai: {
         kind: 'claude',
         label: 'GLM (z.ai)',
-        bin: join(dir, 'my-claude'),
+        bin: join(tmp.dir, 'my-claude'),
         baseURL: 'https://api.z.ai/api/anthropic',
       },
-      claude: { bin: join(dir, 'my-claude') },
-      'claude-b': { kind: 'claude', bin: join(dir, 'my-claude') },
+      claude: { bin: join(tmp.dir, 'my-claude') },
+      'claude-b': { kind: 'claude', bin: join(tmp.dir, 'my-claude') },
     },
   });
 
@@ -108,14 +97,16 @@ test('it lists agents in registry order with their labels', () => {
 });
 
 test('it leaves out a configured backend whose binary does not resolve', () => {
-  const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
+  using tmp = setupTempDir('atc-picks-');
+
+  createStubBin(tmp.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig({
     agents: {
-      claude: { bin: join(dir, 'my-claude') },
+      claude: { bin: join(tmp.dir, 'my-claude') },
       zai: {
         kind: 'claude',
-        bin: join(dir, 'missing-claude'),
+        bin: join(tmp.dir, 'missing-claude'),
         baseURL: 'https://api.z.ai/api/anthropic',
       },
     },
@@ -125,18 +116,20 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
 });
 
 test('it lists a gateway with auth, which starts on a target with broker auth', () => {
-  const dir = setupBinDir([{ name: 'my-claude', executable: true }]);
+  using tmp = setupTempDir('atc-picks-');
+
+  createStubBin(tmp.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
   const config = parseConfig({
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
     agents: {
-      claude: { bin: join(dir, 'my-claude') },
+      claude: { bin: join(tmp.dir, 'my-claude') },
       glm: {
         kind: 'claude',
         label: 'GLM',
-        bin: join(dir, 'my-claude'),
+        bin: join(tmp.dir, 'my-claude'),
         baseURL: 'https://api.z.ai/api/anthropic',
         auth: { profiles: ['glm'] },
       },

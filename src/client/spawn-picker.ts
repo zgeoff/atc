@@ -50,6 +50,20 @@ export interface SpawnPickerDeps<TMirror> {
   readonly toMirrorSession: (value: unknown) => TMirror | null;
   readonly upsertMirror: (session: Readonly<TMirror>) => void;
   readonly hasDaemonFeature: (feature: DaemonFeature) => boolean;
+
+  // Where the flow draws: every byte of the picker's screen goes through it.
+  readonly write: (chunk: string) => void;
+
+  // The client's own directory, which the directory step lists first.
+  readonly cwd: string;
+
+  // The config file the flow reads its agents, roots, and workspaces from
+  // each time it opens.
+  readonly configPath: string;
+
+  // Called each time an answer arrives for a flow or a request that has
+  // since moved on, and is dropped without changing anything.
+  readonly onDropAnswer?: () => void;
 }
 
 // One source `agents.list` returned, in the order the daemon offers them.
@@ -279,7 +293,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.generation += 1;
     this.resume = resume;
 
-    const config = loadConfig();
+    const config = loadConfig(this.deps.configPath);
 
     this.picks = collectAgentPicks(config);
     this.roots = config.dirs.roots;
@@ -315,7 +329,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.refusal = null;
     this.pending = null;
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
 
     // One installed agent is no choice to make, so the flow goes on with it.
     if (this.picks.length === 1) {
@@ -439,13 +453,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
         hint = 'reading targets and sources… · esc cancel';
       }
 
-      drawPicker({
-        title: `${verb}: agent`,
-        items: this.picks.map((p) => p.label),
-        selected: this.selected,
-        input: this.input,
-        hint,
-      });
+      drawPicker(
+        {
+          title: `${verb}: agent`,
+          items: this.picks.map((p) => p.label),
+          selected: this.selected,
+          input: this.input,
+          hint,
+        },
+        this.deps.write,
+      );
     } else if (this.step === 'dir') {
       this.renderDirStep(verb);
     } else if (this.step === 'source') {
@@ -457,36 +474,45 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     } else if (this.step === 'confirm') {
       this.renderConfirmStep();
     } else if (this.step === 'spawned') {
-      drawPicker({
-        title: `${verb}: started`,
-        items: this.spawnWarnings.flatMap((w) => splitToWidth(w, getPickerWidth() - 4)),
-        selected: -1,
-        input: '',
-        hint: '⏎ attach · esc back',
-      });
+      drawPicker(
+        {
+          title: `${verb}: started`,
+          items: this.spawnWarnings.flatMap((w) => splitToWidth(w, getPickerWidth() - 4)),
+          selected: -1,
+          input: '',
+          hint: '⏎ attach · esc back',
+        },
+        this.deps.write,
+      );
     } else if (this.step === 'name') {
       const where = this.isGitFlow() ? this.formatDestination() : formatDir(this.dir);
 
-      drawPicker({
-        title: `${verb}: name`,
-        items: [],
-        selected: -1,
-        input: this.input,
-        placeholder: formatDirName(this.autoDestination ?? this.dir),
-        hint: this.refusal ?? `session name for ${where} · ⏎ accept · esc back`,
-      });
+      drawPicker(
+        {
+          title: `${verb}: name`,
+          items: [],
+          selected: -1,
+          input: this.input,
+          placeholder: formatDirName(this.autoDestination ?? this.dir),
+          hint: this.refusal ?? `session name for ${where} · ⏎ accept · esc back`,
+        },
+        this.deps.write,
+      );
     } else {
-      drawPicker({
-        title: 'spawn: initial prompt',
-        items: [],
-        selected: -1,
-        input: this.input,
-        placeholder: 'optional — ⏎ to start interactive',
-        hint:
-          this.pending?.label ??
-          this.refusal ??
-          'first message for the session · ⏎ spawn · esc back',
-      });
+      drawPicker(
+        {
+          title: 'spawn: initial prompt',
+          items: [],
+          selected: -1,
+          input: this.input,
+          placeholder: 'optional — ⏎ to start interactive',
+          hint:
+            this.pending?.label ??
+            this.refusal ??
+            'first message for the session · ⏎ spawn · esc back',
+        },
+        this.deps.write,
+      );
     }
 
     this.deps.scheduleStatus();
@@ -518,16 +544,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
 
-    drawPicker({
-      title: `${verb}: ${this.findSource()?.label ?? 'directory'}`,
-      items,
-      selected: this.selected,
-      input: this.input,
-      hint:
-        this.pending?.label ??
-        this.refusal ??
-        `type to filter, or a path (/ ~ .) · ↑↓ move · ⏎ select${this.formatTabHint()} · esc cancel`,
-    });
+    drawPicker(
+      {
+        title: `${verb}: ${this.findSource()?.label ?? 'directory'}`,
+        items,
+        selected: this.selected,
+        input: this.input,
+        hint:
+          this.pending?.label ??
+          this.refusal ??
+          `type to filter, or a path (/ ~ .) · ↑↓ move · ⏎ select${this.formatTabHint()} · esc cancel`,
+      },
+      this.deps.write,
+    );
   }
 
   private renderTargetStep(verb: string) {
@@ -544,18 +573,21 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       hint = `${gap} · set targets in config.json · esc back`;
     }
 
-    drawPicker({
-      title: `${verb}: target`,
-      items: this.targets.map((t) => formatTargetPick(t)),
-      selected: this.selected,
-      input: '',
-      hint: this.refusal ?? hint,
-      dimmed: new Set(
-        this.targets.flatMap((t, i) =>
-          t.takesWorkspace || (!git && t.available && t.inPlace) ? [] : [i],
+    drawPicker(
+      {
+        title: `${verb}: target`,
+        items: this.targets.map((t) => formatTargetPick(t)),
+        selected: this.selected,
+        input: '',
+        hint: this.refusal ?? hint,
+        dimmed: new Set(
+          this.targets.flatMap((t, i) =>
+            t.takesWorkspace || (!git && t.available && t.inPlace) ? [] : [i],
+          ),
         ),
-      ),
-    });
+      },
+      this.deps.write,
+    );
   }
 
   private renderSourceStep() {
@@ -566,18 +598,21 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const scope = this.listedScope === null ? '' : ` · ${this.listedScope}`;
     const listing = this.listingSeq === null ? null : 'listing… · esc stops';
 
-    drawPicker({
-      title: `spawn: ${this.findSource()?.label ?? ''}${scope}`,
-      items: items.map((item) => item.label),
-      selected: items.length === 0 || items[0]?.notice === true ? -1 : this.selected,
-      input: this.input,
-      hint:
-        this.pending?.label ??
-        this.refusal ??
-        listing ??
-        `type to filter, or a git URL · ↑↓ move · ⏎ select${this.formatTabHint()} · esc back`,
-      dimmed: new Set(items.flatMap((item, i) => (item.notice === true ? [i] : []))),
-    });
+    drawPicker(
+      {
+        title: `spawn: ${this.findSource()?.label ?? ''}${scope}`,
+        items: items.map((item) => item.label),
+        selected: items.length === 0 || items[0]?.notice === true ? -1 : this.selected,
+        input: this.input,
+        hint:
+          this.pending?.label ??
+          this.refusal ??
+          listing ??
+          `type to filter, or a git URL · ↑↓ move · ⏎ select${this.formatTabHint()} · esc back`,
+        dimmed: new Set(items.flatMap((item, i) => (item.notice === true ? [i] : []))),
+      },
+      this.deps.write,
+    );
   }
 
   private renderRefStep() {
@@ -585,16 +620,19 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
 
-    drawPicker({
-      title: `spawn: ref · ${this.repo?.label ?? ''}`,
-      items: items.map((item) => formatRef(item, this.repo?.head ?? null)),
-      selected: items.length === 0 ? -1 : this.selected,
-      input: this.input,
-      hint:
-        this.pending?.label ??
-        this.refusal ??
-        'branch, tag, or full commit id · ↑↓ move · ⏎ select · esc back',
-    });
+    drawPicker(
+      {
+        title: `spawn: ref · ${this.repo?.label ?? ''}`,
+        items: items.map((item) => formatRef(item, this.repo?.head ?? null)),
+        selected: items.length === 0 ? -1 : this.selected,
+        input: this.input,
+        hint:
+          this.pending?.label ??
+          this.refusal ??
+          'branch, tag, or full commit id · ↑↓ move · ⏎ select · esc back',
+      },
+      this.deps.write,
+    );
   }
 
   private renderConfirmStep() {
@@ -606,23 +644,26 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       refRow = ref.ref === null ? `commit ${ref.sha}` : `${ref.ref} → ${ref.sha.slice(0, 12)}`;
     }
 
-    drawPicker({
-      title: 'spawn: confirm',
-      items: [
-        `source  ${this.repo?.url ?? ''}`,
-        `ref     ${refRow}`,
-        `target  ${target === null ? 'default' : `${target.id} (${target.provider})`}`,
-        `dest    ${this.formatDestination()}`,
-        `agent   ${this.agent}`,
-      ],
-      selected: -1,
-      input: this.input,
-      placeholder:
-        this.autoDestination === null
-          ? 'destination on the target'
-          : 'picked on the target · or type an absolute path',
-      hint: this.refusal ?? 'destination on the target · ⏎ continue · esc back',
-    });
+    drawPicker(
+      {
+        title: 'spawn: confirm',
+        items: [
+          `source  ${this.repo?.url ?? ''}`,
+          `ref     ${refRow}`,
+          `target  ${target === null ? 'default' : `${target.id} (${target.provider})`}`,
+          `dest    ${this.formatDestination()}`,
+          `agent   ${this.agent}`,
+        ],
+        selected: -1,
+        input: this.input,
+        placeholder:
+          this.autoDestination === null
+            ? 'destination on the target'
+            : 'picked on the target · or type an absolute path',
+        hint: this.refusal ?? 'destination on the target · ⏎ continue · esc back',
+      },
+      this.deps.write,
+    );
   }
 
   // The source the flow is on, or null on the local directory flow.
@@ -692,7 +733,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.refusal = 'cancelled · esc back';
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -758,7 +799,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.step = 'name';
     }
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -779,7 +820,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.sourcesPending = false;
     this.step = 'agent';
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -787,7 +828,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // has one, else to the agent.
   private applySourceCancel() {
     if (this.openTargetStep()) {
-      process.stdout.write(ansi.clear);
+      this.deps.write(ansi.clear);
       this.render();
 
       return;
@@ -804,7 +845,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (!this.isGitFlow()) {
       this.step = 'dir';
 
-      process.stdout.write(ansi.clear);
+      this.deps.write(ansi.clear);
       this.render();
 
       return;
@@ -889,7 +930,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -899,7 +940,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const typed = this.input.trim();
 
     const chosen =
-      this.collectDirItems()[this.selected] ?? resolvePathInput(typed, process.cwd(), homedir());
+      this.collectDirItems()[this.selected] ?? resolvePathInput(typed, this.deps.cwd, homedir());
 
     if (chosen !== null) {
       this.applyDir(chosen);
@@ -920,7 +961,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.step = 'name';
     }
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -957,7 +998,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.step = 'name';
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -966,9 +1007,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
    * else fuzzy-filters the merged list.
    */
   private collectDirItems(): string[] {
-    return resolvePathInput(this.input, process.cwd(), homedir()) === null
+    return resolvePathInput(this.input, this.deps.cwd, homedir()) === null
       ? pickMatches(this.dirs, this.input)
-      : collectPathCompletions(this.input, process.cwd(), homedir());
+      : collectPathCompletions(this.input, this.deps.cwd, homedir());
   }
 
   // The git source step's rows: the other URL form after a failed probe,
@@ -1073,6 +1114,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.isStale(generation) || this.pathListingSeq !== seq) {
+      this.deps.onDropAnswer?.();
+
       return;
     }
 
@@ -1093,12 +1136,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.dirLabels = new Map(listed);
 
-    this.dirs = [...new Set([process.cwd(), ...listed.map(([dir]) => dir)])];
+    this.dirs = [...new Set([this.deps.cwd, ...listed.map(([dir]) => dir)])];
     this.input = '';
     this.selected = 0;
     this.step = 'dir';
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -1121,7 +1164,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.openTargetStep()) {
-      process.stdout.write(ansi.clear);
+      this.deps.write(ansi.clear);
       this.render();
 
       return;
@@ -1152,7 +1195,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.listNotice = null;
     }
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
 
     // A scope a reading asked for is listed in place of the source's own
@@ -1209,6 +1252,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.isStale(generation) || this.listingSeq !== seq) {
+      this.deps.onDropAnswer?.();
+
       return;
     }
 
@@ -1217,6 +1262,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (this.findSource()?.id !== source.id) {
       this.listingSeq = null;
       this.listedKey = null;
+      this.deps.onDropAnswer?.();
 
       return;
     }
@@ -1242,7 +1288,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (this.step === 'source') {
       this.selected = 0;
 
-      process.stdout.write(ansi.clear);
+      this.deps.write(ansi.clear);
       this.render();
     }
   }
@@ -1317,7 +1363,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.refusal = `no source reads ${typed} · esc back`;
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -1424,6 +1470,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.isStale(generation) || this.pending?.seq !== seq) {
+      this.deps.onDropAnswer?.();
+
       return null;
     }
 
@@ -1452,7 +1500,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.refusal = `${formatError(probed.error)} · esc back`;
       this.input = label;
 
-      process.stdout.write(ansi.clear);
+      this.deps.write(ansi.clear);
       this.render();
 
       return;
@@ -1470,7 +1518,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.ref = null;
 
     this.openRefStep();
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -1501,7 +1549,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.refusal = `${reason} · ${formatError(probed.error)} · esc back`;
     }
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -1573,7 +1621,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       ? `the daemon resolved no commit for ${typed} · esc back`
       : `${formatError(probed.error)} · esc back`;
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -1587,7 +1635,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.input = '';
 
     this.openConfirmStep();
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -1764,6 +1812,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     } catch {}
 
     if (this.isStale(generation)) {
+      this.deps.onDropAnswer?.();
+
       return;
     }
 
@@ -1820,10 +1870,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const zoxide = await collectZoxideDirs();
 
     if (this.isStale(generation)) {
+      this.deps.onDropAnswer?.();
+
       return;
     }
 
-    this.dirs = collectDirs({ cwd: process.cwd(), recent, roots: this.roots, zoxide });
+    this.dirs = collectDirs({ cwd: this.deps.cwd, recent, roots: this.roots, zoxide });
 
     this.dirLabels = new Map();
 
@@ -1832,7 +1884,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.selected = 0;
     this.step = 'dir';
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 
@@ -1882,7 +1934,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.spawnWarnings = warnings.filter((w): w is string => typeof w === 'string');
       this.step = 'spawned';
 
-      process.stdout.write(ansi.clear);
+      this.deps.write(ansi.clear);
       this.render();
 
       return;
@@ -1960,7 +2012,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.input = this.resume ? this.name : prompt;
     }
 
-    process.stdout.write(ansi.clear);
+    this.deps.write(ansi.clear);
     this.render();
   }
 

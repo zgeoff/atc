@@ -1,12 +1,8 @@
 import { expect, test } from 'bun:test';
 import { toMirrorSession } from './to-mirror-session';
 
-// A descriptor carrying every required field, so each test overrides only
-// the one property its case is about.
-function buildDescriptor(
-  overrides: Readonly<Record<string, unknown>> = {},
-): Record<string, unknown> {
-  return {
+test('it round-trips a gateway agent id instead of coercing it to claude', () => {
+  const mirror = toMirrorSession({
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -15,175 +11,541 @@ function buildDescriptor(
     lastMsg: 'hi',
     createdAt: 1000,
     alive: true,
-    ...overrides,
-  };
-}
+    agent: 'zai',
+  });
 
-test('it round-trips a gateway agent id instead of coercing it to claude', () => {
-  const mirror = toMirrorSession(buildDescriptor({ agent: 'zai' }));
-
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.agent).toBe('zai');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'zai',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
-test('it falls back lastAttachedAt to createdAt when the descriptor omits it', () => {
-  const mirror = toMirrorSession(buildDescriptor({ createdAt: 4200 }));
+test('it falls back the last attach time to the creation time when the descriptor omits it', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 4200,
+    alive: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.lastAttachedAt).toBe(4200);
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 4200,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 4200,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
-test('it falls back repoRoot to cwd when the descriptor omits it', () => {
-  const mirror = toMirrorSession(buildDescriptor({ cwd: '/repo/nested' }));
+test('it falls back the repository root to the working directory when the descriptor omits it', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo/nested',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.repoRoot).toBe('/repo/nested');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo/nested',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo/nested',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
-test('it defaults kind to pty when the descriptor omits it', () => {
-  const mirror = toMirrorSession(buildDescriptor());
+test('it reads a session as a terminal session when the descriptor omits its kind', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.kind).toBe('pty');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
-test('it returns null for a descriptor missing a required field, rather than throwing', () => {
-  const { name: _name, ...withoutName } = buildDescriptor();
-  let mirror: unknown = 'not called';
+test('it keeps the parent when the descriptor carries one', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+    parent: 's-0',
+  });
 
-  expect(() => {
-    mirror = toMirrorSession(withoutName);
-  }).not.toThrow();
-
-  expect(mirror).toBeNull();
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: 's-0',
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
-// canEject is what keeps the H key on a row whose adapter can run a headless
-// turn. A gateway session is a Claude binary under another id, so the flag —
-// not the agent id — has to decide.
-test('it keeps parent when the descriptor carries one', () => {
-  const mirror = toMirrorSession(buildDescriptor({ parent: 's-0' }));
+test('it reports no parent when the descriptor omits it', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.parent).toBe('s-0');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
-test('it reports parent as null when the descriptor omits it', () => {
-  const mirror = toMirrorSession(buildDescriptor());
+// A gateway session runs a Claude binary under another agent id, so the
+// descriptor's own flag, not the agent id, decides whether its row offers
+// the headless handoff.
+test('it offers the headless handoff when the descriptor allows it', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+    agent: 'zai',
+    canEject: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.parent).toBeNull();
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: true,
+    agent: 'zai',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
-test('it keeps canEject when the descriptor sets it', () => {
-  const mirror = toMirrorSession(buildDescriptor({ agent: 'zai', canEject: true }));
+test('it withholds the headless handoff when the descriptor omits it', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.canEject).toBe(true);
-});
-
-test('it reports canEject as false when the descriptor omits it', () => {
-  const mirror = toMirrorSession(buildDescriptor());
-
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.canEject).toBe(false);
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
 test('it reads the target from the descriptor locator', () => {
-  const mirror = toMirrorSession(
-    buildDescriptor({ locator: { daemonID: 'd-1', targetID: 'imp-box' } }),
-  );
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+    locator: { daemonID: 'd-1', targetID: 'imp-box' },
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.target).toBe('imp-box');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'imp-box',
+    model: null,
+    harness: 'running',
+  });
 });
 
 test('it falls back the target to local when the descriptor carries no locator', () => {
-  const mirror = toMirrorSession(buildDescriptor());
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.target).toBe('local');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
 test('it keeps the model the session was spawned with', () => {
-  const mirror = toMirrorSession(buildDescriptor({ model: 'opus' }));
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+    model: 'opus',
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.model).toBe('opus');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: 'opus',
+    harness: 'running',
+  });
 });
 
-test('it reports the model as null when the descriptor omits it', () => {
-  const mirror = toMirrorSession(buildDescriptor());
+test('it reports no model when the descriptor omits it', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.model).toBeNull();
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
 });
 
 test('it reads the harness layer of the descriptor lifecycle', () => {
-  const mirror = toMirrorSession(
-    buildDescriptor({
-      lifecycle: { desired: 'sleep', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
-      alive: false,
-    }),
-  );
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: false,
+    lifecycle: { desired: 'sleep', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
+  });
 
-  if (mirror === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(mirror.harness).toBe('suspended');
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: false,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'suspended',
+  });
 });
 
-test('it derives the harness from the alive flag when the descriptor omits the lifecycle', () => {
-  const dead = toMirrorSession(buildDescriptor({ alive: false }));
+test('it reads an exited harness from a dead session when the descriptor omits the lifecycle', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: false,
+  });
 
-  if (dead === null) {
-    throw new Error('expected a mirror session');
-  }
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: false,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'exited',
+  });
+});
 
-  expect(dead.harness).toBe('exited');
+test('it reads a running harness from a live session when the descriptor omits the lifecycle', () => {
+  const mirror = toMirrorSession({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    alive: true,
+  });
 
-  const live = toMirrorSession(buildDescriptor({ alive: true }));
+  expect(mirror).toStrictEqual({
+    id: 's-1',
+    name: 'work',
+    cwd: '/repo',
+    pinned: false,
+    lastAttachedAt: 1000,
+    repoRoot: '/repo',
+    state: 'running',
+    unread: false,
+    lastMsg: 'hi',
+    createdAt: 1000,
+    kind: 'pty',
+    alive: true,
+    resumable: false,
+    canEject: false,
+    agent: 'claude',
+    parent: null,
+    target: 'local',
+    model: null,
+    harness: 'running',
+  });
+});
 
-  if (live === null) {
-    throw new Error('expected a mirror session');
-  }
-
-  expect(live.harness).toBe('running');
+test('it returns null for a descriptor missing a required field, rather than throwing', () => {
+  expect(
+    toMirrorSession({
+      id: 's-1',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    }),
+  ).toBeNull();
 });

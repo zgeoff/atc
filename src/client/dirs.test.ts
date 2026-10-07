@@ -1,22 +1,29 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectDirs, findFuzzyScore, pickMatches } from './dirs';
 
-test('it matches filter characters in order anywhere in the candidate', () => {
-  expect(findFuzzyScore('vers', 'vrs')).not.toBeNull();
-  expect(findFuzzyScore('atc-worktree', 'atcw')).not.toBeNull();
-  expect(findFuzzyScore('projects', 'pjs')).not.toBeNull();
+test.each([
+  ['vers', 'vrs'],
+  ['atc-worktree', 'atcw'],
+  ['projects', 'pjs'],
+])('#findFuzzyScore matches %p by the filter %p, its characters in order', (candidate, filter) => {
+  expect(findFuzzyScore(candidate, filter)).toBeNumber();
 });
 
-test('it misses when a filter character never appears after the previous hit', () => {
-  expect(findFuzzyScore('vers', 'vx')).toBeNull();
-  expect(findFuzzyScore('abc', 'cba')).toBeNull();
-});
+test.each([
+  ['vers', 'vx'],
+  ['abc', 'cba'],
+])(
+  '#findFuzzyScore misses %p by the filter %p, a character never following the previous hit',
+  (candidate, filter) => {
+    expect(findFuzzyScore(candidate, filter)).toBeNull();
+  },
+);
 
-test('it scores word-start and consecutive hits above scattered ones', () => {
+test('#findFuzzyScore scores word-start and consecutive hits above scattered ones', () => {
   const wordStart = findFuzzyScore('music-bot', 'mb');
   const scattered = findFuzzyScore('maberry', 'mb');
 
@@ -27,22 +34,25 @@ test('it scores word-start and consecutive hits above scattered ones', () => {
   expect(wordStart).toBeGreaterThan(scattered);
 });
 
-test('it ranks basename matches above path-only matches', () => {
+test('#pickMatches ranks basename matches above path-only matches', () => {
   const picked = pickMatches(
     ['/home/geoff/projects/vers/packages/api', '/home/geoff/projects/vers'],
     'vers',
   );
 
-  expect(picked[0]).toBe('/home/geoff/projects/vers');
+  expect(picked).toStrictEqual([
+    '/home/geoff/projects/vers',
+    '/home/geoff/projects/vers/packages/api',
+  ]);
 });
 
-test('it drops candidates the filter cannot fuzzy-match', () => {
+test('#pickMatches drops candidates the filter cannot fuzzy-match', () => {
   expect(pickMatches(['/home/geoff/projects/atc', '/home/geoff/music'], 'atc')).toStrictEqual([
     '/home/geoff/projects/atc',
   ]);
 });
 
-test('it lists the working directory first, then history, roots, and zoxide, without repeats', () => {
+test('#collectDirs lists the working directory first, then history, roots, and zoxide, without repeats', () => {
   using temp = setupTempDir('atc-dirs-');
 
   mkdirSync(join(temp.dir, 'cwd'));
@@ -65,7 +75,7 @@ test('it lists the working directory first, then history, roots, and zoxide, wit
   ]);
 });
 
-test('it drops a directory that no longer exists', () => {
+test('#collectDirs drops a directory that no longer exists', () => {
   using temp = setupTempDir('atc-dirs-');
 
   mkdirSync(join(temp.dir, 'kept'));
@@ -80,10 +90,10 @@ test('it drops a directory that no longer exists', () => {
   expect(dirs).toStrictEqual([join(temp.dir, 'kept')]);
 });
 
-test('it falls back to the home directory when every source is empty', () => {
+test('#collectDirs falls back to the home directory when every source is empty', () => {
   using temp = setupTempDir('atc-dirs-');
 
   const dirs = collectDirs({ cwd: join(temp.dir, 'gone'), recent: [], roots: [], zoxide: [] });
 
-  expect(dirs).toStrictEqual([homedir()]);
+  expect(dirs).toStrictEqual([resolveHomeDir()]);
 });
