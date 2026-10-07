@@ -44,7 +44,7 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 
   rmSync(join(ctx.home, 'gh-hold'));
 
-  await ctx.waitForClientLog('dropped answer', mark);
+  await ctx.waitForClientLog('dropped listing answer', mark);
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('me/dots');
@@ -95,7 +95,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   gate.resolve();
 
-  await ctx.waitForClientLog('dropped answer', mark);
+  await ctx.waitForClientLog('dropped probe answer', mark);
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('clone_failed');
@@ -217,7 +217,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('slowclone', 15_000);
-  await ctx.waitForClientLog('dropped answer', mark);
+  await ctx.waitForClientLog('dropped spawn answer', mark);
 
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
   expect(ctx.read()).not.toInclude('spawn: initial prompt');
@@ -286,7 +286,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   rmSync(join(ctx.home, 'zoxide-hold'));
 
-  await ctx.waitForClientLog('dropped answer', mark);
+  await ctx.waitForClientLog('dropped directory listing answer', mark);
 
   expect(ctx.read()).not.toInclude('directory on the daemon host');
 }, 15_000);
@@ -366,7 +366,7 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
 
   rmSync(join(ctx.home, 'zoxide-hold'));
 
-  await ctx.waitForClientLog('dropped answer', mark);
+  await ctx.waitForClientLog('dropped directory listing answer', mark);
 
   gate.resolve();
 

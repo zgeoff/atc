@@ -34,6 +34,18 @@ type PickerStep =
   | 'prompt'
   | 'spawned';
 
+// The kinds of answer the flow can drop: a git source's listing, a
+// directory source's listing, each request a step waits on, the daemon's
+// targets and sources, and the local directory flow's listing.
+export type DroppedAnswer =
+  | 'listing'
+  | 'directory listing'
+  | 'interpret'
+  | 'probe'
+  | 'spawn'
+  | 'targets and sources'
+  | 'local directory listing';
+
 // What the flow borrows from the client that owns the screen, the daemon
 // connection and the fleet mirror.
 export interface SpawnPickerDeps<TMirror> {
@@ -61,11 +73,12 @@ export interface SpawnPickerDeps<TMirror> {
   // each time it opens.
   readonly configPath: string;
 
-  // Called each time the flow drops an answer: one for a flow or a request
-  // that has since moved on, which changes nothing, or a listing for a
-  // source the flow has left, which fills nothing and only clears the
-  // pending listing so that source lists again when its step reopens.
-  readonly onDropAnswer?: () => void;
+  // Called each time the flow drops an answer, with the kind of answer it
+  // dropped: one for a flow or a request that has since moved on, which
+  // changes nothing, or a listing for a source the flow has left, which
+  // fills nothing and only clears the pending listing so that source lists
+  // again when its step reopens.
+  readonly onDropAnswer?: (kind: DroppedAnswer) => void;
 
   // Records any other decision the flow takes without drawing anything,
   // such as text it ignores on a step that takes none.
@@ -1124,7 +1137,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.isStale(generation) || this.pathListingSeq !== seq) {
-      this.deps.onDropAnswer?.();
+      this.deps.onDropAnswer?.('directory listing');
 
       return;
     }
@@ -1262,7 +1275,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.isStale(generation) || this.listingSeq !== seq) {
-      this.deps.onDropAnswer?.();
+      this.deps.onDropAnswer?.('listing');
 
       return;
     }
@@ -1272,7 +1285,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     if (this.findSource()?.id !== source.id) {
       this.listingSeq = null;
       this.listedKey = null;
-      this.deps.onDropAnswer?.();
+      this.deps.onDropAnswer?.('listing');
 
       return;
     }
@@ -1484,7 +1497,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     if (this.isStale(generation) || this.pending?.seq !== seq) {
-      this.deps.onDropAnswer?.();
+      this.deps.onDropAnswer?.(kind);
 
       return null;
     }
@@ -1826,7 +1839,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     } catch {}
 
     if (this.isStale(generation)) {
-      this.deps.onDropAnswer?.();
+      this.deps.onDropAnswer?.('targets and sources');
 
       return;
     }
@@ -1884,7 +1897,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const zoxide = await collectZoxideDirs();
 
     if (this.isStale(generation)) {
-      this.deps.onDropAnswer?.();
+      this.deps.onDropAnswer?.('local directory listing');
 
       return;
     }

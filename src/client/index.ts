@@ -347,8 +347,8 @@ const picker = new SpawnPicker<MirrorSession>({
   },
   cwd: process.cwd(),
   configPath: configFile,
-  onDropAnswer: () => {
-    logClientEvent('dropped answer');
+  onDropAnswer: (kind) => {
+    logClientEvent(`dropped ${kind} answer`);
   },
   log: logClientEvent,
 });
