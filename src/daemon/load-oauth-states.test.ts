@@ -6,7 +6,7 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { loadOAuthStates } from './load-oauth-states';
 
-// An imp provider's broker host over a fixture imp port, which reaches
+// An imp provider's broker host over a stub imp port, which reaches
 // impd's features and secrets alone.
 function setupTest() {
   using stack = new DisposableStack();

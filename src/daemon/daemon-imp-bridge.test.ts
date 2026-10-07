@@ -15,7 +15,7 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 // A real daemon whose one target `box`, its default, runs Claude sessions
-// on the imp provider over a fixture imp port, with the guest folder under
+// on the imp provider over a stub imp port, with the guest folder under
 // a temp directory, the stub guest atc running this source tree, and the
 // stub claude as Claude's binary.
 async function setupTest() {

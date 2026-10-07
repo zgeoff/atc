@@ -11,7 +11,7 @@ function setupTest() {
 }
 
 test('it creates a database the store opens without running a migration', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const dbPath = join(ctx.dir, 'state.db');
 
@@ -45,7 +45,7 @@ test('it creates a database the store opens without running a migration', async 
 });
 
 test('it creates a database whose migration ledger holds every migration', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const freshPath = join(ctx.dir, 'fresh.db');
   const copyPath = join(ctx.dir, 'copy.db');
@@ -76,7 +76,7 @@ test('it creates a database whose migration ledger holds every migration', async
 });
 
 test('it creates a separate file for each call', async () => {
-  await using ctx = setupTest();
+  using ctx = setupTest();
 
   const firstPath = join(ctx.dir, 'first.db');
   const secondPath = join(ctx.dir, 'second.db');

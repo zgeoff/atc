@@ -6,7 +6,7 @@ import { ImpClientPort } from './imp-client-port';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 /**
- * The fixture imp port, and an impd stand-in on a real HTTP port for the
+ * The stub imp port, and an impd stand-in on a real HTTP port for the
  * tests that drive the real client.
  */
 function setupTest() {

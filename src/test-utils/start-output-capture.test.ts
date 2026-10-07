@@ -29,11 +29,11 @@ test('it returns the text read so far while the stream stays open', async () => 
 
   const controller = await opened.promise;
 
-  const capture = startOutputCapture(stream);
-
   onTestFinished(() => {
     controller.close();
   });
+
+  const capture = startOutputCapture(stream);
 
   controller.enqueue(new TextEncoder().encode('partial'));
 

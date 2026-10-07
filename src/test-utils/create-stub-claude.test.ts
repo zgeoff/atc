@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
 import { createStubClaude } from './create-stub-claude';
 import { setupTempDir } from './setup-temp-dir';
@@ -228,7 +229,7 @@ test('it exits at once without a report when it resumes an agent session the hom
 
   expect(run.exitCode).toBe(0);
   expect(run.stdout.toString()).not.toInclude('GOT:hello');
-  expect(existsSync(join(ctx.dir, 'hooks.jsonl'))).toBeFalse();
+  expect(readdirSync(ctx.dir)).not.toContain('hooks.jsonl');
 });
 
 test('it reports nothing and only echoes input while the home holds its start', () => {
@@ -247,7 +248,7 @@ test('it reports nothing and only echoes input while the home holds its start', 
   });
 
   expect(run.stdout.toString()).toEndWith('GOT:hello\n');
-  expect(existsSync(join(ctx.dir, 'hooks.jsonl'))).toBeFalse();
+  expect(readdirSync(ctx.dir)).not.toContain('hooks.jsonl');
 });
 
 test('it runs the composer in its place when the home asks for one', () => {
@@ -267,7 +268,7 @@ test('it runs the composer in its place when the home asks for one', () => {
   });
 
   expect(run.stdout.toString()).toEndWith('COMPOSER_RAN\n');
-  expect(existsSync(join(ctx.dir, 'hooks.jsonl'))).toBeFalse();
+  expect(readdirSync(ctx.dir)).not.toContain('hooks.jsonl');
 });
 
 test('it holds its reports at the gate until an input line arrives, removing the gate', async () => {
@@ -291,7 +292,7 @@ test('it holds its reports at the gate until an input line arrives, removing the
   });
 
   await waitFor(() => {
-    expect(existsSync(join(ctx.dir, 'fake-claude-gate'))).toBeFalse();
+    expect(readdirSync(ctx.dir)).not.toContain('fake-claude-gate');
   });
 
   const heldReports = existsSync(join(ctx.dir, 'hooks.jsonl'));
@@ -308,7 +309,9 @@ test('it holds its reports at the gate until an input line arrives, removing the
 test('it runs a daemon restart after its start once and removes the request', () => {
   using ctx = setupTest();
 
-  const atc = createStubBin(ctx.dir, 'atc', '#!/bin/sh\necho "$*"\n');
+  // The atc the stub runs records each run on its own output, which the
+  // stub sends to the file the scenario writes.
+  const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC('/dev/stdout'));
 
   const stub = createStubClaude(ctx.dir, {
     atc: [atc],
@@ -317,16 +320,23 @@ test('it runs a daemon restart after its start once and removes the request', ()
 
   writeFileSync(join(ctx.dir, 'fake-claude-restart'), '');
 
-  Bun.spawnSync([stub, '--settings', ctx.settings], { env: { ...process.env, HOME: ctx.dir } });
+  Bun.spawnSync([stub, '--settings', ctx.settings], {
+    env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-1' },
+  });
 
-  expect(readFileSync(join(ctx.dir, 'restart.out'), 'utf8')).toBe('daemon restart\n');
-  expect(existsSync(join(ctx.dir, 'fake-claude-restart'))).toBeFalse();
+  expect(readFileSync(join(ctx.dir, 'restart.out'), 'utf8')).toBe(
+    'args:daemon restart\nsession:s-1\nstdin:\n',
+  );
+
+  expect(readdirSync(ctx.dir)).not.toContain('fake-claude-restart');
 });
 
 test('it taps its own session into the tap log when the home asks it to', async () => {
   using ctx = setupTest();
 
-  const atc = createStubBin(ctx.dir, 'atc', '#!/bin/sh\necho "$*"\n');
+  // The atc the stub runs records each run on its own output, which the
+  // stub sends to the file the scenario writes.
+  const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC('/dev/stdout'));
 
   const stub = createStubClaude(ctx.dir, {
     atc: [atc],
@@ -340,6 +350,8 @@ test('it taps its own session into the tap log when the home asks it to', async 
   });
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.dir, 'tap.jsonl'), 'utf8')).toBe('tap --session s-tap\n');
+    expect(readFileSync(join(ctx.dir, 'tap.jsonl'), 'utf8')).toBe(
+      'args:tap --session s-tap\nsession:s-tap\nstdin:\n',
+    );
   });
 });

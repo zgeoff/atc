@@ -14,7 +14,7 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 // A real daemon whose one target `box` runs on the imp provider over a
-// fixture imp port, with the daemon id its lease labels carry.
+// stub imp port, with the daemon id its lease labels carry.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 

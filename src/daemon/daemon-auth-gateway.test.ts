@@ -16,7 +16,7 @@ import type { RestoreSettled } from './restore-fleet';
 
 /**
  * A real daemon with a `local` target and an imp target `box` over a
- * fixture imp port, and two gateways whose binary is a fake Claude that
+ * stub imp port, and two gateways whose binary is a fake Claude that
  * records each start in `marker`: `glm` takes its credential through
  * `auth`, and `zai` takes none. `settles` records each fleet restore once
  * its terminal adoption ends.

@@ -8,7 +8,7 @@ import type { ImpTargetOptions } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 /**
- * A fixture imp port and a temp directory. `createProvider` builds a
+ * A stub imp port and a temp directory. `createProvider` builds a
  * provider over the port with its guest directory under the temp directory
  * and a guest atc that no imp holds, plus the target options given, and
  * disposes it before the port and the directory.

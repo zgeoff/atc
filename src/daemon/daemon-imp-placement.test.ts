@@ -10,7 +10,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * A daemon with three targets: `local` on the daemon's machine, the
- * default, and two imp targets, `box` and `other`, over one fixture imp
+ * default, and two imp targets, `box` and `other`, over one stub imp
  * port, so every imp either one makes lists in the same place. Every
  * session runs an agent that stays up reading its input, on any target.
  */

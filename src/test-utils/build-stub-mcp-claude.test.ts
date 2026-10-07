@@ -118,7 +118,15 @@ test('it reports nothing when the home holds the hold-start file', async () => {
   });
 
   expect(ctx.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    expect.objectContaining({ atcId: 's-sentinel' }),
+    {
+      atcId: 's-sentinel',
+      event: 'SessionStart',
+      payload: {
+        hook_event_name: 'SessionStart',
+        session_id: 'fake-1',
+        transcript_path: join(ctx.dir, 'fake-transcript.jsonl'),
+      },
+    },
   ]);
 });
 

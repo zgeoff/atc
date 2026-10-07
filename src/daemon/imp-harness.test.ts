@@ -9,7 +9,7 @@ import type { HarnessAttachment, HarnessExit } from './execution-provider';
 import { ImpHarness } from './imp-harness';
 
 /**
- * A fixture imp port and the script a harness on it runs, in a temp
+ * A stub imp port and the script a harness on it runs, in a temp
  * directory of the test's own. The script prints its pid and the terminal
  * size it started at, echoes each line it reads, prints the terminal size
  * on `size`, exits 3 on `quit`, and on `later` prints 300000 bytes, more

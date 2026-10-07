@@ -13,7 +13,7 @@ import { restoreFleet } from './restore-fleet';
 import { SessionManager } from './sessions';
 
 // The fixed parts every restore test shares: a real state store, a recorder
-// of logged lines, and one target `box` on the imp provider over a fixture
+// of logged lines, and one target `box` on the imp provider over a stub
 // imp port. `defer` runs a teardown before the store and the provider go,
 // so a manager the test builds detaches first.
 async function setupTest() {

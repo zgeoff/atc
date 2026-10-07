@@ -79,8 +79,10 @@ test('it declares the capabilities it is told it lacks as missing', () => {
 test('it rejects an archive tar cannot unpack', () => {
   using ctx = setupTest();
 
-  const provider = buildStubDirProvider();
-  const transfer = provider.transferArchive(new Uint8Array([1, 2, 3]), join(ctx.dir, 'ws'));
+  const transfer = buildStubDirProvider().transferArchive(
+    new Uint8Array([1, 2, 3]),
+    join(ctx.dir, 'ws'),
+  );
 
   expect(transfer).rejects.toThrowWithMessage(
     Error,

@@ -17,7 +17,7 @@ import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
- * A fixture imp port whose impd an operator prepared, and the targets a
+ * A stub imp port whose impd an operator prepared, and the targets a
  * daemon runs with over it: `local`, and an imp target `box` whose guest
  * folders live under `g`. The guest has an atc stand-in, so a Claude
  * gateway plans a real guest spawn. `fakeClaude` is a fake claude that

@@ -17,7 +17,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
 /**
- * A fixture imp port whose impd holds nothing until the test adds it, and
+ * A stub imp port whose impd holds nothing until the test adds it, and
  * the imp provider over it, which each test hands to the daemon it starts
  * as the target `box`.
  */

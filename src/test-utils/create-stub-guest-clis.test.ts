@@ -23,8 +23,7 @@ test('it creates both tools under the directory', () => {
 test('it creates an atc that runs the CLI of this source tree', () => {
   using ctx = setupTest();
 
-  const clis = createStubGuestCLIs(ctx.dir);
-  const result = Bun.spawnSync([clis.atc, 'help']);
+  const result = Bun.spawnSync([createStubGuestCLIs(ctx.dir).atc, 'help']);
 
   expect(result.stdout.toString()).toInclude('Terminal control tower for coding-agent sessions');
 });
@@ -32,8 +31,9 @@ test('it creates an atc that runs the CLI of this source tree', () => {
 test('it creates a claude that prints its pid, then echoes each line it reads', () => {
   using ctx = setupTest();
 
-  const clis = createStubGuestCLIs(ctx.dir);
-  const result = Bun.spawnSync([clis.claude], { stdin: Buffer.from('hello\n') });
+  const result = Bun.spawnSync([createStubGuestCLIs(ctx.dir).claude], {
+    stdin: Buffer.from('hello\n'),
+  });
 
   expect(result.stdout.toString()).toMatch(/^UP:\d+\nGOT:hello\n$/);
 });

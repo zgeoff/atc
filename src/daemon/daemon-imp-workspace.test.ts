@@ -24,7 +24,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * A real daemon with a `local` target and an imp target `box` over a
- * fixture imp port, whose imps run their commands on this machine, beside
+ * stub imp port, whose imps run their commands on this machine, beside
  * a git fixture: a bare upstream and a clone of it whose one pushed commit
  * adds `README.md`, at commit `sha`. `dir` is a temp directory for the
  * test's host paths. The agent `glm` takes the credential impd holds for

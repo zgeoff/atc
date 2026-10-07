@@ -24,7 +24,7 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
-// The fixed parts every test's daemon runs on: a fixture imp port behind
+// The fixed parts every test's daemon runs on: a stub imp port behind
 // the imp provider `box` serves, a local provider, a `glm` gateway and stock
 // Claude, and a git repository a spawn can clone, in a temp directory. Each
 // agent run appends a line to `marker`. `options` holds the daemon options

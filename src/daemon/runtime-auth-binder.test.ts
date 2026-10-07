@@ -12,7 +12,7 @@ import { ImpProvider } from './imp-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
 // A binder over a real state store, and an imp provider's broker host over
-// a fixture imp port, which the test prepares as an operator prepares impd.
+// a stub imp port, which the test prepares as an operator prepares impd.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 

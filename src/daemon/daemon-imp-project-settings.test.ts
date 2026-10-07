@@ -16,7 +16,7 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 /**
- * A real daemon whose only target is the imp target `box`, over a fixture
+ * A real daemon whose only target is the imp target `box`, over a stub
  * imp port, with two agents that sign in through impd's broker: `claude` on
  * a subscription and the gateway `glm`. Both run a fake Claude that appends
  * a line to `marker` when it starts. Beside it, `work` is a git clone with

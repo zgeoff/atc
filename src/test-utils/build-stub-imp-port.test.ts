@@ -113,13 +113,15 @@ test('it streams a started session with offsets and delivers its exit with the e
       created: true,
       output: {
         continuity: 'offsets',
-        bootId: expect.toBeString(),
+        bootId: ctx.port.getBootID('imp-a'),
         executionGeneration: expect.toSatisfy((value: string) => /^[0-9a-f]{32}$/.test(value)),
         bufferStart: 0,
         end: 0,
         offset: 0,
         prelude: 0,
-        coldBoots: [expect.objectContaining({ cause: 'start' })],
+        coldBoots: [
+          { bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() },
+        ],
       },
     },
   ]);
@@ -370,7 +372,7 @@ test('it answers an attach to a sleeping imp without wake with INVALID_STATE', a
     data: {
       state: 'sleeping',
       allowed: ['running'],
-      coldBoots: [expect.objectContaining({ cause: 'start' })],
+      coldBoots: [{ bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() }],
     },
   });
 
@@ -400,6 +402,8 @@ test('it answers an attach after a cold boot with NO_SESSION and the boot that e
     expect(ctx.port.getEnd('imp-a', 's1')).toBe(0);
   });
 
+  const startBoot = ctx.port.getBootID('imp-a');
+
   ctx.port.bootImpCold('imp-a', 'wake_fallback');
 
   const attached = ctx.port.openSession(
@@ -414,10 +418,10 @@ test('it answers an attach after a cold boot with NO_SESSION and the boot that e
     code: 'NO_SESSION',
     message: expect.toBeString(),
     data: {
-      bootId: expect.toBeString(),
+      bootId: ctx.port.getBootID('imp-a'),
       coldBoots: [
-        expect.objectContaining({ cause: 'wake_fallback' }),
-        expect.objectContaining({ cause: 'start' }),
+        { bootId: ctx.port.getBootID('imp-a'), cause: 'wake_fallback', at: expect.toBeString() },
+        { bootId: startBoot, cause: 'start', at: expect.toBeString() },
       ],
     },
   });
@@ -3107,4 +3111,53 @@ test('it starts a session with a relative working directory under the guest home
   await connection.outcome;
 
   expect(Buffer.concat(chunks).toString()).toBe(`${join(ctx.dir, 'work')}\r\n`);
+});
+
+test('it finds no undelivered exit once an attach has delivered it', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  // The process waits for the go file, so it exits only after the start's
+  // connection has closed.
+  const opened = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sh', '-c', 'while [ ! -e go ]; do sleep 0.01; done; exit 3'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBe(0);
+  });
+
+  opened.close();
+
+  writeFileSync(join(ctx.dir, 'go'), '');
+
+  await waitFor(() => {
+    expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toStrictEqual({ code: 3 });
+  });
+
+  await ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
+    { onStarted: () => {}, onOutput: () => {} },
+  ).outcome;
+
+  expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toBeNull();
+});
+
+test('it finds no undelivered exit for a session the imp does not hold', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  expect(ctx.port.findUndeliveredExit('imp-a', 's-unknown')).toBeNull();
 });
