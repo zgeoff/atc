@@ -353,19 +353,31 @@ export class GatewayAdapter implements AgentAdapter {
   }
 
   // The Claude CLI sends ANTHROPIC_AUTH_TOKEN as a bearer authorization
-  // header, the one pairing atc binds, so the placeholders must be that
-  // variable alone, holding the placeholder, for a profile whose rule on
-  // the base URL's host sets that header. Any other variable would put the
-  // placeholder in a header the broker never fills.
+  // header, the one pairing atc binds, so the placeholders must include that
+  // variable, holding the placeholder, for a profile whose rule on the base
+  // URL's host sets that header. Any other variable passes through to the
+  // session for a tool in it, whose own host a selected profile covers,
+  // except a variable the CLI reads as its own credential, which would
+  // compete with the bearer variable and put the placeholder in a header
+  // the broker never fills, and the variable that names the session's
+  // Claude config folder, which atc sets itself.
   private findPlaceholderRefusal(
     env: Readonly<Record<string, string>>,
     profiles: readonly string[],
   ): DaemonError | null {
     const keys = Object.keys(env);
 
-    if (keys.length !== 1 || keys[0] !== BEARER_VARIABLE) {
+    if (!keys.includes(BEARER_VARIABLE)) {
       return this.buildPlaceholderRefusal(
-        `needs ${BEARER_VARIABLE} as its only placeholder variable, which the broker fills as a bearer authorization header; it has ${keys.length === 0 ? 'none' : keys.join(', ')}`,
+        `needs ${BEARER_VARIABLE} among its placeholder variables, which the broker fills as a bearer authorization header; it has ${keys.length === 0 ? 'none' : keys.join(', ')}`,
+      );
+    }
+
+    const competing = keys.find((key) => COMPETING_CREDENTIAL_VARIABLES.has(key));
+
+    if (competing !== undefined) {
+      return this.buildPlaceholderRefusal(
+        `cannot use ${competing} as a placeholder variable, since the Claude CLI reads it as its own credential or config folder beside ${BEARER_VARIABLE}`,
       );
     }
 
@@ -444,6 +456,15 @@ export class GatewayAdapter implements AgentAdapter {
 // the value impd's broker replaces with the credential on the host's side.
 const BEARER_VARIABLE = 'ANTHROPIC_AUTH_TOKEN';
 const PLACEHOLDER = 'imp-broker-placeholder';
+
+// Variables the Claude CLI reads as its own credential beside the bearer
+// variable, plus the one that points it at the session's config folder,
+// whose launch value a placeholder would overwrite.
+const COMPETING_CREDENTIAL_VARIABLES: ReadonlySet<string> = new Set([
+  'ANTHROPIC_API_KEY',
+  'CLAUDE_CODE_OAUTH_TOKEN',
+  'CLAUDE_CONFIG_DIR',
+]);
 
 // The Claude CLI's mode that asks a person before each action.
 const MANUAL_PERMISSION_MODE = 'default';
