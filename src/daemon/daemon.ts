@@ -214,6 +214,11 @@ export interface DaemonOptions {
   // when unset.
   readonly log?: (line: string) => void;
 
+  // Called each time the daemon leaves a session's new output unjudged
+  // because no screen detector covers it: no agent in the fleet has one,
+  // the session's own agent has none, or the session is no longer listed.
+  readonly onDetectSkipped?: (sessionID: SessionID) => void;
+
   // The sources the spawn picker offers, in order, each built with the
   // services it uses; none when unset.
   readonly sources?: readonly SourceProvider[];
@@ -661,12 +666,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // quiesced, judge the serialized screen and flip running/needs_you.
   const scheduleDetect = (sessionID: SessionID) => {
     if (!mgr.hasScreenDetector) {
+      opts.onDetectSkipped?.(sessionID);
+
       return;
     }
 
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const detector = s === undefined ? null : (mgr.findAdapter(s.agent)?.screenDetector ?? null);
     const runtime = runtimes.get(sessionID);
+
+    if (detector === null) {
+      opts.onDetectSkipped?.(sessionID);
+    }
 
     if (detector === null || runtime === undefined) {
       return;

@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test';
-import type { EventMsg } from '../protocol/protocol';
+import { expect, mock, test } from 'bun:test';
+import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -9,50 +9,33 @@ import { drainInbox } from './drain-inbox';
 import { TapRegistry } from './tap-registry';
 
 /**
- * A drain of session `s-shown`, whose tap `first` (linked or not) is in
- * place before the drain starts and whose pending-message read waits on a
- * deferred. `reading` settles once the read starts, and `read` resolves it
- * with the given messages. `first` and `second` each keep every event they
- * are sent; `second` taps nothing until a test attaches it.
+ * An empty tap registry and an inbox source over it whose pending-message
+ * read waits until the test answers it: `reading` settles once the read
+ * starts, and `read` answers it with the given messages.
  */
-function setupTest(linked: boolean) {
+function setupTest() {
   const taps = new TapRegistry<TapClient>();
 
   const pending = Promise.withResolvers<MessageRecord[]>();
   const reading = Promise.withResolvers<void>();
-  const firstEvents: EventMsg[] = [];
-  const secondEvents: EventMsg[] = [];
-
-  const first = {
-    events: firstEvents,
-    client: { sendEvent: (e: EventMsg) => firstEvents.push(e) },
-  };
-
-  const second = {
-    events: secondEvents,
-    client: { sendEvent: (e: EventMsg) => secondEvents.push(e) },
-  };
-
-  taps.attach(toSessionID('s-shown'), first.client, linked);
-
-  const drain = drainInbox(toSessionID('s-shown'), {
-    taps,
-    findLinkedOwner: () => ({
-      atcID: toSessionID('s-shown'),
-      agentSessionID: toAgentSessionID('a-shared'),
-    }),
-    collectPendingMessages: () => {
-      reading.resolve();
-
-      return pending.promise;
-    },
-  });
 
   return {
     taps,
-    drain,
-    first,
-    second,
+    source: {
+      taps,
+
+      // A drain reads only for a session the daemon holds; this one holds
+      // every session under one agent session id.
+      findLinkedOwner: (sessionID: SessionID) => ({
+        atcID: sessionID,
+        agentSessionID: toAgentSessionID('a-shared'),
+      }),
+      collectPendingMessages: () => {
+        reading.resolve();
+
+        return pending.promise;
+      },
+    },
     reading: reading.promise,
     read: (records: readonly MessageRecord[]) => {
       pending.resolve([...records]);
@@ -61,14 +44,19 @@ function setupTest(linked: boolean) {
 }
 
 test("it sends a principal's tap that replaced the owner's during the read no message the owner's read found", async () => {
-  const scoped = setupTest(true);
-  const principal = scoped.second;
+  const ctx = setupTest();
+  const owner = { sendEvent: mock() };
+  const principal = { sendEvent: mock() };
 
-  await scoped.reading;
+  ctx.taps.attach(toSessionID('s-shown'), owner, true);
 
-  scoped.taps.attach(toSessionID('s-shown'), principal.client, false);
+  const drain = drainInbox(toSessionID('s-shown'), ctx.source);
 
-  scoped.read([
+  await ctx.reading;
+
+  ctx.taps.attach(toSessionID('s-shown'), principal, false);
+
+  ctx.read([
     {
       id: toMessageID('m-hidden'),
       atcID: toSessionID('s-hidden'),
@@ -80,20 +68,26 @@ test("it sends a principal's tap that replaced the owner's during the read no me
     },
   ]);
 
-  await scoped.drain;
+  await drain;
 
-  expect(principal.events).toStrictEqual([]);
-  expect(scoped.first.events).toStrictEqual([]);
+  expect(principal.sendEvent).not.toHaveBeenCalled();
+  expect(owner.sendEvent).not.toHaveBeenCalled();
 });
 
 test('it sends a tap that replaced the one a drain read for nothing from that drain', async () => {
-  const scoped = setupTest(true);
+  const ctx = setupTest();
+  const first = { sendEvent: mock() };
+  const second = { sendEvent: mock() };
 
-  await scoped.reading;
+  ctx.taps.attach(toSessionID('s-shown'), first, true);
 
-  scoped.taps.attach(toSessionID('s-shown'), scoped.second.client, true);
+  const drain = drainInbox(toSessionID('s-shown'), ctx.source);
 
-  scoped.read([
+  await ctx.reading;
+
+  ctx.taps.attach(toSessionID('s-shown'), second, true);
+
+  ctx.read([
     {
       id: toMessageID('m-1'),
       atcID: toSessionID('s-shown'),
@@ -104,18 +98,21 @@ test('it sends a tap that replaced the one a drain read for nothing from that dr
     },
   ]);
 
-  await scoped.drain;
+  await drain;
 
-  expect(scoped.second.events).toStrictEqual([]);
-  expect(scoped.first.events).toStrictEqual([]);
+  expect(second.sendEvent).not.toHaveBeenCalled();
+  expect(first.sendEvent).not.toHaveBeenCalled();
 });
 
 test("it sends an unlinked tap no message sent to another session's atc id", async () => {
-  const scoped = setupTest(false);
+  const ctx = setupTest();
+  const tap = { sendEvent: mock() };
 
-  await scoped.reading;
+  ctx.taps.attach(toSessionID('s-shown'), tap, false);
 
-  scoped.read([
+  const drain = drainInbox(toSessionID('s-shown'), ctx.source);
+
+  ctx.read([
     {
       id: toMessageID('m-hidden'),
       atcID: toSessionID('s-hidden'),
@@ -135,17 +132,15 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
     },
   ]);
 
-  await scoped.drain;
+  await drain;
 
-  expect(scoped.first.events).toStrictEqual([
-    {
-      v: 4,
-      ev: 'InboxMessage',
-      s: 's-shown',
-      message: 'm-own',
-      from: 'owner',
-      text: 'hello',
-      sentAt: 1,
-    },
-  ]);
+  expect(tap.sendEvent).toHaveBeenCalledExactlyOnceWith({
+    v: 4,
+    ev: 'InboxMessage',
+    s: 's-shown',
+    message: 'm-own',
+    from: 'owner',
+    text: 'hello',
+    sentAt: 1,
+  });
 });

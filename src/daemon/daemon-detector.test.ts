@@ -1,188 +1,224 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
-import { DaemonClient } from '../client/daemon-client';
+import { expect, mock, test } from 'bun:test';
 import type { EventMsg } from '../protocol/protocol';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
-import { startDaemon } from './daemon';
-
-// A hook-less agent: a shell that paints a prompt, waits for input, works
-// visibly, then prompts again. Attention comes only from the screen tier.
-const promptAdapter: AgentAdapter = {
-  id: 'claude',
-  headlessRunner: null,
-  screenDetector: {
-    detectAttention: (screen) => (screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working'),
-  },
-  takesMessages: false,
-  planSpawn: () => ({
-    bin: 'bash',
-    args: [
-      '-c',
-      String.raw`printf "READY>"; read -r line; printf "crunching %s\n" "$line"; sleep 30`,
-    ],
-  }),
-  normalizeHook: () => ({ kind: 'heartbeat' }),
-  loadName: () => Promise.resolve(null),
-  canResume: () => true,
-  buildResumeCommand: () => null,
-};
-
-// Same visible prompt, but no screen tier — its output must never be judged.
-const undetectedAdapter: AgentAdapter = { ...promptAdapter, screenDetector: null };
-
-async function setupDetectorDaemon(adapter: AgentAdapter = promptAdapter): Promise<{
-  readonly client: DaemonClient;
-  readonly events: EventMsg[];
-}> {
-  const dir = mkdtempSync(join(tmpdir(), 'atc-detector-'));
-
-  const daemon = await startDaemon({
-    socketPath: join(dir, 'daemon.sock'),
-    reporterSocketPath: join(dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter,
-    dbPath: join(dir, 'state.db'),
-    statusPath: join(dir, 'status.json'),
-  });
-
-  const client = await DaemonClient.open(join(dir, 'daemon.sock'));
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (e) => {
-    events.push(e);
-  };
-
-  onTestFinished(async () => {
-    client.stop();
-
-    await daemon.stop();
-
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  await client.sendHello('atc/test');
-
-  return { client, events };
-}
-
-async function waitForEvent(
-  events: readonly EventMsg[],
-  matches: (e: EventMsg) => boolean,
-): Promise<EventMsg> {
-  const deadline = Date.now() + 5000;
-
-  while (Date.now() < deadline) {
-    const found = events.find((e) => matches(e));
-
-    if (found !== undefined) {
-      return found;
-    }
-
-    await Bun.sleep(20);
-  }
-
-  throw new Error(`no matching event; got ${JSON.stringify(events.map((e) => e.ev))}`);
-}
+import type { SessionID } from '../shared/session-id';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { waitFor } from '../test-utils/wait-for';
 
 test('it flags a hook-less agent waiting at a prompt via the screen detector', async () => {
-  const ctx = await setupDetectorDaemon();
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 60, rows: 12 });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-detector-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        screenDetector: {
+          detectAttention: (screen) =>
+            screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+        },
+        planSpawn: () => ({
+          bin: 'bash',
+          args: [
+            '-c',
+            String.raw`printf "READY>"; read -r line; printf "crunching %s\n" "$line"; sleep 30`,
+          ],
+        }),
+      }),
+    }),
+  });
 
-  const spawned = ok['session'];
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 60, rows: 12 });
 
-  if (typeof spawned !== 'object' || spawned === null) {
-    throw new Error('no session in spawn answer');
-  }
-
-  const needy = await waitForEvent(
-    ctx.events,
-    (e) =>
-      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
-  );
-
-  const needySession = getRecord(needy, 'session');
-
-  expect(needySession['lastMsg']).toBe('waiting at a prompt');
+  await waitFor(() => {
+    expect(
+      daemon.events.find(
+        (e) =>
+          e.ev === 'SessionState' &&
+          isRecord(e['session']) &&
+          e['session']['state'] === 'needs_you',
+      ),
+    ).toMatchObject({ session: { lastMsg: 'waiting at a prompt' } });
+  });
 });
 
 test('it flips the session back to working once the prompt is answered', async () => {
-  const ctx = await setupDetectorDaemon();
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 60, rows: 12 });
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-detector-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        screenDetector: {
+          detectAttention: (screen) =>
+            screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+        },
+        planSpawn: () => ({
+          bin: 'bash',
+          args: [
+            '-c',
+            String.raw`printf "READY>"; read -r line; printf "crunching %s\n" "$line"; sleep 30`,
+          ],
+        }),
+      }),
+    }),
+  });
 
-  const spawned = ok['session'];
-
-  if (!isRecord(spawned) || typeof spawned['id'] !== 'string') {
-    throw new Error('no session in spawn answer');
-  }
-
-  const id = spawned['id'];
-
-  await waitForEvent(
-    ctx.events,
-    (e) =>
-      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
-  );
-
-  await ctx.client.sendRequest('session.input', { session: id, d: 'go\n' });
-
-  const working = await waitForEvent(
-    ctx.events,
-    (e) =>
-      e.ev === 'SessionState' &&
-      isRecord(e['session']) &&
-      e['session']['state'] === 'running' &&
-      e['session']['lastMsg'] === 'working',
-  );
-
-  const workingSession = getRecord(working, 'session');
-
-  expect(workingSession['id']).toBe(id);
-});
-
-test('it opens a permission request from a screen-detected prompt', async () => {
-  const ctx = await setupDetectorDaemon();
-
-  await ctx.client.sendRequest('session.spawn', { cwd: '/tmp', cols: 60, rows: 12 });
-
-  const requested = await waitForEvent(ctx.events, (e) => e.ev === 'PermissionRequested');
-
-  expect(requested).toMatchObject({ message: 'waiting at a prompt', respondable: false });
-});
-
-test('it never flags a prompt as needing input when the adapter has no screen detector', async () => {
-  const ctx = await setupDetectorDaemon(undetectedAdapter);
-
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: '/tmp',
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
     cols: 60,
     rows: 12,
   });
 
-  // Output only reaches an attached client, and the painted prompt is the one
-  // observable signal that this session reached the state a detector would
-  // judge. Attaching does not perturb detection: it runs off PTY output either
-  // way, and the session is running rather than needing input at this point.
   const id = getRecord(spawned, 'session')['id'];
 
-  await ctx.client.sendRequest('session.attach', { session: id, cols: 60, rows: 12 });
+  await waitFor(() => {
+    expect(daemon.events).toSatisfyAny(
+      (e: EventMsg) =>
+        e.ev === 'SessionState' &&
+        isRecord(e['session']) &&
+        e['session']['id'] === id &&
+        e['session']['state'] === 'needs_you',
+    );
+  });
 
-  await waitForEvent(
-    ctx.events,
-    (e) => e.ev === 'SessionOutput' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
-  );
+  await daemon.client.sendRequest('session.input', { session: id, d: 'go\n' });
 
-  // Then out past the 300ms detect debounce a detector would have needed.
-  await Bun.sleep(400);
+  await waitFor(() => {
+    expect(daemon.events).toSatisfyAny(
+      (e: EventMsg) =>
+        e.ev === 'SessionState' &&
+        isRecord(e['session']) &&
+        e['session']['id'] === id &&
+        e['session']['state'] === 'running' &&
+        e['session']['lastMsg'] === 'working',
+    );
+  });
+});
 
-  const needy = ctx.events.find(
-    (e) =>
+test('it opens a permission request from a screen-detected prompt', async () => {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-detector-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        screenDetector: {
+          detectAttention: (screen) =>
+            screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+        },
+        planSpawn: () => ({
+          bin: 'bash',
+          args: [
+            '-c',
+            String.raw`printf "READY>"; read -r line; printf "crunching %s\n" "$line"; sleep 30`,
+          ],
+        }),
+      }),
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, cols: 60, rows: 12 });
+
+  await waitFor(() => {
+    expect(daemon.events.find((e) => e.ev === 'PermissionRequested')).toMatchObject({
+      message: 'waiting at a prompt',
+      respondable: false,
+    });
+  });
+});
+
+test('it never flags a prompt as needing input when the adapter has no screen detector', async () => {
+  const onDetectSkipped = mock<(sessionID: SessionID) => void>();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-detector-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        planSpawn: () => ({
+          bin: 'bash',
+          args: [
+            '-c',
+            String.raw`printf "READY>"; read -r line; printf "crunching %s\n" "$line"; sleep 30`,
+          ],
+        }),
+      }),
+      onDetectSkipped,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 60,
+    rows: 12,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  // Output reaches an attached client only after the daemon has decided
+  // whether to judge it, so the painted prompt arriving means the decision
+  // for the prompt's output has been made.
+  await daemon.client.sendRequest('session.attach', { session: id, cols: 60, rows: 12 });
+
+  await waitFor(() => {
+    expect(daemon.events).toSatisfyAny(
+      (e: EventMsg) =>
+        e.ev === 'SessionOutput' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
+    );
+  });
+
+  expect(onDetectSkipped).toHaveBeenCalledWith(id);
+
+  expect(daemon.events).not.toSatisfyAny(
+    (e: EventMsg) =>
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
+});
 
-  expect(needy).toBeUndefined();
+test('it never flags a prompt as needing input when another agent has a screen detector but the session agent has none', async () => {
+  const onDetectSkipped = mock<(sessionID: SessionID) => void>();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-detector-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        planSpawn: () => ({
+          bin: 'bash',
+          args: [
+            '-c',
+            String.raw`printf "READY>"; read -r line; printf "crunching %s\n" "$line"; sleep 30`,
+          ],
+        }),
+      }),
+      adapters: [
+        buildMockAgentAdapter({
+          id: 'zai',
+          screenDetector: { detectAttention: () => 'needs-input' },
+        }),
+      ],
+      onDetectSkipped,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 60,
+    rows: 12,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  // Output reaches an attached client only after the daemon has decided
+  // whether to judge it, so the painted prompt arriving means the decision
+  // for the prompt's output has been made.
+  await daemon.client.sendRequest('session.attach', { session: id, cols: 60, rows: 12 });
+
+  await waitFor(() => {
+    expect(daemon.events).toSatisfyAny(
+      (e: EventMsg) =>
+        e.ev === 'SessionOutput' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
+    );
+  });
+
+  expect(onDetectSkipped).toHaveBeenCalledWith(id);
+
+  expect(daemon.events).not.toSatisfyAny(
+    (e: EventMsg) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
 });

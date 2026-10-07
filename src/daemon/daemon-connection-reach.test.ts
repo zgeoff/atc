@@ -1,223 +1,67 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { toDaemonID } from '../shared/to-daemon-id';
 import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
-import { waitFor } from '../test-utils/wait-for';
+import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
+import { buildStubPeerSocket } from '../test-utils/build-stub-peer-socket';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-context';
-import { TargetAccess } from './target-access';
 
-function assertUnreachable(): never {
-  throw new Error('unreachable in this test');
-}
-
-/**
- * A connection that acts as a principal over a daemon whose reads of
- * session `s-held`, trail id 1, and message `m-held` each wait on a
- * deferred the test settles, and miss for every other id; its fleet
- * read waits on a deferred too while `setFleetHeld(true)` is in force. The principal
- * sees every session while `visible` is true and none once it is false.
- * `entered` settles when a held read starts. `request` sends one request
- * and resolves with its answer frame, the request's own id left out.
- */
-function setupTest() {
-  let visible = true;
-
-  const hidden = new Set<string>();
-
-  let written = '';
-  let nextID = 2;
+test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();
+  const record = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readSessionRecord']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  const holds = {
-    record: Promise.withResolvers<Awaited<ReturnType<DaemonContext['readSessionRecord']>>>(),
-    screen: Promise.withResolvers<Awaited<ReturnType<DaemonContext['readSessionScreen']>>>(),
-    transcript:
-      Promise.withResolvers<Awaited<ReturnType<DaemonContext['loadSessionTranscript']>>>(),
-    events: Promise.withResolvers<Awaited<ReturnType<DaemonContext['readEvents']>>>(),
-    report: Promise.withResolvers<Awaited<ReturnType<DaemonContext['readReport']>>>(),
-    message: Promise.withResolvers<Awaited<ReturnType<DaemonContext['readMessage']>>>(),
-    write: Promise.withResolvers<Awaited<ReturnType<DaemonContext['writeSessionMessage']>>>(),
-    spawn: Promise.withResolvers<Awaited<ReturnType<DaemonContext['spawnSession']>>>(),
-    ack: Promise.withResolvers<Awaited<ReturnType<DaemonContext['ackMessage']>>>(),
-    fleet: Promise.withResolvers<Awaited<ReturnType<DaemonContext['collectFleet']>>>(),
-  };
-
-  let isFleetHeld = false;
-
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise has no readonly form
-  const waitOnHold = <T>(promise: Promise<T>): Promise<T> => {
+  const readSessionRecord = mock<DaemonContext['readSessionRecord']>(() => {
     entered.resolve();
 
-    return promise;
-  };
+    return record.promise;
+  });
 
-  const ctx: DaemonContext = {
-    build: 'atc/test',
-    daemonID: toDaemonID('d-1'),
-    idempotencyRetentionMs: 86_400_000,
-    collectSessions: () => [],
-    collectSpawnDirs: assertUnreachable,
-    collectAgents: assertUnreachable,
-    collectFleet: () => (isFleetHeld ? waitOnHold(holds.fleet.promise) : Promise.resolve([])),
-    loadLastUsedAgent: () => Promise.resolve('claude'),
-    findAdapter: assertUnreachable,
-    buildTargetAccess: () => new TargetAccess([]),
-    hasListedPrincipal: assertUnreachable,
-    findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
-    findTargetIdentity: assertUnreachable,
-    canSeeSession: (id) => visible && !hidden.has(id),
-    isSessionVisible: assertUnreachable,
-    findPermissionSession: assertUnreachable,
-    resolveSpawnParent: assertUnreachable,
-    resolveSpawnTarget: assertUnreachable,
-    requireWorkspaceTarget: assertUnreachable,
-    buildDefaultWorkspaceDir: assertUnreachable,
-    requireAgentTarget: assertUnreachable,
-    findSource: assertUnreachable,
-    checkRepositoryAccess: assertUnreachable,
-    collectAlternateGitURLs: assertUnreachable,
-    spawnSession: () => waitOnHold(holds.spawn.promise),
-    killSession: assertUnreachable,
-    forgetSession: assertUnreachable,
-    revokeSessionAuth: assertUnreachable,
-    updateSessionAuth: assertUnreachable,
-    updateSession: assertUnreachable,
-    quitDaemon: assertUnreachable,
-    ackSession: assertUnreachable,
-    buildResumeCommand: assertUnreachable,
-    readSessionScreen: (id) =>
-      id === 's-held' ? waitOnHold(holds.screen.promise) : Promise.resolve('missing'),
-    readSessionRecord: (id) =>
-      id === 's-held' ? waitOnHold(holds.record.promise) : Promise.resolve('missing'),
-    loadSessionTranscript: (id) =>
-      id === 's-held' ? waitOnHold(holds.transcript.promise) : Promise.resolve('missing'),
-    readEvents: (_afterID, _limit, _waitMs, sessionID) =>
-      sessionID === 's-held'
-        ? waitOnHold(holds.events.promise)
-        : Promise.resolve({ events: [], more: false }),
-    readReport: (id) => (id === 1 ? waitOnHold(holds.report.promise) : Promise.resolve(null)),
-    answerPermission: assertUnreachable,
-    restoreFleet: assertUnreachable,
-    attachSession: assertUnreachable,
-    detachSession: () => {},
-    detachClient: assertUnreachable,
-    writeSessionInput: assertUnreachable,
-    writeSessionLine: assertUnreachable,
-    ejectSession: assertUnreachable,
-    adoptSession: assertUnreachable,
-    resizeSession: assertUnreachable,
-    resyncClient: assertUnreachable,
-    getEffectiveDims: assertUnreachable,
-    writeSessionMessage: () => waitOnHold(holds.write.promise),
-    readMessage: (id, waitMs) => {
-      if (id !== 'm-held') {
-        return Promise.resolve(null);
-      }
+  readSessionRecord.mockImplementationOnce(() => Promise.resolve('missing'));
 
-      const view = {
-        session: toSessionID('s-held'),
-        record: {
-          id: toMessageID('m-held'),
-          atcID: toSessionID('s-held'),
-          from: 'owner',
-          text: 'secret',
-          status: 'accepted' as const,
-          sentAt: 0,
-        },
-        answeredWith: [],
-      };
+  const peer = buildStubPeerSocket();
 
-      return waitMs === 0 ? Promise.resolve(view) : waitOnHold(holds.message.promise);
-    },
-    attachTap: assertUnreachable,
-    detachTap: () => {},
-    ackMessage: (_client, sessionID) =>
-      sessionID === 's-held' ? waitOnHold(holds.ack.promise) : Promise.resolve('unknown'),
-  };
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readSessionRecord }),
+  );
 
-  const peer = {
-    // oxlint-disable-next-line prefer-readonly-parameter-types -- a readonly view cannot satisfy the writer contract; the fake never mutates chunks
-    write: (data: Uint8Array): number => {
-      written += new TextDecoder().decode(data);
-
-      return data.length;
-    },
-    end: () => {},
-  };
-
-  const conn = new DaemonConnection(peer, ctx);
-
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
   conn.applyChunk(
     `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
   );
 
-  return {
-    holds,
-    entered: entered.promise,
-    setVisible: (value: boolean) => {
-      visible = value;
-    },
-    hide: (id: string) => {
-      hidden.add(id);
-    },
-    setFleetHeld: (value: boolean) => {
-      isFleetHeld = value;
-    },
-    request: (m: string, p: Readonly<Record<string, unknown>>): Promise<unknown> => {
-      const id = nextID;
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.get', p: { session: 's-held' } })}\n`,
+  );
 
-      nextID += 1;
+  const missing = await peer.waitForAnswer(2);
 
-      conn.applyChunk(`${JSON.stringify({ v: PROTOCOL_V, id, m, p })}\n`);
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.get', p: { session: 's-held' } })}\n`,
+  );
 
-      return waitFor(() => {
-        const frames: unknown[] = written
-          .split('\n')
-          .filter((line) => line !== '')
-          .map((line): unknown => JSON.parse(line));
+  const held = peer.waitForAnswer(3);
 
-        const frame = frames.find(
-          (candidate) =>
-            typeof candidate === 'object' &&
-            candidate !== null &&
-            'id' in candidate &&
-            candidate.id === id,
-        );
+  await entered.promise;
 
-        if (typeof frame !== 'object' || frame === null) {
-          throw new Error(`no answer to request ${id} yet`);
-        }
+  canSeeSession.mockReturnValue(false);
 
-        const { id: _id, ...answer } = { ...frame, id };
-
-        return answer;
-      });
-    },
-  };
-}
-
-test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('session.get', { session: 's-held' });
-
-  await scoped.entered;
-
-  scoped.setVisible(false);
-
-  scoped.holds.record.resolve({
+  record.resolve({
     session: {
       id: toSessionID('s-held'),
       name: 'secret',
-      cwd: '/tmp',
+      cwd: '/srv/secret',
       state: 'running',
       unread: false,
       lastMsg: 'secret',
       agent: 'claude',
       pinned: false,
       lastAttachedAt: 0,
-      repoRoot: '/tmp',
+      repoRoot: '/srv/secret',
       namedBy: 'auto',
       createdAt: 0,
       kind: 'pty',
@@ -233,57 +77,159 @@ test('it answers session.get whose session leaves the view during the read as fo
   });
 
   const answered = await held;
-  const unknown = await scoped.request('session.get', { session: 's-held' });
 
-  expect(answered).toStrictEqual(unknown);
-  expect(unknown).toMatchObject({ err: { code: 'no_such_session' } });
+  expect(answered).toStrictEqual(missing);
+  expect(answered).toMatchObject({ err: { code: 'no_such_session' } });
 });
 
 test('it answers session.screen whose session leaves the view during the read as for a session that does not exist', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('session.screen', { session: 's-held' });
+  const entered = Promise.withResolvers<void>();
+  const screen = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readSessionScreen']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  await scoped.entered;
+  const readSessionScreen = mock<DaemonContext['readSessionScreen']>(() => {
+    entered.resolve();
 
-  scoped.setVisible(false);
-  scoped.holds.screen.resolve({ text: 'secret', cols: 80, rows: 24 });
+    return screen.promise;
+  });
+
+  readSessionScreen.mockImplementationOnce(() => Promise.resolve('missing'));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readSessionScreen }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.screen', p: { session: 's-held' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.screen', p: { session: 's-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+  screen.resolve({ text: 'secret', cols: 80, rows: 24 });
 
   const answered = await held;
-  const unknown = await scoped.request('session.screen', { session: 's-held' });
 
-  expect(answered).toStrictEqual(unknown);
-  expect(unknown).toMatchObject({ err: { code: 'no_such_session' } });
+  expect(answered).toStrictEqual(missing);
+  expect(answered).toMatchObject({ err: { code: 'no_such_session' } });
 });
 
 test('it answers session.read whose session leaves the view during the read as for a session that does not exist', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('session.read', { session: 's-held' });
+  const entered = Promise.withResolvers<void>();
 
-  await scoped.entered;
+  const transcript =
+    Promise.withResolvers<Awaited<ReturnType<DaemonContext['loadSessionTranscript']>>>();
 
-  scoped.setVisible(false);
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  scoped.holds.transcript.resolve({
-    path: '/tmp/secret.jsonl',
+  const loadSessionTranscript = mock<DaemonContext['loadSessionTranscript']>(() => {
+    entered.resolve();
+
+    return transcript.promise;
+  });
+
+  loadSessionTranscript.mockImplementationOnce(() => Promise.resolve('missing'));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, loadSessionTranscript }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.read', p: { session: 's-held' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.read', p: { session: 's-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  transcript.resolve({
+    path: '/srv/secret/transcript.jsonl',
     page: { rows: [], offset: 0, more: false },
   });
 
   const answered = await held;
-  const unknown = await scoped.request('session.read', { session: 's-held' });
 
-  expect(answered).toStrictEqual(unknown);
-  expect(unknown).toMatchObject({ err: { code: 'no_such_session' } });
+  expect(answered).toStrictEqual(missing);
+  expect(answered).toMatchObject({ err: { code: 'no_such_session' } });
 });
 
 test('it leaves out of events.read the events of a session that leaves the view during the read', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('events.read', { session: 's-held', waitMs: 0 });
+  const entered = Promise.withResolvers<void>();
+  const events = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readEvents']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  await scoped.entered;
+  const readEvents = mock<DaemonContext['readEvents']>(() => {
+    entered.resolve();
 
-  scoped.setVisible(false);
+    return events.promise;
+  });
 
-  scoped.holds.events.resolve({
+  readEvents.mockImplementationOnce(() => Promise.resolve({ events: [], more: false }));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readEvents }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'events.read', p: { session: 's-held', waitMs: 0 } })}\n`,
+  );
+
+  const empty = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'events.read', p: { session: 's-held', waitMs: 0 } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  events.resolve({
     events: [
       {
         cursor: 'c-1',
@@ -298,21 +244,54 @@ test('it leaves out of events.read the events of a session that leaves the view 
   });
 
   const answered = await held;
-  const unknown = await scoped.request('events.read', { session: 's-missing', waitMs: 0 });
 
-  expect(answered).toStrictEqual(unknown);
-  expect(unknown).toMatchObject({ ok: { events: [], more: false } });
+  expect(answered).toStrictEqual(empty);
+  expect(answered).toMatchObject({ ok: { events: [], more: false } });
 });
 
 test('it answers report.get whose session leaves the view during the read as for a report that does not exist', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoxfQ' });
+  const entered = Promise.withResolvers<void>();
+  const report = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readReport']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  await scoped.entered;
+  const readReport = mock<DaemonContext['readReport']>(() => {
+    entered.resolve();
 
-  scoped.setVisible(false);
+    return report.promise;
+  });
 
-  scoped.holds.report.resolve({
+  readReport.mockImplementationOnce(() => Promise.resolve(null));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readReport }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  report.resolve({
     owner: toSessionID('s-held'),
     view: {
       report: 'eyJrIjoiZXYiLCJpIjoxfQ',
@@ -326,24 +305,54 @@ test('it answers report.get whose session leaves the view during the read as for
   });
 
   const answered = await held;
-  const unknown = await scoped.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoyfQ' });
 
-  expect(JSON.stringify(answered).replace('eyJrIjoiZXYiLCJpIjoxfQ', '<report>')).toBe(
-    JSON.stringify(unknown).replace('eyJrIjoiZXYiLCJpIjoyfQ', '<report>'),
-  );
-
-  expect(unknown).toMatchObject({ err: { code: 'bad_args' } });
+  expect(answered).toStrictEqual(missing);
+  expect(answered).toMatchObject({ err: { code: 'bad_args' } });
 });
 
 test('it answers report.get whose sender leaves the view during the read as for a report that does not exist, whatever session its view is named by', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoxfQ' });
+  const entered = Promise.withResolvers<void>();
+  const report = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readReport']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  await scoped.entered;
+  const readReport = mock<DaemonContext['readReport']>(() => {
+    entered.resolve();
 
-  scoped.hide('s-held');
+    return report.promise;
+  });
 
-  scoped.holds.report.resolve({
+  readReport.mockImplementationOnce(() => Promise.resolve(null));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readReport }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockImplementation((id) => id !== 's-held');
+
+  report.resolve({
     owner: toSessionID('s-held'),
     view: {
       report: 'eyJrIjoiZXYiLCJpIjoxfQ',
@@ -357,24 +366,53 @@ test('it answers report.get whose sender leaves the view during the read as for 
   });
 
   const answered = await held;
-  const unknown = await scoped.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoyfQ' });
 
-  expect(JSON.stringify(answered).replace('eyJrIjoiZXYiLCJpIjoxfQ', '<report>')).toBe(
-    JSON.stringify(unknown).replace('eyJrIjoiZXYiLCJpIjoyfQ', '<report>'),
-  );
-
-  expect(JSON.stringify(answered)).not.toInclude('secret');
+  expect(answered).toStrictEqual(missing);
 });
 
 test('it answers message.get whose session leaves the view during the wait as for an unknown message', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('message.get', { message: 'm-held', waitMs: 30_000 });
+  const entered = Promise.withResolvers<void>();
+  const message = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readMessage']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  await scoped.entered;
+  const readMessage = mock<DaemonContext['readMessage']>(() => {
+    entered.resolve();
 
-  scoped.setVisible(false);
+    return message.promise;
+  });
 
-  scoped.holds.message.resolve({
+  readMessage.mockImplementationOnce(() => Promise.resolve(null));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readMessage }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'message.get', p: { message: 'm-held', waitMs: 0 } })}\n`,
+  );
+
+  const unknown = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'message.get', p: { message: 'm-held', waitMs: 30_000 } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  message.resolve({
     session: toSessionID('s-held'),
     record: {
       id: toMessageID('m-held'),
@@ -388,24 +426,54 @@ test('it answers message.get whose session leaves the view during the wait as fo
   });
 
   const answered = await held;
-  const unknown = await scoped.request('message.get', { message: 'm-missing', waitMs: 0 });
 
-  expect(JSON.stringify(answered).replace('m-held', '<message>')).toBe(
-    JSON.stringify(unknown).replace('m-missing', '<message>'),
-  );
-
-  expect(unknown).toMatchObject({ err: { code: 'bad_args' } });
+  expect(answered).toStrictEqual(unknown);
+  expect(answered).toMatchObject({ err: { code: 'bad_args' } });
 });
 
 test('it answers message.ack whose session leaves the view during the ack as for an unknown message', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('message.ack', { session: 's-held', message: 'm-held' });
+  const entered = Promise.withResolvers<void>();
+  const ack = Promise.withResolvers<Awaited<ReturnType<DaemonContext['ackMessage']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  await scoped.entered;
+  const ackMessage = mock<DaemonContext['ackMessage']>(() => {
+    entered.resolve();
 
-  scoped.setVisible(false);
+    return ack.promise;
+  });
 
-  scoped.holds.ack.resolve({
+  ackMessage.mockImplementationOnce(() => Promise.resolve('unknown'));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, ackMessage }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'message.ack', p: { session: 's-held', message: 'm-held' } })}\n`,
+  );
+
+  const unknown = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'message.ack', p: { session: 's-held', message: 'm-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  ack.resolve({
     id: toMessageID('m-held'),
     atcID: toSessionID('s-held'),
     from: 'owner',
@@ -415,47 +483,104 @@ test('it answers message.ack whose session leaves the view during the ack as for
   });
 
   const answered = await held;
-  const unknown = await scoped.request('message.ack', { session: 's-held', message: 'm-held' });
 
   expect(answered).toStrictEqual(unknown);
-  expect(unknown).toMatchObject({ err: { code: 'bad_args' } });
+  expect(answered).toMatchObject({ err: { code: 'bad_args' } });
 });
 
 test('it answers session.message whose session leaves the view during the write as for a session that does not exist', async () => {
-  const scoped = setupTest();
+  const entered = Promise.withResolvers<void>();
+  const write = Promise.withResolvers<Awaited<ReturnType<DaemonContext['writeSessionMessage']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  const held = scoped.request('session.message', {
-    session: 's-held',
-    from: 'remote',
-    text: 'hello',
+  const writeSessionMessage = mock<DaemonContext['writeSessionMessage']>(() => {
+    entered.resolve();
+
+    return write.promise;
   });
 
-  await scoped.entered;
+  writeSessionMessage.mockImplementationOnce(() => Promise.resolve('missing'));
 
-  scoped.setVisible(false);
-  scoped.holds.write.resolve({ message: 'm-1', status: 'accepted' });
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, writeSessionMessage }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({
+      v: PROTOCOL_V,
+      id: 2,
+      m: 'session.message',
+      p: {
+        session: 's-held',
+        from: 'remote',
+        text: 'hello',
+      },
+    })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.message', p: { session: 's-held', from: 'remote', text: 'hello' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+  write.resolve({ message: 'm-1', status: 'accepted' });
 
   const answered = await held;
 
-  const unknown = await scoped.request('session.message', {
-    session: 's-held',
-    from: 'remote',
-    text: 'hello',
-  });
-
-  expect(answered).toStrictEqual(unknown);
-  expect(unknown).toMatchObject({ err: { code: 'no_such_session' } });
+  expect(answered).toStrictEqual(missing);
+  expect(answered).toMatchObject({ err: { code: 'no_such_session' } });
 });
 
 test('it refuses a spawn whose session leaves the view before the answer as a replay out of reach is refused', async () => {
-  const scoped = setupTest();
-  const held = scoped.request('session.spawn', { cwd: '/tmp' });
+  const entered = Promise.withResolvers<void>();
+  const spawn = Promise.withResolvers<Awaited<ReturnType<DaemonContext['spawnSession']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
+  const peer = buildStubPeerSocket();
 
-  await scoped.entered;
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({
+      canSeeSession,
+      spawnSession: () => {
+        entered.resolve();
 
-  scoped.setVisible(false);
+        return spawn.promise;
+      },
+    }),
+  );
 
-  scoped.holds.spawn.resolve({
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.spawn', p: { cwd: '/srv/project' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(2);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  spawn.resolve({
     session: { id: 's-new', name: 'secret', locator: { daemonID: 'd-1', targetID: 'local' } },
   });
 
@@ -465,35 +590,56 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
     v: PROTOCOL_V,
     err: {
       code: 'target_forbidden',
-      msg: expect.toInclude("'local'"),
+      msg: "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
       data: { target: 'local' },
     },
   });
-
-  expect(JSON.stringify(answered)).not.toInclude('s-new');
 });
 
 test('it leaves out of fleet.list a session that leaves the view during the read', async () => {
-  const scoped = setupTest();
+  const entered = Promise.withResolvers<void>();
+  const fleet = Promise.withResolvers<Awaited<ReturnType<DaemonContext['collectFleet']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  scoped.setFleetHeld(true);
+  const collectFleet = mock<DaemonContext['collectFleet']>(() => {
+    entered.resolve();
 
-  const held = scoped.request('fleet.list', {});
+    return fleet.promise;
+  });
 
-  await scoped.entered;
+  collectFleet.mockImplementationOnce(() => Promise.resolve([]));
 
-  scoped.setVisible(false);
+  const peer = buildStubPeerSocket();
 
-  scoped.holds.fleet.resolve([
-    { sessionID: toSessionID('s-held'), name: 'secret', cwd: '/tmp', agent: 'claude' },
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, collectFleet }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(`${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'fleet.list', p: {} })}\n`);
+
+  const empty = await peer.waitForAnswer(2);
+
+  conn.applyChunk(`${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'fleet.list', p: {} })}\n`);
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  fleet.resolve([
+    { sessionID: toSessionID('s-held'), name: 'secret', cwd: '/srv/secret', agent: 'claude' },
   ]);
 
   const answered = await held;
 
-  scoped.setFleetHeld(false);
-
-  const unknown = await scoped.request('fleet.list', {});
-
-  expect(answered).toStrictEqual(unknown);
-  expect(unknown).toMatchObject({ ok: { fleet: [] } });
+  expect(answered).toStrictEqual(empty);
+  expect(answered).toMatchObject({ ok: { fleet: [] } });
 });
