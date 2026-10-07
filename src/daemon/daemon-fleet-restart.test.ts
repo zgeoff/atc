@@ -385,3 +385,50 @@ test('it forgets an exited session on a target the daemon cannot use', async () 
 
   expect(after['sessions']).toStrictEqual([]);
 });
+
+test('it regroups a revived exited worktree session under its repository', async () => {
+  await using daemon = await setupTest();
+
+  const base = await mkdtemp(join(tmpdir(), 'atc-daemon-fleet-worktree-'));
+
+  onTestFinished(async () => {
+    await rm(base, { recursive: true, force: true });
+  });
+
+  const worktree = join(base, 'wt');
+
+  await mkdir(worktree);
+
+  await Bun.write(join(worktree, '.git'), `gitdir: ${base}/main/.git/worktrees/wt\n`);
+
+  const seed = await StateStore.open(daemon.dbPath);
+
+  await seed.writeFleet([
+    {
+      sessionID: toSessionID('s-wt'),
+      agentSessionID: toAgentSessionID('a-wt'),
+      name: 'wt',
+      cwd: worktree,
+      agent: 'claude',
+      exited: true,
+    },
+  ]);
+
+  await seed.stop();
+
+  const client = await daemon.boot({ restoreFleetOnRestart: true, restoreBootTimeoutMs: 10 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('session.list');
+
+    expect(listed['sessions']).toMatchObject([{ id: 's-wt', repoRoot: worktree }]);
+  });
+
+  await client.sendRequest('session.adopt', { session: 's-wt', cols: 80, rows: 24 });
+
+  const after = await client.sendRequest('session.list');
+
+  expect(after['sessions']).toMatchObject([
+    { id: 's-wt', alive: true, repoRoot: join(base, 'main') },
+  ]);
+});

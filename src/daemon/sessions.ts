@@ -768,6 +768,7 @@ export class SessionManager {
     s.kind = 'pty';
     s.state = 'running';
     s.lastMsg = 'revived';
+    s.repoRoot = provider.remote ? s.cwd : resolveRepoRoot(s.cwd);
     s.desired = 'run';
     s.suspended = false;
 
