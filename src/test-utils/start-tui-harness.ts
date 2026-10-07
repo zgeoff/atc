@@ -17,6 +17,12 @@ export type TUIHarness = ReturnType<typeof startTUIHarness>;
 
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 
+interface TUIHarnessOptions {
+  // How long a wait gives the client to draw its first byte; 9 seconds
+  // unless set.
+  readonly bootMs?: number;
+}
+
 /**
  * A fresh home for one run of the real `atc` client in a pseudo-terminal,
  * holding stand-in `claude` and `grok` binaries, which take scenario files
@@ -30,10 +36,11 @@ const cliPath = join(import.meta.dir, '..', 'cli.ts');
  * `writeConfig` writes the home's config: the stand-in binaries and the git
  * transports the fixture repositories need, with the fields given laid over
  * them. `env` is the environment the client runs with, so a daemon started
- * with it serves the client. Disposal stops the client and the daemon in
+ * with it serves the client. A wait made before the client draws anything
+ * gets `bootMs` for that first byte. Disposal stops the client and the daemon in
  * the home and removes it; hold the result with `await using`.
  */
-export function startTUIHarness() {
+export function startTUIHarness(options: TUIHarnessOptions = {}) {
   using setup = new DisposableStack();
 
   // The client boots with this home as its cwd and lists it first in the
@@ -157,7 +164,7 @@ export function startTUIHarness() {
       // client's own cold start, which measures under 1.1 seconds on a
       // runner loaded at four times its cores. Every wait after the first
       // byte keeps its own deadline.
-      const bootMs = 8000 + 1000;
+      const bootMs = options.bootMs ?? 8000 + 1000;
 
       const firstAt = await waitFor(
         () => {

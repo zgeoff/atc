@@ -1,30 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { sendMCPRequest } from './send-mcp-request';
+import { startStubMCPServer } from './start-stub-mcp-server';
 
 test('it posts one JSON-RPC request with the bearer token to the MCP endpoint', async () => {
-  const received: unknown[] = [];
+  using server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: {} });
 
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    async fetch(request) {
-      received.push({
-        method: request.method,
-        path: new URL(request.url).pathname,
-        authorization: request.headers.get('authorization'),
-        type: request.headers.get('content-type'),
-        body: await request.json(),
-      });
+  await sendMCPRequest(server.url, 'tok', 'tools/call', { name: 'x' });
 
-      return Response.json({ jsonrpc: '2.0', id: 1, result: {} });
-    },
-  });
-
-  onTestFinished(() => server.stop(true));
-
-  await sendMCPRequest(`http://127.0.0.1:${server.port}`, 'tok', 'tools/call', { name: 'x' });
-
-  expect(received).toStrictEqual([
+  expect(server.requests).toStrictEqual([
     {
       method: 'POST',
       path: '/mcp',
@@ -36,30 +19,26 @@ test('it posts one JSON-RPC request with the bearer token to the MCP endpoint', 
 });
 
 test('it returns the result of the response', async () => {
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    fetch: () => Response.json({ jsonrpc: '2.0', id: 1, result: { tools: [] } }),
-  });
+  using server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: { tools: [] } });
 
-  onTestFinished(() => server.stop(true));
-
-  const result = await sendMCPRequest(`http://127.0.0.1:${server.port}`, 'tok', 'tools/list');
+  const result = await sendMCPRequest(server.url, 'tok', 'tools/list');
 
   expect(result).toStrictEqual({ tools: [] });
 });
 
 test('it refuses a response without a result', () => {
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    fetch: () =>
-      Response.json({ jsonrpc: '2.0', id: 1, error: { code: -32_601, message: 'no method' } }),
+  const server = startStubMCPServer({
+    jsonrpc: '2.0',
+    id: 1,
+    error: { code: -32_601, message: 'no method' },
   });
 
-  onTestFinished(() => server.stop(true));
+  onTestFinished(() => {
+    server[Symbol.dispose]();
+  });
 
-  expect(
-    sendMCPRequest(`http://127.0.0.1:${server.port}`, 'tok', 'nope'),
-  ).rejects.toThrowWithMessage(TypeError, 'result is not an object');
+  expect(sendMCPRequest(server.url, 'tok', 'nope')).rejects.toThrowWithMessage(
+    TypeError,
+    'result is not an object',
+  );
 });

@@ -11,7 +11,7 @@ import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemo
 import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
-import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { DaemonPool } from './daemon-pool';
@@ -148,7 +148,7 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
     proxy.stop();
   });
 
-  const legacy = startLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
@@ -346,7 +346,7 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
 test('it refuses a keyed spawn on a daemon without keyed spawns as daemon_outdated and sends it nothing', async () => {
   await using ctx = await setupTest();
 
-  const legacy = startLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
@@ -388,7 +388,7 @@ test('it refuses a keyed spawn on a daemon without keyed spawns as daemon_outdat
 test('it refuses a keyed spawn as daemon_outdated when it found no binding and its daemon turns out outdated', async () => {
   await using ctx = await setupTest();
 
-  const legacy = startLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
@@ -442,7 +442,7 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
 test("it keeps another call's completed binding when a call that found none is refused before sending", async () => {
   await using ctx = await setupTest();
 
-  const legacy = startLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
@@ -1010,7 +1010,7 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
     proxy.stop();
   });
 
-  const legacy = startLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',

@@ -12,7 +12,7 @@ interface ReceivedRequest {
   readonly p: Readonly<Record<string, unknown>> | undefined;
 }
 
-interface LegacyDaemonOptions {
+interface StubLegacyDaemonOptions {
   readonly features?: readonly DaemonFeature[];
 
   // The protocol version the daemon speaks; a hello on any other version is
@@ -32,7 +32,7 @@ interface LegacyDaemonOptions {
  * `connections` counts the connections it accepted and those still open. Stop
  * it with `stop`, or hold it with `using`.
  */
-export function startLegacyDaemon(socketPath: string, options: LegacyDaemonOptions = {}) {
+export function startStubLegacyDaemon(socketPath: string, options: StubLegacyDaemonOptions = {}) {
   const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     'daemon.hello': {
       daemon: 'atc/legacy-build',

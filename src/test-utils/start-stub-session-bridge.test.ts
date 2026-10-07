@@ -161,14 +161,34 @@ test('it buffers a partial line for each connection apart', async () => {
   });
 
   first.write('{"op":"fir');
-  first.flush();
   second.write('{"op":"sec');
-  second.flush();
+
+  await waitFor(() => {
+    expect(bridge.reads).toBe(2);
+  });
+
   first.write('st"}\n');
   second.write('ond"}\n');
 
   await waitFor(() => {
     expect(bridge.requests).toIncludeSameMembers([{ op: 'first' }, { op: 'second' }]);
+  });
+});
+
+test('it counts each read it takes from a connection', async () => {
+  using ctx = setupTest();
+  using bridge = startStubSessionBridge(ctx.path, () => []);
+
+  const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
+
+  onTestFinished(() => {
+    socket.end();
+  });
+
+  socket.write('{"op":"fir');
+
+  await waitFor(() => {
+    expect(bridge.reads).toBe(1);
   });
 });
 

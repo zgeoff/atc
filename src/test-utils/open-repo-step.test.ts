@@ -5,8 +5,12 @@ import { createStubBin } from './create-stub-bin';
 import { openRepoStep } from './open-repo-step';
 import { startTUIHarness } from './start-tui-harness';
 
-test('it leaves a capture that starts at the tab to the GitHub repository step', async () => {
-  await using tui = startTUIHarness();
+// The client booted to its home screen with a signed-out `gh` on its PATH,
+// so the GitHub repository step opens without reaching GitHub.
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
+  const tui = stack.use(startTUIHarness());
 
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -14,7 +18,15 @@ test('it leaves a capture that starts at the tab to the GitHub repository step',
 
   await tui.waitFor('atc — control tower');
 
-  await openRepoStep(tui);
+  const owned = stack.move();
 
-  expect(tui.read()).not.toInclude('spawn: directory');
+  return { tui, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+}
+
+test('it leaves a capture that starts at the tab to the GitHub repository step', async () => {
+  await using ctx = await setupTest();
+
+  await openRepoStep(ctx.tui);
+
+  expect(ctx.tui.read()).not.toInclude('spawn: directory');
 });

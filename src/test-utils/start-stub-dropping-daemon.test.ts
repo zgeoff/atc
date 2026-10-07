@@ -3,35 +3,26 @@ import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubDroppingDaemon } from './start-stub-dropping-daemon';
+import { waitFor } from './wait-for';
 
+// A temp directory to hold the daemon's socket. Disposal removes it.
 function setupTest() {
-  using stack = new DisposableStack();
+  const tmp = setupTempDir('atc-dropping-daemon-');
 
-  const tmp = stack.use(setupTempDir('atc-dropping-daemon-'));
-  const socketPath = join(tmp.dir, 'daemon.sock');
-
-  const daemon = startStubDroppingDaemon(socketPath, {
-    features: ['spawn.idempotency'],
-    retryFeatures: [],
-  });
-
-  stack.defer(() => {
-    daemon.stop();
-  });
-
-  const owned = stack.move();
-
-  return {
-    socketPath,
-    daemon,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { socketPath: join(tmp.dir, 'daemon.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
 }
 
 test('it announces the first features on the first handshake', async () => {
   using ctx = setupTest();
+
+  const daemon = startStubDroppingDaemon(ctx.socketPath, {
+    features: ['spawn.idempotency'],
+    retryFeatures: [],
+  });
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
 
   const client = await DaemonClient.open(ctx.socketPath);
 
@@ -49,6 +40,15 @@ test('it announces the first features on the first handshake', async () => {
 
 test('it announces the retry features on a later handshake', async () => {
   using ctx = setupTest();
+
+  const daemon = startStubDroppingDaemon(ctx.socketPath, {
+    features: ['spawn.idempotency'],
+    retryFeatures: [],
+  });
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
 
   const first = await DaemonClient.open(ctx.socketPath);
 
@@ -72,8 +72,45 @@ test('it announces the retry features on a later handshake', async () => {
   });
 });
 
+test('it announces the first features on a later handshake when given no retry features', async () => {
+  using ctx = setupTest();
+
+  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: ['spawn.idempotency'] });
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
+
+  const first = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    first.stop();
+  });
+
+  await first.sendHello('atc/test-build');
+
+  const second = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    second.stop();
+  });
+
+  expect(second.sendHello('atc/test-build')).resolves.toStrictEqual({
+    daemon: 'atc/dropping-build',
+    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+    lastUsedAgent: 'claude',
+    features: ['spawn.idempotency'],
+  });
+});
+
 test('it drops the connection of the first request without answering it', async () => {
   using ctx = setupTest();
+
+  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
 
   const client = await DaemonClient.open(ctx.socketPath);
 
@@ -91,6 +128,7 @@ test('it drops the connection of the first request without answering it', async 
 
 test('it answers a later request with a session and records each request key', async () => {
   using ctx = setupTest();
+  using daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
   const first = await DaemonClient.open(ctx.socketPath);
 
@@ -112,29 +150,39 @@ test('it answers a later request with a session and records each request key', a
   const answered = await second.sendRequest('session.spawn', {});
 
   expect(answered).toStrictEqual({ session: { id: 's-1' } });
-  expect(ctx.daemon.keys).toStrictEqual(['k-1', undefined]);
+  expect(daemon.keys).toStrictEqual(['k-1', undefined]);
 });
 
 test('it stops listening when disposed', () => {
-  using tmp = setupTempDir('atc-dropping-daemon-');
+  using ctx = setupTest();
 
-  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), { features: [] });
+  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
-  dropping[Symbol.dispose]();
+  daemon[Symbol.dispose]();
 
-  expect(DaemonClient.open(join(tmp.dir, 'daemon.sock'))).rejects.toThrow();
+  expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
+});
+
+test('it counts each read it takes from a connection', async () => {
+  using ctx = setupTest();
+  using daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+
+  const raw = await Bun.connect({ unix: ctx.socketPath, socket: { data() {} } });
+
+  onTestFinished(() => {
+    raw.end();
+  });
+
+  raw.write('{"v":4,');
+
+  await waitFor(() => {
+    expect(daemon.reads).toBe(1);
+  });
 });
 
 test('it reads a request split across two writes as one request', async () => {
   using ctx = setupTest();
-
-  const client = await DaemonClient.open(ctx.socketPath);
-
-  onTestFinished(() => {
-    client.stop();
-  });
-
-  await client.sendHello('atc/test-build');
+  using daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
   const closed = Promise.withResolvers<void>();
 
@@ -153,9 +201,14 @@ test('it reads a request split across two writes as one request', async () => {
   });
 
   raw.write('{"v":4,"id":1,"m":"session.spawn",');
+
+  await waitFor(() => {
+    expect(daemon.reads).toBe(1);
+  });
+
   raw.write('"p":{"idempotencyKey":"k-split"}}\n');
 
   await closed.promise;
 
-  expect(ctx.daemon.keys).toStrictEqual(['k-split']);
+  expect(daemon.keys).toStrictEqual(['k-split']);
 });

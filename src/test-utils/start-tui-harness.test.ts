@@ -4,6 +4,21 @@ import { join } from 'node:path';
 import { KEYS } from './keys';
 import { startTUIHarness } from './start-tui-harness';
 
+// A harness whose client has booted and drawn its home screen.
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
+  const tui = stack.use(startTUIHarness());
+
+  tui.boot();
+
+  await tui.waitFor('atc — control tower');
+
+  const owned = stack.move();
+
+  return { tui, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+}
+
 test('it boots the client in its home, where the client starts its daemon', async () => {
   await using tui = startTUIHarness();
 
@@ -15,28 +30,48 @@ test('it boots the client in its home, where the client starts its daemon', asyn
 });
 
 test('it rejects a wait for text the client never draws with the tail of the capture', async () => {
-  await using tui = startTUIHarness();
+  await using ctx = await setupTest();
 
-  tui.boot();
-
-  await tui.waitFor('atc — control tower');
-
-  expect(tui.waitFor('never drawn', 100)).rejects.toThrowWithMessage(
+  expect(ctx.tui.waitFor('never drawn', 100)).rejects.toThrowWithMessage(
     Error,
     /^timed out waiting for "never drawn"; tail: ".*atc — control tower/su,
   );
 });
 
+test('it rejects a wait made while the client has drawn nothing', () => {
+  const tui = startTUIHarness({ bootMs: 100 });
+
+  onTestFinished(() => tui[Symbol.asyncDispose]());
+
+  expect(tui.waitFor('atc — control tower')).rejects.toThrow(
+    'timed out waiting for "atc — control tower"; the client wrote nothing in 100ms of boot',
+  );
+});
+
+test('it rejects a write before the client boots', () => {
+  const tui = startTUIHarness();
+
+  onTestFinished(() => tui[Symbol.asyncDispose]());
+
+  expect(() => {
+    tui.write('n');
+  }).toThrow('write before boot');
+});
+
+test('it rejects a wait for exit before the client boots', () => {
+  const tui = startTUIHarness();
+
+  onTestFinished(() => tui[Symbol.asyncDispose]());
+
+  expect(() => tui.waitForExit()).toThrow('wait for exit before boot');
+});
+
 test('it forgets what the client drew on reset', async () => {
-  await using tui = startTUIHarness();
+  await using ctx = await setupTest();
 
-  tui.boot();
+  ctx.tui.reset();
 
-  await tui.waitFor('atc — control tower');
-
-  tui.reset();
-
-  expect(tui.read()).not.toInclude('atc — control tower');
+  expect(ctx.tui.read()).not.toInclude('atc — control tower');
 });
 
 test('it writes the fake binaries and transports with the fields given laid over them', () => {
@@ -60,92 +95,69 @@ test('it writes the fake binaries and transports with the fields given laid over
 });
 
 test('it reads a decision the client logs without drawing it', async () => {
-  await using tui = startTUIHarness();
+  await using ctx = await setupTest();
 
-  tui.boot();
+  ctx.tui.reset();
+  ctx.tui.write(KEYS.ctrlSpace);
 
-  await tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('┌ sessions ─');
 
-  tui.reset();
-  tui.write(KEYS.ctrlSpace);
+  const mark = ctx.tui.markClientLog();
 
-  await tui.waitFor('no sessions — n to spawn');
+  ctx.tui.write('H');
 
-  const mark = tui.markClientLog();
+  await ctx.tui.waitForClientLog('ignored H on a session that cannot eject', mark);
 
-  tui.write('H');
-
-  await tui.waitForClientLog('ignored H on a session that cannot eject', mark);
-
-  expect(tui.markClientLog()).toBe(mark + 1);
+  expect(ctx.tui.markClientLog()).toBe(mark + 1);
 });
 
 test('it rejects a wait for a log line written only before the mark', async () => {
-  await using tui = startTUIHarness();
+  await using ctx = await setupTest();
 
-  tui.boot();
+  ctx.tui.reset();
+  ctx.tui.write(KEYS.ctrlSpace);
 
-  await tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('┌ sessions ─');
 
-  tui.reset();
-  tui.write(KEYS.ctrlSpace);
+  const before = ctx.tui.markClientLog();
 
-  await tui.waitFor('no sessions — n to spawn');
+  ctx.tui.write('H');
 
-  const before = tui.markClientLog();
+  await ctx.tui.waitForClientLog('ignored H on a session that cannot eject', before);
 
-  tui.write('H');
-
-  await tui.waitForClientLog('ignored H on a session that cannot eject', before);
-
-  const after = tui.markClientLog();
+  const after = ctx.tui.markClientLog();
 
   expect(
-    tui.waitForClientLog('ignored H on a session that cannot eject', after, 200),
+    ctx.tui.waitForClientLog('ignored H on a session that cannot eject', after, 200),
   ).rejects.toThrow(
     'the client log never held "ignored H on a session that cannot eject" after line 1',
   );
 });
 
 test('it resolves the exit code of the client it booted', async () => {
-  await using tui = startTUIHarness();
+  await using ctx = await setupTest();
 
-  tui.boot();
+  ctx.tui.write('q');
 
-  await tui.waitFor('atc — control tower');
-
-  tui.write('q');
-
-  const exitCode = await tui.waitForExit();
+  const exitCode = await ctx.tui.waitForExit();
 
   expect(exitCode).toBe(0);
 });
 
 test('it stops the daemon the client started on dispose', async () => {
-  const tui = startTUIHarness();
+  await using ctx = await setupTest();
 
-  onTestFinished(() => tui[Symbol.asyncDispose]());
+  const pid = Number(readFileSync(join(ctx.tui.home, 'atc-daemon.pid'), 'utf8'));
 
-  tui.boot();
-
-  await tui.waitFor('atc — control tower');
-
-  const pid = Number(readFileSync(join(tui.home, 'atc-daemon.pid'), 'utf8'));
-
-  await tui[Symbol.asyncDispose]();
+  await ctx.tui[Symbol.asyncDispose]();
 
   expect(() => process.kill(pid, 0)).toThrow();
 });
 
 test('it removes its home on dispose', async () => {
-  const tui = startTUIHarness();
+  await using ctx = await setupTest();
 
-  onTestFinished(() => tui[Symbol.asyncDispose]());
+  await ctx.tui[Symbol.asyncDispose]();
 
-  tui.boot();
-
-  await tui.waitFor('atc — control tower');
-  await tui[Symbol.asyncDispose]();
-
-  expect(existsSync(tui.home)).toBe(false);
+  expect(existsSync(ctx.tui.home)).toBe(false);
 });

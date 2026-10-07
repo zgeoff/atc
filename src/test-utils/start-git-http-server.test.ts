@@ -151,7 +151,7 @@ test('it calls back once for each authenticated request', async () => {
 
   expect(listed.exitCode).toBe(0);
   expect(hooked.authorizations).not.toBeEmpty();
-  expect(calls).toBe(hooked.authorizations.length);
+  expect(hooked.authorizations).toHaveLength(calls);
 });
 
 test('it holds a request while the callback is still pending', async () => {

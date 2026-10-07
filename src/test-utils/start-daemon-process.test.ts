@@ -3,6 +3,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
+import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
+import { createStubBin } from './create-stub-bin';
 import { resolveATCCommand } from './resolve-atc-command';
 import { setupTempDir } from './setup-temp-dir';
 import { startDaemonProcess } from './start-daemon-process';
@@ -35,10 +37,12 @@ test('it keeps the daemon state in the home and records the daemon process there
 
   await client.sendHello('atc/test');
 
-  expect(findDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'))).toMatchObject({
+  expect(findDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'))).toStrictEqual({
     pid: daemon.proc.pid,
     socketPath: join(ctx.dir, 'atc-daemon.sock'),
     reporterSocketPath: join(ctx.dir, 'atc.sock'),
+    eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
+    listenPort: null,
   });
 });
 
@@ -103,12 +107,9 @@ test('it opens a client on the socket a replacement holds when the daemon exits 
     replacement.stop(true);
   });
 
-  // The stand-in daemon moves the listening socket into place and exits, as
-  // a daemon handing its socket to a replacement does.
-  await using daemon = startDaemonProcess({
-    command: ['bash', '-c', `mv '${nextPath}' "$HOME/atc-daemon.sock"`, 'stand-in-atc'],
-    home: ctx.dir,
-  });
+  const atc = createStubBin(join(ctx.dir, 'bin'), 'atc', buildStubHandoffDaemon(nextPath));
+
+  await using daemon = startDaemonProcess({ command: [atc], home: ctx.dir });
 
   const client = await daemon.openClient();
 

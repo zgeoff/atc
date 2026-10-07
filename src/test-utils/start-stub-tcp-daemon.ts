@@ -6,6 +6,11 @@ interface StubTCPDaemon {
 
   // Every request method the stand-in received, in arrival order.
   readonly seen: string[];
+
+  // How many reads the stand-in has taken from its connections, so a test
+  // can wait until one piece of a split write has arrived before it sends
+  // the next.
+  readonly reads: number;
   readonly [Symbol.dispose]: () => void;
 }
 
@@ -17,10 +22,12 @@ const REQUEST = z.object({ id: z.number(), m: z.string() });
  * A stand-in for an atc daemon's TCP listener on a loopback port: it reads
  * newline-delimited protocol requests and answers each with an ok that holds
  * the request's method, recording every method in `seen`. It sends no
- * handshake of its own and checks no token. Disposal stops it.
+ * handshake of its own and checks no token. `reads` counts the reads it has
+ * taken from every connection. Disposal stops it.
  */
 export function startStubTCPDaemon(): StubTCPDaemon {
   const seen: string[] = [];
+  let reads = 0;
 
   const server = Bun.listen<{ buffer: string }>({
     hostname: '127.0.0.1',
@@ -30,6 +37,8 @@ export function startStubTCPDaemon(): StubTCPDaemon {
         socket.data = { buffer: '' };
       },
       data(socket, buf) {
+        reads += 1;
+
         const lines = `${socket.data.buffer}${buf.toString()}`.split('\n');
 
         socket.data.buffer = lines.pop() ?? '';
@@ -51,6 +60,9 @@ export function startStubTCPDaemon(): StubTCPDaemon {
   return {
     port: server.port,
     seen,
+    get reads() {
+      return reads;
+    },
     [Symbol.dispose]: () => {
       server.stop(true);
     },

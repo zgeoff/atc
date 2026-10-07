@@ -168,7 +168,7 @@
     "src/shared/collect-auth-profiles.test.ts": 12,
     "src/sources/collect-builtin-sources.test.ts": 12,
     "scripts/check-test-isolation.test.ts": 12,
-    "src/test-utils/start-legacy-daemon.test.ts": 12,
+    "src/test-utils/start-stub-legacy-daemon.test.ts": 12,
     "src/agents/build-codex-auth-file.test.ts": 11,
     "src/agents/load-claude-config-bundle.test.ts": 11,
     "src/client/split-to-width.test.ts": 11,

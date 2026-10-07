@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { startStubImpd } from './start-stub-impd';
 import { waitFor } from './wait-for';
 
@@ -46,6 +46,10 @@ test('it refuses an exec open as a start whose broker is not ready', async () =>
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
+  onTestFinished(() => {
+    socket.close();
+  });
+
   const answered = Promise.withResolvers<unknown>();
 
   socket.addEventListener('open', () => {
@@ -57,8 +61,6 @@ test('it refuses an exec open as a start whose broker is not ready', async () =>
   });
 
   const answer = await answered.promise;
-
-  socket.close();
 
   expect({ answer, opens: impd.execOpens }).toStrictEqual({
     answer: {
@@ -78,6 +80,10 @@ test('it counts the stdin bytes of a started exec once stdin ends', async () => 
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
+  onTestFinished(() => {
+    socket.close();
+  });
+
   const frames: unknown[] = [];
 
   socket.binaryType = 'arraybuffer';
@@ -96,8 +102,6 @@ test('it counts the stdin bytes of a started exec once stdin ends', async () => 
     expect(frames).toHaveLength(3);
   });
 
-  socket.close();
-
   expect(frames).toStrictEqual([
     JSON.stringify({ type: 'started', pid: 7 }),
     new Uint8Array([1, ...new TextEncoder().encode('3\n')]).buffer,
@@ -111,6 +115,10 @@ test('it exits a started exec with code 2 at once when told to exit early', asyn
   impd.exec.reply = 'exit-early';
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
+
+  onTestFinished(() => {
+    socket.close();
+  });
 
   const frames: unknown[] = [];
 
@@ -126,8 +134,6 @@ test('it exits a started exec with code 2 at once when told to exit early', asyn
     expect(frames).toHaveLength(2);
   });
 
-  socket.close();
-
   expect(frames).toStrictEqual([
     JSON.stringify({ type: 'started', pid: 7 }),
     JSON.stringify({ type: 'exit', code: 2, signal: null }),
@@ -138,6 +144,10 @@ test('it answers a tunnel listen as listening and keeps its control socket', asy
   using impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/tunnel`);
+
+  onTestFinished(() => {
+    socket.close();
+  });
 
   const answered = Promise.withResolvers<unknown>();
 
@@ -150,8 +160,6 @@ test('it answers a tunnel listen as listening and keeps its control socket', asy
   });
 
   const answer = await answered.promise;
-
-  socket.close();
 
   expect<Record<string, unknown>>({ answer, controls: impd.controls }).toStrictEqual({
     answer: { type: 'listening', listener: 'l1', path: '/tmp/r.sock', port: null },
@@ -166,6 +174,10 @@ test('it records the authorization header of a WebSocket upgrade and no call', a
     headers: { authorization: 'Bearer w' },
   });
 
+  onTestFinished(() => {
+    socket.close();
+  });
+
   const opened = Promise.withResolvers<void>();
 
   socket.addEventListener('open', () => {
@@ -173,8 +185,6 @@ test('it records the authorization header of a WebSocket upgrade and no call', a
   });
 
   await opened.promise;
-
-  socket.close();
 
   expect({ authorizations: impd.authorizations, calls: impd.calls }).toStrictEqual({
     authorizations: ['Bearer w'],
@@ -186,6 +196,10 @@ test('it closes a WebSocket that sends a message over 2 MiB', async () => {
   using impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
+
+  onTestFinished(() => {
+    socket.close();
+  });
 
   const closed = Promise.withResolvers<number>();
 
@@ -205,9 +219,13 @@ test('it closes a WebSocket that sends a message over 2 MiB', async () => {
 });
 
 test('it drops an open WebSocket on disposal', async () => {
-  const impd = startStubImpd();
+  using impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
+
+  onTestFinished(() => {
+    socket.close();
+  });
 
   const opened = Promise.withResolvers<void>();
   const closed = Promise.withResolvers<number>();

@@ -2,8 +2,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-interface FakeSystemd {
-  // The directory that holds the fake `systemctl` and `systemd-run`, to put
+interface StubSystemd {
+  // The directory that holds the stand-in `systemctl` and `systemd-run`, to put
   // first on the PATH of every process that could reach a real one.
   readonly binDir: string;
 
@@ -27,7 +27,7 @@ interface FakeSystemd {
 }
 
 /**
- * Writes a fake `systemctl` and `systemd-run` that touch no service
+ * Writes a stand-in `systemctl` and `systemd-run` that touch no service
  * manager. Without a MainPID, `systemctl show -p MainPID` prints a pid no
  * process holds, so no daemon is ever a unit's main process. With
  * `writeMainPID`, `systemctl restart` stops that pid with SIGTERM and starts
@@ -36,8 +36,8 @@ interface FakeSystemd {
  * unit sees them, and appends its output to the `StandardOutput=append:`
  * file. Every call is logged.
  */
-export function setupFakeSystemd(atcCommand: readonly string[]): FakeSystemd {
-  const root = mkdtempSync(join(tmpdir(), 'atc-fake-systemd-'));
+export function createStubSystemd(atcCommand: readonly string[]): StubSystemd {
+  const root = mkdtempSync(join(tmpdir(), 'atc-stub-systemd-'));
   const binDir = join(root, 'bin');
   const procRoot = join(root, 'proc');
   const atcLine = atcCommand.map((part) => `"${part}"`).join(' ');

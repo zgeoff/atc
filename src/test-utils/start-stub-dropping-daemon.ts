@@ -22,11 +22,14 @@ interface DroppingDaemonOptions {
  * that carries the first request of any other method without answering it,
  * and answers every later one with a session `s-1`. `keys` records the
  * idempotency key each of those requests carried, `undefined` for one that
- * carried none. Stop it with `stop`, or hold it with `using`.
+ * carried none. `reads` counts the reads it has taken from every connection,
+ * so a test can wait until one piece of a split write has arrived. Stop it
+ * with `stop`, or hold it with `using`.
  */
 export function startStubDroppingDaemon(socketPath: string, options: DroppingDaemonOptions) {
   const keys: unknown[] = [];
   let hellos = 0;
+  let reads = 0;
 
   const server = Bun.listen<{ buffer: string }>({
     unix: socketPath,
@@ -35,6 +38,8 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
         socket.data = { buffer: '' };
       },
       data(socket, buf) {
+        reads += 1;
+
         const lines = `${socket.data.buffer}${buf.toString()}`.split('\n');
 
         socket.data.buffer = lines.pop() ?? '';
@@ -85,6 +90,9 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
 
   return {
     keys,
+    get reads() {
+      return reads;
+    },
     stop() {
       server.stop(true);
     },

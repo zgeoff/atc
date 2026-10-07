@@ -10,7 +10,7 @@ import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemo
 import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';
 import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
-import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
+import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { DaemonCaller } from './daemon-caller';
@@ -424,7 +424,7 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
     proxy.stop();
   });
 
-  const legacy = startLegacyDaemon(join(ctx.daemon.dir, 'legacy.sock'), {
+  const legacy = startStubLegacyDaemon(join(ctx.daemon.dir, 'legacy.sock'), {
     features: ['transport.tcp', 'request.principal'],
     replies: {
       'daemon.hello': {

@@ -1,14 +1,15 @@
 import { expect, test } from 'bun:test';
-import { createServer } from 'node:net';
 import { join } from 'node:path';
 import type { Socket } from 'bun';
 import { setupTempDir } from './setup-temp-dir';
+import { startStubStalledListener } from './start-stub-stalled-listener';
 import { subscribeToSocketLines } from './subscribe-to-socket-lines';
 import { waitFor } from './wait-for';
 
 // A unix socket server and a subscriber connected to it; `peer` is the
 // server's side of that connection, which the test writes through, and
-// `received` collects what the subscriber sends.
+// `received` collects what the subscriber sends. A second server at
+// `stalledPath` accepts connections and never reads them.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -41,9 +42,21 @@ async function setupTest() {
 
   const peer = await accepted.promise;
 
+  const stalledPath = join(tmp.dir, 'stalled.sock');
+
+  const stalled = await startStubStalledListener(stalledPath);
+
+  stack.use(stalled);
+
   const owned = stack.move();
 
-  return { subscriber, peer, received, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return {
+    subscriber,
+    peer,
+    received,
+    stalledPath,
+    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+  };
 }
 
 test('it collects each complete line the socket sends', async () => {
@@ -98,31 +111,13 @@ test('it sends a payload larger than one socket write whole', async () => {
   ctx.subscriber.write(`${line}\n`);
 
   await waitFor(() => {
-    expect(ctx.received.join('').length).toBe(line.length + 1);
+    expect(ctx.received.join('')).toHaveLength(line.length + 1);
   });
 });
 
 test('it throws on a write while the unsent bytes fill the queue', async () => {
-  await using tmp = setupTempDir('atc-sock-lines-');
-
-  await using stack = new AsyncDisposableStack();
-
-  const path = join(tmp.dir, 'stalled.sock');
-
-  // The peer never reads, so what the kernel does not take stays queued.
-  const server = createServer((peer) => {
-    peer.pause();
-  });
-
-  stack.defer(() => {
-    server.close();
-  });
-
-  await new Promise<void>((resolve) => {
-    server.listen(path, resolve);
-  });
-
-  await using subscriber = await subscribeToSocketLines(path, { queueBytes: 1024 });
+  await using ctx = await setupTest();
+  await using subscriber = await subscribeToSocketLines(ctx.stalledPath, { queueBytes: 1024 });
 
   subscriber.write(`${'x'.repeat(3_000_000)}\n`);
 
