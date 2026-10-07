@@ -1,24 +1,60 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { DaemonClient } from './client/daemon-client';
+import { LineDecoder } from './protocol/line-decoder';
+import { PROTOCOL_V, decodeMessage, encodeMessage } from './protocol/protocol';
+import { setupTempDir } from './test-utils/setup-temp-dir';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
-function setupTest() {
+async function setupTest() {
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-verify-restored-fleet-'));
+  const socketPath = join(tmp.dir, 'daemon.sock');
   const lists: Readonly<Record<string, unknown>>[] = [];
 
-  // A daemon that accepts the restore and answers one session list for each
-  // reply the test queues, then never answers again.
-  const client = {
-    sendRequest: (m: string): Promise<Readonly<Record<string, unknown>>> => {
-      const reply = m === 'fleet.restore' ? {} : lists.shift();
+  const lines = new LineDecoder();
 
-      return reply === undefined ? new Promise(() => {}) : Promise.resolve(reply);
+  // A daemon on the real wire format that accepts the restore and answers one
+  // session list for each reply the test queues, then withholds every answer.
+  const server = Bun.listen({
+    unix: socketPath,
+    socket: {
+      data(socket, buf) {
+        for (const line of lines.splitChunk(buf)) {
+          const decoded = decodeMessage(line);
+
+          if (decoded.kind !== 'request') {
+            continue;
+          }
+
+          const ok = decoded.msg.m === 'fleet.restore' ? {} : lists.shift();
+
+          if (ok !== undefined) {
+            socket.write(encodeMessage({ v: PROTOCOL_V, id: decoded.msg.id, ok }));
+          }
+        }
+      },
     },
-  };
+  });
 
-  return { client, lists };
+  stack.defer(() => {
+    server.stop(true);
+  });
+
+  const client = await DaemonClient.open(socketPath);
+
+  stack.defer(() => {
+    client.stop();
+  });
+
+  const owned = stack.move();
+
+  return { client, lists, [Symbol.asyncDispose]: () => owned.disposeAsync() };
 }
 
 test('it reports the last answered list when the deadline overtakes a later list', async () => {
-  const ctx = setupTest();
+  await using ctx = await setupTest();
 
   ctx.lists.push({
     sessions: [
@@ -44,8 +80,8 @@ test('it reports the last answered list when the deadline overtakes a later list
   });
 });
 
-test('it rejects when the first list gets no answer before the deadline', () => {
-  const ctx = setupTest();
+test('it rejects when the first list gets no answer before the deadline', async () => {
+  await using ctx = await setupTest();
 
   const verdict = verifyRestoredFleet(ctx.client, 0.05, [
     { id: 's-good', name: 'good', exited: false, agentSessionID: null },
