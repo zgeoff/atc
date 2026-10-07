@@ -1,4 +1,4 @@
-import { expect, mock, onTestFinished, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -232,16 +232,12 @@ test('it rejects a message without text as bad_args', async () => {
 test('it lists a session the fleet restore has not reached yet as waiting to restore', async () => {
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), name: 'b', cwd: paths.dir }),
       ]);
-
-      await seed.stop();
 
       return { adapter: buildMockAgentAdapter({ takesMessages: true }) };
     },
@@ -261,16 +257,12 @@ test('it lists a session the fleet restore has not reached yet as waiting to res
 test('it queues a message for a session waiting to restore', async () => {
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      const seed = await StateStore.open(paths.dbPath);
-
-      onTestFinished(() => seed.stop());
+      await using seed = await StateStore.open(paths.dbPath);
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
       ]);
-
-      await seed.stop();
 
       return { adapter: buildMockAgentAdapter({ takesMessages: true }) };
     },

@@ -2,7 +2,6 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { createConnection } from 'node:net';
 import { basename, join } from 'node:path';
 import { z } from 'zod';
 import { DaemonClient } from '../client/daemon-client';
@@ -11,7 +10,7 @@ import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { runTool } from '../mcp/run-tool';
 import { DaemonError } from '../protocol/daemon-error';
 import { encodeCursor } from '../protocol/encode-cursor';
-import { PROTOCOL_V, encodeMessage } from '../protocol/protocol';
+import { PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import { collectPrincipals } from '../shared/collect-principals';
 import { collectTargets } from '../shared/collect-targets';
@@ -20,6 +19,7 @@ import { buildStubAttentionAdapter } from '../test-utils/build-stub-attention-ad
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { buildStubHostHold } from '../test-utils/build-stub-host-hold';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
+import { startStubStalledClient } from '../test-utils/start-stub-stalled-client';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { trySendRequest } from '../test-utils/try-send-request';
 import { waitFor } from '../test-utils/wait-for';
@@ -1018,7 +1018,76 @@ test('it lists a principal only the fleet entries of sessions on targets it may 
   expect(listed).toStrictEqual({ fleet: [expect.objectContaining({ sessionID: shown })] });
 });
 
-test('it keeps the events and messages of a hidden session from a principal whose exited session holds the same agent session id', async () => {
+test('it keeps the events of a hidden session from a principal whose exited session holds the same agent session id', async () => {
+  const harnesses: string[] = [];
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildStubAttentionAdapter(),
+        targets: buildStubTargets(targets.targets, { spawned: harnesses }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({
+          narrow: { targets: ['local'] },
+          wide: { targets: ['local', 'box'] },
+        }).principals,
+      };
+    },
+  });
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const earlier = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'local',
+    resume: agentSessionID,
+  });
+
+  await daemon.client.sendRequest('session.kill', {
+    session: getRecord(earlier, 'session')['id'],
+  });
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  await daemon.sendHookLines({
+    atcId: hidden,
+    event: 'Notification',
+    payload: {
+      session_id: agentSessionID,
+      message: 'box-only detail',
+    },
+  });
+
+  await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'box secret message',
+  });
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain('box secret message');
+  });
+
+  const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
+
+  expect(read).toStrictEqual({ events: [], more: false, cursor: expect.anything() });
+});
+
+test('it keeps the messages of a hidden session from a principal whose exited session holds the same agent session id', async () => {
   const harnesses: string[] = [];
 
   await using daemon = await startTestDaemon({
@@ -1082,8 +1151,6 @@ test('it keeps the events and messages of a hidden session from a principal whos
     expect(JSON.stringify(owner)).toContain('box secret message');
   });
 
-  const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
-
   const answered = await trySendRequest(
     () => daemon.client.sendRequest('message.get', { message: sent['message'] }, 'narrow'),
     String(sent['message']),
@@ -1094,11 +1161,76 @@ test('it keeps the events and messages of a hidden session from a principal whos
     'no-such-message',
   );
 
-  expect(read).toStrictEqual({ events: [], more: false, cursor: expect.anything() });
   expect(answered).toStrictEqual(unknown);
 });
 
-test('it keeps the events and messages of a hidden session from a principal whose live session resumes the same agent session', async () => {
+test('it keeps the events of a hidden session from the full trail of a principal whose live session resumes the same agent session', async () => {
+  const harnesses: string[] = [];
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildStubAttentionAdapter(),
+        targets: buildStubTargets(targets.targets, { spawned: harnesses }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({
+          narrow: { targets: ['local'] },
+          wide: { targets: ['local', 'box'] },
+        }).principals,
+      };
+    },
+  });
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    'narrow',
+  );
+
+  await daemon.sendHookLines({
+    atcId: hidden,
+    event: 'Notification',
+    payload: {
+      session_id: agentSessionID,
+      message: 'box-only detail',
+    },
+  });
+
+  await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'box secret message',
+  });
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain('box secret message');
+  });
+
+  const all = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
+
+  expect(JSON.stringify(all)).not.toInclude('box');
+  expect(JSON.stringify(all)).not.toInclude(hidden);
+});
+
+test('it keeps the events of a hidden session from the trail a principal reads for its own session that resumes the same agent session', async () => {
   const harnesses: string[] = [];
 
   await using daemon = await startTestDaemon({
@@ -1148,6 +1280,75 @@ test('it keeps the events and messages of a hidden session from a principal whos
     },
   });
 
+  await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'box secret message',
+  });
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain('box secret message');
+  });
+
+  const filtered = await daemon.client.sendRequest(
+    'events.read',
+    { session: shown, waitMs: 0 },
+    'narrow',
+  );
+
+  expect(JSON.stringify(filtered)).not.toInclude('box');
+});
+
+test('it keeps the messages of a hidden session from a principal whose live session resumes the same agent session', async () => {
+  const harnesses: string[] = [];
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildStubAttentionAdapter(),
+        targets: buildStubTargets(targets.targets, { spawned: harnesses }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({
+          narrow: { targets: ['local'] },
+          wide: { targets: ['local', 'box'] },
+        }).principals,
+      };
+    },
+  });
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    'narrow',
+  );
+
+  await daemon.sendHookLines({
+    atcId: hidden,
+    event: 'Notification',
+    payload: {
+      session_id: agentSessionID,
+      message: 'box-only detail',
+    },
+  });
+
   const sent = await daemon.client.sendRequest('session.message', {
     session: hidden,
     from: 'owner',
@@ -1160,14 +1361,6 @@ test('it keeps the events and messages of a hidden session from a principal whos
     expect(JSON.stringify(owner)).toContain('box secret message');
   });
 
-  const all = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
-
-  const filtered = await daemon.client.sendRequest(
-    'events.read',
-    { session: shown, waitMs: 0 },
-    'narrow',
-  );
-
   const answered = await trySendRequest(
     () => daemon.client.sendRequest('message.get', { message: sent['message'] }, 'narrow'),
     String(sent['message']),
@@ -1178,12 +1371,73 @@ test('it keeps the events and messages of a hidden session from a principal whos
     'no-such-message',
   );
 
+  expect(answered).toStrictEqual(unknown);
+});
+
+test('it keeps the activity of a hidden session out of the last activity of a principal session that resumes the same agent session', async () => {
+  const harnesses: string[] = [];
+
+  await using daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildStubAttentionAdapter(),
+        targets: buildStubTargets(targets.targets, { spawned: harnesses }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({
+          narrow: { targets: ['local'] },
+          wide: { targets: ['local', 'box'] },
+        }).principals,
+      };
+    },
+  });
+
+  const agentSessionID = `a-${randomUUID()}`;
+
+  const moved = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'box',
+    resume: agentSessionID,
+  });
+
+  const hidden = String(getRecord(moved, 'session')['id']);
+
+  const own = await daemon.client.sendRequest(
+    'session.spawn',
+    { cwd: daemon.dir, target: 'local', resume: agentSessionID },
+    'narrow',
+  );
+
+  const shown = String(getRecord(own, 'session')['id']);
+
+  await daemon.sendHookLines({
+    atcId: hidden,
+    event: 'Notification',
+    payload: {
+      session_id: agentSessionID,
+      message: 'box-only detail',
+    },
+  });
+
+  await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    from: 'owner',
+    text: 'box secret message',
+  });
+
+  await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    expect(JSON.stringify(owner)).toContain('box secret message');
+  });
+
   const got = await daemon.client.sendRequest('session.get', { session: shown }, 'narrow');
 
-  expect(JSON.stringify(all)).not.toInclude('box');
-  expect(JSON.stringify(all)).not.toInclude(hidden);
-  expect(JSON.stringify(filtered)).not.toInclude('box');
-  expect(answered).toStrictEqual(unknown);
   expect(got['lastActivityAt']).toBe(getRecord(own, 'session')['createdAt']);
 });
 
@@ -2333,37 +2587,9 @@ test('it reads the first of many large reports a principal may see while another
 
   onTestFinished(() => caller.stop());
 
-  // A connection that reads its handshake answer and then holds its next
-  // read on a promise that never resolves, so whatever the daemon sends it
-  // backs up.
-  const held = Promise.withResolvers<void>();
-  const reads: unknown[] = [];
-  const slow = createConnection(daemon.socketPath);
-
-  onTestFinished(() => {
-    slow.destroy();
-  });
-
-  slow.write(
-    encodeMessage({
-      v: PROTOCOL_V,
-      id: 1,
-      m: 'daemon.hello',
-      p: { client: 'atc/test-build', auth: { scheme: 'none' } },
-    }),
-  );
-
-  void (async () => {
-    for await (const chunk of slow) {
-      reads.push(chunk);
-
-      await held.promise;
-    }
-  })();
-
-  await waitFor(() => {
-    expect(reads).toBeArrayOfSize(1);
-  });
+  // A connection that reads its handshake answer and then stops reading, so
+  // whatever the daemon sends it backs up.
+  using slow = await startStubStalledClient(daemon.socketPath, 'atc/test-build');
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -2394,7 +2620,7 @@ test('it reads the first of many large reports a principal may see while another
     { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
   );
 
-  expect(reads).toBeArrayOfSize(1);
+  expect(slow.chunks).toBeArrayOfSize(1);
 
   expect(read.structured).toMatchObject({
     events: [{ kind: 'report', session: shown, text: '0'.padEnd(60_000, 'x'), complete: true }],

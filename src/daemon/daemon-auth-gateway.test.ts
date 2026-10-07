@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
@@ -194,9 +194,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
   // the daemon is stopped.
   await ctx.stop();
 
-  const store = await StateStore.open(ctx.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(ctx.dbPath);
 
   await store.writeFleet([
     buildMockFleetEntry({
@@ -233,9 +231,7 @@ test('it restores a local session of a gateway with auth without starting its ha
   // the daemon is stopped.
   await ctx.stop();
 
-  const store = await StateStore.open(ctx.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(ctx.dbPath);
 
   await store.writeFleet([
     buildMockFleetEntry({

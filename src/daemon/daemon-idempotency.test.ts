@@ -8,6 +8,8 @@ import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { buildStubSoftKillProvider } from '../test-utils/build-stub-soft-kill-provider';
 import { createStubFailingAgentAdapter } from '../test-utils/create-stub-failing-agent-adapter';
 import { getOnlyEffectRef } from '../test-utils/get-only-effect-ref';
@@ -107,9 +109,7 @@ test('it answers a spawn retried after an interrupted run with outcome_unknown a
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => seed.stop());
+  await using seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -147,9 +147,7 @@ test('it refuses a spawn retried after an interrupted run whose session reached 
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => seed.stop());
+  await using seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -161,13 +159,11 @@ test('it refuses a spawn retried after an interrupted run whose session reached 
   });
 
   await seed.writeFleet([
-    {
+    buildMockFleetEntry({
       sessionID: toSessionID('spawned-before-crash'),
-      name: 'work',
       cwd: daemon.dir,
-      agent: 'claude',
       exited: true,
-    },
+    }),
   ]);
 
   await seed.stop();
@@ -189,9 +185,7 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => seed.stop());
+  await using seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -203,13 +197,11 @@ test('it completes an interrupted spawn whose session reached the fleet and repl
   });
 
   await seed.writeFleet([
-    {
+    buildMockFleetEntry({
       sessionID: toSessionID('spawned-before-crash'),
-      name: 'work',
       cwd: daemon.dir,
-      agent: 'claude',
       exited: true,
-    },
+    }),
   ]);
 
   await seed.stop();
@@ -1382,9 +1374,7 @@ test('it completes an interrupted message whose row was written and replays it',
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => seed.stop());
+  await using seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',
@@ -1395,14 +1385,14 @@ test('it completes an interrupted message whose row was written and replays it',
     at: Date.now(),
   });
 
-  await seed.writeMessage({
-    id: toMessageID('m-written'),
-    atcID: toSessionID('s-gone'),
-    from: 'unknown',
-    text: 'hello',
-    status: 'accepted',
-    sentAt: Date.now(),
-  });
+  await seed.writeMessage(
+    buildMockMessageRecord({
+      id: toMessageID('m-written'),
+      atcID: toSessionID('s-gone'),
+      text: 'hello',
+      status: 'accepted',
+    }),
+  );
 
   await seed.stop();
   await daemon.restart();
@@ -1422,9 +1412,7 @@ test('it answers a message retried after an interrupted send with outcome_unknow
 
   await daemon.stop();
 
-  const seed = await StateStore.open(daemon.dbPath);
-
-  onTestFinished(() => seed.stop());
+  await using seed = await StateStore.open(daemon.dbPath);
 
   await seed.claimIdempotencyKey({
     principal: 'local',

@@ -11,6 +11,22 @@ test('it builds a sixteen-digit hex revision', () => {
   ).toMatch(/^[\da-f]{16}$/);
 });
 
+test('it builds the same revision for the same targets, default, and errors', () => {
+  expect(
+    buildConfigRevision(
+      [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
+      'box',
+      [{ scope: 'target', target: 'other', problem: 'bad' }],
+    ),
+  ).toBe(
+    buildConfigRevision(
+      [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
+      'box',
+      [{ scope: 'target', target: 'other', problem: 'bad' }],
+    ),
+  );
+});
+
 test('it builds another revision when a target identity changes', () => {
   expect(
     buildConfigRevision(

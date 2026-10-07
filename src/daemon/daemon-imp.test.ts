@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
@@ -255,10 +255,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
 
 test('it revives a remote harness with only the variables atc sets, never the daemon environment', async () => {
   await using ctx = await setupTest();
-
-  const store = await StateStore.open(ctx.dbPath);
-
-  onTestFinished(() => store.stop());
+  await using store = await StateStore.open(ctx.dbPath);
 
   await store.writeFleet([
     buildMockFleetEntry({

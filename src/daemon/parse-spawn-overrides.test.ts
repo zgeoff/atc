@@ -37,8 +37,9 @@ test('it accepts every model and effort value agents.list advertises as availabl
 
   const parsed = advertised.map((entry) => parseSpawnOverrides(entry.agent, entry.requested));
 
-  expect(advertised).toHaveLength(20);
-  expect(parsed.map((result) => result.ok)).toSatisfyAll((ok) => ok === true);
+  expect(parsed).toStrictEqual(
+    Array.from({ length: 20 }, () => ({ ok: true, overrides: expect.toBeObject() })),
+  );
 });
 
 test('it refuses as unsupported every option agents.list does not advertise as available', () => {
