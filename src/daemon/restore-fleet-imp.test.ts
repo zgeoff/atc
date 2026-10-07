@@ -15,8 +15,8 @@ import { SessionManager } from './sessions';
 
 // The fixed parts every restore test shares: a real state store, a recorder
 // of logged lines, and one target `box` on the imp provider over a stub
-// imp port. `defer` runs a teardown before the store and the provider go,
-// so a manager the test builds detaches first.
+// imp port. A manager the test holds after this setup detaches before the
+// store and the provider go.
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
@@ -47,9 +47,6 @@ async function setupTest() {
     targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
     logged: recorder.lines,
     log: recorder.log,
-    defer: (teardown: () => void) => {
-      owned.defer(teardown);
-    },
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
@@ -57,7 +54,7 @@ async function setupTest() {
 test('it restores the fleet with no terminal for each session whose agent is not signed in on its imp', async () => {
   await using ctx = await setupTest();
 
-  const mgr = new SessionManager(
+  using mgr = new SessionManager(
     buildMockAgentAdapter({ planAuthCheck: () => ['false'] }),
     ctx.store,
     ctx.statusPath,
@@ -66,10 +63,6 @@ test('it restores the fleet with no terminal for each session whose agent is not
   );
 
   mgr.log = ctx.log;
-
-  ctx.defer(() => {
-    mgr.detachAll();
-  });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
@@ -120,7 +113,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
       throw new Error('no plan for s-second');
     });
 
-  const mgr = new SessionManager(
+  using mgr = new SessionManager(
     buildMockAgentAdapter({ planGuestSpawn }),
     ctx.store,
     ctx.statusPath,
@@ -129,10 +122,6 @@ test('it logs a later session whose revive fails and leaves it without a termina
   );
 
   mgr.log = ctx.log;
-
-  ctx.defer(() => {
-    mgr.detachAll();
-  });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
@@ -185,7 +174,7 @@ test('it logs a first session whose revive fails with a plain error and still re
     throw new Error('no plan for s-first');
   });
 
-  const mgr = new SessionManager(
+  using mgr = new SessionManager(
     buildMockAgentAdapter({ planGuestSpawn }),
     ctx.store,
     ctx.statusPath,
@@ -194,10 +183,6 @@ test('it logs a first session whose revive fails with a plain error and still re
   );
 
   mgr.log = ctx.log;
-
-  ctx.defer(() => {
-    mgr.detachAll();
-  });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({

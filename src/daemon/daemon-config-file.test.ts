@@ -420,11 +420,7 @@ test('it refuses input to a restored local session without running a turn when t
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
@@ -761,11 +757,7 @@ test.each([
 
     await using daemon = await startTestDaemon({
       options: async (paths) => {
-        await using stack = new AsyncDisposableStack();
-
-        const store = await StateStore.open(paths.dbPath);
-
-        stack.defer(() => store.stop());
+        await using store = await StateStore.open(paths.dbPath);
 
         await store.writeFleet([
           buildMockFleetEntry({
@@ -804,11 +796,7 @@ test('it gives a principal legacy rights over a restored local session when no c
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
@@ -850,11 +838,7 @@ test.each([
 
     await using daemon = await startTestDaemon({
       options: async (paths) => {
-        await using stack = new AsyncDisposableStack();
-
-        const store = await StateStore.open(paths.dbPath);
-
-        stack.defer(() => store.stop());
+        await using store = await StateStore.open(paths.dbPath);
 
         await store.writeFleet([
           buildMockFleetEntry({
@@ -893,11 +877,7 @@ test('it hides a restored local session from a principal when the config path is
 
   await using daemon = await startTestDaemon({
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),

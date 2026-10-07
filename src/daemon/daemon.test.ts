@@ -478,11 +478,7 @@ test('it spawns claude when a spawn omits agent after another agent was last use
   await using ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeLastUsedAgent('grok');
 

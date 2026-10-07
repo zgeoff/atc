@@ -16,11 +16,7 @@ test('it keeps the last-used agent when a restored session reports its start', a
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-last-used-',
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeFleet([buildMockFleetEntry({ sessionID, cwd: paths.dir, agent: 'grok' })]);
       await store.writeLastUsedAgent('claude');
@@ -54,11 +50,7 @@ test('it writes the last-used agent when a spawned session reports its start', a
   await using daemon = await startTestDaemon({
     prefix: 'atc-daemon-last-used-',
     options: async (paths) => {
-      await using stack = new AsyncDisposableStack();
-
-      const store = await StateStore.open(paths.dbPath);
-
-      stack.defer(() => store.stop());
+      await using store = await StateStore.open(paths.dbPath);
 
       await store.writeLastUsedAgent('claude');
 
