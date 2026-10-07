@@ -110,15 +110,13 @@ test('it parses a SessionRenamed event', () => {
 });
 
 test('it parses a SessionRemoved event', () => {
-  const raw: EventMsg = { v: 4, ev: 'SessionRemoved', s: 's-1' };
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent({ v: 4, ev: 'SessionRemoved', s: 's-1' });
 
   expect(event).toStrictEqual({ ev: 'SessionRemoved', s: 's-1' });
 });
 
 test('it parses a SessionResized event', () => {
-  const raw: EventMsg = { v: 4, ev: 'SessionResized', s: 's-1', cols: 80, rows: 24 };
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent({ v: 4, ev: 'SessionResized', s: 's-1', cols: 80, rows: 24 });
 
   expect(event).toStrictEqual({ ev: 'SessionResized', s: 's-1', cols: 80, rows: 24 });
 });
@@ -143,8 +141,7 @@ test('it parses a SessionOutput event', () => {
 });
 
 test('it parses a SessionDesync event', () => {
-  const raw: EventMsg = { v: 4, ev: 'SessionDesync', s: 's-1', dropped: 512 };
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent({ v: 4, ev: 'SessionDesync', s: 's-1', dropped: 512 });
 
   expect(event).toStrictEqual({ ev: 'SessionDesync', s: 's-1', dropped: 512 });
 });
@@ -171,8 +168,12 @@ test('it parses a PermissionRequested event', () => {
 });
 
 test('it parses a PermissionResolved event', () => {
-  const raw: EventMsg = { v: 4, ev: 'PermissionResolved', request: 'r-1', decision: 'allow' };
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent({
+    v: 4,
+    ev: 'PermissionResolved',
+    request: 'r-1',
+    decision: 'allow',
+  });
 
   expect(event).toStrictEqual({ ev: 'PermissionResolved', request: 'r-1', decision: 'allow' });
 });
@@ -192,15 +193,13 @@ test('it still parses a known event that carries extra fields', () => {
 });
 
 test('it misses on an unknown event kind instead of throwing', () => {
-  const raw: EventMsg = { v: 4, ev: 'session.teleported', s: 's-1' };
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent({ v: 4, ev: 'session.teleported', s: 's-1' });
 
   expect(event).toBeNull();
 });
 
 test('it misses on a known event kind with a missing required field', () => {
-  const raw: EventMsg = { v: 4, ev: 'SessionRenamed', s: 's-1', namedBy: 'agent' };
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent({ v: 4, ev: 'SessionRenamed', s: 's-1', namedBy: 'agent' });
 
   expect(event).toBeNull();
 });

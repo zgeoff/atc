@@ -4,6 +4,12 @@ import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectDirs, findFuzzyScore, pickMatches } from './dirs';
 
+function setupTest() {
+  const tmp = setupTempDir('atc-dirs-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
 test.each([
   ['vers', 'vrs'],
   ['atc-worktree', 'atcw'],
@@ -52,53 +58,53 @@ test('#pickMatches drops candidates the filter cannot fuzzy-match', () => {
 });
 
 test('#collectDirs lists the working directory first, then history, roots, and zoxide, without repeats', () => {
-  using temp = setupTempDir('atc-dirs-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'cwd'));
-  mkdirSync(join(temp.dir, 'recent'));
-  mkdirSync(join(temp.dir, 'root', 'app'), { recursive: true });
-  mkdirSync(join(temp.dir, 'visited'));
+  mkdirSync(join(ctx.dir, 'cwd'));
+  mkdirSync(join(ctx.dir, 'recent'));
+  mkdirSync(join(ctx.dir, 'root', 'app'), { recursive: true });
+  mkdirSync(join(ctx.dir, 'visited'));
 
   const dirs = collectDirs({
-    cwd: join(temp.dir, 'cwd'),
-    recent: [join(temp.dir, 'recent'), join(temp.dir, 'cwd')],
-    roots: [join(temp.dir, 'root')],
-    zoxide: [join(temp.dir, 'visited'), join(temp.dir, 'recent')],
+    cwd: join(ctx.dir, 'cwd'),
+    recent: [join(ctx.dir, 'recent'), join(ctx.dir, 'cwd')],
+    roots: [join(ctx.dir, 'root')],
+    zoxide: [join(ctx.dir, 'visited'), join(ctx.dir, 'recent')],
   });
 
   expect(dirs).toStrictEqual([
-    join(temp.dir, 'cwd'),
-    join(temp.dir, 'recent'),
-    join(temp.dir, 'root', 'app'),
-    join(temp.dir, 'visited'),
+    join(ctx.dir, 'cwd'),
+    join(ctx.dir, 'recent'),
+    join(ctx.dir, 'root', 'app'),
+    join(ctx.dir, 'visited'),
   ]);
 });
 
 test('#collectDirs drops a directory that no longer exists', () => {
-  using temp = setupTempDir('atc-dirs-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'kept'));
+  mkdirSync(join(ctx.dir, 'kept'));
 
   const dirs = collectDirs({
-    cwd: join(temp.dir, 'kept'),
-    recent: [join(temp.dir, 'gone')],
+    cwd: join(ctx.dir, 'kept'),
+    recent: [join(ctx.dir, 'gone')],
     roots: [],
     zoxide: [],
   });
 
-  expect(dirs).toStrictEqual([join(temp.dir, 'kept')]);
+  expect(dirs).toStrictEqual([join(ctx.dir, 'kept')]);
 });
 
 test('#collectDirs falls back to the home directory when every source is empty', () => {
-  using temp = setupTempDir('atc-dirs-');
+  using ctx = setupTest();
 
   const dirs = collectDirs({
-    cwd: join(temp.dir, 'gone'),
+    cwd: join(ctx.dir, 'gone'),
     recent: [],
     roots: [],
     zoxide: [],
-    home: join(temp.dir, 'home'),
+    home: join(ctx.dir, 'home'),
   });
 
-  expect(dirs).toStrictEqual([join(temp.dir, 'home')]);
+  expect(dirs).toStrictEqual([join(ctx.dir, 'home')]);
 });

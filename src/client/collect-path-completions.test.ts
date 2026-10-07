@@ -4,88 +4,94 @@ import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectPathCompletions } from './collect-path-completions';
 
+function setupTest() {
+  const tmp = setupTempDir('atc-complete-');
+
+  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+}
+
 test('it lists every child directory after a trailing slash, the parent first', () => {
-  using temp = setupTempDir('atc-complete-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'beta'));
-  mkdirSync(join(temp.dir, 'alpha'));
-  writeFileSync(join(temp.dir, 'readme.md'), '');
+  mkdirSync(join(ctx.dir, 'beta'));
+  mkdirSync(join(ctx.dir, 'alpha'));
+  writeFileSync(join(ctx.dir, 'readme.md'), '');
 
-  expect(collectPathCompletions(`${temp.dir}/`, '/cwd', '/home/u')).toStrictEqual([
-    temp.dir,
-    join(temp.dir, 'alpha'),
-    join(temp.dir, 'beta'),
+  expect(collectPathCompletions(`${ctx.dir}/`, '/cwd', '/home/u')).toStrictEqual([
+    ctx.dir,
+    join(ctx.dir, 'alpha'),
+    join(ctx.dir, 'beta'),
   ]);
 });
 
 test('it narrows to children whose names start with the last segment, case-insensitively', () => {
-  using temp = setupTempDir('atc-complete-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'Projects'));
-  mkdirSync(join(temp.dir, 'prose'));
-  mkdirSync(join(temp.dir, 'music'));
+  mkdirSync(join(ctx.dir, 'Projects'));
+  mkdirSync(join(ctx.dir, 'prose'));
+  mkdirSync(join(ctx.dir, 'music'));
 
-  expect(collectPathCompletions(`${temp.dir}/pr`, '/cwd', '/home/u')).toStrictEqual([
-    join(temp.dir, 'Projects'),
-    join(temp.dir, 'prose'),
+  expect(collectPathCompletions(`${ctx.dir}/pr`, '/cwd', '/home/u')).toStrictEqual([
+    join(ctx.dir, 'Projects'),
+    join(ctx.dir, 'prose'),
   ]);
 });
 
 test('it puts an exact directory match ahead of the longer names it prefixes', () => {
-  using temp = setupTempDir('atc-complete-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'atc-docs'));
-  mkdirSync(join(temp.dir, 'atc'));
+  mkdirSync(join(ctx.dir, 'atc-docs'));
+  mkdirSync(join(ctx.dir, 'atc'));
 
-  expect(collectPathCompletions(`${temp.dir}/atc`, '/cwd', '/home/u')).toStrictEqual([
-    join(temp.dir, 'atc'),
-    join(temp.dir, 'atc-docs'),
+  expect(collectPathCompletions(`${ctx.dir}/atc`, '/cwd', '/home/u')).toStrictEqual([
+    join(ctx.dir, 'atc'),
+    join(ctx.dir, 'atc-docs'),
   ]);
 });
 
 test('it leaves hidden directories out when the segment does not start with a dot', () => {
-  using temp = setupTempDir('atc-complete-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, '.worktrees'));
-  mkdirSync(join(temp.dir, 'src'));
+  mkdirSync(join(ctx.dir, '.worktrees'));
+  mkdirSync(join(ctx.dir, 'src'));
 
-  expect(collectPathCompletions(`${temp.dir}/`, '/cwd', '/home/u')).toStrictEqual([
-    temp.dir,
-    join(temp.dir, 'src'),
+  expect(collectPathCompletions(`${ctx.dir}/`, '/cwd', '/home/u')).toStrictEqual([
+    ctx.dir,
+    join(ctx.dir, 'src'),
   ]);
 });
 
 test('it shows hidden directories when the segment starts with a dot', () => {
-  using temp = setupTempDir('atc-complete-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, '.worktrees'));
-  mkdirSync(join(temp.dir, 'src'));
+  mkdirSync(join(ctx.dir, '.worktrees'));
+  mkdirSync(join(ctx.dir, 'src'));
 
-  expect(collectPathCompletions(`${temp.dir}/.w`, '/cwd', '/home/u')).toStrictEqual([
-    join(temp.dir, '.worktrees'),
+  expect(collectPathCompletions(`${ctx.dir}/.w`, '/cwd', '/home/u')).toStrictEqual([
+    join(ctx.dir, '.worktrees'),
   ]);
 });
 
 test('it completes a tilde path under the given home', () => {
-  using temp = setupTempDir('atc-complete-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'home', 'projects'), { recursive: true });
-  mkdirSync(join(temp.dir, 'cwd', 'projects'), { recursive: true });
+  mkdirSync(join(ctx.dir, 'home', 'projects'), { recursive: true });
+  mkdirSync(join(ctx.dir, 'cwd', 'projects'), { recursive: true });
 
   expect(
-    collectPathCompletions('~/pro', join(temp.dir, 'cwd'), join(temp.dir, 'home')),
-  ).toStrictEqual([join(temp.dir, 'home', 'projects')]);
+    collectPathCompletions('~/pro', join(ctx.dir, 'cwd'), join(ctx.dir, 'home')),
+  ).toStrictEqual([join(ctx.dir, 'home', 'projects')]);
 });
 
 test('it completes a relative path under the given working directory', () => {
-  using temp = setupTempDir('atc-complete-');
+  using ctx = setupTest();
 
-  mkdirSync(join(temp.dir, 'home', 'api'), { recursive: true });
-  mkdirSync(join(temp.dir, 'cwd', 'api'), { recursive: true });
+  mkdirSync(join(ctx.dir, 'home', 'api'), { recursive: true });
+  mkdirSync(join(ctx.dir, 'cwd', 'api'), { recursive: true });
 
-  expect(
-    collectPathCompletions('./a', join(temp.dir, 'cwd'), join(temp.dir, 'home')),
-  ).toStrictEqual([join(temp.dir, 'cwd', 'api')]);
+  expect(collectPathCompletions('./a', join(ctx.dir, 'cwd'), join(ctx.dir, 'home'))).toStrictEqual([
+    join(ctx.dir, 'cwd', 'api'),
+  ]);
 });
 
 test('it completes nothing for input that is not a path', () => {
