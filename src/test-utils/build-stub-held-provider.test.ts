@@ -1,15 +1,18 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import type { HarnessSpec } from '../daemon/execution-provider';
 import { buildStubHeldProvider } from './build-stub-held-provider';
+import { setupTempDir } from './setup-temp-dir';
 
-test('it holds a host preparation until its host is released', () => {
+function setupTest() {
+  return setupTempDir('atc-stub-held-provider-');
+}
+
+test('it records the host of each preparation in the order it began', () => {
   const stub = buildStubHeldProvider();
-  const preparing = stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
 
-  expect({ prepares: stub.prepares, state: Bun.peek.status(preparing) }).toStrictEqual({
-    prepares: ['h1'],
-    state: 'pending',
-  });
+  void stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
+  void stub.provider.prepareHost({ host: 'h2', daemonID: 'd1' });
+  expect(stub.prepares).toStrictEqual(['h1', 'h2']);
 });
 
 test('it finishes a held host preparation once its host is released', async () => {
@@ -23,18 +26,21 @@ test('it finishes a held host preparation once its host is released', async () =
   expect(settled).toStrictEqual([{ status: 'fulfilled', value: undefined }]);
 });
 
-test('it keeps holding the preparation of a host not yet released', () => {
+test('it holds the preparation of a host not yet released after an earlier one finishes', async () => {
   const stub = buildStubHeldProvider();
-
-  void stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
   const second = stub.provider.prepareHost({ host: 'h2', daemonID: 'd1' });
+  const first = stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
 
   stub.release('h1');
+
+  await first;
 
   expect(Bun.peek.status(second)).toBe('pending');
 });
 
 test('it records each harness it starts', () => {
+  using ctx = setupTest();
+
   const stub = buildStubHeldProvider();
 
   const spec: HarnessSpec = {
@@ -42,7 +48,7 @@ test('it records each harness it starts', () => {
     host: 's1',
     bin: 'true',
     args: [],
-    cwd: '/',
+    cwd: ctx.dir,
     env: {},
     cols: 80,
     rows: 24,

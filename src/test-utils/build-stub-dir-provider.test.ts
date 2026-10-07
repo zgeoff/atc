@@ -2,14 +2,12 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
-import { FixtureDirProvider } from './fixture-dir-provider';
+import { buildStubDirProvider } from './build-stub-dir-provider';
 import { setupTempDir } from './setup-temp-dir';
 
 // A temp directory the provider's transfers and commands run in.
 function setupTest() {
-  const tmp = setupTempDir('atc-fixture-dir-');
-
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return setupTempDir('atc-stub-dir-provider-');
 }
 
 test('it unpacks a transferred archive into the directory it is given and records it', async () => {
@@ -20,7 +18,7 @@ test('it unpacks a transferred archive into the directory it is given and record
 
   const archive = await $`tar -c -f - -C ${join(ctx.dir, 'src')} .`.arrayBuffer();
 
-  const provider = new FixtureDirProvider();
+  const provider = buildStubDirProvider();
 
   await provider.transferArchive(new Uint8Array(archive), join(ctx.dir, 'host', 'ws'));
 
@@ -34,7 +32,7 @@ test('it unpacks a transferred archive into the directory it is given and record
 test('it runs a command in its working directory and records it', async () => {
   using ctx = setupTest();
 
-  const provider = new FixtureDirProvider();
+  const provider = buildStubDirProvider();
 
   const result = await provider.runCommand({ argv: ['pwd'], cwd: ctx.dir });
 
@@ -50,7 +48,7 @@ test('it runs the after-transfer step on the unpacked directory before the trans
 
   const archive = await $`tar -c -f - -C ${join(ctx.dir, 'src')} .`.arrayBuffer();
 
-  const provider = new FixtureDirProvider({
+  const provider = buildStubDirProvider({
     afterTransfer: async (dir) => {
       await Bun.write(join(dir, 'hello.txt'), 'changed\n');
     },
@@ -62,7 +60,7 @@ test('it runs the after-transfer step on the unpacked directory before the trans
 });
 
 test('it declares the capabilities it is told it lacks as missing', () => {
-  const provider = new FixtureDirProvider({ lacking: ['transfer', 'run'] });
+  const provider = buildStubDirProvider({ lacking: ['transfer', 'run'] });
 
   expect(provider.capabilities).toStrictEqual({
     spawn: true,
@@ -81,8 +79,7 @@ test('it declares the capabilities it is told it lacks as missing', () => {
 test('it rejects an archive tar cannot unpack', () => {
   using ctx = setupTest();
 
-  const provider = new FixtureDirProvider();
-
+  const provider = buildStubDirProvider();
   const transfer = provider.transferArchive(new Uint8Array([1, 2, 3]), join(ctx.dir, 'ws'));
 
   expect(transfer).rejects.toThrowWithMessage(
@@ -92,7 +89,7 @@ test('it rejects an archive tar cannot unpack', () => {
 });
 
 test('it refuses to suspend a host', () => {
-  const provider = new FixtureDirProvider();
+  const provider = buildStubDirProvider();
 
   expect(provider.suspendHost('h1')).rejects.toThrowWithMessage(
     Error,
@@ -101,7 +98,7 @@ test('it refuses to suspend a host', () => {
 });
 
 test('it refuses to destroy a host', () => {
-  const provider = new FixtureDirProvider();
+  const provider = buildStubDirProvider();
 
   expect(provider.destroyHost('h1')).rejects.toThrowWithMessage(
     Error,
@@ -112,7 +109,7 @@ test('it refuses to destroy a host', () => {
 test('it starts a harness on a local terminal and records its spec', async () => {
   using ctx = setupTest();
 
-  const provider = new FixtureDirProvider();
+  const provider = buildStubDirProvider();
 
   const spec = {
     session: 's1',

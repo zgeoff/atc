@@ -2,6 +2,10 @@ import { expect, test } from 'bun:test';
 import { buildStubHostProvider } from './build-stub-host-provider';
 import { setupTempDir } from './setup-temp-dir';
 
+function setupTest() {
+  return setupTempDir('atc-stub-host-');
+}
+
 test('it declares every capability of a local terminal plus sleeping and destroying a host', () => {
   expect(buildStubHostProvider().capabilities).toStrictEqual({
     spawn: true,
@@ -18,11 +22,11 @@ test('it declares every capability of a local terminal plus sleeping and destroy
 });
 
 test('it runs a command on this machine', () => {
-  using tmp = setupTempDir('atc-stub-host-');
+  using ctx = setupTest();
 
   expect(
-    buildStubHostProvider().runCommand({ argv: ['pwd'], cwd: tmp.dir }),
-  ).resolves.toStrictEqual({ exitCode: 0, stdout: `${tmp.dir}\n`, stderr: '' });
+    buildStubHostProvider().runCommand({ argv: ['pwd'], cwd: ctx.dir }),
+  ).resolves.toStrictEqual({ exitCode: 0, stdout: `${ctx.dir}\n`, stderr: '' });
 });
 
 test('it puts a host to sleep without doing anything', () => {

@@ -371,7 +371,7 @@ const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
   // composer's raw-mode reads need a real terminal to run in
   'bun-pty': [
     'src/daemon/local-pty-provider.ts',
-    'src/test-utils/fixture-imp-port.ts',
+    'src/test-utils/build-stub-imp-port.ts',
     'src/test-utils/start-tui-harness.ts',
     'src/test-utils/create-stub-composer.test.ts',
   ],

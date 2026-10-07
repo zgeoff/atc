@@ -86,13 +86,14 @@ test('it collects the delays of the timers neither run nor cancelled', () => {
   expect(scheduler.collectPendingDelays()).toStrictEqual([2000]);
 });
 
-test('it keeps a timer that already ran as run when it is cancelled after', () => {
+test('it leaves another pending timer of the same delay alone when a timer that ran is cancelled', () => {
   const scheduler = buildStubTimeoutScheduler();
   const cancel = scheduler.schedule(() => {}, 300);
 
+  scheduler.schedule(() => {}, 300);
   scheduler.runTimer(300);
 
   cancel();
 
-  expect(scheduler.collectPendingDelays()).toStrictEqual([]);
+  expect(scheduler.collectPendingDelays()).toStrictEqual([300]);
 });

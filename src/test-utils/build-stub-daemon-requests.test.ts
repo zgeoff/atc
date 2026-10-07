@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { buildStubClock } from './build-stub-clock';
 import { buildStubDaemonRequests } from './build-stub-daemon-requests';
 
 test('it collects the params of every request sent under a method in the order they were sent', () => {
@@ -121,7 +122,18 @@ test('it resolves an answer only once the client has reacted to it', async () =>
 });
 
 test('it rejects an answer when no request under the method is sent before the wait ends', () => {
-  const daemon = buildStubDaemonRequests({ countReactions: () => 0, timeoutMs: 50 });
+  const clock = buildStubClock(0);
+
+  const daemon = buildStubDaemonRequests({
+    countReactions: () => 0,
+    timeoutMs: 50,
+    now: clock.now,
+    wait: (ms) => {
+      clock.advance(ms);
+
+      return Promise.resolve();
+    },
+  });
 
   void daemon.sendRequest('sources.list');
 
@@ -132,7 +144,18 @@ test('it rejects an answer when no request under the method is sent before the w
 });
 
 test('it rejects an answer the client never reacts to before the wait ends', () => {
-  const daemon = buildStubDaemonRequests({ countReactions: () => 0, timeoutMs: 50 });
+  const clock = buildStubClock(0);
+
+  const daemon = buildStubDaemonRequests({
+    countReactions: () => 0,
+    timeoutMs: 50,
+    now: clock.now,
+    wait: (ms) => {
+      clock.advance(ms);
+
+      return Promise.resolve();
+    },
+  });
 
   void daemon.sendRequest('agents.list');
 

@@ -21,11 +21,9 @@ test('it fires none of the event hooks', () => {
 
   runner({ cwd: '/work', prompt: 'go', claudeBin: 'claude' }, { onOutput, onDone, onNeedsYou });
 
-  expect([onOutput.mock.calls, onDone.mock.calls, onNeedsYou.mock.calls]).toStrictEqual([
-    [],
-    [],
-    [],
-  ]);
+  expect(onOutput).not.toHaveBeenCalled();
+  expect(onDone).not.toHaveBeenCalled();
+  expect(onNeedsYou).not.toHaveBeenCalled();
 });
 
 test('it returns a handle whose stop returns without throwing', () => {

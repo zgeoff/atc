@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
@@ -17,7 +17,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
 
   const daemon = await startTestDaemon({
     options: (paths) => {

@@ -41,7 +41,7 @@ interface FailingAgentAdapterConfig {
  * returns the pid that read took. `countPlans` reads how many spawns the
  * adapter has planned.
  */
-export function buildStubFailingAgentAdapter(config: FailingAgentAdapterConfig) {
+export function createStubFailingAgentAdapter(config: FailingAgentAdapterConfig) {
   let planned = 0;
   let readsToFail = 0;
   let readyPID: number | null = null;

@@ -16,6 +16,12 @@ interface StubDaemonRequestsOptions {
   // Milliseconds each wait for a request or a reaction lasts before it
   // rejects; five seconds when absent.
   readonly timeoutMs?: number;
+
+  // The clock each wait reads its deadline from; the wall clock when absent.
+  readonly now?: () => number;
+
+  // Waits out the pause between a wait's checks; a real sleep when absent.
+  readonly wait?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -27,7 +33,8 @@ interface StubDaemonRequestsOptions {
  * count `countReactions` reads. A wait that outlasts `timeoutMs` rejects:
  * with `no <method> request is waiting for an answer` when nothing was
  * sent under the method, and with `nothing reacted to the <method> answer`
- * when the client never reacted. `collectSent` returns the params of every
+ * when the client never reacted. A test that takes the `now` and `wait`
+ * of a stub clock steps that timeout without waiting it out. `collectSent` returns the params of every
  * request sent under a method, answered or not, in the order they were
  * sent.
  */
@@ -36,7 +43,12 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
 
   const answered = new Set<StubRequest>();
 
-  const waitOptions = { timeoutMs: options.timeoutMs ?? 5000 };
+  const waitOptions = {
+    timeoutMs: options.timeoutMs ?? 5000,
+    now: options.now ?? Date.now,
+    wait: options.wait ?? Bun.sleep,
+  };
+
   const countAll = () => sent.length + options.countReactions();
 
   const resolveAndWait = async (request: Readonly<StubRequest>, value: DaemonAnswer) => {

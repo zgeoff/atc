@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
 function setupTest() {
-  const port = new FixtureImpPort();
+  const port = buildStubImpPort();
 
   return {
     port,

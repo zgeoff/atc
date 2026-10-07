@@ -85,11 +85,11 @@
           // the daemon's per-session bookkeeping: screen, timers, and
           // headless-run handle, mutated in place by the daemon
           { "from": "file", "name": "SessionRuntime" },
-          // the fixture imp port's own records of each imp, process, and
-          // connection, mutated in place as the fixture runs them
-          { "from": "file", "name": "FixtureImp" },
-          { "from": "file", "name": "FixtureProcess" },
-          { "from": "file", "name": "FixtureConnection" },
+          // the stub imp port's own records of each imp, process, and
+          // connection, mutated in place as the stub runs them
+          { "from": "file", "name": "StubImp" },
+          { "from": "file", "name": "StubProcess" },
+          { "from": "file", "name": "StubConnection" },
           // the imp provider's record of one imp, and a live connection to
           // an imp session, both changed in place as the imp runs
           { "from": "file", "name": "ImpHost" },

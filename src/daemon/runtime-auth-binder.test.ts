@@ -2,8 +2,8 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { EffectRemainsError } from './effect-remains-error';
@@ -25,7 +25,7 @@ async function setupTest() {
 
   stack.defer(() => store.stop());
 
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 

@@ -7,7 +7,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
@@ -24,7 +24,7 @@ import type { RestoreSettled } from './restore-fleet';
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
   const settles: RestoreSettled[] = [];
 
   const daemon = await startTestDaemon({

@@ -1,9 +1,12 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
-import { DaemonError } from '../protocol/daemon-error';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
+
+function setupTest() {
+  return setupTempDir('atc-stub-provider-');
+}
 
 test('it builds a provider with the capabilities of a local pseudo-terminal', () => {
   expect(buildStubExecutionProvider()).toStrictEqual({
@@ -42,13 +45,13 @@ test('it applies the kind and capability overrides on top of the defaults', () =
 });
 
 test('it runs a command on this machine', () => {
-  using tmp = setupTempDir('atc-stub-provider-');
+  using ctx = setupTest();
 
   const provider = buildStubExecutionProvider();
 
-  expect(provider.runCommand({ argv: ['pwd'], cwd: tmp.dir })).resolves.toStrictEqual({
+  expect(provider.runCommand({ argv: ['pwd'], cwd: ctx.dir })).resolves.toStrictEqual({
     exitCode: 0,
-    stdout: `${tmp.dir}\n`,
+    stdout: `${ctx.dir}\n`,
     stderr: '',
   });
 });
@@ -109,7 +112,7 @@ test('it suspends and destroys again once a failure is cleared', async () => {
 });
 
 test('it reports a harness spec and starts the harness on a local terminal', async () => {
-  using tmp = setupTempDir('atc-stub-provider-');
+  using ctx = setupTest();
 
   const onSpawn = mock(() => {});
   const provider = buildStubExecutionProvider({ onSpawn });
@@ -119,7 +122,7 @@ test('it reports a harness spec and starts the harness on a local terminal', asy
     host: 's1',
     bin: 'sh',
     args: ['-c', 'exit 7'],
-    cwd: tmp.dir,
+    cwd: ctx.dir,
     env: {},
     cols: 80,
     rows: 24,
@@ -127,6 +130,10 @@ test('it reports a harness spec and starts the harness on a local terminal', asy
 
   const exited = Promise.withResolvers<number>();
   const harness = provider.spawnHarness(spec);
+
+  onTestFinished(() => {
+    harness.kill();
+  });
 
   harness.onExit((exit) => {
     exited.resolve(exit.exitCode);
@@ -139,7 +146,7 @@ test('it reports a harness spec and starts the harness on a local terminal', asy
 });
 
 test('it aborts the spawn with the error the spawn report throws, before the local start runs', () => {
-  using tmp = setupTempDir('atc-stub-provider-');
+  using ctx = setupTest();
 
   const failure = new Error('the harness could not start');
 
@@ -158,7 +165,7 @@ test('it aborts the spawn with the error the spawn report throws, before the loc
       host: 's1',
       bin: 'sh',
       args: ['-c', 'exit 0'],
-      cwd: tmp.dir,
+      cwd: ctx.dir,
       env: {},
       cols: 80,
       rows: 24,
@@ -169,7 +176,7 @@ test('it aborts the spawn with the error the spawn report throws, before the loc
 });
 
 test('it refuses a spec that requires a broker through the local start when the spawn report passes', () => {
-  using tmp = setupTempDir('atc-stub-provider-');
+  using ctx = setupTest();
 
   const provider = buildStubExecutionProvider();
 
@@ -179,7 +186,7 @@ test('it refuses a spec that requires a broker through the local start when the 
       host: 's1',
       bin: 'sh',
       args: ['-c', 'exit 0'],
-      cwd: tmp.dir,
+      cwd: ctx.dir,
       env: {},
       cols: 80,
       rows: 24,
@@ -187,16 +194,16 @@ test('it refuses a spec that requires a broker through the local start when the 
     });
 
   expect(spawn).toThrow(
-    new DaemonError(
-      'auth_target_unsupported',
-      "the daemon's own machine has no credential broker to start the harness behind",
-      { provider: 'local-pty' },
-    ),
+    expect.objectContaining({
+      code: 'auth_target_unsupported',
+      message: "the daemon's own machine has no credential broker to start the harness behind",
+      data: { provider: 'local-pty' },
+    }),
   );
 });
 
-test('it starts a harness that runs until it is killed', async () => {
-  using tmp = setupTempDir('atc-stub-provider-');
+test('it streams the output of a harness it starts on a local terminal', async () => {
+  using ctx = setupTest();
 
   const provider = buildStubExecutionProvider();
 
@@ -205,7 +212,7 @@ test('it starts a harness that runs until it is killed', async () => {
     host: 's1',
     bin: 'sh',
     args: ['-c', 'echo harness-up; exec sleep 30'],
-    cwd: tmp.dir,
+    cwd: ctx.dir,
     env: {},
     cols: 80,
     rows: 24,

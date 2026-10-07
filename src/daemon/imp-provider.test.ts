@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import type { HarnessHandle } from './execution-provider';
 import { ImpProvider } from './imp-provider';
@@ -17,7 +17,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-imp-provider-'));
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
   const owned = stack.move();
 
   return {

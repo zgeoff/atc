@@ -1,5 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
+import type { ExecutionProvider } from '../daemon/execution-provider';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 import { buildTargetOptionsFromConfig } from './build-target-options-from-config';
 
@@ -7,9 +8,13 @@ test('it gives each parsed target the provider its kind builds for its id', () =
   const local = buildStubExecutionProvider({ kind: 'local-pty' });
   const box = buildStubExecutionProvider({ kind: 'local-pty' });
 
+  const factory = mock<(id: string) => ExecutionProvider>()
+    .mockReturnValueOnce(local)
+    .mockReturnValueOnce(box);
+
   const options = buildTargetOptionsFromConfig(
     { targets: { local: { provider: 'local-pty' }, box: { provider: 'local-pty' } } },
-    new Map([['local-pty', (id: string) => (id === 'local' ? local : box)]]),
+    new Map([['local-pty', factory]]),
   );
 
   expect(options).toStrictEqual({
@@ -32,6 +37,10 @@ test('it gives each parsed target the provider its kind builds for its id', () =
     defaultTarget: 'local',
     targetErrors: [],
   });
+
+  expect(factory).toHaveBeenCalledTimes(2);
+  expect(factory).toHaveBeenNthCalledWith(1, 'local');
+  expect(factory).toHaveBeenNthCalledWith(2, 'box');
 });
 
 test('it leaves a target whose kind no factory serves without a provider', () => {

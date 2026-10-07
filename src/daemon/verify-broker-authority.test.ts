@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { startStubImpdInfo } from '../test-utils/start-stub-impd-info';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { ImpClientPort } from './imp-client-port';
@@ -12,7 +12,7 @@ import { verifyBrokerAuthority } from './verify-broker-authority';
 function setupTest() {
   using stack = new DisposableStack();
 
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
   const impd = stack.use(startStubImpdInfo());
   const owned = stack.move();
 

@@ -1,8 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ImpSessionStarted } from '../daemon/imp-port';
-import { FixtureImpPort } from './fixture-imp-port';
+import { buildMockImpIdentity } from './build-mock-imp-identity';
+import { buildStubImpPort } from './build-stub-imp-port';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -12,8 +13,8 @@ import { waitFor } from './wait-for';
 function setupTest() {
   using stack = new DisposableStack();
 
-  const tmp = stack.use(setupTempDir('atc-fixture-imp-'));
-  const port = stack.use(new FixtureImpPort());
+  const tmp = stack.use(setupTempDir('atc-stub-imp-port-'));
+  const port = stack.use(buildStubImpPort());
   const owned = stack.move();
 
   return {
@@ -1161,37 +1162,20 @@ test('it reports the features of an old daemon without the grant and exec requir
 test('it answers tokens.whoami with the identity a test set', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  const set = buildMockImpIdentity({ grantable: ['glm'] });
+
+  ctx.port.setIdentity(set);
 
   const identity = await ctx.port.readIdentity();
 
-  expect(identity).toStrictEqual({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
-
+  expect(identity).toBe(set);
   expect(ctx.port.calls).toStrictEqual(['tokens.whoami']);
 });
 
 test('it grants a secret to an imp within the patterns once however often it is granted', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1209,13 +1193,7 @@ test('it grants a secret to an imp within the patterns once however often it is 
 test('it lists each secret with the imps it is granted to', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1262,13 +1240,7 @@ test('it lists the sign-in state of an oauth secret', async () => {
 test('it records each grant call it receives in order', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1305,13 +1277,7 @@ test('it refuses a grant of a secret the token may not grant', async () => {
 test('it refuses a grant to an imp outside the token patterns', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1328,13 +1294,7 @@ test('it refuses a grant to an imp outside the token patterns', async () => {
 test('it refuses a grant from a token without the manage scope', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-reader',
-    scope: 'read',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ scope: 'read', grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1351,13 +1311,7 @@ test('it refuses a grant from a token without the manage scope', async () => {
 test('it refuses a grant of a secret impd does not hold', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -1370,13 +1324,7 @@ test('it refuses a grant of a secret impd does not hold', async () => {
 test('it refuses a second secret for a host another grant covers', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm', 'glm-b'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm', 'glm-b'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1398,13 +1346,7 @@ test('it refuses a second secret for a host another grant covers', async () => {
 test('it revokes a held grant', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1421,13 +1363,7 @@ test('it revokes a held grant', async () => {
 test('it reports a revoke of a grant already revoked as nothing removed', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1445,13 +1381,7 @@ test('it reports a revoke of a grant already revoked as nothing removed', async 
 test('it lists no grant of a revoked secret', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1469,13 +1399,7 @@ test('it lists no grant of a revoked secret', async () => {
 test('it fails every grant removal with the code it is given while removals fail', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1495,13 +1419,7 @@ test('it fails every grant removal with the code it is given while removals fail
 test('it removes grants again once the removal failure is cleared', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1521,13 +1439,7 @@ test('it removes grants again once the removal failure is cleared', async () => 
 test('it drops every grant of a rebound secret', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1546,13 +1458,7 @@ test('it drops every grant of a rebound secret', async () => {
 test('it stops the token granting a rebound secret', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1571,13 +1477,7 @@ test('it stops the token granting a rebound secret', async () => {
 test('it lets the token grant a rebound secret again once its identity is set anew', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1586,14 +1486,7 @@ test('it lets the token grant a rebound secret again once its identity is set an
   await ctx.port.createImp({ name: 'atc-s1' });
 
   ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]);
-
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   await ctx.port.createGrant('atc-s1', 'glm');
 
@@ -1605,13 +1498,7 @@ test('it lets the token grant a rebound secret again once its identity is set an
 test('it drops every grant of a removed secret', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1630,13 +1517,7 @@ test('it drops every grant of a removed secret', async () => {
 test('it stops the token granting a secret made again under a removed name', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1659,13 +1540,7 @@ test('it stops the token granting a secret made again under a removed name', asy
 test('it drops the grants of a destroyed imp', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1729,13 +1604,7 @@ test('it refuses a start that requires the broker on an imp without a grant and 
 test('it refuses a start that requires the broker while the broker fails, though the imp holds a grant', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1777,13 +1646,7 @@ test('it refuses a start that requires the broker while the broker fails, though
 test('it runs a start that requires the broker on an imp with a grant and a working broker', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1841,13 +1704,7 @@ test('it runs a start that requires nothing while the broker fails', async () =>
 test('it refuses a start that requires the broker and sets a broker variable, with the variable as the detail', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1890,13 +1747,7 @@ test('it refuses a start that requires the broker and sets a broker variable, wi
 test('it lets an attach that requires the broker join a session that started with it required', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1957,13 +1808,7 @@ test('it lets an attach that requires the broker join a session that started wit
 test('it refuses an attach that requires the broker to a session that started without it required', async () => {
   using ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -2825,4 +2670,441 @@ test('it delivers a signal a connection sends to the session process', async () 
   const outcome = await connection.outcome;
 
   expect(outcome).toStrictEqual({ kind: 'exit', code: 1, signal: null, offset: 0 });
+});
+
+test('it answers a resume from another generation with the running one and data from the ring start', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const opened = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['bash', '-c', 'printf abc; sleep 30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBe(3);
+  });
+
+  opened.close();
+
+  const started: ImpSessionStarted[] = [];
+  const chunks: Uint8Array[] = [];
+
+  ctx.port.openSession(
+    {
+      kind: 'attach',
+      name: 'imp-a',
+      session: 's1',
+      cols: 80,
+      rows: 24,
+      resumeFrom: { executionGeneration: 'f'.repeat(32), offset: 2 },
+      wake: false,
+    },
+    {
+      onStarted: (s) => {
+        started.push(s);
+      },
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await waitFor(() => {
+    expect(Buffer.concat(chunks).toString()).toBe('abc');
+  });
+
+  expect(started).toStrictEqual([
+    {
+      created: false,
+      output: {
+        continuity: 'offsets',
+        bootId: ctx.port.getBootID('imp-a'),
+        executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+        bufferStart: 0,
+        end: 3,
+        offset: 0,
+        prelude: 0,
+        coldBoots: [
+          { bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() },
+        ],
+        resume: {
+          kind: 'generation_changed',
+          executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+          firstOffset: 0,
+        },
+      },
+    },
+  ]);
+});
+
+test('it starts a fresh attach on a wrapped ring at the next line, after the mode prelude', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  // 300000 bytes of output wrap the 262144-byte ring, and the terminal
+  // writes the line break as two bytes, so the run ends at offset 300006.
+  ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [
+        'bash',
+        '-c',
+        String.raw`head -c 300000 /dev/zero | tr '\0' a; printf '\nTAIL'; sleep 30`,
+      ],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBe(300_006);
+  });
+
+  const started: ImpSessionStarted[] = [];
+  const chunks: Uint8Array[] = [];
+
+  ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
+    {
+      onStarted: (s) => {
+        started.push(s);
+      },
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await waitFor(() => {
+    expect(Buffer.concat(chunks).toString()).toBe('\u001B[0mTAIL');
+  });
+
+  expect(started).toStrictEqual([
+    {
+      created: false,
+      output: {
+        continuity: 'offsets',
+        bootId: ctx.port.getBootID('imp-a'),
+        executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+        bufferStart: 300_006 - 262_144,
+        end: 300_006,
+        offset: 300_002,
+        prelude: 4,
+        coldBoots: [
+          { bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() },
+        ],
+      },
+    },
+  ]);
+});
+
+test('it finds no undelivered exit for a session whose process still runs', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['bash', '-c', 'printf up; sleep 30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBe(2);
+  });
+
+  expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toBeNull();
+});
+
+test('it delivers an exit no connection received to the next attach, with the generation it ended', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  // The process waits for the go file, so it exits only after the start's
+  // connection has closed.
+  const opened = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sh', '-c', 'while [ ! -e go ]; do sleep 0.01; done; exit 3'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBe(0);
+  });
+
+  opened.close();
+
+  const generation = ctx.port.getGeneration('imp-a', 's1');
+
+  writeFileSync(join(ctx.dir, 'go'), '');
+
+  await waitFor(() => {
+    expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toStrictEqual({ code: 3 });
+  });
+
+  const started: ImpSessionStarted[] = [];
+
+  const attached = ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
+    {
+      onStarted: (s) => {
+        started.push(s);
+      },
+      onOutput: () => {},
+    },
+  );
+
+  const outcome = await attached.outcome;
+
+  expect({ started, outcome }).toStrictEqual({
+    started: [
+      {
+        created: false,
+        output: {
+          continuity: 'offsets',
+          bootId: ctx.port.getBootID('imp-a'),
+          executionGeneration: generation,
+          bufferStart: 0,
+          end: 0,
+          offset: 0,
+          prelude: 0,
+          coldBoots: [
+            { bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() },
+          ],
+          previous: { executionGeneration: generation, end: 0, exitCode: 3 },
+        },
+      },
+    ],
+    outcome: { kind: 'exit', code: 3, signal: null, offset: 0 },
+  });
+});
+
+test('it answers an attach after the exit was delivered with NO_SESSION and the generation that ended', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  // The process waits for the go file, so it exits only after the start's
+  // connection has closed.
+  const opened = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sh', '-c', 'while [ ! -e go ]; do sleep 0.01; done; exit 3'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBe(0);
+  });
+
+  opened.close();
+
+  const generation = ctx.port.getGeneration('imp-a', 's1');
+
+  writeFileSync(join(ctx.dir, 'go'), '');
+
+  await waitFor(() => {
+    expect(ctx.port.findUndeliveredExit('imp-a', 's1')).toStrictEqual({ code: 3 });
+  });
+
+  await ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
+    { onStarted: () => {}, onOutput: () => {} },
+  ).outcome;
+
+  const attached = ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: false },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await attached.outcome;
+
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'NO_SESSION',
+    message: 'no session s1',
+    data: {
+      bootId: ctx.port.getBootID('imp-a'),
+      coldBoots: [{ bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() }],
+      previous: { executionGeneration: generation, end: 0, exitCode: 3 },
+    },
+  });
+});
+
+test('it resizes the terminal of the session a connection holds', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const chunks: Uint8Array[] = [];
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['bash', '-c', 'trap "stty size" WINCH; printf ready; while :; do sleep 0.05; done'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {},
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await waitFor(() => {
+    expect(Buffer.concat(chunks).toString()).toBe('ready');
+  });
+
+  connection.resize(100, 30);
+
+  await waitFor(() => {
+    expect(Buffer.concat(chunks).toString()).toBe('ready30 100\r\n');
+  });
+});
+
+test('it runs a start that requires the broker once a broker failure stops', async () => {
+  using ctx = setupTest();
+
+  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await ctx.port.createImp({ name: 'atc-s1' });
+  await ctx.port.createGrant('atc-s1', 'glm');
+
+  ctx.port.startBrokerFailure();
+  ctx.port.stopBrokerFailure();
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's1',
+      argv: ['printf', 'ran'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
+});
+
+test('it sends nothing for a session whose gate throws', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['true'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+    () => {
+      throw new Error('the gate broke');
+    },
+  );
+
+  const outcome = await connection.outcome;
+
+  expect({ outcome, requests: ctx.port.sessionRequests }).toStrictEqual({
+    outcome: { kind: 'closed', reason: 'closed before sending', closeCode: 1000 },
+    requests: [],
+  });
+});
+
+test('it starts a session with a relative working directory under the guest home once the test gives one', async () => {
+  using ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  mkdirSync(join(ctx.dir, 'work'));
+
+  ctx.port.setHomeDir(ctx.dir);
+
+  const chunks: Uint8Array[] = [];
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['pwd'],
+      env: {},
+      cwd: 'work',
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {},
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await connection.outcome;
+
+  expect(Buffer.concat(chunks).toString()).toBe(`${join(ctx.dir, 'work')}\r\n`);
 });

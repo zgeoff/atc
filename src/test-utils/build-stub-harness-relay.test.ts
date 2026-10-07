@@ -10,10 +10,8 @@ test('it delivers a sent value to every line listener as one JSON line', () => {
   stub.relay.onLine(second);
   stub.sendLine({ v: 1, id: 'r1', op: 'status.read' });
 
-  expect([first.mock.calls, second.mock.calls]).toStrictEqual([
-    [['{"v":1,"id":"r1","op":"status.read"}']],
-    [['{"v":1,"id":"r1","op":"status.read"}']],
-  ]);
+  expect(first).toHaveBeenCalledExactlyOnceWith('{"v":1,"id":"r1","op":"status.read"}');
+  expect(second).toHaveBeenCalledExactlyOnceWith('{"v":1,"id":"r1","op":"status.read"}');
 });
 
 test('it records each written line parsed, in the order it was written', async () => {
@@ -49,7 +47,8 @@ test('it runs every close listener when the guest hangs up', () => {
   stub.relay.onClose(second);
   stub.hangUp();
 
-  expect([first.mock.calls.length, second.mock.calls.length]).toStrictEqual([1, 1]);
+  expect(first).toHaveBeenCalledOnce();
+  expect(second).toHaveBeenCalledOnce();
 });
 
 test('it runs no close listener when the daemon closes the relay', () => {

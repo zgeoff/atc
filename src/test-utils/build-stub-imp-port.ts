@@ -36,41 +36,24 @@ const RING_BYTES = 262_144;
 // The mode bytes a fresh attach sends ahead of a ring that has wrapped.
 const PRELUDE = '\u001B[0m';
 
-// The PATH every fixture process runs with: a guest's own, never the
+// The PATH every stub process runs with: a guest's own, never the
 // daemon's.
 const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
-/**
- * An in-process stand-in for impd behind the imp port. Each imp is a set of
- * real `bun-pty` processes on this machine; a sleeping imp stops them with
- * SIGSTOP and a wake continues them, so a memory wake keeps each process
- * and its generation. Every session keeps an exact 262144-byte ring with
- * offsets, a fresh attach skips to the next line and sends a mode prelude,
- * and impd's refusals carry its codes and data: `LEASED`, `LEASE_NOT_HELD`,
- * `NO_SESSION`, `INVALID_STATE`, `INVALID_RESUME`, `NOT_FOUND`, `CONFLICT`,
- * and `FORBIDDEN`. Leases belong to principals; the port acts as
- * `principal`, and a test adds other owners' leases, cold boots, and
- * dropped sockets through the controls. Grants follow impd 0.27: the
- * caller's identity must reach the imp and, under imp patterns, list the
- * secret as grantable; a grant is idempotent, one secret per host, and a
- * destroyed imp or a rebound or removed secret takes its grants with it. A
- * start or an attach that requires the broker is refused with
- * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
- * while the broker fails or the imp holds no grant, when the start sets a
- * broker variable, and when it would join a process that started without
- * the broker required.
- */
 // A hold on the commands whose argv holds its text: entered resolves with
 // the argv of the first command it holds, and stop lets every command it
 // holds run. Disposing the hold stops it, so a test that holds it with
 // `using` after its daemon lets the daemon stop even when the test fails.
-interface FixtureCommandHold {
+interface StubCommandHold {
   readonly entered: Promise<string>;
   readonly stop: () => void;
   readonly [Symbol.dispose]: () => void;
 }
 
-export class FixtureImpPort implements ImpPort {
+/**
+ * The impd stand-in the factory below builds, one per call.
+ */
+class StubImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
   readonly calls: string[] = [];
 
@@ -195,7 +178,7 @@ export class FixtureImpPort implements ImpPort {
 
   private readonly principal: string;
 
-  private readonly imps = new Map<string, FixtureImp>();
+  private readonly imps = new Map<string, StubImp>();
 
   private readonly forwards = new Set<{ stop: () => void; stopRelays: () => void }>();
 
@@ -318,7 +301,7 @@ export class FixtureImpPort implements ImpPort {
       );
     }
 
-    const imp: FixtureImp = {
+    const imp: StubImp = {
       id: randomUUID(),
       name: spec.name,
       state: 'stopped',
@@ -504,7 +487,7 @@ export class FixtureImpPort implements ImpPort {
 
     const outcome = Promise.withResolvers<ImpSessionOutcome>();
 
-    const connection: FixtureConnection = {
+    const connection: StubConnection = {
       handlers,
       sent: 0,
       finished: false,
@@ -643,11 +626,11 @@ export class FixtureImpPort implements ImpPort {
   ): ImpReverseForward {
     this.calls.push(`reverse ${name} ${guestPath}`);
 
-    const server = Bun.listen<FixtureRelay>({
+    const server = Bun.listen<StubRelay>({
       unix: guestPath,
       socket: {
         open: (socket) => {
-          const relay: FixtureRelay = {
+          const relay: StubRelay = {
             dataListeners: [],
             closeListeners: [],
             unsent: new Uint8Array(0),
@@ -1047,7 +1030,7 @@ export class FixtureImpPort implements ImpPort {
    * stops. Throws while another hold is active, so no hold replaces one a
    * command still waits on.
    */
-  startCommandHold(match: string): FixtureCommandHold {
+  startCommandHold(match: string): StubCommandHold {
     if (this.commandHold !== null) {
       throw new Error(`a hold on ${this.commandHold.match} is still active`);
     }
@@ -1122,7 +1105,7 @@ export class FixtureImpPort implements ImpPort {
     return this.imps.get(name)?.state ?? null;
   }
 
-  // The names of the imps the fixture holds.
+  // The names of the imps the stub holds.
   collectImpNames(): string[] {
     return [...this.imps.keys()];
   }
@@ -1141,6 +1124,15 @@ export class FixtureImpPort implements ImpPort {
     }
 
     return proc.generation;
+  }
+
+  /**
+   * The exit a session's process left that no connection has received, or
+   * null while the process runs, once an attach delivered the exit, and for
+   * a session the imp does not hold.
+   */
+  findUndeliveredExit(name: string, session: string): { readonly code: number | null } | null {
+    return this.imps.get(name)?.sessions.get(session)?.exited ?? null;
   }
 
   // The offset after the last byte a session's running generation wrote.
@@ -1213,7 +1205,7 @@ export class FixtureImpPort implements ImpPort {
     }
   }
 
-  private getImp(name: string): FixtureImp {
+  private getImp(name: string): StubImp {
     const imp = this.imps.get(name);
 
     if (imp === undefined) {
@@ -1223,7 +1215,7 @@ export class FixtureImpPort implements ImpPort {
     return imp;
   }
 
-  private buildView(imp: FixtureImp): ImpView {
+  private buildView(imp: StubImp): ImpView {
     const live = [...imp.leases.values()].filter((lease) => lease.until > Date.now());
     const own = live.filter((lease) => lease.principal === this.principal);
     const others = live.filter((lease) => lease.principal !== this.principal);
@@ -1239,7 +1231,7 @@ export class FixtureImpPort implements ImpPort {
 
   // A sleeping imp wakes from memory with every process as it was; a
   // stopped one boots cold.
-  private updateAwake(imp: FixtureImp): void {
+  private updateAwake(imp: StubImp): void {
     if (imp.state === 'sleeping') {
       imp.state = 'running';
 
@@ -1251,7 +1243,7 @@ export class FixtureImpPort implements ImpPort {
     }
   }
 
-  private updateAsleep(imp: FixtureImp): void {
+  private updateAsleep(imp: StubImp): void {
     if (imp.state !== 'running') {
       return;
     }
@@ -1264,7 +1256,7 @@ export class FixtureImpPort implements ImpPort {
     }
   }
 
-  private bootCold(imp: FixtureImp, cause: ColdBootCause): void {
+  private bootCold(imp: StubImp, cause: ColdBootCause): void {
     for (const proc of imp.sessions.values()) {
       proc.connection?.finish({ kind: 'detached', reason: 'lost', offset: proc.end });
       proc.ended = true;
@@ -1285,7 +1277,7 @@ export class FixtureImpPort implements ImpPort {
     ].slice(0, 4);
   }
 
-  private answerSession(request: ImpSessionRequest, connection: FixtureConnection): void {
+  private answerSession(request: ImpSessionRequest, connection: StubConnection): void {
     if (connection.finished) {
       return;
     }
@@ -1392,9 +1384,9 @@ export class FixtureImpPort implements ImpPort {
   // start sets, or a running process that started without the broker
   // required, fails the requirement as impd's would.
   private findBrokerProblem(
-    imp: FixtureImp,
+    imp: StubImp,
     request: ImpSessionRequest,
-    running: FixtureProcess | undefined,
+    running: StubProcess | undefined,
   ): string | null {
     if (request.require?.includes('broker') !== true) {
       return null;
@@ -1432,7 +1424,7 @@ export class FixtureImpPort implements ImpPort {
     return posix.resolve(this.homeDir, cwd ?? '.');
   }
 
-  private startProcess(imp: FixtureImp, request: ImpSessionRequest): FixtureProcess | null {
+  private startProcess(imp: StubImp, request: ImpSessionRequest): StubProcess | null {
     if (request.kind !== 'start') {
       return null;
     }
@@ -1445,7 +1437,7 @@ export class FixtureImpPort implements ImpPort {
       env: { ...request.env },
     });
 
-    const proc: FixtureProcess = {
+    const proc: StubProcess = {
       pty,
       generation: randomBytes(16).toString('hex'),
       ring: new Uint8Array(0),
@@ -1504,10 +1496,10 @@ export class FixtureImpPort implements ImpPort {
   }
 
   private attachProcess(
-    imp: FixtureImp,
-    proc: FixtureProcess,
+    imp: StubImp,
+    proc: StubProcess,
     request: ImpSessionRequest,
-    connection: FixtureConnection,
+    connection: StubConnection,
     created: boolean,
   ): void {
     const bufferStart = proc.end - proc.ring.length;
@@ -1611,27 +1603,52 @@ export class FixtureImpPort implements ImpPort {
   }
 }
 
-interface FixtureLease {
+/**
+ * Builds an in-process stand-in for impd behind the imp port, calling impd
+ * as the principal, `token:atc` when absent. Each imp is a set of
+ * real `bun-pty` processes on this machine; a sleeping imp stops them with
+ * SIGSTOP and a wake continues them, so a memory wake keeps each process
+ * and its generation. Every session keeps an exact 262144-byte ring with
+ * offsets, a fresh attach skips to the next line and sends a mode prelude,
+ * and impd's refusals carry its codes and data: `LEASED`, `LEASE_NOT_HELD`,
+ * `NO_SESSION`, `INVALID_STATE`, `INVALID_RESUME`, `NOT_FOUND`, `CONFLICT`,
+ * and `FORBIDDEN`. Leases belong to principals; the port acts as
+ * `principal`, and a test adds other owners' leases, cold boots, and
+ * dropped sockets through the controls. Grants follow impd 0.27: the
+ * caller's identity must reach the imp and, under imp patterns, list the
+ * secret as grantable; a grant is idempotent, one secret per host, and a
+ * destroyed imp or a rebound or removed secret takes its grants with it. A
+ * start or an attach that requires the broker is refused with
+ * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
+ * while the broker fails or the imp holds no grant, when the start sets a
+ * broker variable, and when it would join a process that started without
+ * the broker required.
+ */
+export function buildStubImpPort(principal = 'token:atc'): StubImpPort {
+  return new StubImpPort(principal);
+}
+
+interface StubLease {
   readonly principal: string;
   readonly label: string;
   readonly until: number;
 }
 
-interface FixtureImp {
+interface StubImp {
   readonly id: string;
   readonly name: string;
   state: ImpState;
   bootId: string;
   coldBoots: ColdBoot[];
-  readonly leases: Map<string, FixtureLease>;
-  readonly sessions: Map<string, FixtureProcess>;
+  readonly leases: Map<string, StubLease>;
+  readonly sessions: Map<string, StubProcess>;
   readonly previous: Map<string, PreviousGeneration>;
 
   // The secrets granted to the imp.
   readonly grants: Set<string>;
 }
 
-interface FixtureProcess {
+interface StubProcess {
   readonly pty: IPty;
   readonly generation: string;
   ring: Uint8Array;
@@ -1640,22 +1657,22 @@ interface FixtureProcess {
 
   // Ended by a cold boot: its exit is never delivered.
   ended: boolean;
-  connection: FixtureConnection | null;
+  connection: StubConnection | null;
 
   // Whether its start required the broker, which an attach that requires
   // it needs.
   readonly requireBroker: boolean;
 }
 
-interface FixtureConnection {
+interface StubConnection {
   readonly handlers: ImpSessionHandlers;
   sent: number;
   finished: boolean;
-  process: FixtureProcess | null;
+  process: StubProcess | null;
   readonly finish: (outcome: ImpSessionOutcome) => void;
 }
 
-interface FixtureRelay {
+interface StubRelay {
   // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   readonly dataListeners: ((data: Uint8Array) => void)[];
   readonly closeListeners: (() => void)[];
@@ -1686,7 +1703,7 @@ function mergeTail(ring: Uint8Array, data: Uint8Array, limit: number): Uint8Arra
 
 // Calls a connection's handler as the imp client does: a handler that
 // throws ends the connection with a local error and closes it.
-function tryEmit(connection: FixtureConnection, emit: () => void): boolean {
+function tryEmit(connection: StubConnection, emit: () => void): boolean {
   try {
     emit();
 
@@ -1701,7 +1718,7 @@ function tryEmit(connection: FixtureConnection, emit: () => void): boolean {
   }
 }
 
-function findSessionName(imp: FixtureImp, proc: FixtureProcess): string {
+function findSessionName(imp: StubImp, proc: StubProcess): string {
   for (const [name, held] of imp.sessions) {
     if (held === proc) {
       return name;

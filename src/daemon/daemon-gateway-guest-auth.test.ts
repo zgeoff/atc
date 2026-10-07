@@ -7,7 +7,7 @@ import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
-import { FixtureImpPort } from '../test-utils/fixture-imp-port';
+import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -27,7 +27,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-gateway-guest-auth-'));
-  const port = stack.use(new FixtureImpPort());
+  const port = stack.use(buildStubImpPort());
 
   // Every brokered spawn checks that the token may manage atc imps and
   // grant glm, and that impd holds glm for api.z.ai as a bearer secret.

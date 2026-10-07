@@ -12,23 +12,24 @@ let template: Promise<string> | undefined;
  * its own; every copy holds the same daemon id, minted when the template was
  * migrated. The template sits in the test home, which the test script removes
  * on exit, under a name of its own per process, since parallel test processes
- * share that home.
+ * share that home. It rejects when `ATC_TEST_HOME` is unset, as it is
+ * outside the test script.
  */
 export async function createMigratedStateDB(dbPath: string): Promise<void> {
-  template ??= createTemplateStateDB();
-
-  const templatePath = await template;
-
-  copyFileSync(templatePath, dbPath);
-}
-
-async function createTemplateStateDB(): Promise<string> {
   const home = process.env['ATC_TEST_HOME'];
 
   if (home === undefined) {
     throw new Error('ATC_TEST_HOME is unset; run the tests through `bun run test`');
   }
 
+  template ??= createTemplateStateDB(home);
+
+  const templatePath = await template;
+
+  copyFileSync(templatePath, dbPath);
+}
+
+async function createTemplateStateDB(home: string): Promise<string> {
   const path = join(home, `migrated-state-${String(process.pid)}.db`);
 
   const store = await StateStore.open(path);

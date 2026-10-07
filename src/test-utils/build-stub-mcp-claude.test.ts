@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubMCPClaude } from './build-stub-mcp-claude';
 import { createStubBin } from './create-stub-bin';
@@ -69,6 +69,57 @@ test('it records its pid in the home', async () => {
   await proc.exited;
 
   expect(readFileSync(join(ctx.dir, 'stub-pids'), 'utf8')).toBe(`${proc.pid}\n`);
+});
+
+test('it reports nothing when the home holds the hold-start file', async () => {
+  using ctx = setupTest();
+
+  writeFileSync(join(ctx.dir, 'fake-claude-hold-start'), '');
+
+  const held = Bun.spawn([ctx.bin], {
+    env: {
+      HOME: ctx.dir,
+      PATH: '/usr/bin:/bin',
+      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SESSION_ID: 's-held',
+    },
+    stdin: 'pipe',
+    stdout: 'ignore',
+  });
+
+  onTestFinished(() => {
+    held.kill();
+  });
+
+  void held.stdin.end();
+
+  await held.exited;
+
+  // A run without the hold-start file reports after the held run has ended,
+  // so its line arrives after any line the held run sent.
+  rmSync(join(ctx.dir, 'fake-claude-hold-start'));
+
+  const sentinel = Bun.spawn([ctx.bin], {
+    env: {
+      HOME: ctx.dir,
+      PATH: '/usr/bin:/bin',
+      ATC_SOCKET: join(ctx.dir, 'report.sock'),
+      ATC_SESSION_ID: 's-sentinel',
+    },
+    stdout: 'ignore',
+  });
+
+  onTestFinished(() => {
+    sentinel.kill();
+  });
+
+  await waitFor(() => {
+    expect(ctx.lines).toBeArrayOfSize(1);
+  });
+
+  expect(ctx.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    expect.objectContaining({ atcId: 's-sentinel' }),
+  ]);
 });
 
 test('it stays up after reporting, echoing its input back until the input closes', async () => {

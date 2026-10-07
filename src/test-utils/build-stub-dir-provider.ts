@@ -11,11 +11,11 @@ import type {
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 
 // One provider operation, in the order the daemon called it.
-type FixtureCall =
+type StubDirCall =
   | { readonly op: 'transfer'; readonly dir: string; readonly bytes: number }
   | { readonly op: 'run'; readonly argv: readonly string[]; readonly cwd: string };
 
-interface FixtureDirOptions {
+interface StubDirOptions {
   // Capabilities the provider declares as missing.
   readonly lacking?: readonly ExecutionCapability[];
 
@@ -25,22 +25,16 @@ interface FixtureDirOptions {
 }
 
 /**
- * An execution provider for tests whose host is a directory tree the test
- * owns: a transfer unpacks the archive with tar into the directory it is
- * given, and a command runs as a child process in its working directory.
- * Paths pass through unchanged, so a test points them into its own temp
- * tree. Every transfer and command is recorded in `calls`. Harnesses start
- * on a local pseudo-terminal, and each one's spec is recorded in
- * `harnesses`.
+ * The directory-tree provider the factory below builds, one per call.
  */
-export class FixtureDirProvider implements ExecutionProvider {
+class StubDirProvider implements ExecutionProvider {
   readonly kind = 'fixture-dir';
 
   readonly remote = false;
 
   readonly capabilities: ExecutionCapabilities;
 
-  readonly calls: FixtureCall[] = [];
+  readonly calls: StubDirCall[] = [];
 
   // Every harness the provider started, as the daemon specified it.
   readonly harnesses: HarnessSpec[] = [];
@@ -49,7 +43,7 @@ export class FixtureDirProvider implements ExecutionProvider {
 
   private readonly terminals = new LocalPTYProvider();
 
-  constructor(options: FixtureDirOptions = {}) {
+  constructor(options: StubDirOptions = {}) {
     const lacking = new Set(options.lacking);
 
     this.capabilities = {
@@ -128,4 +122,18 @@ export class FixtureDirProvider implements ExecutionProvider {
     Promise.reject(new Error(`the fixture-dir provider cannot destroy host ${host}`));
 
   readonly dispose = (): void => {};
+}
+
+/**
+ * Builds an execution provider of kind `fixture-dir` for tests whose host is
+ * a directory tree the test owns: a transfer unpacks the archive with tar
+ * into the directory it is given, and a command runs as a child process in
+ * its working directory. Paths pass through unchanged, so a test points them
+ * into its own temp tree. Every transfer and command is recorded in `calls`.
+ * Harnesses start on a local pseudo-terminal, and each one's spec is
+ * recorded in `harnesses`. Suspending or destroying a host rejects, since
+ * the test's own tree neither sleeps nor goes away.
+ */
+export function buildStubDirProvider(options: StubDirOptions = {}): StubDirProvider {
+  return new StubDirProvider(options);
 }
