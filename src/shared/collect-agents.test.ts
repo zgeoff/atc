@@ -10,6 +10,27 @@ const PROFILES = collectAuthProfiles({
     scheme: 'bearer',
   },
   glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  codex: {
+    secret: 'codex-chatgpt',
+    kind: 'oauth',
+    host: 'chatgpt.com',
+    header: 'authorization',
+    scheme: 'bearer',
+  },
+  'codex-custom': {
+    secret: 'codex-static',
+    host: 'chatgpt.com',
+    header: 'authorization',
+    scheme: 'bearer',
+  },
+  'codex-raw': {
+    secret: 'codex-raw',
+    kind: 'oauth',
+    host: 'chatgpt.com',
+    header: 'x-token',
+    scheme: 'bearer',
+  },
+  github: { secret: 'github-imp-agents', kind: 'github' },
 }).profiles;
 
 test('it fills every default for the three ids that name a kind', () => {
@@ -266,6 +287,77 @@ test('it refuses a stock entry whose auth names a profile that sends no bearer h
   expect(result.errors).toStrictEqual([
     'agents.claude: auth needs a profile that sets a bearer authorization header for api.anthropic.com, where Claude Code sends its subscription token',
   ]);
+});
+
+test('it loads a codex entry whose auth signs it in through an oauth profile for chatgpt.com', () => {
+  const result = collectAgents({ codex: { auth: { profiles: ['codex', 'github'] } } }, PROFILES);
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'codex',
+        kind: 'codex',
+        label: 'Codex',
+        mark: 'c',
+        bin: 'codex',
+        args: [],
+        env: {},
+        auth: { profiles: ['codex', 'github'], placeholderEnv: {} },
+      },
+    ],
+    errors: [],
+  });
+});
+
+test.each([
+  [
+    'no oauth profile for chatgpt.com',
+    { profiles: ['github'] },
+    'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
+  ],
+  [
+    'a custom profile for chatgpt.com',
+    { profiles: ['codex-custom'] },
+    'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
+  ],
+  [
+    'an oauth profile with another header',
+    { profiles: ['codex-raw'] },
+    'agents.codex: auth needs an oauth profile that sets a bearer authorization header for chatgpt.com, where Codex sends its ChatGPT sign-in',
+  ],
+  [
+    'two profiles for chatgpt.com',
+    { profiles: ['codex', 'codex-custom'] },
+    'agents.codex: auth: profiles codex and codex-custom both send a credential to chatgpt.com',
+  ],
+  [
+    'an unknown profile',
+    { profiles: ['missing'] },
+    'agents.codex: auth: profile missing is selected, but authProfiles has no usable profile by that name',
+  ],
+  [
+    'an empty profiles array',
+    { profiles: [] },
+    'agents.codex: auth must be an object with a non-empty profiles array',
+  ],
+  [
+    'placeholderEnv',
+    { profiles: ['codex'], placeholderEnv: {} },
+    'agents.codex: auth.placeholderEnv cannot be set: atc fixes the endpoint and the sign-in of a Codex session',
+  ],
+])('it refuses a codex entry whose auth has %s', (_name, auth, error) => {
+  const result = collectAgents({ codex: { auth } }, PROFILES);
+
+  expect(result).toStrictEqual({ agents: [], errors: [error] });
+});
+
+test('it refuses auth on a grok entry', () => {
+  const result = collectAgents({ grok: { auth: { profiles: ['codex'] } } }, PROFILES);
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: ['agents.grok: auth is not valid for kind grok'],
+  });
 });
 
 test('it refuses apiKeyHelper on an entry without a baseURL', () => {

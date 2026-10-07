@@ -4,6 +4,7 @@ import type { GatewayAuth } from './check-gateway-auth';
 import type { AuthProfile } from './collect-auth-profiles';
 import { collectClaudeAuth } from './collect-claude-auth';
 import type { ClaudeMCPServer } from './collect-claude-auth';
+import { collectCodexAuth } from './collect-codex-auth';
 import { collectProfileEnvProblems } from './collect-profile-env-problems';
 import { isSubscriptionOverrideVariable } from './is-subscription-override-variable';
 import { isRecord } from './report';
@@ -20,7 +21,8 @@ type AgentKind = 'claude' | 'codex' | 'grok';
  * environment, and the backend and credential it runs against. A Claude entry
  * with a `baseURL` is a gateway; without one it is stock Claude, whose
  * `auth` holds profiles alone, for the subscription sign-in, and whose
- * `mcpServers` reach their hosts through those profiles.
+ * `mcpServers` reach their hosts through those profiles. A Codex entry's
+ * `auth` holds profiles alone too, for its ChatGPT sign-in.
  */
 export interface AgentEntry {
   readonly id: AgentID;
@@ -83,9 +85,21 @@ function isAgentKind(value: unknown): value is AgentKind {
   return KINDS.some((kind) => kind === value);
 }
 
-// The fields every kind takes, and the ones only a Claude entry takes.
+// The fields every kind takes, and the ones each kind takes beside them.
 const COMMON_FIELDS = new Set(['kind', 'label', 'mark', 'bin', 'args']);
-const CLAUDE_FIELDS = new Set(['settings', 'env', 'baseURL', 'apiKeyHelper', 'auth']);
+
+const KIND_FIELDS: Readonly<Record<AgentKind, ReadonlySet<string>>> = {
+  claude: new Set(['settings', 'env', 'baseURL', 'apiKeyHelper', 'auth']),
+  codex: new Set(['auth']),
+  grok: new Set(),
+};
+
+const KNOWN_FIELDS: ReadonlySet<string> = new Set([
+  ...COMMON_FIELDS,
+  ...KIND_FIELDS.claude,
+  ...KIND_FIELDS.codex,
+  ...KIND_FIELDS.grok,
+]);
 
 const DEFAULT_LABELS: Readonly<Record<AgentKind, string>> = {
   claude: 'Claude',
@@ -123,6 +137,10 @@ function parseAgentEntry(
   }
 
   const entry = buildEntry(id, found.kind, raw);
+
+  if (found.kind === 'codex') {
+    return readCodexAuth(entry, raw['auth'], authProfiles);
+  }
 
   if (found.kind !== 'claude') {
     return { entry };
@@ -168,13 +186,13 @@ function collectFieldProblems(raw: Readonly<Record<string, unknown>>, kind: Agen
   const problems: string[] = [];
 
   for (const [name, value] of Object.entries(raw)) {
-    if (CLAUDE_FIELDS.has(name) && kind !== 'claude') {
-      problems.push(`${name} is not valid for kind ${kind}`);
+    if (!KNOWN_FIELDS.has(name)) {
+      problems.push(`unknown field ${name}`);
       continue;
     }
 
-    if (!COMMON_FIELDS.has(name) && !CLAUDE_FIELDS.has(name)) {
-      problems.push(`unknown field ${name}`);
+    if (!COMMON_FIELDS.has(name) && !KIND_FIELDS[kind].has(name)) {
+      problems.push(`${name} is not valid for kind ${kind}`);
       continue;
     }
 
@@ -260,6 +278,27 @@ function buildEntry(
 // itself.
 function buildDefaultLabel(id: string, kind: AgentKind): string {
   return id === kind ? DEFAULT_LABELS[kind] : id;
+}
+
+// A Codex entry with the `auth` it holds, or every problem with that auth.
+// Codex takes no placeholder variable: atc writes the sign-in file the CLI
+// reads in place of a credential.
+function readCodexAuth(
+  entry: AgentEntry,
+  raw: unknown,
+  authProfiles: ReadonlyMap<string, AuthProfile>,
+): ParsedEntry {
+  if (raw === undefined) {
+    return { entry };
+  }
+
+  const collected = collectCodexAuth(raw, authProfiles);
+
+  if (collected.profiles === null) {
+    return { problems: [...collected.errors] };
+  }
+
+  return { entry: { ...entry, auth: { profiles: collected.profiles, placeholderEnv: {} } } };
 }
 
 interface ReadClaudeAuth {
