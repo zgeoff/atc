@@ -1,7 +1,9 @@
 import { expect, jest, onTestFinished, test } from 'bun:test';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonClient } from '../client/daemon-client';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { readReportTexts } from './read-report-texts';
+import { ReconnectingCaller } from './reconnecting-caller';
 
 test('it adds the whole text of each report to its event and passes the rest of the page through', async () => {
   const texts: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
@@ -144,11 +146,13 @@ test('it stops the page before the first report whose text would carry it past 6
 });
 
 test('it keeps a report whose text read fails with its preview and the refusal', async () => {
-  const caller = buildStubFleetCaller({
-    answer: (request) => {
-      throw new DaemonError('bad_args', `no report '${String(request.p?.['report'])}'`);
-    },
-  });
+  await using daemon = await startTestDaemon({ prefix: 'atc-read-report-texts-' });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
 
   const page = await readReportTexts(caller, {
     events: [

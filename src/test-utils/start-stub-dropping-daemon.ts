@@ -1,5 +1,11 @@
 import type { DaemonFeature } from '../protocol/daemon-features';
-import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
+import {
+  MAX_CHUNK,
+  MAX_LINE,
+  PROTOCOL_V,
+  decodeMessage,
+  encodeMessage,
+} from '../protocol/protocol';
 
 interface DroppingDaemonOptions {
   // The features the first handshake announces.
@@ -12,7 +18,7 @@ interface DroppingDaemonOptions {
 
 /**
  * A daemon on a unix socket whose connection drops mid-request: it answers
- * each handshake with the features the options give, ends the connection
+ * each handshake as a daemon does, announcing the features the options give, ends the connection
  * that carries the first request of any other method without answering it,
  * and answers every later one with a session `s-1`. `keys` records the
  * idempotency key each of those requests carried, `undefined` for one that
@@ -22,11 +28,18 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
   const keys: unknown[] = [];
   let hellos = 0;
 
-  const server = Bun.listen({
+  const server = Bun.listen<{ buffer: string }>({
     unix: socketPath,
     socket: {
+      open(socket) {
+        socket.data = { buffer: '' };
+      },
       data(socket, buf) {
-        for (const line of buf.toString().split('\n')) {
+        const lines = `${socket.data.buffer}${buf.toString()}`.split('\n');
+
+        socket.data.buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
           const decoded = decodeMessage(line);
 
           if (decoded.kind !== 'request') {
@@ -40,7 +53,16 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
               hellos === 1 ? options.features : (options.retryFeatures ?? options.features);
 
             socket.write(
-              encodeMessage({ v: PROTOCOL_V, id: decoded.msg.id, ok: { features: announced } }),
+              encodeMessage({
+                v: PROTOCOL_V,
+                id: decoded.msg.id,
+                ok: {
+                  daemon: 'atc/dropping-build',
+                  limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
+                  lastUsedAgent: 'claude',
+                  features: announced,
+                },
+              }),
             );
 
             continue;

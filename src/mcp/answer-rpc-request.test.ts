@@ -335,8 +335,6 @@ test.each([
   ['atc_message_get', { message: 'm-1', waitMs: 5000 }],
   ['atc_events_read', { session: 's-1' }],
   ['atc_agents_list', {}],
-  ['atc_session_spawn', { cwd: '/tmp', model: 'opus' }],
-  ['atc_session_spawn', { cwd: '/tmp', effort: 'high' }],
 ])(
   'it refuses %p called with %p with a restart hint when the connected daemon predates it, sending nothing',
   async (name, args) => {
@@ -351,6 +349,59 @@ test.each([
 
     const outcome = await answerRPCRequest(
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+      {
+        caller,
+        build: 'atc/test-build',
+        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      },
+    );
+
+    expect(outcome).toStrictEqual({
+      kind: 'reply',
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: expect.toStartWith('daemon_outdated: ') as string,
+            },
+          ],
+          isError: true,
+        },
+      },
+    });
+
+    expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+  },
+);
+
+test.each([
+  ['model', 'opus'],
+  ['effort', 'high'],
+])(
+  'it refuses a spawn with the %p option %p with a restart hint when the connected daemon predates it, sending nothing',
+  async (option, value) => {
+    using tmp = setupTempDir('atc-answer-rpc-');
+    using legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+
+    const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+      DaemonClient.open(path),
+    );
+
+    onTestFinished(() => caller.stop());
+
+    const outcome = await answerRPCRequest(
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'atc_session_spawn',
+          arguments: { cwd: tmp.dir, [option]: value },
+        },
+      },
       {
         caller,
         build: 'atc/test-build',
@@ -457,54 +508,7 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
   expect(JSON.stringify(outcome)).not.toInclude('the host registered');
 });
 
-test('it lists the agents tool without an output schema when the connected daemon predates spawn options', async () => {
-  using tmp = setupTempDir('atc-answer-rpc-');
-
-  const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
-  });
-
-  onTestFinished(() => {
-    legacy.stop();
-  });
-
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
-    DaemonClient.open(path),
-  );
-
-  onTestFinished(() => caller.stop());
-
-  const outcome = await answerRPCRequest(
-    { jsonrpc: '2.0', id: 1, method: 'tools/list' },
-    {
-      caller,
-      build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
-    },
-  );
-
-  if (outcome.kind !== 'reply') {
-    throw new Error('no reply');
-  }
-
-  const tools: unknown = getRecord(outcome.body, 'result')['tools'];
-
-  if (!Array.isArray(tools)) {
-    throw new TypeError('no tools array');
-  }
-
-  const agentsTool: unknown = tools.find(
-    (tool) => isRecord(tool) && tool['name'] === 'atc_agents_list',
-  );
-
-  if (!isRecord(agentsTool)) {
-    throw new Error('atc_agents_list is not listed');
-  }
-
-  expect(agentsTool).not.toContainKey('outputSchema');
-});
-
-test('it returns the agents a daemon without spawn options lists, without spawn options', async () => {
+test('it lists the agents tool without an output schema to match the agents a daemon without spawn options returns', async () => {
   using tmp = setupTempDir('atc-answer-rpc-');
 
   const legacy = startLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
@@ -548,41 +552,65 @@ test('it returns the agents a daemon without spawn options lists, without spawn 
 
   onTestFinished(() => caller.stop());
 
-  const outcome = await answerRPCRequest(
-    {
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'tools/call',
-      params: { name: 'atc_agents_list', arguments: {} },
-    },
-    {
-      caller,
-      build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
-    },
-  );
+  const [listed, called] = await Promise.all([
+    answerRPCRequest(
+      { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+      {
+        caller,
+        build: 'atc/test-build',
+        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      },
+    ),
+    answerRPCRequest(
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'atc_agents_list', arguments: {} },
+      },
+      {
+        caller,
+        build: 'atc/test-build',
+        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      },
+    ),
+  ]);
 
-  if (outcome.kind !== 'reply') {
+  if (listed.kind !== 'reply' || called.kind !== 'reply') {
     throw new Error('no reply');
   }
 
-  expect(getRecord(getRecord(outcome.body, 'result'), 'structuredContent')['agents']).toStrictEqual(
-    [
-      {
-        id: 'claude',
-        label: 'Claude',
-        kind: 'claude',
-        installed: true,
-        capabilities: {
-          spawn: true,
-          readTranscript: true,
-          message: true,
-          attach: true,
-          screen: true,
-          input: true,
-        },
-        models: null,
-      },
-    ],
+  const tools: unknown = getRecord(listed.body, 'result')['tools'];
+
+  if (!Array.isArray(tools)) {
+    throw new TypeError('no tools array');
+  }
+
+  const agentsTool: unknown = tools.find(
+    (tool) => isRecord(tool) && tool['name'] === 'atc_agents_list',
   );
+
+  if (!isRecord(agentsTool)) {
+    throw new Error('atc_agents_list is not listed');
+  }
+
+  expect(agentsTool).not.toContainKey('outputSchema');
+
+  expect(getRecord(getRecord(called.body, 'result'), 'structuredContent')['agents']).toStrictEqual([
+    {
+      id: 'claude',
+      label: 'Claude',
+      kind: 'claude',
+      installed: true,
+      capabilities: {
+        spawn: true,
+        readTranscript: true,
+        message: true,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+    },
+  ]);
 });

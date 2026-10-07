@@ -2,11 +2,14 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { readJSONRecord } from '../test-utils/read-json-record';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { collectGrants } from './collect-grants';
+import { openMCPAuth } from './open-mcp-auth';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { removeClient } from './remove-client';
 import { revokeGrant } from './revoke-grant';
@@ -207,35 +210,76 @@ test('it runs a tool call whose scope the token holds', async () => {
 });
 
 test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
-  await using ctx = await setupTest();
+  await using stack = new AsyncDisposableStack();
 
-  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const approvals: string[] = [];
 
-  await ctx.restartDaemon(new Map([[clientID, ['local']]]));
+  const store = await openMCPAuth({ dbPath, origin: null });
 
-  const spawned = await ctx.caller.sendRequest('session.spawn', { cwd: ctx.home });
+  stack.defer(() => store.close());
 
-  const authorized = await runMCPAuthorization(ctx, {
-    clientID,
-    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read',
-    ticked: ['read'],
+  const created = await store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
-  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-mcp-http-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      principals: new Map([[created.clientID, ['local']]]),
+    }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  stack.defer(() => caller.stop());
+
+  const server = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: null,
+    allowedHosts: [],
+    dbPath,
+    printApproval: (line) => {
+      approvals.push(line);
+    },
+    printRequest: () => {},
+  });
+
+  stack.defer(() => server.stop());
+
+  const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+
+  const authorized = await runMCPAuthorization(
+    { url: server.url, origin: server.origin, approvals },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
+
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code: authorized.code,
       redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-      client_id: clientID,
+      client_id: created.clientID,
       code_verifier: authorized.verifier,
     }),
   });
 
   const tokens = await readJSONRecord(exchanged);
 
-  const listed = await fetch(`${ctx.url}/mcp`, {
+  const listed = await fetch(`${server.url}/mcp`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${String(tokens['access_token'])}`,
@@ -259,34 +303,76 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 });
 
 test('it shows a remote MCP client no sessions when the principals grant the targets to another client id', async () => {
-  await using ctx = await setupTest();
+  await using stack = new AsyncDisposableStack();
 
-  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+  const dbPath = join(tmp.dir, 'mcp-auth.db');
+  const approvals: string[] = [];
 
-  await ctx.restartDaemon(new Map([['someone-else', ['local']]]));
-  await ctx.caller.sendRequest('session.spawn', { cwd: ctx.home });
+  const store = await openMCPAuth({ dbPath, origin: null });
 
-  const authorized = await runMCPAuthorization(ctx, {
-    clientID,
-    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read',
-    ticked: ['read'],
+  stack.defer(() => store.close());
+
+  const created = await store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
-  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-mcp-http-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      principals: new Map([['someone-else', ['local']]]),
+    }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  stack.defer(() => caller.stop());
+
+  const server = await startMCPHTTPServer({
+    caller,
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: null,
+    allowedHosts: [],
+    dbPath,
+    printApproval: (line) => {
+      approvals.push(line);
+    },
+    printRequest: () => {},
+  });
+
+  stack.defer(() => server.stop());
+
+  await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+
+  const authorized = await runMCPAuthorization(
+    { url: server.url, origin: server.origin, approvals },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
+
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
     method: 'POST',
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code: authorized.code,
       redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-      client_id: clientID,
+      client_id: created.clientID,
       code_verifier: authorized.verifier,
     }),
   });
 
   const tokens = await readJSONRecord(exchanged);
 
-  const listed = await fetch(`${ctx.url}/mcp`, {
+  const listed = await fetch(`${server.url}/mcp`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${String(tokens['access_token'])}`,
@@ -302,10 +388,10 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
 
   const body: unknown = await listed.json();
 
-  expect(body).toMatchObject({
+  expect(body).toStrictEqual({
     jsonrpc: '2.0',
     id: 1,
-    result: { structuredContent: { sessions: [] } },
+    result: { content: [{ type: 'text', text: '[]' }], structuredContent: { sessions: [] } },
   });
 });
 
@@ -334,6 +420,10 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
 
   const tokens = await readJSONRecord(exchanged);
 
+  if (tokens['scope'] !== 'read offline_access') {
+    throw new Error('the grant holds more than the ticked scope');
+  }
+
   const spawned = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: {
@@ -344,13 +434,12 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
-      params: { name: 'atc_session_spawn', arguments: { cwd: '/tmp' } },
+      params: { name: 'atc_session_spawn', arguments: { cwd: ctx.home } },
     }),
   });
 
   const body: unknown = await spawned.json();
 
-  expect(tokens['scope']).toBe('read offline_access');
   expect(spawned.status).toBe(403);
 
   expect(spawned.headers.get('www-authenticate')).toBe(
@@ -399,6 +488,10 @@ test('it refuses consent to a scope the client did not request', async () => {
 
   const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
+  if (consent.pathname !== '/consent') {
+    throw new Error('the approval code did not reach the consent page');
+  }
+
   const cookie = signedIn.headers
     .getSetCookie()
     .map((line) => line.split(';')[0])
@@ -416,7 +509,6 @@ test('it refuses consent to a scope the client did not request', async () => {
     body: form,
   });
 
-  expect(consent.pathname).toBe('/consent');
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
@@ -641,11 +733,14 @@ test('it asks a browser that kept its owner session for a fresh approval code', 
     .map((line) => line.split(';')[0])
     .join('; ');
 
+  if (!cookie.includes('session_token=')) {
+    throw new Error('the login set no owner session');
+  }
+
   const second = await fetch(authorize, { redirect: 'manual', headers: { cookie } });
 
   const next = new URL(second.headers.get('location') ?? '/', ctx.url);
 
-  expect(cookie).toInclude('session_token=');
   expect(next.pathname).toBe('/login');
   expect(ctx.approvals).toBeArrayOfSize(2);
 });
@@ -686,6 +781,10 @@ test('it refuses an access token once its grant is revoked', async () => {
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
+  if (before.status !== 200) {
+    throw new Error('the token did not work before the revoke');
+  }
+
   await revokeGrant(ctx.store.db, grant.grantID);
 
   const after = await fetch(`${ctx.url}/mcp`, {
@@ -693,6 +792,51 @@ test('it refuses an access token once its grant is revoked', async () => {
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
   });
+
+  expect(after.status).toBe(401);
+});
+
+test('it refuses to refresh a token once its grant is revoked', async () => {
+  await using ctx = await setupTest();
+
+  const clientID = await ctx.addClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+  const [grant] = await collectGrants(ctx.store.db);
+
+  if (grant === undefined) {
+    throw new Error('the exchange left no grant');
+  }
+
+  const before = await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  if (before.status !== 200) {
+    throw new Error('the token did not work before the revoke');
+  }
+
+  await revokeGrant(ctx.store.db, grant.grantID);
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
@@ -703,8 +847,6 @@ test('it refuses an access token once its grant is revoked', async () => {
     }),
   });
 
-  expect(before.status).toBe(200);
-  expect(after.status).toBe(401);
   expect(refreshed.status).toBe(400);
 });
 
@@ -957,6 +1099,11 @@ test('it refuses a reused authorization code and revokes what the first use issu
   });
 
   const first = await fetch(`${ctx.url}/oauth2/token`, { method: 'POST', body: exchange });
+
+  if (first.status !== 200) {
+    throw new Error('the first exchange failed');
+  }
+
   const tokens = await readJSONRecord(first);
   const second = await fetch(`${ctx.url}/oauth2/token`, { method: 'POST', body: exchange });
   const refusal = await readJSONRecord(second);
@@ -967,7 +1114,6 @@ test('it refuses a reused authorization code and revokes what the first use issu
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  expect(first.status).toBe(200);
   expect(second.status).toBe(400);
   expect(refusal).toStrictEqual({ error: 'invalid_grant', error_description: 'invalid code' });
   expect(pinged.status).toBe(401);
@@ -1067,7 +1213,11 @@ test('it refuses a code exchange for another resource with invalid_target', asyn
   const refusal = await readJSONRecord(exchanged);
 
   expect(exchanged.status).toBe(400);
-  expect(refusal).toMatchObject({ error: 'invalid_target' });
+
+  expect(refusal).toStrictEqual({
+    error: 'invalid_target',
+    error_description: 'requested resource not authorized',
+  });
 });
 
 test('it refuses an authorization without PKCE before asking the operator', async () => {
@@ -1594,6 +1744,10 @@ test('it refuses the tokens of a removed client', async () => {
   const tokens = await readJSONRecord(exchanged);
   const removed = await removeClient(ctx.store.db, clientID);
 
+  if (!removed) {
+    throw new Error('the client was not removed');
+  }
+
   const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
@@ -1609,7 +1763,6 @@ test('it refuses the tokens of a removed client', async () => {
     }),
   });
 
-  expect(removed).toBeTrue();
   expect(pinged.status).toBe(401);
   expect(refreshed.status).toBe(400);
 });
@@ -1679,9 +1832,7 @@ test.each([
     DaemonClient.open(path),
   );
 
-  onTestFinished(async () => {
-    await caller.stop();
-  });
+  onTestFinished(() => caller.stop());
 
   const started = startMCPHTTPServer({
     caller,
@@ -1699,13 +1850,15 @@ test.each([
 });
 
 test('it listens beyond loopback behind an https public URL', async () => {
-  using tmp = setupTempDir('atc-mcp-http-');
+  await using stack = new AsyncDisposableStack();
+
+  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  stack.defer(() => caller.stop());
 
   const listening = await startMCPHTTPServer({
     caller,
@@ -1719,7 +1872,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     printRequest: () => {},
   });
 
-  onTestFinished(() => listening.stop());
+  stack.defer(() => listening.stop());
 
   expect(listening.origin).toBe('https://mcp.example.com');
   expect(listening.listening).toMatch(/^http:\/\/0\.0\.0\.0:\d+$/);
@@ -1776,6 +1929,10 @@ test('it refuses a consent answer for a request whose approval code was never ty
     body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
   });
 
+  if (signedIn.status !== 302) {
+    throw new Error('the approval code did not sign in');
+  }
+
   const cookie = signedIn.headers
     .getSetCookie()
     .map((line) => line.split(';')[0])
@@ -1796,7 +1953,6 @@ test('it refuses a consent answer for a request whose approval code was never ty
     body: form,
   });
 
-  expect(signedIn.status).toBe(302);
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
@@ -1867,6 +2023,10 @@ test("it refuses a consent answer carrying another approval's owner session", as
 
   const secondConsent = new URL(secondSignedIn.headers.get('location') ?? '/', ctx.url);
 
+  if (secondConsent.pathname !== '/consent') {
+    throw new Error('the second approval did not reach the consent page');
+  }
+
   const form = new URLSearchParams({
     oauth_query: secondConsent.search.slice(1),
     decision: 'approve',
@@ -1886,7 +2046,6 @@ test("it refuses a consent answer carrying another approval's owner session", as
     body: form,
   });
 
-  expect(secondConsent.pathname).toBe('/consent');
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
@@ -1913,6 +2072,10 @@ test('it refuses a consent answer whose query still asks for a login', async () 
   const authorized = await fetch(authorize, { redirect: 'manual' });
 
   const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
+
+  if (login.searchParams.get('prompt') !== 'login consent') {
+    throw new Error('the login query does not ask for a login');
+  }
 
   const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
     'code'
@@ -1941,7 +2104,6 @@ test('it refuses a consent answer whose query still asks for a login', async () 
     }),
   });
 
-  expect(login.searchParams.get('prompt')).toBe('login consent');
   expect(consented.status).toBe(400);
   expect(consented.headers.get('location')).toBeNull();
 });
@@ -2106,9 +2268,12 @@ test('it shows an error page instead of the consent page to a browser with no ow
 
   const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
 
+  if (consent.pathname !== '/consent') {
+    throw new Error('the approval code did not reach the consent page');
+  }
+
   const page = await fetch(consent);
 
-  expect(consent.pathname).toBe('/consent');
   expect(page.status).toBe(400);
 });
 
@@ -2164,6 +2329,10 @@ test('it refuses a second consent answer from one login', async () => {
     }),
   });
 
+  if (first.status !== 302) {
+    throw new Error('the first consent answer was refused');
+  }
+
   const second = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
@@ -2175,7 +2344,6 @@ test('it refuses a second consent answer from one login', async () => {
     }),
   });
 
-  expect(first.status).toBe(302);
   expect(second.status).toBe(400);
   expect(second.headers.get('location')).toBeNull();
 });
@@ -2223,6 +2391,10 @@ test('it deletes the owner session when the operator denies the request', async 
 
   const before = await ctx.store.db.selectFrom('session').select('id').execute();
 
+  if (before.length !== 1) {
+    throw new Error('the login left no owner session');
+  }
+
   const denied = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
     redirect: 'manual',
@@ -2232,7 +2404,6 @@ test('it deletes the owner session when the operator denies the request', async 
 
   const after = await ctx.store.db.selectFrom('session').select('id').execute();
 
-  expect(before).toBeArrayOfSize(1);
   expect(denied.status).toBe(302);
   expect(after).toBeEmpty();
 });
@@ -2284,9 +2455,12 @@ test('it deletes the owner session once its authorization code is exchanged', as
     }),
   });
 
+  if (exchanged.status !== 200) {
+    throw new Error('the exchange failed');
+  }
+
   const sessions = await ctx.store.db.selectFrom('session').select('id').execute();
 
-  expect(exchanged.status).toBe(200);
   expect(sessions).toBeEmpty();
 });
 
@@ -2536,7 +2710,10 @@ test('it prints a refused MCP request without reading its JSON-RPC method', asyn
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  expect(refused.status).toBe(403);
+  if (refused.status !== 403) {
+    throw new Error('the request was not refused');
+  }
+
   expect(ctx.requests).toHaveLength(1);
   expect(ctx.requests[0]).toMatch(/^POST \/mcp 403 \d+ms$/);
 });

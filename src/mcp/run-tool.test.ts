@@ -3,8 +3,11 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DaemonClient } from '../client/daemon-client';
-import { DaemonError } from '../protocol/daemon-error';
+import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
+import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
+import { toSessionID } from '../shared/to-session-id';
+import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -222,28 +225,75 @@ test('it spawns top-level under a key of its own when the calling session is gon
   ]);
 });
 
-test('it spawns nothing top-level when the gone session belongs to a spawn its key already ran', () => {
-  // A daemon refuses a retried keyed spawn this way once the session the key
-  // created is no longer listed, which takes a restart mid-spawn to reach.
-  const caller = buildStubFleetCaller({
-    answer: () => {
-      throw new DaemonError('no_such_session', 'not listed', { effectRef: 's-1' });
+test('it spawns nothing top-level when the gone session belongs to a spawn its key already ran', async () => {
+  // The key's spawn ran before a restart and created a session the fleet
+  // holds but has not restored, so the daemon refuses the retried spawn with
+  // that session's id and starts nothing.
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-',
+    options: async (paths) => {
+      const seed = await StateStore.open(paths.dbPath);
+
+      await seed.claimIdempotencyKey({
+        principal: 'local',
+        operation: 'session.spawn',
+        key: 'k-1',
+        payloadHash: buildPayloadHash(
+          REQUEST_PARAM_SCHEMAS['session.spawn'].parse({
+            cwd: paths.dir,
+            idempotencyKey: 'k-1',
+            cols: 100,
+            rows: 30,
+            parent: 'parent',
+          }),
+        ),
+        effectRef: 'spawned-before-restart',
+        at: Date.now(),
+      });
+
+      await seed.writeFleet([
+        {
+          sessionID: toSessionID('spawned-before-restart'),
+          name: 'tmp',
+          cwd: paths.dir,
+          agent: 'claude',
+          exited: true,
+        },
+      ]);
+
+      await seed.stop();
+
+      return { adapter: buildMockAgentAdapter() };
     },
   });
 
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  onTestFinished(() => caller.stop());
+
+  const relay = buildStubFleetCaller({
+    answer: (request) =>
+      caller.sendRequest(request.m, request.p, request.required, request.principal),
+  });
+
   const call = runTool(
-    caller,
+    relay,
     'atc_session_spawn',
-    { cwd: '/tmp', idempotencyKey: 'k-1' },
+    { cwd: daemon.dir, idempotencyKey: 'k-1' },
     { callerSessionID: 'parent', sender: { kind: 'default', name: 'mcp' } },
   );
 
-  expect(call).rejects.toMatchObject({ code: 'no_such_session', data: { effectRef: 's-1' } });
+  expect(call).rejects.toMatchObject({
+    code: 'no_such_session',
+    data: { effectRef: 'spawned-before-restart' },
+  });
 
-  expect(caller.requests).toStrictEqual([
+  expect(relay.requests).toStrictEqual([
     {
       m: 'session.spawn',
-      p: { cwd: '/tmp', idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'parent' },
+      p: { cwd: daemon.dir, idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'parent' },
       required: ['spawn.idempotency'],
     },
   ]);
@@ -294,7 +344,12 @@ test('it derives the same top-level fallback key when the call is retried', asyn
 
   const keys = relay.requests.map((request) => request.p?.['idempotencyKey']);
 
-  expect(keys).toStrictEqual(['k'.repeat(180), keys[1], 'k'.repeat(180), keys[1]]);
+  expect(keys).toStrictEqual([
+    'k'.repeat(180),
+    expect.stringMatching(/^top-level:[0-9a-f]{64}$/),
+    'k'.repeat(180),
+    keys[1],
+  ]);
 });
 
 test('it refuses a spawn key longer than 180 characters as bad_args and sends nothing', () => {

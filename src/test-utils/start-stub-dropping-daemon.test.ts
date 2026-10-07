@@ -40,6 +40,9 @@ test('it announces the first features on the first handshake', async () => {
   });
 
   expect(client.sendHello('atc/test-build')).resolves.toStrictEqual({
+    daemon: 'atc/dropping-build',
+    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+    lastUsedAgent: 'claude',
     features: ['spawn.idempotency'],
   });
 });
@@ -61,7 +64,12 @@ test('it announces the retry features on a later handshake', async () => {
     second.stop();
   });
 
-  expect(second.sendHello('atc/test-build')).resolves.toStrictEqual({ features: [] });
+  expect(second.sendHello('atc/test-build')).resolves.toStrictEqual({
+    daemon: 'atc/dropping-build',
+    limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+    lastUsedAgent: 'claude',
+    features: [],
+  });
 });
 
 test('it drops the connection of the first request without answering it', async () => {
@@ -115,4 +123,39 @@ test('it stops listening when disposed', () => {
   dropping[Symbol.dispose]();
 
   expect(DaemonClient.open(join(tmp.dir, 'daemon.sock'))).rejects.toThrow();
+});
+
+test('it reads a request split across two writes as one request', async () => {
+  using ctx = setupTest();
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test-build');
+
+  const closed = Promise.withResolvers<void>();
+
+  const raw = await Bun.connect({
+    unix: ctx.socketPath,
+    socket: {
+      data() {},
+      close() {
+        closed.resolve();
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    raw.end();
+  });
+
+  raw.write('{"v":4,"id":1,"m":"session.spawn",');
+  raw.write('"p":{"idempotencyKey":"k-split"}}\n');
+
+  await closed.promise;
+
+  expect(ctx.daemon.keys).toStrictEqual(['k-split']);
 });

@@ -1,12 +1,17 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
+import { DaemonPool } from '../federation/daemon-pool';
+import { GatewayStore } from '../federation/gateway-store';
+import { RoutingCaller } from '../federation/routing-caller';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubDestroyingProvider } from '../test-utils/build-stub-destroying-provider';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
-import { buildStubGatewayCaller } from '../test-utils/build-stub-gateway-caller';
+import { startLegacyDaemon } from '../test-utils/start-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildPrincipalCaller } from './build-principal-caller';
 import { ReconnectingCaller } from './reconnecting-caller';
@@ -427,26 +432,97 @@ test('it checks the session itself and sends a plain forget to a daemon without 
 });
 
 test('it falls back to its own check when a gateway routes the forget to a daemon without the forget checks', async () => {
-  await using ctx = await setupTest();
+  // A current daemon behind the gateway announces the forget checks, so the
+  // gateway offers them, while the session the forget names lives on an
+  // older daemon that lacks them and holds it pinned.
+  await using current = await startTestDaemon({
+    prefix: 'atc-run-tool-forget-',
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'token'), `${'t'.repeat(32)}\n`);
 
-  const spawned = await ctx.caller.sendRequest('session.spawn', {
-    cwd: ctx.cwd,
-    cols: 80,
-    rows: 24,
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'token') },
+      };
+    },
   });
 
-  const id = getRecord(spawned, 'session')['id'];
+  const hello = await current.client.sendRequest('daemon.hello', {
+    client: current.build,
+    auth: { scheme: 'none' },
+  });
 
-  await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
+  const currentID = String(hello['daemonID']);
+
+  const old = startLegacyDaemon(join(current.dir, 'old.sock'), {
+    replies: {
+      'daemon.hello': {
+        daemon: 'atc/legacy-build',
+        daemonID: 'abcdef0123456789abcdef0123456789',
+        features: ['transport.tcp', 'daemon.id', 'request.principal', 'session.forget'],
+      },
+      'session.get': { session: { id: 's-1', pinned: true, alive: true } },
+    },
+  });
+
+  onTestFinished(() => {
+    old.stop();
+  });
+
+  const registry = {
+    daemons: new Map([
+      [
+        'current',
+        {
+          name: 'current',
+          address: { host: '127.0.0.1', port: current.daemon.listenPort ?? 0 },
+          daemonID: currentID,
+          incarnation: currentID.slice(0, 8),
+          token: 't'.repeat(32),
+        },
+      ],
+      [
+        'old',
+        {
+          name: 'old',
+          address: { host: 'old.sock', port: 0 },
+          daemonID: 'abcdef0123456789abcdef0123456789',
+          incarnation: 'abcdef01',
+          token: 't'.repeat(32),
+        },
+      ],
+    ]),
+    defaultDaemon: 'current',
+  };
+
+  // The older daemon listens on a unix socket in place of a TCP port.
+  const pool = new DaemonPool({
+    registry,
+    build: 'atc-gateway/test',
+    openChannel: (address) =>
+      address.host === 'old.sock'
+        ? DaemonClient.open(join(current.dir, 'old.sock'))
+        : DaemonClient.open({ hostname: address.host, port: address.port }),
+  });
+
+  const store = GatewayStore.open(join(current.dir, 'gateway.db'));
+
+  onTestFinished(async () => {
+    await pool.stop();
+
+    store.stop();
+  });
 
   const refused = runTool(
-    buildStubGatewayCaller(ctx.caller, { daemon: 'old', lacking: 'session.forget.preconditions' }),
+    buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), 'gw'),
     'atc_session_forget',
-    { session: id, stop: true },
+    { session: 'old.abcdef01.s-1', stop: true },
     { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+  expect(old.requests.map((request) => request.m)).toStrictEqual(['daemon.hello', 'session.get']);
 });
 
 test('it refuses an unknown session as no_such_session before any token exists', async () => {

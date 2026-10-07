@@ -50,9 +50,12 @@ test('it accepts the query better-auth signs for the login page', async () => {
 
   const login = new URL(answered.headers.get('location') ?? '/', 'https://atc.example');
 
+  if (login.pathname !== '/login') {
+    throw new Error('the authorization did not reach the login page');
+  }
+
   const verified = await verifyOAuthQuery(login.search.slice(1), ctx.secret);
 
-  expect(login.pathname).toBe('/login');
   expect(verified).toBeTrue();
 });
 

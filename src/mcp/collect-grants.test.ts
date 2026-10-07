@@ -80,6 +80,12 @@ test('it lists when a grant was last used', async () => {
 
   const grants = await collectGrants(ctx.store.db);
 
+  const lastUsedAt = grants[0]?.lastUsedAt;
+
+  if (typeof lastUsedAt !== 'string') {
+    throw new TypeError('the grant holds no last use');
+  }
+
   expect(grants).toStrictEqual([
     {
       grantID: expect.toBeString(),
@@ -87,11 +93,11 @@ test('it lists when a grant was last used', async () => {
       clientName: 'Claude',
       scopes: ['read', 'message'],
       createdAt: expect.toBeString(),
-      lastUsedAt: expect.toSatisfy(
-        (at: string) => Date.parse(at) >= startedAt - 1000 && Date.parse(at) <= Date.now(),
-      ),
+      lastUsedAt,
     },
   ]);
+
+  expect(Date.parse(lastUsedAt)).toBeWithin(startedAt - 1000, Date.now() + 1);
 });
 
 test('it leaves out a grant whose refresh token was revoked', async () => {

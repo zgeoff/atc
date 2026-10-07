@@ -104,6 +104,10 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
 
   const features = await ctx.caller.readFeatures();
 
+  if (!features.has('events.session')) {
+    throw new Error('the first daemon does not announce the session filter');
+  }
+
   await ctx.daemon.stop();
 
   const legacy = startLegacyDaemon(ctx.socketPath);
@@ -115,7 +119,6 @@ test('it refuses a filtered read unsent when an older daemon replaced the one it
   const read = ctx.caller.sendRequest('events.read', { session: 's-1' }, ['events.session']);
 
   expect(read).rejects.toThrow(/^daemon_outdated: /);
-  expect([...features]).toContain('events.session');
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 

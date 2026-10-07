@@ -62,8 +62,62 @@ await store.close();`,
 
   const exitCode = await opened.exited;
 
-  expect(exitCode).toBe(0);
+  if (exitCode !== 0) {
+    throw new Error(`the store process exited ${exitCode}`);
+  }
+
   expect(received).toStrictEqual([]);
+});
+
+test('it lets the collector receive telemetry from better-auth when nothing turns it off', async () => {
+  using ctx = setupTest();
+
+  const received: string[] = [];
+
+  const collector = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: (request) => {
+      received.push(request.url);
+
+      return new Response(null, { status: 204 });
+    },
+  });
+
+  onTestFinished(async () => {
+    await collector.stop(true);
+  });
+
+  // The same production-mode process and environment as the refusal test,
+  // with better-auth's telemetry started directly, proves the collector
+  // would see a request that the store sent.
+  const sent = Bun.spawn(
+    [
+      process.execPath,
+      '-e',
+      `const { createTelemetry } = await import('better-auth');
+await createTelemetry({ baseURL: 'http://127.0.0.1' });`,
+    ],
+    {
+      cwd: join(import.meta.dir, '..', '..'),
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        HOME: ctx.dir,
+        NODE_ENV: 'production',
+        BETTER_AUTH_TELEMETRY: '1',
+        BETTER_AUTH_TELEMETRY_ENDPOINT: `http://127.0.0.1:${collector.port}/`,
+      },
+      stderr: 'pipe',
+    },
+  );
+
+  const exitCode = await sent.exited;
+
+  if (exitCode !== 0) {
+    throw new Error(`the telemetry process exited ${exitCode}`);
+  }
+
+  expect(received).toStrictEqual([`http://127.0.0.1:${collector.port}/`]);
 });
 
 test('it refuses a resource an earlier public URL served', async () => {
