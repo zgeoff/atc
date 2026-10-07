@@ -4,7 +4,6 @@
     "e2e/e2e.test.ts": 90970,
     "e2e/daemon-e2e.test.ts": 34500,
     "src/daemon/daemon-tcp.test.ts": 11102,
-    "e2e/mcp-e2e.test.ts": 10576,
     "src/gateway.test.ts": 8012,
     "src/daemon/daemon-idempotency.test.ts": 5289,
     "src/daemon/daemon-imp-workspace.test.ts": 4304,
