@@ -65,6 +65,7 @@ export class ImpClientPort implements ImpPort {
       grantableTokens: features?.['grantableTokens'] === true,
       secretRebind: features?.['secretRebind'] === true,
       execRequire: features?.['execRequire'] === true,
+      oauthSecrets: features?.['oauthSecrets'] === true,
     };
   };
 
@@ -84,17 +85,7 @@ export class ImpClientPort implements ImpPort {
   readonly readSecrets = async (): Promise<readonly ImpSecret[]> => {
     const secrets = await this.tryCall((client) => client.secrets.list());
 
-    return secrets.map((secret) => ({
-      name: secret.name,
-      kind: secret.kind,
-      rules: secret.rules.map((rule) => ({
-        host: rule.host,
-        header: rule.header,
-        scheme: rule.scheme,
-        ...(rule.user === undefined ? {} : { user: rule.user }),
-      })),
-      imps: [...secret.imps],
-    }));
+    return secrets.map((secret) => toImpSecret(secret));
   };
 
   readonly readGrants = async (name: string): Promise<readonly string[]> => {
@@ -325,6 +316,32 @@ export class ImpClientPort implements ImpPort {
 
     return this.client.client;
   }
+}
+
+// A secret as the client lists it.
+type ClientSecret = Awaited<ReturnType<ImpClient['secrets']['list']>>[number];
+
+// A secret in the port's terms, with an oauth secret's sign-in status and
+// ID token claims and none of its other state.
+// oxlint-disable-next-line prefer-readonly-parameter-types -- a secret's dates have no readonly form
+function toImpSecret(secret: ClientSecret): ImpSecret {
+  const listed: ImpSecret = {
+    name: secret.name,
+    kind: secret.kind,
+    rules: secret.rules.map((rule) => ({
+      host: rule.host,
+      header: rule.header,
+      scheme: rule.scheme,
+      ...(rule.user === undefined ? {} : { user: rule.user }),
+    })),
+    imps: [...secret.imps],
+  };
+
+  const oauth = secret.oauth;
+
+  return oauth === undefined
+    ? listed
+    : { ...listed, oauth: { status: oauth.status, idClaims: oauth.idClaims } };
 }
 
 // A lease as the client returns it.

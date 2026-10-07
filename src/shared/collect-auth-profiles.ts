@@ -6,15 +6,17 @@ import { isRecord } from './report';
  * A named reference to a credential impd holds: the secret's name, never
  * its value, and the profiles a session selecting this one needs beside
  * it. A `custom` profile holds the one rule impd applies when a request
- * reaches its host, always a bearer header. A `github` profile holds no
- * rule: impd's `github` kind fixes its hosts and headers.
+ * reaches its host, always a bearer header. An `oauth` profile holds the
+ * same rule for a secret whose access token impd renews from a refresh
+ * token. A `github` profile holds no rule: impd's `github` kind fixes its
+ * hosts and headers.
  */
 export type AuthProfile = CustomAuthProfile | GitHubAuthProfile;
 
 interface CustomAuthProfile {
   readonly name: string;
   readonly secret: string;
-  readonly kind: 'custom';
+  readonly kind: 'custom' | 'oauth';
   readonly host: string;
   readonly header: string;
   readonly scheme: 'bearer';
@@ -94,8 +96,8 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
   const dependencies = entry['dependencies'];
   const kind = entry['kind'] ?? 'custom';
 
-  if (kind !== 'custom' && kind !== 'github') {
-    return 'kind must be custom or github, the kinds atc binds';
+  if (kind !== 'custom' && kind !== 'oauth' && kind !== 'github') {
+    return 'kind must be custom, oauth, or github, the kinds atc binds';
   }
 
   if (typeof secret !== 'string' || !SECRET_NAME.test(secret)) {
@@ -148,7 +150,7 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
   return {
     name,
     secret,
-    kind: 'custom',
+    kind,
     host,
     header,
     scheme,
@@ -162,7 +164,7 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
 // other value, so a credential is never written into a profile.
 const ENV_PLACEHOLDER = 'imp-broker-placeholder';
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
-const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_'];
+const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
 
 const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
 

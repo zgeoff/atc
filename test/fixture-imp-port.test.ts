@@ -892,6 +892,7 @@ test('it reports the features of an old daemon without the grant and exec requir
     grantableTokens: false,
     secretRebind: false,
     execRequire: false,
+    oauthSecrets: false,
   });
 });
 

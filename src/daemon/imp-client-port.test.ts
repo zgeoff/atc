@@ -153,6 +153,7 @@ test('it calls impd with the token its token file holds', async () => {
     grantableTokens: false,
     secretRebind: false,
     execRequire: false,
+    oauthSecrets: false,
   });
 
   expect(impd.authorizations).toStrictEqual(['Bearer file-token']);
@@ -274,6 +275,7 @@ test.each([
       grantableTokens: false,
       secretRebind: false,
       execRequire: false,
+      oauthSecrets: false,
     },
   ],
   [
@@ -285,6 +287,7 @@ test.each([
       grantableTokens: 'true',
       secretRebind: 'true',
       execRequire: 'true',
+      oauthSecrets: 'true',
     },
   ],
   [
@@ -296,6 +299,7 @@ test.each([
       grantableTokens: true,
       secretRebind: true,
       execRequire: true,
+      oauthSecrets: true,
     },
   ],
 ])('it reads grant and exec requirement flags sent as %s as %p', async (_kind, flag, sent) => {
@@ -313,6 +317,7 @@ test.each([
     grantableTokens: flag,
     secretRebind: flag,
     execRequire: flag,
+    oauthSecrets: flag,
   });
 });
 
@@ -456,6 +461,47 @@ test('it lists each secret with its kind, rules, and imps', async () => {
       kind: 'custom',
       rules: [{ host: 'reg.example.com', header: 'authorization', scheme: 'basic', user: 'bot' }],
       imps: [],
+    },
+  ]);
+});
+
+test('it lists an oauth secret with its sign-in status and ID token claims', async () => {
+  await using impd = setupTest();
+
+  impd.answers.set('/rpc/secrets/list', {
+    status: 200,
+    json: [
+      {
+        name: 'codex-chatgpt',
+        kind: 'oauth',
+        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+        imps: [],
+        createdAt: '2026-10-01T00:00:00.000Z',
+        oauth: {
+          tokenUrl: 'https://auth.example.com/oauth/token',
+          clientId: 'app_example',
+          tokenFormat: 'json',
+          status: 'ready',
+          expiresAt: '2026-10-11T00:00:00.000Z',
+          refreshedAt: '2026-10-01T00:00:00.000Z',
+          error: null,
+          idClaims: { email: 'someone@example.com' },
+        },
+      },
+    ],
+  });
+
+  const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
+
+  const secrets = await port.readSecrets();
+
+  expect(secrets).toStrictEqual([
+    {
+      name: 'codex-chatgpt',
+      kind: 'oauth',
+      rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+      imps: [],
+      oauth: { status: 'ready', idClaims: { email: 'someone@example.com' } },
     },
   ]);
 });
@@ -617,6 +663,13 @@ test('it reads the id of the imp it creates', async () => {
 test('it sends the requirements of a start to impd and ends the connection with its refusal', async () => {
   await using impd = setupTest();
 
+  // The client asks impd whether it checks exec requirements before a
+  // start that requires one.
+  impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
+  });
+
   const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
 
   const connection = port.openSession(
@@ -695,6 +748,13 @@ test('it closes a session connection whose gate shuts as it opens, sending impd 
 test('it closes a session connection whose gate throws as it opens, sending impd nothing', async () => {
   await using impd = setupTest();
 
+  // The client asks impd whether it checks exec requirements before a
+  // start that requires one.
+  impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
+  });
+
   const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
 
   const connection = port.openSession(
@@ -725,6 +785,13 @@ test('it closes a session connection whose gate throws as it opens, sending impd
 
 test('it sends the request of a session connection whose gate stays open as it opens', async () => {
   await using impd = setupTest();
+
+  // The client asks impd whether it checks exec requirements before a
+  // start that requires one.
+  impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
+  });
 
   const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
 

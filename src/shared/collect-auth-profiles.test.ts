@@ -68,6 +68,62 @@ test('it reads a github profile into its secret reference alone, since impd fixe
   });
 });
 
+test('it reads an oauth profile with the same rule as a custom one', () => {
+  expect(
+    collectAuthProfiles({
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    }),
+  ).toStrictEqual({
+    profiles: new Map([
+      [
+        'codex',
+        {
+          name: 'codex',
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+    errors: [],
+  });
+});
+
+test.each([
+  [
+    { host: undefined },
+    'authProfiles.p: host must be a lowercase hostname such as api.example.com',
+  ],
+  [{ scheme: 'raw' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
+  [
+    { header: 'Authorization' },
+    'authProfiles.p: header must be a lowercase header name such as authorization',
+  ],
+])('it refuses an oauth profile with %p', (override, error) => {
+  expect(
+    collectAuthProfiles({
+      p: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        ...override,
+      },
+    }),
+  ).toStrictEqual({ profiles: new Map(), errors: [error] });
+});
+
 test.each([
   [
     { host: 'github.com' },
@@ -104,7 +160,10 @@ test('it refuses an authProfiles value that is not an object of named profiles',
 });
 
 test.each([
-  [{ kind: 'anthropic' }, 'authProfiles.p: kind must be custom or github, the kinds atc binds'],
+  [
+    { kind: 'anthropic' },
+    'authProfiles.p: kind must be custom, oauth, or github, the kinds atc binds',
+  ],
   [{ scheme: 'raw' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
   [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
   [
@@ -250,6 +309,10 @@ test.each([
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_BASE_URL',
   'ATC_SESSION_ID',
+  'CODEX_HOME',
+  'CODEX_API_KEY',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
   'PATH',
   'HOME',
 ])('it refuses a profile that sets the reserved variable %s', (name) => {

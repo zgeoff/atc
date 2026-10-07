@@ -84,6 +84,10 @@ export interface ImpFeatures {
   // A start may list what must be ready before the command runs, and impd
   // refuses the start without running it when one is not.
   readonly execRequire: boolean;
+
+  // impd holds secrets of kind `oauth`, whose access token it renews from a
+  // refresh token.
+  readonly oauthSecrets: boolean;
 }
 
 /**
@@ -96,7 +100,7 @@ export type ImpExecRequirement = 'broker';
 type ImpScope = 'read' | 'exec' | 'manage';
 
 export interface ImpIdentity {
-  readonly kind: 'token' | 'ssh' | 'tailnet' | 'dashboard';
+  readonly kind: 'token' | 'ssh' | 'tailnet' | 'dashboard' | 'oauth';
   readonly name: string;
   readonly scope: ImpScope;
 
@@ -111,11 +115,26 @@ export interface ImpIdentity {
 
 export interface ImpSecret {
   readonly name: string;
-  readonly kind: 'anthropic' | 'custom' | 'github' | 'npm';
+  readonly kind: 'anthropic' | 'custom' | 'github' | 'npm' | 'oauth';
   readonly rules: readonly ImpSecretRule[];
 
   // The imps holding a grant of the secret.
   readonly imps: readonly string[];
+
+  // The sign-in state of an `oauth` secret; absent for any other kind.
+  readonly oauth?: ImpOAuthState;
+}
+
+/**
+ * Where an `oauth` secret's sign-in stands: `ready` while impd holds an
+ * access token, `pending` until a refresh first works, and `needs_login`
+ * once the token endpoint refused the refresh token for good. `idClaims`
+ * holds the payload of the last ID token, identifiers and never a
+ * credential, or null before impd has one.
+ */
+interface ImpOAuthState {
+  readonly status: 'pending' | 'ready' | 'needs_login';
+  readonly idClaims: Readonly<Record<string, unknown>> | null;
 }
 
 // How impd adds a secret to requests for one host.
