@@ -191,6 +191,9 @@ for repositories you trust. It changes no tool permission mode.
   those servers without asking. Claude Code moves that approval into the clone's
   `.claude/settings.local.json` on its first start. A launch without trust asks a person to approve
   the servers.
+- On an imp target, a Codex entry with `auth` takes trust too. atc adds a `projects` entry for the
+  clone root to the session's own Codex config; see
+  [Codex subscription on imps](#codex-subscription-on-imps).
 
 atc refuses trust for any other agent or target, and for a launch without a workspace source.
 
@@ -363,18 +366,18 @@ Codex adds an entry for each:
 }
 ```
 
-| Field          | Default                              | Meaning                                                                                                                                                                             |
-| -------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kind`         | the id                               | The CLI the entry drives: `claude`, `codex`, or `grok`. It is required for any other id.                                                                                            |
-| `label`        | `Claude`, `Codex`, `Grok`, or the id | The row shown in the agent picker.                                                                                                                                                  |
-| `mark`         | the first character of the id        | The overlay column letter; the first character is used.                                                                                                                             |
-| `bin`          | the kind's binary name               | The binary spawned for the entry's sessions.                                                                                                                                        |
-| `args`         | `[]`                                 | Prepended to every spawn. A spawn's own model or effort replaces the matching flag.                                                                                                 |
-| `settings`     | none                                 | Claude only. More Claude Code settings for the entry's sessions; [extra session settings](#extra-session-settings) covers them.                                                     |
-| `env`          | `{}`                                 | Claude only. Extra environment for the session, such as the model each Claude tier maps to.                                                                                         |
-| `baseURL`      | none                                 | Claude only. The backend's Anthropic-format endpoint; an entry that sets it is a [gateway](#gateways).                                                                              |
-| `apiKeyHelper` | none                                 | Claude only, with `baseURL`. Command the CLI runs to read the credential.                                                                                                           |
-| `auth`         | none                                 | Claude only. The credential profiles impd's broker applies; [brokered credentials](#brokered-credentials) and [Claude subscription on imps](#claude-subscription-on-imps) cover it. |
+| Field          | Default                              | Meaning                                                                                                                                                                                                                                             |
+| -------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`         | the id                               | The CLI the entry drives: `claude`, `codex`, or `grok`. It is required for any other id.                                                                                                                                                            |
+| `label`        | `Claude`, `Codex`, `Grok`, or the id | The row shown in the agent picker.                                                                                                                                                                                                                  |
+| `mark`         | the first character of the id        | The overlay column letter; the first character is used.                                                                                                                                                                                             |
+| `bin`          | the kind's binary name               | The binary spawned for the entry's sessions.                                                                                                                                                                                                        |
+| `args`         | `[]`                                 | Prepended to every spawn. A spawn's own model or effort replaces the matching flag.                                                                                                                                                                 |
+| `settings`     | none                                 | Claude only. More Claude Code settings for the entry's sessions; [extra session settings](#extra-session-settings) covers them.                                                                                                                     |
+| `env`          | `{}`                                 | Claude only. Extra environment for the session, such as the model each Claude tier maps to.                                                                                                                                                         |
+| `baseURL`      | none                                 | Claude only. The backend's Anthropic-format endpoint; an entry that sets it is a [gateway](#gateways).                                                                                                                                              |
+| `apiKeyHelper` | none                                 | Claude only, with `baseURL`. Command the CLI runs to read the credential.                                                                                                                                                                           |
+| `auth`         | none                                 | Claude or Codex. The credential profiles impd's broker applies; [brokered credentials](#brokered-credentials), [Claude subscription on imps](#claude-subscription-on-imps), and [Codex subscription on imps](#codex-subscription-on-imps) cover it. |
 
 `kind` defaults to the id for `claude`, `codex`, and `grok`, so `"codex": {}` is a Codex entry. A
 `kind` that contradicts one of those three ids, such as `"codex": { "kind": "claude" }`, is refused.
@@ -535,7 +538,7 @@ with it:
 | `host`         | The exact host impd adds the credential for: lowercase, no port, no wildcard, no IP.      |
 | `header`       | The lowercase header impd sets, such as `authorization`.                                  |
 | `scheme`       | How impd renders the value. atc binds `bearer` only.                                      |
-| `kind`         | The kind of secret impd holds: `custom`, the default, or `github`.                        |
+| `kind`         | The kind of secret impd holds: `custom`, the default, `oauth`, or `github`.               |
 | `env`          | Variables a `custom` profile sets in a session that reaches it. See below.                |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
 
@@ -867,6 +870,76 @@ the change. A running session keeps the bundle it started with. On each launch t
 every bundle entry in the session's config folder, so an entry you remove from the host leaves the
 session too. The state Claude Code writes beside the bundle, `.claude.json` among it, stays.
 
+### Codex subscription on imps
+
+`auth` on a Codex entry signs it in on an imp target with the ChatGPT sign-in that impd holds as an
+[oauth secret](https://github.com/zgeoff/imp/blob/main/docs/guides/connectors.md#oauth-secrets).
+impd renews the access token from the refresh token and sets it on each request to `chatgpt.com`, so
+no token enters the imp. On the local target, Codex keeps the sign-in of your own Codex config. An
+imp target needs impd with oauth secrets; an older impd refuses the spawn with `auth_impd_too_old`.
+
+1. Sign Codex in with your ChatGPT account on your machine, so `~/.codex/auth.json` holds a refresh
+   token.
+2. Add that refresh token to impd as an `oauth` secret on `chatgpt.com`, with the value on stdin:
+
+   ```bash
+   jq -r .tokens.refresh_token ~/.codex/auth.json | imp secret add codex-chatgpt --kind oauth \
+     --hosts chatgpt.com --token-url https://auth.openai.com/oauth/token \
+     --client-id app_EMoamEEZ73f0CkXaXp7hrann --token-format json
+   ```
+
+   impd rotates the refresh token on its first refresh, so the sign-in in `~/.codex/auth.json` stops
+   working. Sign in again on your machine if you still need Codex there.
+
+3. List the secret in the `--grantable` secrets of the target's impd token.
+4. Add an `oauth` profile for the secret and select it in the entry's `auth`, beside any other
+   profile the session needs:
+
+   ```json
+   {
+     "authProfiles": {
+       "codex": {
+         "secret": "codex-chatgpt",
+         "kind": "oauth",
+         "host": "chatgpt.com",
+         "header": "authorization",
+         "scheme": "bearer"
+       },
+       "github": { "secret": "github-imp-agents", "kind": "github" }
+     },
+     "agents": { "codex": { "auth": { "profiles": ["codex", "github"] } } }
+   }
+   ```
+
+A Codex entry's `auth` holds `profiles` alone. atc leaves the entry out and prints the reason when
+the daemon starts if a selected profile does not resolve, or if no `oauth` profile sets a bearer
+`authorization` header for `chatgpt.com`.
+
+On an imp target, each session gets a Codex home of its own, `codex-home` in its guest folder,
+passed as `CODEX_HOME`. Before each launch, atc copies three files into it:
+
+- `auth.json`, a ChatGPT sign-in that holds no credential. Its access and refresh tokens are
+  `imp-broker-placeholder`, and its ID token is an unsigned copy of the email and the
+  `https://api.openai.com/auth` claims that impd lists for the secret. Codex sends the account id
+  from those claims with each request, so it must be the real one.
+- `config.toml`, which keeps the sign-in in that file and turns off the update check. With
+  [clone trust](#clone-trust), it also trusts the clone root.
+- `hooks.json`, the hook entries `atc codex-hooks` prints, run through the atc inside the imp.
+
+Codex starts with `--dangerously-bypass-hook-trust`, the Codex flag for automation that writes its
+own hooks, since no person is there to approve them in the Codex TUI. The flag runs every hook Codex
+loads, so with clone trust the hooks in the repository's own `.codex` folder run without review too.
+`OPENAI_API_KEY`, `CODEX_API_KEY`, and `CODEX_ACCESS_TOKEN` are unset in the launch, since each
+would sign Codex in another way. Codex records its sessions in the same folder, so a resume finds
+them. Each launch replaces `config.toml`, so a folder trust a person accepts in the Codex TUI lasts
+until the session restarts.
+
+A spawn, resume, or adopt fails with `auth_signin_needed` before the imp is touched when impd lists
+the secret as `pending` or `needs_login`, or when its ID token holds no ChatGPT account id. impd
+marks the secret `needs_login` when the token endpoint refuses the refresh token. To renew the
+sign-in, sign Codex in again on your machine and replace the secret with
+`imp secret add codex-chatgpt --kind oauth ... --replace`, fed with the new refresh token.
+
 ## Migrating from the old keys
 
 atc 3.0.0 marks the move to the `agents` map as a breaking change. The old keys still load, but a
@@ -932,6 +1005,9 @@ Codex hooks live in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is un
 1. Run `atc codex-hooks` and merge the printed entries into `$CODEX_HOME/hooks.json`.
 2. Open `codex`, review the atc hooks in its hooks list, and approve them once. Codex parses
    untrusted hooks but never runs them.
+
+A Codex entry with `auth` needs neither step on an imp target: atc writes the hooks into the
+session's own Codex home ([Codex subscription on imps](#codex-subscription-on-imps)).
 
 The installed hook files print `--agent codex` or `--agent grok` for every entry of that kind. A
 second Codex entry, such as `codex-fast`, therefore needs no extra install: the daemon accepts the

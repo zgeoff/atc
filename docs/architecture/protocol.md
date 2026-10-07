@@ -591,13 +591,14 @@ sends none to an impd without them: the harness ends with `auth_impd_too_old`, a
 impd's own client refuses an outdated impd.
 
 - A spawn checks impd and its token first and writes nothing on a refusal: impd must have grantable
-  tokens, secret rebinds, and exec requirements (`auth_impd_too_old`), the token must manage imps
-  only inside the target's imp name prefix (`auth_token_scope`, `auth_token_too_broad`,
-  `auth_imp_out_of_scope`) and grant every bound secret (`auth_secret_not_grantable`), and each
-  secret's kind and rules must match the binding exactly (`auth_secret_mismatch`). It then records
-  the binding, creates a new imp, and adds each grant. An imp already under the name is
-  `auth_runtime_exists`. A spawn that fails after that takes back the imp it created; a take-back it
-  cannot confirm answers `outcome_unknown` under an idempotency key.
+  tokens, secret rebinds, and exec requirements, and oauth secrets when the binding holds a secret
+  of kind `oauth` (`auth_impd_too_old`), the token must manage imps only inside the target's imp
+  name prefix (`auth_token_scope`, `auth_token_too_broad`, `auth_imp_out_of_scope`) and grant every
+  bound secret (`auth_secret_not_grantable`), and each secret's kind and rules must match the
+  binding exactly (`auth_secret_mismatch`). It then records the binding, creates a new imp, and adds
+  each grant. An imp already under the name is `auth_runtime_exists`. A spawn that fails after that
+  takes back the imp it created; a take-back it cannot confirm answers `outcome_unknown` under an
+  idempotency key.
 - A revive, a restore, and a sub-session joining its parent's imp check the same, and that the
   binding is `ready` (`auth_blocked`, with the state as `data.state`), that the used profiles, with
   their variables when they set any, hash as recorded (`auth_rebind_required`), that the imp is the
@@ -624,6 +625,11 @@ impd's own client refuses an outdated impd.
   rebind succeeds. A harness that is running or suspended keeps the guest settings it launched with,
   from the earlier revision, until it restarts; only a harness launched after the rebind reads the
   new revision's settings.
+- A launch whose binding holds an `oauth` secret reads that secret's sign-in from impd before the
+  imp is touched. A Codex launch is `auth_signin_needed` when impd lists the secret as `pending` or
+  `needs_login`, or its ID token holds no ChatGPT account id, with `data.agent`, `data.secret`, and
+  the status as `data.status`. A secret impd lacks, or holds with another kind or rules, is
+  `auth_secret_mismatch` there too.
 - A launch whose agent takes no credential from the broker is `auth_rebind_required` while its host
   holds a binding in any state, with the state as `data.state`, so a config that drops `auth` never
   reopens a blocked host. A rebind needs the agent's selection back; otherwise a forget of the host

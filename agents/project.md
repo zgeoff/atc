@@ -74,7 +74,9 @@ mod. `scripts/` holds repo tooling, not app code.
   that file (`atc grok-hooks`) and never writes into the user's Grok config.
 - Codex attention is user-installed hook entries in `$CODEX_HOME/hooks.json`, printed by
   `atc codex-hooks` and trusted once in the Codex TUI — Codex parses untrusted hooks but never runs
-  them.
+  them. A Codex session that signs in through impd's broker on an imp instead gets a Codex home of
+  its own in its guest folder, passed as `CODEX_HOME`, with a sign-in file that holds no credential,
+  a config, and those hook entries, which it runs with `--dangerously-bypass-hook-trust`.
 - Hook and statusline reporters run inside the wrangled session and must always exit 0 — a broken
   reporter must never break the session it reports on.
 - The agent is the naming authority for sessions: `/rename` custom-titles beat user-typed names beat

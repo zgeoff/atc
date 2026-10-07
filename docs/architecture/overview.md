@@ -135,7 +135,8 @@ the reporter forwards Grok's camelCase envelopes to the same socket. Grok names 
 the leader key.
 
 Codex sessions take their hooks from self-installed entries in `$CODEX_HOME/hooks.json`, trusted
-once in the Codex TUI. Codex names come from `session_index.jsonl`. The
+once in the Codex TUI. A Codex session that signs in through impd's broker on an imp gets those
+entries in a Codex home of its own that atc writes. Codex names come from `session_index.jsonl`. The
 [configuration guide](../guides/configuration.md#attention-hooks-grok-and-codex) covers the install
 steps for both.
 
