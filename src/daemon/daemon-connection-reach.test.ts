@@ -5,51 +5,8 @@ import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { buildStubPeerSocket } from '../test-utils/build-stub-peer-socket';
-import { waitFor } from '../test-utils/wait-for';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-context';
-
-interface ReachTestConfig {
-  // The daemon members the test drives, over the stub daemon's defaults.
-  readonly daemon: Partial<DaemonContext>;
-}
-
-/**
- * A connection over a stub daemon with the given members. `request` sends
- * one request and resolves with its answer frame, the request's own id left
- * out, so two answers compare whole.
- */
-function setupTest(config: ReachTestConfig) {
-  const peer = buildStubPeerSocket();
-
-  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext(config.daemon));
-
-  let nextID = 2;
-
-  // Every test reads as a principal, the caller whose reach the daemon
-  // checks on each answer.
-  conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
-  );
-
-  return {
-    request: (m: string, p: Readonly<Record<string, unknown>>) => {
-      const id = nextID;
-
-      nextID += 1;
-
-      conn.applyChunk(`${JSON.stringify({ v: PROTOCOL_V, id, m, p })}\n`);
-
-      return waitFor(() => {
-        const frame = peer.collectFrames().find((candidate) => candidate['id'] === id);
-
-        expect(frame).toBeObject();
-
-        return Object.fromEntries(Object.entries({ ...frame }).filter(([key]) => key !== 'id'));
-      });
-    },
-  };
-}
 
 test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();
@@ -64,11 +21,30 @@ test('it answers session.get whose session leaves the view during the read as fo
 
   readSessionRecord.mockImplementationOnce(() => Promise.resolve('missing'));
 
-  const ctx = setupTest({ daemon: { canSeeSession, readSessionRecord } });
+  const peer = buildStubPeerSocket();
 
-  const missing = await ctx.request('session.get', { session: 's-held' });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readSessionRecord }),
+  );
 
-  const held = ctx.request('session.get', { session: 's-held' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.get', p: { session: 's-held' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.get', p: { session: 's-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -119,11 +95,30 @@ test('it answers session.screen whose session leaves the view during the read as
 
   readSessionScreen.mockImplementationOnce(() => Promise.resolve('missing'));
 
-  const ctx = setupTest({ daemon: { canSeeSession, readSessionScreen } });
+  const peer = buildStubPeerSocket();
 
-  const missing = await ctx.request('session.screen', { session: 's-held' });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readSessionScreen }),
+  );
 
-  const held = ctx.request('session.screen', { session: 's-held' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.screen', p: { session: 's-held' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.screen', p: { session: 's-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -152,11 +147,30 @@ test('it answers session.read whose session leaves the view during the read as f
 
   loadSessionTranscript.mockImplementationOnce(() => Promise.resolve('missing'));
 
-  const ctx = setupTest({ daemon: { canSeeSession, loadSessionTranscript } });
+  const peer = buildStubPeerSocket();
 
-  const missing = await ctx.request('session.read', { session: 's-held' });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, loadSessionTranscript }),
+  );
 
-  const held = ctx.request('session.read', { session: 's-held' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.read', p: { session: 's-held' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.read', p: { session: 's-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -186,11 +200,30 @@ test('it leaves out of events.read the events of a session that leaves the view 
 
   readEvents.mockImplementationOnce(() => Promise.resolve({ events: [], more: false }));
 
-  const ctx = setupTest({ daemon: { canSeeSession, readEvents } });
+  const peer = buildStubPeerSocket();
 
-  const empty = await ctx.request('events.read', { session: 's-held', waitMs: 0 });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readEvents }),
+  );
 
-  const held = ctx.request('events.read', { session: 's-held', waitMs: 0 });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'events.read', p: { session: 's-held', waitMs: 0 } })}\n`,
+  );
+
+  const empty = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'events.read', p: { session: 's-held', waitMs: 0 } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -229,11 +262,30 @@ test('it answers report.get whose session leaves the view during the read as for
 
   readReport.mockImplementationOnce(() => Promise.resolve(null));
 
-  const ctx = setupTest({ daemon: { canSeeSession, readReport } });
+  const peer = buildStubPeerSocket();
 
-  const missing = await ctx.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoxfQ' });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readReport }),
+  );
 
-  const held = ctx.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoxfQ' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -271,11 +323,30 @@ test('it answers report.get whose sender leaves the view during the read as for 
 
   readReport.mockImplementationOnce(() => Promise.resolve(null));
 
-  const ctx = setupTest({ daemon: { canSeeSession, readReport } });
+  const peer = buildStubPeerSocket();
 
-  const missing = await ctx.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoxfQ' });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readReport }),
+  );
 
-  const held = ctx.request('report.get', { report: 'eyJrIjoiZXYiLCJpIjoxfQ' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -312,11 +383,30 @@ test('it answers message.get whose session leaves the view during the wait as fo
 
   readMessage.mockImplementationOnce(() => Promise.resolve(null));
 
-  const ctx = setupTest({ daemon: { canSeeSession, readMessage } });
+  const peer = buildStubPeerSocket();
 
-  const unknown = await ctx.request('message.get', { message: 'm-held', waitMs: 0 });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readMessage }),
+  );
 
-  const held = ctx.request('message.get', { message: 'm-held', waitMs: 30_000 });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'message.get', p: { message: 'm-held', waitMs: 0 } })}\n`,
+  );
+
+  const unknown = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'message.get', p: { message: 'm-held', waitMs: 30_000 } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -354,11 +444,30 @@ test('it answers message.ack whose session leaves the view during the ack as for
 
   ackMessage.mockImplementationOnce(() => Promise.resolve('unknown'));
 
-  const ctx = setupTest({ daemon: { canSeeSession, ackMessage } });
+  const peer = buildStubPeerSocket();
 
-  const unknown = await ctx.request('message.ack', { session: 's-held', message: 'm-held' });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, ackMessage }),
+  );
 
-  const held = ctx.request('message.ack', { session: 's-held', message: 'm-held' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'message.ack', p: { session: 's-held', message: 'm-held' } })}\n`,
+  );
+
+  const unknown = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'message.ack', p: { session: 's-held', message: 'm-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -392,15 +501,39 @@ test('it answers session.message whose session leaves the view during the write 
 
   writeSessionMessage.mockImplementationOnce(() => Promise.resolve('missing'));
 
-  const ctx = setupTest({ daemon: { canSeeSession, writeSessionMessage } });
+  const peer = buildStubPeerSocket();
 
-  const missing = await ctx.request('session.message', {
-    session: 's-held',
-    from: 'remote',
-    text: 'hello',
-  });
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, writeSessionMessage }),
+  );
 
-  const held = ctx.request('session.message', { session: 's-held', from: 'remote', text: 'hello' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({
+      v: PROTOCOL_V,
+      id: 2,
+      m: 'session.message',
+      p: {
+        session: 's-held',
+        from: 'remote',
+        text: 'hello',
+      },
+    })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.message', p: { session: 's-held', from: 'remote', text: 'hello' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 
@@ -417,19 +550,31 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
   const entered = Promise.withResolvers<void>();
   const spawn = Promise.withResolvers<Awaited<ReturnType<DaemonContext['spawnSession']>>>();
   const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
+  const peer = buildStubPeerSocket();
 
-  const ctx = setupTest({
-    daemon: {
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({
       canSeeSession,
       spawnSession: () => {
         entered.resolve();
 
         return spawn.promise;
       },
-    },
-  });
+    }),
+  );
 
-  const held = ctx.request('session.spawn', { cwd: '/srv/project' });
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.spawn', p: { cwd: '/srv/project' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(2);
 
   await entered.promise;
 
@@ -464,11 +609,26 @@ test('it leaves out of fleet.list a session that leaves the view during the read
 
   collectFleet.mockImplementationOnce(() => Promise.resolve([]));
 
-  const ctx = setupTest({ daemon: { canSeeSession, collectFleet } });
+  const peer = buildStubPeerSocket();
 
-  const empty = await ctx.request('fleet.list', {});
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, collectFleet }),
+  );
 
-  const held = ctx.request('fleet.list', {});
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(`${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'fleet.list', p: {} })}\n`);
+
+  const empty = await peer.waitForAnswer(2);
+
+  conn.applyChunk(`${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'fleet.list', p: {} })}\n`);
+
+  const held = peer.waitForAnswer(3);
 
   await entered.promise;
 

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
@@ -33,21 +34,18 @@ function setupTest() {
 test('it reads nothing from impd for a binding without an oauth secret', async () => {
   using ctx = setupTest();
 
-  const states = await loadOAuthStates(ctx.host, {
-    agent: 'codex',
-    baseURL: 'https://chatgpt.com/backend-api/codex',
-    profiles: ['glm'],
-    secrets: [
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const states = await loadOAuthStates(
+    ctx.host,
+    buildMockAuthBinding({
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    }),
+  );
 
   expect({ states, calls: ctx.port.calls }).toStrictEqual({ states: undefined, calls: [] });
 });
@@ -66,26 +64,23 @@ test("it reads each bound oauth secret's sign-in state from impd's features and 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const states = await loadOAuthStates(ctx.host, {
-    agent: 'codex',
-    baseURL: 'https://chatgpt.com/backend-api/codex',
-    profiles: ['codex', 'glm'],
-    secrets: [
-      {
-        secret: 'codex-chatgpt',
-        kind: 'oauth',
-        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
-      },
-      {
-        secret: 'glm',
-        kind: 'custom',
-        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const states = await loadOAuthStates(
+    ctx.host,
+    buildMockAuthBinding({
+      secrets: [
+        {
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+        },
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    }),
+  );
 
   expect({ states, calls: ctx.port.calls }).toStrictEqual({
     states: { 'codex-chatgpt': { status: 'ready', idClaims: { email: 'someone@example.com' } } },
@@ -98,21 +93,18 @@ test('it refuses an impd without oauth secrets before it lists any secret', () =
 
   ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
-  const loaded = loadOAuthStates(ctx.host, {
-    agent: 'codex',
-    baseURL: 'https://chatgpt.com/backend-api/codex',
-    profiles: ['codex'],
-    secrets: [
-      {
-        secret: 'codex-chatgpt',
-        kind: 'oauth',
-        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const loaded = loadOAuthStates(
+    ctx.host,
+    buildMockAuthBinding({
+      secrets: [
+        {
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    }),
+  );
 
   expect(loaded).rejects.toMatchObject({
     code: 'auth_impd_too_old',
@@ -125,21 +117,18 @@ test('it refuses an impd without oauth secrets before it lists any secret', () =
 test('it refuses a bound oauth secret that impd does not hold', () => {
   using ctx = setupTest();
 
-  const loaded = loadOAuthStates(ctx.host, {
-    agent: 'codex',
-    baseURL: 'https://chatgpt.com/backend-api/codex',
-    profiles: ['codex'],
-    secrets: [
-      {
-        secret: 'codex-chatgpt',
-        kind: 'oauth',
-        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const loaded = loadOAuthStates(
+    ctx.host,
+    buildMockAuthBinding({
+      secrets: [
+        {
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    }),
+  );
 
   expect(loaded).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
 });
@@ -151,21 +140,18 @@ test('it refuses a bound oauth secret that impd holds as another kind', () => {
     { host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const loaded = loadOAuthStates(ctx.host, {
-    agent: 'codex',
-    baseURL: 'https://chatgpt.com/backend-api/codex',
-    profiles: ['codex'],
-    secrets: [
-      {
-        secret: 'codex-chatgpt',
-        kind: 'oauth',
-        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const loaded = loadOAuthStates(
+    ctx.host,
+    buildMockAuthBinding({
+      secrets: [
+        {
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    }),
+  );
 
   expect(loaded).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
 });
@@ -175,21 +161,18 @@ test('it turns a call impd fails into an unavailable host', () => {
 
   ctx.port.setFeatureFailures(1);
 
-  const loaded = loadOAuthStates(ctx.host, {
-    agent: 'codex',
-    baseURL: 'https://chatgpt.com/backend-api/codex',
-    profiles: ['codex'],
-    secrets: [
-      {
-        secret: 'codex-chatgpt',
-        kind: 'oauth',
-        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
-      },
-    ],
-    placeholderEnv: {},
-    profileEnv: {},
-    hash: 'h1',
-  });
+  const loaded = loadOAuthStates(
+    ctx.host,
+    buildMockAuthBinding({
+      secrets: [
+        {
+          secret: 'codex-chatgpt',
+          kind: 'oauth',
+          rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+    }),
+  );
 
   expect(loaded).rejects.toMatchObject({
     code: 'host_unavailable',

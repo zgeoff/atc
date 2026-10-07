@@ -197,7 +197,8 @@ export interface DaemonOptions {
   readonly log?: (line: string) => void;
 
   // Called each time the daemon leaves a session's new output unjudged
-  // because the session's agent has no screen detector.
+  // because no screen detector covers it: no agent in the fleet has one,
+  // the session's own agent has none, or the session is no longer listed.
   readonly onDetectSkipped?: (sessionID: SessionID) => void;
 
   // The sources the spawn picker offers, in order, each built with the

@@ -169,3 +169,56 @@ test('it never flags a prompt as needing input when the adapter has no screen de
       e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
   );
 });
+
+test('it never flags a prompt as needing input when another agent has a screen detector but the session agent has none', async () => {
+  const onDetectSkipped = mock<(sessionID: SessionID) => void>();
+
+  await using daemon = await startTestDaemon({
+    prefix: 'atc-detector-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        planSpawn: () => ({
+          bin: 'bash',
+          args: [
+            '-c',
+            String.raw`printf "READY>"; read -r line; printf "crunching %s\n" "$line"; sleep 30`,
+          ],
+        }),
+      }),
+      adapters: [
+        buildMockAgentAdapter({
+          id: 'zai',
+          screenDetector: { detectAttention: () => 'needs-input' },
+        }),
+      ],
+      onDetectSkipped,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 60,
+    rows: 12,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  // Output reaches an attached client only after the daemon has decided
+  // whether to judge it, so the painted prompt arriving means the decision
+  // for the prompt's output has been made.
+  await daemon.client.sendRequest('session.attach', { session: id, cols: 60, rows: 12 });
+
+  await waitFor(() => {
+    expect(daemon.events).toSatisfyAny(
+      (e: EventMsg) =>
+        e.ev === 'SessionOutput' && typeof e['d'] === 'string' && e['d'].includes('READY>'),
+    );
+  });
+
+  expect(onDetectSkipped).toHaveBeenCalledWith(id);
+
+  expect(daemon.events).not.toSatisfyAny(
+    (e: EventMsg) =>
+      e.ev === 'SessionState' && isRecord(e['session']) && e['session']['state'] === 'needs_you',
+  );
+});

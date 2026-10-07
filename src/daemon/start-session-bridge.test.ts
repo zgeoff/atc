@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
+import { buildStubBridgeContext } from '../test-utils/build-stub-bridge-context';
 import { buildStubHarnessRelay } from '../test-utils/build-stub-harness-relay';
 import { waitFor } from '../test-utils/wait-for';
 import { startSessionBridge } from './start-session-bridge';
@@ -14,14 +15,10 @@ function setupTest() {
 
   const applyHookEvent = mock<BridgeContext['applyHookEvent']>();
 
-  const daemon: BridgeContext = {
+  const daemon = buildStubBridgeContext({
     findSession: (sessionID) => sessions.get(sessionID),
     applyHookEvent,
-    applyReport: () => Promise.resolve(true),
-    attachTap: () => 'ok',
-    ackMessage: () => Promise.resolve('unknown' as const),
-    detachTap: () => {},
-  };
+  });
 
   return { stub: buildStubHarnessRelay(), sessions, applyHookEvent, daemon };
 }

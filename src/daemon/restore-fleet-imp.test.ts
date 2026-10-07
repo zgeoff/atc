@@ -8,19 +8,15 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { FixtureImpPort } from '../test-utils/fixture-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 import { restoreFleet } from './restore-fleet';
 import { SessionManager } from './sessions';
 
-interface RestoreTestConfig {
-  readonly adapter: AgentAdapter;
-}
-
-// A session manager running the given agent, whose one target `box` runs
-// on the imp provider over a fixture imp port, with every line it logs
-// collected.
-async function setupTest(config: RestoreTestConfig) {
+// The fixed parts every restore test shares: a real state store, a recorder
+// of logged lines, and one target `box` on the imp provider over a fixture
+// imp port. `defer` runs a teardown before the store and the provider go,
+// so a manager the test builds detaches first.
+async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-restore-imp-'));
@@ -41,37 +37,39 @@ async function setupTest(config: RestoreTestConfig) {
   });
 
   const logged: string[] = [];
-
-  const mgr = new SessionManager(
-    config.adapter,
-    store,
-    join(tmp.dir, 'status.json'),
-    [],
-    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
-  );
-
-  mgr.log = (line) => {
-    logged.push(line);
-  };
-
-  stack.defer(() => {
-    mgr.detachAll();
-  });
-
   const owned = stack.move();
 
   return {
     dir: tmp.dir,
+    statusPath: join(tmp.dir, 'status.json'),
     store,
-    mgr,
+    targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
     logged,
+    log: (line: string) => {
+      logged.push(line);
+    },
+    defer: (teardown: () => void) => {
+      owned.defer(teardown);
+    },
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it restores the fleet with no terminal for each session whose agent is not signed in on its imp', async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter({ planAuthCheck: () => ['false'] }),
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter({ planAuthCheck: () => ['false'] }),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
   await ctx.store.writeFleet([
@@ -90,7 +88,7 @@ test('it restores the fleet with no terminal for each session whose agent is not
   ]);
 
   const restored = await restoreFleet({
-    mgr: ctx.mgr,
+    mgr,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -98,15 +96,19 @@ test('it restores the fleet with no terminal for each session whose agent is not
     capMs: 50,
   });
 
+  await restored.settled;
+
   expect(restored.restored).toBe(2);
 
-  expect<readonly unknown[]>(ctx.mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
     ['s-first', false],
     ['s-second', false],
   ]);
 });
 
 test('it logs a later session whose revive fails and leaves it without a terminal', async () => {
+  await using ctx = await setupTest();
+
   const planGuestSpawn = mock<NonNullable<AgentAdapter['planGuestSpawn']>>(() => ({
     bin: 'sleep',
     args: ['30'],
@@ -119,7 +121,19 @@ test('it logs a later session whose revive fails and leaves it without a termina
       throw new Error('no plan for s-second');
     });
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ planGuestSpawn }) });
+  const mgr = new SessionManager(
+    buildMockAgentAdapter({ planGuestSpawn }),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
@@ -137,7 +151,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
   ]);
 
   const restored = await restoreFleet({
-    mgr: ctx.mgr,
+    mgr,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -145,21 +159,23 @@ test('it logs a later session whose revive fails and leaves it without a termina
     capMs: 50,
   });
 
+  await restored.settled;
+
   expect(restored.restored).toBe(2);
 
-  await waitFor(() => {
-    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-      'atc could not revive session s-second (no plan for s-second)',
-    ]);
-  });
+  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    'atc could not revive session s-second (no plan for s-second)',
+  ]);
 
-  expect<readonly unknown[]>(ctx.mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
     ['s-first', true],
     ['s-second', false],
   ]);
 });
 
 test('it logs a first session whose revive fails with a plain error and still revives the next one', async () => {
+  await using ctx = await setupTest();
+
   const planGuestSpawn = mock<NonNullable<AgentAdapter['planGuestSpawn']>>(() => ({
     bin: 'sleep',
     args: ['30'],
@@ -170,7 +186,19 @@ test('it logs a first session whose revive fails with a plain error and still re
     throw new Error('no plan for s-first');
   });
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter({ planGuestSpawn }) });
+  const mgr = new SessionManager(
+    buildMockAgentAdapter({ planGuestSpawn }),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
@@ -188,7 +216,7 @@ test('it logs a first session whose revive fails with a plain error and still re
   ]);
 
   const restored = await restoreFleet({
-    mgr: ctx.mgr,
+    mgr,
     store: ctx.store,
     findRuntime: () => {},
     cols: 80,
@@ -196,14 +224,14 @@ test('it logs a first session whose revive fails with a plain error and still re
     capMs: 50,
   });
 
+  await restored.settled;
+
   expect(restored.restored).toBe(2);
 
-  await waitFor(() => {
-    expect<readonly unknown[]>(ctx.mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
-      ['s-first', false],
-      ['s-second', true],
-    ]);
-  });
+  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+    ['s-first', false],
+    ['s-second', true],
+  ]);
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     'atc could not revive session s-first (no plan for s-first)',

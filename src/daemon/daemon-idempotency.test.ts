@@ -1,6 +1,5 @@
 import { Database } from 'bun:sqlite';
 import { expect, mock, onTestFinished, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
@@ -336,7 +335,7 @@ test('it refuses a keyed spawn that fails after its process starts as internal',
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -359,7 +358,7 @@ test('it leaves no session behind from a keyed spawn that fails after its proces
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -383,7 +382,7 @@ test('it answers outcome_unknown with its claim when killing a failed spawn thro
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 2,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -402,11 +401,11 @@ test('it answers outcome_unknown with its claim when killing a failed spawn thro
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 });
 
@@ -415,7 +414,7 @@ test('it keeps the key as outcome_unknown when killing a failed spawn throws, so
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 2,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -429,7 +428,7 @@ test('it keeps the key as outcome_unknown when killing a failed spawn throws, so
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -438,7 +437,7 @@ test('it keeps the key as outcome_unknown when killing a failed spawn throws, so
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 
   expect(stub.countPlans()).toBe(1);
@@ -450,7 +449,7 @@ test('it answers outcome_unknown when a failed spawn cannot be removed from the 
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -480,7 +479,7 @@ test('it keeps the key as outcome_unknown when a failed spawn cannot be removed 
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -533,16 +532,14 @@ test('it answers outcome_unknown with the session id when the fleet write after 
 
   const list = await daemon.client.sendRequest('session.list');
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 
-  expect(list['sessions']).toStrictEqual([
-    expect.objectContaining({ id: claim?.effect_ref, alive: true }),
-  ]);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: claim, alive: true })]);
 });
 
 test('it keeps the key as outcome_unknown when the fleet write after a successful spawn fails, so a retry spawns nothing', async () => {
@@ -563,7 +560,7 @@ test('it keeps the key as outcome_unknown when the fleet write after a successfu
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const ref = readEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -574,16 +571,12 @@ test('it keeps the key as outcome_unknown when the fleet write after a successfu
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: ref?.effect_ref },
+    data: { effectRef: ref },
   });
 
   expect(planSpawn).toHaveBeenCalledOnce();
-
-  expect(list['sessions']).toStrictEqual([
-    expect.objectContaining({ id: ref?.effect_ref, alive: true }),
-  ]);
-
-  expect(claims).toStrictEqual([{ state: 'outcome_unknown', effect_ref: ref?.effect_ref }]);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: ref, alive: true })]);
+  expect(claims).toStrictEqual([{ state: 'outcome_unknown', effect_ref: ref }]);
 });
 
 test('it answers outcome_unknown with the session id when completing the key fails', async () => {
@@ -611,16 +604,14 @@ test('it answers outcome_unknown with the session id when completing the key fai
 
   const list = await daemon.client.sendRequest('session.list');
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 
-  expect(list['sessions']).toStrictEqual([
-    expect.objectContaining({ id: claim?.effect_ref, alive: true }),
-  ]);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: claim, alive: true })]);
 });
 
 test('it keeps the key in progress when completing it fails, so a retry spawns nothing', async () => {
@@ -643,7 +634,7 @@ test('it keeps the key in progress when completing it fails, so a retry spawns n
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const ref = readEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -654,16 +645,12 @@ test('it keeps the key in progress when completing it fails, so a retry spawns n
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: ref?.effect_ref },
+    data: { effectRef: ref },
   });
 
   expect(planSpawn).toHaveBeenCalledOnce();
-
-  expect(list['sessions']).toStrictEqual([
-    expect.objectContaining({ id: ref?.effect_ref, alive: true }),
-  ]);
-
-  expect(claims).toStrictEqual([{ state: 'in_progress', effect_ref: ref?.effect_ref }]);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: ref, alive: true })]);
+  expect(claims).toStrictEqual([{ state: 'in_progress', effect_ref: ref }]);
 });
 
 test('it answers outcome_unknown with the session id when the fleet write and the key update both fail after a successful spawn', async () => {
@@ -691,16 +678,14 @@ test('it answers outcome_unknown with the session id when the fleet write and th
 
   const list = await daemon.client.sendRequest('session.list');
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 
-  expect(list['sessions']).toStrictEqual([
-    expect.objectContaining({ id: claim?.effect_ref, alive: true }),
-  ]);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: claim, alive: true })]);
 });
 
 test('it keeps the key in progress when the fleet write and the key update both fail after a successful spawn, so a retry spawns nothing', async () => {
@@ -723,7 +708,7 @@ test('it keeps the key in progress when the fleet write and the key update both 
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const ref = readEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -734,16 +719,12 @@ test('it keeps the key in progress when the fleet write and the key update both 
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: ref?.effect_ref },
+    data: { effectRef: ref },
   });
 
   expect(planSpawn).toHaveBeenCalledOnce();
-
-  expect(list['sessions']).toStrictEqual([
-    expect.objectContaining({ id: ref?.effect_ref, alive: true }),
-  ]);
-
-  expect(claims).toStrictEqual([{ state: 'in_progress', effect_ref: ref?.effect_ref }]);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: ref, alive: true })]);
+  expect(claims).toStrictEqual([{ state: 'in_progress', effect_ref: ref }]);
 });
 
 test('it answers outcome_unknown with its claim when a failed spawn cannot leave the fleet and the key update fails too', async () => {
@@ -751,7 +732,7 @@ test('it answers outcome_unknown with its claim when a failed spawn cannot leave
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -776,11 +757,11 @@ test('it answers outcome_unknown with its claim when a failed spawn cannot leave
 
   await Promise.allSettled([spawned]);
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 });
 
@@ -789,7 +770,7 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: null,
+    ready: null,
   });
 
   await using daemon = await startTestDaemon({
@@ -809,7 +790,7 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const ref = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const ref = readEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   await Promise.allSettled([retried]);
@@ -818,31 +799,28 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: ref?.effect_ref },
+    data: { effectRef: ref },
   });
 
   expect(stub.countPlans()).toBe(1);
-  expect(claims).toStrictEqual([{ state: 'in_progress', effect_ref: ref?.effect_ref }]);
+  expect(claims).toStrictEqual([{ state: 'in_progress', effect_ref: ref }]);
 });
 
 test('it ends a failed spawn that ignores its kill with a forced kill before it answers', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written.
   const stub = buildStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
-      args: [
-        '-c',
-        `trap '' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; exec sleep 10`,
-      ],
+      args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -859,7 +837,7 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
 
   await Promise.allSettled([spawned]);
 
-  const pid = Number(readFileSync(pidPath, 'utf8'));
+  const pid = stub.getReadyPID();
 
   expect(spawned).rejects.toMatchObject({ code: 'internal' });
   expect(() => process.kill(pid, 0)).toThrowWithMessage(Error, /ESRCH/);
@@ -868,21 +846,18 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
 test('it completes the rollback of a failed spawn that ignores its kill, so a retry spawns once', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written.
   const stub = buildStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
-      args: [
-        '-c',
-        `trap '' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; exec sleep 10`,
-      ],
+      args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -904,21 +879,18 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
 test('it answers outcome_unknown and keeps the process of a failed spawn whose provider cannot confirm the exit', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
   const stub = buildStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
-      args: [
-        '-c',
-        `trap '' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; exec sleep 10`,
-      ],
+      args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -947,7 +919,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
 
   await Promise.allSettled([spawned]);
 
-  const pid = Number(readFileSync(pidPath, 'utf8'));
+  const pid = stub.getReadyPID();
 
   onTestFinished(() => {
     process.kill(pid, 'SIGKILL');
@@ -955,11 +927,11 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
 
   expect(spawned).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 
   expect(process.kill(pid, 0)).toBeTrue();
@@ -968,21 +940,18 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
 test('it keeps the key of a failed spawn whose provider cannot confirm the exit as outcome_unknown, so a retry spawns nothing', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
   const stub = buildStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
-      args: [
-        '-c',
-        `trap '' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; exec sleep 10`,
-      ],
+      args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -1011,7 +980,7 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
 
   await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
 
-  const pid = Number(readFileSync(pidPath, 'utf8'));
+  const pid = stub.getReadyPID();
 
   onTestFinished(() => {
     process.kill(pid, 'SIGKILL');
@@ -1019,12 +988,12 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
   const retried = daemon.client.sendRequest('session.spawn', params);
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: claim?.effect_ref },
+    data: { effectRef: claim },
   });
 
   expect(stub.countPlans()).toBe(1);
@@ -1033,21 +1002,18 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
 test('it keeps a failed spawn whose provider cannot confirm the exit listed and refuses its revive', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
   const stub = buildStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
-      args: [
-        '-c',
-        `trap '' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; exec sleep 10`,
-      ],
+      args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -1076,7 +1042,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
     }),
   ]);
 
-  const pid = Number(readFileSync(pidPath, 'utf8'));
+  const pid = stub.getReadyPID();
 
   onTestFinished(() => {
     process.kill(pid, 'SIGKILL');
@@ -1084,10 +1050,10 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
 
   using db = new Database(daemon.dbPath, { readonly: true });
 
-  const claim = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+  const claim = readEffectRef(db);
 
   const adopted = daemon.client.sendRequest('session.adopt', {
-    session: claim?.effect_ref,
+    session: claim,
     cols: 80,
     rows: 24,
   });
@@ -1097,13 +1063,13 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
   const list = await daemon.client.sendRequest('session.list');
 
   expect(adopted).rejects.toMatchObject({ code: 'no_such_session' });
-  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: claim?.effect_ref })]);
+  expect(list['sessions']).toStrictEqual([expect.objectContaining({ id: claim })]);
 });
 
 test('it answers a failed spawn only once its killed process has exited', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
@@ -1112,12 +1078,12 @@ test('it answers a failed spawn only once its killed process has exited', async 
       bin: 'bash',
       args: [
         '-c',
-        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; while :; do sleep 0.05; done`,
+        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPipe}'; while :; do sleep 0.05; done`,
       ],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -1134,7 +1100,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
 
   await Promise.allSettled([spawned]);
 
-  const pid = Number(readFileSync(pidPath, 'utf8'));
+  const pid = stub.getReadyPID();
 
   expect(spawned).rejects.toMatchObject({ code: 'internal' });
   expect(() => process.kill(pid, 0)).toThrowWithMessage(Error, /ESRCH/);
@@ -1143,7 +1109,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
 test('it lets a retry spawn once after a failed spawn whose killed process took time to exit', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
@@ -1152,12 +1118,12 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
       bin: 'bash',
       args: [
         '-c',
-        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; while :; do sleep 0.05; done`,
+        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPipe}'; while :; do sleep 0.05; done`,
       ],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -1179,7 +1145,7 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
 test('it refuses to revive a failed spawn while its rollback waits for the killed process', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
@@ -1188,12 +1154,12 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
       bin: 'bash',
       args: [
         '-c',
-        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; while :; do sleep 0.05; done`,
+        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPipe}'; while :; do sleep 0.05; done`,
       ],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -1225,6 +1191,8 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
     rows: 24,
   });
 
+  // The spawn settles only after its rollback, by which time the refused
+  // revive has rejected, so both settle together and neither goes unhandled.
   await Promise.allSettled([adopted, spawned]);
 
   expect(adopted).rejects.toMatchObject({ code: 'no_such_session' });
@@ -1233,7 +1201,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
 test('it leaves no session behind from a failed spawn whose revive was refused during its rollback', async () => {
   using pids = setupTempDir('atc-idempotency-pid-');
 
-  const pidPath = join(pids.dir, 'child.pid');
+  const pidPipe = join(pids.dir, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
@@ -1242,12 +1210,12 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
       bin: 'bash',
       args: [
         '-c',
-        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPath}.tmp'; mv '${pidPath}.tmp' '${pidPath}'; while :; do sleep 0.05; done`,
+        `trap 'sleep 0.3; exit 0' HUP; echo $$ > '${pidPipe}'; while :; do sleep 0.05; done`,
       ],
     },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
-    readyFile: pidPath,
+    ready: { path: pidPipe, timeoutMs: 5000 },
   });
 
   await using daemon = await startTestDaemon({
@@ -1577,3 +1545,15 @@ test('it refuses a replay-only spawn without an idempotency key as bad_args and 
   expect(refused).rejects.toMatchObject({ code: 'bad_args' });
   expect(list['sessions']).toStrictEqual([]);
 });
+
+// The effect ref of the one claim the daemon recorded, which every test that
+// reads it expects to exist.
+function readEffectRef(db: Database): string {
+  const row = db.query<{ effect_ref: string }, []>('SELECT effect_ref FROM idempotency').get();
+
+  if (row === null) {
+    throw new Error('the daemon recorded no idempotency claim');
+  }
+
+  return row.effect_ref;
+}

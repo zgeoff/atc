@@ -1,7 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
@@ -14,18 +13,12 @@ import { buildTargetIdentity } from './build-target-identity';
 import { LocalPTYProvider } from './local-pty-provider';
 import { SessionManager } from './sessions';
 
-interface SessionsTestConfig {
-  // The adapter a session with no registered agent id falls back to.
-  readonly adapter: AgentAdapter;
-
-  // The adapters registered over and above the fallback.
-  readonly adapters: readonly AgentAdapter[];
-}
-
-// A session manager over a real state store with the given adapters, every
-// line it logs collected, and two targets: `local` on this machine's
-// terminals, and `box`, whose hosts can sleep and be destroyed.
-async function setupTest(config: SessionsTestConfig) {
+// The fixed parts every session manager test shares: a real state store, a
+// recorder of logged lines, and two targets: `local` on this machine's
+// terminals, and `box`, whose hosts can sleep and be destroyed. `defer`
+// runs a teardown before the store and the providers go, so a manager the
+// test builds detaches first.
+async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-sessions-'));
@@ -47,13 +40,14 @@ async function setupTest(config: SessionsTestConfig) {
   });
 
   const lines: string[] = [];
+  const owned = stack.move();
 
-  const mgr = new SessionManager(
-    config.adapter,
+  return {
+    dir: tmp.dir,
+    dbPath,
+    statusPath: join(tmp.dir, 'status.json'),
     store,
-    join(tmp.dir, 'status.json'),
-    config.adapters,
-    [
+    targets: [
       {
         id: 'local',
         kind: 'local-pty',
@@ -63,32 +57,35 @@ async function setupTest(config: SessionsTestConfig) {
       },
       { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: box },
     ],
-  );
-
-  mgr.log = (line) => {
-    lines.push(line);
-  };
-
-  stack.defer(() => {
-    mgr.detachAll();
-  });
-
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    dbPath,
-    store,
-    mgr,
     lines,
+    log: (line: string) => {
+      lines.push(line);
+    },
+    defer: (teardown: () => void) => {
+      owned.defer(teardown);
+    },
     [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it restores an entry whose agent id is registered as waiting for its terminal', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-c-1'),
     name: 'claude work',
     cwd: '/work/proj',
@@ -100,9 +97,23 @@ test('it restores an entry whose agent id is registered as waiting for its termi
 });
 
 test('it restores an entry whose agent id is unregistered with a message that the adapter is missing', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-z-1'),
     name: 'glm work',
     cwd: '/work/proj',
@@ -114,9 +125,23 @@ test('it restores an entry whose agent id is unregistered with a message that th
 });
 
 test('it never revives a restored entry whose agent id is unregistered as another agent', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-z-1'),
     name: 'glm work',
     cwd: '/work/proj',
@@ -124,7 +149,7 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
     agent: 'zai',
   });
 
-  const adopted = await ctx.mgr.adoptTerminal(session.id, 80, 24);
+  const adopted = await mgr.adoptTerminal(session.id, 80, 24);
 
   expect(adopted).toBeNull();
 });
@@ -132,55 +157,125 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
 test('it resolves an agent id to the registered adapter that declares it', async () => {
   const gateway = buildMockAgentAdapter({ id: 'zai' });
 
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [gateway] });
+  await using ctx = await setupTest();
 
-  expect(ctx.mgr.findAdapter('zai')).toBe(gateway);
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [gateway],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  expect(mgr.findAdapter('zai')).toBe(gateway);
 });
 
 test('it resolves the fallback adapter by its own id, not by another registered one', async () => {
   const fallback = buildMockAgentAdapter();
 
-  await using ctx = await setupTest({
-    adapter: fallback,
-    adapters: [buildMockAgentAdapter({ id: 'zai' })],
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    fallback,
+    ctx.store,
+    ctx.statusPath,
+    [buildMockAgentAdapter({ id: 'zai' })],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  expect(ctx.mgr.findAdapter('claude')).toBe(fallback);
+  expect(mgr.findAdapter('claude')).toBe(fallback);
 });
 
 test('it resolves an agent id no adapter declares to no adapter', async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter(),
-    adapters: [buildMockAgentAdapter({ id: 'zai' })],
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [buildMockAgentAdapter({ id: 'zai' })],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  expect(ctx.mgr.findAdapter('grok')).toBeNull();
+  expect(mgr.findAdapter('grok')).toBeNull();
 });
 
 test('it reports no screen detector when no registered adapter provides one', async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter(),
-    adapters: [buildMockAgentAdapter({ id: 'zai' })],
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [buildMockAgentAdapter({ id: 'zai' })],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  expect(ctx.mgr.hasScreenDetector).toBeFalse();
+  expect(mgr.hasScreenDetector).toBeFalse();
 });
 
 test('it reports a screen detector when a registered adapter provides one', async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter(),
-    adapters: [
-      buildMockAgentAdapter({ id: 'zai', screenDetector: { detectAttention: () => null } }),
-    ],
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [buildMockAgentAdapter({ id: 'zai', screenDetector: { detectAttention: () => null } })],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  expect(ctx.mgr.hasScreenDetector).toBeTrue();
+  expect(mgr.hasScreenDetector).toBeTrue();
 });
 
 test('it links a restored sub-session to the parent already registered under its session id', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const parent = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const parent = mgr.restore({
     sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -188,7 +283,7 @@ test('it links a restored sub-session to the parent already registered under its
     agent: 'claude',
   });
 
-  const child = ctx.mgr.restore({
+  const child = mgr.restore({
     sessionID: toSessionID('s-c-child'),
     name: 'worker',
     cwd: '/work/proj',
@@ -201,9 +296,23 @@ test('it links a restored sub-session to the parent already registered under its
 });
 
 test('it restores a sub-session whose parent is absent as a top-level session', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const child = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const child = mgr.restore({
     sessionID: toSessionID('s-c-child'),
     name: 'worker',
     cwd: '/work/proj',
@@ -216,9 +325,23 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
 });
 
 test('it persists a sub-session link by the parent atc session id', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const parent = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const parent = mgr.restore({
     sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -226,7 +349,7 @@ test('it persists a sub-session link by the parent atc session id', async () => 
     agent: 'claude',
   });
 
-  const child = await ctx.mgr.spawn(
+  const child = await mgr.spawn(
     ctx.dir,
     'worker',
     '',
@@ -238,7 +361,7 @@ test('it persists a sub-session link by the parent atc session id', async () => 
     parent.id,
   );
 
-  await ctx.mgr.writeFleet();
+  await mgr.writeFleet();
 
   const stored = await ctx.store.loadFleet();
 
@@ -268,9 +391,23 @@ test('it persists a sub-session link by the parent atc session id', async () => 
 });
 
 test('it refuses to pin a sub-session and leaves it unpinned', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  mgr.restore({
     sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -278,7 +415,7 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
     agent: 'claude',
   });
 
-  const child = ctx.mgr.restore({
+  const child = mgr.restore({
     sessionID: toSessionID('s-c-child'),
     name: 'worker',
     cwd: '/work/proj',
@@ -287,7 +424,7 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
     parent: toSessionID('s-c-parent'),
   });
 
-  const pinned = ctx.mgr.updateSession(child.id, undefined, true);
+  const pinned = mgr.updateSession(child.id, undefined, true);
 
   expect({ pinned, isPinned: child.pinned }).toStrictEqual({
     pinned: 'child_pin',
@@ -296,9 +433,23 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
 });
 
 test('it pins a parent that has a sub-session', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const parent = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const parent = mgr.restore({
     sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -306,7 +457,7 @@ test('it pins a parent that has a sub-session', async () => {
     agent: 'claude',
   });
 
-  ctx.mgr.restore({
+  mgr.restore({
     sessionID: toSessionID('s-c-child'),
     name: 'worker',
     cwd: '/work/proj',
@@ -315,27 +466,30 @@ test('it pins a parent that has a sub-session', async () => {
     parent: toSessionID('s-c-parent'),
   });
 
-  expect(ctx.mgr.updateSession(parent.id, undefined, true)).toBeTrue();
+  expect(mgr.updateSession(parent.id, undefined, true)).toBeTrue();
 });
 
 test('it kills a live sub-session along with its parent', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const parent = await ctx.mgr.spawn(ctx.dir, 'wrangler', '', 80, 24, false, 'user', 'claude');
-
-  const child = await ctx.mgr.spawn(
-    ctx.dir,
-    'worker',
-    '',
-    80,
-    24,
-    false,
-    'user',
-    'claude',
-    parent.id,
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
   );
 
-  await ctx.mgr.kill(parent.id);
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const parent = await mgr.spawn(ctx.dir, 'wrangler', '', 80, 24, false, 'user', 'claude');
+  const child = await mgr.spawn(ctx.dir, 'worker', '', 80, 24, false, 'user', 'claude', parent.id);
+
+  await mgr.kill(parent.id);
 
   expect({ parent: parent.state, child: child.state, link: child.parent }).toStrictEqual({
     parent: 'exited',
@@ -345,9 +499,23 @@ test('it kills a live sub-session along with its parent', async () => {
 });
 
 test('it forgets a dead parent with its dead sub-sessions and promotes the live ones', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const parent = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const parent = mgr.restore({
     sessionID: toSessionID('s-c-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -356,7 +524,7 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     exited: true,
   });
 
-  ctx.mgr.restore({
+  mgr.restore({
     sessionID: toSessionID('s-c-dead'),
     name: 'dead worker',
     cwd: '/work/proj',
@@ -366,7 +534,7 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     parent: toSessionID('s-c-parent'),
   });
 
-  const live = await ctx.mgr.spawn(
+  const live = await mgr.spawn(
     ctx.dir,
     'live worker',
     '',
@@ -378,17 +546,31 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
     parent.id,
   );
 
-  await ctx.mgr.kill(parent.id);
+  await mgr.kill(parent.id);
 
-  expect(ctx.mgr.sessions.map((s) => ({ id: s.id, parent: s.parent }))).toStrictEqual([
+  expect(mgr.sessions.map((s) => ({ id: s.id, parent: s.parent }))).toStrictEqual([
     { id: live.id, parent: null },
   ]);
 });
 
 test('it keeps an exited sub-session on a host-destroying target when a second kill forgets its dead local parent', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  mgr.restore({
     sessionID: toSessionID('s-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -399,7 +581,7 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
     targetIdentity: buildTargetIdentity('local-pty', {}),
   });
 
-  const remote = ctx.mgr.restore({
+  const remote = mgr.restore({
     sessionID: toSessionID('s-remote'),
     name: 'remote worker',
     cwd: '/work/proj',
@@ -411,17 +593,31 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
     targetIdentity: 'imp-like:test',
   });
 
-  await ctx.mgr.kill(toSessionID('s-parent'));
+  await mgr.kill(toSessionID('s-parent'));
 
-  expect(ctx.mgr.sessions.map((s) => ({ id: s.id, parent: s.parent }))).toStrictEqual([
+  expect(mgr.sessions.map((s) => ({ id: s.id, parent: s.parent }))).toStrictEqual([
     { id: remote.id, parent: null },
   ]);
 });
 
 test("it refuses to forget a session kept asleep inside its parent's host and keeps its record", async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  mgr.restore({
     sessionID: toSessionID('s-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -433,7 +629,7 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
     targetIdentity: 'imp-like:test',
   });
 
-  ctx.mgr.restore({
+  mgr.restore({
     sessionID: toSessionID('s-guest'),
     name: 'guest',
     cwd: '/work/proj',
@@ -447,23 +643,37 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
     targetIdentity: 'imp-like:test',
   });
 
-  const forgotten = ctx.mgr.forget(toSessionID('s-guest'));
+  const forgotten = mgr.forget(toSessionID('s-guest'));
 
   expect(forgotten).rejects.toMatchObject({
     code: 'unsupported_operation',
     data: { problem: 'host_asleep', host: 's-parent' },
   });
 
-  expect(ctx.mgr.sessions.map((s) => s.id)).toStrictEqual([
+  expect(mgr.sessions.map((s) => s.id)).toStrictEqual([
     toSessionID('s-parent'),
     toSessionID('s-guest'),
   ]);
 });
 
 test("it forgets an exited session on its parent's host while that host is not asleep", async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  mgr.restore({
     sessionID: toSessionID('s-parent'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -474,7 +684,7 @@ test("it forgets an exited session on its parent's host while that host is not a
     targetIdentity: 'imp-like:test',
   });
 
-  ctx.mgr.restore({
+  mgr.restore({
     sessionID: toSessionID('s-guest'),
     name: 'guest',
     cwd: '/work/proj',
@@ -487,29 +697,40 @@ test("it forgets an exited session on its parent's host while that host is not a
     targetIdentity: 'imp-like:test',
   });
 
-  const destroyed = await ctx.mgr.forget(toSessionID('s-guest'));
+  const destroyed = await mgr.forget(toSessionID('s-guest'));
 
-  expect({ destroyed, ids: ctx.mgr.sessions.map((s) => s.id) }).toStrictEqual({
+  expect({ destroyed, ids: mgr.sessions.map((s) => s.id) }).toStrictEqual({
     destroyed: false,
     ids: [toSessionID('s-parent')],
   });
 });
 
 test("it keeps a finished turn's last message as the session result", async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter(),
-    adapters: [
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [
       buildMockAgentAdapter({
         normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
       }),
     ],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+  const s = await mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
 
-  ctx.mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
+  mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
 
-  await ctx.mgr.writeFleet();
+  await mgr.writeFleet();
 
   const stored = await ctx.store.loadFleet();
 
@@ -530,20 +751,31 @@ test("it keeps a finished turn's last message as the session result", async () =
 });
 
 test('it truncates a stored result past 16 KiB', async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter(),
-    adapters: [
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [
       buildMockAgentAdapter({
         normalizeHook: () => ({ kind: 'turn-done', result: 'x'.repeat(20_000) }),
       }),
     ],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+  const s = await mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
 
-  ctx.mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
+  mgr.applyHook({ atcId: s.id, event: 'Stop', payload: {} });
 
-  await ctx.mgr.writeFleet();
+  await mgr.writeFleet();
 
   const [stored] = await ctx.store.loadFleet();
 
@@ -551,9 +783,13 @@ test('it truncates a stored result past 16 KiB', async () => {
 });
 
 test('it persists the transcript path its hooks report', async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter(),
-    adapters: [
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [
       buildMockAgentAdapter({
         normalizeHook: () => ({
           kind: 'started',
@@ -562,13 +798,20 @@ test('it persists the transcript path its hooks report', async () => {
         }),
       }),
     ],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24);
+  const s = await mgr.spawn(ctx.dir, 'worker', '', 80, 24);
 
-  ctx.mgr.applyHook({ atcId: s.id, event: 'SessionStart', payload: {} });
+  mgr.applyHook({ atcId: s.id, event: 'SessionStart', payload: {} });
 
-  await ctx.mgr.writeFleet();
+  await mgr.writeFleet();
 
   const stored = await ctx.store.loadFleet();
 
@@ -588,9 +831,23 @@ test('it persists the transcript path its hooks report', async () => {
 });
 
 test("it restores an entry's prompt, result, and transcript path onto the session", async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-c-1'),
     name: 'wrangler',
     cwd: '/work/proj',
@@ -606,19 +863,30 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
 });
 
 test('it keeps a crashed sibling restorable as live when another session finishes a turn', async () => {
-  await using ctx = await setupTest({
-    adapter: buildMockAgentAdapter(),
-    adapters: [
+  await using ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [
       buildMockAgentAdapter({
         normalizeHook: () => ({ kind: 'turn-done', result: 'all green' }),
       }),
     ],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
   });
 
-  const finisher = await ctx.mgr.spawn(ctx.dir, 'finisher', 'go', 80, 24, toAgentSessionID('c-1'));
-  const crasher = await ctx.mgr.spawn(ctx.dir, 'crasher', 'go', 80, 24, toAgentSessionID('c-2'));
+  const finisher = await mgr.spawn(ctx.dir, 'finisher', 'go', 80, 24, toAgentSessionID('c-1'));
+  const crasher = await mgr.spawn(ctx.dir, 'crasher', 'go', 80, 24, toAgentSessionID('c-2'));
 
-  await ctx.mgr.writeFleet();
+  await mgr.writeFleet();
 
   crasher.pty?.kill();
 
@@ -626,7 +894,7 @@ test('it keeps a crashed sibling restorable as live when another session finishe
     expect(crasher.state).toBe('exited');
   });
 
-  ctx.mgr.applyHook({ atcId: finisher.id, event: 'Stop', payload: {} });
+  mgr.applyHook({ atcId: finisher.id, event: 'Stop', payload: {} });
 
   await waitFor(async () => {
     const stored = await ctx.store.loadFleet();
@@ -660,9 +928,23 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 });
 
 test('it restores an entry under the session id its row holds', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'),
     name: 'claude work',
     cwd: '/work/proj',
@@ -674,9 +956,23 @@ test('it restores an entry under the session id its row holds', async () => {
 });
 
 test('it restores an entry with no agent session id as exited', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-booting'),
     name: 'booting',
     cwd: '/work/proj',
@@ -690,11 +986,25 @@ test('it restores an entry with no agent session id as exited', async () => {
 });
 
 test('it persists a session the agent has not yet given a session id', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const s = await ctx.mgr.spawn(ctx.dir, 'booting', '', 80, 24);
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
 
-  await ctx.mgr.writeFleet();
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const s = await mgr.spawn(ctx.dir, 'booting', '', 80, 24);
+
+  await mgr.writeFleet();
 
   const stored = await ctx.store.loadFleet();
 
@@ -712,9 +1022,23 @@ test('it persists a session the agent has not yet given a session id', async () 
 });
 
 test('it logs a background fleet write that fails and keeps the change in memory', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-1'),
     name: 'work',
     cwd: '/work/proj',
@@ -728,7 +1052,7 @@ test('it logs a background fleet write that fails and keeps the change in memory
     db.run('DROP TABLE fleet');
   }
 
-  ctx.mgr.updateSession(session.id, 'renamed');
+  mgr.updateSession(session.id, 'renamed');
 
   await waitFor(() => {
     expect(ctx.lines).toStrictEqual([
@@ -740,9 +1064,23 @@ test('it logs a background fleet write that fails and keeps the change in memory
 });
 
 test('it logs a background row update that fails', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-1'),
     name: 'work',
     cwd: '/work/proj',
@@ -756,7 +1094,7 @@ test('it logs a background row update that fails', async () => {
     db.run('DROP TABLE fleet');
   }
 
-  ctx.mgr.updateSurfaceState(session.id, 'done', 'finished', 'the result');
+  mgr.updateSurfaceState(session.id, 'done', 'finished', 'the result');
 
   await waitFor(() => {
     expect(ctx.lines).toStrictEqual([
@@ -766,9 +1104,23 @@ test('it logs a background row update that fails', async () => {
 });
 
 test('it logs nothing for a background fleet write refused as stale_epoch', async () => {
-  await using ctx = await setupTest({ adapter: buildMockAgentAdapter(), adapters: [] });
+  await using ctx = await setupTest();
 
-  const session = ctx.mgr.restore({
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    ctx.targets,
+  );
+
+  mgr.log = ctx.log;
+
+  ctx.defer(() => {
+    mgr.detachAll();
+  });
+
+  const session = mgr.restore({
     sessionID: toSessionID('s-1'),
     name: 'work',
     cwd: '/work/proj',
@@ -786,10 +1138,10 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
     );
   }
 
-  ctx.mgr.updateSession(session.id, 'renamed');
+  mgr.updateSession(session.id, 'renamed');
 
   // The store serves one write at a time, so this refusal settles only after
   // the background write's refusal has been handled.
-  expect(ctx.mgr.writeFleet()).rejects.toMatchObject({ code: 'stale_epoch' });
+  expect(mgr.writeFleet()).rejects.toMatchObject({ code: 'stale_epoch' });
   expect(ctx.lines).toStrictEqual([]);
 });

@@ -70,8 +70,6 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
     rows: 24,
   });
 
-  await Promise.allSettled([spawned]);
-
   expect(spawned).rejects.toMatchObject({
     code: 'unsupported_operation',
     data: { provider: 'imp', agent: 'claude', problem: 'no_guest_atc' },
@@ -352,8 +350,6 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
     rows: 24,
   });
 
-  await Promise.allSettled([spawned]);
-
   expect(spawned).rejects.toMatchObject({
     code: 'auth_not_configured',
     data: { agent: 'claude', target: 'box' },
@@ -501,8 +497,6 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
 
   const retried = daemon.client.sendRequest('session.spawn', params);
 
-  await Promise.allSettled([retried]);
-
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
   expect<Record<string, unknown>>({
@@ -610,8 +604,6 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
     cols: 80,
     rows: 24,
   });
-
-  await Promise.allSettled([spawned]);
 
   expect(spawned).rejects.toMatchObject({
     code: 'unsupported_operation',

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { openBridgeSocket } from '../protocol/open-bridge-socket';
@@ -132,12 +132,23 @@ test('it records the answer a remote session reports to a message its tap took',
 test("it answers a status read on a remote session's bridge with that session's own state", async () => {
   await using ctx = await setupTest();
 
-  await ctx.daemon.client.sendRequest('session.spawn', { cwd: ctx.daemon.dir, cols: 80, rows: 24 });
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
 
-  const socket = readdirSync(join(ctx.guestDir, 'run')).find((name) => name.endsWith('.sock'));
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  // The bridge socket is named for the session id, lowercased, with only
+  // letters and digits kept, cut to 16 characters.
+  const socketName = id
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/g, '')
+    .slice(0, 16);
 
   const status = await sendBridgeRequest(
-    join(ctx.guestDir, 'run', String(socket)),
+    join(ctx.guestDir, 'run', `${socketName}.sock`),
     'status.read',
     {},
     2000,
@@ -154,12 +165,24 @@ test("it answers a status read on a remote session's bridge with that session's 
 test('it answers an op the bridge does not offer with forbidden and closes the connection', async () => {
   await using ctx = await setupTest();
 
-  await ctx.daemon.client.sendRequest('session.spawn', { cwd: ctx.daemon.dir, cols: 80, rows: 24 });
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
 
-  const socketName = readdirSync(join(ctx.guestDir, 'run')).find((name) => name.endsWith('.sock'));
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  // The bridge socket is named for the session id, lowercased, with only
+  // letters and digits kept, cut to 16 characters.
+  const socketName = id
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/g, '')
+    .slice(0, 16);
+
   const answers: Readonly<Record<string, unknown>>[] = [];
 
-  const socket = await openBridgeSocket(join(ctx.guestDir, 'run', String(socketName)), (line) => {
+  const socket = await openBridgeSocket(join(ctx.guestDir, 'run', `${socketName}.sock`), (line) => {
     answers.push(line);
   });
 

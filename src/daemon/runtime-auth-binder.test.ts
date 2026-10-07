@@ -168,8 +168,6 @@ test('it refuses an impd without exec requirements after reading only its featur
     },
   });
 
-  await Promise.allSettled([created]);
-
   expect(created).rejects.toMatchObject({
     code: 'auth_impd_too_old',
     data: { execRequire: false },
@@ -184,25 +182,7 @@ test('it refuses an impd without exec requirements after reading only its featur
 test('it refuses a token that reaches every imp and records nothing', async () => {
   await using ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm', 'judge'],
-  });
-
-  ctx.port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
-
-  ctx.port.createSecret('judge', 'custom', [
-    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
-  ]);
-
+  // The token `host-wide` manages every imp, not only `atc-*` ones.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'host-wide',
@@ -232,8 +212,6 @@ test('it refuses a token that reaches every imp and records nothing', async () =
     },
   });
 
-  await Promise.allSettled([created]);
-
   expect(created).rejects.toMatchObject({ code: 'auth_token_too_broad' });
 
   expect<Record<string, unknown>>({
@@ -246,8 +224,9 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
   await using ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
+  // imps and may grant `glm` and `judge`, and impd holds `judge` for
+  // judge.example and `glm` for api.z.ai and elsewhere.example, both custom
+  // bearer secrets.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -255,10 +234,6 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
     imps: ['atc-*'],
     grantable: ['glm', 'judge'],
   });
-
-  ctx.port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
 
   ctx.port.createSecret('judge', 'custom', [
     { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
@@ -289,8 +264,6 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
       hash: 'h1',
     },
   });
-
-  await Promise.allSettled([created]);
 
   expect(created).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
 
@@ -347,8 +320,6 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
       hash: 'h1',
     },
   });
-
-  await Promise.allSettled([created]);
 
   expect(created).rejects.toMatchObject({ code: 'auth_runtime_exists' });
 
@@ -414,8 +385,6 @@ test('it takes back the imp a refused grant left and drops the record', async ()
       hash: 'h1',
     },
   });
-
-  await Promise.allSettled([created]);
 
   expect(created).rejects.toMatchObject({
     code: 'host_unavailable',
@@ -580,8 +549,6 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
     hash: 'h1',
   });
 
-  await Promise.allSettled([verified]);
-
   expect(verified).rejects.toMatchObject({
     code: 'auth_grant_missing',
     data: { missing: ['glm'] },
@@ -651,8 +618,6 @@ test('it refuses a host that holds a grant its binding does not', async () => {
     profileEnv: {},
     hash: 'h1',
   });
-
-  await Promise.allSettled([verified]);
 
   expect(verified).rejects.toMatchObject({
     code: 'auth_grants_mismatch',
@@ -727,8 +692,6 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
     hash: 'h2',
   });
 
-  await Promise.allSettled([verified]);
-
   expect(verified).rejects.toMatchObject({ code: 'auth_rebind_required' });
   expect(ctx.port.calls).toStrictEqual([]);
 });
@@ -796,8 +759,6 @@ test('it refuses an imp made again under the recorded name', async () => {
     profileEnv: {},
     hash: 'h1',
   });
-
-  await Promise.allSettled([verified]);
 
   expect(verified).rejects.toMatchObject({ code: 'auth_runtime_mismatch' });
 });
@@ -984,8 +945,6 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
 
   const revoked = ctx.binder.revokeBinding(null, toSessionID('s1'));
 
-  await Promise.allSettled([revoked]);
-
   expect(revoked).rejects.toMatchObject({
     code: 'auth_revocation_pending',
     data: { pending: ['glm'] },
@@ -1108,8 +1067,6 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
   });
 
   const revoked = ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
-
-  await Promise.allSettled([revoked]);
 
   expect(revoked).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
@@ -1302,8 +1259,6 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
     profileEnv: {},
     hash: 'h2',
   });
-
-  await Promise.allSettled([rebound]);
 
   expect(rebound).rejects.toMatchObject({ code: 'host_unavailable' });
 
@@ -1578,8 +1533,6 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
   await ctx.port.createImp({ name: 'atc-s1' });
 
   const forgotten = ctx.binder.forgetBinding(ctx.host, toSessionID('s1'));
-
-  await Promise.allSettled([forgotten]);
 
   expect(forgotten).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
@@ -1917,8 +1870,6 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
 
   const removed = ctx.binder.removeAttempt(renamed.brokerAuth, toSessionID('s1'), attemptID);
 
-  await Promise.allSettled([removed]);
-
   expect(removed).rejects.toThrowWithMessage(
     EffectRemainsError,
     /^atc could not take back the runtime auth of host s1 \(/,
@@ -2151,14 +2102,19 @@ test('it hands a launch over before a revoke that arrives during its admission, 
     { revision: 1, hash: 'h1', attemptID: null },
     'start',
     () => {
-      revoked.push(ctx.binder.revokeBinding(ctx.host, toSessionID('s1')));
+      revoked.push(
+        (async () => {
+          await ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
+
+          order.push('revoked');
+        })(),
+      );
+
       order.push('sent');
     },
   );
 
   await Promise.all(revoked);
-
-  order.push('revoked');
 
   expect<Record<string, unknown>>({
     order,
@@ -2226,12 +2182,9 @@ test('it refuses a launch whose admission waits behind a revoke, handing nothing
     },
   );
 
-  await Promise.allSettled([admitted]);
+  await Promise.allSettled([admitted, revoked]);
 
   expect(admitted).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
-
-  await revoked;
-
   expect(sent).toStrictEqual([]);
 });
 
@@ -2290,8 +2243,6 @@ test('it refuses a start planned under another binding hash than the ready one',
       sent.push('start');
     },
   );
-
-  await Promise.allSettled([admitted]);
 
   expect(admitted).rejects.toMatchObject({ code: 'auth_rebind_required' });
   expect(sent).toStrictEqual([]);
@@ -2387,7 +2338,9 @@ test('it holds a launch admission while its connection opens and returns it once
 
   await Promise.allSettled([harness.waitForStart()]);
 
-  expect([held, ctx.binder.countPendingAdmissions(toSessionID('s1'))]).toStrictEqual([1, 0]);
+  expect(held).toBe(1);
+  expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
+  expect(ctx.port.sessionRequests).toMatchObject([{ kind: 'start', name: 'imp-x', session: 's2' }]);
 });
 
 test('it returns the launch admission of each connection that fails before it opens', async () => {
@@ -2565,8 +2518,6 @@ test('it returns the launch admission of a connection whose opening throws befor
   });
 
   const started = harness.waitForStart();
-
-  await Promise.allSettled([started]);
 
   expect(started).rejects.toMatchObject({ code: 'internal' });
 

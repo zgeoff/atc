@@ -39,3 +39,25 @@ test('it reports the relay closed once it is closed', () => {
 
   expect(stub.isClosed()).toBeTrue();
 });
+
+test('it runs every close listener when the guest hangs up', () => {
+  const stub = buildStubHarnessRelay();
+  const first = mock<() => void>();
+  const second = mock<() => void>();
+
+  stub.relay.onClose(first);
+  stub.relay.onClose(second);
+  stub.hangUp();
+
+  expect([first.mock.calls.length, second.mock.calls.length]).toStrictEqual([1, 1]);
+});
+
+test('it runs no close listener when the daemon closes the relay', () => {
+  const stub = buildStubHarnessRelay();
+  const listener = mock<() => void>();
+
+  stub.relay.onClose(listener);
+  stub.relay.close();
+
+  expect(listener).not.toHaveBeenCalled();
+});
