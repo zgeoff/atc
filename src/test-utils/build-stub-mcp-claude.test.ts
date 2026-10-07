@@ -4,42 +4,23 @@ import { join } from 'node:path';
 import { buildStubMCPClaude } from './build-stub-mcp-claude';
 import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
+import { startStubReporterSocket } from './start-stub-reporter-socket';
 import { waitFor } from './wait-for';
 
 function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-stub-mcp-claude-'));
-  const lines: string[] = [];
 
-  // The reporter the script reports through sends one line per connection
-  // here.
-  const listener = Bun.listen<{ buffer: string }>({
-    unix: join(tmp.dir, 'report.sock'),
-    socket: {
-      open(socket) {
-        socket.data = { buffer: '' };
-      },
-      data(socket, chunk) {
-        socket.data.buffer += chunk.toString();
-      },
-      close(socket) {
-        lines.push(socket.data.buffer.trimEnd());
-      },
-    },
-  });
-
-  stack.defer(() => {
-    listener.stop(true);
-  });
-
+  // The reporter the script reports through sends its lines here.
+  const reporter = stack.use(startStubReporterSocket(join(tmp.dir, 'report.sock')));
   const bin = createStubBin(tmp.dir, 'claude', buildStubMCPClaude());
   const owned = stack.move();
 
   return {
     dir: tmp.dir,
     bin,
-    lines,
+    lines: reporter.lines,
     [Symbol.dispose]: () => {
       owned.dispose();
     },
