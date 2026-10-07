@@ -869,6 +869,9 @@ session too. The state Claude Code writes beside the bundle, `.claude.json` amon
 
 ## Migrating from the old keys
 
+atc 3.0.0 marks the move to the `agents` map as a breaking change. The old keys still load, but a
+later major release can drop them, so migrate any config that still uses them.
+
 Before the `agents` map, config.json held one key per harness (`claudeBin`, `claudeArgs`, `grokBin`,
 `grokArgs`, `codexBin`, `codexArgs`), `claudeAuth`, and a `gateways` map. A file with none of the
 keys of `agents` and any of those loads with its old meaning: `claude`, `grok`, and `codex` entries
