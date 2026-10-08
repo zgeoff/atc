@@ -2,10 +2,10 @@
 name: testing
 description:
   Testing rules for zgeoff Bun repos — the three package regimes, flat behavioural tests, a
-  disposable setupTest, inline data and tested factories, strict assertions and inline snapshots,
-  injected time, no sleeps, real filesystems and transports, and the narrow cases for module mocks.
-  References cover real databases, React and TanStack clients, HTTP mocking with MSW, and
-  observability. Load when designing, writing, or reviewing tests.
+  setupTest with onTestFinished cleanup, inline data and tested factories, strict assertions and
+  inline snapshots, injected time, no sleeps, real filesystems and transports, and the narrow cases
+  for module mocks. References cover real databases, React and TanStack clients, HTTP mocking with
+  MSW, and observability. Load when designing, writing, or reviewing tests.
 ---
 
 # Testing
@@ -13,9 +13,10 @@ description:
 `bun test` loads every test file into one process, so state that one file leaves behind is state the
 next file sees. The repo's `bunfig.toml` preload owns that process: it registers the matchers, the
 mock server lifecycle, and every reset that returns shared state to a clean baseline after each
-test. A test file holds no lifecycle hooks. A test exercises real behaviour through real code, and
-it reaches for a stand-in only at a boundary the test cannot cross. When existing tests break these
-rules, you align them while you work on the code they cover.
+test. Per-test resources register cleanup with `onTestFinished` where they are acquired. A test
+exercises real behaviour through real code, and it reaches for a stand-in only at a boundary the
+test cannot cross. When existing tests break these rules, you align them while you work on the code
+they cover.
 
 This skill is the shared base that repo-sync delivers from zgeoff/tools: edit it there, never in a
 downstream copy. When the repo has a `project-testing` skill, load it as well. That skill adds this
@@ -65,14 +66,16 @@ These decide a case that the rules below leave open.
 - When one file tests several units, such as the procedures of one router, a `#<unit>` prefix takes
   the place of "it": `#archiveNote rejects a note that is already archived`. A file that tests one
   unit uses no prefix.
-- A test body arranges, acts, then asserts, and a blank line separates each phase. Phase comments
-  such as `// act` never appear. A test acts once: it has one act phase, which may hold several
-  calls whose combined result the assertions check, such as the two runs that a determinism test
-  compares. A body with two independent act-and-assert pairs holds two tests, so split it. When a
-  second act depends on the first, the first act becomes arrangement, as `setupTest` describes. A
-  pure function's test may collapse the three phases into one `expect` line.
+- A test body arranges, acts, then asserts. The formatter owns spacing, including gaps between
+  phases; keep its layout when it joins statements from different phases. Phase comments such as
+  `// act` never appear. A test acts once: it has one act phase, which may hold several calls whose
+  combined result the assertions check, such as the two runs that a determinism test compares. A
+  body with two independent act-and-assert pairs holds two tests, so split it. When a second act
+  depends on the first, the first act becomes arrangement, as `setupTest` describes. A pure
+  function's test may collapse the three phases into one `expect` line.
 - `test.each` serves a closed decision table only: rows of plain data, and a title template that
-  starts with "it" and interpolates the input that varies. Any other set of cases gets a separate
+  starts with "it" and interpolates the input that varies or an accurate descriptive label for that
+  input. The row supplies the actual values to the test. Any other set of cases gets a separate
   `test()` for each case.
 - Tests sit beside the module they test (`parse-entry.ts` and `parse-entry.test.ts`), and a test of
   a program's entry module, such as `cli.ts`, sits beside that module too. The one exception is
@@ -95,6 +98,9 @@ An end-to-end suite splits by user journey, one file per journey: `e2e/tui-spawn
 `e2e/tui-attach.test.ts`. A journey test may chain dependent act-and-assert phases, because each
 step of the journey needs the state that the step before it left. This holds only in `e2e/`: every
 other test acts once.
+
+Keep command construction importable. Test argument and flag-position cases through the real parser
+in module tests; keep binary journeys that check the assembled program.
 
 ### Loops
 
@@ -135,28 +141,74 @@ never appear in a test file.
   all. Two questions sort a value. Does any test in the file assert on it, or need a different value
   of it? Does `setupTest()` return it, or take a config field for it? A yes to either question makes
   the value scenario data, and it moves into the test body. Boot data carries a one-line comment
-  that names what needs it.
+  that names what needs it. A value that an assertion depends on stays in the test body even when
+  every test uses the same value.
 - An earlier act that the test's one act depends on, such as starting the session that the test
   attaches to, is arrangement. No assertion checks it, because a separate test covers that act.
   `setupTest()` runs it and returns the handles it produced. An earlier act that carries scenario
   data, such as saving the note that the test then archives, stays in the arrange phase of the test
-  body instead, because `setupTest()` never carries scenario data.
+  body instead, because `setupTest()` never carries scenario data. An earlier action that only some
+  tests need stays visible in those tests' arrange phase without assertions; do not hide it behind a
+  conditional setup flag.
 - A test file declares one function, `setupTest()`, and nothing else. A helper the tests want goes
   one of three ways: inline it where it is used, swap it for a registered matcher, or move it to the
   shared test utils with tests of its own. A file with nothing to wire has no `setupTest()`.
 - Each test file keeps its own `setupTest()`. A shared one gathers a flag for every suite that uses
   it.
 
-When `setupTest()` acquires a resource that closes asynchronously, it returns `Symbol.asyncDispose`
-and the test holds it with `await using`, so teardown runs whether the test passes or throws. Gather
-several resources in one `AsyncDisposableStack`: it releases them in reverse order, so a server
-stops before the database it reads is closed. Hold the stack with `await using` while setup runs,
-and hand it to the test with `stack.move()`, so a setup step that throws still releases what the
-stack holds.
+Register cleanup with `onTestFinished` immediately after each successful resource acquisition, so a
+later setup step or assertion that throws still releases the resource. `setupTest()` returns named
+properties; it adds no disposal symbol solely to forward cleanup. The test holds the result in a
+plain `const`.
 
 ```ts
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+  const dir = await mkdtemp(join(tmpdir(), 'notes-'));
+
+  onTestFinished(() => rm(dir, { recursive: true, force: true }));
+
+  return { dir };
+}
+
+test('it reads an empty file as no entries', async () => {
+  const ctx = await setupTest();
+
+  await writeFile(join(ctx.dir, 'entries.txt'), '');
+
+  expect(await readEntries(ctx.dir)).toStrictEqual([]);
+});
+```
+
+Synchronous acquisition and cleanup keep `setupTest()` synchronous. An async cleanup callback does
+not make setup async. Hold the result in one binding and read its members; never destructure it. The
+binding names are fixed: `ctx` for `setupTest()`, `hook` for `renderHook(…)`, and `rendered` for
+`render(…)`.
+
+### Cleanup
+
+Each kind of state has one cleanup tool.
+
+| State                                                   | Cleanup                                           |
+| ------------------------------------------------------- | ------------------------------------------------- |
+| A resource that `setupTest()` or the test body acquires | `onTestFinished(…)` immediately after acquisition |
+| Process state the test body changes                     | `onTestFinished(…)` immediately after the change  |
+| State that a preload reset covers                       | Nothing                                           |
+
+`try`/`finally` never appears in a test. `onTestFinished` runs on failure as well, keeps teardown
+beside the acquisition, and needs no `?.` guard for a resource the test never reached. A shared test
+util may register `onTestFinished` for its callers. These helpers must run inside a test.
+
+When resources have cleanup dependencies, register one callback that closes them in the required
+order. Every cleanup must run even if another cleanup throws. Use a disposable stack when reverse
+acquisition order matches those dependencies, and register its disposal immediately. Do not hold
+that stack with `using` or `await using`, or transfer it with `move()`.
+
+```ts
+async function setupTest() {
+  const stack = new AsyncDisposableStack();
+
+  onTestFinished(() => stack.disposeAsync());
+
   const dir = await mkdtemp(join(tmpdir(), 'notes-'));
 
   stack.defer(() => rm(dir, { recursive: true, force: true }));
@@ -166,70 +218,22 @@ async function setupTest() {
   stack.defer(() => db.close());
   applyNotesMigrations(db);
 
-  const owned = stack.move();
-
-  return { dir, db, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { dir, db };
 }
-
-test('it lists a note after it is saved', async () => {
-  await using ctx = await setupTest();
-
-  await saveNote(ctx.db, { title: 'groceries' });
-
-  expect(listNoteTitles(ctx.db)).toStrictEqual(['groceries']);
-});
 ```
 
-When every resource that `setupTest()` acquires closes synchronously, such as an in-memory SQLite
-handle, `setupTest()` returns `Symbol.dispose` from a `DisposableStack`, and the test holds it with
-a plain `using`. The setup is then not async, and the test is async only when its own body awaits.
-One resource that closes asynchronously makes the whole setup take the async form.
+If the scenario needs an explicit shutdown before the next action, call it in the test body. Keep
+fallback cleanup registered and make it safe after shutdown. Fixture callers need no `using` or
+`await using` declaration.
 
-```ts
-function setupTest() {
-  using stack = new DisposableStack();
-  const db = new Database(':memory:');
-
-  stack.defer(() => db.close());
-  applyNotesMigrations(db);
-
-  const owned = stack.move();
-
-  return { db, [Symbol.dispose]: () => owned.dispose() };
-}
-
-test('it counts the notes in the store', () => {
-  using ctx = setupTest();
-
-  insertNote(ctx.db, { title: 'groceries' });
-
-  expect(countNotes(ctx.db)).toBe(1);
-});
-```
-
-A `setupTest()` that acquires nothing returns no dispose method, and the test holds it with a plain
-`const`. Hold the result in one binding and read its members; never destructure it. The binding
-names are fixed: `ctx` for `setupTest()`, `hook` for `renderHook(…)`, and `rendered` for
-`render(…)`.
-
-### Cleanup
-
-Each kind of state has one cleanup tool.
-
-| State                                  | Cleanup                                                                                                     |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| A resource that `setupTest()` acquires | Its dispose, through `using ctx`, or `await using ctx` when a resource closes asynchronously                |
-| A resource that the test body opens    | `onTestFinished(…)` on the line after the open, or `using` or `await using` when the resource is disposable |
-| Process state the test body changes    | `onTestFinished(…)` on the line after the change                                                            |
-| State that a preload reset covers      | Nothing                                                                                                     |
-
-`try`/`finally` never appears in a test. `onTestFinished` runs on failure as well, it keeps teardown
-beside the line it reverses, and it needs no `?.` guard for a resource the test never reached. A
-shared test util may register `onTestFinished` for its callers.
+`onTestFinished` runs after all `afterEach` hooks, including the preload's resets. Cleanup uses
+captured paths and handles, rather than environment overrides that those resets remove. Tests that
+use this hook run sequentially within each file: do not enable `test.concurrent`, `--concurrent`, or
+`concurrentTestGlob` for them. Separate worker processes and CI jobs can still run in parallel.
 
 ```ts
 test('it reads a note written by another connection', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const writer = new Database(join(ctx.dir, 'notes.db'));
   onTestFinished(() => writer.close());
@@ -284,12 +288,18 @@ Reordering the tests or choosing unique keys hides the gap and leaves it for the
   `it applies overrides on top of the defaults`.
 - The test that uses a factory's value calls the factory itself. A helper that presets overrides is
   a second set of defaults that the reader cannot see.
-- A runtime stand-in, such as a stub connection, a fake worker context, or a recorder, lives in the
-  shared test utils under a name for what it impersonates. Its prefix follows the AGENTS.md naming
-  table. A stand-in that starts something long-running, such as a stub server, is
-  `start-stub-<thing>.ts`. A stand-in that creates a resource, such as a stub repository on disk, is
-  `create-stub-<thing>.ts`. Every other stand-in is `build-stub-<thing>.ts`. It has its own tests,
-  which pin the assumptions it makes about the real thing.
+- A runtime stand-in that implements behaviour or assumptions about a dependency lives in the shared
+  test utils under a name for what it impersonates. Its prefix follows the AGENTS.md naming table. A
+  stand-in that starts something long-running, such as a stub server, is `start-stub-<thing>.ts`. A
+  stand-in that creates a resource, such as a stub repository on disk, is `create-stub-<thing>.ts`.
+  Every other stand-in is `build-stub-<thing>.ts`. It has its own tests, which pin the assumptions
+  it makes about the real thing. An executable stand-in script uses `run-stub-<thing>.ts`; an
+  imported helper that starts it keeps `start-stub-<thing>.ts`.
+- Keep bare call recorders (`mock()` with no implementation) and no-op callbacks (`() => {}`)
+  inline, including a recorder inside an object such as `{ sendEvent: mock() }`. Never extract a
+  wrapper or add a test whose only purpose is to check that the mocking library records calls. A
+  no-op executable placeholder stays inline through the shared file helper when the test needs only
+  an executable. Extract a dedicated stand-in when the script models arguments, output, or failures.
 
 ### Composites
 
@@ -332,6 +342,17 @@ pass, and it returns data, never clients, apps, or servers.
   defaults, timestamps, or generated ids, use asymmetric matchers inside `toStrictEqual`, or
   `toMatchObject`. Choosing a partial match because the full literal is long is a defect. `toEqual`
   never appears.
+- Assert each result on its own. Never assemble unrelated results or observations into an object
+  only to put them under one `toStrictEqual`. A normalized projection of one result, such as a
+  command's exit code, stdout, and stderr, stays together. A later request's status is a separate
+  assertion. Independently meaningful scalar checks use separate `toBe` calls.
+- Derive an expected value from the contract, independently of the unit's own calculation. For a
+  filesystem path, use a known package or fixture root plus the explicit expected location, rather
+  than repeating the unit's relative path expression. Keep a behaviour check where it proves the
+  derived value works.
+- A recovery test checks that the injected fault occurred and that recovery succeeded. Capture the
+  earlier state during arrangement, then assert it at the end alongside the final state; use
+  separate scalar assertions for each state.
 - After a mutation, one `toBe` on the field that changed is enough.
 - Snapshots are inline only. `toMatchInlineSnapshot` pins a golden value: deterministic machine
   output that no person derives by reading the code, such as a generated SQL string or a rendered
@@ -362,7 +383,7 @@ pass, and it returns data, never clients, apps, or servers.
 
 ```ts
 test('it rejects a note owned by another user', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const note = await saveNote(ctx.db, { ownerID: 'user_a', title: 'private' });
 
@@ -463,8 +484,8 @@ A failure branch runs on a real failure:
   conflicting row for a constraint, or a held lock with a short `lock_timeout`.
 
 A spy that makes one method of a real object reject never appears. A branch that neither a dead
-transport nor real state can reach shows a missing seam: put that dependency behind an injected
-boundary.
+transport nor real state can reach shows a missing injection point: put that dependency behind an
+injected boundary.
 
 ### Module mocks
 
