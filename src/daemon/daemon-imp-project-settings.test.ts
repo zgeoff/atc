@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { ClaudeAdapter } from '../agents/claude-adapter';
@@ -1175,4 +1175,197 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
   });
 
   expect(existsSync(ctx.starts)).toBeFalse();
+});
+
+test('it refuses a subscription launch in an existing folder whose settings file is larger than any settings file', async () => {
+  const ctx = await setupTest();
+
+  // A brokered spawn needs a token that may grant the agent's secret, and
+  // the secret itself.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['claude-setup-token'],
+  });
+
+  ctx.port.createSecret('claude-setup-token', 'custom', [
+    { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  // `claude` signs in through impd's broker on a subscription and runs the
+  // fake Claude.
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } } },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      adapters: [new ClaudeAdapter(getAgentEntry(config, 'claude'), config)],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  mkdirSync(join(ctx.work, '.claude'));
+
+  // One byte past the 1 MiB that atc reads of a settings file.
+  writeFileSync(join(ctx.work, '.claude/settings.json'), `{}${' '.repeat(1_048_575)}`);
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    agent: 'claude',
+    target: 'box',
+  });
+
+  await spawn.catch(() => null);
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: {
+      agent: 'claude',
+      target: 'box',
+      problem: 'project_settings_unreadable',
+      file: join(ctx.work, '.claude/settings.json'),
+    },
+  });
+
+  expect(existsSync(ctx.starts)).toBeFalse();
+});
+
+test('it refuses a subscription launch in an existing folder whose settings file the host cannot read', async () => {
+  const ctx = await setupTest();
+
+  // A brokered spawn needs a token that may grant the agent's secret, and
+  // the secret itself.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['claude-setup-token'],
+  });
+
+  ctx.port.createSecret('claude-setup-token', 'custom', [
+    { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  // `claude` signs in through impd's broker on a subscription and runs the
+  // fake Claude.
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } } },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      adapters: [new ClaudeAdapter(getAgentEntry(config, 'claude'), config)],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  mkdirSync(join(ctx.work, '.claude'));
+
+  const settings = join(ctx.work, '.claude/settings.json');
+
+  writeFileSync(settings, '{}');
+  chmodSync(settings, 0o000);
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    agent: 'claude',
+    target: 'box',
+  });
+
+  await spawn.catch(() => null);
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: {
+      agent: 'claude',
+      target: 'box',
+      problem: 'project_settings_unreadable',
+      file: settings,
+    },
+  });
+
+  expect(existsSync(ctx.starts)).toBeFalse();
+});
+
+test('it reads every project settings file of a subscription launch in one command on the host', async () => {
+  const ctx = await setupTest();
+
+  // A brokered spawn needs a token that may grant the agent's secret, and
+  // the secret itself.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['claude-setup-token'],
+  });
+
+  ctx.port.createSecret('claude-setup-token', 'custom', [
+    { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  // `claude` signs in through impd's broker on a subscription and runs the
+  // fake Claude.
+  const config = parseConfig({
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } } },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      adapters: [new ClaudeAdapter(getAgentEntry(config, 'claude'), config)],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  mkdirSync(join(ctx.work, '.claude'));
+  writeFileSync(join(ctx.work, '.claude/settings.json'), '{"model":"opus"}');
+  writeFileSync(join(ctx.work, '.claude/settings.local.json'), '{"theme":"dark"}');
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    agent: 'claude',
+    target: 'box',
+  });
+
+  expect(ctx.port.calls.filter((call) => call.includes('.claude/settings'))).toHaveLength(1);
 });

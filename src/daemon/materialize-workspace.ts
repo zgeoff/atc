@@ -17,6 +17,8 @@ import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
+import { createStepTimer } from './create-step-timer';
+import type { StepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
 import type { ExecutionProvider } from './execution-provider';
 import { requireGitTransports } from './require-git-transports';
@@ -69,6 +71,9 @@ interface MaterializeDeps {
   // The transports a source may use and git may fetch over, or the invalid
   // list the config holds, which refuses every source that needs git.
   readonly gitTransports: readonly string[] | InvalidGitTransports;
+
+  // Times each step of the build under its name, for the spawn it is for.
+  readonly timer?: StepTimer;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -255,15 +260,18 @@ async function runMaterialization(
   secret: string | null,
 ): Promise<Omit<ReadyWorkspace, 'withheldEnv'>> {
   const transports = requireGitTransports(deps.gitTransports, { phase: 'resolving' });
+  const timer = deps.timer ?? createStepTimer();
 
-  const pinned = await resolveSource(request.source, staging, transports);
+  const pinned = await timer.withStep('resolve-source', () =>
+    resolveSource(request.source, staging, transports),
+  );
 
   // What is recorded and returned is scrubbed of the credential, even
   // where a caller's own ref happens to spell it.
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);
   const ref = secret === null || pinned.ref === null ? pinned.ref : toRedacted(pinned.ref, secret);
 
-  const landing = await claimLanding(request, deps, updateProgress);
+  const landing = await claimLanding(request, deps, updateProgress, timer);
 
   await recordPhase(request, deps, updateProgress, 'cloning', {
     repoURL,
@@ -271,7 +279,7 @@ async function runMaterialization(
     ...(request.autoDir === true ? { dir: landing.dir } : {}),
   });
 
-  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports);
+  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports, timer);
 
   // The archive is in memory, so the clone leaves the daemon's host before
   // the target is touched.
@@ -279,15 +287,16 @@ async function runMaterialization(
   await recordPhase(request, deps, updateProgress, 'transferring', { sha: clone.sha });
 
   try {
-    await deps
-      .requireProvider('transfer')
-      .transferArchive(clone.archive, landing.dir, landing.host);
+    await timer.withStep('transfer', () =>
+      deps.requireProvider('transfer').transferArchive(clone.archive, landing.dir, landing.host),
+    );
   } catch (error) {
     throw toDaemonError(error, 'transfer_failed', 'transferring');
   }
 
   await recordPhase(request, deps, updateProgress, 'verifying', {});
-  await verifyTargetHead(request, deps, landing, clone.sha);
+
+  await timer.withStep('verify', () => verifyTargetHead(request, deps, landing, clone.sha));
 
   const materializedAt = Date.now();
 
@@ -427,6 +436,7 @@ async function claimLanding(
   request: MaterializeRequest,
   deps: MaterializeDeps,
   updateProgress: ProgressTracker,
+  timer: StepTimer,
 ): Promise<Landing> {
   const attempts = request.autoDir === true ? AUTO_DIR_ATTEMPTS : 1;
 
@@ -436,7 +446,9 @@ async function claimLanding(
 
       updateProgress({ landing });
 
-      await claimTargetDir(request, deps, landing, updateProgress);
+      await timer.withStep('dir-create', () =>
+        claimTargetDir(request, deps, landing, updateProgress),
+      );
 
       return landing;
     } catch (error) {
@@ -451,10 +463,23 @@ async function claimLanding(
   }
 }
 
+// Creates the parent, then the directory itself. A parent it cannot create
+// exits with the parent status; a directory it cannot create because
+// anything, a dangling symlink included, stands at its path exits with the
+// present status; any other failure exits 5.
+const PARENT_FAILED_EXIT = 3;
+const DIR_PRESENT_EXIT = 4;
+
+const CLAIM_DIR_SCRIPT = `mkdir -p -- "$1" || exit ${PARENT_FAILED_EXIT}
+mkdir -- "$2" && exit 0
+if [ -e "$2" ] || [ -L "$2" ]; then exit ${DIR_PRESENT_EXIT}; fi
+exit 5`;
+
 /**
  * Creates the target directory as the claim on it: `mkdir` without `-p`
  * fails when the directory exists, so a materialization never unpacks over
- * files it did not put there. The parent is created first.
+ * files it did not put there. The parent is created first, in the same
+ * command.
  */
 async function claimTargetDir(
   request: MaterializeRequest,
@@ -465,35 +490,21 @@ async function claimTargetDir(
   // A directory the daemon picked is reported as it landed.
   const shown = request.autoDir === true ? landing.dir : request.dir;
 
-  const parent = await deps.requireProvider('run').runCommand({
-    argv: ['mkdir', '-p', '--', dirname(landing.dir)],
+  const claim = await deps.requireProvider('run').runCommand({
+    argv: ['sh', '-c', CLAIM_DIR_SCRIPT, 'sh', dirname(landing.dir), landing.dir],
     cwd: '/',
     host: landing.host,
   });
 
-  if (parent.exitCode !== 0) {
+  if (claim.exitCode === PARENT_FAILED_EXIT) {
     throw new DaemonError(
       'transfer_failed',
-      `cannot create ${dirname(shown)} on target '${request.target}': ${parent.stderr.trim()}`,
+      `cannot create ${dirname(shown)} on target '${request.target}': ${claim.stderr.trim()}`,
       { phase: 'resolving', dir: shown },
     );
   }
 
-  const claim = await deps
-    .requireProvider('run')
-    .runCommand({ argv: ['mkdir', '--', landing.dir], cwd: '/', host: landing.host });
-
-  // A directory that is not there failed for another reason, such as a
-  // parent the command cannot write, which no other attempt would fix.
-  if (claim.exitCode !== 0 && !(await isTargetPathPresent(deps, landing))) {
-    throw new DaemonError(
-      'transfer_failed',
-      `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
-      { phase: 'resolving', dir: shown },
-    );
-  }
-
-  if (claim.exitCode !== 0) {
+  if (claim.exitCode === DIR_PRESENT_EXIT) {
     throw new DaemonError(
       'workspace_exists',
       `${shown} already exists on target '${request.target}'; a workspace is materialized only into a directory that does not exist`,
@@ -501,19 +512,17 @@ async function claimTargetDir(
     );
   }
 
+  // A directory that is not there failed for another reason, such as a
+  // parent the command cannot write, which no other attempt would fix.
+  if (claim.exitCode !== 0) {
+    throw new DaemonError(
+      'transfer_failed',
+      `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
+      { phase: 'resolving', dir: shown },
+    );
+  }
+
   updateProgress({ claimed: true });
-}
-
-// Whether anything, a dangling symlink included, stands at the landing
-// directory's path on its host.
-async function isTargetPathPresent(deps: MaterializeDeps, landing: Landing): Promise<boolean> {
-  const probe = await deps.requireProvider('run').runCommand({
-    argv: ['sh', '-c', '[ -e "$1" ] || [ -L "$1" ]', 'sh', landing.dir],
-    cwd: '/',
-    host: landing.host,
-  });
-
-  return probe.exitCode === 0;
 }
 
 async function recordPhase(
@@ -548,18 +557,21 @@ async function createCleanClone(
   pinned: PinnedSource,
   dir: string,
   transports: readonly string[],
+  timer: StepTimer,
 ): Promise<CleanClone> {
-  const clone = await createWorkspaceClone({
-    source: {
-      kind: 'git',
-      url: pinned.cloneURL,
-      ref: pinned.checkout,
-      ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
-    },
-    dir,
-    transports,
-    ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
-  });
+  const clone = await timer.withStep('clone', () =>
+    createWorkspaceClone({
+      source: {
+        kind: 'git',
+        url: pinned.cloneURL,
+        ref: pinned.checkout,
+        ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
+      },
+      dir,
+      transports,
+      ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
+    }),
+  );
 
   if (!clone.ok) {
     const { ok: _ok, code, message, ...detail } = clone;
@@ -567,19 +579,24 @@ async function createCleanClone(
     throw new DaemonError(code, message, { phase: 'cloning', ...detail });
   }
 
-  const sanitized = await sanitizeWorkspaceClone(dir, pinned.cloneURL);
+  const sanitized = await timer.withStep('sanitize', () =>
+    sanitizeWorkspaceClone(dir, pinned.cloneURL),
+  );
 
   if (!sanitized.ok) {
     throw new DaemonError(sanitized.code, sanitized.message, { phase: 'cloning' });
   }
 
-  const tar = readWorkspaceTar(dir);
+  const read = await timer.withStep('archive', async () => {
+    const tar = readWorkspaceTar(dir);
 
-  const bytes = await new Response(tar.stream).arrayBuffer();
+    const bytes = await new Response(tar.stream).arrayBuffer();
 
-  const archive = new Uint8Array(bytes);
+    return { archive: new Uint8Array(bytes), outcome: await tar.done };
+  });
 
-  const outcome = await tar.done;
+  const archive = read.archive;
+  const outcome = read.outcome;
 
   if (!outcome.ok) {
     throw new DaemonError(outcome.code, outcome.message, { phase: 'cloning' });
@@ -601,18 +618,12 @@ function toDaemonError(error: unknown, code: ErrorCode, phase: MaterializationPh
 // The provider runs commands in its own environment, so the verify unsets
 // every variable that could point git at another repository first.
 const VERIFY_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
-const VERIFY_ARGV = ['git', 'rev-parse', '--verify', 'HEAD^{commit}'];
 
-// Lists every tracked file whose content differs from HEAD, so a file the
-// unpack left out or changed refuses the checkout whatever tar did there.
-const STATUS_ARGV = [
-  'git',
-  '-c',
-  'core.fsmonitor=false',
-  'status',
-  '--porcelain',
-  '--untracked-files=no',
-];
+// Prints the commit HEAD resolves to and a NUL, then lists every tracked
+// file whose content differs from HEAD, so a file the unpack left out or
+// changed refuses the checkout whatever tar did there. A HEAD that resolves
+// to no commit exits at once, before the NUL.
+const VERIFY_SCRIPT = String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`;
 
 async function verifyTargetHead(
   request: MaterializeRequest,
@@ -620,11 +631,14 @@ async function verifyTargetHead(
   landing: Landing,
   sha: string,
 ): Promise<void> {
-  const head = await deps
-    .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...VERIFY_ARGV], cwd: landing.dir, host: landing.host });
+  const verified = await deps.requireProvider('run').runCommand({
+    argv: [...VERIFY_ENV, 'sh', '-c', VERIFY_SCRIPT],
+    cwd: landing.dir,
+    host: landing.host,
+  });
 
-  const actual = head.exitCode === 0 ? head.stdout.trim() : null;
+  const split = verified.stdout.indexOf('\0');
+  const actual = split === -1 ? null : verified.stdout.slice(0, split).trim();
 
   if (actual !== sha) {
     throw new DaemonError(
@@ -634,16 +648,15 @@ async function verifyTargetHead(
     );
   }
 
-  const status = await deps
-    .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...STATUS_ARGV], cwd: landing.dir, host: landing.host });
+  const changed = verified.stdout
+    .slice(split + 1)
+    .split('\n')
+    .filter((line) => line !== '');
 
-  const changed = status.stdout.split('\n').filter((line) => line !== '');
-
-  if (status.exitCode !== 0 || changed.length > 0) {
+  if (verified.exitCode !== 0 || changed.length > 0) {
     throw new DaemonError(
       'workspace_mismatch',
-      `the checkout on target '${request.target}' does not match ${sha} in its tracked files: ${changed.slice(0, 5).join('; ') || status.stderr.trim()}`,
+      `the checkout on target '${request.target}' does not match ${sha} in its tracked files: ${changed.slice(0, 5).join('; ') || verified.stderr.trim()}`,
       { phase: 'verifying', expected: sha, actual },
     );
   }

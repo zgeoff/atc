@@ -56,6 +56,7 @@ import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { buildTargetList } from './build-target-list';
 import { createNonBlockingLog } from './create-non-blocking-log';
 import type { NonBlockingLog } from './create-non-blocking-log';
+import type { StepTimer } from './create-step-timer';
 import { DaemonConnection } from './daemon-connection';
 import type {
   DaemonContext,
@@ -1101,6 +1102,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
                 attempt: number,
               ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
               removeClaim: (dir: string) => Promise<boolean>;
+              timer: StepTimer;
             }>,
             targetIdentity: string,
           ) => {
@@ -1152,6 +1154,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     host: Readonly<{
       readyHost: (attempt: number) => Promise<{ readonly host: SessionID; readonly dir: string }>;
       removeClaim: (dir: string) => Promise<boolean>;
+      timer: StepTimer;
     }>,
     targetIdentity: string,
   ) => {
@@ -1176,6 +1179,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         readyHost: host.readyHost,
         removeClaim: host.removeClaim,
         stagingRoot: tmpdir(),
+        timer: host.timer,
         gitTransports,
       },
     );
@@ -1191,6 +1195,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
               attempt: number,
             ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
             removeClaim: (dir: string) => Promise<boolean>;
+            timer: StepTimer;
           }>,
           targetIdentity: string,
         ) => Promise<Readonly<{
