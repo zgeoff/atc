@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
+import { buildStubLaunchAdmission } from '../test-utils/build-stub-launch-admission';
 import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
@@ -1470,6 +1471,11 @@ test('it rejects its start as broker_not_ready and ends without running when imp
   expect(exits).toStrictEqual([
     { exitCode: 1, reason: 'ended', detail: 'imp broker not ready (the imp holds no grant)' },
   ]);
+
+  expect(() => ctx.port.getEnd('imp-b', 's2')).toThrowWithMessage(
+    Error,
+    'no session s2 on imp imp-b',
+  );
 });
 
 test('it requires the broker again on the attach that reconnects a harness whose start required it', async () => {
@@ -1752,16 +1758,9 @@ test('it refuses a harness whose admission check throws as its connection opens,
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
-      admit: (_kind, send) => {
-        send({
-          check: () => {
-            throw new Error('the binder broke');
-          },
-          release: () => {},
-        });
-
-        return Promise.resolve();
-      },
+      admit: buildStubLaunchAdmission(() => {
+        throw new Error('the binder broke');
+      }).admit,
     },
   );
 
@@ -1810,11 +1809,7 @@ test('it sends the start of a harness whose admission check passes as its connec
       reconnectDelaysMs: [0, 0, 0],
       isSuspending: () => false,
       onDone: () => {},
-      admit: (_kind, send) => {
-        send({ check: () => null, release: () => {} });
-
-        return Promise.resolve();
-      },
+      admit: buildStubLaunchAdmission(() => null).admit,
     },
   );
 

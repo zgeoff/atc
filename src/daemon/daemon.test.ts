@@ -424,6 +424,8 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
   await ctx.client.sendRequest('session.kill', { session: id });
 
+  const killed = await ctx.client.sendRequest('session.list');
+
   const adopted = await ctx.client.sendRequest('session.adopt', {
     session: id,
     cols: 80,
@@ -432,6 +434,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
   const listed = await ctx.client.sendRequest('session.list');
 
+  expect(killed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: false })] });
   expect(adopted).toStrictEqual({});
   expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: true })] });
 });
