@@ -14,18 +14,14 @@ import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 /**
- * A real daemon whose one target `box` is an imp provider over a stub
- * imp port that holds no identity or secret until the test adds them. The
- * guest has an atc stand-in, and the codex agent signs in through an oauth
- * secret for chatgpt.com and runs a stand-in Codex, which appends its
- * Codex home and arguments to the `starts` log.
+ * The imp target `box` over a stub imp port that holds no identity or
+ * secret until the test adds them, in a temp directory. The guest has an
+ * atc stand-in, and `fakeCodex` is a stand-in Codex that appends its Codex
+ * home and arguments to the `starts` log.
  */
-async function setupTest() {
+function setupTest() {
   const tmp = setupTempDir('atc-codex-guest-auth-');
   const guestDir = join(tmp.dir, 'g');
-
-  // The codex agent entry runs this binary for every spawn.
-  const fakeCodex = createStubRecordingCodex(tmp.dir);
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
@@ -36,6 +32,19 @@ async function setupTest() {
   registerTestCleanup(() => {
     provider.dispose();
   });
+
+  return {
+    dir: tmp.dir,
+    port,
+    fakeCodex: createStubRecordingCodex(tmp.dir),
+    starts: join(tmp.dir, 'codex-starts.log'),
+    guestDir,
+    targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
+  };
+}
+
+test('it starts Codex on an imp in a Codex home of its own, signed in through the oauth secret', async () => {
+  const ctx = setupTest();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-codex-guest-auth-daemon-',
@@ -51,25 +60,13 @@ async function setupTest() {
               scheme: 'bearer',
             },
           },
-          agents: { codex: { bin: fakeCodex, auth: { profiles: ['codex'] } } },
+          agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
         }),
       ),
-      targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
+      targets: ctx.targets,
       defaultTarget: 'box',
     }),
   });
-
-  return {
-    dir: tmp.dir,
-    daemon,
-    port,
-    starts: join(tmp.dir, 'codex-starts.log'),
-    guestDir,
-  };
-}
-
-test('it starts Codex on an imp in a Codex home of its own, signed in through the oauth secret', async () => {
-  const ctx = await setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -94,7 +91,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
     },
   );
 
-  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'codex',
     target: 'box',
@@ -206,7 +203,29 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
 test.each(['pending', 'needs_login'] as const)(
   'it refuses a spawn while the sign-in is %s, before it creates an imp',
   async (status) => {
-    const ctx = await setupTest();
+    const ctx = setupTest();
+
+    const daemon = await startTestDaemon({
+      prefix: 'atc-codex-guest-auth-daemon-',
+      options: () => ({
+        adapters: buildAgentAdapters(
+          parseConfig({
+            authProfiles: {
+              codex: {
+                secret: 'codex-chatgpt',
+                kind: 'oauth',
+                host: 'chatgpt.com',
+                header: 'authorization',
+                scheme: 'bearer',
+              },
+            },
+            agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
+          }),
+        ),
+        targets: ctx.targets,
+        defaultTarget: 'box',
+      }),
+    });
 
     ctx.port.setIdentity({
       kind: 'token',
@@ -223,7 +242,7 @@ test.each(['pending', 'needs_login'] as const)(
       { status, idClaims: { email: 'someone@example.com' } },
     );
 
-    const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       cwd: ctx.dir,
       agent: 'codex',
       target: 'box',
@@ -238,7 +257,29 @@ test.each(['pending', 'needs_login'] as const)(
 );
 
 test('it refuses a spawn on an impd without oauth secrets', async () => {
-  const ctx = await setupTest();
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-codex-guest-auth-daemon-',
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            codex: {
+              secret: 'codex-chatgpt',
+              kind: 'oauth',
+              host: 'chatgpt.com',
+              header: 'authorization',
+              scheme: 'bearer',
+            },
+          },
+          agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -257,7 +298,7 @@ test('it refuses a spawn on an impd without oauth secrets', async () => {
 
   ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
-  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'codex',
     target: 'box',

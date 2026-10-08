@@ -34,25 +34,21 @@ async function setupTest() {
     }),
   });
 
-  return Object.assign(daemon, {
-    runs: headless.runs,
-    waitForRun: headless.waitForRun,
-    scheduler,
-  });
+  return { daemon, runs: headless.runs, waitForRun: headless.waitForRun, scheduler };
 }
 
 test('it answers the eject of a terminal session with an empty reply', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
     rows: 24,
   });
 
-  const ejected = await ctx.client.sendRequest('session.eject', {
+  const ejected = await ctx.daemon.client.sendRequest('session.eject', {
     session: getRecord(spawned, 'session')['id'],
     prompt: 'keep going',
   });
@@ -63,8 +59,8 @@ test('it answers the eject of a terminal session with an empty reply', async () 
 test('it ejects a terminal session into a headless run with its agent id', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -73,13 +69,21 @@ test('it ejects a terminal session into a headless run with its agent id', async
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+  await ctx.daemon.client.sendRequest('session.eject', {
+    session: sessionID,
+    prompt: 'keep going',
+  });
 
   ctx.scheduler.runTimer(4000);
 
   await waitFor(() => {
     expect(ctx.runs.map((run) => run.request)).toStrictEqual([
-      { cwd: ctx.dir, prompt: 'keep going', resume: toAgentSessionID('sess-123'), sessionID },
+      {
+        cwd: ctx.daemon.dir,
+        prompt: 'keep going',
+        resume: toAgentSessionID('sess-123'),
+        sessionID,
+      },
     ]);
   });
 });
@@ -87,15 +91,15 @@ test('it ejects a terminal session into a headless run with its agent id', async
 test('it lists an ejected session as a running headless session', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
     rows: 24,
   });
 
-  await ctx.client.sendRequest('session.eject', {
+  await ctx.daemon.client.sendRequest('session.eject', {
     session: getRecord(spawned, 'session')['id'],
     prompt: 'keep going',
   });
@@ -106,7 +110,7 @@ test('it lists an ejected session as a running headless session', async () => {
     expect(ctx.runs).toHaveLength(1);
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await ctx.daemon.client.sendRequest('session.list');
 
   expect(listed['sessions']).toMatchObject([{ kind: 'headless', alive: true, state: 'running' }]);
 });
@@ -117,8 +121,8 @@ test('it starts the headless run of an ejected workspace session without its wor
 
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'ws'),
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.daemon.dir, 'ws'),
     resume: 'sess-ws',
     workspace: {
       kind: 'git',
@@ -130,14 +134,17 @@ test('it starts the headless run of an ejected workspace session without its wor
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+  await ctx.daemon.client.sendRequest('session.eject', {
+    session: sessionID,
+    prompt: 'keep going',
+  });
 
   ctx.scheduler.runTimer(4000);
 
   await waitFor(() => {
     expect(ctx.runs.map((run) => run.request)).toStrictEqual([
       {
-        cwd: join(ctx.dir, 'ws'),
+        cwd: join(ctx.daemon.dir, 'ws'),
         prompt: 'keep going',
         resume: toAgentSessionID('sess-ws'),
         sessionID,
@@ -150,8 +157,8 @@ test('it starts the headless run of an ejected workspace session without its wor
 test('it reports a finished headless turn as done', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -160,7 +167,7 @@ test('it reports a finished headless turn as done', async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -170,7 +177,9 @@ test('it reports a finished headless turn as done', async () => {
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+      ctx.daemon.events
+        .filter((event) => event.ev === 'SessionState')
+        .map((event) => event['session']),
     ).toPartiallyContain({
       id: sessionID,
       state: 'done',
@@ -182,8 +191,8 @@ test('it reports a finished headless turn as done', async () => {
 test('it reports a stuck headless turn as needs_you', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -192,7 +201,7 @@ test('it reports a stuck headless turn as needs_you', async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -202,7 +211,9 @@ test('it reports a stuck headless turn as needs_you', async () => {
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+      ctx.daemon.events
+        .filter((event) => event.ev === 'SessionState')
+        .map((event) => event['session']),
     ).toPartiallyContain({
       id: sessionID,
       state: 'needs_you',
@@ -216,8 +227,8 @@ test("it keeps a finished headless turn's whole final message as the latest resu
 
   const result = `Fixed the auth bug.\n\n${'The token refresh now retries once. '.repeat(10)}`;
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -226,7 +237,7 @@ test("it keeps a finished headless turn's whole final message as the latest resu
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -236,11 +247,13 @@ test("it keeps a finished headless turn's whole final message as the latest resu
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+      ctx.daemon.events
+        .filter((event) => event.ev === 'SessionState')
+        .map((event) => event['session']),
     ).toPartiallyContain({ id: sessionID, state: 'done' });
   });
 
-  const record = await ctx.client.sendRequest('session.get', { session: sessionID });
+  const record = await ctx.daemon.client.sendRequest('session.get', { session: sessionID });
 
   expect(record['result']).toBe(result);
 });
@@ -248,8 +261,8 @@ test("it keeps a finished headless turn's whole final message as the latest resu
 test("it shows a finished headless turn's result as the session's latest detail", async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -258,7 +271,7 @@ test("it shows a finished headless turn's result as the session's latest detail"
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -268,7 +281,9 @@ test("it shows a finished headless turn's result as the session's latest detail"
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+      ctx.daemon.events
+        .filter((event) => event.ev === 'SessionState')
+        .map((event) => event['session']),
     ).toPartiallyContain({
       id: sessionID,
       state: 'done',
@@ -280,8 +295,8 @@ test("it shows a finished headless turn's result as the session's latest detail"
 test("it records a headless turn's prompt in the event trail", async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -290,13 +305,16 @@ test("it records a headless turn's prompt in the event trail", async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  const empty = await ctx.client.sendRequest('events.read', {});
+  const empty = await ctx.daemon.client.sendRequest('events.read', {});
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+  await ctx.daemon.client.sendRequest('session.eject', {
+    session: sessionID,
+    prompt: 'keep going',
+  });
 
   ctx.scheduler.runTimer(4000);
 
-  const started = await ctx.client.sendRequest('events.read', {
+  const started = await ctx.daemon.client.sendRequest('events.read', {
     cursor: empty['cursor'],
     waitMs: 5000,
   });
@@ -309,8 +327,8 @@ test("it records a headless turn's prompt in the event trail", async () => {
 test("it records a headless turn's finish in the event trail", async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -319,13 +337,16 @@ test("it records a headless turn's finish in the event trail", async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  const empty = await ctx.client.sendRequest('events.read', {});
+  const empty = await ctx.daemon.client.sendRequest('events.read', {});
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+  await ctx.daemon.client.sendRequest('session.eject', {
+    session: sessionID,
+    prompt: 'keep going',
+  });
 
   ctx.scheduler.runTimer(4000);
 
-  const started = await ctx.client.sendRequest('events.read', {
+  const started = await ctx.daemon.client.sendRequest('events.read', {
     cursor: empty['cursor'],
     waitMs: 5000,
   });
@@ -334,7 +355,7 @@ test("it records a headless turn's finish in the event trail", async () => {
 
   run.events.onDone('all green');
 
-  const finished = await ctx.client.sendRequest('events.read', {
+  const finished = await ctx.daemon.client.sendRequest('events.read', {
     cursor: started['cursor'],
     waitMs: 5000,
   });
@@ -347,8 +368,8 @@ test("it records a headless turn's finish in the event trail", async () => {
 test('it records a stuck headless turn as needs-input in the event trail', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -357,13 +378,16 @@ test('it records a stuck headless turn as needs-input in the event trail', async
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  const empty = await ctx.client.sendRequest('events.read', {});
+  const empty = await ctx.daemon.client.sendRequest('events.read', {});
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+  await ctx.daemon.client.sendRequest('session.eject', {
+    session: sessionID,
+    prompt: 'keep going',
+  });
 
   ctx.scheduler.runTimer(4000);
 
-  const started = await ctx.client.sendRequest('events.read', {
+  const started = await ctx.daemon.client.sendRequest('events.read', {
     cursor: empty['cursor'],
     waitMs: 5000,
   });
@@ -372,7 +396,7 @@ test('it records a stuck headless turn as needs-input in the event trail', async
 
   run.events.onNeedsYou('stuck on a decision');
 
-  const stuck = await ctx.client.sendRequest('events.read', {
+  const stuck = await ctx.daemon.client.sendRequest('events.read', {
     cursor: started['cursor'],
     waitMs: 5000,
   });
@@ -389,8 +413,8 @@ test('it records a stuck headless turn as needs-input in the event trail', async
 test('it starts the next headless turn from session input once idle', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -399,7 +423,7 @@ test('it starts the next headless turn from session input once idle', async () =
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -409,11 +433,13 @@ test('it starts the next headless turn from session input once idle', async () =
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+      ctx.daemon.events
+        .filter((event) => event.ev === 'SessionState')
+        .map((event) => event['session']),
     ).toPartiallyContain({ id: sessionID, state: 'done' });
   });
 
-  const answered = await ctx.client.sendRequest('session.input', {
+  const answered = await ctx.daemon.client.sendRequest('session.input', {
     session: sessionID,
     d: 'next task\n',
   });
@@ -422,21 +448,21 @@ test('it starts the next headless turn from session input once idle', async () =
 
   expect(ctx.runs.map((started) => started.request)).toStrictEqual([
     {
-      cwd: ctx.dir,
+      cwd: ctx.daemon.dir,
       prompt:
         'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
       resume: toAgentSessionID('sess-123'),
       sessionID,
     },
-    { cwd: ctx.dir, prompt: 'next task', resume: toAgentSessionID('sess-123'), sessionID },
+    { cwd: ctx.daemon.dir, prompt: 'next task', resume: toAgentSessionID('sess-123'), sessionID },
   ]);
 });
 
 test('it refuses input to a headless session mid-run', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -445,7 +471,7 @@ test('it refuses input to a headless session mid-run', async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -454,15 +480,15 @@ test('it refuses input to a headless session mid-run', async () => {
   });
 
   expect(
-    ctx.client.sendRequest('session.input', { session: sessionID, d: 'hasty\n' }),
+    ctx.daemon.client.sendRequest('session.input', { session: sessionID, d: 'hasty\n' }),
   ).rejects.toMatchObject({ code: 'too_slow' });
 });
 
 test('it adopts a headless session back into a terminal', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -471,7 +497,7 @@ test('it adopts a headless session back into a terminal', async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -481,17 +507,19 @@ test('it adopts a headless session back into a terminal', async () => {
 
   await waitFor(() => {
     expect(
-      ctx.events.filter((event) => event.ev === 'SessionState').map((event) => event['session']),
+      ctx.daemon.events
+        .filter((event) => event.ev === 'SessionState')
+        .map((event) => event['session']),
     ).toPartiallyContain({ id: sessionID, state: 'done' });
   });
 
-  const adopted = await ctx.client.sendRequest('session.adopt', {
+  const adopted = await ctx.daemon.client.sendRequest('session.adopt', {
     session: sessionID,
     cols: 90,
     rows: 28,
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await ctx.daemon.client.sendRequest('session.list');
 
   expect(adopted).toStrictEqual({});
 
@@ -503,15 +531,17 @@ test('it adopts a headless session back into a terminal', async () => {
 test('it refuses to eject a session that never reported an agent session id', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'no-id',
     cols: 80,
     rows: 24,
   });
 
   expect(
-    ctx.client.sendRequest('session.eject', { session: getRecord(spawned, 'session')['id'] }),
+    ctx.daemon.client.sendRequest('session.eject', {
+      session: getRecord(spawned, 'session')['id'],
+    }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
@@ -628,8 +658,8 @@ test('it starts no headless run for a refused grok eject', async () => {
 test("it stops a killed session's headless run", async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -638,7 +668,7 @@ test("it stops a killed session's headless run", async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -646,9 +676,9 @@ test("it stops a killed session's headless run", async () => {
     expect(ctx.runs).toHaveLength(1);
   });
 
-  await ctx.client.sendRequest('session.kill', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.kill', { session: sessionID });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await ctx.daemon.client.sendRequest('session.list');
 
   expect(ctx.runs.map((run) => run.stopped)).toStrictEqual([true]);
   expect(listed['sessions']).toStrictEqual([]);
@@ -657,8 +687,8 @@ test("it stops a killed session's headless run", async () => {
 test('it refuses input for a killed headless session', async () => {
   const ctx = await setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
     name: 'handoff',
     resume: 'sess-123',
     cols: 80,
@@ -667,7 +697,7 @@ test('it refuses input for a killed headless session', async () => {
 
   const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await ctx.client.sendRequest('session.eject', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.eject', { session: sessionID });
 
   ctx.scheduler.runTimer(4000);
 
@@ -675,9 +705,9 @@ test('it refuses input for a killed headless session', async () => {
     expect(ctx.runs).toHaveLength(1);
   });
 
-  await ctx.client.sendRequest('session.kill', { session: sessionID });
+  await ctx.daemon.client.sendRequest('session.kill', { session: sessionID });
 
   expect(
-    ctx.client.sendRequest('session.input', { session: sessionID, d: 'anything\n' }),
+    ctx.daemon.client.sendRequest('session.input', { session: sessionID, d: 'anything\n' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });

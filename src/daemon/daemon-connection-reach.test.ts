@@ -352,6 +352,7 @@ test('it answers report.get whose sender leaves the view during the read as for 
   const answered = await held;
 
   expect(answered).toStrictEqual(missing);
+  expect(answered).toMatchObject({ err: { code: 'bad_args' } });
 });
 
 test('it answers message.get whose session leaves the view during the wait as for an unknown message', async () => {

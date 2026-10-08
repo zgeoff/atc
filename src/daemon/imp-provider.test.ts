@@ -84,11 +84,20 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
 
   ctx.port.acquireOtherLease('atc-s1', 'token:other', 'build', 60);
 
-  await Promise.allSettled([
-    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
-  ]);
+  const before = await ctx.port.readImp('atc-s1');
+
+  const prepared = provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  await Promise.allSettled([prepared]);
 
   const imp = await ctx.port.readImp('atc-s1');
+
+  expect(before).toMatchObject({ name: 'atc-s1', leases: [], otherLeaseCount: 1 });
+
+  expect(prepared).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { problem: 'no_guest_atc' },
+  });
 
   expect(imp).toMatchObject({ name: 'atc-s1', leases: [], otherLeaseCount: 1 });
 });

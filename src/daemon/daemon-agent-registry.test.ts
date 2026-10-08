@@ -90,10 +90,8 @@ test('it lists no agent and defaults spawns to claude for an empty registry', as
 
   const listed = await daemon.client.sendRequest('agents.list');
 
-  expect({ agents: listed['agents'], defaults: listed['spawnDefaults'] }).toMatchObject({
-    agents: [],
-    defaults: { agent: 'claude' },
-  });
+  expect(listed['agents']).toStrictEqual([]);
+  expect(listed['spawnDefaults']).toMatchObject({ agent: 'claude' });
 });
 
 test('it refuses a spawn for an empty registry', async () => {

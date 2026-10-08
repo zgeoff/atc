@@ -157,9 +157,12 @@ test('it refuses a confirm token a forget already took', async () => {
 
   provider.setDestroyFailure(new Error('the host did not answer'));
 
-  await daemon.client
-    .sendRequest('session.forget', { session: id, confirmToken: offered['confirmToken'] })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.forget', {
+    session: id,
+    confirmToken: offered['confirmToken'],
+  });
+
+  await Promise.allSettled([failed]);
 
   provider.setDestroyFailure(null);
 
@@ -167,6 +170,8 @@ test('it refuses a confirm token a forget already took', async () => {
     session: id,
     confirmToken: offered['confirmToken'],
   });
+
+  expect(failed).rejects.toMatchObject({ code: 'internal' });
 
   expect(retried).rejects.toMatchObject({
     code: 'confirm_token_invalid',

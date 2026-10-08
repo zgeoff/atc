@@ -933,7 +933,7 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
     expect(output.join('')).toInclude('GOT:six');
   });
 
-  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toSatisfyAll(
+  expect(ctx.port.sessionRequests).toSatisfyAll(
     (request: Readonly<Record<string, unknown>>) => !('resumeFrom' in request),
   );
 });
@@ -1597,7 +1597,7 @@ test('it refuses a start that requires the broker on an impd without exec requir
     data: { imp: 'imp-b', execRequire: false },
   });
 
-  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toStrictEqual([]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 
   expect(exits).toStrictEqual([
     { exitCode: 1, reason: 'ended', detail: 'impd too old to require the broker' },
@@ -1681,12 +1681,7 @@ test('it starts a harness that requires the broker after one failed feature read
 
   await harness.waitForStart();
 
-  expect(
-    ctx.port.sessionRequests
-      .filter((request) => request.name === 'imp-b')
-      .map((request) => request.kind),
-  ).toStrictEqual(['start']);
-
+  expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
   expect(ctx.port.findState('imp-b')).toBe('running');
 });
 
@@ -1730,7 +1725,7 @@ test('it refuses a harness that requires the broker once its feature reads keep 
   const started = harness.waitForStart();
 
   expect(started).rejects.toMatchObject({ code: 'host_unavailable' });
-  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toStrictEqual([]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
   expect(exits).toStrictEqual([{ exitCode: 1, reason: 'ended', detail: 'imp unreachable' }]);
 });
 
@@ -1776,7 +1771,7 @@ test('it refuses a harness whose admission check throws as its connection opens,
   const started = harness.waitForStart();
 
   expect(started).rejects.toMatchObject({ code: 'internal' });
-  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toStrictEqual([]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it sends the start of a harness whose admission check passes as its connection opens', async () => {

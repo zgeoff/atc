@@ -28,10 +28,9 @@ import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 // The fixed parts every test's daemon runs on: a stub imp port behind
-// the imp provider `box` serves, a local provider, a `glm` gateway and stock
-// Claude, and a git repository a spawn can clone, in a temp directory. Each
-// agent run appends its arguments to the `starts` log. `options` holds the
-// daemon options besides its targets.
+// the imp provider `box` serves, a local provider, and a git repository a
+// spawn can clone, in a temp directory. `fakeClaude` is a stand-in Claude
+// that appends each run's arguments to the `starts` log.
 async function setupTest() {
   const tmp = setupTempDir('atc-workspace-trust-');
   const port = createStubImpPort();
@@ -69,22 +68,6 @@ async function setupTest() {
     box.dispose();
   });
 
-  const agents = parseConfig({
-    claudeBin: fakeClaude,
-    authProfiles: {
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-    },
-    gateways: {
-      glm: {
-        baseURL: 'https://api.z.ai/api/anthropic',
-        auth: {
-          profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-        },
-      },
-    },
-  });
-
   return {
     dir: tmp.dir,
     guestDir: join(tmp.dir, 'guest'),
@@ -93,14 +76,7 @@ async function setupTest() {
     work: git.work,
     box,
     local: new LocalPTYProvider(),
-    options: {
-      adapters: [
-        new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-        new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
-      ],
-      gitTransports: ['file'],
-      defaultTarget: 'box',
-    },
+    fakeClaude,
   };
 }
 
@@ -108,19 +84,42 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: {},
-          identity: 'local:test',
-          provider: ctx.local,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-      ],
-    }),
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+        },
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const parent = join(ctx.dir, 'physical');
@@ -173,19 +172,42 @@ test.each([
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: {},
-          identity: 'local:test',
-          provider: ctx.local,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-      ],
-    }),
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+        },
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -213,19 +235,42 @@ test('it refuses trust for an existing folder before touching the imp', async ()
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: {},
-          identity: 'local:test',
-          provider: ctx.local,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-      ],
-    }),
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+        },
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
@@ -248,25 +293,48 @@ test.each([
     const ctx = await setupTest();
 
     const daemon = await startTestDaemon({
-      options: () => ({
-        ...ctx.options,
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: targetOptions,
-            identity: 'imp:test',
-            provider: ctx.box,
+      options: () => {
+        const agents = parseConfig({
+          claudeBin: ctx.fakeClaude,
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: targetOptions,
-            identity: 'local:test',
-            provider: ctx.local,
+          gateways: {
+            glm: {
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
           },
-        ],
-      }),
+        });
+
+        return {
+          adapters: [
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          ],
+          gitTransports: ['file'],
+          defaultTarget: 'box',
+          targets: [
+            {
+              id: 'box',
+              kind: 'imp',
+              options: targetOptions,
+              identity: 'imp:test',
+              provider: ctx.box,
+            },
+            {
+              id: 'local',
+              kind: 'local-pty',
+              options: targetOptions,
+              identity: 'local:test',
+              provider: ctx.local,
+            },
+          ],
+        };
+      },
     });
 
     const hold = ctx.port.startCommandHold('rev-parse');
@@ -310,25 +378,48 @@ test.each([
     const ctx = await setupTest();
 
     const daemon = await startTestDaemon({
-      options: () => ({
-        ...ctx.options,
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: targetOptions,
-            identity: 'imp:test',
-            provider: ctx.box,
+      options: () => {
+        const agents = parseConfig({
+          claudeBin: ctx.fakeClaude,
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: targetOptions,
-            identity: 'local:test',
-            provider: ctx.local,
+          gateways: {
+            glm: {
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
           },
-        ],
-      }),
+        });
+
+        return {
+          adapters: [
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          ],
+          gitTransports: ['file'],
+          defaultTarget: 'box',
+          targets: [
+            {
+              id: 'box',
+              kind: 'imp',
+              options: targetOptions,
+              identity: 'imp:test',
+              provider: ctx.box,
+            },
+            {
+              id: 'local',
+              kind: 'local-pty',
+              options: targetOptions,
+              identity: 'local:test',
+              provider: ctx.local,
+            },
+          ],
+        };
+      },
     });
 
     const hold = ctx.port.startCommandHold('rev-parse');
@@ -369,19 +460,42 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: {},
-          identity: 'local:test',
-          provider: ctx.local,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-      ],
-    }),
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+        },
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const root = join(ctx.dir, 'clone');
@@ -404,19 +518,42 @@ test('it refuses clone trust for a gateway on the local target before cloning', 
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: {},
-          identity: 'local:test',
-          provider: ctx.local,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-      ],
-    }),
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
+        },
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const root = join(ctx.dir, 'clone');
@@ -443,25 +580,48 @@ test.each([
     const ctx = await setupTest();
 
     const daemon = await startTestDaemon({
-      options: () => ({
-        ...ctx.options,
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: targetOptions,
-            identity: 'imp:test',
-            provider: ctx.box,
+      options: () => {
+        const agents = parseConfig({
+          claudeBin: ctx.fakeClaude,
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: targetOptions,
-            identity: 'local:test',
-            provider: ctx.local,
+          gateways: {
+            glm: {
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
           },
-        ],
-      }),
+        });
+
+        return {
+          adapters: [
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          ],
+          gitTransports: ['file'],
+          defaultTarget: 'box',
+          targets: [
+            {
+              id: 'box',
+              kind: 'imp',
+              options: targetOptions,
+              identity: 'imp:test',
+              provider: ctx.box,
+            },
+            {
+              id: 'local',
+              kind: 'local-pty',
+              options: targetOptions,
+              identity: 'local:test',
+              provider: ctx.local,
+            },
+          ],
+        };
+      },
     });
 
     const hold = ctx.port.startCommandHold('rev-parse');
@@ -513,25 +673,48 @@ test.each([
     const ctx = await setupTest();
 
     const daemon = await startTestDaemon({
-      options: () => ({
-        ...ctx.options,
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: targetOptions,
-            identity: 'imp:test',
-            provider: ctx.box,
+      options: () => {
+        const agents = parseConfig({
+          claudeBin: ctx.fakeClaude,
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: targetOptions,
-            identity: 'local:test',
-            provider: ctx.local,
+          gateways: {
+            glm: {
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
           },
-        ],
-      }),
+        });
+
+        return {
+          adapters: [
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          ],
+          gitTransports: ['file'],
+          defaultTarget: 'box',
+          targets: [
+            {
+              id: 'box',
+              kind: 'imp',
+              options: targetOptions,
+              identity: 'imp:test',
+              provider: ctx.box,
+            },
+            {
+              id: 'local',
+              kind: 'local-pty',
+              options: targetOptions,
+              identity: 'local:test',
+              provider: ctx.local,
+            },
+          ],
+        };
+      },
     });
 
     const parent = await daemon.client.sendRequest('session.spawn', {
@@ -591,25 +774,48 @@ test.each([
     const ctx = await setupTest();
 
     const daemon = await startTestDaemon({
-      options: () => ({
-        ...ctx.options,
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: targetOptions,
-            identity: 'imp:test',
-            provider: ctx.box,
+      options: () => {
+        const agents = parseConfig({
+          claudeBin: ctx.fakeClaude,
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: targetOptions,
-            identity: 'local:test',
-            provider: ctx.local,
+          gateways: {
+            glm: {
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
           },
-        ],
-      }),
+        });
+
+        return {
+          adapters: [
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          ],
+          gitTransports: ['file'],
+          defaultTarget: 'box',
+          targets: [
+            {
+              id: 'box',
+              kind: 'imp',
+              options: targetOptions,
+              identity: 'imp:test',
+              provider: ctx.box,
+            },
+            {
+              id: 'local',
+              kind: 'local-pty',
+              options: targetOptions,
+              identity: 'local:test',
+              provider: ctx.local,
+            },
+          ],
+        };
+      },
     });
 
     const parent = await daemon.client.sendRequest('session.spawn', {
@@ -665,6 +871,11 @@ test.each([
 
     const parentState = await daemon.client.sendRequest('session.get', { session: parentID });
 
+    expect(failed).rejects.toMatchObject({
+      code: 'internal',
+      message: `tar exited 1 unpacking into ${guest}`,
+    });
+
     expect(getRecord(retried, 'session')).toMatchObject({ alive: true, parent: parentID });
     expect(getRecord(parentState, 'session')).toMatchObject({ alive: true });
   },
@@ -682,25 +893,48 @@ test.each([
     const ctx = await setupTest();
 
     const daemon = await startTestDaemon({
-      options: () => ({
-        ...ctx.options,
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: targetOptions,
-            identity: 'imp:test',
-            provider: ctx.box,
+      options: () => {
+        const agents = parseConfig({
+          claudeBin: ctx.fakeClaude,
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: targetOptions,
-            identity: 'local:test',
-            provider: ctx.local,
+          gateways: {
+            glm: {
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
           },
-        ],
-      }),
+        });
+
+        return {
+          adapters: [
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          ],
+          gitTransports: ['file'],
+          defaultTarget: 'box',
+          targets: [
+            {
+              id: 'box',
+              kind: 'imp',
+              options: targetOptions,
+              identity: 'imp:test',
+              provider: ctx.box,
+            },
+            {
+              id: 'local',
+              kind: 'local-pty',
+              options: targetOptions,
+              identity: 'local:test',
+              provider: ctx.local,
+            },
+          ],
+        };
+      },
     });
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
@@ -736,25 +970,48 @@ test.each([
     const ctx = await setupTest();
 
     const daemon = await startTestDaemon({
-      options: () => ({
-        ...ctx.options,
-        targets: [
-          {
-            id: 'box',
-            kind: 'imp',
-            options: targetOptions,
-            identity: 'imp:test',
-            provider: ctx.box,
+      options: () => {
+        const agents = parseConfig({
+          claudeBin: ctx.fakeClaude,
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: targetOptions,
-            identity: 'local:test',
-            provider: ctx.local,
+          gateways: {
+            glm: {
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
           },
-        ],
-      }),
+        });
+
+        return {
+          adapters: [
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          ],
+          gitTransports: ['file'],
+          defaultTarget: 'box',
+          targets: [
+            {
+              id: 'box',
+              kind: 'imp',
+              options: targetOptions,
+              identity: 'imp:test',
+              provider: ctx.box,
+            },
+            {
+              id: 'local',
+              kind: 'local-pty',
+              options: targetOptions,
+              identity: 'local:test',
+              provider: ctx.local,
+            },
+          ],
+        };
+      },
     });
 
     const root = join(ctx.dir, 'clone');
@@ -788,25 +1045,48 @@ test('it refuses an inherited trust default without a clone before touching the 
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        {
-          id: 'box',
-          kind: 'imp',
-          options: { trustClonedWorkspace: true },
-          identity: 'imp:test',
-          provider: ctx.box,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: { trustClonedWorkspace: true },
-          identity: 'local:test',
-          provider: ctx.local,
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
         },
-      ],
-    }),
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: { trustClonedWorkspace: true },
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: { trustClonedWorkspace: true },
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
@@ -823,25 +1103,48 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        {
-          id: 'box',
-          kind: 'imp',
-          options: { trustClonedWorkspace: true },
-          identity: 'imp:test',
-          provider: ctx.box,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: { trustClonedWorkspace: true },
-          identity: 'local:test',
-          provider: ctx.local,
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
         },
-      ],
-    }),
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: { trustClonedWorkspace: true },
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: { trustClonedWorkspace: true },
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
@@ -859,25 +1162,48 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
   const ctx = await setupTest();
 
   const daemon = await startTestDaemon({
-    options: () => ({
-      ...ctx.options,
-      targets: [
-        {
-          id: 'box',
-          kind: 'imp',
-          options: { trustClonedWorkspace: true },
-          identity: 'imp:test',
-          provider: ctx.box,
+    options: () => {
+      const agents = parseConfig({
+        claudeBin: ctx.fakeClaude,
+        authProfiles: {
+          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        {
-          id: 'local',
-          kind: 'local-pty',
-          options: { trustClonedWorkspace: true },
-          identity: 'local:test',
-          provider: ctx.local,
+        gateways: {
+          glm: {
+            baseURL: 'https://api.z.ai/api/anthropic',
+            auth: {
+              profiles: ['glm'],
+              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+            },
+          },
         },
-      ],
-    }),
+      });
+
+      return {
+        adapters: [
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+        ],
+        gitTransports: ['file'],
+        defaultTarget: 'box',
+        targets: [
+          {
+            id: 'box',
+            kind: 'imp',
+            options: { trustClonedWorkspace: true },
+            identity: 'imp:test',
+            provider: ctx.box,
+          },
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: { trustClonedWorkspace: true },
+            identity: 'local:test',
+            provider: ctx.local,
+          },
+        ],
+      };
+    },
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {

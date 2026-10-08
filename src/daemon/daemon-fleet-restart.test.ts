@@ -56,7 +56,7 @@ test('it restores the stored sessions by itself after a restart', async () => {
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect(settles).toMatchObject([{ restored: 2, outcome: 'finished' }]);
+  expect(settles).toStrictEqual([{ restored: 2, outcome: 'finished' }]);
 
   expect(listed['sessions']).toMatchObject([
     { id: 's-a', alive: true },
@@ -285,7 +285,7 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(planSpawn).toHaveBeenCalledOnce();
-  expect(joined).toMatchObject({ restored: 3 });
+  expect(joined).toStrictEqual({ restored: 3 });
   expect(listed['sessions']).toMatchObject([{ id: 's-a' }, { id: 's-b' }, { id: 's-c' }]);
 });
 
