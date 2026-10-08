@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { readJSONRecord } from '../src/test-utils/read-json-record';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { runMCPAuthorization } from '../src/test-utils/run-mcp-authorization';
@@ -47,6 +48,8 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
     }),
   });
 
+  invariant(exchanged.status === 200, 'the exchange failed');
+
   const tokens = await readJSONRecord(exchanged);
 
   const before = await fetch(`${ctx.server.url}/mcp`, {
@@ -78,7 +81,6 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
     body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
   });
 
-  expect(exchanged.status).toBe(200);
   expect(before.status).toBe(200);
 
   expect({

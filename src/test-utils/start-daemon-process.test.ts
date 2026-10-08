@@ -167,7 +167,7 @@ test('it removes a variable the config sets to undefined from the environment of
   // Without a runtime directory the daemon listens under its state
   // directory, which its record holds once it is up.
   const record = await waitFor(() => {
-    const found = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+    const found = findDaemonRecord(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'));
 
     expect(found).not.toBeNull();
 
@@ -176,9 +176,9 @@ test('it removes a variable the config sets to undefined from the environment of
 
   expect(record).toStrictEqual({
     pid: daemon.proc.pid,
-    socketPath: join(daemon.stateDir, 'atc-daemon.sock'),
-    reporterSocketPath: join(daemon.stateDir, 'atc.sock'),
-    eventsSocketPath: join(daemon.stateDir, 'atc-events.sock'),
+    socketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc.sock'),
+    eventsSocketPath: join(ctx.dir, '.local', 'state', 'atc', 'atc-events.sock'),
     listenPort: null,
   });
 });
@@ -258,9 +258,27 @@ test('it kills the daemon once the test finishes without a stop', () => {
 test('it kills the daemon its home records and removes the home once the test finishes', () => {
   const ctx = setupTest();
   const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
+  const pid = daemon.proc.pid;
+
+  // Registered before the replacement starts, so it runs after the helper's
+  // release and before the fallback kill below. The helper signals the
+  // recorded daemon without waiting for it to exit.
+  onTestFinished(async () => {
+    expect(isProcessAlive(pid)).toBe(false);
+
+    await waitFor(() => {
+      expect(isProcessAlive(replacement.pid)).toBe(false);
+    });
+
+    expect(existsSync(ctx.dir)).toBe(false);
+  });
 
   // A replacement daemon a restart would leave, recorded in the home.
   const replacement = Bun.spawn(['sleep', '30']);
+
+  onTestFinished(() => {
+    replacement.kill('SIGKILL');
+  });
 
   mkdirSync(daemon.stateDir, { recursive: true });
 
@@ -274,21 +292,4 @@ test('it kills the daemon its home records and removes the home once the test fi
       listenPort: null,
     }),
   );
-
-  const pid = daemon.proc.pid;
-
-  // The helper signals the recorded daemon without waiting for it to exit.
-  onTestFinished(async () => {
-    expect(isProcessAlive(pid)).toBe(false);
-
-    await waitFor(() => {
-      expect(isProcessAlive(replacement.pid)).toBe(false);
-    });
-
-    expect(existsSync(ctx.dir)).toBe(false);
-  });
-
-  onTestFinished(() => {
-    replacement.kill('SIGKILL');
-  });
 });

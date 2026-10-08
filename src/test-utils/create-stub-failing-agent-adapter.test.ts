@@ -33,12 +33,16 @@ test('it plans every spawn after the first with the later plan', () => {
   });
 
   stub.adapter.planSpawn({ prompt: '', resume: false });
-  stub.adapter.planSpawn({ prompt: '', resume: false });
 
-  expect(stub.adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
-    bin: 'later',
-    args: [],
-  });
+  const plans = [
+    stub.adapter.planSpawn({ prompt: '', resume: false }),
+    stub.adapter.planSpawn({ prompt: '', resume: false }),
+  ];
+
+  expect(plans).toStrictEqual([
+    { bin: 'later', args: [] },
+    { bin: 'later', args: [] },
+  ]);
 });
 
 test('it counts the spawns it planned', () => {

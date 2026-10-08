@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { DaemonClient } from '../client/daemon-client';
 import { buildPrincipalCaller } from '../mcp/build-principal-caller';
@@ -1198,11 +1199,22 @@ test('it keeps the events of a hidden session from the full trail of a principal
 
   const hidden = String(getRecord(moved, 'session')['id']);
 
-  await daemon.client.sendRequest(
+  const own = await daemon.client.sendRequest(
     'session.spawn',
     { cwd: daemon.dir, target: 'local', resume: agentSessionID },
     'narrow',
   );
+
+  const shown = String(getRecord(own, 'session')['id']);
+
+  await daemon.sendHookLines({
+    atcId: shown,
+    event: 'Notification',
+    payload: {
+      session_id: agentSessionID,
+      message: 'local detail',
+    },
+  });
 
   await daemon.sendHookLines({
     atcId: hidden,
@@ -1227,7 +1239,21 @@ test('it keeps the events of a hidden session from the full trail of a principal
 
   const all = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'narrow');
 
-  expect(JSON.stringify(all)).not.toInclude('box');
+  expect(all).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: shown,
+        name: expect.toBeString(),
+        kind: 'needs-input',
+        detail: 'local detail',
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: false,
+  });
+
   expect(JSON.stringify(all)).not.toInclude(hidden);
 });
 
@@ -1273,6 +1299,15 @@ test('it keeps the events of a hidden session from the trail a principal reads f
   const shown = String(getRecord(own, 'session')['id']);
 
   await daemon.sendHookLines({
+    atcId: shown,
+    event: 'Notification',
+    payload: {
+      session_id: agentSessionID,
+      message: 'local detail',
+    },
+  });
+
+  await daemon.sendHookLines({
     atcId: hidden,
     event: 'Notification',
     payload: {
@@ -1299,7 +1334,20 @@ test('it keeps the events of a hidden session from the trail a principal reads f
     'narrow',
   );
 
-  expect(JSON.stringify(filtered)).not.toInclude('box');
+  expect(filtered).toStrictEqual({
+    events: [
+      {
+        cursor: expect.toBeString(),
+        at: expect.toBeNumber(),
+        session: shown,
+        name: expect.toBeString(),
+        kind: 'needs-input',
+        detail: 'local detail',
+      },
+    ],
+    cursor: expect.toBeString(),
+    more: false,
+  });
 });
 
 test('it keeps the messages of a hidden session from a principal whose live session resumes the same agent session', async () => {
@@ -3018,7 +3066,12 @@ test('it gives each principal a session of its own under the same idempotency ke
     'client-b',
   );
 
-  expect(getRecord(other, 'session')['id']).not.toBe(getRecord(first, 'session')['id']);
+  const firstID = getRecord(first, 'session')['id'];
+  const otherID = getRecord(other, 'session')['id'];
+
+  invariant(typeof firstID === 'string' && typeof otherID === 'string', 'a spawn held no id');
+
+  expect(otherID).not.toBe(firstID);
   expect(harnesses).toStrictEqual(['local', 'local']);
 });
 
@@ -3128,7 +3181,12 @@ test("it keeps a principal connection out of another principal's idempotency key
     'client-b',
   );
 
-  expect(getRecord(reached, 'session')['id']).not.toBe(getRecord(owned, 'session')['id']);
+  const ownedID = getRecord(owned, 'session')['id'];
+  const reachedID = getRecord(reached, 'session')['id'];
+
+  invariant(typeof ownedID === 'string' && typeof reachedID === 'string', 'a spawn held no id');
+
+  expect(reachedID).not.toBe(ownedID);
   expect(harnesses).toStrictEqual(['local', 'local']);
 });
 

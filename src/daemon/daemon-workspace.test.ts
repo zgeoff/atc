@@ -2358,7 +2358,7 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
   createStubBin(
     daemon.dir,
     'git',
-    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
   );
 
   updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
@@ -2402,7 +2402,7 @@ test('it refuses a git source on a local transport before it runs git, transferr
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
   updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
@@ -2706,7 +2706,7 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
   createStubBin(
     daemon.dir,
     'git',
-    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
   );
 
   updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
@@ -2751,7 +2751,7 @@ test('it refuses a probe under an invalid transport list before any git runs', a
   createStubBin(
     daemon.dir,
     'git',
-    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
   );
 
   updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
@@ -2806,7 +2806,7 @@ test('it refuses a git spawn under an invalid transport list before any git runs
   createStubBin(
     daemon.dir,
     'git',
-    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+    `#!/bin/sh\necho ran >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
   );
 
   updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
@@ -2856,7 +2856,7 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
   });
 
   // A git first on the PATH records each run.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
   updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
   await daemon.client
@@ -2902,7 +2902,7 @@ test('it refuses a checkout spawn under an invalid transport list before any git
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
+  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho ran >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
   updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
 
   const refused = daemon.client.sendRequest('session.spawn', {

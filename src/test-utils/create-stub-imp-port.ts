@@ -31,15 +31,91 @@ import { isImpNameAllowed } from '../daemon/is-imp-name-allowed';
 import { isBrokerVariable } from '../shared/is-broker-variable';
 import { registerTestCleanup } from './register-test-cleanup';
 
-// impd keeps exactly this many bytes of each generation's output.
-const RING_BYTES = 262_144;
+/**
+ * Creates an in-process stand-in for impd behind the imp port, calling impd
+ * as the principal, `token:atc` when absent. Each imp is a set of
+ * real `bun-pty` processes on this machine; a sleeping imp stops them with
+ * SIGSTOP and a wake continues them, so a memory wake keeps each process
+ * and its generation. Every session keeps an exact 262144-byte ring with
+ * offsets, a fresh attach skips to the next line and sends a mode prelude,
+ * and impd's refusals carry its codes and data: `LEASED`, `LEASE_NOT_HELD`,
+ * `NO_SESSION`, `INVALID_STATE`, `INVALID_RESUME`, `NOT_FOUND`, `CONFLICT`,
+ * and `FORBIDDEN`. Leases belong to principals; the port acts as
+ * `principal`, and a test adds other owners' leases, cold boots, and
+ * dropped sockets through the controls. Grants follow impd 0.27: the
+ * caller's identity must reach the imp and, under imp patterns, list the
+ * secret as grantable; a grant is idempotent, one secret per host, and a
+ * destroyed imp or a rebound or removed secret takes its grants with it. A
+ * start or an attach that requires the broker is refused with
+ * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
+ * while the broker fails or the imp holds no grant, when the start sets a
+ * broker variable, and when it would join a process that started without
+ * the broker required. Once the current test finishes, the stand-in kills
+ * every process and stops every forward it holds, so it must be created inside
+ * a test; `stop` does so sooner, and a second stop does nothing.
+ */
+export function createStubImpPort(principal = 'token:atc'): StubImpPort {
+  return new StubImpPort(principal);
+}
 
-// The mode bytes a fresh attach sends ahead of a ring that has wrapped.
-const PRELUDE = '\u001B[0m';
+interface StubLease {
+  readonly principal: string;
+  readonly label: string;
+  readonly until: number;
+}
+
+interface StubConnection {
+  readonly handlers: ImpSessionHandlers;
+  sent: number;
+  finished: boolean;
+  process: StubProcess | null;
+  readonly stop: (outcome: ImpSessionOutcome) => void;
+}
+
+interface StubProcess {
+  readonly pty: IPty;
+  readonly generation: string;
+  ring: Uint8Array;
+  end: number;
+  exited: { readonly code: number | null } | null;
+
+  // Ended by a cold boot: its exit is never delivered.
+  ended: boolean;
+  connection: StubConnection | null;
+
+  // Whether its start required the broker, which an attach that requires
+  // it needs.
+  readonly requireBroker: boolean;
+}
+
+interface StubImp {
+  readonly id: string;
+  readonly name: string;
+  state: ImpState;
+  bootId: string;
+  coldBoots: ColdBoot[];
+  readonly leases: Map<string, StubLease>;
+  readonly sessions: Map<string, StubProcess>;
+  readonly previous: Map<string, PreviousGeneration>;
+
+  // The secrets granted to the imp.
+  readonly grants: Set<string>;
+}
 
 // The PATH every stub process runs with: a guest's own, never the
 // daemon's.
 const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+
+interface StubRelay {
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
+  readonly dataListeners: ((data: Uint8Array) => void)[];
+  readonly closeListeners: (() => void)[];
+
+  // Bytes a write handed over that the socket has not taken yet, and the
+  // writes waiting for them to go.
+  unsent: Uint8Array;
+  readonly roomWaiters: (() => void)[];
+}
 
 // A hold on the commands whose argv holds its text: entered resolves with
 // the argv of the first command it holds, and stop lets every command it
@@ -49,8 +125,14 @@ interface StubCommandHold {
   readonly stop: () => void;
 }
 
+// impd keeps exactly this many bytes of each generation's output.
+const RING_BYTES = 262_144;
+
+// The mode bytes a fresh attach sends ahead of a ring that has wrapped.
+const PRELUDE = '\u001B[0m';
+
 /**
- * The impd stand-in the factory below creates, one per call.
+ * The impd stand-in the factory above creates, one per call.
  */
 class StubImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
@@ -1633,88 +1715,6 @@ class StubImpPort implements ImpPort {
 
     proc.connection = connection;
   }
-}
-
-/**
- * Creates an in-process stand-in for impd behind the imp port, calling impd
- * as the principal, `token:atc` when absent. Each imp is a set of
- * real `bun-pty` processes on this machine; a sleeping imp stops them with
- * SIGSTOP and a wake continues them, so a memory wake keeps each process
- * and its generation. Every session keeps an exact 262144-byte ring with
- * offsets, a fresh attach skips to the next line and sends a mode prelude,
- * and impd's refusals carry its codes and data: `LEASED`, `LEASE_NOT_HELD`,
- * `NO_SESSION`, `INVALID_STATE`, `INVALID_RESUME`, `NOT_FOUND`, `CONFLICT`,
- * and `FORBIDDEN`. Leases belong to principals; the port acts as
- * `principal`, and a test adds other owners' leases, cold boots, and
- * dropped sockets through the controls. Grants follow impd 0.27: the
- * caller's identity must reach the imp and, under imp patterns, list the
- * secret as grantable; a grant is idempotent, one secret per host, and a
- * destroyed imp or a rebound or removed secret takes its grants with it. A
- * start or an attach that requires the broker is refused with
- * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
- * while the broker fails or the imp holds no grant, when the start sets a
- * broker variable, and when it would join a process that started without
- * the broker required. Once the current test finishes, the stand-in kills
- * every process and stops every forward it holds, so it must be created inside
- * a test; `stop` does so sooner, and a second stop does nothing.
- */
-export function createStubImpPort(principal = 'token:atc'): StubImpPort {
-  return new StubImpPort(principal);
-}
-
-interface StubLease {
-  readonly principal: string;
-  readonly label: string;
-  readonly until: number;
-}
-
-interface StubImp {
-  readonly id: string;
-  readonly name: string;
-  state: ImpState;
-  bootId: string;
-  coldBoots: ColdBoot[];
-  readonly leases: Map<string, StubLease>;
-  readonly sessions: Map<string, StubProcess>;
-  readonly previous: Map<string, PreviousGeneration>;
-
-  // The secrets granted to the imp.
-  readonly grants: Set<string>;
-}
-
-interface StubProcess {
-  readonly pty: IPty;
-  readonly generation: string;
-  ring: Uint8Array;
-  end: number;
-  exited: { readonly code: number | null } | null;
-
-  // Ended by a cold boot: its exit is never delivered.
-  ended: boolean;
-  connection: StubConnection | null;
-
-  // Whether its start required the broker, which an attach that requires
-  // it needs.
-  readonly requireBroker: boolean;
-}
-
-interface StubConnection {
-  readonly handlers: ImpSessionHandlers;
-  sent: number;
-  finished: boolean;
-  process: StubProcess | null;
-  readonly stop: (outcome: ImpSessionOutcome) => void;
-}
-
-interface StubRelay {
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
-  readonly dataListeners: ((data: Uint8Array) => void)[];
-  readonly closeListeners: (() => void)[];
-
-  // Bytes a write handed over that the socket has not taken yet, and the
-  // writes waiting for them to go.
-  unsent: Uint8Array;
-  readonly roomWaiters: (() => void)[];
 }
 
 function buildNotFound(name: string): ImpPortError {

@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
+import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
 import { createStubSystemd } from './create-stub-systemd';
 import { setupTempDir } from './setup-temp-dir';
@@ -79,7 +80,7 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
   const atc = createStubBin(
     join(ctx.dir, 'bin'),
     'atc',
-    `#!/usr/bin/env bash\necho "$*" > "${join(ctx.dir, 'started')}"\n`,
+    buildStubRecordingATC(join(ctx.dir, 'started')),
   );
 
   const fake = createStubSystemd([atc]);
@@ -98,7 +99,7 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
   await restart.exited;
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.dir, 'started'), 'utf8')).toBe('daemon\n');
+    expect(readFileSync(join(ctx.dir, 'started'), 'utf8')).toBe('args:daemon\nsession:\nstdin:\n');
   });
 
   await main.exited;

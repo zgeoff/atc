@@ -466,6 +466,7 @@
     "src/agents/normalize-hook-event.test.ts": 43,
     "src/test-utils/build-mock-session-descriptor.test.ts": 43,
     "src/test-utils/build-stub-log.test.ts": 43,
+    "src/test-utils/build-stub-failing-attachment-listener.test.ts": 43,
     "src/daemon/build-config-revision.test.ts": 42,
     "src/daemon/format-log-field.test.ts": 42,
     "src/mcp/collect-json-strings.test.ts": 42,

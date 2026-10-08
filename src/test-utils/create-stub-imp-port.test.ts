@@ -1311,7 +1311,7 @@ test('it refuses a grant of a secret the token may not grant', async () => {
 test('it refuses a grant to an imp outside the token patterns', async () => {
   const ctx = setupTest();
 
-  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
+  ctx.port.setIdentity(buildMockImpIdentity({ imps: ['atc-*'], grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },

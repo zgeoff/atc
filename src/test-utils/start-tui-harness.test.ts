@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isProcessAlive } from '../shared/is-process-alive';
+import { buildStubWaitClock } from './build-stub-wait-clock';
 import { KEYS } from './keys';
 import { startTUIHarness } from './start-tui-harness';
 import { waitFor } from './wait-for';
@@ -85,16 +86,30 @@ test('it kills a client a later boot replaced on stop', async () => {
 });
 
 test('it rejects a wait for text the client never draws with the tail of the capture', async () => {
-  const ctx = await setupTest();
+  const clock = buildStubWaitClock();
+  const tui = startTUIHarness({ now: clock.now, wait: clock.wait });
 
-  expect(ctx.tui.waitFor('never drawn', 100)).rejects.toThrowWithMessage(
+  tui.boot();
+
+  // The client's boot takes real time, which the stub clock never spends,
+  // so the boot is awaited on the capture with the harness's 9-second boot
+  // budget.
+  await waitFor(
+    () => {
+      expect(tui.read()).toInclude('atc — control tower');
+    },
+    { timeoutMs: 9000 },
+  );
+
+  expect(tui.waitFor('never drawn', 100)).rejects.toThrowWithMessage(
     Error,
     /^timed out waiting for "never drawn"; tail: ".*atc — control tower/su,
   );
 });
 
 test('it rejects a wait made while the client has drawn nothing', () => {
-  const tui = startTUIHarness({ bootMs: 100 });
+  const clock = buildStubWaitClock();
+  const tui = startTUIHarness({ bootMs: 100, now: clock.now, wait: clock.wait });
 
   expect(tui.waitFor('atc — control tower')).rejects.toThrow(
     'timed out waiting for "atc — control tower"; the client wrote nothing in 100ms of boot',
@@ -159,24 +174,37 @@ test('it moves the mark past a line the client logs after it', async () => {
 });
 
 test('it rejects a wait for a log line written only before the mark', async () => {
-  const ctx = await setupTest();
+  const clock = buildStubWaitClock();
+  const tui = startTUIHarness({ now: clock.now, wait: clock.wait });
 
-  ctx.tui.reset();
-  ctx.tui.write(KEYS.ctrlSpace);
+  tui.boot();
 
-  await ctx.tui.waitFor('┌ sessions ─');
+  // The client's boot and its answers take real time, which the stub clock
+  // never spends, so they are awaited on the capture and the log, the boot
+  // with the harness's 9-second boot budget.
+  await waitFor(
+    () => {
+      expect(tui.read()).toInclude('atc — control tower');
+    },
+    { timeoutMs: 9000 },
+  );
 
-  const before = ctx.tui.countClientLogLines();
+  tui.reset();
+  tui.write(KEYS.ctrlSpace);
 
-  ctx.tui.write('H');
+  await waitFor(() => {
+    expect(tui.read()).toInclude('┌ sessions ─');
+  });
 
-  await ctx.tui.waitForClientLog('ignored H on a session that cannot eject', before);
+  tui.write('H');
 
-  const after = ctx.tui.countClientLogLines();
+  await waitFor(() => {
+    expect(readFileSync(tui.env.ATC_CLIENT_LOG, 'utf8')).toBe(
+      'ignored H on a session that cannot eject\n',
+    );
+  });
 
-  expect(
-    ctx.tui.waitForClientLog('ignored H on a session that cannot eject', after, 200),
-  ).rejects.toThrow(
+  expect(tui.waitForClientLog('ignored H on a session that cannot eject', 1, 200)).rejects.toThrow(
     'the client log never held "ignored H on a session that cannot eject" after line 1',
   );
 });

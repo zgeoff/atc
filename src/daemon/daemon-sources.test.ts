@@ -525,7 +525,7 @@ test.each([
     }),
   });
 
-  createStubBin(daemon.dir, 'gh', '#!/bin/sh\necho ssh\n');
+  createStubBin(daemon.dir, 'gh', buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }));
 
   const interpreted = await daemon.client.sendRequest('sources.interpret', { source, input });
 

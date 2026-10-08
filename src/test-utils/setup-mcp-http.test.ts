@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectClients } from '../mcp/collect-clients';
+import { readJSONRecord } from './read-json-record';
 import { setupMCPHTTP } from './setup-mcp-http';
 
 test('it collects the approval line the server prints', async () => {
@@ -110,6 +111,24 @@ test('it serves the caller from the restarted daemon on the same socket', async 
 
   expect(listed).toStrictEqual({ sessions: [] });
   expect(server.countDaemonClients()).toBe(1);
+});
+
+test('it restarts the daemon under the principals it is given', async () => {
+  const server = await setupMCPHTTP();
+
+  await server.restartDaemon(new Map([['client-a', []]]));
+
+  const listed = await server.caller.sendRequest('agents.list', {}, [], 'client-a');
+
+  expect(listed['targets']).toStrictEqual([]);
+});
+
+test('it reports the origin the server issues its tokens under', async () => {
+  const server = await setupMCPHTTP();
+  const answered = await fetch(`${server.url}/.well-known/oauth-authorization-server`);
+  const metadata = await readJSONRecord(answered);
+
+  expect(metadata['issuer']).toBe(server.origin);
 });
 
 test('it stops the server and removes its home once the test finishes without a teardown', async () => {

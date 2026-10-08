@@ -90,29 +90,41 @@ test('it rejects a destroy with the failure it was given and records nothing', (
   expect(provider.destroyed).toBeEmpty();
 });
 
-test('it suspends and destroys again once a failure is cleared', async () => {
+test('it suspends again once a suspend failure is cleared', async () => {
   const provider = buildStubExecutionProvider();
 
-  const suspendFailure = new Error('suspend refused');
-  const destroyFailure = new Error('destroy refused');
+  const failure = new Error('suspend refused');
 
-  provider.setSuspendFailure(suspendFailure);
-  provider.setDestroyFailure(destroyFailure);
+  provider.setSuspendFailure(failure);
 
-  const failedSuspend = provider.suspendHost('host-a');
-  const failedDestroy = provider.destroyHost('host-a');
+  const failed = provider.suspendHost('host-a');
 
-  await Promise.allSettled([failedSuspend, failedDestroy]);
+  await Promise.allSettled([failed]);
 
   provider.setSuspendFailure(null);
-  provider.setDestroyFailure(null);
 
   await provider.suspendHost('host-a');
+
+  expect(failed).rejects.toBe(failure);
+  expect(provider.suspended).toStrictEqual(['host-a']);
+});
+
+test('it destroys again once a destroy failure is cleared', async () => {
+  const provider = buildStubExecutionProvider();
+
+  const failure = new Error('destroy refused');
+
+  provider.setDestroyFailure(failure);
+
+  const failed = provider.destroyHost('host-a');
+
+  await Promise.allSettled([failed]);
+
+  provider.setDestroyFailure(null);
+
   await provider.destroyHost('host-a');
 
-  expect(failedSuspend).rejects.toBe(suspendFailure);
-  expect(failedDestroy).rejects.toBe(destroyFailure);
-  expect(provider.suspended).toStrictEqual(['host-a']);
+  expect(failed).rejects.toBe(failure);
   expect(provider.destroyed).toStrictEqual(['host-a']);
 });
 

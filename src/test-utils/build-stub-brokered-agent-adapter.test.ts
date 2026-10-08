@@ -92,7 +92,7 @@ test('it selects no credential while the selection is off', () => {
   expect(adapter.findAuthSelection?.()).toBeNull();
 });
 
-test('it takes the id it is given and sleeps on a local spawn', () => {
+test('it takes the id it is given', () => {
   const adapter = buildStubBrokeredAgentAdapter({
     id: 'proxied',
     brokerRequired: true,
@@ -100,6 +100,14 @@ test('it takes the id it is given and sleeps on a local spawn', () => {
   });
 
   expect(adapter.id).toBe('proxied');
+});
+
+test('it sleeps on a local spawn', () => {
+  const adapter = buildStubBrokeredAgentAdapter({
+    id: 'proxied',
+    brokerRequired: true,
+    isSelected: () => true,
+  });
 
   expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
     bin: 'sleep',

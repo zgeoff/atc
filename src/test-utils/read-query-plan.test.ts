@@ -8,25 +8,23 @@ import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
   const tmp = setupTempDir('atc-query-plan-');
-  const dbPath = join(tmp.dir, 'plan.db');
 
-  const db = new Database(dbPath);
+  return { dbPath: join(tmp.dir, 'plan.db') };
+}
+
+test('it reads the index a bound query uses from its plan', () => {
+  const ctx = setupTest();
+
+  const db = new Database(ctx.dbPath);
 
   const closeDB = registerTestCleanup(() => {
     db.close();
   });
 
-  // Every test reads a plan over this table and its one index.
   db.run('CREATE TABLE notes (id INTEGER PRIMARY KEY, owner TEXT NOT NULL, body TEXT)');
   db.run('CREATE INDEX notes_owner ON notes (owner)');
 
   closeDB();
-
-  return { dbPath };
-}
-
-test('it reads the index a bound query uses from its plan', () => {
-  const ctx = setupTest();
 
   const plan = readQueryPlan(
     ctx.dbPath,
@@ -39,6 +37,17 @@ test('it reads the index a bound query uses from its plan', () => {
 test('it reads a full scan from the plan of a query no index serves', () => {
   const ctx = setupTest();
 
+  const db = new Database(ctx.dbPath);
+
+  const closeDB = registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('CREATE TABLE notes (id INTEGER PRIMARY KEY, owner TEXT NOT NULL, body TEXT)');
+  db.run('CREATE INDEX notes_owner ON notes (owner)');
+
+  closeDB();
+
   const plan = readQueryPlan(
     ctx.dbPath,
     CompiledQuery.raw('SELECT id FROM notes WHERE body = ?', ['groceries']),
@@ -50,6 +59,15 @@ test('it reads a full scan from the plan of a query no index serves', () => {
 test('it never runs the query whose plan it reads', () => {
   const ctx = setupTest();
 
+  const db = new Database(ctx.dbPath);
+
+  const closeDB = registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('CREATE TABLE notes (id INTEGER PRIMARY KEY, owner TEXT NOT NULL, body TEXT)');
+
+  closeDB();
   readQueryPlan(ctx.dbPath, CompiledQuery.raw("INSERT INTO notes (owner) VALUES ('alice')", []));
 
   const reader = new Database(ctx.dbPath, { readonly: true });

@@ -2776,6 +2776,12 @@ test('it removes the directory it claimed when a workspace spawn rolls back on t
 
   ctx.port.setCommandFailure('tar -x');
 
+  const hold = ctx.port.startCommandHold('tar -x');
+
+  registerTestCleanup(() => {
+    hold.stop();
+  });
+
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: outer,
     agent: 'glm',
@@ -2784,9 +2790,16 @@ test('it removes the directory it claimed when a workspace spawn rolls back on t
     workspace: { kind: 'path', path: ctx.work },
   });
 
+  await hold.entered;
+
+  const claimedAtHold = existsSync(outer);
+
+  hold.stop();
+
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'transfer_failed' });
+  expect(claimedAtHold).toBeTrue();
   expect(existsSync(outer)).toBeFalse();
 });
 
@@ -2940,6 +2953,12 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
 
   ctx.port.startBrokerFailure();
 
+  const hold = ctx.port.startCommandHold('rev-parse');
+
+  registerTestCleanup(() => {
+    hold.stop();
+  });
+
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     agent: 'glm',
@@ -2948,11 +2967,18 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
     workspace: { kind: 'path', path: ctx.work },
   });
 
+  await hold.entered;
+
+  const checkedOutAtHold = existsSync(dest);
+
+  hold.stop();
+
   await Promise.allSettled([spawn]);
 
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
+  expect(checkedOutAtHold).toBeTrue();
   expect(existsSync(dest)).toBe(false);
   expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
   expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe(committed);
@@ -3143,6 +3169,12 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
 
   ctx.port.startBrokerFailure();
 
+  const hold = ctx.port.startCommandHold('rev-parse');
+
+  registerTestCleanup(() => {
+    hold.stop();
+  });
+
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     agent: 'glm',
@@ -3152,9 +3184,16 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
     idempotencyKey: 'k-1',
   });
 
+  await hold.entered;
+
+  const checkedOutAtHold = existsSync(dest);
+
+  hold.stop();
+
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
+  expect(checkedOutAtHold).toBeTrue();
   expect(existsSync(dest)).toBe(false);
   expect(stateBeforeSpawn).toBe('sleeping');
 
