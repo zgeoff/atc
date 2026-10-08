@@ -3,7 +3,6 @@ import { $ } from 'bun';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
-import type { ExecutionProvider } from './execution-provider';
 import { findHostBranch } from './find-host-branch';
 import { LocalPTYProvider } from './local-pty-provider';
 
@@ -33,14 +32,11 @@ test('it finds no branch for a directory outside git', async () => {
 });
 
 test('it finds no branch on a remote host that runs no commands', async () => {
-  const stub = buildStubExecutionProvider();
-
-  const provider: ExecutionProvider = {
-    ...stub,
+  const provider = buildStubExecutionProvider({
     remote: true,
-    capabilities: { ...stub.capabilities, run: false },
-    runCommand: () => Promise.reject(new Error('the host runs no commands')),
-  };
+    capabilities: { run: false },
+    commandFailure: new Error('the host runs no commands'),
+  });
 
   const branch = await findHostBranch(provider, 's-1', '/work');
 

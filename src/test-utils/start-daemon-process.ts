@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../client/daemon-client';
@@ -39,7 +39,8 @@ interface DaemonBoot {
  * sending no handshake, and fails at once with the daemon's stderr when the
  * daemon exits before it listens. `restart` stops the daemon with the given
  * signal, waits for it to exit, and starts another on the same home with the
- * same config. `readStderr` reads what the current boot printed. `stop`
+ * same config. `readStderr` reads what the current boot printed, from a file no other
+ * daemon on the home writes. `stop`
  * closes every client it opened, kills the daemon and waits for it to exit,
  * then kills the daemon the home's state directory records, which a restart
  * the test asked atc for may have started. That stop runs once the current
@@ -50,6 +51,10 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const socketPath = join(config.home, 'atc-daemon.sock');
   const stateDir = join(config.home, '.local', 'state', 'atc');
 
+  // A directory of this helper's own under the home, so two daemons started
+  // on one home never write into one stderr file.
+  const stderrDir = mkdtempSync(join(config.home, 'daemon-stderr-'));
+
   const clients = new Set<DaemonClient>();
 
   let boots = 0;
@@ -58,7 +63,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const boot = (): DaemonBoot => {
     boots++;
 
-    const stderrPath = join(config.home, `daemon-${boots}.stderr`);
+    const stderrPath = join(stderrDir, `boot-${boots}.stderr`);
 
     const proc = Bun.spawn([...config.command, 'daemon', ...(config.args ?? [])], {
       env: Object.fromEntries(
@@ -126,6 +131,11 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     const watched = current.proc;
     let settled = false;
     const isSettled = () => settled;
+    const isWatchedExited = () => watched.exitCode !== null || watched.signalCode !== null;
+
+    // The poll's latest connect, so the wait after an exit can reuse one
+    // that was still in flight instead of dialing a second time.
+    let polled: Promise<DaemonClient> | null = null;
 
     // A daemon that has exited either refused to start or handed its socket
     // to a replacement, so one more connect tells the two apart.
@@ -134,6 +144,12 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
       if (settled || stopped) {
         return null;
+      }
+
+      const inFlight = await polled?.catch(() => null);
+
+      if (inFlight !== undefined && inFlight !== null) {
+        return inFlight;
       }
 
       try {
@@ -145,16 +161,29 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       }
     };
 
-    // Polls the socket while the daemon runs. Once the other wait settles or
-    // the daemon stops, each attempt resolves empty, which ends the
-    // polling.
+    // Polls the socket while the daemon runs. Once the daemon exits, it dials
+    // no more and leaves the connect to the wait after the exit. Once the
+    // other wait settles or the daemon stops, each attempt resolves empty,
+    // which ends the polling.
     const openWhenListening = () =>
-      waitFor(() => (settled || stopped ? null : openTrackedClient(isSettled)), {
-        timeoutMs: 15_000,
-        intervalMs: 50,
-      });
+      waitFor(
+        () => {
+          if (settled || stopped) {
+            return null;
+          }
 
-    const hasExited = watched.exitCode !== null || watched.signalCode !== null;
+          if (isWatchedExited()) {
+            throw new Error('the daemon exited');
+          }
+
+          polled = openTrackedClient(isSettled);
+
+          return polled;
+        },
+        { timeoutMs: 15_000, intervalMs: 50 },
+      );
+
+    const hasExited = isWatchedExited();
 
     try {
       const client = await (hasExited

@@ -202,6 +202,26 @@ test('it restarts the daemon on the same home after the signal stops it', async 
   expect(after['daemonID']).toBe(before['daemonID']);
 });
 
+test('it keeps the stderr of two daemons on one home apart', async () => {
+  const ctx = setupTest();
+  const serving = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+
+  const client = await serving.openClient();
+
+  await client.sendHello('atc/test');
+
+  const refused = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.dir,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  await refused.proc.exited;
+
+  expect(refused.readStderr()).toInclude('--listen and --token-file go together');
+  expect(serving.readStderr()).not.toInclude('--listen and --token-file go together');
+});
+
 test('it kills the daemon once stopped', async () => {
   const ctx = setupTest();
   const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });

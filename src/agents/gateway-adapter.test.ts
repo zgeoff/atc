@@ -548,6 +548,7 @@ test('it gives a gateway with auth no resume command', () => {
 });
 
 test("it starts a gateway with auth and a credential helper on the daemon's machine under that helper", () => {
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
   const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
@@ -588,9 +589,71 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
     ],
   });
 
-  expect(settings).toMatchObject({
-    apiKeyHelper: '/home/me/bin/glm-key',
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'glm-local'`,
+      padding: 0,
+    },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
+    apiKeyHelper: '/home/me/bin/glm-key',
   });
 });
 

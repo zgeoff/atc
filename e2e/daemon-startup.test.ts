@@ -55,10 +55,27 @@ test('it lets exactly one of two daemons started at once serve a state directory
     listenPort: null,
   });
 
-  // Both daemons print to the one stderr file of their shared home, so the
-  // refusal shows it came from the loser by holding the winner's pid.
-  expect(loser.readStderr()).toInclude(
-    `atc daemon: another daemon already serves ${first.stateDir} (pid ${winner.proc.pid},`,
+  expect(loser.readStderr()).toStartWith(
+    `atc daemon: another daemon already serves ${first.stateDir}`,
+  );
+});
+
+test('it refuses a second daemon with the pid and socket of the daemon that serves', async () => {
+  const ctx = setupTest();
+  const serving = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await serving.openClient();
+
+  await client.sendHello('atc/test');
+
+  const refused = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const code = await refused.proc.exited;
+
+  expect(code).toBe(1);
+
+  expect(refused.readStderr()).toBe(
+    `atc daemon: another daemon already serves ${serving.stateDir} (pid ${serving.proc.pid}, socket ${serving.socketPath})\n`,
   );
 });
 

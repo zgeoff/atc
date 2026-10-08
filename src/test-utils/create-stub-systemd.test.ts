@@ -94,11 +94,7 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
 
   fake.writeMainPID(main.pid);
 
-  // The restart waits for the main pid to go, which needs this process
-  // free to reap it, so it runs without blocking.
-  const restart = Bun.spawn([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
-
-  await restart.exited;
+  await runCommand([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
 
   await waitFor(() => {
     expect(readFileSync(join(ctx.dir, 'started'), 'utf8')).toBe('args:daemon\nsession:\nstdin:\n');

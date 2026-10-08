@@ -670,14 +670,13 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
 
   const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
 
-  expect({
-    tool: spawn['description'],
-    agent: getRecord(properties, 'agent')['description'],
-  }).toStrictEqual({
-    tool: "Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value. atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.",
-    agent:
-      'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. atc_agents_list returns the current list.',
-  });
+  expect(spawn['description']).toBe(
+    "Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value. atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.",
+  );
+
+  expect(getRecord(properties, 'agent')['description']).toBe(
+    'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. atc_agents_list returns the current list.',
+  );
 });
 
 test('it lists the agents tool without an output schema when the daemon takes no spawn options', async () => {

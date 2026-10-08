@@ -2597,10 +2597,11 @@ test('it rejects a fleet write for a session whose ownership epoch moved on as s
 
   const write = ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-1') })]);
 
-  expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
+  await Promise.allSettled([write]);
 
   const fleet = await ctx.store.loadFleet();
 
+  expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
   expect(fleet).toStrictEqual([before]);
 });
 

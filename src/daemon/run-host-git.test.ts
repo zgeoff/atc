@@ -2,7 +2,6 @@ import { expect, mock, test } from 'bun:test';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { updateEnv } from '../test-utils/update-env';
-import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 import { runHostGit } from './run-host-git';
@@ -26,35 +25,58 @@ test('it runs git through a remote provider without the repository variables', a
   );
 
   const provider: ExecutionProvider = {
-    ...buildStubExecutionProvider(),
-    remote: true,
+    ...buildStubExecutionProvider({ remote: true }),
     runCommand,
   };
 
   const result = await runHostGit(provider, 's-1', '/work', ['symbolic-ref', 'HEAD']);
 
-  const [request] = runCommand.mock.calls[0] ?? [];
-
   expect(result.stdout).toBe('main\n');
-  expect(request?.host).toBe('s-1');
-  expect(request?.cwd).toBe('/');
 
-  expect(request?.argv.slice(0, -9)).toStrictEqual([
-    'env',
-    ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name]),
-  ]);
-
-  expect(REPOSITORY_ENV_VARS).toContain('GIT_DIR');
-
-  expect(request?.argv.slice(-9)).toStrictEqual([
-    'git',
-    '-c',
-    'safe.directory=*',
-    '-c',
-    'core.fsmonitor=false',
-    '-C',
-    '/work',
-    'symbolic-ref',
-    'HEAD',
-  ]);
+  expect(runCommand).toHaveBeenCalledExactlyOnceWith({
+    argv: [
+      'env',
+      '-u',
+      'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+      '-u',
+      'GIT_COMMON_DIR',
+      '-u',
+      'GIT_CONFIG',
+      '-u',
+      'GIT_CONFIG_COUNT',
+      '-u',
+      'GIT_CONFIG_PARAMETERS',
+      '-u',
+      'GIT_DIR',
+      '-u',
+      'GIT_GRAFT_FILE',
+      '-u',
+      'GIT_IMPLICIT_WORK_TREE',
+      '-u',
+      'GIT_INDEX_FILE',
+      '-u',
+      'GIT_NO_REPLACE_OBJECTS',
+      '-u',
+      'GIT_OBJECT_DIRECTORY',
+      '-u',
+      'GIT_PREFIX',
+      '-u',
+      'GIT_REPLACE_REF_BASE',
+      '-u',
+      'GIT_SHALLOW_FILE',
+      '-u',
+      'GIT_WORK_TREE',
+      'git',
+      '-c',
+      'safe.directory=*',
+      '-c',
+      'core.fsmonitor=false',
+      '-C',
+      '/work',
+      'symbolic-ref',
+      'HEAD',
+    ],
+    cwd: '/',
+    host: 's-1',
+  });
 });

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
+import type { AgentAdapter } from '../agents/agent-adapter';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
@@ -16,30 +17,29 @@ import { waitFor } from '../test-utils/wait-for';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
 import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
 
+interface SetupConfig {
+  // The adapter members a test's case depends on, built from the daemon's
+  // directory.
+  readonly adapter?: (dir: string) => Partial<AgentAdapter>;
+}
+
 /**
- * A real daemon whose sessions run `sleep`. Every hook a session reports
- * starts it on `transcript.jsonl` in the daemon's directory, which
- * `session.read` then reads. Every answer these tests check comes from it,
- * so a field the daemon starts sending with an id in it fails the check
- * until a rule covers it.
+ * A real daemon whose sessions run `sleep`, with the adapter members the
+ * test gives on top of the wiring every test shares. Every answer these
+ * tests check comes from it, so a field the daemon starts sending with an
+ * id in it fails the check until a rule covers it.
  */
-function setupTest() {
+function setupTest(config: SetupConfig = {}) {
+  const adapter = config.adapter ?? (() => ({}));
+
   return startTestDaemon({
     prefix: 'atc-id-rules-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter({
         // Session messages need an adapter that takes them.
         takesMessages: true,
-
-        // Every hook starts the session on the transcript in the directory.
-        normalizeHook: () => ({
-          kind: 'started',
-          transcriptSource: join(paths.dir, 'transcript.jsonl'),
-        }),
-
-        // A resume command that holds the agent's session id.
-        buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
         parseTranscriptLine: parseClaudeTranscriptLine,
+        ...adapter(paths.dir),
       }),
     }),
   });
@@ -210,7 +210,12 @@ test('it has a rule for every id in the data of an uncertain keyed spawn', async
 });
 
 test('it has a rule for every id in a session.read answer, transcript text included', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({
+    adapter: (dir) => ({
+      // Every hook starts the session on the transcript in the directory.
+      normalizeHook: () => ({ kind: 'started', transcriptSource: join(dir, 'transcript.jsonl') }),
+    }),
+  });
 
   const agentSessionID = randomUUID();
 
@@ -241,7 +246,12 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
 });
 
 test('it has a rule for every id in a session.resumeCommand answer', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({
+    adapter: () => ({
+      // A resume command that holds the agent's session id.
+      buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
+    }),
+  });
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,

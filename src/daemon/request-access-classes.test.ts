@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -190,7 +191,7 @@ test.each([
     'agents.list',
     {
       daemon: {
-        hostname: expect.toBeString(),
+        hostname: hostname(),
         platform: process.platform,
         arch: process.arch,
         build: 'atc/test-build',
@@ -322,7 +323,7 @@ test.each([
     'agents.list',
     {
       daemon: {
-        hostname: expect.toBeString(),
+        hostname: hostname(),
         platform: process.platform,
         arch: process.arch,
         build: 'atc/test-build',

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCommand } from '../src/test-utils/run-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 // A temp directory that stands in for a checkout, with a project nested
@@ -26,22 +27,12 @@ test('it checks a project nested under a checkout whose tsconfig extends a packa
   writeFileSync(join(project, 'knip.json'), JSON.stringify({ entry: ['index.js'] }));
   writeFileSync(join(project, 'index.js'), 'export {};\n');
 
-  const run = Bun.spawn(
+  const run = await runCommand(
     [process.execPath, join(import.meta.dir, '..', 'node_modules', '.bin', 'knip')],
-    {
-      cwd: project,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
+    { cwd: project },
   );
 
-  const [exitCode, stdout, stderr] = await Promise.all([
-    run.exited,
-    new Response(run.stdout).text(),
-    new Response(run.stderr).text(),
-  ]);
-
-  expect({ exitCode, stdout, stderr }).toStrictEqual({
+  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
     exitCode: 0,
     stdout: '',
     stderr: '',

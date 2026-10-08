@@ -1,7 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
@@ -1109,6 +1107,47 @@ test('it runs every held command once the active hold stops from the port', asyn
   const ran = await result;
 
   expect(Buffer.from(ran.stdout).toString()).toBe('held\n');
+});
+
+test('it ends a held command as killed without running it once the port stops', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const marker = join(ctx.dir, 'held-ran');
+  const hold = ctx.port.startCommandHold('held-ran');
+  const result = ctx.port.runCommand('imp-a', { argv: ['touch', marker] });
+
+  await hold.entered;
+
+  await ctx.port.stop();
+
+  const ran = await result;
+
+  expect(ran.code).toBe(137);
+  expect(existsSync(marker)).toBeFalse();
+});
+
+test('it kills a running command once the port stops', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const marker = join(ctx.dir, 'started');
+
+  const result = ctx.port.runCommand('imp-a', {
+    argv: ['sh', '-c', 'touch "$1"; exec sleep 30', 'sh', marker],
+  });
+
+  await waitFor(() => {
+    expect(existsSync(marker)).toBeTrue();
+  });
+
+  await ctx.port.stop();
+
+  const ran = await result;
+
+  expect(ran.code).toBe(137);
 });
 
 test('it runs a command whose argv does not hold the held text at once', async () => {
@@ -3469,17 +3508,16 @@ test('it owns a lease under the principal it was created with', async () => {
 });
 
 test('it stops every forward once the test finishes without a stop', () => {
-  // The socket sits outside any directory the test removes, so only the
-  // forward's own stop takes it away.
-  const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
+  // The directory registers first, so its removal runs after the check
+  // below and only the forward's own stop can take the socket away first.
+  const tmp = setupTempDir('atc-stub-imp-port-');
+  const guestPath = join(tmp.dir, 'guest.sock');
   let left: boolean | null = null;
 
   // Runs after the port's own release, which registers later; it records
-  // whether that release left the socket, then removes it.
+  // whether that release left the socket.
   registerTestCleanup(() => {
     left = existsSync(guestPath);
-
-    rmSync(guestPath, { force: true });
   });
 
   const port = createStubImpPort();
@@ -3491,17 +3529,13 @@ test('it stops every forward once the test finishes without a stop', () => {
   });
 });
 
-test('it stops every forward once stopped', () => {
-  const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
+test('it stops every forward once stopped', async () => {
+  const ctx = setupTest();
+  const guestPath = join(ctx.dir, 'guest.sock');
 
-  registerTestCleanup(() => {
-    rmSync(guestPath, { force: true });
-  });
+  ctx.port.openReverseForward('imp-a', guestPath, () => {});
 
-  const port = createStubImpPort();
-
-  port.openReverseForward('imp-a', guestPath, () => {});
-  port.stop();
+  await ctx.port.stop();
 
   expect(existsSync(guestPath)).toBeFalse();
 });

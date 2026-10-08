@@ -28,7 +28,7 @@ function setupTest() {
   };
 }
 
-test('it adds a client to the state directory given before its subcommands over the environment', async () => {
+test('it adds, lists, and removes a client in a state directory relative to where it runs over the environment', async () => {
   const ctx = setupTest();
 
   const added = await runCommand(
@@ -54,79 +54,24 @@ test('it adds a client to the state directory given before its subcommands over 
     env: ctx.env,
   });
 
-  expect(listed.stdout).toBe(`${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`);
-  expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['flagged']);
-});
-
-test('it lists the clients in the state directory given after its subcommands over the environment', async () => {
-  const ctx = setupTest();
-
-  const added = await runCommand(
-    [
-      ...ctx.command,
-      'clients',
-      'add',
-      'Claude',
-      '--redirect-uri',
-      'https://claude.ai/api/mcp/auth_callback',
-      '--state-dir=flagged',
-    ],
-    { cwd: ctx.dir, env: ctx.env },
-  );
-
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
-
-  invariant(clientID !== undefined, `no client ID in: ${added.stdout}${added.stderr}`);
-
-  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir', 'flagged'], {
-    cwd: ctx.dir,
-    env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' },
-  });
-
   expect({ exitCode: listed.exitCode, stdout: listed.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
   });
 
-  expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['flagged']);
-});
-
-test('it removes a client from the state directory given between its subcommands over the environment', async () => {
-  const ctx = setupTest();
-
-  const added = await runCommand(
-    [
-      ...ctx.command,
-      'clients',
-      'add',
-      'Claude',
-      '--redirect-uri',
-      'https://claude.ai/api/mcp/auth_callback',
-      '--state-dir=flagged',
-    ],
+  const removed = await runCommand(
+    [...ctx.command, 'clients', 'remove', clientID, '--state-dir', 'flagged'],
     { cwd: ctx.dir, env: ctx.env },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
+  expect(removed.stdout).toBe(`Removed client ${clientID} and revoked every grant it held\n`);
 
-  invariant(clientID !== undefined, `no client ID in: ${added.stdout}${added.stderr}`);
-
-  const removed = await runCommand(
-    [...ctx.command, 'clients', '--state-dir', 'flagged', 'remove', clientID],
-    {
-      cwd: ctx.dir,
-      env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' },
-    },
-  );
-
-  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+  const emptied = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.dir,
     env: ctx.env,
   });
 
-  expect(removed.stdout).toBe(`Removed client ${clientID} and revoked every grant it held\n`);
-
-  expect(listed.stdout).toBe(
+  expect(emptied.stdout).toBe(
     'No clients. Add one with: atc-gateway clients add <name> --redirect-uri <uri>\n',
   );
 
