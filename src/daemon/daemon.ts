@@ -101,6 +101,7 @@ import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
 import type { TargetAccess } from './target-access';
 import { writeDaemonRecord } from './write-daemon-record';
+import { writeLineSteps } from './write-line-steps';
 
 export interface DaemonOptions {
   readonly socketPath: string;
@@ -611,6 +612,17 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
+
+  // A session the manager holds has had its runtime since it was announced.
+  const getRuntime = (sessionID: SessionID): SessionRuntime => {
+    const runtime = runtimes.get(sessionID);
+
+    if (runtime === undefined) {
+      throw new Error(`session '${sessionID}' has no runtime`);
+    }
+
+    return runtime;
+  };
 
   const attachments = new AttachRegistry<OutputClient>();
   const taps = new TapRegistry<TapClient>();
@@ -1917,7 +1929,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }
 
       mgr.requireExecution(s, 'input');
-      s.pty.write(data);
+
+      const pty = s.pty;
+
+      // Input goes out at once unless a line is still being typed into the
+      // session, and then waits behind it.
+      getRuntime(sessionID).input.schedule(() => {
+        pty.write(data);
+      });
 
       return 'ok';
     },
@@ -1927,23 +1946,40 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       // A headless turn takes the line as its prompt, and a missing or dead
       // session refuses a line as it refuses raw input.
       if (s === undefined || s.kind === 'headless' || s.pty === null) {
-        return ctx.writeSessionInput(sessionID, text);
+        return Promise.resolve(ctx.writeSessionInput(sessionID, text));
       }
 
       mgr.requireExecution(s, 'input');
 
-      const bracketedPaste = runtimes.get(sessionID)?.screen?.hasBracketedPaste() ?? false;
+      const runtime = getRuntime(sessionID);
+      const bracketedPaste = runtime.screen?.hasBracketedPaste() ?? false;
       const adapter = mgr.findAdapter(s.agent);
-      const writes = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
+      const steps = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
+      const pty = s.pty;
 
-      // Every write goes out in the tick the request arrives in, so no input
-      // overtakes the line and none lands between the text and its submit
-      // key.
-      for (const data of writes) {
-        s.pty.write(data);
-      }
+      const terminal = {
+        write: (data: string) => {
+          pty.write(data);
+        },
+        isLive: () => mgr.sessions.find((x) => x.id === sessionID)?.pty === pty,
+      };
 
-      return 'ok';
+      const typed = Promise.withResolvers<'ok' | 'dead'>();
+
+      // The writes before the line's first pause go out in the tick the
+      // request arrives in, and the session's input queue holds any other
+      // input until the last write, so none lands between the text and its
+      // submit key. A session whose terminal ends or is replaced mid-line
+      // gets none of the rest.
+      runtime.input.schedule(() => {
+        const result = writeLineSteps(steps, terminal, (ms) => Bun.sleep(ms));
+
+        typed.resolve(result);
+
+        return result;
+      });
+
+      return typed.promise;
     },
     resizeSession: (client, sessionID, dims) => {
       if (!attachments.updateDims(sessionID, client, dims)) {

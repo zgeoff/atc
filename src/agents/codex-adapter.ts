@@ -34,7 +34,7 @@ import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 import { buildCodexHookFile } from './build-codex-hook-file';
 import { buildCodexTrustSeed } from './build-codex-trust-seed';
 import { findFlagValue } from './find-flag-value';
-import { planPastedLineInput } from './plan-pasted-line-input';
+import { planCodexLineInput } from './plan-codex-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
 
 // Codex's hook payload keys, snake_case. An absent or wrong-typed field
@@ -84,8 +84,8 @@ export class CodexAdapter implements AgentAdapter {
   readonly takesMessages = false;
 
   // Codex's TUI keeps a newline that arrives inside a burst of input, so a
-  // line is pasted and then submitted.
-  readonly planLineInput = planPastedLineInput;
+  // line is pasted and then submitted, a slash command as two pastes.
+  readonly planLineInput = planCodexLineInput;
 
   // Present only for an entry with `auth`: any other entry runs on a
   // remote host as a local spawn plans it, under the sign-in of the host's

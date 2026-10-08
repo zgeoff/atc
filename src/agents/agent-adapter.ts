@@ -260,6 +260,13 @@ export interface TerminalInputModes {
 }
 
 /**
+ * One step of typing a line into a session: bytes to write to its PTY, or a
+ * pause in milliseconds before the next write. The session takes no other
+ * input until the line's last step is done.
+ */
+export type LineInputStep = string | { readonly pauseMs: number };
+
+/**
  * Everything specific to one agent CLI: how to spawn it, how to read its
  * hook payloads, where its session names come from, and how to resume a
  * session outside atc. The session core never sees past this interface.
@@ -338,6 +345,7 @@ export interface AgentAdapter {
   readonly parseTranscriptLine?: (line: string) => TranscriptRow | null;
 
   // The PTY writes, in order, that type a line into the agent's TUI and
-  // submit it. Absent: the line and a trailing newline go as one write.
-  readonly planLineInput?: (text: string, modes: TerminalInputModes) => readonly string[];
+  // submit it, with any pause the TUI needs between two of them. Absent:
+  // the line and a trailing newline go as one write.
+  readonly planLineInput?: (text: string, modes: TerminalInputModes) => readonly LineInputStep[];
 }

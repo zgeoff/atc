@@ -1,5 +1,6 @@
 import type { Dims } from './attach-registry';
 import type { ScreenModel } from './screen-model';
+import { SessionInputQueue } from './session-input-queue';
 
 // The daemon's own bookkeeping for one live headless run: enough to stop it
 // on eject, kill, or session removal.
@@ -9,9 +10,10 @@ interface HeadlessRunHandle {
 
 /**
  * Everything the daemon tracks for one session: its screen model, output
- * sequence counter, PTY dims, its resize/detect/boot timers, its live
- * headless run, and its pending eject and boot waiters. `dispose` releases
- * all of it in one call, and is safe to call more than once.
+ * sequence counter, PTY dims, the queue its input writes run through, its
+ * resize/detect/boot timers, its live headless run, and its pending eject
+ * and boot waiters. `dispose` releases all of it in one call, and is safe to
+ * call more than once.
  */
 export class SessionRuntime {
   screen: ScreenModel | null = null;
@@ -19,6 +21,8 @@ export class SessionRuntime {
   seq = 0;
 
   dims: Dims | null = null;
+
+  readonly input = new SessionInputQueue();
 
   resizeTimer: ReturnType<typeof setTimeout> | undefined;
 

@@ -217,8 +217,11 @@ Multi-client rules, chosen to cover the realistic conflicts without a write-lock
   the daemon writes each input payload to the PTY whole, never interleaving bytes from two clients
   inside one payload. Client input is decoded statefully per client so a multi-byte character split
   across reads is never mangled.
-- Line atomicity: the writes that type and submit one `session.submit` line go to the PTY together,
-  so no other client's input lands between the text and its submit key.
+- Line atomicity: the writes that type and submit one `session.submit` line go to the PTY in order
+  with no other input between them, so no other client's input lands inside the line. A line with no
+  pause goes out in the tick its request arrives in. While a line waits out a pause its agent needs,
+  the daemon holds the session's other input, raw or line, in a queue and writes it after the line's
+  submit key.
 - Resize debounce: the daemon debounces effective-dimension changes (~50 ms) and suppresses PTY
   resizes when the effective size is unchanged, so two clients resizing in opposite directions
   cannot produce a SIGWINCH storm.
@@ -244,8 +247,20 @@ takes a long paste as pasted text, so a long slash command pasted whole would re
 message and the command would never run; typed, the name stays a command at any argument length. A
 command name is a slash, then letters, digits, `_`, `-`, and `:`, followed by a space, so a line
 that opens with a path such as `/tmp/out` is pasted whole. A bare command with no argument is pasted
-whole too. Codex and Grok get every line pasted whole: both hold a typed name, a paste, and a
-carriage return that arrive in one burst until the next key, and Codex can drop the typed name.
+whole too.
+
+On Codex, the same line goes out as the command name and its spaces between paste markers, a 100 ms
+pause, the argument between paste markers, then the carriage return. Codex shows a paste of more
+than 1,000 characters as a placeholder, so a long slash command pasted whole no longer opens with
+its name and Codex sends it as a message. Codex also drops keys typed just before a paste, so the
+name goes as a paste of its own. The pause is there because Codex reads its terminal 1,024 bytes at
+a time and stops reading after a read that completes an input event, until more input arrives.
+Without the pause, the name and part of a long argument fill one read, and the rest of the line
+waits for the next key. Codex keeps a long `/goal` argument as an attachment file and sets the goal
+to read it.
+
+Grok gets every line pasted whole: it runs a long pasted slash command as a command, and it holds a
+typed name, a paste, and a carriage return that arrive in one burst until the next key.
 
 The daemon reads from the session's screen model whether the TUI has turned bracketed paste on (DEC
 mode 2004); until it has, the text goes unmarked. In that case the text and the carriage return go

@@ -289,10 +289,11 @@ export interface DaemonContext {
 
   // Types a line into the session and submits it the way the session's
   // agent accepts a line, as opposed to the raw bytes the input write takes.
+  // Settles once the line's last write has gone to the session.
   readonly writeSessionLine: (
     sessionID: SessionID,
     text: string,
-  ) => 'busy' | 'ok' | 'missing' | 'dead';
+  ) => Promise<'busy' | 'ok' | 'missing' | 'dead'>;
   readonly ejectSession: (
     id: SessionID,
     prompt: string,
