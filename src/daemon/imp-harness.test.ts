@@ -1681,6 +1681,7 @@ test('it starts a harness that requires the broker after one failed feature read
 
   await harness.waitForStart();
 
+  expect(ctx.port.countFailedFeatureReads()).toBe(1);
   expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
   expect(ctx.port.findState('imp-b')).toBe('running');
 });
