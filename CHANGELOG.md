@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.8.1...@zgeoff/atc@3.9.0) (2026-10-08)
+
+### Features
+
+- **geo-170:** let the gateway and mcp http servers listen on port 0
+  ([#459](https://github.com/zgeoff/atc/issues/459))
+  ([6b39b68](https://github.com/zgeoff/atc/commit/6b39b684f1fc21304b4fa88decd96a1e8a9706cf))
+
 ## [3.8.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.8.0...@zgeoff/atc@3.8.1) (2026-10-08)
 
 ### Bug Fixes
