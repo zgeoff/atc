@@ -10,7 +10,7 @@ function setupTest() {
 }
 
 test('it renames a session from the claude transcript custom-title', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),

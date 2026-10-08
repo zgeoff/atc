@@ -22,9 +22,7 @@ import { waitForEvent } from '../src/test-utils/wait-for-event';
  * fleet alone at start, so each test restores it itself.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-messages-'));
+  const tmp = setupTempDir('atc-e2e-messages-');
   const atc = resolveATCCommand();
   const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
 
@@ -42,7 +40,7 @@ async function setupTest() {
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: atc, home: tmp.dir });
 
   const client = await daemon.openClient();
 
@@ -54,20 +52,17 @@ async function setupTest() {
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
   return {
     home: tmp.dir,
     atc,
     daemon,
     client,
     events,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it carries a message from accepted through delivered to answered', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
 
@@ -118,7 +113,7 @@ test('it carries a message from accepted through delivered to answered', async (
 });
 
 test('it delivers a message accepted before a daemon crash to the restored session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
@@ -174,7 +169,7 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
 });
 
 test('it names a message event from before a daemon crash by the restored session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
@@ -246,7 +241,7 @@ test('it names a message event from before a daemon crash by the restored sessio
 });
 
 test('it names a message event sent before SessionStart by the restored session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 

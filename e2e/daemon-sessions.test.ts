@@ -18,9 +18,7 @@ import { waitForEvent } from '../src/test-utils/wait-for-event';
  * collects every event the daemon sends it.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-sessions-'));
+  const tmp = setupTempDir('atc-e2e-sessions-');
   const atc = resolveATCCommand();
   const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
 
@@ -36,7 +34,7 @@ async function setupTest() {
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: atc, home: tmp.dir });
 
   const client = await daemon.openClient();
 
@@ -48,21 +46,17 @@ async function setupTest() {
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
   return {
     home: tmp.dir,
     claude,
     daemon,
     client,
     events,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it spawns a session and broadcasts SessionAdded to every client', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const actor = await ctx.daemon.openClient();
 
   const actorEvents: EventMsg[] = [];
@@ -91,7 +85,7 @@ test('it spawns a session and broadcasts SessionAdded to every client', async ()
 });
 
 test('it turns hook notifications into SessionState broadcasts', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
@@ -110,8 +104,7 @@ test('it turns hook notifications into SessionState broadcasts', async () => {
 });
 
 test('it renames and pins a session through session.update', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -126,8 +119,7 @@ test('it renames and pins a session through session.update', async () => {
 });
 
 test('it unpins a pinned session through session.update', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -141,7 +133,7 @@ test('it unpins a pinned session through session.update', async () => {
 });
 
 test('it rejects session.update on an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(
     ctx.client.sendRequest('session.update', { session: 'nope', name: 'x' }),
@@ -149,8 +141,7 @@ test('it rejects session.update on an unknown session with no_such_session', asy
 });
 
 test('it kills a live session to exited', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -169,8 +160,7 @@ test('it kills a live session to exited', async () => {
 });
 
 test('it removes a killed session on a second kill', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -189,8 +179,7 @@ test('it removes a killed session on a second kill', async () => {
 });
 
 test('it builds a resume command once the claude id is captured', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -205,8 +194,7 @@ test('it builds a resume command once the claude id is captured', async () => {
 });
 
 test('it broadcasts PermissionRequested when a session needs input', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
   const requested = await waitForEvent(ctx.events, { ev: 'PermissionRequested' });
 
@@ -219,7 +207,7 @@ test('it broadcasts PermissionRequested when a session needs input', async () =>
 });
 
 test('it answers permission.respond on a keystroke-only request with unsupported', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
@@ -234,8 +222,7 @@ test('it answers permission.respond on a keystroke-only request with unsupported
 });
 
 test('it resolves a pending permission request as dismissed when the session dies', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -252,8 +239,7 @@ test('it resolves a pending permission request as dismissed when the session die
 });
 
 test('it keeps the last screen of a killed session readable', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -278,8 +264,7 @@ test.each([
   ['session.submit', { text: 'x' }],
   ['session.attach', { cols: 80, rows: 24 }],
 ])('it answers %s on a dead session with session_dead', async (method, params) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -294,7 +279,7 @@ test.each([
 });
 
 test("it reports a session's pending prompt through session.get while it needs you", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const start = Date.now();
 
@@ -323,7 +308,7 @@ test("it reports a session's pending prompt through session.get while it needs y
 });
 
 test("it reports a finished turn's last message through session.get", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-claude-events.jsonl'),

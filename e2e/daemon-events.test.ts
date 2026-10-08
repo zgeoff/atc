@@ -16,9 +16,7 @@ import { waitFor } from '../src/test-utils/wait-for';
  * `atc daemon` process, with a client that has sent its handshake.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-events-'));
+  const tmp = setupTempDir('atc-e2e-events-');
   const atc = resolveATCCommand();
   const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
 
@@ -34,19 +32,17 @@ async function setupTest() {
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: atc, home: tmp.dir });
 
   const client = await daemon.openClient();
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
-  return { home: tmp.dir, client, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { home: tmp.dir, client };
 }
 
 test('it reads hook events from the start through events.read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const ok = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.home,
@@ -90,7 +86,7 @@ test('it reads hook events from the start through events.read', async () => {
 });
 
 test('it reads nothing past the cursor of the last event through events.read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
@@ -110,8 +106,7 @@ test('it reads nothing past the cursor of the last event through events.read', a
 });
 
 test('it holds events.read open until the next event arrives', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const first = await ctx.client.sendRequest('events.read', {});
 
   // The longest hold the daemon allows outlasts the test's own deadline, so
@@ -136,7 +131,7 @@ test('it holds events.read open until the next event arrives', async () => {
 });
 
 test("it reads the first page of a claude session's transcript through session.read", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),
@@ -209,7 +204,7 @@ test("it reads the first page of a claude session's transcript through session.r
 });
 
 test("it reads the rest of a claude session's transcript from a page cursor", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),
@@ -275,7 +270,7 @@ test("it reads the rest of a claude session's transcript from a page cursor", as
 });
 
 test("it reads a line appended to a claude session's transcript from the last cursor", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),

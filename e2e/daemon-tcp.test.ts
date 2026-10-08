@@ -1,37 +1,38 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { DaemonClient } from '../src/client/daemon-client';
 import { findDaemonRecord } from '../src/shared/find-daemon-record';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
 
 /**
- * An `atc daemon` process on a fresh home with a TCP listener whose token
- * file accepts two tokens, 32 `a`s and 32 `b`s. `port` is the port the
- * listener bound, and `tokenFile` the file a SIGHUP reloads.
+ * A fresh home for the `atc daemon` that each test starts with a TCP
+ * listener once it has written the token file. `tokenFile` is the file the
+ * daemon reads its tokens from, and the file a SIGHUP reloads.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-tcp-');
 
-  const tmp = stack.use(setupTempDir('atc-e2e-tcp-'));
-  const tokenFile = join(tmp.dir, 'gateway-token');
+  return { home: tmp.dir, atc: resolveATCCommand(), tokenFile: join(tmp.dir, 'gateway-token') };
+}
 
-  // The daemon refuses to start its TCP listener without a token file.
-  writeFileSync(tokenFile, `${'a'.repeat(32)}\n${'b'.repeat(32)}\n`);
+test('it closes a TCP connection whose token a SIGHUP reload removed', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n${'b'.repeat(32)}\n`);
 
   // Port 0 leaves the pick to the kernel, which holds the port from the bind
   // on; a port the test picked and freed could be taken by another socket
   // before the daemon binds it.
-  const daemon = stack.use(
-    startDaemonProcess({
-      command: resolveATCCommand(),
-      home: tmp.dir,
-      args: ['--listen', '127.0.0.1:0', '--token-file', tokenFile],
-    }),
-  );
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    args: ['--listen', '127.0.0.1:0', '--token-file', ctx.tokenFile],
+  });
 
   // A hello answered over the unix socket means startup has returned: the
   // TCP listener is bound, the record holds its port, and the SIGHUP
@@ -45,17 +46,9 @@ async function setupTest() {
     .int()
     .parse(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
 
-  const owned = stack.move();
+  const tcp = await DaemonClient.open({ hostname: '127.0.0.1', port });
 
-  return { daemon, tokenFile, port, [Symbol.asyncDispose]: () => owned.disposeAsync() };
-}
-
-test('it closes a TCP connection whose token a SIGHUP reload removed', async () => {
-  await using ctx = await setupTest();
-
-  const tcp = await DaemonClient.open({ hostname: '127.0.0.1', port: ctx.port });
-
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     tcp.stop();
   });
 
@@ -69,7 +62,7 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
 
   writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
 
-  ctx.daemon.proc.kill('SIGHUP');
+  daemon.proc.kill('SIGHUP');
 
   await closed.promise;
 
@@ -77,11 +70,34 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
 });
 
 test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const removed = await DaemonClient.open({ hostname: '127.0.0.1', port: ctx.port });
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n${'b'.repeat(32)}\n`);
 
-  onTestFinished(() => {
+  // Port 0 leaves the pick to the kernel, which holds the port from the bind
+  // on; a port the test picked and freed could be taken by another socket
+  // before the daemon binds it.
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    args: ['--listen', '127.0.0.1:0', '--token-file', ctx.tokenFile],
+  });
+
+  // A hello answered over the unix socket means startup has returned: the
+  // TCP listener is bound, the record holds its port, and the SIGHUP
+  // handler is in place.
+  const local = await daemon.openClient();
+
+  await local.sendHello('atc/test');
+
+  const port = z
+    .number()
+    .int()
+    .parse(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
+
+  const removed = await DaemonClient.open({ hostname: '127.0.0.1', port });
+
+  registerTestCleanup(() => {
     removed.stop();
   });
 
@@ -95,14 +111,14 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
 
   writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
 
-  ctx.daemon.proc.kill('SIGHUP');
+  daemon.proc.kill('SIGHUP');
 
   // The connection on the removed token closes once the reload has applied.
   await reloaded.promise;
 
-  const kept = await DaemonClient.open({ hostname: '127.0.0.1', port: ctx.port });
+  const kept = await DaemonClient.open({ hostname: '127.0.0.1', port });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     kept.stop();
   });
 

@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EventMsg } from '../src/protocol/protocol';
@@ -9,6 +9,7 @@ import { createStubCodex } from '../src/test-utils/create-stub-codex';
 import { createStubComposer } from '../src/test-utils/create-stub-composer';
 import { createStubGrok } from '../src/test-utils/create-stub-grok';
 import { getString } from '../src/test-utils/get-string';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { runATC } from '../src/test-utils/run-atc';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
@@ -17,36 +18,43 @@ import { waitFor } from '../src/test-utils/wait-for';
 import { waitForEvent } from '../src/test-utils/wait-for-event';
 
 /**
- * A home with stub Claude, Grok, and Codex CLIs and a config that offers
- * them and a Claude gateway, served by an `atc daemon` process, with a
- * client that has sent its handshake and collects every event the daemon
- * sends it.
+ * A home with stub Claude, Grok, and Codex CLIs for the `atc daemon` that
+ * each test starts once it has written the config offering them.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-hooks-'));
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-hooks-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(tmp.dir);
-  const claude = createStubClaude(tmp.dir, { atc, composer });
 
-  // The daemon spawns its sessions from the agents the config offers; the
-  // gateway runs the stub Claude against an address nothing serves.
-  mkdirSync(join(tmp.dir, '.config', 'atc'), { recursive: true });
+  return {
+    home: tmp.dir,
+    atc,
+    claude: createStubClaude(tmp.dir, { atc, composer }),
+    grok: createStubGrok(tmp.dir, { atc, composer }),
+    codex: createStubCodex(tmp.dir, { atc, composer }),
+  };
+}
+
+test('it keeps a live terminal alive when its session reports an end', async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
 
   writeFileSync(
-    join(tmp.dir, '.config', 'atc', 'config.json'),
+    join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
       agents: {
-        claude: { bin: claude },
-        grok: { bin: createStubGrok(tmp.dir, { atc, composer }) },
-        codex: { bin: createStubCodex(tmp.dir, { atc, composer }) },
-        zai: { kind: 'claude', bin: claude, baseURL: 'http://127.0.0.1:9' },
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
       },
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -58,41 +66,26 @@ async function setupTest() {
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
-  return {
-    home: tmp.dir,
-    atc,
-    daemon,
-    client,
-    events,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
-}
-
-test('it keeps a live terminal alive when its session reports an end', async () => {
-  await using ctx = await setupTest();
-
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
   await runATC({
     command: ctx.atc,
     args: ['hook-report', '--agent', 'claude'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({ hook_event_name: 'SessionEnd', session_id: 'fake-1' }),
   });
 
-  const ended = await waitForEvent(ctx.events, {
+  const ended = await waitForEvent(events, {
     ev: 'SessionState',
     session: { lastMsg: 'session ended' },
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await client.sendRequest('session.list');
 
   expect(ended).toMatchObject({ session: { alive: true, kind: 'pty', state: 'needs_you' } });
 
@@ -102,7 +95,35 @@ test('it keeps a live terminal alive when its session reports an end', async () 
 });
 
 test('it stops showing a live terminal as ended once a new session starts in it', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-claude-events.jsonl'),
@@ -120,24 +141,24 @@ test('it stops showing a live terminal as ended once a new session starts in it'
       .join(''),
   );
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
   // The stub sends its hooks one reporter launch at a time, and a loaded
   // runner can spend seconds on each launch, so each wait covers one hook
   // rather than the whole chain.
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { agentSessionID: 'fake-1' } });
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'done' } });
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { lastMsg: 'session ended' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { agentSessionID: 'fake-1' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'done' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { lastMsg: 'session ended' } });
 
-  const restarted = await waitForEvent(ctx.events, {
+  const restarted = await waitForEvent(events, {
     ev: 'SessionState',
     session: { agentSessionID: 'fake-2' },
   });
 
-  const record = await ctx.client.sendRequest('session.get', { session: id });
+  const record = await client.sendRequest('session.get', { session: id });
 
   expect(restarted).toMatchObject({
     session: { alive: true, kind: 'pty', state: 'done', lastMsg: 'started' },
@@ -149,15 +170,43 @@ test('it stops showing a live terminal as ended once a new session starts in it'
 });
 
 test('it keeps a gone terminal exited when a late end and start arrive', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-exit'), '');
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await waitForEvent(ctx.events, {
+  await waitForEvent(events, {
     ev: 'SessionState',
     session: { state: 'exited', alive: false },
   });
@@ -166,17 +215,17 @@ test('it keeps a gone terminal exited when a late end and start arrive', async (
     command: ctx.atc,
     args: ['hook-report', '--agent', 'claude'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({ hook_event_name: 'SessionEnd', session_id: 'fake-1', reason: 'clear' }),
   });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { lastMsg: 'session ended' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { lastMsg: 'session ended' } });
 
   await runATC({
     command: ctx.atc,
     args: ['hook-report', '--agent', 'claude'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({
       hook_event_name: 'SessionStart',
       session_id: 'fake-2',
@@ -184,9 +233,9 @@ test('it keeps a gone terminal exited when a late end and start arrive', async (
     }),
   });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { agentSessionID: 'fake-2' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { agentSessionID: 'fake-2' } });
 
-  const record = await ctx.client.sendRequest('session.get', { session: id });
+  const record = await client.sendRequest('session.get', { session: id });
 
   expect(record).toMatchObject({
     session: { alive: false, state: 'exited', lastMsg: 'session ended', agentSessionID: 'fake-2' },
@@ -194,21 +243,49 @@ test('it keeps a gone terminal exited when a late end and start arrive', async (
 });
 
 test('it marks a grok session done on end-turn Stop', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
     `${JSON.stringify({ hookEventName: 'stop', sessionId: 'fake-grok-1', reason: 'end_turn' })}\n`,
   );
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     agent: 'grok',
     cols: 80,
     rows: 24,
   });
 
-  const done = await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'done' } });
+  const done = await waitForEvent(events, { ev: 'SessionState', session: { state: 'done' } });
 
   expect(done).toMatchObject({
     session: { id: getRecord(ok, 'session')['id'], agent: 'grok', agentSessionID: 'fake-grok-1' },
@@ -216,7 +293,35 @@ test('it marks a grok session done on end-turn Stop', async () => {
 });
 
 test('it ignores a grok hook event that names a subagent', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
@@ -228,13 +333,13 @@ test('it ignores a grok hook event that names a subagent', async () => {
     })}\n`,
   );
 
-  const db = new Database(join(ctx.daemon.stateDir, 'atc.db'), { readonly: true });
+  const db = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     agent: 'grok',
     cols: 80,
@@ -251,21 +356,49 @@ test('it ignores a grok hook event that names a subagent', async () => {
     ]);
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await client.sendRequest('session.list');
 
   expect(listed).toMatchObject({ sessions: [{ id, state: 'running', agent: 'grok' }] });
 });
 
 test('it keeps a grok session needing you when an idle notification follows a permission prompt', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const db = new Database(join(ctx.daemon.stateDir, 'atc.db'), { readonly: true });
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
 
-  onTestFinished(() => {
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const db = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
     db.close();
   });
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     agent: 'grok',
     cols: 80,
@@ -274,13 +407,13 @@ test('it keeps a grok session needing you when an idle notification follows a pe
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
   await runATC({
     command: ctx.atc,
     args: ['hook-report', '--agent', 'grok'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({
       hookEventName: 'notification',
       sessionId: 'fake-grok-1',
@@ -296,17 +429,45 @@ test('it keeps a grok session needing you when an idle notification follows a pe
     ).toHaveLength(2);
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await client.sendRequest('session.list');
 
   expect(listed).toMatchObject({ sessions: [{ id, state: 'needs_you', agent: 'grok' }] });
 });
 
 test('it keeps a nested codex harness from rebinding or answering for the claude session it runs in', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -314,9 +475,9 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
 
   const id = getString(getRecord(spawned, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  const sent = await ctx.client.sendRequest('session.message', {
+  const sent = await client.sendRequest('session.message', {
     session: id,
     text: 'ping from test',
     from: 'e2e',
@@ -324,13 +485,13 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
 
   const messageID = getString(sent, 'message');
 
-  await waitForEvent(ctx.events, { ev: 'SessionMessage', status: 'delivered' });
+  await waitForEvent(events, { ev: 'SessionMessage', status: 'delivered' });
 
   const childStart = await runATC({
     command: ctx.atc,
     args: ['hook-report', '--agent', 'codex'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({
       hook_event_name: 'SessionStart',
       session_id: 'nested-codex-1',
@@ -343,7 +504,7 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
     command: ctx.atc,
     args: ['hook-report', '--agent', 'codex'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({
       hook_event_name: 'Stop',
       session_id: 'nested-codex-1',
@@ -352,16 +513,17 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
   });
 
   await waitFor(() => {
-    expect(ctx.daemon.readStderr()).toIncludeMultiple([
+    expect(daemon.readStderr()).toIncludeMultiple([
       `atc hook event=dropped session=${id} agent=codex hook=SessionStart`,
       `atc hook event=dropped session=${id} agent=codex hook=Stop`,
     ]);
   });
 
-  const record = await ctx.client.sendRequest('session.get', { session: id });
-  const message = await ctx.client.sendRequest('message.get', { message: messageID });
+  const record = await client.sendRequest('session.get', { session: id });
+  const message = await client.sendRequest('message.get', { message: messageID });
 
-  expect([childStart.exitCode, childStop.exitCode]).toStrictEqual([0, 0]);
+  expect(childStart.exitCode).toBe(0);
+  expect(childStop.exitCode).toBe(0);
 
   expect(record).toMatchObject({
     session: { agentSessionID: 'fake-1', state: 'needs_you', lastMsg: 'needs permission' },
@@ -373,9 +535,37 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
 });
 
 test('it drops a hook line without an agent at a session whose own hooks carry one', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const spawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -383,13 +573,13 @@ test('it drops a hook line without an agent at a session whose own hooks carry o
 
   const id = getString(getRecord(spawned, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
   const child = await runATC({
     command: ctx.atc,
     args: ['hook-report'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({
       hook_event_name: 'Stop',
       session_id: 'nested-codex-1',
@@ -398,12 +588,10 @@ test('it drops a hook line without an agent at a session whose own hooks carry o
   });
 
   await waitFor(() => {
-    expect(ctx.daemon.readStderr()).toInclude(
-      `atc hook event=dropped session=${id} agent= hook=Stop`,
-    );
+    expect(daemon.readStderr()).toInclude(`atc hook event=dropped session=${id} agent= hook=Stop`);
   });
 
-  const record = await ctx.client.sendRequest('session.get', { session: id });
+  const record = await client.sendRequest('session.get', { session: id });
 
   expect(child.exitCode).toBe(0);
 
@@ -416,9 +604,37 @@ test('it drops a hook line without an agent at a session whose own hooks carry o
 test.each(['resume', 'clear', 'compact'])(
   'it rebinds a claude session to the agent session its own %s starts',
   async (source) => {
-    await using ctx = await setupTest();
+    const ctx = setupTest();
 
-    const spawned = await ctx.client.sendRequest('session.spawn', {
+    mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+    writeFileSync(
+      join(ctx.home, '.config', 'atc', 'config.json'),
+      JSON.stringify({
+        agents: {
+          claude: { bin: ctx.claude },
+          grok: { bin: ctx.grok },
+          codex: { bin: ctx.codex },
+
+          // The gateway runs the stub Claude against an address nothing serves.
+          zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+        },
+      }),
+    );
+
+    const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+    const client = await daemon.openClient();
+
+    const events: EventMsg[] = [];
+
+    client.onEvent = (event) => {
+      events.push(event);
+    };
+
+    await client.sendHello('atc/test');
+
+    const spawned = await client.sendRequest('session.spawn', {
       cwd: ctx.home,
       cols: 80,
       rows: 24,
@@ -426,17 +642,17 @@ test.each(['resume', 'clear', 'compact'])(
 
     const id = getString(getRecord(spawned, 'session'), 'id');
 
-    await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+    await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
     const own = await runATC({
       command: ctx.atc,
       args: ['hook-report', '--agent', 'claude'],
       home: ctx.home,
-      env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+      env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
       stdin: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-2', source }),
     });
 
-    const rebound = await waitForEvent(ctx.events, {
+    const rebound = await waitForEvent(events, {
       ev: 'SessionState',
       session: { agentSessionID: 'fake-2' },
     });
@@ -447,16 +663,44 @@ test.each(['resume', 'clear', 'compact'])(
 );
 
 test('it binds a gateway session through the hook command atc wrote for it', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', {
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
     agent: 'zai',
   });
 
-  const started = await waitForEvent(ctx.events, {
+  const started = await waitForEvent(events, {
     ev: 'SessionState',
     session: { state: 'needs_you' },
   });
@@ -465,11 +709,39 @@ test('it binds a gateway session through the hook command atc wrote for it', asy
 });
 
 test('it binds a session from a hook line without an agent while none of its own carried one', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
+
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      agents: {
+        claude: { bin: ctx.claude },
+        grok: { bin: ctx.grok },
+        codex: { bin: ctx.codex },
+
+        // The gateway runs the stub Claude against an address nothing serves.
+        zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-grok-hold-start'), '');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -482,11 +754,11 @@ test('it binds a session from a hook line without an agent while none of its own
     command: ctx.atc,
     args: ['hook-report'],
     home: ctx.home,
-    env: { ATC_SESSION_ID: id, ATC_SOCKET: ctx.daemon.reporterSocketPath },
+    env: { ATC_SESSION_ID: id, ATC_SOCKET: daemon.reporterSocketPath },
     stdin: JSON.stringify({ hookEventName: 'session_start', sessionId: 'fake-grok-1' }),
   });
 
-  const bound = await waitForEvent(ctx.events, {
+  const bound = await waitForEvent(events, {
     ev: 'SessionState',
     session: { agentSessionID: 'fake-grok-1' },
   });

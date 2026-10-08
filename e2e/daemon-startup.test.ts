@@ -16,14 +16,13 @@ import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-startup-');
 
-  return { home: tmp.dir, atc: resolveATCCommand(), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { home: tmp.dir, atc: resolveATCCommand() };
 }
 
 test('it lets exactly one of two daemons started at once serve a state directory', async () => {
-  using ctx = setupTest();
-
-  await using first = startDaemonProcess({ command: ctx.atc, home: ctx.home });
-  await using second = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const ctx = setupTest();
+  const first = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const second = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const loserCode = await Promise.race([first.proc.exited, second.proc.exited]);
 
@@ -53,9 +52,8 @@ test('it lets exactly one of two daemons started at once serve a state directory
 });
 
 test('it prints the running daemon id through atc daemon id', async () => {
-  using ctx = setupTest();
-
-  await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
   const hello = await client.sendHello('atc/test');
@@ -65,7 +63,7 @@ test('it prints the running daemon id through atc daemon id', async () => {
 });
 
 test('it exits nonzero from atc daemon id when no daemon answers', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const printed = await runATC({ command: ctx.atc, args: ['daemon', 'id'], home: ctx.home });
 
@@ -77,7 +75,7 @@ test.each([
   [['--listen', '0.0.0.0:0', '--token-file', '/dev/null'], "--listen refuses '0.0.0.0'"],
   [['--listen', '127.0.0.1:0'], '--listen and --token-file go together'],
 ])('it refuses to start a daemon with %j', async (args, message) => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const started = await runATC({ command: ctx.atc, args: ['daemon', ...args], home: ctx.home });
 
@@ -86,8 +84,7 @@ test.each([
 });
 
 test('it refuses to start a daemon whose --listen port another socket holds, leaving no socket or record', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenFile = join(ctx.home, 'gateway-token');
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
@@ -120,7 +117,7 @@ test('it refuses to start a daemon whose --listen port another socket holds, lea
 test.skipIf(process.env['ATC_BIN'] === undefined)(
   'it ignores a .env file in the working directory of the compiled binary',
   async () => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
     writeFileSync(join(ctx.home, '.env'), `XDG_RUNTIME_DIR=${join(ctx.home, 'from-dotenv')}\n`);
 
@@ -141,7 +138,7 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
 test.skipIf(process.env['ATC_BIN'] === undefined)(
   'it keeps an explicitly inherited variable in the compiled binary',
   async () => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
     writeFileSync(join(ctx.home, '.env'), `XDG_RUNTIME_DIR=${join(ctx.home, 'from-dotenv')}\n`);
 

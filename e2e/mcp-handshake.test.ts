@@ -7,9 +7,7 @@ import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const mcpHome = stack.use(setupMCPHome());
+  const mcpHome = setupMCPHome();
 
   // A codex binary on the host would change the served tool descriptions.
   writeFileSync(
@@ -25,15 +23,11 @@ async function setupTest() {
 
   const mcp = await startMCPStdio({ home: mcpHome.home });
 
-  stack.use(mcp);
-
-  const owned = stack.move();
-
-  return { mcp, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { mcp };
 }
 
 test('it answers initialize with the requested protocol version and its server name', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const response = await ctx.mcp.sendRequest('initialize', {
     protocolVersion: '2025-06-18',
@@ -53,7 +47,7 @@ test('it answers initialize with the requested protocol version and its server n
 });
 
 test('it answers an unsupported protocol version with the latest supported one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const response = await ctx.mcp.sendRequest('initialize', {
     protocolVersion: '2099-01-01',
@@ -73,8 +67,7 @@ test('it answers an unsupported protocol version with the latest supported one',
 });
 
 test('it answers an unknown rpc method with a json-rpc error', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const response = await ctx.mcp.sendRequest('bogus/method');
 
   expect(response).toStrictEqual({
@@ -85,8 +78,7 @@ test('it answers an unknown rpc method with a json-rpc error', async () => {
 });
 
 test('it lists the fleet tools', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const response = await ctx.mcp.sendRequest('tools/list');
 
   expect(response).toMatchInlineSnapshot(`
@@ -1197,8 +1189,7 @@ test('it lists the fleet tools', async () => {
 });
 
 test('it lists every tool with its three safety hints', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const response = await ctx.mcp.sendRequest('tools/list');
 
   expect(response).toStrictEqual({
@@ -1348,8 +1339,7 @@ test('it lists every tool with its three safety hints', async () => {
 });
 
 test('it marks the kill tool destructive and not read-only', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const response = await ctx.mcp.sendRequest('tools/list');
 
   const result = response['result'];
@@ -1370,8 +1360,7 @@ test('it marks the kill tool destructive and not read-only', async () => {
 });
 
 test('it keeps answering after a failed tool call', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const failed = await ctx.mcp.sendToolCall('atc_session_kill', { session: 'nope' });
 
   expect(failed).toStrictEqual({

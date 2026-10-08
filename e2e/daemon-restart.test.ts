@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -13,6 +13,7 @@ import { createStubComposer } from '../src/test-utils/create-stub-composer';
 import { createStubSystemd } from '../src/test-utils/create-stub-systemd';
 import { getRecords } from '../src/test-utils/get-records';
 import { getString } from '../src/test-utils/get-string';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { runATC } from '../src/test-utils/run-atc';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
@@ -27,11 +28,9 @@ import { waitFor } from '../src/test-utils/wait-for';
  * test restores it itself.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-restart-'));
+  const tmp = setupTempDir('atc-e2e-restart-');
   const atc = resolveATCCommand();
-  const fake = stack.use(createStubSystemd(atc));
+  const fake = createStubSystemd(atc);
   const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
   const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
 
@@ -53,14 +52,10 @@ async function setupTest() {
   // session a restart restores comes back under its own row.
   writeFileSync(join(tmp.dir, 'fake-claude-own-id'), '');
 
-  const daemon = stack.use(
-    startDaemonProcess({ command: atc, home: tmp.dir, env: { PATH: path } }),
-  );
+  const daemon = startDaemonProcess({ command: atc, home: tmp.dir, env: { PATH: path } });
 
   const client = await daemon.openClient();
   const hello = await client.sendHello('atc/test');
-
-  const owned = stack.move();
 
   return {
     home: tmp.dir,
@@ -70,18 +65,17 @@ async function setupTest() {
     daemon,
     client,
     hello,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it restarts the daemon in place and restores a saved fleet of two live sessions', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const oldPID = ctx.daemon.proc.pid;
 
   const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-one'), cwd: ctx.home }),
@@ -146,11 +140,10 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
 }, 60_000);
 
 test('it exits 1 and names a row whose agent is gone while the good row comes back alive', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-good'), name: 'good', cwd: ctx.home }),
@@ -191,7 +184,7 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
 }, 60_000);
 
 test('it leaves the daemon running when the token file for the replacement cannot be read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const oldPID = ctx.daemon.proc.pid;
 
@@ -216,11 +209,10 @@ test('it leaves the daemon running when the token file for the replacement canno
 }, 60_000);
 
 test('it joins a restart already in flight and reports its result without a second restore', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-one'), cwd: ctx.home }),
@@ -285,13 +277,13 @@ test('it joins a restart already in flight and reports its result without a seco
 }, 90_000);
 
 test('it completes a restart run from inside a hosted session after the session dies with the old daemon', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const oldPID = ctx.daemon.proc.pid;
 
   const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-host'), name: 'host', cwd: ctx.home }),
@@ -340,7 +332,7 @@ test('it completes a restart run from inside a hosted session after the session 
 }, 90_000);
 
 test('it restarts through the unit when the daemon is the unit main process, handing off through systemd-run', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const oldPID = ctx.daemon.proc.pid;
 
@@ -349,7 +341,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
 
   const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-one'), cwd: ctx.home }),
@@ -414,7 +406,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
 }, 90_000);
 
 test('it replaces a daemon on another protocol version and prints its refusal', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.daemon.proc.kill();
 
@@ -436,7 +428,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     legacy.kill();
   });
 
@@ -467,7 +459,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
 }, 60_000);
 
 test('it prints the preflight and stops the daemon nowhere on a dry run', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const oldPID = ctx.daemon.proc.pid;
 
@@ -486,7 +478,7 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
 });
 
 test('it refuses a --listen without a token file before it stops the daemon', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const oldPID = ctx.daemon.proc.pid;
 

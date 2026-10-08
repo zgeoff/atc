@@ -12,8 +12,7 @@ function setupTest() {
 }
 
 test('it restores the fleet from disk after a crash', async () => {
-  await using ctx = setupTest();
-
+  const ctx = setupTest();
   const pty = ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -56,8 +55,7 @@ test('it restores the fleet from disk after a crash', async () => {
 });
 
 test('it restores a grok session with grok --resume after a crash', async () => {
-  await using ctx = setupTest();
-
+  const ctx = setupTest();
   const pty = ctx.boot();
 
   await ctx.waitFor('atc — control tower');

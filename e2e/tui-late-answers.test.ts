@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -10,6 +10,7 @@ import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
 import { KEYS } from '../src/test-utils/keys';
 import { openRepoStep } from '../src/test-utils/open-repo-step';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { startGitHTTPServer } from '../src/test-utils/start-git-http-server';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 import { waitFor } from '../src/test-utils/wait-for';
@@ -19,8 +20,9 @@ function setupTest() {
 }
 
 test('it stops a repository listing on esc and keeps taking typed input', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   // The repository listing answers only once the test removes the hold
   // file.
@@ -58,8 +60,9 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 }, 15_000);
 
 test('it cancels a probe in flight on esc and drops its answer', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -67,8 +70,6 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
   // releases the gate.
   const gate = Promise.withResolvers<void>();
   const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => gate.promise });
-
-  onTestFinished(() => server.stop());
 
   // The home's git config supplies the basic auth the server asks for, so
   // the probe's request reaches the hold.
@@ -115,8 +116,9 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 }, 15_000);
 
 test('it keeps the ref the user moved to when a repository listing answers late', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   await $`git push --quiet origin main:feat`.env(fixture.env).cwd(fixture.work).quiet();
 
@@ -157,8 +159,9 @@ test('it keeps the ref the user moved to when a repository listing answers late'
 }, 15_000);
 
 test('it leaves the picker when esc stops waiting on a spawn, and the spawn lists one session', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -167,8 +170,6 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   const gate = Promise.withResolvers<void>();
   let hold = Promise.resolve();
   const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => hold });
-
-  onTestFinished(() => server.stop());
 
   // The home's git config supplies the basic auth the server asks for.
   writeFileSync(
@@ -230,7 +231,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     daemon.stop();
   });
 
@@ -242,7 +243,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 }, 30_000);
 
 test('it stays where the user moved when a directory listing answers late', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -298,8 +299,9 @@ test('it stays where the user moved when a directory listing answers late', asyn
 }, 15_000);
 
 test('it keeps a probe started on a git source after a tab in that flow, spawning one git workspace', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -312,8 +314,6 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
   const gate = Promise.withResolvers<void>();
   let hold = Promise.resolve();
   const server = startGitHTTPServer(fixture.dir, fixture.env, { onRequest: () => hold });
-
-  onTestFinished(() => server.stop());
 
   // The home's git config supplies the basic auth the server asks for.
   writeFileSync(
@@ -396,7 +396,7 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
 
   const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     daemon.stop();
   });
 

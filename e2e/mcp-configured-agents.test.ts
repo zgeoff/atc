@@ -13,12 +13,11 @@ function setupTest() {
     home: mcpHome.home,
     claudeBin: mcpHome.claudeBin,
     grokBin: mcpHome.grokBin,
-    [Symbol.asyncDispose]: () => mcpHome[Symbol.asyncDispose](),
   };
 }
 
 test('it advertises the spawn agent as an open string listing the registered agents', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
@@ -31,8 +30,7 @@ test('it advertises the spawn agent as an open string listing the registered age
     }),
   );
 
-  await using mcp = await startMCPStdio({ home: ctx.home });
-
+  const mcp = await startMCPStdio({ home: ctx.home });
   const response = await mcp.sendRequest('tools/list');
 
   const result = response['result'];
@@ -61,7 +59,7 @@ test('it advertises the spawn agent as an open string listing the registered age
 });
 
 test('it refuses through a spawn a registered agent that is not installed', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
@@ -74,8 +72,7 @@ test('it refuses through a spawn a registered agent that is not installed', asyn
     }),
   );
 
-  await using mcp = await startMCPStdio({ home: ctx.home });
-
+  const mcp = await startMCPStdio({ home: ctx.home });
   const failed = await mcp.sendToolCall('atc_session_spawn', { cwd: ctx.home, agent: 'codex' });
 
   expect(failed).toStrictEqual({
@@ -86,7 +83,7 @@ test('it refuses through a spawn a registered agent that is not installed', asyn
 });
 
 test('it spawns a session under a configured backend id', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
@@ -101,7 +98,7 @@ test('it spawns a session under a configured backend id', async () => {
     }),
   );
 
-  await using mcp = await startMCPStdio({ home: ctx.home });
+  const mcp = await startMCPStdio({ home: ctx.home });
 
   const spawned = await mcp.sendToolCall('atc_session_spawn', {
     cwd: ctx.home,
@@ -115,7 +112,7 @@ test('it spawns a session under a configured backend id', async () => {
 });
 
 test('it writes a backend settings file that carries the base URL and no credential', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
@@ -136,7 +133,7 @@ test('it writes a backend settings file that carries the base URL and no credent
     }),
   );
 
-  await using mcp = await startMCPStdio({ home: ctx.home });
+  const mcp = await startMCPStdio({ home: ctx.home });
 
   await mcp.spawnSession({ cwd: ctx.home, agent: 'zai' });
 

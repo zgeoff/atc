@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EventMsg } from '../src/protocol/protocol';
@@ -12,6 +12,7 @@ import { createStubComposer } from '../src/test-utils/create-stub-composer';
 import { createStubGrok } from '../src/test-utils/create-stub-grok';
 import { getString } from '../src/test-utils/get-string';
 import { KEYS } from '../src/test-utils/keys';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
@@ -24,9 +25,7 @@ import { waitForEvent } from '../src/test-utils/wait-for-event';
  * handshake and collects every event the daemon sends it.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-terminal-'));
+  const tmp = setupTempDir('atc-e2e-terminal-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(tmp.dir);
 
@@ -44,7 +43,7 @@ async function setupTest() {
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: atc, home: tmp.dir });
 
   const client = await daemon.openClient();
 
@@ -56,20 +55,16 @@ async function setupTest() {
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
   return {
     home: tmp.dir,
     daemon,
     client,
     events,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it attaches a client at the size it asks for', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -84,8 +79,7 @@ test('it attaches a client at the size it asks for', async () => {
 });
 
 test('it streams pty output to an attached client with increasing seq', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -102,8 +96,7 @@ test('it streams pty output to an attached client with increasing seq', async ()
 });
 
 test('it stops streaming to a detached client while others keep receiving', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const leaver = await ctx.daemon.openClient();
 
   const leaverEvents: EventMsg[] = [];
@@ -135,8 +128,7 @@ test('it stops streaming to a detached client while others keep receiving', asyn
 });
 
 test('it resizes the pty to the smallest dims across attached clients', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const narrow = await ctx.daemon.openClient();
 
   await narrow.sendHello('atc/test');
@@ -157,8 +149,7 @@ test('it resizes the pty to the smallest dims across attached clients', async ()
 });
 
 test('it resizes the pty before the attach replay reaches the client', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -184,8 +175,7 @@ test('it resizes the pty before the attach replay reaches the client', async () 
 });
 
 test('it reads the current screen of a session as plain text without attaching', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -218,11 +208,10 @@ test('it reads the current screen of a session as plain text without attaching',
 });
 
 test('it bumps the attach recency of a session it attaches', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   // A stored attach time far in the past, which the restore keeps.
   await seed.writeFleet([
@@ -249,7 +238,7 @@ test('it bumps the attach recency of a session it attaches', async () => {
 test.each([['codex'], ['grok']])(
   'it submits a line to a %s session as one submission',
   async (agent) => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
 
     const ok = await ctx.client.sendRequest('session.spawn', {
       cwd: ctx.home,
@@ -290,7 +279,7 @@ test.each([['codex'], ['grok']])(
 );
 
 test('it submits a multi-line text to a codex session as one submission', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const ok = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.home,
@@ -329,8 +318,7 @@ test('it submits a multi-line text to a codex session as one submission', async 
 });
 
 test('it submits a line to a claude session as one line', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
@@ -359,7 +347,7 @@ test('it submits a line to a claude session as one line', async () => {
 });
 
 test('it submits a long line to a claude session as one submission', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-composer'), '');
 
@@ -397,7 +385,7 @@ test('it submits a long line to a claude session as one submission', async () =>
 });
 
 test('it submits a claude composer draft on an empty line without adding a line to it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-composer'), '');
 
@@ -437,7 +425,7 @@ test('it submits a claude composer draft on an empty line without adding a line 
 });
 
 test('it writes raw input to a codex session byte for byte', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const ok = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.home,

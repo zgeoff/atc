@@ -6,22 +6,15 @@ import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
 import { waitFor } from '../src/test-utils/wait-for';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const mcpHome = stack.use(setupMCPHome());
+  const mcpHome = setupMCPHome();
 
   const mcp = await startMCPStdio({ home: mcpHome.home });
 
-  stack.use(mcp);
-
-  const owned = stack.move();
-
-  return { home: mcpHome.home, mcp, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { home: mcpHome.home, mcp };
 }
 
 test('it reports a message to a session with no tap as a failed tool call', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
   await waitFor(async () => {
@@ -40,7 +33,7 @@ test('it reports a message to a session with no tap as a failed tool call', asyn
 });
 
 test('it sends a message to a session that has not started', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
@@ -57,7 +50,7 @@ test('it sends a message to a session that has not started', async () => {
 });
 
 test('it reads a sent message back through a tool call', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
@@ -88,7 +81,7 @@ test('it reads a sent message back through a tool call', async () => {
 });
 
 test('it holds a message read open while its wait runs', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
@@ -103,7 +96,7 @@ test('it holds a message read open while its wait runs', async () => {
   const message = sent.structured?.['message'];
   const held = ctx.mcp.sendToolCall('atc_message_get', { message, waitMs: 30_000 });
 
-  // The read fails when disposal stops the server; settling it here keeps
+  // The read fails when cleanup stops the server; settling it here keeps
   // that failure from going unhandled.
   void Promise.allSettled([held]);
 
@@ -115,7 +108,7 @@ test('it holds a message read open while its wait runs', async () => {
 });
 
 test('it answers a message read with the unanswered message once its wait ends', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 

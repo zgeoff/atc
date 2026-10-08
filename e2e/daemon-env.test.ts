@@ -35,7 +35,7 @@ function setupTest() {
     }),
   );
 
-  return { home: tmp.dir, atc, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { home: tmp.dir, atc };
 }
 
 test.each([
@@ -45,9 +45,9 @@ test.each([
 ])(
   'it starts a session with TERM $sessionTERM when the daemon starts with TERM $daemonTERM',
   async (row) => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
-    await using daemon = startDaemonProcess({
+    const daemon = startDaemonProcess({
       command: ctx.atc,
       home: ctx.home,
       env: { TERM: row.daemonTERM },
@@ -74,9 +74,9 @@ test.each([
 );
 
 test('it starts a session without a parent-session variable the daemon started with', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: ctx.atc,
     home: ctx.home,
     env: { CLAUDE_CODE_ATC_TEST: 'synthetic' },
@@ -102,9 +102,9 @@ test('it starts a session without a parent-session variable the daemon started w
 });
 
 test('it unpacks every tracked file of a local workspace when the daemon env asks tar to exclude some', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using fixture = await createGitFixture({ prefix: 'atc-e2e-env-git-' });
+  const fixture = await createGitFixture({ prefix: 'atc-e2e-env-git-' });
 
   writeFileSync(join(fixture.work, 'notes.txt'), 'kept\n');
 
@@ -114,7 +114,7 @@ test('it unpacks every tracked file of a local workspace when the daemon env ask
 
   // TAR_OPTIONS reaches tar only through the environment a process starts
   // with, so the daemon here starts with it set.
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: ctx.atc,
     home: ctx.home,
     env: { TAR_OPTIONS: '--exclude=*.txt' },

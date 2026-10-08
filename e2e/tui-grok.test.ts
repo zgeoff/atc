@@ -12,7 +12,7 @@ function setupTest() {
 }
 
 test('it spawns a grok session without resume or -p and marks it resumable', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   // The agent reports its session only once the test removes this file,
   // while its fleet row already exists without the id.
@@ -54,7 +54,7 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 }, 15_000);
 
 test('it marks a grok session done on end-turn Stop', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
@@ -76,7 +76,7 @@ test('it marks a grok session done on end-turn Stop', async () => {
 }, 15_000);
 
 test('it marks a grok session done on StopCancelled', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
@@ -102,7 +102,7 @@ test('it marks a grok session done on StopCancelled', async () => {
 }, 15_000);
 
 test('it keeps a grok session running when a hook names a subagent', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
@@ -143,7 +143,7 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 }, 15_000);
 
 test('it yanks a grok resume command once the id is captured', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -170,7 +170,7 @@ test('it yanks a grok resume command once the id is captured', async () => {
 }, 15_000);
 
 test('it yanks a grok command without --resume before SessionStart', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.home, 'fake-grok-hold-start'), '');
 
@@ -197,7 +197,7 @@ test('it yanks a grok command without --resume before SessionStart', async () =>
 }, 15_000);
 
 test('it ignores H on a grok row instead of opening the eject picker', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -229,7 +229,7 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
 }, 15_000);
 
 test('it keeps needs-you when grok emits idle_prompt after permission_prompt', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),

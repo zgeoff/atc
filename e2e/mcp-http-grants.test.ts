@@ -7,30 +7,23 @@ import { setupMCPHTTP } from '../src/test-utils/setup-mcp-http';
 /**
  * A real daemon behind `atc mcp --http`, whose authorization database sits
  * under a temp home, and the environment that points a spawned CLI at that
- * home, so `atc grants` reads the grants the server issued. Disposal stops
- * both and removes the home.
+ * home, so `atc grants` reads the grants the server issued. Both stop and
+ * the home is removed once the test finishes.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const server = await setupMCPHTTP();
-
-  stack.use(server);
-
-  const owned = stack.move();
 
   return {
     server,
     atc: resolveATCCommand(),
     env: { PATH: process.env['PATH'] ?? '', HOME: server.home },
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 // The grant id starts with a dash, with an underscore after it, the shape an
 // argument parser reads as a group of short flags.
 test('it revokes a grant whose id starts with a dash with --revoke <id> so its access token stops working', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const clientID = await ctx.server.addClient('Claude', [
     'https://claude.ai/api/mcp/auth_callback',
@@ -83,11 +76,11 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
     exitCode: revoked.exitCode,
     stdout: revoked.stdout.toString(),
     stderr: revoked.stderr.toString(),
-    pinged: pinged.status,
   }).toStrictEqual({
     exitCode: 0,
     stdout: 'Revoked grant -yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc\n',
     stderr: '',
-    pinged: 401,
   });
+
+  expect(pinged.status).toBe(401);
 });

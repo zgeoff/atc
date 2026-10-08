@@ -33,12 +33,11 @@ function setupTest() {
     claude: createStubClaude(tmp.dir, { atc, composer }),
     grok: createStubGrok(tmp.dir, { atc, composer }),
     codex: createStubCodex(tmp.dir, { atc, composer }),
-    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it starts with a broken config, prints the problem, and refuses every spawn, local included', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(ctx.configPath, '{ "targets": { "box": { "provider": "imp" } },');
 
@@ -47,7 +46,7 @@ test('it starts with a broken config, prints the problem, and refuses every spaw
   mkdirSync(join(ctx.home, 'bin'));
   symlinkSync(ctx.claude, join(ctx.home, 'bin', 'claude'));
 
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: ctx.atc,
     home: ctx.home,
     env: { PATH: `${join(ctx.home, 'bin')}:/usr/sbin:/usr/bin:/bin` },
@@ -73,7 +72,7 @@ test('it starts with a broken config, prints the problem, and refuses every spaw
 });
 
 test('it prints one line naming the old agent keys a config still uses and loads them as before', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -88,7 +87,7 @@ test('it prints one line naming the old agent keys a config still uses and loads
     }),
   );
 
-  await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -109,7 +108,7 @@ test('it prints one line naming the old agent keys a config still uses and loads
 });
 
 test('it lists exactly the agents of an agents map and prints no old-key line', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -121,7 +120,7 @@ test('it lists exactly the agents of an agents map and prints no old-key line', 
     }),
   );
 
-  await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -152,11 +151,11 @@ test.each([
     '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
   ],
 ])('it prints the config problem without the config value for %s', async (_label, text) => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(ctx.configPath, text);
 
-  await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -169,7 +168,7 @@ test.each([
 });
 
 test('it keeps the configured model and effort when a spawn sets neither', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -180,7 +179,7 @@ test('it keeps the configured model and effort when a spawn sets neither', async
     }),
   );
 
-  await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -217,7 +216,7 @@ test('it keeps the configured model and effort when a spawn sets neither', async
 });
 
 test("it replaces the configured model and effort with a spawn's overrides", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     ctx.configPath,
@@ -228,7 +227,7 @@ test("it replaces the configured model and effort with a spawn's overrides", asy
     }),
   );
 
-  await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -271,7 +270,7 @@ test("it replaces the configured model and effort with a spawn's overrides", asy
 });
 
 test('it restores the stored fleet by itself when the config leaves restoreFleetOnRestart unset', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: { bin: ctx.claude } } }));
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
@@ -287,7 +286,7 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
     ]),
   );
 
-  await using daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 

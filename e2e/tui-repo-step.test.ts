@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -9,6 +9,7 @@ import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubBin } from '../src/test-utils/create-stub-bin';
 import { KEYS } from '../src/test-utils/keys';
 import { openRepoStep } from '../src/test-utils/open-repo-step';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
 function setupTest() {
@@ -16,8 +17,9 @@ function setupTest() {
 }
 
 test('it spawns a session from a git repository at the commit the confirm screen shows, keeping choices across esc', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -98,7 +100,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
 
   const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     daemon.stop();
   });
 
@@ -114,8 +116,9 @@ test('it spawns a session from a git repository at the commit the confirm screen
 }, 30_000);
 
 test('it filters refs by name on the ref step', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -138,8 +141,9 @@ test('it filters refs by name on the ref step', async () => {
 }, 20_000);
 
 test('it refuses an abbreviated commit id on the ref step', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -162,7 +166,7 @@ test('it refuses an abbreviated commit id on the ref step', async () => {
 }, 20_000);
 
 test("it lists the gh account's repositories and an owner's on request, and leaves on esc", async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
 
@@ -192,7 +196,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
 }, 20_000);
 
 test('it shows a repository the daemon cannot read on the repository step', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -212,8 +216,9 @@ test('it shows a repository the daemon cannot read on the repository step', asyn
 }, 20_000);
 
 test('it opens github mode on a target that takes a workspace when the default cannot, and esc at the target step returns to the directory', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -288,7 +293,7 @@ test('it opens github mode on a target that takes a workspace when the default c
 }, 30_000);
 
 test('it opens github mode on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -314,8 +319,9 @@ test('it opens github mode on the one target that takes a workspace without a ta
 }, 15_000);
 
 test("it builds each target's own default destination when the target changes", async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -398,8 +404,9 @@ test("it builds each target's own default destination when the target changes", 
 }, 30_000);
 
 test('it leaves a destination under a ~ root to a remote target and refuses a typed one that relies on ~', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -461,8 +468,9 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
 }, 30_000);
 
 test('it offers the other URL form after a failed probe and checks that form on request', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
   mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
@@ -504,8 +512,9 @@ test('it offers the other URL form after a failed probe and checks that form on 
 }, 30_000);
 
 test('it drops a typed destination when the repository changes', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
