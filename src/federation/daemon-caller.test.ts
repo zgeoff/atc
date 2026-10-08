@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';
 import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startStubUnansweringListener } from '../test-utils/start-stub-unanswering-listener';
@@ -23,8 +24,6 @@ import type { RegistryDaemon } from './types';
  * local socket, and `daemonID` the state identity its handshake returns.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-caller-',
     options: (paths) => {
@@ -42,28 +41,23 @@ async function setupTest() {
     },
   });
 
-  stack.use(daemon);
-
   const prober = await DaemonClient.open(daemon.socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     prober.stop();
   });
 
   const hello = await prober.sendHello(daemon.build);
 
-  const owned = stack.move();
-
   return {
     daemon,
     port: Number(daemon.daemon.listenPort),
     daemonID: String(hello['daemonID']),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it answers a request through a daemon whose handshake returns the pinned id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: buildMockRegistryDaemon({
@@ -76,7 +70,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const listed = await caller.sendRequest('session.list', {}, 'gw');
 
@@ -84,7 +78,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
 });
 
 test('it reads the build, features, and key retention from the handshake', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: buildMockRegistryDaemon({
@@ -97,7 +91,7 @@ test('it reads the build, features, and key retention from the handshake', async
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const hello = await caller.readHello();
 
@@ -110,7 +104,7 @@ test('it reads the build, features, and key retention from the handshake', async
 });
 
 test('it refuses a daemon behind another state identity as daemon_changed and sends it nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: buildMockRegistryDaemon({
@@ -123,7 +117,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = caller.sendRequest(
     'session.spawn',
@@ -140,7 +134,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
 });
 
 test('it refuses a daemon that rejects the token as daemon_unauthorized', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: buildMockRegistryDaemon({
@@ -153,7 +147,7 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   expect(caller.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
     code: 'daemon_unauthorized',
@@ -173,7 +167,7 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   expect(caller.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
     code: 'daemon_unavailable',
@@ -183,7 +177,7 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
 });
 
 test("it passes a daemon's own error through with its code", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: buildMockRegistryDaemon({
@@ -196,7 +190,7 @@ test("it passes a daemon's own error through with its code", async () => {
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   expect(caller.sendRequest('session.get', { session: 'nope' }, 'gw')).rejects.toMatchObject({
     code: 'no_such_session',
@@ -205,17 +199,13 @@ test("it passes a daemon's own error through with its code", async () => {
 });
 
 test('it retries a keyed spawn whose response was lost once on the same daemon, which spawns once', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const caller = new DaemonCaller({
@@ -229,7 +219,7 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = await caller.sendRequest(
     'session.spawn',
@@ -245,17 +235,13 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
 });
 
 test('it answers outcome_unknown for an unkeyed spawn whose response was lost', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const caller = new DaemonCaller({
@@ -269,7 +255,7 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = caller.sendRequest(
     'session.spawn',
@@ -282,17 +268,13 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
 });
 
 test('it answers outcome_unknown for a keyed spawn whose retry also lost its response', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 2,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const caller = new DaemonCaller({
@@ -306,7 +288,7 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = caller.sendRequest(
     'session.spawn',
@@ -319,17 +301,13 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
 });
 
 test('it retries a keyed spawn whose response timed out on a fresh connection', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'hold',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const timers = buildStubTimeoutScheduler();
@@ -352,7 +330,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
     scheduleTimeout: timers.schedule,
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawning = caller.sendRequest(
     'session.spawn',
@@ -380,8 +358,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
 });
 
 test('it refuses a daemon that never answers the handshake as daemon_unavailable once the connect time passes', () => {
-  using silent = startStubUnansweringListener();
-
+  const silent = startStubUnansweringListener();
   const timers = buildStubTimeoutScheduler();
 
   const caller = new DaemonCaller({
@@ -395,7 +372,7 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
     scheduleTimeout: timers.schedule,
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const listed = caller.sendRequest('session.list', {}, 'gw');
 
@@ -408,17 +385,13 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
 });
 
 test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnect that no longer takes keys', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const legacy = startStubLegacyDaemon(join(ctx.daemon.dir, 'legacy.sock'), {
@@ -430,10 +403,6 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
         features: ['transport.tcp'],
       },
     },
-  });
-
-  onTestFinished(() => {
-    legacy.stop();
   });
 
   const opener = buildStubChannelOpener([
@@ -453,7 +422,7 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
     openChannel: opener.open,
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = caller.sendRequest(
     'session.spawn',
@@ -466,17 +435,13 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
 });
 
 test('it resends a keyed spawn replay-only, so a resend after the daemon swept the key spawns nothing and answers outcome_unknown', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: ctx.port },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const opener = buildStubChannelOpener(
@@ -498,7 +463,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
     openChannel: opener.open,
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = caller.sendRequest(
     'session.spawn',
@@ -510,7 +475,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
 
   const ledger = new Database(ctx.daemon.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     ledger.close();
   });
 
@@ -527,7 +492,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
 });
 
 test('it holds concurrent first requests until the handshake answers, so the daemon never sees a pipelined line', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const caller = new DaemonCaller({
     daemon: buildMockRegistryDaemon({
@@ -540,7 +505,7 @@ test('it holds concurrent first requests until the handshake answers, so the dae
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const answers = await Promise.all(
     Array.from({ length: 5 }, () => caller.sendRequest('session.list', {}, 'gw')),
@@ -550,7 +515,7 @@ test('it holds concurrent first requests until the handshake answers, so the dae
 });
 
 test('it gives a long poll its own waitMs on top of the response time on the same connection', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const timers = buildStubTimeoutScheduler();
 
@@ -573,7 +538,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
     scheduleTimeout: timers.schedule,
   });
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = await caller.sendRequest(
     'session.spawn',

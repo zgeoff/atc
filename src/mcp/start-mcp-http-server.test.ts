@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -6,6 +6,7 @@ import { DaemonClient } from '../client/daemon-client';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { readJSONRecord } from '../test-utils/read-json-record';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -19,15 +20,13 @@ import { startMCPHTTPServer } from './start-mcp-http-server';
 // A real daemon, `atc mcp --http` in front of it on a free port with every
 // approval line and request line it prints collected, and the authorization
 // server's database opened a second time the way `atc clients` opens it.
+// The caller, the server, and the database live in the daemon's directory,
+// so each registers its release to run before that directory goes.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const daemon = await startTestDaemon({
     prefix: 'atc-mcp-http-',
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
-
-  stack.use(daemon);
 
   const dbPath = join(daemon.dir, 'mcp-auth.db');
   const approvals: string[] = [];
@@ -37,7 +36,7 @@ async function setupTest() {
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   // The approval clock stands still, so every approval a test starts falls
   // inside one minute however long the test runs.
@@ -60,13 +59,11 @@ async function setupTest() {
     now: clock.now,
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
   const store = await openMCPAuth({ dbPath, origin: null });
 
-  stack.defer(() => store.close());
-
-  const owned = stack.move();
+  registerTestCleanup(() => store.close());
 
   return {
     dir: daemon.dir,
@@ -78,13 +75,11 @@ async function setupTest() {
     requests,
     caller,
     store,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it advertises public clients with PKCE, issuer responses, and no registration', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const answered = await fetch(`${ctx.url}/.well-known/oauth-authorization-server`);
   const metadata = await readJSONRecord(answered);
 
@@ -113,8 +108,7 @@ test.each([
   ['/.well-known/oauth-protected-resource'],
   ['/.well-known/oauth-protected-resource/mcp'],
 ])('it serves the protected resource metadata at %p', async (path) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const answered = await fetch(`${ctx.url}${path}`);
   const metadata = await readJSONRecord(answered);
 
@@ -128,7 +122,7 @@ test.each([
 });
 
 test('it challenges a request without a token with where to find the resource metadata', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const answered = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -143,7 +137,7 @@ test('it challenges a request without a token with where to find the resource me
 });
 
 test('it issues an access and refresh token for an approved authorization code', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -185,7 +179,7 @@ test('it issues an access and refresh token for an approved authorization code',
 });
 
 test('it returns to the client with the issuer and the state it sent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -212,7 +206,7 @@ test('it returns to the client with the issuer and the state it sent', async () 
 });
 
 test('it prints the client name, the host it returns to, the approval code, and the requester', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -235,7 +229,7 @@ test('it prints the client name, the host it returns to, the approval code, and 
 });
 
 test('it runs a tool call whose scope the token holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -289,21 +283,19 @@ test('it runs a tool call whose scope the token holds', async () => {
 });
 
 test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+  const tmp = setupTempDir('atc-mcp-http-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
   const store = await openMCPAuth({ dbPath, origin: null });
 
-  stack.defer(() => store.close());
+  registerTestCleanup(() => store.close());
 
   const created = await store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-mcp-http-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -315,7 +307,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const server = await startMCPHTTPServer({
     caller,
@@ -331,7 +323,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
     printRequest: () => {},
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
   const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.dir });
 
@@ -385,21 +377,19 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 });
 
 test('it shows a remote MCP client no sessions when the principals grant the targets to another client id', async () => {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+  const tmp = setupTempDir('atc-mcp-http-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
   const store = await openMCPAuth({ dbPath, origin: null });
 
-  stack.defer(() => store.close());
+  registerTestCleanup(() => store.close());
 
   const created = await store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-mcp-http-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -411,7 +401,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const server = await startMCPHTTPServer({
     caller,
@@ -427,7 +417,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
     printRequest: () => {},
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
   await caller.sendRequest('session.spawn', { cwd: daemon.dir });
 
@@ -478,7 +468,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
 });
 
 test('it refuses a tool call for a scope the operator left unticked with insufficient_scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -541,7 +531,7 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
 });
 
 test('it refuses consent to a scope the client did not request', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -603,7 +593,7 @@ test('it refuses consent to a scope the client did not request', async () => {
 });
 
 test('it denies the request when the operator allows nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -669,7 +659,7 @@ test('it denies the request when the operator allows nothing', async () => {
 });
 
 test('it shows the consent page on every authorization of a client', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -696,7 +686,7 @@ test('it shows the consent page on every authorization of a client', async () =>
 });
 
 test('it binds a token to /mcp when the client names no resource', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -774,7 +764,7 @@ test('it binds a token to /mcp when the client names no resource', async () => {
 });
 
 test('it prints a client name with its control characters dropped', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Evil\u001B[2J\nName\u202E', redirectURIs: ['https://evil.example/cb'] },
@@ -801,7 +791,7 @@ test('it prints a client name with its control characters dropped', async () => 
 });
 
 test('it asks a browser that kept its owner session for a fresh approval code', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -853,7 +843,7 @@ test('it asks a browser that kept its owner session for a fresh approval code', 
 });
 
 test('it refuses an access token once its grant is revoked', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -904,7 +894,7 @@ test('it refuses an access token once its grant is revoked', async () => {
 });
 
 test('it refuses to refresh a token once its grant is revoked', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -958,7 +948,7 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
 });
 
 test('it shows the consent page again to a client whose grant was revoked', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1033,7 +1023,7 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
 });
 
 test('it rotates a refresh token into a new one with the same scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1073,12 +1063,13 @@ test('it rotates a refresh token into a new one with the same scope', async () =
   const second = await readJSONRecord(rotated);
 
   expect(rotated.status).toBe(200);
+  expect(second['refresh_token']).toBeString();
   expect(second['refresh_token']).not.toBe(first['refresh_token']);
   expect(second['scope']).toBe('read offline_access');
 });
 
 test('it refuses a spent refresh token as invalid_grant', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1137,7 +1128,7 @@ test('it refuses a spent refresh token as invalid_grant', async () => {
 });
 
 test('it refuses the successor of a refresh token once the spent one is replayed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1200,7 +1191,7 @@ test('it refuses the successor of a refresh token once the spent one is replayed
 });
 
 test('it refuses a reused authorization code and revokes what the first use issued', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1248,7 +1239,7 @@ test.each([
   ['https://claude.ai/api/mcp/auth_callbacK'],
   ['https://attacker.example/cb'],
 ])('it refuses the redirect URI %p without redirecting to it', async (redirectURI) => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1278,7 +1269,7 @@ test.each([
 });
 
 test('it refuses an authorization for another resource with invalid_target', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1318,7 +1309,7 @@ test('it refuses an authorization for another resource with invalid_target', asy
 });
 
 test('it refuses a code exchange for another resource with invalid_target', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1356,7 +1347,7 @@ test('it refuses a code exchange for another resource with invalid_target', asyn
 });
 
 test('it refuses an authorization without PKCE before asking the operator', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1391,7 +1382,7 @@ test('it refuses an authorization without PKCE before asking the operator', asyn
 });
 
 test('it refuses a code exchange with the wrong PKCE verifier', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1428,7 +1419,7 @@ test('it refuses a code exchange with the wrong PKCE verifier', async () => {
 });
 
 test('it shows the approval page again with an error after a wrong code', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1468,7 +1459,7 @@ test('it shows the approval page again with an error after a wrong code', async 
 });
 
 test('it answers four wrong approval codes with the approval page again and ends the approval at the fifth', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1522,7 +1513,7 @@ test('it answers four wrong approval codes with the approval page again and ends
 });
 
 test('it refuses the right approval code after five wrong ones', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1578,7 +1569,7 @@ test('it refuses the right approval code after five wrong ones', async () => {
 });
 
 test('it refuses an eleventh authorization started within a minute', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1612,7 +1603,7 @@ test('it refuses an eleventh authorization started within a minute', async () =>
 });
 
 test("it ends a client's oldest approval when the client starts a fourth", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1655,7 +1646,7 @@ test("it ends a client's oldest approval when the client starts a fourth", async
 });
 
 test('it refuses a request whose Host header it does not serve', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const answered = await fetch(`${ctx.url}/.well-known/oauth-authorization-server`, {
     headers: { host: 'rebound.example' },
@@ -1665,7 +1656,7 @@ test('it refuses a request whose Host header it does not serve', async () => {
 });
 
 test('it serves a request whose Host header is a configured allowed host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const allowing = await startMCPHTTPServer({
     caller: ctx.caller,
@@ -1679,7 +1670,7 @@ test('it serves a request whose Host header is a configured allowed host', async
     printRequest: () => {},
   });
 
-  onTestFinished(() => allowing.stop());
+  registerTestCleanup(() => allowing.stop());
 
   const answered = await fetch(`${allowing.url}/.well-known/oauth-protected-resource/mcp`, {
     headers: { host: 'pc.tailnet.example' },
@@ -1691,7 +1682,7 @@ test('it serves a request whose Host header is a configured allowed host', async
 test.each([['/login'], ['/consent']])(
   'it refuses a form post to %p from another origin',
   async (path) => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
 
     const answered = await fetch(`${ctx.url}${path}`, {
       method: 'POST',
@@ -1709,7 +1700,7 @@ test.each([['/login'], ['/consent']])(
 test.each([['/login'], ['/consent']])(
   'it refuses a form post to %p without an origin',
   async (path) => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
 
     const answered = await fetch(`${ctx.url}${path}`, {
       method: 'POST',
@@ -1722,7 +1713,7 @@ test.each([['/login'], ['/consent']])(
 );
 
 test('it refuses an MCP request from a browser on another origin', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const answered = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -1734,8 +1725,7 @@ test('it refuses an MCP request from a browser on another origin', async () => {
 });
 
 test('it sends its pages with headers that keep them out of frames and caches', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const answered = await fetch(`${ctx.url}/login?unknown=1`);
 
   expect(answered.headers.get('content-security-policy')).toInclude("frame-ancestors 'none'");
@@ -1751,7 +1741,7 @@ test.each([
   ['/sign-up/email'],
   ['/atc/sign-in-owner'],
 ])('it answers POST %p with 404', async (path) => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const answered = await fetch(`${ctx.url}${path}`, {
     method: 'POST',
@@ -1765,16 +1755,15 @@ test.each([
 test.each([['/oauth2/get-clients'], ['/list-sessions']])(
   'it answers GET %p with 404',
   async (path) => {
-    await using ctx = await setupTest();
-
+    const ctx = await setupTest();
     const answered = await fetch(`${ctx.url}${path}`);
 
     expect(answered.status).toBe(404);
   },
 );
 
-test('it keeps serving an access token after the session that approved it expires', async () => {
-  await using ctx = await setupTest();
+test('it keeps serving an access token once the exchange deletes the session that approved it', async () => {
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1801,11 +1790,6 @@ test('it keeps serving an access token after the session that approved it expire
   });
 
   const tokens = await readJSONRecord(exchanged);
-
-  await ctx.store.db
-    .updateTable('session')
-    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
-    .execute();
 
   const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -1816,8 +1800,8 @@ test('it keeps serving an access token after the session that approved it expire
   expect(pinged.status).toBe(200);
 });
 
-test('it refreshes a token after the session that approved it expires', async () => {
-  await using ctx = await setupTest();
+test('it refreshes a token once the exchange deletes the session that approved it', async () => {
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1844,11 +1828,6 @@ test('it refreshes a token after the session that approved it expires', async ()
   });
 
   const tokens = await readJSONRecord(exchanged);
-
-  await ctx.store.db
-    .updateTable('session')
-    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
-    .execute();
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
@@ -1862,8 +1841,8 @@ test('it refreshes a token after the session that approved it expires', async ()
   expect(refreshed.status).toBe(200);
 });
 
-test('it serves a token refreshed after the session that approved it expires', async () => {
-  await using ctx = await setupTest();
+test('it serves a token refreshed once the exchange deletes the session that approved it', async () => {
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1890,11 +1869,6 @@ test('it serves a token refreshed after the session that approved it expires', a
   });
 
   const tokens = await readJSONRecord(exchanged);
-
-  await ctx.store.db
-    .updateTable('session')
-    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
-    .execute();
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
@@ -1917,7 +1891,7 @@ test('it serves a token refreshed after the session that approved it expires', a
 });
 
 test('it refuses the access token of a removed client', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -1958,7 +1932,7 @@ test('it refuses the access token of a removed client', async () => {
 });
 
 test('it refuses the refresh token of a removed client', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2002,7 +1976,7 @@ test('it refuses the refresh token of a removed client', async () => {
 });
 
 test('it refuses a token bound to the resource of an earlier public URL', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2034,7 +2008,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const moved = await startMCPHTTPServer({
     caller,
@@ -2048,7 +2022,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     printRequest: () => {},
   });
 
-  onTestFinished(() => moved.stop());
+  registerTestCleanup(() => moved.stop());
 
   const pinged = await fetch(`${moved.url}/mcp`, {
     method: 'POST',
@@ -2064,13 +2038,13 @@ test.each([
   ['0.0.0.0', 'http://localhost:8414'],
   ['192.168.1.10', null],
 ])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
-  using tmp = setupTempDir('atc-mcp-http-');
+  const tmp = setupTempDir('atc-mcp-http-');
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const started = startMCPHTTPServer({
     caller,
@@ -2088,15 +2062,13 @@ test.each([
 });
 
 test('it listens beyond loopback behind an https public URL', async () => {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+  const tmp = setupTempDir('atc-mcp-http-');
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const listening = await startMCPHTTPServer({
     caller,
@@ -2110,14 +2082,14 @@ test('it listens beyond loopback behind an https public URL', async () => {
     printRequest: () => {},
   });
 
-  stack.defer(() => listening.stop());
+  registerTestCleanup(() => listening.stop());
 
   expect(listening.origin).toBe('https://mcp.example.com');
   expect(listening.listening).toMatch(/^http:\/\/0\.0\.0\.0:\d+$/);
 });
 
 test('it refuses a consent answer for a request whose approval code was never typed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2198,7 +2170,7 @@ test('it refuses a consent answer for a request whose approval code was never ty
 });
 
 test("it refuses a consent answer carrying another approval's owner session", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2298,7 +2270,7 @@ test("it refuses a consent answer carrying another approval's owner session", as
 });
 
 test('it refuses a consent answer whose query still asks for a login', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2363,7 +2335,7 @@ test('it refuses a consent answer whose query still asks for a login', async () 
 });
 
 test("it shows an error page instead of the consent page for another approval's request", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2443,7 +2415,7 @@ test("it shows an error page instead of the consent page for another approval's 
 });
 
 test('it shows an error page instead of the consent page for a query with a broken signature', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2497,7 +2469,7 @@ test('it shows an error page instead of the consent page for a query with a brok
 });
 
 test('it shows an error page instead of the consent page to a browser with no owner session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2549,7 +2521,7 @@ test('it shows an error page instead of the consent page to a browser with no ow
 });
 
 test('it refuses a second consent answer from one login', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2622,7 +2594,7 @@ test('it refuses a second consent answer from one login', async () => {
 });
 
 test('it deletes the owner session when the operator denies the request', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2684,7 +2656,7 @@ test('it deletes the owner session when the operator denies the request', async 
 });
 
 test('it keeps the owner session no longer than the authorization code it approved', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2710,7 +2682,7 @@ test('it keeps the owner session no longer than the authorization code it approv
 });
 
 test('it deletes the owner session once its authorization code is exchanged', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2744,7 +2716,7 @@ test('it deletes the owner session once its authorization code is exchanged', as
 });
 
 test('it prints the CF-Connecting-IP address as reported when the request carries one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2778,7 +2750,7 @@ test('it prints the CF-Connecting-IP address as reported when the request carrie
 });
 
 test('it prints the requester with control characters dropped and the user agent cut to 60 characters', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2815,7 +2787,7 @@ test('it prints the requester with control characters dropped and the user agent
 });
 
 test('it shows a fixed sentence on the error page whatever text the link carries', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const page = await fetch(
     `${ctx.url}/error?error=Your+atc+session+expired&error_description=Call+%2B1+555+0100+to+restore+access`,
@@ -2830,7 +2802,7 @@ test('it shows a fixed sentence on the error page whatever text the link carries
 });
 
 test('it shows the sentence for an unknown client on the error page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -2855,7 +2827,7 @@ test('it shows the sentence for an unknown client on the error page', async () =
 });
 
 test('it accepts a token bound to /mcp at the bare origin', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: {
@@ -2910,7 +2882,7 @@ test('it accepts a token bound to /mcp at the bare origin', async () => {
 });
 
 test('it challenges a request to the bare origin with the /mcp resource metadata', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const answered = await fetch(`${ctx.url}/`, {
     method: 'POST',
@@ -2925,7 +2897,7 @@ test('it challenges a request to the bare origin with the /mcp resource metadata
 });
 
 test('it prints one line per request with its method, path, tool, status, time, and protocol version', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -2946,7 +2918,7 @@ test('it prints one line per request with its method, path, tool, status, time, 
 });
 
 test('it prints a request line without the query, the token, or the requester address', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -2998,7 +2970,7 @@ test('it prints a request line without the query, the token, or the requester ad
 });
 
 test('it prints a refused MCP request without reading its JSON-RPC method', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const refused = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',

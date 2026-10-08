@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,6 +10,7 @@ import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
@@ -45,7 +46,7 @@ function setupTest() {
 }
 
 test('it has a rule for every id in a session.spawn answer of a sub-session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -62,7 +63,7 @@ test('it has a rule for every id in a session.spawn answer of a sub-session', as
 });
 
 test('it has a rule for every id in a session.list answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -81,7 +82,7 @@ test('it has a rule for every id in a session.list answer', async () => {
 });
 
 test('it has a rule for every id in a session.get answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -97,7 +98,7 @@ test('it has a rule for every id in a session.get answer', async () => {
 });
 
 test('it has a rule for every id in a session.message answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -115,7 +116,7 @@ test('it has a rule for every id in a session.message answer', async () => {
 });
 
 test('it has a rule for every id in a message.get answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -135,7 +136,7 @@ test('it has a rule for every id in a message.get answer', async () => {
 });
 
 test('it has a rule for every id in an events.read answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -161,14 +162,14 @@ test('it has a rule for every id in an events.read answer', async () => {
 });
 
 test('it has a rule for every id in the data of an uncertain keyed spawn', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const params = { cwd: ctx.dir, resume: 'a-1', idempotencyKey: 'spawn-1' };
   const effectRef = randomUUID();
 
   const seed = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   // A claim still in progress under the key, which the daemon answers as
   // an interrupted spawn whose effect may stand.
@@ -189,7 +190,7 @@ test('it has a rule for every id in the data of an uncertain keyed spawn', async
 });
 
 test('it has a rule for every id in a session.read answer, transcript text included', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const agentSessionID = randomUUID();
 
@@ -220,7 +221,7 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
 });
 
 test('it has a rule for every id in a session.resumeCommand answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -239,7 +240,7 @@ test('it has a rule for every id in a session.resumeCommand answer', async () =>
 });
 
 test('it has a rule for every id in an agents.list answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: `a-${randomUUID()}` });
 
@@ -249,7 +250,7 @@ test('it has a rule for every id in an agents.list answer', async () => {
 });
 
 test('it has a rule for every id in a dirs.list answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, resume: `a-${randomUUID()}` });
 
@@ -259,7 +260,7 @@ test('it has a rule for every id in a dirs.list answer', async () => {
 });
 
 test('it has a rule for every id in a report.get answer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,

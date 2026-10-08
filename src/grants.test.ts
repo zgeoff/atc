@@ -6,26 +6,20 @@ import { setupMCPHTTP } from './test-utils/setup-mcp-http';
 
 /**
  * A real daemon behind `atc mcp --http`, whose authorization database the
- * command opens, so it reads the grants the server issued. Disposal stops
- * both and removes the home.
+ * command opens, so it reads the grants the server issued. Both stop, and
+ * the home goes, once the test finishes.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const server = await setupMCPHTTP();
 
-  stack.use(server);
-
-  const owned = stack.move();
-
-  return { server, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { server };
 }
 
 // A grant id is random base64url, so one in 64 starts with a dash; this one
 // does, with an underscore after it, the shape an argument parser reads as a
 // group of short flags.
 test('it lists a grant whose id starts with a dash', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const clientID = await ctx.server.addClient('Claude', [
     'https://claude.ai/api/mcp/auth_callback',
@@ -77,7 +71,7 @@ test('it lists a grant whose id starts with a dash', async () => {
 });
 
 test('it revokes a grant so its access token stops working and it lists no grants', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const clientID = await ctx.server.addClient('Claude', [
     'https://claude.ai/api/mcp/auth_callback',
@@ -147,17 +141,18 @@ test('it revokes a grant so its access token stops working and it lists no grant
     setExitCode: () => {},
   });
 
-  expect({ printed, errors, codes, pinged: pinged.status, listed }).toStrictEqual({
+  expect({ printed, errors, codes }).toStrictEqual({
     printed: ['Revoked grant -yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
     errors: [],
     codes: [],
-    pinged: 401,
-    listed: ['No grants.'],
   });
+
+  expect(pinged.status).toBe(401);
+  expect(listed).toStrictEqual(['No grants.']);
 });
 
 test('it refuses to revoke an unknown grant', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const errors: string[] = [];
   const codes: number[] = [];
@@ -179,7 +174,7 @@ test('it refuses to revoke an unknown grant', async () => {
 });
 
 test('it sets the process exit code to 1 when it refuses to revoke by default', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // Bun ignores an assignment of undefined, so an unset exit code goes back
   // as 0, the code an unset one exits with.

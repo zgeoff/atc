@@ -11,6 +11,7 @@ import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
 import { readJSONRecord } from '../test-utils/read-json-record';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { sendMCPRequest } from '../test-utils/send-mcp-request';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -24,29 +25,25 @@ import { openGatewayCaller } from './open-gateway-caller';
  * `pc`, each listening on a loopback TCP port for the gateway's token, read
  * from `cloud-token` and `pc-token` in `dir`, with a principals key that
  * lets the OAuth client `Claude` use the local target. `claudeToken` is an
- * access token of `Claude`, and `strangerToken` one of `Stranger`, a client
- * no daemon lists. `timers` starts every timer of the gateway's daemon
- * connections, so none runs unless a test runs it. Sessions run in `dir`.
+ * access token of `Claude`. `auth` is the authorization store, and
+ * `approvals` collects the approval lines the server prints, so a test can
+ * register and authorize a client of its own. `timers` starts every timer
+ * of the gateway's daemon connections, so none runs unless a test runs it.
+ * Sessions run in `dir`.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-gateway-'));
+  const tmp = setupTempDir('atc-gateway-');
   const authDBPath = join(tmp.dir, 'mcp-auth.db');
 
   const auth = await openMCPAuth({ dbPath: authDBPath, origin: null });
 
-  stack.defer(() => auth.close());
+  registerTestCleanup(() => auth.close());
 
-  // The redirect URI both clients register and their code flows use.
+  // The redirect URI the client registers and its code flow uses.
   const redirectURI = 'https://claude.ai/api/mcp/auth_callback';
 
   const claude = await auth.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: [redirectURI] },
-  });
-
-  const stranger = await auth.auth.api.createFixedClient({
-    body: { name: 'Stranger', redirectURIs: [redirectURI] },
   });
 
   // The token both listeners take, which the gateway presents. Each daemon
@@ -66,8 +63,6 @@ async function setupTest() {
     }),
   });
 
-  stack.use(cloud);
-
   const pc = await startTestDaemon({
     prefix: 'atc-gateway-pc-',
     options: () => ({
@@ -78,17 +73,15 @@ async function setupTest() {
     }),
   });
 
-  stack.use(pc);
-
   const cloudProber = await DaemonClient.open(cloud.socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     cloudProber.stop();
   });
 
   const pcProber = await DaemonClient.open(pc.socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     pcProber.stop();
   });
 
@@ -132,7 +125,7 @@ async function setupTest() {
     scheduleTimeout: timers.schedule,
   });
 
-  stack.defer(() => gateway.stop());
+  registerTestCleanup(() => gateway.stop());
 
   const approvals: string[] = [];
 
@@ -151,56 +144,49 @@ async function setupTest() {
     probes: true,
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
-  const accessTokens = new Map<string, string>();
+  const authorized = await runMCPAuthorization(
+    { url: server.url, origin: server.origin, approvals },
+    {
+      clientID: claude.clientID,
+      redirectURI,
+      scope: 'read message spawn kill',
+      ticked: ['read', 'message', 'spawn', 'kill'],
+    },
+  );
 
-  for (const clientID of [claude.clientID, stranger.clientID]) {
-    const authorized = await runMCPAuthorization(
-      { url: server.url, origin: server.origin, approvals },
-      {
-        clientID,
-        redirectURI,
-        scope: 'read message spawn kill',
-        ticked: ['read', 'message', 'spawn', 'kill'],
-      },
-    );
+  const exchanged = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: redirectURI,
+      client_id: claude.clientID,
+      code_verifier: authorized.verifier,
+      resource: `${server.origin}/mcp`,
+    }),
+  });
 
-    const exchanged = await fetch(`${server.url}/oauth2/token`, {
-      method: 'POST',
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: authorized.code,
-        redirect_uri: redirectURI,
-        client_id: clientID,
-        code_verifier: authorized.verifier,
-        resource: `${server.origin}/mcp`,
-      }),
-    });
-
-    const tokens = await readJSONRecord(exchanged);
-
-    accessTokens.set(clientID, String(tokens['access_token']));
-  }
-
-  const owned = stack.move();
+  const tokens = await readJSONRecord(exchanged);
 
   return {
     url: server.url,
+    origin: server.origin,
     dir: tmp.dir,
+    auth,
+    approvals,
     cloud,
     pc,
     cloudID,
     pcID,
     timers,
-    claudeToken: String(accessTokens.get(claude.clientID)),
-    strangerToken: String(accessTokens.get(stranger.clientID)),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    claudeToken: String(tokens['access_token']),
   };
 }
 
 test('it lists the sessions of both daemons under gateway ids with each daemon up', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
@@ -233,7 +219,7 @@ test('it lists the sessions of both daemons under gateway ids with each daemon u
 });
 
 test('it reads a session through its gateway id from the daemon that holds it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
@@ -258,7 +244,7 @@ test('it reads a session through its gateway id from the daemon that holds it', 
 });
 
 test('it replays a keyed spawn from the daemon the key was bound to when the retry leaves the daemon out', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
@@ -282,7 +268,7 @@ test('it replays a keyed spawn from the daemon the key was bound to when the ret
 });
 
 test('it reads the events of both daemons in one page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>
@@ -319,7 +305,7 @@ test('it reads the events of both daemons in one page', async () => {
 });
 
 test('it resumes an events read after the events of its page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>
@@ -362,7 +348,7 @@ test('it resumes an events read after the events of its page', async () => {
 });
 
 test('it shows a stopped daemon as down', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.pc.stop();
 
@@ -378,7 +364,7 @@ test('it shows a stopped daemon as down', async () => {
 });
 
 test('it refuses a spawn on a stopped daemon as daemon_unavailable', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.pc.stop();
 
@@ -394,7 +380,7 @@ test('it refuses a spawn on a stopped daemon as daemon_unavailable', async () =>
 });
 
 test('it answers daemon_unauthorized for a daemon that refuses the gateway token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   writeFileSync(join(ctx.dir, 'pc-token'), `${'x'.repeat(32)}\n`);
 
@@ -414,7 +400,7 @@ test('it answers daemon_unauthorized for a daemon that refuses the gateway token
 });
 
 test('it lists each daemon with its state, build, pinned id, and features but no address or token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_daemons_list',
@@ -443,7 +429,7 @@ test('it lists each daemon with its state, build, pinned id, and features but no
 });
 
 test('it answers a tool call from a client the daemons list', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_dirs_list',
@@ -457,9 +443,37 @@ test('it answers a tool call from a client the daemons list', async () => {
 });
 
 test('it refuses a client no daemon lists as unauthorized', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  const refused = await sendMCPRequest(ctx.url, ctx.strangerToken, 'tools/call', {
+  const stranger = await ctx.auth.auth.api.createFixedClient({
+    body: { name: 'Stranger', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const authorized = await runMCPAuthorization(
+    { url: ctx.url, origin: ctx.origin, approvals: ctx.approvals },
+    {
+      clientID: stranger.clientID,
+      redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+      scope: 'read message spawn kill',
+      ticked: ['read', 'message', 'spawn', 'kill'],
+    },
+  );
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: stranger.clientID,
+      code_verifier: authorized.verifier,
+      resource: `${ctx.origin}/mcp`,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const refused = await sendMCPRequest(ctx.url, String(tokens['access_token']), 'tools/call', {
     name: 'atc_dirs_list',
     arguments: {},
   });
@@ -471,8 +485,7 @@ test('it refuses a client no daemon lists as unauthorized', async () => {
 });
 
 test('it offers the daemon input on spawn and dirs and the daemons tool in the tool list', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/list');
 
   const tools = [listed['tools']].flat().filter((tool) => isRecord(tool));
@@ -487,8 +500,7 @@ test('it offers the daemon input on spawn and dirs and the daemons tool in the t
 });
 
 test('it lists the agents tool without an output schema', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/list');
 
   const agentsTool = [listed['tools']]
@@ -499,7 +511,7 @@ test('it lists the agents tool without an output schema', async () => {
 });
 
 test('it answers the health probe with an empty body while every daemon is down', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.cloud.stop();
   await ctx.pc.stop();
@@ -510,7 +522,7 @@ test('it answers the health probe with an empty body while every daemon is down'
 });
 
 test('it answers the readiness probe with an empty body while every daemon is down', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.cloud.stop();
   await ctx.pc.stop();
@@ -521,15 +533,14 @@ test('it answers the readiness probe with an empty body while every daemon is do
 });
 
 test('it refuses a probe for a foreign host', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const foreign = await fetch(`${ctx.url}/readyz`, { headers: { host: 'evil.example' } });
 
   expect(foreign.status).toBe(403);
 });
 
 test('it holds a waiting events read open until one daemon has an event and returns it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
@@ -567,7 +578,7 @@ test('it holds a waiting events read open until one daemon has an event and retu
 });
 
 test('it reads a report from either daemon through the report handle of its event', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>
@@ -625,7 +636,7 @@ test('it reads a report from either daemon through the report handle of its even
 });
 
 test('it refuses a report handle with a stale incarnation', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_session_spawn',
@@ -665,7 +676,7 @@ test('it refuses a report handle with a stale incarnation', async () => {
 });
 
 test('it reads the whole reports of both daemons in one events read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>
@@ -731,7 +742,7 @@ test('it reads the whole reports of both daemons in one events read', async () =
 });
 
 test('it resumes a report text read after the reports of its page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>
@@ -800,7 +811,7 @@ test('it resumes a report text read after the reports of its page', async () => 
 });
 
 test('it reads the whole reports of the daemons that answer and lists the one that does not', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>
@@ -861,7 +872,7 @@ test('it reads the whole reports of the daemons that answer and lists the one th
 });
 
 test('it stops a report text read across daemons at 64 KiB', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>
@@ -917,7 +928,7 @@ test('it stops a report text read across daemons at 64 KiB', async () => {
 });
 
 test('it reads the rest of a report text read stopped at 64 KiB at its cursor', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawns = await Promise.all(
     ['cloud', 'pc'].map((daemon) =>

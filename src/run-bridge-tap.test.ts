@@ -8,7 +8,7 @@ import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
 /**
  * A temp directory for a tap inside a remote host: the socket path where a
  * test starts its stand-in session bridge, and the outbox the tap sends its
- * reports from. Disposal removes the directory.
+ * reports from. The directory goes once the test finishes.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-bridge-tap-');
@@ -21,14 +21,13 @@ function setupTest() {
     dir: tmp.dir,
     sock: join(tmp.dir, 'bridge.sock'),
     outbox,
-    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it removes the outbox file of a report the bridge took', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  using bridge = startStubSessionBridge(ctx.sock, (request) => [
+  const bridge = startStubSessionBridge(ctx.sock, (request) => [
     { id: request['id'], ok: true },
     { ev: 'InboxClosed' },
   ]);
@@ -48,30 +47,25 @@ test('it removes the outbox file of a report the bridge took', async () => {
     },
   });
 
-  expect({
-    codes,
-    kept: existsSync(join(ctx.outbox, 'r1.json')),
-    requests: bridge.requests,
-  }).toStrictEqual({
-    codes: [0],
-    kept: false,
-    requests: [
-      { v: 1, id: 'tap.open', op: 'tap.open' },
-      {
-        v: 1,
-        id: 'report:r1',
-        op: 'report',
-        reportID: 'r1',
-        payload: { kind: 'note', label: 'progress', text: 'hi' },
-      },
-    ],
-  });
+  expect(codes).toStrictEqual([0]);
+  expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(false);
+
+  expect(bridge.requests).toStrictEqual([
+    { v: 1, id: 'tap.open', op: 'tap.open' },
+    {
+      v: 1,
+      id: 'report:r1',
+      op: 'report',
+      reportID: 'r1',
+      payload: { kind: 'note', label: 'progress', text: 'hi' },
+    },
+  ]);
 });
 
 test('it removes no file for an answer to a report id it never sent', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  using bridge = startStubSessionBridge(ctx.sock, () => [
+  const bridge = startStubSessionBridge(ctx.sock, () => [
     { id: 'report:../victim', ok: true },
     { ev: 'InboxClosed' },
   ]);
@@ -93,24 +87,18 @@ test('it removes no file for an answer to a report id it never sent', async () =
     },
   });
 
-  expect({
-    codes,
-    victim: existsSync(join(ctx.dir, 'victim.json')),
-    report: existsSync(join(ctx.outbox, 'r1.json')),
-    requests: bridge.requests,
-  }).toStrictEqual({
-    codes: [0],
-    victim: true,
-    report: true,
-    requests: [
-      { v: 1, id: 'tap.open', op: 'tap.open' },
-      {
-        v: 1,
-        id: 'report:r1',
-        op: 'report',
-        reportID: 'r1',
-        payload: { kind: 'note', label: 'progress', text: 'hi' },
-      },
-    ],
-  });
+  expect(codes).toStrictEqual([0]);
+  expect(existsSync(join(ctx.dir, 'victim.json'))).toBe(true);
+  expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(true);
+
+  expect(bridge.requests).toStrictEqual([
+    { v: 1, id: 'tap.open', op: 'tap.open' },
+    {
+      v: 1,
+      id: 'report:r1',
+      op: 'report',
+      reportID: 'r1',
+      payload: { kind: 'note', label: 'progress', text: 'hi' },
+    },
+  ]);
 });

@@ -6,6 +6,7 @@ import { startDaemon } from './daemon/daemon';
 import type { EventMsg } from './protocol/protocol';
 import { runTap } from './tap';
 import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
+import { registerTestCleanup } from './test-utils/register-test-cleanup';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { spawnNamedSession } from './test-utils/spawn-named-session';
 import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
@@ -14,13 +15,12 @@ import { waitFor } from './test-utils/wait-for';
 
 /**
  * A real daemon listening in a temp directory, and a client that has sent
- * its handshake and collects every event. Disposal stops the client and the
- * daemon, which a test may already have stopped, and removes the directory.
+ * its handshake and collects every event. The client and the daemon, which
+ * a test may already have stopped, stop once the test finishes, before the
+ * directory goes.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-tap-'));
+  const tmp = setupTempDir('atc-tap-');
   const socketPath = join(tmp.dir, 'atc-daemon.sock');
 
   // The adapter takes messages, so a session has an inbox to tap.
@@ -33,13 +33,13 @@ async function setupTest() {
     statusPath: join(tmp.dir, 'status.json'),
   });
 
-  stack.defer(() => daemon.stop());
+  registerTestCleanup(() => daemon.stop());
 
   const events: EventMsg[] = [];
 
   const actor = await DaemonClient.open(socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     actor.stop();
   });
 
@@ -49,21 +49,11 @@ async function setupTest() {
 
   await actor.sendHello('atc/test-build');
 
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    socketPath,
-    actor,
-    events,
-    daemon,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { dir: tmp.dir, socketPath, actor, events, daemon };
 }
 
 test('it writes each pending message as an NDJSON line and acks it', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const id = await spawnNamedSession((m, p) => ctx.actor.sendRequest(m, p), 'one', ctx.dir);
 
   const first = await ctx.actor.sendRequest('session.message', {
@@ -105,12 +95,11 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
 });
 
 test('it exits 1 with a hint when no daemon listens', async () => {
-  await using ctx = await setupTest();
-
+  const tmp = setupTempDir('atc-tap-');
   const errors: string[] = [];
   const codes: number[] = [];
 
-  await runTap('s1', join(ctx.dir, 'no-daemon', 'atc-daemon.sock'), {
+  await runTap('s1', join(tmp.dir, 'no-daemon', 'atc-daemon.sock'), {
     writeStdout: () => Promise.resolve(),
     printError: (line) => {
       errors.push(line);
@@ -123,13 +112,13 @@ test('it exits 1 with a hint when no daemon listens', async () => {
   expect({ codes, errors }).toStrictEqual({
     codes: [1],
     errors: [
-      `atc tap: no daemon at ${join(ctx.dir, 'no-daemon', 'atc-daemon.sock')} — start atc first`,
+      `atc tap: no daemon at ${join(tmp.dir, 'no-daemon', 'atc-daemon.sock')} — start atc first`,
     ],
   });
 });
 
 test('it exits 1 with the refusal when the session cannot be tapped', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const errors: string[] = [];
   const codes: number[] = [];
@@ -151,8 +140,7 @@ test('it exits 1 with the refusal when the session cannot be tapped', async () =
 });
 
 test('it exits 0 once the daemon closes the connection', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const id = await spawnNamedSession((m, p) => ctx.actor.sendRequest(m, p), 'one', ctx.dir);
 
   const codes: number[] = [];
@@ -183,8 +171,7 @@ test('it exits 0 once the daemon closes the connection', async () => {
 });
 
 test('it exits 0 when another tap replaces it', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const id = await spawnNamedSession((m, p) => ctx.actor.sendRequest(m, p), 'one', ctx.dir);
 
   const codes: number[] = [];
@@ -208,7 +195,7 @@ test('it exits 0 when another tap replaces it', async () => {
 
   const replacement = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     replacement.stop();
   });
 
@@ -221,13 +208,12 @@ test('it exits 0 when another tap replaces it', async () => {
 });
 
 test('it taps through the session bridge inside a remote host', async () => {
-  await using ctx = await setupTest();
-
-  const sock = join(ctx.dir, 'bridge.sock');
-  const outbox = join(ctx.dir, 'outbox');
+  const tmp = setupTempDir('atc-tap-');
+  const sock = join(tmp.dir, 'bridge.sock');
+  const outbox = join(tmp.dir, 'outbox');
 
   // The bridge closes the inbox once it answers the report the tap sends.
-  using bridge = startStubSessionBridge(sock, (request) => [
+  const bridge = startStubSessionBridge(sock, (request) => [
     { id: request['id'], ok: true },
     { ev: 'InboxClosed' },
   ]);
@@ -245,7 +231,7 @@ test('it taps through the session bridge inside a remote host', async () => {
 
   const codes: number[] = [];
 
-  await runTap('s1', ctx.socketPath, {
+  await runTap('s1', join(tmp.dir, 'atc-daemon.sock'), {
     writeStdout: () => Promise.resolve(),
     printError: () => {},
     exit: (code) => {
@@ -253,17 +239,16 @@ test('it taps through the session bridge inside a remote host', async () => {
     },
   });
 
-  expect({ codes, requests: bridge.requests }).toStrictEqual({
-    codes: [0],
-    requests: [
-      { v: 1, id: 'tap.open', op: 'tap.open' },
-      {
-        v: 1,
-        id: 'report:r1',
-        op: 'report',
-        reportID: 'r1',
-        payload: { kind: 'note', label: 'progress', text: 'hi' },
-      },
-    ],
-  });
+  expect(codes).toStrictEqual([0]);
+
+  expect(bridge.requests).toStrictEqual([
+    { v: 1, id: 'tap.open', op: 'tap.open' },
+    {
+      v: 1,
+      id: 'report:r1',
+      op: 'report',
+      reportID: 'r1',
+      payload: { kind: 'note', label: 'progress', text: 'hi' },
+    },
+  ]);
 });

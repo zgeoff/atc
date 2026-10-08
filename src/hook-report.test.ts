@@ -7,28 +7,19 @@ import { updateEnv } from './test-utils/update-env';
 
 /**
  * A stub of the daemon's reporter socket in a temp directory, for the
- * reporter to send its line to. Disposal stops the stub and removes the
- * directory.
+ * reporter to send its line to. The stub stops, and the directory goes,
+ * once the test finishes.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-hook-report-'));
+  const tmp = setupTempDir('atc-hook-report-');
   const sock = join(tmp.dir, 'reporter.sock');
-  const reporter = stack.use(startStubReporterSocket(sock));
-  const owned = stack.move();
+  const reporter = startStubReporterSocket(sock);
 
-  return {
-    sock,
-    reporter,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { sock, reporter };
 }
 
 test('it forwards a Claude SessionStart envelope as SessionStart', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
   updateEnv('ATC_SESSION_ID', 's1');
@@ -45,18 +36,17 @@ test('it forwards a Claude SessionStart envelope as SessionStart', async () => {
 
   const line = await ctx.reporter.waitForLine();
 
-  expect({ codes, line: JSON.parse(line) as unknown }).toStrictEqual({
-    codes: [0],
-    line: {
-      atcId: 's1',
-      event: 'SessionStart',
-      payload: { hook_event_name: 'SessionStart', session_id: 'claude-1' },
-    },
+  expect(codes).toStrictEqual([0]);
+
+  expect(JSON.parse(line) as unknown).toStrictEqual({
+    atcId: 's1',
+    event: 'SessionStart',
+    payload: { hook_event_name: 'SessionStart', session_id: 'claude-1' },
   });
 });
 
 test('it forwards a Grok session_start envelope as SessionStart', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
   updateEnv('ATC_SESSION_ID', 's1');
@@ -73,18 +63,17 @@ test('it forwards a Grok session_start envelope as SessionStart', async () => {
 
   const line = await ctx.reporter.waitForLine();
 
-  expect({ codes, line: JSON.parse(line) as unknown }).toStrictEqual({
-    codes: [0],
-    line: {
-      atcId: 's1',
-      event: 'SessionStart',
-      payload: { hookEventName: 'session_start', sessionId: 'grok-1' },
-    },
+  expect(codes).toStrictEqual([0]);
+
+  expect(JSON.parse(line) as unknown).toStrictEqual({
+    atcId: 's1',
+    event: 'SessionStart',
+    payload: { hookEventName: 'session_start', sessionId: 'grok-1' },
   });
 });
 
 test('it exits 0 and forwards no event name when both event name keys are missing', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
   updateEnv('ATC_SESSION_ID', 's1');
@@ -100,14 +89,16 @@ test('it exits 0 and forwards no event name when both event name keys are missin
 
   const line = await ctx.reporter.waitForLine();
 
-  expect({ codes, line: JSON.parse(line) as unknown }).toStrictEqual({
-    codes: [0],
-    line: { atcId: 's1', payload: { sessionId: 'grok-1' } },
+  expect(codes).toStrictEqual([0]);
+
+  expect(JSON.parse(line) as unknown).toStrictEqual({
+    atcId: 's1',
+    payload: { sessionId: 'grok-1' },
   });
 });
 
 test('it forwards the agent it is given', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
   updateEnv('ATC_SESSION_ID', 's1');
@@ -124,13 +115,12 @@ test('it forwards the agent it is given', async () => {
 
   const line = await ctx.reporter.waitForLine();
 
-  expect({ codes, line: JSON.parse(line) as unknown }).toStrictEqual({
-    codes: [0],
-    line: {
-      atcId: 's1',
-      agent: 'codex',
-      event: 'Stop',
-      payload: { hook_event_name: 'Stop', session_id: 'codex-1' },
-    },
+  expect(codes).toStrictEqual([0]);
+
+  expect(JSON.parse(line) as unknown).toStrictEqual({
+    atcId: 's1',
+    agent: 'codex',
+    event: 'Stop',
+    payload: { hook_event_name: 'Stop', session_id: 'codex-1' },
   });
 });

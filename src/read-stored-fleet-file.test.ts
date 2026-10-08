@@ -2,22 +2,27 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { readStoredFleetFile } from './read-stored-fleet-file';
+import { registerTestCleanup } from './test-utils/register-test-cleanup';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
  * A path for the state database in a fresh temp directory, which each test
- * fills or leaves missing. Disposal removes the directory.
+ * fills or leaves missing. The directory goes once the test finishes.
  */
 function setupTest() {
   const tmp = setupTempDir('read-stored-fleet-file-');
 
-  return { dbPath: join(tmp.dir, 'atc.db'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dbPath: join(tmp.dir, 'atc.db') };
 }
 
 test('it reads the rows this state directory owns with their exit status', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  using db = new Database(ctx.dbPath);
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   db.run('CREATE TABLE fleet (session_id TEXT, name TEXT, exited INTEGER)');
   db.run('CREATE TABLE prefs (key TEXT, value TEXT)');
@@ -33,9 +38,13 @@ test('it reads the rows this state directory owns with their exit status', () =>
 });
 
 test('it reads rows keyed by the agent session id on a schema from before atc session ids', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  using db = new Database(ctx.dbPath);
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   db.run('CREATE TABLE fleet (agent_session_id TEXT, name TEXT, cwd TEXT, exited INTEGER)');
   db.run("INSERT INTO fleet VALUES ('a-a', 'a', '/tmp', 0), ('a-b', NULL, '/tmp', 1)");
@@ -47,9 +56,13 @@ test('it reads rows keyed by the agent session id on a schema from before atc se
 });
 
 test('it reads every row as live on the first schema, keyed by the claude id', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  using db = new Database(ctx.dbPath);
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   db.run('CREATE TABLE fleet (claude_id TEXT PRIMARY KEY, name TEXT NOT NULL, cwd TEXT NOT NULL)');
   db.run("INSERT INTO fleet VALUES ('c-a', 'a', '/tmp')");
@@ -60,15 +73,19 @@ test('it reads every row as live on the first schema, keyed by the claude id', (
 });
 
 test('it reads null for a missing database file', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(readStoredFleetFile(ctx.dbPath)).toBeNull();
 });
 
 test('it reads null for a database without a fleet table', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  using db = new Database(ctx.dbPath);
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   db.run('CREATE TABLE prefs (key TEXT, value TEXT)');
 

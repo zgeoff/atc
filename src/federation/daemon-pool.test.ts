@@ -1,9 +1,10 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonPool } from './daemon-pool';
@@ -14,9 +15,7 @@ import { DaemonPool } from './daemon-pool';
  * state identity each one's handshake returns.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-daemon-pool-'));
+  const tmp = setupTempDir('atc-daemon-pool-');
 
   // The token both listeners take, which every pool here presents.
   writeFileSync(join(tmp.dir, 'token'), `${'a'.repeat(32)}\n`);
@@ -32,8 +31,6 @@ async function setupTest() {
     }),
   });
 
-  stack.use(cloud);
-
   const pc = await startTestDaemon({
     prefix: 'atc-daemon-pool-pc-',
     options: () => ({
@@ -45,36 +42,31 @@ async function setupTest() {
     }),
   });
 
-  stack.use(pc);
-
   const cloudProber = await DaemonClient.open(cloud.socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     cloudProber.stop();
   });
 
   const pcProber = await DaemonClient.open(pc.socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     pcProber.stop();
   });
 
   const cloudHello = await cloudProber.sendHello(cloud.build);
   const pcHello = await pcProber.sendHello(pc.build);
 
-  const owned = stack.move();
-
   return {
     cloud,
     pc,
     cloudID: String(cloudHello['daemonID']),
     pcID: String(pcHello['daemonID']),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it gives each registry daemon its own caller that reaches only that daemon', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const cloud = buildMockRegistryDaemon({
     name: 'cloud',
@@ -102,7 +94,7 @@ test('it gives each registry daemon its own caller that reaches only that daemon
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   await ctx.cloud.client.sendRequest('session.spawn', {
     cwd: ctx.cloud.dir,

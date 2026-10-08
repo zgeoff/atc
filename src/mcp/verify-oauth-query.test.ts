@@ -1,32 +1,25 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { openMCPAuth } from './open-mcp-auth';
 import { verifyOAuthQuery } from './verify-oauth-query';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-verify-oauth-query-'));
+  const tmp = setupTempDir('atc-verify-oauth-query-');
 
   const store = await openMCPAuth({ dbPath: join(tmp.dir, 'mcp-auth.db'), origin: null });
 
-  stack.defer(() => store.close());
+  registerTestCleanup(() => store.close());
 
   const context = await store.auth.$context;
 
-  const owned = stack.move();
-
-  return {
-    store,
-    secret: context.secret,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { store, secret: context.secret };
 }
 
 test('it accepts the query better-auth signs for the login page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -56,7 +49,7 @@ test('it accepts the query better-auth signs for the login page', async () => {
 });
 
 test('it refuses a signed query with one parameter changed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
