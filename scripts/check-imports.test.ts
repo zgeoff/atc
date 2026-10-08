@@ -2,11 +2,31 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
-// A temp directory standing in for a repo root for the checker to scan.
+// A temp directory standing in for a repo root, and a run of the checker
+// over it that resolves once the checker exits.
 function setupTest() {
   const tmp = setupTempDir('check-imports-');
 
-  return { dir: tmp.dir };
+  return {
+    dir: tmp.dir,
+    check: async () => {
+      const proc = Bun.spawn(
+        [process.execPath, join(import.meta.dir, 'check-imports.ts'), tmp.dir],
+        {
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      );
+
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+
+      return { exitCode, stdout, stderr };
+    },
+  };
 }
 
 test('it passes a tree whose imports follow the directory rules', async () => {
@@ -24,15 +44,12 @@ test('it passes a tree whose imports follow the directory rules', async () => {
     "import type { HookEvent } from '../protocol/hook-event';\n\nexport const HOOKS: HookEvent[] = [];\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 3 files, 0 cycles, 0 other findings\n',
@@ -53,15 +70,12 @@ test('it fails on a cycle closed by a type-only import', async () => {
     "import type { Auth } from './types';\n\nexport function openAuth(): Auth | null {\n  return null;\n}\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 1 cycles, 0 other findings\n',
@@ -79,15 +93,12 @@ test('it fails on an import of a directory the importer may not use', async () =
     "import type {\n  HookEvent,\n} from '../daemon/hooks';\n\nexport type Row = HookEvent;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -111,15 +122,12 @@ test('it lets a sources module import workspace and the daemon import sources', 
     "export { PROBE } from '../sources/types';\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 3 files, 0 cycles, 0 other findings\n',
@@ -133,15 +141,12 @@ test('it fails on a sources module importing the daemon', async () => {
   await Bun.write(join(ctx.dir, 'src/daemon/ids.ts'), 'export const ID = 1;\n');
   await Bun.write(join(ctx.dir, 'src/sources/types.ts'), "export { ID } from '../daemon/ids';\n");
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -159,15 +164,12 @@ test('it fails on a directory module importing a src root module', async () => {
     "export { REPORT } from '../hook-report';\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -191,15 +193,12 @@ test('it lets the composition root and a test file import any directory', async 
     "import { CLIENT } from '../client/daemon-client';\n\nexport const USED = CLIENT;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 4 files, 0 cycles, 0 other findings\n',
@@ -222,15 +221,12 @@ test('it fails on a gateway entry that reaches an agent adapter through an allow
     "const gateway = await import('./run-gateway');\n\nexport const LOADED = gateway;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 3 files, 0 cycles, 1 other findings\n',
@@ -251,15 +247,12 @@ test('it fails on a confined package imported outside the file that owns it', as
     "import type { IPty } from 'bun-pty';\n\nexport type Handle = IPty;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -296,15 +289,12 @@ test('it fails on a confined package imported outside src', async () => {
     "export { ImpClient } from '@zgeoff/imp-client';\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 4 files, 0 cycles, 3 other findings\n',
@@ -322,15 +312,12 @@ test('it fails on a module in a directory with no import rule', async () => {
 
   await Bun.write(join(ctx.dir, 'src/elsewhere/registry.ts'), 'export const REGISTRY = 1;\n');
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
@@ -349,15 +336,12 @@ test('it ignores import text inside a one-line string literal', async () => {
     "export const FILES = {\n  'register.ts': \"import { DAEMON } from '../daemon/daemon';\\n\",\n};\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 2 files, 0 cycles, 0 other findings\n',
@@ -375,15 +359,12 @@ test('it fails on a src root module that is not the composition root importing t
     "import { DAEMON } from './daemon/daemon';\n\nexport const USED = DAEMON;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -401,15 +382,12 @@ test('it reads an import whose list holds a comment with an apostrophe', async (
     "import {\n  ID, // the daemon's id, `quoted`\n} from '../daemon/ids';\n\nexport const USED = ID;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -427,15 +405,12 @@ test('it reads a require call', async () => {
     "const ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -453,15 +428,12 @@ test('it reads an import-equals require', async () => {
     "import ids = require('../daemon/ids');\n\nexport const USED = ids;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -479,15 +451,12 @@ test('it reads a dynamic import whose specifier is a template literal', async ()
     'export const LOADED = await import(`../daemon/ids`);\n',
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -503,15 +472,12 @@ test('it fails on a dynamic import whose specifier is computed', async () => {
 
   await Bun.write(join(ctx.dir, 'src/store/rows.ts'), source);
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
@@ -527,15 +493,12 @@ test('it fails on a require call whose specifier is computed', async () => {
     "const path = '../daemon/ids';\nexport const LOADED = require(path);\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
@@ -553,15 +516,12 @@ test('it reads an import that follows a regular expression holding a quote', asy
     "export const QUOTE = /['\"`]/;\n\nexport { ID } from '../daemon/ids';\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -579,15 +539,12 @@ test('it reads an import that follows a regular expression after a control condi
     "const ok = true;\nif (ok) /`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -605,15 +562,12 @@ test('it reads an import that follows a regular expression after a block', async
     "{\n  const a = 1;\n}\n/`/.test('a');\n\nexport { ID } from '../daemon/ids';\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -631,15 +585,12 @@ test('it reads a literal module resolved through import.meta.resolve', async () 
     "export const PATH = import.meta.resolve('../daemon/ids');\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -657,15 +608,12 @@ test('it reads a literal module resolved through Bun.resolveSync', async () => {
     "export const PATH = Bun.resolveSync('../daemon/ids', import.meta.dir);\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -683,15 +631,12 @@ test('it reads a literal module located with a URL relative to import.meta.url',
     "export const PATH = new URL('../daemon/ids.ts', import.meta.url);\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
@@ -707,15 +652,12 @@ test('it fails on a module resolved from a computed specifier', async () => {
     "const name = '../daemon/ids';\nexport const A = import.meta.resolve(name);\nexport const B = Bun.resolveSync(name, import.meta.dir);\nexport const C = new URL(name, import.meta.url);\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 3 other findings\n',
@@ -732,15 +674,12 @@ test('it ignores a URL that is not relative to the module', async () => {
     "const base = 'https://example.com';\nexport const SITE = new URL(base);\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 0,
     stdout: 'check-imports: 1 files, 0 cycles, 0 other findings\n',
@@ -758,15 +697,12 @@ test('it fails on a federation module that imports the mcp layer', async () => {
     "import { TOOLS } from '../mcp/types';\nexport const ROUTER = TOOLS;\n",
   );
 
-  const checked = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'check-imports.ts'), ctx.dir],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+  const checked = await ctx.check();
 
   expect({
     exitCode: checked.exitCode,
-    stdout: checked.stdout.toString(),
-    stderr: checked.stderr.toString(),
+    stdout: checked.stdout,
+    stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
