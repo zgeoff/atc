@@ -11,7 +11,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it checks a project nested under a checkout whose tsconfig extends a package the checkout cannot resolve', () => {
+test('it checks a project nested under a checkout whose tsconfig extends a package the checkout cannot resolve', async () => {
   const ctx = setupTest();
   const project = join(ctx.dir, '.worktrees', 'me', 'branch');
 
@@ -26,7 +26,7 @@ test('it checks a project nested under a checkout whose tsconfig extends a packa
   writeFileSync(join(project, 'knip.json'), JSON.stringify({ entry: ['index.js'] }));
   writeFileSync(join(project, 'index.js'), 'export {};\n');
 
-  const run = Bun.spawnSync(
+  const run = Bun.spawn(
     [process.execPath, join(import.meta.dir, '..', 'node_modules', '.bin', 'knip')],
     {
       cwd: project,
@@ -35,11 +35,13 @@ test('it checks a project nested under a checkout whose tsconfig extends a packa
     },
   );
 
-  expect({
-    exitCode: run.exitCode,
-    stdout: run.stdout.toString(),
-    stderr: run.stderr.toString(),
-  }).toStrictEqual({
+  const [exitCode, stdout, stderr] = await Promise.all([
+    run.exited,
+    new Response(run.stdout).text(),
+    new Response(run.stderr).text(),
+  ]);
+
+  expect({ exitCode, stdout, stderr }).toStrictEqual({
     exitCode: 0,
     stdout: '',
     stderr: '',
