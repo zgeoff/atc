@@ -115,7 +115,20 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
     output.push(String(chunk));
   });
 
-  await sendLinesBeforeHandshake(ctx.port, 2000);
+  await waitFor(() => {
+    expect(output.join('')).toStartWith('atc tcp event=listening ');
+  });
+
+  // The log holds 64 KiB behind a write in flight and drops past that,
+  // however fast its reader reads, so the refusals go out in bursts of 500
+  // lines (about 39 KiB) and the reader takes each burst before the next.
+  for (let sent = 500; sent <= 2000; sent += 500) {
+    await sendLinesBeforeHandshake(ctx.port, 500);
+
+    await waitFor(() => {
+      expect(output.join('').split('\n')).toHaveLength(sent + 2);
+    });
+  }
 
   await waitFor(() => {
     expect(output.join('').split('\n')).toStrictEqual([
