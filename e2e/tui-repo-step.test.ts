@@ -120,6 +120,8 @@ test('it filters refs by name on the ref step', async () => {
 
   const fixture = await createGitFixture();
 
+  await $`git branch beta main`.env(fixture.env).cwd(fixture.upstream).quiet();
+
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   ctx.boot();
@@ -137,6 +139,7 @@ test('it filters refs by name on the ref step', async () => {
 
   await ctx.waitFor('> b');
 
+  expect(ctx.read()).toInclude(`beta  ${fixture.sha.slice(0, 7)}`);
   expect(ctx.read()).not.toInclude('main  default');
 }, 20_000);
 

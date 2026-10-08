@@ -49,6 +49,12 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
 
   const tokens = await readJSONRecord(exchanged);
 
+  const before = await fetch(`${ctx.server.url}/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
   await ctx.server.store.db
     .updateTable('oauthAccessToken')
     .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
@@ -69,8 +75,11 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
   const pinged = await fetch(`${ctx.server.url}/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${String(tokens['access_token'])}` },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
   });
+
+  expect(exchanged.status).toBe(200);
+  expect(before.status).toBe(200);
 
   expect({
     exitCode: revoked.exitCode,

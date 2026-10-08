@@ -6,17 +6,12 @@ import { runATC } from '../src/test-utils/run-atc';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
- * A home for the printing CLI, with an empty Grok home inside it, removed
- * once the test finishes.
+ * A home for the printing CLI, removed once the test finishes.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-hook-files-');
-  const grokHome = join(tmp.dir, 'grok');
 
-  // The Grok printer runs under this Grok home, which must stay empty.
-  mkdirSync(grokHome);
-
-  return { home: tmp.dir, grokHome };
+  return { home: tmp.dir };
 }
 
 test('it prints Codex hook entries that report under the codex agent', async () => {
@@ -42,6 +37,10 @@ test('it prints Codex hook entries that report under the codex agent', async () 
 
 test('it prints the Grok hook file that reports under the grok agent and writes nothing under GROK_HOME', async () => {
   const ctx = setupTest();
+  const grokHome = join(ctx.home, 'grok');
+
+  mkdirSync(grokHome);
+
   const atc = resolveATCCommand();
   const command = `${atc.map((part) => `"${part}"`).join(' ')} hook-report --agent grok`;
 
@@ -49,7 +48,7 @@ test('it prints the Grok hook file that reports under the grok agent and writes 
     command: atc,
     args: ['grok-hooks'],
     home: ctx.home,
-    env: { GROK_HOME: ctx.grokHome },
+    env: { GROK_HOME: grokHome },
   });
 
   expect({ code: printed.exitCode, file: JSON.parse(printed.stdout) as unknown }).toStrictEqual({
@@ -67,5 +66,5 @@ test('it prints the Grok hook file that reports under the grok agent and writes 
     },
   });
 
-  expect(readdirSync(ctx.grokHome)).toStrictEqual([]);
+  expect(readdirSync(grokHome)).toStrictEqual([]);
 });

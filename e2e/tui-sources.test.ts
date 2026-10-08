@@ -335,9 +335,9 @@ test('it offers the local directory flow alone when the daemon offers no sources
 
   await ctx.waitFor('spawn: directory');
 
-  // The picker offers another source only through the tab hint on the
-  // step's last row, so its absence is the offer under test.
-  expect(ctx.read()).not.toInclude(' · tab ');
+  // A picker with a second source puts that source's label on the step's
+  // last row, GitHub first, so the label off screen shows none is offered.
+  expect(ctx.read()).not.toInclude('GitHub repository');
   expect(ctx.read()).not.toInclude('on the daemon host');
 
   ctx.reset();

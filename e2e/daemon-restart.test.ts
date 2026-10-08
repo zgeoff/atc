@@ -197,8 +197,8 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
   expect(
     getRecords(listed, 'sessions')
       .filter((session) => session['kind'] === 'pty')
-      .map((session) => session['id']),
-  ).toStrictEqual(['s-good']);
+      .map((session) => ({ id: session['id'], alive: session['alive'] })),
+  ).toStrictEqual([{ id: 's-good', alive: true }]);
 
   expect(restart.stdout).toInclude(
     'failed: dropped (s-dropped): listed in state running without a terminal: no adapter for',
@@ -627,11 +627,14 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
     env: { PATH: ctx.path },
   });
 
+  // A request answered after the dry run proves the daemon still serves.
+  await client.sendRequest('session.list');
+
   expect(restart.exitCode).toBe(0);
   expect(restart.stdout).toInclude(`daemon: pid ${oldPID}`);
   expect(restart.stdout).toInclude('the interrupted turn does not continue');
   expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
-  expect(daemon.proc.exitCode).toBeNull();
+  expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
 });
 
 test('it refuses a --listen without a token file before it stops the daemon', async () => {
@@ -666,6 +669,9 @@ test('it refuses a --listen without a token file before it stops the daemon', as
     env: { PATH: ctx.path },
   });
 
+  // A request answered after the refusal proves the daemon still serves.
+  await client.sendRequest('session.list');
+
   expect(restart.exitCode).toBe(1);
 
   expect(restart.stdout).toInclude(
@@ -673,5 +679,5 @@ test('it refuses a --listen without a token file before it stops the daemon', as
   );
 
   expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
-  expect(daemon.proc.exitCode).toBeNull();
+  expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
 });

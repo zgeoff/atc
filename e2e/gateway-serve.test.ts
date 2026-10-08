@@ -83,9 +83,11 @@ test('it serves from the state directory given before its subcommand over the en
   // The gateway prints its serving line once its probes answer ready.
   const reader = gateway.stdout.getReader();
 
-  await reader.read();
+  const serving = await reader.read();
 
   reader.releaseLock();
+
+  const ready = await fetch(`http://127.0.0.1:${ctx.port}/readyz`);
 
   const entries = readdirSync(ctx.dir).toSorted();
   const flagged = readdirSync(join(ctx.dir, 'flagged'));
@@ -94,6 +96,11 @@ test('it serves from the state directory given before its subcommand over the en
 
   const exitCode = await gateway.exited;
 
+  expect(new TextDecoder().decode(serving.value)).toBe(
+    `atc-gateway: serving https://atc.geoff.cloud/mcp, listening on http://127.0.0.1:${ctx.port}\n`,
+  );
+
+  expect(ready.status).toBe(200);
   expect(entries).toStrictEqual(['flagged', 'registry.json']);
   expect(flagged).toIncludeAllMembers(['gateway.db', 'mcp-auth.db']);
   expect(exitCode).toBe(0);

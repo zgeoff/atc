@@ -1,63 +1,48 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { expect, test } from 'bun:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getRecord } from '../src/shared/get-record';
 import { createStubComposer } from '../src/test-utils/create-stub-composer';
 import { createStubSharedServerCodex } from '../src/test-utils/create-stub-shared-server-codex';
 import { getString } from '../src/test-utils/get-string';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
 import { waitFor } from '../src/test-utils/wait-for';
 
 /**
  * A home with a stub Codex CLI whose terminals share one background server,
- * offered as the only agent and served by an `atc daemon` process, with a
- * client that has sent its handshake. The daemon leaves the stored fleet
- * alone at start, so a test restores it itself.
+ * and the config path the test writes before it starts the `atc daemon`.
  */
-async function setupTest() {
-  const stack = new AsyncDisposableStack();
-
-  onTestFinished(() => stack.disposeAsync());
-
-  const home = mkdtempSync(join(tmpdir(), 'atc-e2e-codex-shared-'));
-
-  stack.defer(() => {
-    rmSync(home, { recursive: true, force: true });
-  });
-
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-codex-shared-');
   const atc = resolveATCCommand();
-  const composer = createStubComposer(home);
+  const configDir = join(tmp.dir, '.config', 'atc');
 
-  // The daemon spawns its sessions from the agents the config offers, and a
-  // restarted daemon restores only when a test asks it to.
-  mkdirSync(join(home, '.config', 'atc'), { recursive: true });
+  mkdirSync(configDir, { recursive: true });
 
-  writeFileSync(
-    join(home, '.config', 'atc', 'config.json'),
-    JSON.stringify({
-      agents: { codex: { bin: createStubSharedServerCodex(home, { atc, composer }) } },
-      restoreFleetOnRestart: false,
-    }),
-  );
+  return {
+    home: tmp.dir,
+    atc,
+    configPath: join(configDir, 'config.json'),
+    codex: createStubSharedServerCodex(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
+  };
+}
 
-  const daemon = startDaemonProcess({ command: atc, home });
+test('it keeps the hook events of two codex terminals that share a server on their own sessions', async () => {
+  const ctx = setupTest();
 
-  stack.defer(() => daemon.stop());
+  writeFileSync(ctx.configPath, JSON.stringify({ agents: { codex: { bin: ctx.codex } } }));
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
   await client.sendHello('atc/test');
 
-  return { home, daemon, client };
-}
-
-test('it keeps the hook events of two codex terminals that share a server on their own sessions', async () => {
-  const ctx = await setupTest();
-
-  const firstSpawned = await ctx.client.sendRequest('session.spawn', {
+  const firstSpawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -65,7 +50,7 @@ test('it keeps the hook events of two codex terminals that share a server on the
 
   const first = getString(getRecord(firstSpawned, 'session'), 'id');
 
-  const secondSpawned = await ctx.client.sendRequest('session.spawn', {
+  const secondSpawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -73,9 +58,9 @@ test('it keeps the hook events of two codex terminals that share a server on the
 
   const second = getString(getRecord(secondSpawned, 'session'), 'id');
 
-  const trail = new Database(join(ctx.daemon.stateDir, 'atc.db'), { readonly: true });
+  const trail = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     trail.close();
   });
 
@@ -87,8 +72,8 @@ test('it keeps the hook events of two codex terminals that share a server on the
     return read;
   });
 
-  const firstRecord = await ctx.client.sendRequest('session.get', { session: first });
-  const secondRecord = await ctx.client.sendRequest('session.get', { session: second });
+  const firstRecord = await client.sendRequest('session.get', { session: first });
+  const secondRecord = await client.sendRequest('session.get', { session: second });
 
   expect(rows).toIncludeSameMembers([
     { atc_id: first, event: 'SessionStart', session_id: `fake-thread-${first}` },
@@ -109,9 +94,17 @@ test('it keeps the hook events of two codex terminals that share a server on the
 });
 
 test('it keeps two resumed codex terminals that share a server on the threads they resumed', async () => {
-  const ctx = await setupTest();
+  const ctx = setupTest();
 
-  const firstSpawned = await ctx.client.sendRequest('session.spawn', {
+  writeFileSync(ctx.configPath, JSON.stringify({ agents: { codex: { bin: ctx.codex } } }));
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const firstSpawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -120,7 +113,7 @@ test('it keeps two resumed codex terminals that share a server on the threads th
 
   const first = getString(getRecord(firstSpawned, 'session'), 'id');
 
-  const secondSpawned = await ctx.client.sendRequest('session.spawn', {
+  const secondSpawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -129,9 +122,9 @@ test('it keeps two resumed codex terminals that share a server on the threads th
 
   const second = getString(getRecord(secondSpawned, 'session'), 'id');
 
-  const trail = new Database(join(ctx.daemon.stateDir, 'atc.db'), { readonly: true });
+  const trail = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     trail.close();
   });
 
@@ -152,9 +145,25 @@ test('it keeps two resumed codex terminals that share a server on the threads th
 });
 
 test('it keeps two restored codex terminals that share a server on their own threads', async () => {
-  const ctx = await setupTest();
+  const ctx = setupTest();
 
-  const firstSpawned = await ctx.client.sendRequest('session.spawn', {
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { codex: { bin: ctx.codex } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const firstSpawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -162,7 +171,7 @@ test('it keeps two restored codex terminals that share a server on their own thr
 
   const first = getString(getRecord(firstSpawned, 'session'), 'id');
 
-  const secondSpawned = await ctx.client.sendRequest('session.spawn', {
+  const secondSpawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -170,9 +179,9 @@ test('it keeps two restored codex terminals that share a server on their own thr
 
   const second = getString(getRecord(secondSpawned, 'session'), 'id');
 
-  const trail = new Database(join(ctx.daemon.stateDir, 'atc.db'), { readonly: true });
+  const trail = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     trail.close();
   });
 
@@ -180,9 +189,9 @@ test('it keeps two restored codex terminals that share a server on their own thr
     expect(trail.query('SELECT id FROM events').all()).toHaveLength(4);
   });
 
-  await ctx.daemon.restart('SIGKILL');
+  await daemon.restart('SIGKILL');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
   await revived.sendRequest('fleet.restore', { cols: 80, rows: 24 });
