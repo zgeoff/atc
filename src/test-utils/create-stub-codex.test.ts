@@ -7,12 +7,13 @@ import { createStubCodex } from './create-stub-codex';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-codex-');
+  const tmp = setupTempDir('atc-stub-codex-');
+
+  return { dir: tmp.dir };
 }
 
 test('it reports a start in its directory and a finished turn as codex hooks', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");
@@ -31,8 +32,7 @@ test('it reports a start in its directory and a finished turn as codex hooks', (
 });
 
 test('it prints its arguments, then runs the composer', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");

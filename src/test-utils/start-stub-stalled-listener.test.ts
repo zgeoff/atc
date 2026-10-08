@@ -3,28 +3,25 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubStalledListener } from './start-stub-stalled-listener';
 
-// A temp directory to hold the listener's socket. Disposal removes it.
+// A temp directory to hold the listener's socket.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-stalled-');
 
-  return { path: join(tmp.dir, 'stalled.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { path: join(tmp.dir, 'stalled.sock') };
 }
 
 test('it accepts a connection and leaves a large write to it partly unsent', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  const listener = await startStubStalledListener(ctx.path);
-
-  onTestFinished(() => {
-    listener[Symbol.dispose]();
-  });
+  await startStubStalledListener(ctx.path);
 
   const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -34,7 +31,7 @@ test('it accepts a connection and leaves a large write to it partly unsent', asy
 });
 
 test('it stops listening once disposed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const listener = await startStubStalledListener(ctx.path);
 

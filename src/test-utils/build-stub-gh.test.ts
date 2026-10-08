@@ -1,17 +1,20 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubGH } from './build-stub-gh';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  return setupTempDir('atc-stub-gh-');
+  const tmp = setupTempDir('atc-stub-gh-');
+
+  return { dir: tmp.dir };
 }
 
 test('it prints the reply of the first argument verbatim and exits with its code', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const gh = createStubBin(
     ctx.dir,
@@ -34,7 +37,7 @@ test('it prints the reply of the first argument verbatim and exits with its code
 });
 
 test('it prints nothing and exits 0 for a command without a reply', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const gh = createStubBin(
     ctx.dir,
@@ -52,8 +55,7 @@ test('it prints nothing and exits 0 for a command without a reply', () => {
 });
 
 test('it records the arguments of each run as one line', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const argvFile = join(ctx.dir, "it's argv");
   const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: {}, argvFile }));
 
@@ -64,13 +66,12 @@ test('it records the arguments of each run as one line', () => {
 });
 
 test('it keeps a hanging command running until it is killed', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const argvFile = join(ctx.dir, 'argv');
   const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: { repo: 'hang' }, argvFile }));
   const proc = Bun.spawn([gh, 'repo', 'list']);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 

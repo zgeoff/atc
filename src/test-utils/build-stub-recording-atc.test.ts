@@ -6,12 +6,13 @@ import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-recording-atc-');
+  const tmp = setupTempDir('atc-stub-recording-atc-');
+
+  return { dir: tmp.dir };
 }
 
 test('it records its arguments, its atc session, and its input in the log', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'atc.log')));
 
   const result = Bun.spawnSync([atc, 'report', 'note'], {
@@ -19,18 +20,15 @@ test('it records its arguments, its atc session, and its input in the log', () =
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
-  expect({
-    exitCode: result.exitCode,
-    log: readFileSync(join(ctx.dir, 'atc.log'), 'utf8'),
-  }).toStrictEqual({
-    exitCode: 0,
-    log: 'args:report note\nsession:s-1\nstdin:half way\n',
-  });
+  expect(result.exitCode).toBe(0);
+
+  expect(readFileSync(join(ctx.dir, 'atc.log'), 'utf8')).toBe(
+    'args:report note\nsession:s-1\nstdin:half way\n',
+  );
 });
 
 test('it appends each run after the runs before it', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'atc.log')));
 
   Bun.spawnSync([atc, 'first'], {

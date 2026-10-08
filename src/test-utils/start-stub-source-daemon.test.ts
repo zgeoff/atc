@@ -3,33 +3,30 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { isProcessAlive } from '../shared/is-process-alive';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubSourceDaemon } from './start-stub-source-daemon';
 
-// A temp directory for the daemon's home and sockets. Disposal removes it.
+// A temp directory for the daemon's home and sockets.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-source-daemon-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it offers the fixture source on the socket its environment gives', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemons = new AsyncDisposableStack();
-
-  const daemon = await startStubSourceDaemon({
+  await startStubSourceDaemon({
     ...process.env,
     HOME: ctx.dir,
     XDG_RUNTIME_DIR: ctx.dir,
     ATC_TEST_FIXTURE_URL: join(ctx.dir, 'upstream.git'),
   });
 
-  daemons.use(daemon);
-
   const client = await DaemonClient.open(join(ctx.dir, 'atc-daemon.sock'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -41,22 +38,18 @@ test('it offers the fixture source on the socket its environment gives', async (
 });
 
 test('it offers no sources when asked for none', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemons = new AsyncDisposableStack();
-
-  const daemon = await startStubSourceDaemon({
+  await startStubSourceDaemon({
     ...process.env,
     HOME: ctx.dir,
     XDG_RUNTIME_DIR: ctx.dir,
     ATC_TEST_SOURCES: 'none',
   });
 
-  daemons.use(daemon);
-
   const client = await DaemonClient.open(join(ctx.dir, 'atc-daemon.sock'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -68,9 +61,9 @@ test('it offers no sources when asked for none', async () => {
 });
 
 test('it stops the daemon process on dispose', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startStubSourceDaemon({
+  const daemon = await startStubSourceDaemon({
     ...process.env,
     HOME: ctx.dir,
     XDG_RUNTIME_DIR: ctx.dir,
@@ -82,7 +75,7 @@ test('it stops the daemon process on dispose', async () => {
 });
 
 test('it rejects when the daemon exits before it listens', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A runtime directory that is a file leaves the daemon nowhere to write
   // its pid file or bind its sockets, so it exits at start.

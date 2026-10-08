@@ -31,7 +31,8 @@ test('it retries until the attempt stops throwing and resolves with its value', 
     { now: ctx.now, wait: ctx.wait },
   );
 
-  expect({ value, attempts }).toStrictEqual({ value: 'done', attempts: 3 });
+  expect(value).toBe('done');
+  expect(attempts).toBe(3);
 });
 
 test('it waits the given interval between attempts', async () => {

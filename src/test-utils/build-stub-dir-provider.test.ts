@@ -7,11 +7,13 @@ import { setupTempDir } from './setup-temp-dir';
 
 // A temp directory the provider's transfers and commands run in.
 function setupTest() {
-  return setupTempDir('atc-stub-dir-provider-');
+  const tmp = setupTempDir('atc-stub-dir-provider-');
+
+  return { dir: tmp.dir };
 }
 
 test('it unpacks a transferred archive into the directory it is given and records it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'src'));
   writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
@@ -30,8 +32,7 @@ test('it unpacks a transferred archive into the directory it is given and record
 });
 
 test('it runs a command in its working directory and records it', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const provider = buildStubDirProvider();
 
   const result = await provider.runCommand({ argv: ['pwd'], cwd: ctx.dir });
@@ -41,7 +42,7 @@ test('it runs a command in its working directory and records it', async () => {
 });
 
 test('it runs the after-transfer step on the unpacked directory before the transfer resolves', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'src'));
   writeFileSync(join(ctx.dir, 'src', 'hello.txt'), 'hello\n');
@@ -77,7 +78,7 @@ test('it declares the capabilities it is told it lacks as missing', () => {
 });
 
 test('it rejects an archive tar cannot unpack', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const transfer = buildStubDirProvider().transferArchive(
     new Uint8Array([1, 2, 3]),
@@ -109,8 +110,7 @@ test('it refuses to destroy a host', () => {
 });
 
 test('it starts a harness on a local terminal and records its spec', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const provider = buildStubDirProvider();
 
   const spec = {

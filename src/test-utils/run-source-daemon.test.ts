@@ -1,12 +1,13 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 // A home and a runtime directory in a temp directory for the daemon
-// process each test starts, which stops before the directory goes; `env` points the daemon's config, state, and
-// sockets there.
+// process each test starts, which stops before the directory goes; `env`
+// points the daemon's config, state, and sockets there.
 function setupTest() {
   const tmp = setupTempDir('atc-run-source-');
   const home = join(tmp.dir, 'home');
@@ -26,14 +27,13 @@ function setupTest() {
       XDG_DATA_HOME: join(home, '.local', 'share'),
       XDG_STATE_HOME: join(home, '.local', 'state'),
     },
-    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it offers the built-in sources and then the fixture source', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -43,11 +43,17 @@ test('it offers the built-in sources and then the fixture source', async () => {
     stderr: 'ignore',
   });
 
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
+  });
+
   await proc.stdout.getReader().read();
 
   const client = await DaemonClient.open(ctx.daemonSocketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -64,19 +70,25 @@ test('it offers the built-in sources and then the fixture source', async () => {
 });
 
 test('it offers no sources when told none', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
     env: { ...ctx.env, ATC_TEST_SOURCES: 'none' },
     stdout: 'pipe',
     stderr: 'ignore',
+  });
+
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
   });
 
   await proc.stdout.getReader().read();
 
   const client = await DaemonClient.open(ctx.daemonSocketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -88,9 +100,9 @@ test('it offers no sources when told none', async () => {
 });
 
 test('it lists the fixture repository at the fixture URL', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -100,11 +112,17 @@ test('it lists the fixture repository at the fixture URL', async () => {
     stderr: 'ignore',
   });
 
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
+  });
+
   await proc.stdout.getReader().read();
 
   const client = await DaemonClient.open(ctx.daemonSocketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -126,9 +144,9 @@ test('it lists the fixture repository at the fixture URL', async () => {
 });
 
 test('it lists the fixture repository under the scope it is given', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -138,11 +156,17 @@ test('it lists the fixture repository under the scope it is given', async () => 
     stderr: 'ignore',
   });
 
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
+  });
+
   await proc.stdout.getReader().read();
 
   const client = await DaemonClient.open(ctx.daemonSocketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -168,9 +192,9 @@ test('it lists the fixture repository under the scope it is given', async () => 
 });
 
 test('it appends each listing it serves to the source log', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -181,11 +205,17 @@ test('it appends each listing it serves to the source log', async () => {
     stderr: 'ignore',
   });
 
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
+  });
+
   await proc.stdout.getReader().read();
 
   const client = await DaemonClient.open(ctx.daemonSocketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -203,9 +233,9 @@ test.each([
   ['in acme', { kind: 'browse', scope: 'acme' }],
   ['something else', { kind: 'none' }],
 ])('it reads the input %p as %p', async (input, expected) => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -215,11 +245,17 @@ test.each([
     stderr: 'ignore',
   });
 
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
+  });
+
   await proc.stdout.getReader().read();
 
   const client = await DaemonClient.open(ctx.daemonSocketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -235,12 +271,18 @@ test.each([
 });
 
 test('it stops with exit code 0 on SIGTERM', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
     env: { ...ctx.env, ATC_TEST_SOURCES: 'none' },
     stdout: 'pipe',
     stderr: 'ignore',
+  });
+
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
   });
 
   await proc.stdout.getReader().read();

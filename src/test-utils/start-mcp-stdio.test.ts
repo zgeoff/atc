@@ -5,71 +5,71 @@ import { createStubBin } from './create-stub-bin';
 import { setupMCPHome } from './setup-mcp-home';
 import { startMCPStdio } from './start-mcp-stdio';
 
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+// A home with the stand-in agents registered, for the server each test
+// starts there.
+function setupTest() {
+  const mcpHome = setupMCPHome();
 
-  const mcpHome = stack.use(setupMCPHome());
-
-  const mcp = await startMCPStdio({ home: mcpHome.home });
-
-  stack.use(mcp);
-
-  const owned = stack.move();
-
-  return { home: mcpHome.home, mcp, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { home: mcpHome.home };
 }
 
 test('it resolves a request with its whole response under the next id', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const response = await ctx.mcp.sendRequest('ping');
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const response = await mcp.sendRequest('ping');
 
   expect(response).toStrictEqual({ jsonrpc: '2.0', id: 2, result: {} });
 });
 
 test('it resolves a tool call with its error flag, text, and structured content', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const result = await ctx.mcp.sendToolCall('atc_session_list', {});
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const result = await mcp.sendToolCall('atc_session_list', {});
 
   expect(result).toStrictEqual({ isError: undefined, text: '[]', structured: { sessions: [] } });
 });
 
 test('it resolves a spawn with the id of the session it started', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const id = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'harness' });
-  const listed = await ctx.mcp.sendToolCall('atc_session_list', {});
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const id = await mcp.spawnSession({ cwd: ctx.home, name: 'harness' });
+  const listed = await mcp.sendToolCall('atc_session_list', {});
 
   expect(listed.structured).toMatchObject({ sessions: [{ id, name: 'harness' }] });
 });
 
 test('it rejects a spawn the server refuses', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  expect(ctx.mcp.spawnSession({ cwd: ctx.home, agent: 'gemini' })).rejects.toThrowWithMessage(
+  const mcp = await startMCPStdio({ home: ctx.home });
+
+  expect(mcp.spawnSession({ cwd: ctx.home, agent: 'gemini' })).rejects.toThrowWithMessage(
     TypeError,
     /^spawn returned no session id: unsupported: no adapter for agent 'gemini'/,
   );
 });
 
 test('it starts a server that runs inside the caller session', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const parent = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'parent' });
-
-  await using inner = await startMCPStdio({ home: ctx.home, callerSessionID: parent });
-
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const parent = await mcp.spawnSession({ cwd: ctx.home, name: 'parent' });
+  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: parent });
   const child = await inner.sendToolCall('atc_session_spawn', { cwd: ctx.home, name: 'child' });
 
   expect(child.structured).toMatchObject({ name: 'child', parent });
 });
 
 test('it rejects a request still pending when the server stops', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const held = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
-  const stopping = ctx.mcp[Symbol.asyncDispose]();
+  const mcp = await startMCPStdio({ home: ctx.home });
+
+  const held = mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
+  const stopping = mcp[Symbol.asyncDispose]();
 
   onTestFinished(() => stopping);
 
@@ -77,7 +77,7 @@ test('it rejects a request still pending when the server stops', async () => {
 });
 
 test('it rejects a tool call whose response holds no result', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
   const bin = createStubBin(
     ctx.home,
@@ -88,7 +88,7 @@ test('it rejects a tool call whose response holds no result', async () => {
     ]),
   );
 
-  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+  const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
   expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
     TypeError,
@@ -97,7 +97,7 @@ test('it rejects a tool call whose response holds no result', async () => {
 });
 
 test('it rejects a tool call whose result holds no text item', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
   const bin = createStubBin(
     ctx.home,
@@ -108,7 +108,7 @@ test('it rejects a tool call whose result holds no text item', async () => {
     ]),
   );
 
-  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+  const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
   expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
     TypeError,
@@ -117,7 +117,7 @@ test('it rejects a tool call whose result holds no text item', async () => {
 });
 
 test('it rejects a tool call whose result holds two text items', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
   const bin = createStubBin(
     ctx.home,
@@ -128,7 +128,7 @@ test('it rejects a tool call whose result holds two text items', async () => {
     ]),
   );
 
-  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+  const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
   expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
     TypeError,
@@ -137,7 +137,7 @@ test('it rejects a tool call whose result holds two text items', async () => {
 });
 
 test('it rejects a tool call whose structured content is not an object', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
   const bin = createStubBin(
     ctx.home,
@@ -148,7 +148,7 @@ test('it rejects a tool call whose structured content is not an object', async (
     ]),
   );
 
-  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+  const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
   expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
     TypeError,
@@ -157,7 +157,7 @@ test('it rejects a tool call whose structured content is not an object', async (
 });
 
 test('it rejects a pending request once the server prints a line that is not JSON', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
   const bin = createStubBin(
     ctx.home,
@@ -165,7 +165,7 @@ test('it rejects a pending request once the server prints a line that is not JSO
     buildStubMCPStdioServer(['{"jsonrpc":"2.0","id":1,"result":{}}', 'not json']),
   );
 
-  await using server = await startMCPStdio({ home: ctx.home, command: [bin] });
+  const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
   expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
     Error,
@@ -174,16 +174,17 @@ test('it rejects a pending request once the server prints a line that is not JSO
 });
 
 test('it resolves a second disposal', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.mcp[Symbol.asyncDispose]();
+  const mcp = await startMCPStdio({ home: ctx.home });
 
-  expect(ctx.mcp[Symbol.asyncDispose]()).resolves.toBeUndefined();
+  await mcp[Symbol.asyncDispose]();
+
+  expect(mcp[Symbol.asyncDispose]()).resolves.toBeUndefined();
 });
 
 test('it stops a server whose initialize fails before rejecting', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = setupTest();
   const bin = createStubBin(ctx.home, 'bad-init', buildStubMCPStdioServer(['not json']));
   const starting = startMCPStdio({ home: ctx.home, command: [bin] });
 

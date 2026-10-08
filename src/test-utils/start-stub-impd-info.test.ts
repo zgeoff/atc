@@ -2,7 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { startStubImpdInfo } from './start-stub-impd-info';
 
 test('it answers a call with the features the test sets, in the RPC body shape', async () => {
-  await using impd = startStubImpdInfo();
+  const impd = startStubImpdInfo();
 
   impd.info.features = { leases: true };
 
@@ -15,7 +15,7 @@ test('it answers a call with the features the test sets, in the RPC body shape',
 });
 
 test('it records the path of each call in order', async () => {
-  await using impd = startStubImpdInfo();
+  const impd = startStubImpdInfo();
 
   await fetch(`${impd.url}/rpc/system/info`, { method: 'POST', body: '{}' });
   await fetch(`${impd.url}/rpc/tokens/whoami`, { method: 'POST', body: '{}' });

@@ -1,34 +1,29 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubMCPClaude } from './build-stub-mcp-claude';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-stub-mcp-claude-'));
+  const tmp = setupTempDir('atc-stub-mcp-claude-');
 
   // The reporter the script reports through sends its lines here.
-  const reporter = stack.use(startStubReporterSocket(join(tmp.dir, 'report.sock')));
+  const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
   const bin = createStubBin(tmp.dir, 'claude', buildStubMCPClaude());
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
     bin,
     lines: reporter.lines,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
 test('it prints its marker and arguments', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-claude-hold-start'), '');
 
@@ -38,7 +33,7 @@ test('it prints its marker and arguments', async () => {
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -50,7 +45,7 @@ test('it prints its marker and arguments', async () => {
 });
 
 test('it records its pid in the home', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-claude-hold-start'), '');
 
@@ -60,7 +55,7 @@ test('it records its pid in the home', async () => {
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -72,7 +67,7 @@ test('it records its pid in the home', async () => {
 });
 
 test('it reports nothing when the home holds the hold-start file', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-claude-hold-start'), '');
 
@@ -87,7 +82,7 @@ test('it reports nothing when the home holds the hold-start file', async () => {
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     held.kill();
   });
 
@@ -109,7 +104,7 @@ test('it reports nothing when the home holds the hold-start file', async () => {
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     sentinel.kill();
   });
 
@@ -131,7 +126,7 @@ test('it reports nothing when the home holds the hold-start file', async () => {
 });
 
 test('it stays up after reporting, echoing its input back until the input closes', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin], {
     env: {
@@ -144,7 +139,7 @@ test('it stays up after reporting, echoing its input back until the input closes
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -164,7 +159,7 @@ test('it stays up after reporting, echoing its input back until the input closes
 });
 
 test('it reports SessionStart with its session id and transcript through the reporter', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin], {
     env: {
@@ -176,7 +171,7 @@ test('it reports SessionStart with its session id and transcript through the rep
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -200,7 +195,7 @@ test('it reports SessionStart with its session id and transcript through the rep
 });
 
 test('it files the note file as a decision report', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-claude-note'), 'pick the second option');
 
@@ -214,7 +209,7 @@ test('it files the note file as a decision report', async () => {
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 

@@ -8,9 +8,7 @@ import { startTUIHarness } from './start-tui-harness';
 // The client booted to its home screen with a signed-out `gh` on its PATH,
 // so the GitHub repository step opens without reaching GitHub.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tui = stack.use(startTUIHarness());
+  const tui = startTUIHarness();
 
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
 
@@ -18,13 +16,11 @@ async function setupTest() {
 
   await tui.waitFor('atc — control tower');
 
-  const owned = stack.move();
-
-  return { tui, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { tui };
 }
 
 test('it leaves a capture that starts at the tab to the GitHub repository step', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await openRepoStep(ctx.tui);
 

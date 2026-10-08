@@ -4,11 +4,12 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { isProcessAlive } from '../shared/is-process-alive';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupMCPHome } from './setup-mcp-home';
 import { waitFor } from './wait-for';
 
 test('it writes a config that registers the stand-in agents', async () => {
-  await using mcpHome = setupMCPHome();
+  const mcpHome = setupMCPHome();
 
   const config: unknown = await Bun.file(
     join(mcpHome.home, '.config', 'atc', 'config.json'),
@@ -23,7 +24,7 @@ test('it writes a config that registers the stand-in agents', async () => {
 });
 
 test('it writes the stand-in claude as an executable', async () => {
-  await using mcpHome = setupMCPHome();
+  const mcpHome = setupMCPHome();
 
   writeFileSync(join(mcpHome.home, 'fake-claude-hold-start'), '');
 
@@ -33,7 +34,7 @@ test('it writes the stand-in claude as an executable', async () => {
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     claude.kill();
   });
 
@@ -45,8 +46,7 @@ test('it writes the stand-in claude as an executable', async () => {
 });
 
 test('it stops the daemon its pid file holds before removing the home', async () => {
-  await using mcpHome = setupMCPHome();
-
+  const mcpHome = setupMCPHome();
   const daemon = Bun.spawn(['sleep', '30']);
 
   onTestFinished(() => {
@@ -57,14 +57,12 @@ test('it stops the daemon its pid file holds before removing the home', async ()
 
   await mcpHome[Symbol.asyncDispose]();
 
-  expect({ alive: isProcessAlive(daemon.pid), home: existsSync(mcpHome.home) }).toStrictEqual({
-    alive: false,
-    home: false,
-  });
+  expect(isProcessAlive(daemon.pid)).toBe(false);
+  expect(existsSync(mcpHome.home)).toBe(false);
 });
 
 test("it kills every process in a recorded stand-in's process group", async () => {
-  await using mcpHome = setupMCPHome();
+  const mcpHome = setupMCPHome();
 
   const stub = spawn('bash', ['-c', 'echo $$ >> "$HOME/stub-pids"; sleep 30 & exec sleep 30'], {
     detached: true,
@@ -90,8 +88,7 @@ test("it kills every process in a recorded stand-in's process group", async () =
 });
 
 test('it never kills a process outside the recorded process groups', async () => {
-  await using mcpHome = setupMCPHome();
-
+  const mcpHome = setupMCPHome();
   const bystander = spawn('sleep', ['30'], { detached: true, stdio: 'ignore' });
 
   onTestFinished(() => {
@@ -106,7 +103,7 @@ test('it never kills a process outside the recorded process groups', async () =>
 });
 
 test('it removes a home that holds no daemon pid', async () => {
-  await using mcpHome = setupMCPHome();
+  const mcpHome = setupMCPHome();
 
   await mcpHome[Symbol.asyncDispose]();
 

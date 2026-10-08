@@ -1,11 +1,14 @@
-import { expect, mock, onTestFinished, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { buildStubPTYProvider } from './build-stub-pty-provider';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  return setupTempDir('atc-stub-pty-provider-');
+  const tmp = setupTempDir('atc-stub-pty-provider-');
+
+  return { dir: tmp.dir };
 }
 
 test('it reports the local provider kind and capabilities by default', () => {
@@ -27,8 +30,7 @@ test('it reports the kind and capabilities the test gives it', () => {
 });
 
 test('it reports each spec and runs the harness on a real terminal', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const onSpawn = mock(() => {});
   const provider = buildStubPTYProvider({ onSpawn });
   const output: string[] = [];
@@ -46,7 +48,7 @@ test('it reports each spec and runs the harness on a real terminal', async () =>
 
   const harness = provider.spawnHarness(spec);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 

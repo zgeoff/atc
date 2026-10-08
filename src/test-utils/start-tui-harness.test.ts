@@ -6,21 +6,17 @@ import { startTUIHarness } from './start-tui-harness';
 
 // A harness whose client has booted and drawn its home screen.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tui = stack.use(startTUIHarness());
+  const tui = startTUIHarness();
 
   tui.boot();
 
   await tui.waitFor('atc — control tower');
 
-  const owned = stack.move();
-
-  return { tui, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { tui };
 }
 
 test('it boots the client in its home, where the client starts its daemon', async () => {
-  await using tui = startTUIHarness();
+  const tui = startTUIHarness();
 
   tui.boot();
 
@@ -30,7 +26,7 @@ test('it boots the client in its home, where the client starts its daemon', asyn
 });
 
 test('it rejects a wait for text the client never draws with the tail of the capture', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.tui.waitFor('never drawn', 100)).rejects.toThrowWithMessage(
     Error,
@@ -41,8 +37,6 @@ test('it rejects a wait for text the client never draws with the tail of the cap
 test('it rejects a wait made while the client has drawn nothing', () => {
   const tui = startTUIHarness({ bootMs: 100 });
 
-  onTestFinished(() => tui[Symbol.asyncDispose]());
-
   expect(tui.waitFor('atc — control tower')).rejects.toThrow(
     'timed out waiting for "atc — control tower"; the client wrote nothing in 100ms of boot',
   );
@@ -50,8 +44,6 @@ test('it rejects a wait made while the client has drawn nothing', () => {
 
 test('it rejects a write before the client boots', () => {
   const tui = startTUIHarness();
-
-  onTestFinished(() => tui[Symbol.asyncDispose]());
 
   expect(() => {
     tui.write('n');
@@ -61,13 +53,11 @@ test('it rejects a write before the client boots', () => {
 test('it rejects a wait for exit before the client boots', () => {
   const tui = startTUIHarness();
 
-  onTestFinished(() => tui[Symbol.asyncDispose]());
-
   expect(() => tui.waitForExit()).toThrow('wait for exit before boot');
 });
 
 test('it forgets what the client drew on reset', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.tui.reset();
 
@@ -76,8 +66,6 @@ test('it forgets what the client drew on reset', async () => {
 
 test('it writes the fake binaries and transports with the fields given laid over them', () => {
   const tui = startTUIHarness();
-
-  onTestFinished(() => tui[Symbol.asyncDispose]());
 
   tui.writeConfig({ leader: 'ctrl-]', workspaces: { sources: ['git'] } });
 
@@ -95,7 +83,7 @@ test('it writes the fake binaries and transports with the fields given laid over
 });
 
 test('it moves the mark past a line the client logs after it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.tui.reset();
   ctx.tui.write(KEYS.ctrlSpace);
@@ -112,7 +100,7 @@ test('it moves the mark past a line the client logs after it', async () => {
 });
 
 test('it rejects a wait for a log line written only before the mark', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.tui.reset();
   ctx.tui.write(KEYS.ctrlSpace);
@@ -135,7 +123,7 @@ test('it rejects a wait for a log line written only before the mark', async () =
 });
 
 test('it resolves the exit code of the client it booted', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.tui.write('q');
 
@@ -145,7 +133,7 @@ test('it resolves the exit code of the client it booted', async () => {
 });
 
 test('it stops the daemon the client started on dispose', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pid = Number(readFileSync(join(ctx.tui.home, 'atc-daemon.pid'), 'utf8'));
 
@@ -155,7 +143,7 @@ test('it stops the daemon the client started on dispose', async () => {
 });
 
 test('it removes its home on dispose', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.tui[Symbol.asyncDispose]();
 

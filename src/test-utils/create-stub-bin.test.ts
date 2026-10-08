@@ -5,18 +5,19 @@ import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-bin-');
+  const tmp = setupTempDir('atc-stub-bin-');
+
+  return { dir: tmp.dir };
 }
 
 test('it returns the script path under the directory', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(createStubBin(ctx.dir, 'gh', '#!/bin/sh\n')).toBe(join(ctx.dir, 'gh'));
 });
 
 test('it writes a script that runs as a command', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = createStubBin(ctx.dir, 'gh', '#!/bin/sh\necho "fake gh $1"\n');
   const result = Bun.spawnSync([path, 'auth']);
 
@@ -24,24 +25,21 @@ test('it writes a script that runs as a command', () => {
 });
 
 test('it marks the script executable for every user', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = createStubBin(ctx.dir, 'gh', '#!/bin/sh\n');
 
   expect(statSync(path).mode & 0o777).toBe(0o755);
 });
 
 test('it creates a missing directory', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = createStubBin(join(ctx.dir, 'bin', 'nested'), 'zoxide', '#!/bin/sh\necho z\n');
 
   expect(Bun.spawnSync([path]).stdout.toString()).toBe('z\n');
 });
 
 test('it replaces an existing file and makes it executable', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 'codex');
 
   writeFileSync(path, 'stale');

@@ -4,6 +4,7 @@ import { DaemonClient } from '../client/daemon-client';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
+import { registerTestCleanup } from './register-test-cleanup';
 import { runMCPAuthorization } from './run-mcp-authorization';
 import { setupTempDir } from './setup-temp-dir';
 
@@ -11,9 +12,7 @@ import { setupTempDir } from './setup-temp-dir';
 // authorization never reaches the daemon, so the caller points at a socket
 // nothing listens on and never dials it.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-run-mcp-authorization-'));
+  const tmp = setupTempDir('atc-run-mcp-authorization-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
@@ -21,7 +20,7 @@ async function setupTest() {
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const server = await startMCPHTTPServer({
     caller,
@@ -37,27 +36,19 @@ async function setupTest() {
     printRequest: () => {},
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
   // The authorization database opened the way `atc clients` opens it, to
   // register clients through.
   const store = await openMCPAuth({ dbPath, origin: null });
 
-  stack.defer(() => store.close());
+  registerTestCleanup(() => store.close());
 
-  const owned = stack.move();
-
-  return {
-    url: server.url,
-    origin: server.origin,
-    approvals,
-    store,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { url: server.url, origin: server.origin, approvals, store };
 }
 
 test('it returns at the redirect URI with an authorization code its verifier exchanges for tokens', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
@@ -89,7 +80,7 @@ test('it returns at the redirect URI with an authorization code its verifier exc
 });
 
 test('it throws when the authorization stops short of the login page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
@@ -109,7 +100,7 @@ test('it throws when the authorization stops short of the login page', async () 
 });
 
 test('it throws when the server printed no approval code', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
@@ -129,7 +120,7 @@ test('it throws when the server printed no approval code', async () => {
 });
 
 test('it throws when the approval code does not reach the consent page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
@@ -156,7 +147,7 @@ test('it throws when the approval code does not reach the consent page', async (
 });
 
 test('it throws when the consent redirect holds no authorization code', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
@@ -176,7 +167,7 @@ test('it throws when the consent redirect holds no authorization code', async ()
 });
 
 test('it throws when the consent page answers without a redirect', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },

@@ -6,11 +6,12 @@ import { buildStubAttentionAdapter } from './build-stub-attention-adapter';
 test('it builds an adapter whose sessions take messages and resume with claude', () => {
   const adapter = buildStubAttentionAdapter();
 
-  expect({
-    id: adapter.id,
-    takesMessages: adapter.takesMessages,
-    resume: adapter.buildResumeCommand('/nonexistent', toAgentSessionID('c-1')),
-  }).toStrictEqual({ id: 'claude', takesMessages: true, resume: 'claude --resume' });
+  expect(adapter.id).toBe('claude');
+  expect(adapter.takesMessages).toBe(true);
+
+  expect(adapter.buildResumeCommand('/nonexistent', toAgentSessionID('c-1'))).toBe(
+    'claude --resume',
+  );
 });
 
 test('it reads a notification hook as needing input', () => {

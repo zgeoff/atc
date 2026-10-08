@@ -4,12 +4,13 @@ import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-signed-out-gh-');
+  const tmp = setupTempDir('atc-stub-signed-out-gh-');
+
+  return { dir: tmp.dir };
 }
 
 test('it refuses every command with the sign-in hint and exit code 4', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const gh = createStubBin(ctx.dir, 'gh', buildStubSignedOutGH());
   const result = Bun.spawnSync([gh, 'repo', 'list']);
 

@@ -1,9 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startStubImpd } from './start-stub-impd';
 import { waitFor } from './wait-for';
 
 test('it answers a call as system info until the caller sets an answer for its path', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   const response = await fetch(`${impd.url}/rpc/system/info`, { method: 'POST', body: '{}' });
   const body: unknown = await response.json();
@@ -14,7 +15,7 @@ test('it answers a call as system info until the caller sets an answer for its p
 });
 
 test('it answers a call with the answer the caller set for its path', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   impd.answers.set('/rpc/grants/list', { status: 404, json: { code: 'NOT_FOUND' } });
 
@@ -27,7 +28,7 @@ test('it answers a call with the answer the caller set for its path', async () =
 });
 
 test('it records the authorization header and the input of each call', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   await fetch(`${impd.url}/rpc/grants/add`, {
     method: 'POST',
@@ -35,18 +36,16 @@ test('it records the authorization header and the input of each call', async () 
     body: JSON.stringify({ json: { name: 'atc-s1' } }),
   });
 
-  expect({ authorizations: impd.authorizations, calls: impd.calls }).toStrictEqual({
-    authorizations: ['Bearer t'],
-    calls: [{ path: '/rpc/grants/add', input: { name: 'atc-s1' } }],
-  });
+  expect(impd.authorizations).toStrictEqual(['Bearer t']);
+  expect(impd.calls).toStrictEqual([{ path: '/rpc/grants/add', input: { name: 'atc-s1' } }]);
 });
 
 test('it refuses an exec open as a start whose broker is not ready', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.close();
   });
 
@@ -62,25 +61,24 @@ test('it refuses an exec open as a start whose broker is not ready', async () =>
 
   const answer = await answered.promise;
 
-  expect({ answer, opens: impd.execOpens }).toStrictEqual({
-    answer: {
-      type: 'error',
-      code: 'PRECONDITION_FAILED',
-      message: 'the broker is not ready',
-      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
-    },
-    opens: [{ type: 'start', name: 'imp-a' }],
+  expect(answer).toStrictEqual({
+    type: 'error',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready',
+    data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
   });
+
+  expect(impd.execOpens).toStrictEqual([{ type: 'start', name: 'imp-a' }]);
 });
 
 test('it counts the stdin bytes of a started exec once stdin ends', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   impd.exec.reply = 'count';
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.close();
   });
 
@@ -110,13 +108,13 @@ test('it counts the stdin bytes of a started exec once stdin ends', async () => 
 });
 
 test('it exits a started exec with code 2 at once when told to exit early', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   impd.exec.reply = 'exit-early';
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.close();
   });
 
@@ -141,11 +139,11 @@ test('it exits a started exec with code 2 at once when told to exit early', asyn
 });
 
 test('it answers a tunnel listen as listening and keeps its control socket', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/tunnel`);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.close();
   });
 
@@ -161,20 +159,24 @@ test('it answers a tunnel listen as listening and keeps its control socket', asy
 
   const answer = await answered.promise;
 
-  expect<Record<string, unknown>>({ answer, controls: impd.controls }).toStrictEqual({
-    answer: { type: 'listening', listener: 'l1', path: '/tmp/r.sock', port: null },
-    controls: [expect.anything()],
+  expect(answer).toStrictEqual({
+    type: 'listening',
+    listener: 'l1',
+    path: '/tmp/r.sock',
+    port: null,
   });
+
+  expect<unknown[]>(impd.controls).toStrictEqual([expect.anything()]);
 });
 
 test('it records the authorization header of a WebSocket upgrade and no call', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`, {
     headers: { authorization: 'Bearer w' },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.close();
   });
 
@@ -186,18 +188,16 @@ test('it records the authorization header of a WebSocket upgrade and no call', a
 
   await opened.promise;
 
-  expect({ authorizations: impd.authorizations, calls: impd.calls }).toStrictEqual({
-    authorizations: ['Bearer w'],
-    calls: [],
-  });
+  expect(impd.authorizations).toStrictEqual(['Bearer w']);
+  expect(impd.calls).toStrictEqual([]);
 });
 
 test('it closes a WebSocket that sends a message over 2 MiB', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.close();
   });
 
@@ -219,11 +219,11 @@ test('it closes a WebSocket that sends a message over 2 MiB', async () => {
 });
 
 test('it drops an open WebSocket on disposal', async () => {
-  using impd = startStubImpd();
+  const impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.close();
   });
 

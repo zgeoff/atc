@@ -175,7 +175,7 @@
     "src/test-utils/start-output-capture.test.ts": 170,
     "src/test-utils/run-atc.test.ts": 166,
     "src/agents/update-claude-project-trust.test.ts": 164,
-    "src/test-utils/run-legacy-daemon.test.ts": 158,
+    "src/test-utils/run-stub-legacy-daemon.test.ts": 158,
     "src/agents/build-codex-guest-launch.test.ts": 157,
     "src/hook-report.test.ts": 156,
     "src/test-utils/start-stub-impd.test.ts": 154,

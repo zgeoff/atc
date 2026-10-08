@@ -1,10 +1,13 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import type { HarnessSpec } from '../daemon/execution-provider';
 import { buildStubHeldProvider } from './build-stub-held-provider';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-held-provider-');
+  const tmp = setupTempDir('atc-stub-held-provider-');
+
+  return { dir: tmp.dir };
 }
 
 test('it records the host of each preparation in the order it began', () => {
@@ -39,8 +42,7 @@ test('it holds the preparation of a host not yet released after an earlier one f
 });
 
 test('it records each harness it starts', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const stub = buildStubHeldProvider();
 
   const spec: HarnessSpec = {
@@ -56,7 +58,7 @@ test('it records each harness it starts', () => {
 
   const harness = stub.provider.spawnHarness(spec);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 

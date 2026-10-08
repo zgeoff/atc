@@ -3,21 +3,21 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubUnansweringUnixListener } from './start-stub-unanswering-unix-listener';
 import { waitFor } from './wait-for';
 
-// A temp directory to hold the listener's socket. Disposal removes it.
+// A temp directory to hold the listener's socket.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-unanswering-');
 
-  return { path: join(tmp.dir, 'unanswering.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { path: join(tmp.dir, 'unanswering.sock') };
 }
 
 test('it records what a connection sends, answers nothing, and keeps the connection open', async () => {
-  using ctx = setupTest();
-  using listener = startStubUnansweringUnixListener(ctx.path);
-
+  const ctx = setupTest();
+  const listener = startStubUnansweringUnixListener(ctx.path);
   const events: string[] = [];
 
   const socket = await Bun.connect({
@@ -32,7 +32,7 @@ test('it records what a connection sends, answers nothing, and keeps the connect
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -46,8 +46,7 @@ test('it records what a connection sends, answers nothing, and keeps the connect
 });
 
 test('it stops listening once disposed', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const listener = startStubUnansweringUnixListener(ctx.path);
 
   listener[Symbol.dispose]();

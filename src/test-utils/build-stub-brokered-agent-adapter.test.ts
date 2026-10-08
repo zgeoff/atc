@@ -99,8 +99,10 @@ test('it takes the id it is given and sleeps on a local spawn', () => {
     isSelected: () => true,
   });
 
-  expect({
-    id: adapter.id,
-    plan: adapter.planSpawn({ prompt: '', resume: false }),
-  }).toStrictEqual({ id: 'proxied', plan: { bin: 'sleep', args: ['30'] } });
+  expect(adapter.id).toBe('proxied');
+
+  expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
+    bin: 'sleep',
+    args: ['30'],
+  });
 });

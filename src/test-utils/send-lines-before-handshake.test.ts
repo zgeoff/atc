@@ -3,13 +3,15 @@ import { sendLinesBeforeHandshake } from './send-lines-before-handshake';
 import { startStubRefusingListener } from './start-stub-refusing-listener';
 
 // The listener the lines go to, which records each read and ends the
-// connection it came on; disposal stops it.
+// connection it came on; it stops once the test finishes.
 function setupTest() {
-  return startStubRefusingListener();
+  const listener = startStubRefusingListener();
+
+  return { port: listener.port, received: listener.received };
 }
 
 test('it sends one line on each of its connections and waits for the server to close them', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await sendLinesBeforeHandshake(ctx.port, 150);
 

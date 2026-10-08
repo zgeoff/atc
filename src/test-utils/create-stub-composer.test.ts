@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { spawn } from 'bun-pty';
 import { createStubComposer } from './create-stub-composer';
 import { KEYS } from './keys';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -10,9 +11,7 @@ import { waitFor } from './wait-for';
  * gathered into `output.text`, waiting until it is ready for input.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-stub-composer-'));
+  const tmp = setupTempDir('atc-stub-composer-');
 
   const pty = spawn(process.execPath, [createStubComposer(tmp.dir)], {
     name: 'xterm-256color',
@@ -21,7 +20,7 @@ async function setupTest() {
     cwd: tmp.dir,
   });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     pty.kill();
   });
 
@@ -35,19 +34,17 @@ async function setupTest() {
     expect(output.text).toInclude('FAKE_COMPOSER_READY');
   });
 
-  const owned = stack.move();
-
-  return { pty, output, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { pty, output };
 }
 
 test('it turns bracketed paste on before it reports ready', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.output.text).toInclude('\u001B[?2004hFAKE_COMPOSER_READY\r');
 });
 
 test('it submits the typed text on a lone carriage return', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.pty.write('hello');
 
@@ -63,7 +60,7 @@ test('it submits the typed text on a lone carriage return', async () => {
 });
 
 test('it prints every byte received so far after each read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.pty.write('ab');
 
@@ -79,7 +76,7 @@ test('it prints every byte received so far after each read', async () => {
 });
 
 test('it keeps the line breaks of a bracketed paste in the submission', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.pty.write(`${KEYS.pasteOpen}first${KEYS.enter}second${KEYS.pasteClose}`);
 
@@ -97,7 +94,7 @@ test('it keeps the line breaks of a bracketed paste in the submission', async ()
 });
 
 test('it adds a line break for a lone line feed instead of submitting', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.pty.write('first');
 
@@ -125,7 +122,7 @@ test('it adds a line break for a lone line feed instead of submitting', async ()
 });
 
 test('it keeps the line breaks of an unbracketed burst in the composer', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.pty.write(`first${KEYS.enter}second`);
 
@@ -141,7 +138,7 @@ test('it keeps the line breaks of an unbracketed burst in the composer', async (
 });
 
 test('it holds a paste marker split across two reads', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.pty.write(KEYS.pasteOpen.slice(0, 4));
 

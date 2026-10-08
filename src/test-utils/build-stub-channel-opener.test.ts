@@ -7,9 +7,11 @@ test('it opens each dial with the opener at its position', async () => {
     (address: string) => Promise.resolve(`second ${address}`),
   ]);
 
-  const opened = [await opener.open('a'), await opener.open('b')];
+  const first = await opener.open('a');
+  const second = await opener.open('b');
 
-  expect(opened).toStrictEqual(['first a', 'second b']);
+  expect(first).toBe('first a');
+  expect(second).toBe('second b');
 });
 
 test('it opens every dial past the list with the last opener', async () => {

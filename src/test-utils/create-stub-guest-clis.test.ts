@@ -8,11 +8,13 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  return setupTempDir('atc-stub-guest-clis-');
+  const tmp = setupTempDir('atc-stub-guest-clis-');
+
+  return { dir: tmp.dir };
 }
 
 test('it creates both tools under the directory', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(createStubGuestCLIs(ctx.dir)).toStrictEqual({
     atc: join(ctx.dir, 'atc'),
@@ -21,15 +23,14 @@ test('it creates both tools under the directory', () => {
 });
 
 test('it creates an atc that runs the CLI of this source tree', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const result = Bun.spawnSync([createStubGuestCLIs(ctx.dir).atc, 'help']);
 
   expect(result.stdout.toString()).toInclude('Terminal control tower for coding-agent sessions');
 });
 
 test('it creates a claude that prints its pid, then echoes each line it reads', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = Bun.spawnSync([createStubGuestCLIs(ctx.dir).claude], {
     stdin: Buffer.from('hello\n'),
@@ -39,18 +40,15 @@ test('it creates a claude that prints its pid, then echoes each line it reads', 
 });
 
 test('it makes both tools executable', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
 
-  expect([statSync(clis.atc).mode & 0o111, statSync(clis.claude).mode & 0o111]).toStrictEqual([
-    0o111, 0o111,
-  ]);
+  expect(statSync(clis.atc).mode & 0o111).toBe(0o111);
+  expect(statSync(clis.claude).mode & 0o111).toBe(0o111);
 });
 
 test('it reports a SessionStart with a transcript only the host holds for start', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
@@ -67,8 +65,7 @@ test('it reports a SessionStart with a transcript only the host holds for start'
 });
 
 test('it reports a Notification carrying the text for notify', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
@@ -85,8 +82,7 @@ test('it reports a Notification carrying the text for notify', () => {
 });
 
 test('it reports a SessionStart from a nested Codex harness for nested', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
@@ -103,8 +99,7 @@ test('it reports a SessionStart from a nested Codex harness for nested', () => {
 });
 
 test('it reports a Notification as another atc session for forge', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
@@ -121,8 +116,7 @@ test('it reports a Notification as another atc session for forge', () => {
 });
 
 test('it answers the message with the text for answer', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
@@ -139,8 +133,7 @@ test('it answers the message with the text for answer', () => {
 });
 
 test('it reports a note labelled progress for note', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
   const log = join(ctx.dir, 'atc.log');
 
@@ -157,8 +150,7 @@ test('it reports a note labelled progress for note', () => {
 });
 
 test('it runs the tap in the background, printing into the file, for tap', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
   const tapFile = join(ctx.dir, 'tap.log');
 

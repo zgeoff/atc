@@ -4,47 +4,44 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openBridgeSocket } from '../protocol/open-bridge-socket';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubSessionBridge } from './start-stub-session-bridge';
 import { waitFor } from './wait-for';
 
-/**
- * A temp directory to hold the stub bridge's socket. Disposal removes it.
- */
+// A temp directory to hold the stub bridge's socket.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-bridge-');
 
-  return { path: join(tmp.dir, 'bridge.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { path: join(tmp.dir, 'bridge.sock') };
 }
 
 test('it answers a tap.open request with ok under its id without asking the responder', async () => {
-  using ctx = setupTest();
-  using bridge = startStubSessionBridge(ctx.path, () => [{ unexpected: true }]);
-
+  const ctx = setupTest();
+  const bridge = startStubSessionBridge(ctx.path, () => [{ unexpected: true }]);
   const answers: Readonly<Record<string, unknown>>[] = [];
 
   const socket = await openBridgeSocket(ctx.path, (line) => {
     answers.push(line);
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
   socket.writeLine({ v: 1, id: 'tap.open', op: 'tap.open' });
 
   await waitFor(() => {
-    expect({ answers, requests: bridge.requests }).toStrictEqual({
-      answers: [{ id: 'tap.open', ok: true }],
-      requests: [{ v: 1, id: 'tap.open', op: 'tap.open' }],
-    });
+    expect(answers).toStrictEqual([{ id: 'tap.open', ok: true }]);
   });
+
+  expect(bridge.requests).toStrictEqual([{ v: 1, id: 'tap.open', op: 'tap.open' }]);
 });
 
 test('it writes back every line the responder returns for a request', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  using bridge = startStubSessionBridge(ctx.path, (request) => [
+  const bridge = startStubSessionBridge(ctx.path, (request) => [
     { id: request['id'], ok: true },
     { ev: 'InboxClosed' },
   ]);
@@ -55,31 +52,29 @@ test('it writes back every line the responder returns for a request', async () =
     answers.push(line);
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
   socket.writeLine({ v: 1, id: 'report:r1', op: 'report' });
 
   await waitFor(() => {
-    expect({ answers, requests: bridge.requests }).toStrictEqual({
-      answers: [{ id: 'report:r1', ok: true }, { ev: 'InboxClosed' }],
-      requests: [{ v: 1, id: 'report:r1', op: 'report' }],
-    });
+    expect(answers).toStrictEqual([{ id: 'report:r1', ok: true }, { ev: 'InboxClosed' }]);
   });
+
+  expect(bridge.requests).toStrictEqual([{ v: 1, id: 'report:r1', op: 'report' }]);
 });
 
 test('it ends the connection without an answer when the responder returns null', async () => {
-  using ctx = setupTest();
-  using bridge = startStubSessionBridge(ctx.path, () => null);
-
+  const ctx = setupTest();
+  const bridge = startStubSessionBridge(ctx.path, () => null);
   const answers: Readonly<Record<string, unknown>>[] = [];
 
   const socket = await openBridgeSocket(ctx.path, (line) => {
     answers.push(line);
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -87,18 +82,15 @@ test('it ends the connection without an answer when the responder returns null',
 
   await socket.closed;
 
-  expect({ answers, requests: bridge.requests }).toStrictEqual({
-    answers: [],
-    requests: [{ v: 1, id: 'report:r1', op: 'report' }],
-  });
+  expect(answers).toStrictEqual([]);
+  expect(bridge.requests).toStrictEqual([{ v: 1, id: 'report:r1', op: 'report' }]);
 });
 
 test('it hands a line that is not JSON to the responder as an empty request', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const received: Readonly<Record<string, unknown>>[] = [];
 
-  using bridge = startStubSessionBridge(ctx.path, (request) => {
+  const bridge = startStubSessionBridge(ctx.path, (request) => {
     received.push(request);
 
     return [];
@@ -106,26 +98,24 @@ test('it hands a line that is not JSON to the responder as an empty request', as
 
   const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
   socket.write('not json\n');
 
   await waitFor(() => {
-    expect({ received, requests: bridge.requests }).toStrictEqual({
-      received: [{}],
-      requests: [{}],
-    });
+    expect(received).toStrictEqual([{}]);
   });
+
+  expect(bridge.requests).toStrictEqual([{}]);
 });
 
 test('it hands a JSON line that is not an object to the responder as an empty request', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const received: Readonly<Record<string, unknown>>[] = [];
 
-  using bridge = startStubSessionBridge(ctx.path, (request) => {
+  const bridge = startStubSessionBridge(ctx.path, (request) => {
     received.push(request);
 
     return [];
@@ -133,33 +123,32 @@ test('it hands a JSON line that is not an object to the responder as an empty re
 
   const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
   socket.write('[1,2]\n');
 
   await waitFor(() => {
-    expect({ received, requests: bridge.requests }).toStrictEqual({
-      received: [{}],
-      requests: [{}],
-    });
+    expect(received).toStrictEqual([{}]);
   });
+
+  expect(bridge.requests).toStrictEqual([{}]);
 });
 
 test('it buffers a partial line for each connection apart', async () => {
-  using ctx = setupTest();
-  using bridge = startStubSessionBridge(ctx.path, () => []);
+  const ctx = setupTest();
+  const bridge = startStubSessionBridge(ctx.path, () => []);
 
   const first = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.end();
   });
 
   const second = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.end();
   });
 
@@ -179,12 +168,12 @@ test('it buffers a partial line for each connection apart', async () => {
 });
 
 test('it counts each read it takes from a connection', async () => {
-  using ctx = setupTest();
-  using bridge = startStubSessionBridge(ctx.path, () => []);
+  const ctx = setupTest();
+  const bridge = startStubSessionBridge(ctx.path, () => []);
 
   const socket = await Bun.connect({ unix: ctx.path, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -196,7 +185,7 @@ test('it counts each read it takes from a connection', async () => {
 });
 
 test('it stops listening once disposed', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   startStubSessionBridge(ctx.path, () => [])[Symbol.dispose]();
 

@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { createGitFixture } from './create-git-fixture';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startGitHTTPServer } from './start-git-http-server';
 import { waitFor } from './wait-for';
 
@@ -9,23 +10,15 @@ import { waitFor } from './wait-for';
 // server under test to serve; `env` keeps the host's git config and any
 // credential prompt out of every git command.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+  const fixture = await createGitFixture({ prefix: 'atc-git-http-' });
 
-  const created = await createGitFixture({ prefix: 'atc-git-http-' });
-
-  const fixture = stack.use(created);
-  const owned = stack.move();
-
-  return {
-    dir: fixture.dir,
-    env: { ...fixture.env, GIT_TERMINAL_PROMPT: '0' },
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { dir: fixture.dir, env: { ...fixture.env, GIT_TERMINAL_PROMPT: '0' } };
 }
 
 test('it clones a served repository for a client that authenticates and records the header', async () => {
-  await using ctx = await setupTest();
-  await using server = startGitHTTPServer(ctx.dir, ctx.env);
+  const ctx = await setupTest();
+
+  const server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const url = new URL('upstream.git', server.url);
 
@@ -47,8 +40,9 @@ test('it clones a served repository for a client that authenticates and records 
 });
 
 test('it refuses a client that does not authenticate', async () => {
-  await using ctx = await setupTest();
-  await using server = startGitHTTPServer(ctx.dir, ctx.env);
+  const ctx = await setupTest();
+
+  const server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const clone = await $`git clone --quiet ${`${server.url}upstream.git`} ${join(ctx.dir, 'c')}`
     .env(ctx.env)
@@ -60,12 +54,12 @@ test('it refuses a client that does not authenticate', async () => {
 });
 
 test('it holds an authenticated request for the delay it is given', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const release = Promise.withResolvers<void>();
   const waits: number[] = [];
 
-  await using server = startGitHTTPServer(ctx.dir, ctx.env, {
+  const server = startGitHTTPServer(ctx.dir, ctx.env, {
     delayMs: 400,
     wait: (ms) => {
       waits.push(ms);
@@ -79,10 +73,16 @@ test('it holds an authenticated request for the delay it is given', async () => 
   url.username = 'x-access-token';
   url.password = 'fixture-not-a-secret';
 
-  await using listing = Bun.spawn(['git', 'ls-remote', url.href], {
+  const listing = Bun.spawn(['git', 'ls-remote', url.href], {
     env: ctx.env,
     stdout: 'ignore',
     stderr: 'ignore',
+  });
+
+  registerTestCleanup(async () => {
+    listing.kill();
+
+    await listing.exited;
   });
 
   await waitFor(() => {
@@ -91,16 +91,17 @@ test('it holds an authenticated request for the delay it is given', async () => 
 
   const whileHeld = await Promise.race([listing.exited, Promise.resolve('held')]);
 
-  expect({ whileHeld, waits }).toStrictEqual({ whileHeld: 'held', waits: [400] });
+  expect(whileHeld).toBe('held');
+  expect(waits).toStrictEqual([400]);
 });
 
 test('it serves a held request once its delay is over', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const release = Promise.withResolvers<void>();
   const waits: number[] = [];
 
-  await using server = startGitHTTPServer(ctx.dir, ctx.env, {
+  const server = startGitHTTPServer(ctx.dir, ctx.env, {
     delayMs: 400,
     wait: (ms) => {
       waits.push(ms);
@@ -114,10 +115,16 @@ test('it serves a held request once its delay is over', async () => {
   url.username = 'x-access-token';
   url.password = 'fixture-not-a-secret';
 
-  await using listing = Bun.spawn(['git', 'ls-remote', url.href], {
+  const listing = Bun.spawn(['git', 'ls-remote', url.href], {
     env: ctx.env,
     stdout: 'ignore',
     stderr: 'ignore',
+  });
+
+  registerTestCleanup(async () => {
+    listing.kill();
+
+    await listing.exited;
   });
 
   await waitFor(() => {
@@ -132,11 +139,11 @@ test('it serves a held request once its delay is over', async () => {
 });
 
 test('it calls back once for each authenticated request', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   let calls = 0;
 
-  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: () => {
       calls += 1;
     },
@@ -155,7 +162,7 @@ test('it calls back once for each authenticated request', async () => {
 });
 
 test('it holds a request while the callback is still pending', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const entered = Promise.withResolvers<null>();
   const gate = Promise.withResolvers<null>();
@@ -164,7 +171,7 @@ test('it holds a request while the callback is still pending', async () => {
   // at once.
   const waits = [gate.promise];
 
-  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 
@@ -177,11 +184,9 @@ test('it holds a request while the callback is still pending', async () => {
   const first = fetch(url, { headers });
   const firstSettled = Promise.allSettled([first]);
 
-  // Declared after the server, so it opens the gate and lets the first
+  // Registered after the server, so it opens the gate and lets the first
   // request finish before the server stops.
-  await using held = new AsyncDisposableStack();
-
-  held.defer(async () => {
+  registerTestCleanup(async () => {
     gate.resolve(null);
 
     await firstSettled;
@@ -196,12 +201,12 @@ test('it holds a request while the callback is still pending', async () => {
 });
 
 test('it answers a held request once the callback resolves', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const entered = Promise.withResolvers<null>();
   const gate = Promise.withResolvers<null>();
 
-  await using hooked = startGitHTTPServer(ctx.dir, ctx.env, {
+  const hooked = startGitHTTPServer(ctx.dir, ctx.env, {
     onRequest: async () => {
       entered.resolve(null);
 

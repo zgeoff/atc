@@ -1,16 +1,19 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { buildStubMCPStdioServer } from './build-stub-mcp-stdio-server';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  return setupTempDir('atc-stub-mcp-stdio-server-');
+  const tmp = setupTempDir('atc-stub-mcp-stdio-server-');
+
+  return { dir: tmp.dir };
 }
 
 test('it answers each line it reads with the next reply, as given', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const bin = createStubBin(
     ctx.dir,
@@ -20,7 +23,7 @@ test('it answers each line it reads with the next reply, as given', async () => 
 
   const proc = Bun.spawn([bin], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 
@@ -37,7 +40,7 @@ test('it answers each line it reads with the next reply, as given', async () => 
 });
 
 test('it prints nothing for the replies left when stdin ends', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const bin = createStubBin(
     ctx.dir,
@@ -47,7 +50,7 @@ test('it prints nothing for the replies left when stdin ends', async () => {
 
   const proc = Bun.spawn([bin], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 
@@ -61,12 +64,11 @@ test('it prints nothing for the replies left when stdin ends', async () => {
 });
 
 test('it records its pid beside its script', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubBin(ctx.dir, 'server', buildStubMCPStdioServer([]));
   const proc = Bun.spawn([bin], { stdin: 'pipe', stdout: 'ignore', stderr: 'ignore' });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 

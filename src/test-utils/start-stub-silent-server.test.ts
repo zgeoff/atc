@@ -3,7 +3,7 @@ import { startStubSilentServer } from './start-stub-silent-server';
 import { waitFor } from './wait-for';
 
 test('it takes a request and never answers it', async () => {
-  await using server = startStubSilentServer();
+  const server = startStubSilentServer();
 
   const controller = new AbortController();
 
@@ -23,7 +23,7 @@ test('it takes a request and never answers it', async () => {
 });
 
 test('it records the path of each request in order', async () => {
-  await using server = startStubSilentServer();
+  const server = startStubSilentServer();
 
   const controller = new AbortController();
 

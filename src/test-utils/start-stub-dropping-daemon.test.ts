@@ -4,32 +4,30 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubDroppingDaemon } from './start-stub-dropping-daemon';
 import { waitFor } from './wait-for';
 
-// A temp directory to hold the daemon's socket. Disposal removes it.
+// A temp directory to hold the daemon's socket, removed once the test
+// finishes.
 function setupTest() {
   const tmp = setupTempDir('atc-dropping-daemon-');
 
-  return { socketPath: join(tmp.dir, 'daemon.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { socketPath: join(tmp.dir, 'daemon.sock') };
 }
 
 test('it announces the first features on the first handshake', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  const daemon = startStubDroppingDaemon(ctx.socketPath, {
+  startStubDroppingDaemon(ctx.socketPath, {
     features: ['spawn.idempotency'],
     retryFeatures: [],
   });
 
-  onTestFinished(() => {
-    daemon.stop();
-  });
-
   const client = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -42,20 +40,16 @@ test('it announces the first features on the first handshake', async () => {
 });
 
 test('it announces the retry features on a later handshake', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  const daemon = startStubDroppingDaemon(ctx.socketPath, {
+  startStubDroppingDaemon(ctx.socketPath, {
     features: ['spawn.idempotency'],
     retryFeatures: [],
   });
 
-  onTestFinished(() => {
-    daemon.stop();
-  });
-
   const first = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.stop();
   });
 
@@ -63,7 +57,7 @@ test('it announces the retry features on a later handshake', async () => {
 
   const second = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.stop();
   });
 
@@ -76,17 +70,13 @@ test('it announces the retry features on a later handshake', async () => {
 });
 
 test('it announces the first features on a later handshake when given no retry features', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: ['spawn.idempotency'] });
-
-  onTestFinished(() => {
-    daemon.stop();
-  });
+  startStubDroppingDaemon(ctx.socketPath, { features: ['spawn.idempotency'] });
 
   const first = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.stop();
   });
 
@@ -94,7 +84,7 @@ test('it announces the first features on a later handshake when given no retry f
 
   const second = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.stop();
   });
 
@@ -107,17 +97,13 @@ test('it announces the first features on a later handshake when given no retry f
 });
 
 test('it drops the connection of the first request without answering it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
-
-  onTestFinished(() => {
-    daemon.stop();
-  });
+  startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
   const client = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -130,12 +116,12 @@ test('it drops the connection of the first request without answering it', async 
 });
 
 test('it answers a later request with a session and records each request key', async () => {
-  using ctx = setupTest();
-  using daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  const ctx = setupTest();
+  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
   const first = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.stop();
   });
 
@@ -144,7 +130,7 @@ test('it answers a later request with a session and records each request key', a
 
   const second = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.stop();
   });
 
@@ -157,8 +143,7 @@ test('it answers a later request with a session and records each request key', a
 });
 
 test('it stops listening when disposed', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
   daemon[Symbol.dispose]();
@@ -167,12 +152,12 @@ test('it stops listening when disposed', () => {
 });
 
 test('it counts each read it takes from a connection', async () => {
-  using ctx = setupTest();
-  using daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+  const ctx = setupTest();
+  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
   const raw = await Bun.connect({ unix: ctx.socketPath, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     raw.end();
   });
 
@@ -184,9 +169,8 @@ test('it counts each read it takes from a connection', async () => {
 });
 
 test('it reads a request split across two writes as one request', async () => {
-  using ctx = setupTest();
-  using daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
-
+  const ctx = setupTest();
+  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
   const closed = Promise.withResolvers<void>();
 
   const raw = await Bun.connect({
@@ -199,7 +183,7 @@ test('it reads a request split across two writes as one request', async () => {
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     raw.end();
   });
 

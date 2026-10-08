@@ -1,9 +1,12 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { buildStubSoftKillProvider } from './build-stub-soft-kill-provider';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-soft-kill-');
+  const tmp = setupTempDir('atc-soft-kill-');
+
+  return { dir: tmp.dir };
 }
 
 test('it declares the capabilities of a local terminal', () => {
@@ -22,7 +25,7 @@ test('it declares the capabilities of a local terminal', () => {
 });
 
 test('it starts a harness that has no forced kill', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const harness = buildStubSoftKillProvider().spawnHarness({
     session: 's-1',
@@ -35,7 +38,7 @@ test('it starts a harness that has no forced kill', () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 

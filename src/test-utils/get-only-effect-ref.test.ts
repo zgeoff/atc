@@ -1,27 +1,22 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { getOnlyEffectRef } from './get-only-effect-ref';
 
 function setupTest() {
-  using stack = new DisposableStack();
+  const db = new Database(':memory:');
 
-  const db = stack.use(new Database(':memory:'));
+  onTestFinished(() => {
+    db.close();
+  });
 
   // The table the unit reads its claims from.
   db.run('CREATE TABLE idempotency (effect_ref TEXT NOT NULL)');
 
-  const owned = stack.move();
-
-  return {
-    db,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { db };
 }
 
 test('it returns the effect ref of the only claim', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.db.run("INSERT INTO idempotency (effect_ref) VALUES ('ref-one')");
 
@@ -29,7 +24,7 @@ test('it returns the effect ref of the only claim', () => {
 });
 
 test('it throws when the database holds no claim', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(() => getOnlyEffectRef(ctx.db)).toThrowWithMessage(
     Error,
@@ -38,7 +33,7 @@ test('it throws when the database holds no claim', () => {
 });
 
 test('it throws when the database holds several claims', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.db.run("INSERT INTO idempotency (effect_ref) VALUES ('ref-one'), ('ref-two')");
 

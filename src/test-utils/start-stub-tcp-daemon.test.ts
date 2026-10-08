@@ -1,14 +1,15 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startStubTCPDaemon } from './start-stub-tcp-daemon';
 import { waitFor } from './wait-for';
 
 test('it answers a request with an ok that holds its method', async () => {
-  using daemon = startStubTCPDaemon();
+  const daemon = startStubTCPDaemon();
 
   const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -18,11 +19,11 @@ test('it answers a request with an ok that holds its method', async () => {
 });
 
 test('it records the method of every request in arrival order', async () => {
-  using daemon = startStubTCPDaemon();
+  const daemon = startStubTCPDaemon();
 
   const client = await DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -33,8 +34,7 @@ test('it records the method of every request in arrival order', async () => {
 });
 
 test('it answers a request split across two writes once its line ends', async () => {
-  using daemon = startStubTCPDaemon();
-
+  const daemon = startStubTCPDaemon();
   const answers: string[] = [];
   const answered = Promise.withResolvers<void>();
 
@@ -49,7 +49,7 @@ test('it answers a request split across two writes once its line ends', async ()
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -67,7 +67,7 @@ test('it answers a request split across two writes once its line ends', async ()
 });
 
 test('it counts each read it takes from a connection', async () => {
-  using daemon = startStubTCPDaemon();
+  const daemon = startStubTCPDaemon();
 
   const socket = await Bun.connect({
     hostname: '127.0.0.1',
@@ -75,7 +75,7 @@ test('it counts each read it takes from a connection', async () => {
     socket: { data() {} },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 

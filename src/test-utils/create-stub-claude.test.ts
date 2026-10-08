@@ -1,9 +1,10 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
 import { createStubClaude } from './create-stub-claude';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -13,9 +14,7 @@ import { waitFor } from './wait-for';
  * settings file holds the reporter there.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-stub-claude-'));
+  const tmp = setupTempDir('atc-stub-claude-');
   const settings = join(tmp.dir, 'settings.json');
 
   // Every run reads the hook command from the settings file it is given.
@@ -30,19 +29,11 @@ function setupTest() {
     }),
   );
 
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    settings,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir: tmp.dir, settings };
 }
 
 test('it reports a start and a permission prompt through the settings hook command', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -69,7 +60,7 @@ test('it reports a start and a permission prompt through the settings hook comma
 });
 
 test('it prints its arguments, its TERM, and the parent-session variable it inherited', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -86,7 +77,7 @@ test('it prints its arguments, its TERM, and the parent-session variable it inhe
 });
 
 test('it echoes each input line once its reports are sent', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -102,7 +93,7 @@ test('it echoes each input line once its reports are sent', () => {
 });
 
 test('it appends its atc session id to the starts log on every run', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -119,7 +110,7 @@ test('it appends its atc session id to the starts log on every run', () => {
 });
 
 test('it reports the payloads of the events file after the permission prompt', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -151,7 +142,7 @@ test('it reports the payloads of the events file after the permission prompt', (
 });
 
 test('it exits after its reports without reading input when the home asks it to', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -184,7 +175,7 @@ test('it exits after its reports without reading input when the home asks it to'
 });
 
 test('it reports its atc session id as the agent session when the home asks it to', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -213,7 +204,7 @@ test('it reports its atc session id as the agent session when the home asks it t
 });
 
 test('it exits at once without a report when it resumes an agent session the home marks dying', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -233,7 +224,7 @@ test('it exits at once without a report when it resumes an agent session the hom
 });
 
 test('it reports nothing and only echoes input while the home holds its start', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -252,7 +243,7 @@ test('it reports nothing and only echoes input while the home holds its start', 
 });
 
 test('it runs the composer in its place when the home asks for one', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");
 
@@ -272,7 +263,7 @@ test('it runs the composer in its place when the home asks for one', () => {
 });
 
 test('it holds its reports at the gate until an input line arrives, removing the gate', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const stub = createStubClaude(ctx.dir, {
     atc: ['false'],
@@ -287,7 +278,7 @@ test('it holds its reports at the gate until an input line arrives, removing the
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -307,7 +298,7 @@ test('it holds its reports at the gate until an input line arrives, removing the
 });
 
 test('it runs a daemon restart after its start once and removes the request', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The atc the stub runs records each run on its own output, which the
   // stub sends to the file the scenario writes.
@@ -332,7 +323,7 @@ test('it runs a daemon restart after its start once and removes the request', ()
 });
 
 test('it taps its own session into the tap log when the home asks it to', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The atc the stub runs records each run on its own output, which the
   // stub sends to the file the scenario writes.

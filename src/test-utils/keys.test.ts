@@ -41,12 +41,10 @@ test('it wraps a paste in the markers the agent terminal reads', () => {
 });
 
 test('it holds the exact bytes of the keys no TUI reader takes', () => {
-  expect({ bel: KEYS.bel, ctrlJ: KEYS.ctrlJ, right: KEYS.right, left: KEYS.left }).toStrictEqual({
-    bel: '\u0007',
-    ctrlJ: '\u000A',
-    right: '\u001B[C',
-    left: '\u001B[D',
-  });
+  expect(KEYS.bel).toBe('\u0007');
+  expect(KEYS.ctrlJ).toBe('\u000A');
+  expect(KEYS.right).toBe('\u001B[C');
+  expect(KEYS.left).toBe('\u001B[D');
 });
 
 test.each<[string, string, TextEdit]>([

@@ -1,27 +1,28 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 // A temp directory that serves as the stand-in's home and holds the socket
-// it hands over. Disposal removes it.
+// it hands over, removed once the test finishes.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-handoff-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it moves the listening socket to the daemon socket of its home and exits 0', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const listening = Bun.listen({
     unix: join(ctx.dir, 'next.sock'),
     socket: { data() {} },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     listening.stop(true);
   });
 
@@ -35,9 +36,7 @@ test('it moves the listening socket to the daemon socket of its home and exits 0
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 
-  expect({
-    exitCode: run.exitCode,
-    handedOver: existsSync(join(ctx.dir, 'atc-daemon.sock')),
-    left: existsSync(join(ctx.dir, 'next.sock')),
-  }).toStrictEqual({ exitCode: 0, handedOver: true, left: false });
+  expect(run.exitCode).toBe(0);
+  expect(existsSync(join(ctx.dir, 'atc-daemon.sock'))).toBe(true);
+  expect(existsSync(join(ctx.dir, 'next.sock'))).toBe(false);
 });

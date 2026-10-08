@@ -1,9 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startStubRefusingListener } from './start-stub-refusing-listener';
 
 test('it records what a connection sends and ends that connection', async () => {
-  using listener = startStubRefusingListener();
-
+  const listener = startStubRefusingListener();
   const closed = Promise.withResolvers<void>();
 
   const socket = await Bun.connect({
@@ -17,7 +17,7 @@ test('it records what a connection sends and ends that connection', async () => 
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 

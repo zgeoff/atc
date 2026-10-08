@@ -6,21 +6,23 @@ import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-recording-git-');
+  const tmp = setupTempDir('atc-stub-recording-git-');
+
+  return { dir: tmp.dir };
 }
 
 test('it records each run and exits 0 without output', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const git = createStubBin(ctx.dir, 'git', buildStubRecordingGit(join(ctx.dir, 'git-ran')));
 
   Bun.spawnSync([git, 'ls-remote', 'https://example.invalid/app.git']);
 
   const second = Bun.spawnSync([git, 'version']);
 
-  expect({
-    exitCode: second.exitCode,
-    stdout: second.stdout.toString(),
-    record: readFileSync(join(ctx.dir, 'git-ran'), 'utf8'),
-  }).toStrictEqual({ exitCode: 0, stdout: '', record: 'ran\nran\n' });
+  expect({ exitCode: second.exitCode, stdout: second.stdout.toString() }).toStrictEqual({
+    exitCode: 0,
+    stdout: '',
+  });
+
+  expect(readFileSync(join(ctx.dir, 'git-ran'), 'utf8')).toBe('ran\nran\n');
 });
