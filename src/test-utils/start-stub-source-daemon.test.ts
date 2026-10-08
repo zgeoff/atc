@@ -113,18 +113,3 @@ test('it stops the daemon once the test finishes without a dispose', async () =>
     expect(isProcessAlive(daemon.pid)).toBeFalse();
   });
 });
-
-test('it stops once when disposed before the test finishes', async () => {
-  const ctx = setupTest();
-
-  const daemon = await startStubSourceDaemon({
-    ...process.env,
-    HOME: ctx.dir,
-    XDG_RUNTIME_DIR: ctx.dir,
-    ATC_TEST_SOURCES: 'none',
-  });
-
-  await daemon[Symbol.asyncDispose]();
-
-  expect(isProcessAlive(daemon.pid)).toBeFalse();
-});

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubImpPort } from './build-stub-imp-port';
+import { createStubImpPort } from './create-stub-imp-port';
 import { getOnlyImpName } from './get-only-imp-name';
 
 // The stub port whose imps a test reads; disposal kills every process it
@@ -7,7 +7,7 @@ import { getOnlyImpName } from './get-only-imp-name';
 function setupTest() {
   using stack = new DisposableStack();
 
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
   const owned = stack.move();
 
   return {

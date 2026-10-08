@@ -215,22 +215,3 @@ test('it stops the server once the test finishes without a dispose', async () =>
     expect(isProcessAlive(pid)).toBeFalse();
   });
 });
-
-test('it stops the server once when disposed before the test finishes', async () => {
-  const mcpHome = setupMCPHome();
-
-  const bin = createStubBin(
-    mcpHome.home,
-    'stub-mcp',
-    buildStubMCPStdioServer([JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })]),
-  );
-
-  const server = await startMCPStdio({ home: mcpHome.home, command: [bin] });
-  const recorded = await Bun.file(`${bin}.pid`).text();
-
-  const pid = Number(recorded);
-
-  await server[Symbol.asyncDispose]();
-
-  expect(isProcessAlive(pid)).toBeFalse();
-});

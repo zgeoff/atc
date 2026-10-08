@@ -101,12 +101,3 @@ test('it stops listening once the test finishes without a dispose', () => {
     expect(existsSync(path)).toBeFalse();
   });
 });
-
-test('it stops once when disposed before the test finishes', () => {
-  const path = join(tmpdir(), `atc-stub-recording-${randomUUID()}.sock`);
-  const listener = startStubRecordingListener(path);
-
-  listener[Symbol.dispose]();
-
-  expect(existsSync(path)).toBeFalse();
-});

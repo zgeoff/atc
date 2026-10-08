@@ -31,12 +31,16 @@ interface MCPHTTPSetupOptions {
  * does nothing.
  */
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
-  // Each part stops before the one it depends on, and the directory goes
-  // last.
+  const tmp = setupTempDir('atc-mcp-http-');
+
+  // Registered after the directory, so it releases first: each part stops
+  // before the one it depends on, and the directory goes last.
   const stack = new AsyncDisposableStack();
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
-  const tmp = stack.use(setupTempDir('atc-mcp-http-'));
+
+  stack.use(tmp);
+
   const socketPath = join(tmp.dir, 'daemon.sock');
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');
 

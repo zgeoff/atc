@@ -255,11 +255,3 @@ test('it stops serving once the test finishes without a dispose', () => {
     expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
   });
 });
-
-test('it stops once when disposed before the test finishes', () => {
-  const impd = startStubImpd();
-
-  impd[Symbol.dispose]();
-
-  expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
-});

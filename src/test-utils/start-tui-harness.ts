@@ -44,14 +44,18 @@ interface TUIHarnessOptions {
  * then, and a second disposal does nothing.
  */
 export function startTUIHarness(options: TUIHarnessOptions = {}) {
-  // The client and its daemon stop before their home is removed.
+  const tmp = setupTempDir('atc-tui-');
+
+  // Registered after the home, so it releases first: the client and its
+  // daemon stop before their home is removed.
   const owned = new AsyncDisposableStack();
 
   const dispose = registerTestCleanup(() => owned.disposeAsync());
 
+  owned.use(tmp);
+
   // The client boots with this home as its cwd and lists it first in the
   // picker, so the path is resolved the way the client reports it.
-  const tmp = owned.use(setupTempDir('atc-tui-'));
   const home = realpathSync(tmp.dir);
   const configPath = join(home, '.config', 'atc', 'config.json');
   const clientLogPath = join(home, 'client.log');

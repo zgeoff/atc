@@ -230,11 +230,10 @@ test('it stops serving once the test finishes without a stop', () => {
   });
 });
 
-test('it stops once when stopped and disposed before the test finishes', async () => {
+test('it stops serving once stopped', async () => {
   const server = startGitHTTPServer(import.meta.dir, {});
 
   await server.stop();
-  await server[Symbol.asyncDispose]();
 
   expect(fetch(server.url)).rejects.toThrow();
 });

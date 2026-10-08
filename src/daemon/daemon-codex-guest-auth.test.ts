@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingCodex } from '../test-utils/create-stub-recording-codex';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -30,7 +30,7 @@ async function setupTest() {
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const provider = new ImpProvider(port, { guestDir, guestATC }, { atcBinary: null });
 

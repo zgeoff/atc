@@ -179,7 +179,7 @@ test('it ends its connection once the test finishes without a dispose', async ()
   });
 });
 
-test('it ends once when disposed before the test finishes', async () => {
+test('it ends its connection once disposed', async () => {
   await using ctx = await setupTest();
 
   await ctx.subscriber[Symbol.asyncDispose]();

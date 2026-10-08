@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
@@ -246,11 +246,40 @@ test('it kills the daemon once the test finishes without a dispose', () => {
   });
 });
 
-test('it kills the daemon once when disposed before the test finishes', async () => {
+test('it kills the daemon its home records before the home is removed once the test finishes', () => {
   const ctx = setupTest();
   const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
 
-  await daemon[Symbol.asyncDispose]();
+  // A replacement daemon a restart would leave, recorded in the home.
+  const replacement = Bun.spawn(['sleep', '30']);
 
-  expect(daemon.proc.signalCode).toBe('SIGKILL');
+  mkdirSync(daemon.stateDir, { recursive: true });
+
+  writeFileSync(
+    join(daemon.stateDir, 'daemon.json'),
+    JSON.stringify({
+      pid: replacement.pid,
+      socketPath: daemon.socketPath,
+      reporterSocketPath: daemon.reporterSocketPath,
+      eventsSocketPath: null,
+      listenPort: null,
+    }),
+  );
+
+  const pid = daemon.proc.pid;
+
+  // The helper signals the recorded daemon without waiting for it to exit.
+  onTestFinished(async () => {
+    expect(isProcessAlive(pid)).toBe(false);
+
+    await waitFor(() => {
+      expect(isProcessAlive(replacement.pid)).toBe(false);
+    });
+
+    expect(existsSync(ctx.dir)).toBe(false);
+  });
+
+  onTestFinished(() => {
+    replacement.kill('SIGKILL');
+  });
 });

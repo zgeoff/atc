@@ -5,9 +5,9 @@ import { $ } from 'bun';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
@@ -37,7 +37,7 @@ async function setupTest() {
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   // A brokered spawn needs a token that may grant each agent's secret, and
   // the secrets themselves.

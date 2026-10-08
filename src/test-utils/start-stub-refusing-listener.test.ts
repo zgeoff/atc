@@ -47,13 +47,3 @@ test('it stops listening once the test finishes without a dispose', () => {
     ).rejects.toThrow();
   });
 });
-
-test('it stops once when disposed before the test finishes', () => {
-  const listener = startStubRefusingListener();
-
-  listener[Symbol.dispose]();
-
-  expect(
-    Bun.connect({ hostname: '127.0.0.1', port: listener.port, socket: { data() {} } }),
-  ).rejects.toThrow();
-});

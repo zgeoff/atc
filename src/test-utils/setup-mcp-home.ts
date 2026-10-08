@@ -23,12 +23,16 @@ import { waitFor } from './wait-for';
  * test; disposing sooner runs it then, and a second disposal does nothing.
  */
 export function setupMCPHome() {
-  // The daemon and the stand-ins stop before the home that records them is
-  // removed.
+  const tmp = setupTempDir('atc-mcp-');
+
+  // Registered after the home, so it releases first: the daemon and the
+  // stand-ins stop before the home that records them is removed.
   const stack = new AsyncDisposableStack();
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
-  const tmp = stack.use(setupTempDir('atc-mcp-'));
+
+  stack.use(tmp);
+
   const home = tmp.dir;
 
   stack.defer(async () => {

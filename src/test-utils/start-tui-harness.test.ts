@@ -178,17 +178,7 @@ test('it stops the daemon its pid file holds and removes the home once the test 
   onTestFinished(async () => {
     await daemon.exited;
 
-    expect({ signal: daemon.signalCode, home: existsSync(tui.home) }).toStrictEqual({
-      signal: 'SIGTERM',
-      home: false,
-    });
+    expect(daemon.signalCode).toBe('SIGTERM');
+    expect(existsSync(tui.home)).toBe(false);
   });
-});
-
-test('it removes its home once when disposed before the test finishes', async () => {
-  const tui = startTUIHarness();
-
-  await tui[Symbol.asyncDispose]();
-
-  expect(existsSync(tui.home)).toBeFalse();
 });

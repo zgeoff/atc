@@ -172,7 +172,7 @@ test('it removes its directory once the test finishes without a dispose', () => 
   });
 });
 
-test('it removes its directory once when disposed before the test finishes', () => {
+test('it removes its directory once disposed', () => {
   const fake = createStubSystemd(['/bin/true']);
 
   fake[Symbol.dispose]();

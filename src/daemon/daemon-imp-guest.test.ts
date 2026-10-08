@@ -5,8 +5,8 @@ import { ClaudeAdapter } from '../agents/claude-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -20,7 +20,7 @@ function setupTest() {
 
   const tmp = stack.use(setupTempDir('atc-imp-guest-'));
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
   const owned = stack.move();
 
   return {

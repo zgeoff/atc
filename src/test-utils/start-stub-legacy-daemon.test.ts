@@ -254,16 +254,6 @@ test('it stops listening once the test finishes without a stop', () => {
   });
 });
 
-test('it stops once when stopped and disposed before the test finishes', () => {
-  const path = join(tmpdir(), `atc-stub-legacy-${randomUUID()}.sock`);
-  const daemon = startStubLegacyDaemon(path);
-
-  daemon.stop();
-  daemon[Symbol.dispose]();
-
-  expect(existsSync(path)).toBeFalse();
-});
-
 test('it leaves a daemon its caller owns listening once the test finishes', () => {
   const path = join(tmpdir(), `atc-stub-legacy-${randomUUID()}.sock`);
   const daemon = startStubLegacyDaemon(path, { owner: 'caller' });

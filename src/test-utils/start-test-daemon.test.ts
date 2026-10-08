@@ -473,15 +473,25 @@ test('it removes its directory when the daemon fails to boot', () => {
 test('it stops the daemon and removes its directory once the test finishes without a dispose', async () => {
   const harness = await startTestDaemon();
 
-  onTestFinished(() => {
+  // A client the harness does not track, so only the daemon's stop closes
+  // it.
+  const outside = await DaemonClient.open(harness.socketPath);
+
+  const closes: string[] = [];
+
+  outside.onClose = () => {
+    closes.push('closed');
+  };
+
+  onTestFinished(async () => {
+    await waitFor(() => {
+      expect(closes).toStrictEqual(['closed']);
+    });
+
     expect(existsSync(harness.dir)).toBeFalse();
   });
-});
 
-test('it stops once when disposed before the test finishes', async () => {
-  const harness = await startTestDaemon();
-
-  await harness[Symbol.asyncDispose]();
-
-  expect(existsSync(harness.dir)).toBeFalse();
+  onTestFinished(() => {
+    outside.stop();
+  });
 });

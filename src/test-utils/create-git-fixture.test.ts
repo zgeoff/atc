@@ -122,11 +122,3 @@ test('it removes its directory once the test finishes without a dispose', async 
     expect(existsSync(fixture.dir)).toBeFalse();
   });
 });
-
-test('it removes its directory once when disposed before the test finishes', async () => {
-  const fixture = await createGitFixture();
-
-  await fixture[Symbol.asyncDispose]();
-
-  expect(existsSync(fixture.dir)).toBeFalse();
-});

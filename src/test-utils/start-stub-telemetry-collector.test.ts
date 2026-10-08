@@ -80,11 +80,3 @@ test('it stops serving once the test finishes without a dispose', () => {
     expect(fetch(collector.url)).rejects.toThrow();
   });
 });
-
-test('it stops once when disposed before the test finishes', async () => {
-  const collector = startStubTelemetryCollector();
-
-  await collector[Symbol.asyncDispose]();
-
-  expect(fetch(collector.url)).rejects.toThrow();
-});

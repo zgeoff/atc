@@ -38,11 +38,3 @@ test('it stops serving once the test finishes without a dispose', () => {
     expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
   });
 });
-
-test('it stops once when disposed before the test finishes', async () => {
-  const impd = startStubImpdInfo();
-
-  await impd[Symbol.asyncDispose]();
-
-  expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
-});

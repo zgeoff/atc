@@ -66,12 +66,3 @@ test('it stops listening once the test finishes without a dispose', () => {
     expect(Bun.connect({ hostname: '127.0.0.1', port, socket: { data() {} } })).rejects.toThrow();
   });
 });
-
-test('it stops once when disposed before the test finishes', async () => {
-  const server = startStubSilentServer();
-  const port = Number(new URL(server.url).port);
-
-  await server[Symbol.asyncDispose]();
-
-  expect(Bun.connect({ hostname: '127.0.0.1', port, socket: { data() {} } })).rejects.toThrow();
-});

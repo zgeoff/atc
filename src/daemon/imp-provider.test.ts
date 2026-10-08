@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
@@ -13,7 +13,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-imp-provider-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
   const owned = stack.move();
 
   return {

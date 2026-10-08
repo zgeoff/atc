@@ -67,11 +67,15 @@ const BUILD = 'atc/test-build';
  * before the start rejects.
  */
 export async function startTestDaemon(config: TestDaemonConfig = {}) {
-  // The daemon stops before its directory is removed.
+  const tmp = setupTempDir(config.prefix ?? 'atc-test-daemon-');
+
+  // Registered after the directory, so it releases first: the daemon stops
+  // before its directory is removed.
   const stack = new AsyncDisposableStack();
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
-  const tmp = stack.use(setupTempDir(config.prefix ?? 'atc-test-daemon-'));
+
+  stack.use(tmp);
 
   const paths: TestDaemonPaths = {
     dir: tmp.dir,

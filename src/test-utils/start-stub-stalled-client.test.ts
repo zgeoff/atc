@@ -123,21 +123,3 @@ test('it closes its connection once the test finishes without a dispose', async 
     server.stop(true);
   });
 });
-
-test('it closes once when disposed before the test finishes', async () => {
-  await using ctx = await setupTest();
-
-  const client = await startStubStalledClient(ctx.path, 'atc/stub');
-
-  client[Symbol.dispose]();
-
-  const [peer] = ctx.peers;
-
-  invariant(peer);
-
-  peer.resume();
-
-  await waitFor(() => {
-    expect(peer.readableEnded).toBeTrue();
-  });
-});

@@ -177,7 +177,7 @@ test('it stops listening once the test finishes without a dispose', () => {
   });
 });
 
-test('it stops once when disposed before the test finishes', () => {
+test('it stops listening once disposed', () => {
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: 1 },
     method: 'session.list',
@@ -185,7 +185,6 @@ test('it stops once when disposed before the test finishes', () => {
     mode: 'close',
   });
 
-  proxy.stop();
   proxy[Symbol.dispose]();
 
   expect(

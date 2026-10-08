@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { buildTargetList } from './build-target-list';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
@@ -7,7 +7,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 function setupTest() {
   using stack = new DisposableStack();
 
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const provider = new ImpProvider(port, {}, { atcBinary: null });
 

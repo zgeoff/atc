@@ -125,10 +125,11 @@ test('it stops the server and removes its home once the test finishes without a 
   });
 });
 
-test('it stops once when disposed before the test finishes', async () => {
+test('it stops the server and removes its home once disposed', async () => {
   const setup = await setupMCPHTTP();
 
   await setup[Symbol.asyncDispose]();
 
+  expect(fetch(setup.url)).rejects.toThrow();
   expect(existsSync(setup.home)).toBeFalse();
 });

@@ -395,7 +395,7 @@ const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
   // environment probe reports the version it ran against
   'bun-pty': [
     'src/daemon/local-pty-provider.ts',
-    'src/test-utils/build-stub-imp-port.ts',
+    'src/test-utils/create-stub-imp-port.ts',
     'src/test-utils/start-tui-harness.ts',
     'src/test-utils/create-stub-composer.test.ts',
     'scripts/probe-pty-env.ts',

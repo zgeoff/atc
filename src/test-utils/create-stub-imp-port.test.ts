@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
-import { buildStubImpPort } from './build-stub-imp-port';
+import { createStubImpPort } from './create-stub-imp-port';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -17,7 +17,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-stub-imp-port-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
   const owned = stack.move();
 
   return {
@@ -3195,7 +3195,7 @@ test('it stops every forward once the test finishes without a dispose', () => {
   // The socket sits outside any directory the test removes, so only the
   // forward's own stop takes it away.
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
-  const port = buildStubImpPort();
+  const port = createStubImpPort();
 
   port.openReverseForward('imp-a', guestPath, () => {});
 
@@ -3204,9 +3204,9 @@ test('it stops every forward once the test finishes without a dispose', () => {
   });
 });
 
-test('it stops every forward once when disposed before the test finishes', () => {
+test('it stops every forward once disposed', () => {
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
-  const port = buildStubImpPort();
+  const port = createStubImpPort();
 
   port.openReverseForward('imp-a', guestPath, () => {});
   port[Symbol.dispose]();

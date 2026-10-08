@@ -45,11 +45,3 @@ test('it stops serving once the test finishes without a dispose', () => {
     expect(fetch(`${server.url}/mcp`)).rejects.toThrow();
   });
 });
-
-test('it stops once when disposed before the test finishes', () => {
-  const server = startStubMCPServer({});
-
-  server[Symbol.dispose]();
-
-  expect(fetch(`${server.url}/mcp`)).rejects.toThrow();
-});

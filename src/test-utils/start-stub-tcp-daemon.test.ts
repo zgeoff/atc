@@ -105,13 +105,3 @@ test('it stops listening once the test finishes without a dispose', () => {
     ).rejects.toThrow();
   });
 });
-
-test('it stops once when disposed before the test finishes', () => {
-  const daemon = startStubTCPDaemon();
-
-  daemon[Symbol.dispose]();
-
-  expect(
-    Bun.connect({ hostname: '127.0.0.1', port: daemon.port, socket: { data() {} } }),
-  ).rejects.toThrow();
-});

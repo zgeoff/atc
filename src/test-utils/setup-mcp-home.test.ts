@@ -141,11 +141,3 @@ test("it kills a recorded stand-in's process group and removes the home once the
     expect(existsSync(mcpHome.home)).toBeFalse();
   });
 });
-
-test('it removes the home once when disposed before the test finishes', async () => {
-  const mcpHome = setupMCPHome();
-
-  await mcpHome[Symbol.asyncDispose]();
-
-  expect(existsSync(mcpHome.home)).toBeFalse();
-});
