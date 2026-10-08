@@ -2,10 +2,11 @@
 
 ## [3.8.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.8.0...@zgeoff/atc@3.8.1) (2026-10-08)
 
-
 ### Bug Fixes
 
-* **geo-177:** paste a codex slash command name apart from its argument ([#456](https://github.com/zgeoff/atc/issues/456)) ([4e99060](https://github.com/zgeoff/atc/commit/4e99060f7b97dbac86b7aaeb201c6dbacf288769))
+- **geo-177:** paste a codex slash command name apart from its argument
+  ([#456](https://github.com/zgeoff/atc/issues/456))
+  ([4e99060](https://github.com/zgeoff/atc/commit/4e99060f7b97dbac86b7aaeb201c6dbacf288769))
 
 ## [3.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.7.0...@zgeoff/atc@3.8.0) (2026-10-08)
 
