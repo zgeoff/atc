@@ -57,7 +57,10 @@ const main = defineCommand({
             type: 'string',
             description: 'Address to bind with --http (default 127.0.0.1)',
           },
-          port: { type: 'string', description: 'Port to listen on with --http (default 8414)' },
+          port: {
+            type: 'string',
+            description: 'Port to listen on with --http, or 0 for a free one (default 8414)',
+          },
           'public-url': {
             type: 'string',
             description:
