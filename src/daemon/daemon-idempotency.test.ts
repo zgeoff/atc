@@ -261,11 +261,14 @@ test('it drops the claim of a spawn that failed to start so a retry spawns', asy
   });
 
   const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
+  const failed = daemon.client.sendRequest('session.spawn', params);
 
-  await Promise.allSettled([daemon.client.sendRequest('session.spawn', params)]);
+  await Promise.allSettled([failed]);
 
   const retried = await daemon.client.sendRequest('session.spawn', params);
 
+  expect(failed).rejects.toMatchObject({ code: 'internal' });
+  expect(planSpawn).toHaveBeenCalledTimes(2);
   expect(retried).toMatchObject({ session: { cwd: daemon.dir } });
 });
 

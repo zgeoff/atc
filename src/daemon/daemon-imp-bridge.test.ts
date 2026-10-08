@@ -290,6 +290,10 @@ test('it delivers a message and a report held back while the bridge was unreacha
     ).toInclude('GOT:note while away');
   });
 
+  const heldBefore = await ctx.daemon.client.sendRequest('message.get', {
+    message: held['message'],
+  });
+
   ctx.port.stopRelayRefusal();
 
   await waitFor(() => {
@@ -304,6 +308,8 @@ test('it delivers a message and a report held back while the bridge was unreacha
       { text: 'while away' },
     ]);
   });
+
+  expect(heldBefore['status']).toBe('accepted');
 });
 
 test('it prints a message whose ack was lost once, and acks it again when the tap reconnects', async () => {

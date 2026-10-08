@@ -387,11 +387,13 @@ test('it lists a session as reattaching while its connection is lost and as atta
   const [imp] = ctx.port.collectImpNames();
   const [request] = ctx.port.sessionRequests;
 
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
+
   await waitFor(() => {
-    expect(ctx.port.getEnd(String(imp), String(request?.session))).toBeGreaterThan(0);
+    expect(ctx.port.getEnd(String(imp), request.session)).toBeGreaterThan(0);
   });
 
-  ctx.port.stopConnection(String(imp), String(request?.session), 1011);
+  ctx.port.stopConnection(String(imp), request.session, 1011);
 
   await waitFor(() => {
     expect(
