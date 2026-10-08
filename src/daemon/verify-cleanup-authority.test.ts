@@ -5,16 +5,11 @@ import { verifyCleanupAuthority } from './verify-cleanup-authority';
 function setupTest() {
   const port = createStubImpPort();
 
-  return {
-    port,
-    [Symbol.dispose]() {
-      port[Symbol.dispose]();
-    },
-  };
+  return { port };
 }
 
 test('it allows cleanup of the recorded imp after its secret was rebound', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -50,7 +45,7 @@ test('it allows cleanup of the recorded imp after its secret was rebound', async
 });
 
 test('it allows cleanup of the recorded imp after its secret was deleted', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -86,7 +81,7 @@ test('it allows cleanup of the recorded imp after its secret was deleted', async
 });
 
 test('it allows cleanup by a token that may no longer grant the bound secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const created = await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -110,7 +105,7 @@ test('it allows cleanup by a token that may no longer grant the bound secret', a
 });
 
 test('it reports a recorded imp that impd no longer holds as nothing to clean up', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const created = await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -122,7 +117,7 @@ test('it reports a recorded imp that impd no longer holds as nothing to clean up
 });
 
 test('it refuses cleanup of an imp made again under the recorded name', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const created = await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -146,7 +141,7 @@ test('it refuses cleanup of an imp made again under the recorded name', async ()
 });
 
 test('it refuses cleanup by a token whose patterns do not cover the recorded imp without looking it up', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const created = await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -178,7 +173,7 @@ test('it refuses cleanup by a token whose patterns do not cover the recorded imp
 });
 
 test('it refuses cleanup by a token that reaches every imp on the host', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const created = await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -239,7 +234,7 @@ test.each([
 ])(
   'it refuses cleanup by a token whose patterns %p reach imps outside the namespace',
   async (imps) => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
     const created = await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -272,7 +267,7 @@ test.each([
 );
 
 test('it allows cleanup by a token whose literal imp name is the recorded imp', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const created = await ctx.port.createImp({ name: 'atc-s1' });
 

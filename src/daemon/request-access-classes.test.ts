@@ -11,8 +11,6 @@ import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
  * agent takes messages, so the message methods reach their own checks.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const daemon = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'gateway-token');
@@ -31,11 +29,7 @@ async function setupTest() {
     },
   });
 
-  stack.use(daemon);
-
-  const owned = stack.move();
-
-  return { daemon, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { daemon };
 }
 
 test('it keeps the daemon-wide and credential methods, and only those, owner-only', () => {
@@ -97,8 +91,7 @@ test.each(
     .filter(([, access]) => access === 'owner')
     .map(([method]) => [method]),
 )('it refuses %s from a principal connection as owner-only', async (method) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).rejects.toMatchObject({
@@ -112,7 +105,7 @@ test.each(
     .filter(([, access]) => access === 'owner')
     .map(([method]) => [method]),
 )('it refuses %s from the owner acting as a principal as owner-only', async (method) => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.daemon.client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
     code: 'unauthorized',
@@ -125,8 +118,7 @@ test.each(
     .filter(([, access]) => access === 'owner')
     .map(([method]) => [method]),
 )('it refuses %s over TCP as owner-only', async (method) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
@@ -138,8 +130,7 @@ test.each(
 });
 
 test('it keeps answering the owner after it refuses an owner-only method to a principal', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openClient({ principal: 'gw' });
 
   await client.sendRequest('fleet.restore', {}).catch(() => null);
@@ -152,7 +143,7 @@ test('it keeps answering the owner after it refuses an owner-only method to a pr
 // The owner's quit stops the daemon under the test, so the daemon e2e suite
 // covers it instead.
 test('it admits fleet.restore from the owner', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.daemon.client.sendRequest('fleet.restore', {})).resolves.toStrictEqual({
     restored: 0,
@@ -163,7 +154,7 @@ test.each([
   ['session.auth.revoke', 'no_such_session'],
   ['session.auth.rebind', 'no_such_session'],
 ])('it admits %s from the owner, which answers it with %s', async (method, code) => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.daemon.client.sendRequest(method, {})).rejects.toMatchObject({ code });
 });
@@ -254,8 +245,7 @@ test.each([
   ['session.detach', {}],
   ['events.read', { events: [], cursor: expect.toBeString(), more: false }],
 ] as const)('it admits %s from a principal connection', async (method, reply) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).resolves.toStrictEqual(reply);
@@ -287,8 +277,7 @@ test.each([
   ['report.get', 'bad_args'],
   ['message.ack', 'bad_args'],
 ])('it admits %s from a principal connection, which answers it with %s', async (method, code) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).rejects.toMatchObject({ code });
@@ -378,8 +367,7 @@ test.each([
   ['session.detach', {}],
   ['events.read', { events: [], cursor: expect.toBeString(), more: false }],
 ] as const)('it admits %s over TCP from a principal', async (method, reply) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
@@ -413,8 +401,7 @@ test.each([
   ['report.get', 'bad_args'],
   ['message.ack', 'bad_args'],
 ])('it admits %s over TCP from a principal, which answers it with %s', async (method, code) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
@@ -423,8 +410,7 @@ test.each([
 });
 
 test('it answers a method the protocol does not define from a principal as unknown', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await ctx.daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest('daemon.nuke', {})).rejects.toMatchObject({

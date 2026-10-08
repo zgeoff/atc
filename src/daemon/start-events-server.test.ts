@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import type { EventMsg } from '../protocol/protocol';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 import { waitFor } from '../test-utils/wait-for';
@@ -12,9 +13,7 @@ import { startEventsServer } from './start-events-server';
 // `snapshots` records each snapshot the server collected, which it does
 // once it has registered a new subscriber.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-events-server-'));
+  const tmp = setupTempDir('atc-events-server-');
   const socketPath = join(tmp.dir, 'events.sock');
   const snapshots: (readonly EventMsg[])[] = [];
 
@@ -32,13 +31,13 @@ async function setupTest() {
     queueBytes: 1024,
   });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     server.stop();
   });
 
   const slow = connect(socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     slow.destroy();
   });
 
@@ -55,20 +54,17 @@ async function setupTest() {
     expect(snapshots).toHaveLength(1);
   });
 
-  const owned = stack.move();
-
   return {
     server,
     slow,
     socketPath,
     snapshots,
     closed: closed.promise,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it disconnects a subscriber whose outbound queue overflows', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A synchronous burst outruns the subscriber's reads, fills the kernel
   // socket buffers, and then overflows the tiny queue on top of them.
@@ -87,7 +83,7 @@ test('it disconnects a subscriber whose outbound queue overflows', async () => {
 });
 
 test('it serves a new subscriber after disconnecting one whose queue overflowed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A synchronous burst outruns the subscriber's reads, fills the kernel
   // socket buffers, and then overflows the tiny queue on top of them.
@@ -104,7 +100,7 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
 
   await ctx.closed;
 
-  await using fresh = await subscribeToSocketLines(ctx.socketPath);
+  const fresh = await subscribeToSocketLines(ctx.socketPath);
 
   await waitFor(() => {
     expect(ctx.snapshots).toHaveLength(2);

@@ -1,24 +1,23 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 import { waitFor } from '../test-utils/wait-for';
 import { ScreenModel } from './screen-model';
 
 /**
- * A 40 by 10 screen model, stopped on disposal.
+ * A 40 by 10 screen model, stopped once the test finishes.
  */
 function setupTest() {
   const model = new ScreenModel(40, 10);
 
-  return {
-    model,
-    [Symbol.dispose]: () => {
-      model.stop();
-    },
-  };
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  return { model };
 }
 
 test('it replays text written to the screen', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('hello fleet');
 
@@ -28,7 +27,7 @@ test('it replays text written to the screen', async () => {
 });
 
 test('it drops cleared content from the replay', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('stale screen\r\n');
 
@@ -43,7 +42,7 @@ test('it drops cleared content from the replay', async () => {
 });
 
 test('it includes bytes recorded while a replay is pending', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('first');
 
@@ -60,7 +59,7 @@ test('it includes bytes recorded while a replay is pending', async () => {
 });
 
 test('it replays only the visible screen for a session on the alternate buffer', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('normal residue\r\n\u001B[?1049haltscreen content');
 
@@ -72,7 +71,7 @@ test('it replays only the visible screen for a session on the alternate buffer',
 });
 
 test('it preserves colors and cursor positioning in the replay', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('\u001B[5;10H\u001B[1;31malert\u001B[0m');
 
@@ -84,7 +83,7 @@ test('it preserves colors and cursor positioning in the replay', async () => {
 });
 
 test('it keeps replaying after a resize', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('before resize\r\n');
 
@@ -100,7 +99,7 @@ test('it keeps replaying after a resize', async () => {
 });
 
 test('it re-emits SGR mouse encoding and alternate scroll in the replay', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('\u001B[?1000h\u001B[?1006h\u001B[?1007h');
 
@@ -111,7 +110,7 @@ test('it re-emits SGR mouse encoding and alternate scroll in the replay', async 
 });
 
 test('it restores the kitty keyboard push and modifyOtherKeys in the replay', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('\u001B[>1u\u001B[>4;2m');
 
@@ -122,7 +121,7 @@ test('it restores the kitty keyboard push and modifyOtherKeys in the replay', as
 });
 
 test('it drops popped and reset input modes from the replay', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('\u001B[?1006h\u001B[>1u\u001B[>4;2m');
   ctx.model.record('\u001B[?1006l\u001B[<u\u001B[>4;0m');
@@ -135,7 +134,7 @@ test('it drops popped and reset input modes from the replay', async () => {
 });
 
 test('it re-emits a mode whose set sequence arrived split across chunks', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('\u001B[?10');
   ctx.model.record('06h');
@@ -146,7 +145,7 @@ test('it re-emits a mode whose set sequence arrived split across chunks', async 
 });
 
 test('it leads the replay with an input-mode reset', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('hello');
 
@@ -156,7 +155,7 @@ test('it leads the replay with an input-mode reset', async () => {
 });
 
 test('it renders the visible screen as plain text with trailing blank rows dropped', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('hello fleet\r\n\u001B[32msecond\u001B[0m   ');
 
@@ -172,7 +171,7 @@ test('it renders the visible screen as plain text with trailing blank rows dropp
 });
 
 test('it renders only the alternate buffer as text for a session on the alternate screen', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('normal screen\r\n');
 
@@ -193,7 +192,7 @@ test('it renders only the alternate buffer as text for a session on the alternat
 });
 
 test('it reports bracketed paste on once the tui turns it on', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('\u001B[?2004h');
 
@@ -203,7 +202,7 @@ test('it reports bracketed paste on once the tui turns it on', async () => {
 });
 
 test('it reports bracketed paste off once the tui turns it off', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.model.record('\u001B[?2004h');
 

@@ -10,23 +10,14 @@ import { verifyBrokerAuthority } from './verify-broker-authority';
  * every call with system info, for the real client to read.
  */
 function setupTest() {
-  using stack = new DisposableStack();
+  const port = createStubImpPort();
+  const impd = startStubImpdInfo();
 
-  const port = stack.use(createStubImpPort());
-  const impd = stack.use(startStubImpdInfo());
-  const owned = stack.move();
-
-  return {
-    port,
-    impd,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { port, impd };
 }
 
 test('it lets a scoped token that may grant every bound secret activate the broker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -42,7 +33,7 @@ test('it lets a scoped token that may grant every bound secret activate the brok
 });
 
 test('it refuses an impd without grantable tokens, secret rebinds and exec requirements after reading only its features', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.features = {
     sessionOffsets: true,
@@ -87,7 +78,7 @@ test.each([
     { grantableTokens: true, secretRebind: true, execRequire: false },
   ],
 ])('it refuses an impd that has only %s', (_flag, flags) => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.features = { sessionOffsets: true, leases: true, oauthSecrets: false, ...flags };
 
@@ -111,7 +102,7 @@ test.each([
 ])(
   'it refuses an impd whose grant flags are %s after one system info call',
   async (_kind, sent) => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
     ctx.impd.info.features = sent;
 
@@ -134,7 +125,7 @@ test.each([
 );
 
 test('it refuses a token below manage scope', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -158,7 +149,7 @@ test('it refuses a token below manage scope', () => {
 });
 
 test('it refuses a token that reaches every imp on the host', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -247,7 +238,7 @@ test.each([
   [['atc-s1', 'prod'], ['prod']],
   [['atc*'], ['atc*']],
 ])('it refuses a token whose patterns %p reach imps outside the namespace', (imps, offending) => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -275,7 +266,7 @@ test.each([
 });
 
 test('it lets a token whose literal imp names sit inside the namespace activate the broker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -291,7 +282,7 @@ test('it lets a token whose literal imp names sit inside the namespace activate 
 });
 
 test('it rejects an empty namespace prefix as a broken invariant', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -319,7 +310,7 @@ test('it rejects an empty namespace prefix as a broken invariant', () => {
 });
 
 test('it refuses a token whose patterns do not cover the imp the call touches', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -347,7 +338,7 @@ test('it refuses a token whose patterns do not cover the imp the call touches', 
 });
 
 test('it checks the imp names of the target namespace rather than a fixed prefix', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -363,7 +354,7 @@ test('it checks the imp names of the target namespace rather than a fixed prefix
 });
 
 test('it refuses when any one of the imps the call touches is outside the patterns', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -389,7 +380,7 @@ test('it refuses when any one of the imps the call touches is outside the patter
 });
 
 test('it refuses a token that may not grant every bound secret', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -417,7 +408,7 @@ test('it refuses a token that may not grant every bound secret', () => {
 });
 
 test('it refuses an impd without oauth secrets for a binding that holds one', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
@@ -447,7 +438,7 @@ test('it refuses an impd without oauth secrets for a binding that holds one', ()
 });
 
 test('it lets an impd without oauth secrets activate a binding that holds none', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
@@ -469,7 +460,7 @@ test('it lets an impd without oauth secrets activate a binding that holds none',
 });
 
 test('it lets an impd with oauth secrets activate a binding that holds one', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
