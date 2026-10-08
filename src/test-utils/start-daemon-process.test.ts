@@ -112,9 +112,10 @@ test('it opens a client on the socket a replacement holds when the daemon exits 
   const daemon = startDaemonProcess({ command: [atc], home: ctx.dir });
 
   const client = await daemon.openClient();
+  const exitCode = await daemon.proc.exited;
 
   expect(client).toBeInstanceOf(DaemonClient);
-  expect(daemon.proc.exitCode).toBe(0);
+  expect(exitCode).toBe(0);
 });
 
 test('it lays the config variables over the environment of the daemon', async () => {

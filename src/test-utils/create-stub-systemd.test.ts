@@ -101,6 +101,8 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
     expect(readFileSync(join(ctx.dir, 'started'), 'utf8')).toBe('daemon\n');
   });
 
+  await main.exited;
+
   expect(main.signalCode).toBe('SIGTERM');
 });
 
