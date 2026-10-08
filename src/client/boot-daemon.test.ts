@@ -10,6 +10,7 @@ import { readJSONRecord } from '../test-utils/read-json-record';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
+import { bootDaemonClient } from './boot-daemon';
 
 /**
  * A fresh home for a client process: `dir` serves as both its home and its
@@ -578,4 +579,53 @@ process.exit(0);
   const stdout = await new Response(proc.stdout).text();
 
   expect(JSON.parse(stdout)).toStrictEqual({ waits: 0 });
+});
+
+test('it finds a running daemon through the record at the paths it is given', async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.dir, 'run'));
+
+  const daemon = await startDaemon({
+    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
+    build: 'atc/test-build',
+    adapter: buildMockAgentAdapter(),
+    dbPath: join(ctx.stateDir, 'atc.db'),
+    statusPath: join(ctx.stateDir, 'status.json'),
+  });
+
+  registerTestCleanup(() => daemon.stop());
+
+  const boot = await bootDaemonClient({
+    paths: {
+      socketPath: join(ctx.dir, 'elsewhere', 'atc-daemon.sock'),
+      recordFile: join(ctx.stateDir, 'daemon.json'),
+      pidFile: join(ctx.dir, 'elsewhere', 'atc-daemon.pid'),
+    },
+  });
+
+  registerTestCleanup(() => {
+    boot.client.stop();
+  });
+
+  expect(boot.socketPath).toBe(join(ctx.dir, 'run', 'atc-daemon.sock'));
+});
+
+test('it rejects with the socket path it is given when a wait finds no daemon there', () => {
+  const ctx = setupTest();
+
+  expect(
+    bootDaemonClient({
+      waitForDaemonMs: 0,
+      paths: {
+        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.dir, 'given', 'daemon.json'),
+        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `no atc daemon answered at ${join(ctx.dir, 'given', 'atc-daemon.sock')} within 0s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
 });

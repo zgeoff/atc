@@ -32,6 +32,17 @@ export interface DaemonBoot {
   readonly socketPath: string;
 }
 
+/**
+ * The files that locate a running daemon: the socket this environment
+ * computes, the record the daemon writes in its state directory, and its
+ * pid file.
+ */
+export interface DaemonPaths {
+  readonly socketPath: string;
+  readonly recordFile: string;
+  readonly pidFile: string;
+}
+
 export interface DaemonBootOptions {
   // Called when the daemon speaks another protocol version. Resolving true
   // stops that daemon and boots one from this build, which ends every
@@ -53,7 +64,19 @@ export interface DaemonBootOptions {
   // The time and the timers a waiting boot reads for its deadline and its
   // polls; the wall clock when absent.
   readonly clock?: Clock;
+
+  // Where the boot looks for a running daemon and its pid; this process's
+  // own paths when absent. A daemon the boot starts itself takes this
+  // process's own paths, so a caller that sets them either waits or has a
+  // daemon listening there already.
+  readonly paths?: DaemonPaths;
 }
+
+const PROCESS_PATHS: DaemonPaths = {
+  socketPath: daemonSocketPath,
+  recordFile: daemonRecordFile,
+  pidFile: daemonPidFile,
+};
 
 /**
  * Opens a handshaken client to the daemon, booting the daemon first when
@@ -72,6 +95,7 @@ export interface DaemonBootOptions {
 export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise<DaemonBoot> {
   let waited = false;
   const clock = options.clock ?? systemClock;
+  const paths = options.paths ?? PROCESS_PATHS;
 
   const wait =
     options.waitForDaemonMs === undefined
@@ -80,6 +104,7 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
           deadline: clock.now() + options.waitForDaemonMs,
           timeoutMs: options.waitForDaemonMs,
           clock,
+          paths,
           onWait: () => {
             if (!waited) {
               waited = true;
@@ -90,7 +115,7 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
-    const opened = wait === null ? await openOrBootDaemon() : await waitForDaemon(wait);
+    const opened = wait === null ? await openOrBootDaemon(paths) : await waitForDaemon(wait);
     const client = opened.client;
 
     try {
@@ -115,7 +140,7 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
 
       const mismatch: ProtocolMismatch = {
         socketPath: opened.socketPath,
-        daemonPID: findDaemonPID(opened.socketPath),
+        daemonPID: findDaemonPID(opened.socketPath, paths),
         clientBuild: build,
         clientProtocol: PROTOCOL_V,
         daemonMessage: error.message,
@@ -143,8 +168,8 @@ interface OpenedDaemon {
   readonly socketPath: string;
 }
 
-async function openOrBootDaemon(): Promise<OpenedDaemon> {
-  const opened = await tryOpenKnownDaemon();
+async function openOrBootDaemon(paths: DaemonPaths): Promise<OpenedDaemon> {
+  const opened = await tryOpenKnownDaemon(paths);
 
   if (opened !== null) {
     return opened;
@@ -152,10 +177,10 @@ async function openOrBootDaemon(): Promise<OpenedDaemon> {
 
   await bootDaemonOnce();
 
-  const booted = await tryOpenKnownDaemon();
+  const booted = await tryOpenKnownDaemon(paths);
 
   if (booted === null) {
-    throw new Error(formatBootFailure());
+    throw new Error(formatBootFailure(paths));
   }
 
   return booted;
@@ -167,6 +192,7 @@ interface DaemonWait {
   readonly deadline: number;
   readonly timeoutMs: number;
   readonly clock: Clock;
+  readonly paths: DaemonPaths;
 
   // Called on every miss; the boot reports only the first to its caller.
   readonly onWait: () => void;
@@ -178,7 +204,7 @@ interface DaemonWait {
  */
 async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   for (;;) {
-    const opened = await tryOpenKnownDaemon();
+    const opened = await tryOpenKnownDaemon(wait.paths);
 
     if (opened !== null) {
       return opened;
@@ -187,7 +213,7 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
     wait.onWait();
 
     if (wait.clock.now() >= wait.deadline) {
-      throw new Error(formatWaitFailure(wait.timeoutMs));
+      throw new Error(formatWaitFailure(wait));
     }
 
     const polled = Promise.withResolvers<void>();
@@ -211,7 +237,7 @@ async function waitForHello(
 
   const cancel = wait.clock.schedule(
     () => {
-      expired.reject(new Error(formatWaitFailure(wait.timeoutMs)));
+      expired.reject(new Error(formatWaitFailure(wait)));
     },
     Math.max(0, wait.deadline - wait.clock.now()),
   );
@@ -228,16 +254,16 @@ async function waitForHello(
  * daemon recorded in the state directory: a client whose environment lacks
  * XDG_RUNTIME_DIR computes a different path from the daemon's.
  */
-async function tryOpenKnownDaemon(): Promise<OpenedDaemon | null> {
-  const computed = await tryOpenDaemon(daemonSocketPath);
+async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
+  const computed = await tryOpenDaemon(paths.socketPath);
 
   if (computed !== null) {
     return computed;
   }
 
-  const record = findDaemonRecord(daemonRecordFile);
+  const record = findDaemonRecord(paths.recordFile);
 
-  if (record === null || record.socketPath === daemonSocketPath) {
+  if (record === null || record.socketPath === paths.socketPath) {
     return null;
   }
 
@@ -263,7 +289,7 @@ const bootDaemonOnce = makeSingleFlight(async () => {
   while (Date.now() < deadline) {
     await Bun.sleep(100);
 
-    const probe = await tryOpenKnownDaemon();
+    const probe = await tryOpenKnownDaemon(PROCESS_PATHS);
 
     if (probe !== null) {
       probe.client.stop();
@@ -282,14 +308,15 @@ const bootDaemonOnce = makeSingleFlight(async () => {
 // A live daemon this process cannot reach, such as one whose runtime
 // directory a sandbox hides, needs a different fix than one that never
 // started, so the message tells them apart.
-function formatBootFailure(): string {
+function formatBootFailure(paths: DaemonPaths): string {
   return (
-    formatUnreachableDaemon() ?? 'the atc daemon did not come up; try `atc daemon` for its output'
+    formatUnreachableDaemon(paths) ??
+    'the atc daemon did not come up; try `atc daemon` for its output'
   );
 }
 
-function formatUnreachableDaemon(): string | null {
-  const record = findDaemonRecord(daemonRecordFile);
+function formatUnreachableDaemon(paths: DaemonPaths): string | null {
+  const record = findDaemonRecord(paths.recordFile);
 
   if (record !== null && isProcessAlive(record.pid)) {
     return `the atc daemon (pid ${record.pid}) is running, but its socket ${record.socketPath} is unreachable from here`;
@@ -300,20 +327,20 @@ function formatUnreachableDaemon(): string | null {
 
 // A waiting caller was told not to start a daemon, so the message says so
 // and points at starting the managed one.
-function formatWaitFailure(timeoutMs: number): string {
+function formatWaitFailure(wait: DaemonWait): string {
   return (
-    formatUnreachableDaemon() ??
-    `no atc daemon answered at ${daemonSocketPath} within ${timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
+    formatUnreachableDaemon(wait.paths) ??
+    `no atc daemon answered at ${wait.paths.socketPath} within ${wait.timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
   );
 }
 
 // The pid of the daemon behind the socket that refused the handshake.
-function findDaemonPID(socketPath: string): number | null {
+function findDaemonPID(socketPath: string, paths: DaemonPaths): number | null {
   return pickStaleDaemonPID({
     socketPath,
-    record: findDaemonRecord(daemonRecordFile),
-    pidFileSocketPath: daemonSocketPath,
-    pidFilePID: findPidFilePID(daemonPidFile),
+    record: findDaemonRecord(paths.recordFile),
+    pidFileSocketPath: paths.socketPath,
+    pidFilePID: findPidFilePID(paths.pidFile),
   });
 }
 

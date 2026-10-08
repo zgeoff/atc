@@ -1,14 +1,14 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { bootDaemonClient } from './client/boot-daemon';
-import type { DaemonBoot, DaemonBootOptions } from './client/boot-daemon';
+import type { DaemonBoot, DaemonPaths } from './client/boot-daemon';
 import { DaemonClient } from './client/daemon-client';
 import { collectClients } from './mcp/collect-clients';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
 import type { MCPHTTPConfig } from './shared/collect-mcp-http-config';
-import { mcpAuthDBFile } from './shared/config';
+import { daemonPidFile, daemonRecordFile, daemonSocketPath, mcpAuthDBFile } from './shared/config';
 import { loadMCPHTTPConfig } from './shared/load-mcp-http-config';
 
 interface MCPHTTPFlags {
@@ -19,14 +19,13 @@ interface MCPHTTPFlags {
 }
 
 // What the server reaches outside itself, the process's own by default: its
-// config, the authorization database, the daemon it boots or waits for, the
-// console, the exit, and the signal listeners that stop it.
+// config, the authorization database, the files that locate the daemon it
+// boots or waits for, the console, the exit, and the signal listeners that
+// stop it.
 interface MCPHTTPServerIO {
   readonly loadConfig: () => MCPHTTPConfig;
   readonly dbPath: string;
-  readonly bootDaemon: (
-    options: DaemonBootOptions,
-  ) => Promise<Pick<DaemonBoot, 'client' | 'socketPath'>>;
+  readonly daemonPaths: DaemonPaths;
   readonly print: (line: string) => void;
   readonly printError: (line: string) => void;
   readonly exit: (code: number) => void;
@@ -36,7 +35,11 @@ interface MCPHTTPServerIO {
 const PROCESS_IO: MCPHTTPServerIO = {
   loadConfig: loadMCPHTTPConfig,
   dbPath: mcpAuthDBFile,
-  bootDaemon: bootDaemonClient,
+  daemonPaths: {
+    socketPath: daemonSocketPath,
+    recordFile: daemonRecordFile,
+    pidFile: daemonPidFile,
+  },
   print: (line) => {
     console.log(line);
   },
@@ -70,7 +73,7 @@ export async function runMCPHTTPServer(
 ): Promise<void> {
   const config = io.loadConfig();
 
-  const bootOptions = flags.waitForDaemon
+  const waitOptions = flags.waitForDaemon
     ? {
         waitForDaemonMs: DAEMON_WAIT_MS,
         onWaitForDaemon: () => {
@@ -81,10 +84,10 @@ export async function runMCPHTTPServer(
       }
     : {};
 
-  let boot: Pick<DaemonBoot, 'client' | 'socketPath'>;
+  let boot: DaemonBoot;
 
   try {
-    boot = await io.bootDaemon(bootOptions);
+    boot = await bootDaemonClient({ ...waitOptions, paths: io.daemonPaths });
   } catch (error) {
     io.printError(`atc mcp --http: ${error instanceof Error ? error.message : String(error)}`);
     io.exit(1);

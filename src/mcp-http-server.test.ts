@@ -1,22 +1,20 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { DaemonClient } from './client/daemon-client';
 import { startDaemon } from './daemon/daemon';
 import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
+import { registerTestCleanup } from './test-utils/register-test-cleanup';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
- * A real daemon listening in a temp directory, for the server to serve
- * through, and the path its authorization database lands at. Disposal stops
- * the daemon and removes the directory.
+ * A real daemon listening in a temp directory, the files the server's boot
+ * looks for it at, and the path the authorization database lands at. The
+ * daemon stops, and then the directory goes, once the test finishes.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-mcp-http-server-'));
+  const tmp = setupTempDir('atc-mcp-http-server-');
   const socketPath = join(tmp.dir, 'atc-daemon.sock');
 
   const daemon = await startDaemon({
@@ -28,20 +26,20 @@ async function setupTest() {
     statusPath: join(tmp.dir, 'status.json'),
   });
 
-  stack.defer(() => daemon.stop());
-
-  const owned = stack.move();
+  registerTestCleanup(() => daemon.stop());
 
   return {
-    dir: tmp.dir,
-    socketPath,
     dbPath: join(tmp.dir, 'mcp-auth.db'),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    daemonPaths: {
+      socketPath,
+      recordFile: join(tmp.dir, 'daemon.json'),
+      pidFile: join(tmp.dir, 'atc-daemon.pid'),
+    },
   };
 }
 
 test('it serves MCP through the daemon it boots and says no client can connect yet', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const printed: string[] = [];
   const requests: string[] = [];
@@ -54,10 +52,7 @@ test('it serves MCP through the daemon it boots and says no client can connect y
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
-      bootDaemon: async () => ({
-        client: await DaemonClient.open(ctx.socketPath),
-        socketPath: ctx.socketPath,
-      }),
+      daemonPaths: ctx.daemonPaths,
       print: (line) => {
         printed.push(line);
       },
@@ -71,10 +66,10 @@ test('it serves MCP through the daemon it boots and says no client can connect y
     },
   );
 
-  const stop = signals.get('SIGTERM');
+  const stopServing = signals.get('SIGTERM');
 
-  invariant(stop, 'the server registered no SIGTERM handler');
-  onTestFinished(() => stop());
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
 
   const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
 
@@ -82,23 +77,20 @@ test('it serves MCP through the daemon it boots and says no client can connect y
 
   const served = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' });
 
-  expect({ printed, served: served.status }).toStrictEqual({
-    printed: [
-      `atc mcp --http: serving http://127.0.0.1:${port}/mcp, listening on http://127.0.0.1:${port}`,
-      'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
-    ],
-    served: 401,
-  });
+  expect(printed).toStrictEqual([
+    `atc mcp --http: serving http://127.0.0.1:${port}/mcp, listening on http://127.0.0.1:${port}`,
+    'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
+  ]);
 
+  expect(served.status).toBe(401);
   expect(requests.join('\n')).toMatch(/^POST \/mcp 401 \d+ms$/u);
 });
 
 test('it prints no hint to add a client once one can connect', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
 
-  onTestFinished(() => store.close());
+  registerTestCleanup(() => store.close());
 
   await store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -114,10 +106,7 @@ test('it prints no hint to add a client once one can connect', async () => {
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
-      bootDaemon: async () => ({
-        client: await DaemonClient.open(ctx.socketPath),
-        socketPath: ctx.socketPath,
-      }),
+      daemonPaths: ctx.daemonPaths,
       print: (line) => {
         printed.push(line);
       },
@@ -129,10 +118,10 @@ test('it prints no hint to add a client once one can connect', async () => {
     },
   );
 
-  const stop = signals.get('SIGTERM');
+  const stopServing = signals.get('SIGTERM');
 
-  invariant(stop, 'the server registered no SIGTERM handler');
-  onTestFinished(() => stop());
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
 
   expect(printed.join('\n')).toMatch(
     /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+$/u,
@@ -140,7 +129,7 @@ test('it prints no hint to add a client once one can connect', async () => {
 });
 
 test('it registers its SIGINT and SIGTERM handlers before it prints the serving line', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const happened: string[] = [];
 
@@ -152,10 +141,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
-      bootDaemon: async () => ({
-        client: await DaemonClient.open(ctx.socketPath),
-        socketPath: ctx.socketPath,
-      }),
+      daemonPaths: ctx.daemonPaths,
       print: (line) => {
         happened.push(line);
       },
@@ -168,10 +154,10 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
     },
   );
 
-  const stop = signals.get('SIGTERM');
+  const stopServing = signals.get('SIGTERM');
 
-  invariant(stop, 'the server registered no SIGTERM handler');
-  onTestFinished(() => stop());
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
 
   expect(happened.slice(0, 2)).toStrictEqual(['SIGINT', 'SIGTERM']);
 
@@ -181,7 +167,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
 });
 
 test('it stops serving and exits 0 on SIGTERM', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const printed: string[] = [];
   const codes: number[] = [];
@@ -194,10 +180,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
-      bootDaemon: async () => ({
-        client: await DaemonClient.open(ctx.socketPath),
-        socketPath: ctx.socketPath,
-      }),
+      daemonPaths: ctx.daemonPaths,
       print: (line) => {
         printed.push(line);
       },
@@ -212,12 +195,14 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
   );
 
   const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
-  const stop = signals.get('SIGTERM');
+  const stopServing = signals.get('SIGTERM');
 
   invariant(
-    port !== undefined && stop !== undefined,
+    port !== undefined && stopServing !== undefined,
     `no port or no SIGTERM handler after: ${printed.join('\n')}`,
   );
+
+  const stop = registerTestCleanup(stopServing);
 
   await stop();
 
