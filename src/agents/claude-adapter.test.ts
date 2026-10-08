@@ -16,7 +16,9 @@ import { ClaudeAdapter } from './claude-adapter';
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
 // host config folder, or a guest folder a launch runs in.
 function setupTest() {
-  return setupTempDir('atc-claude-adapter-');
+  const tmp = setupTempDir('atc-claude-adapter-');
+
+  return { dir: tmp.dir };
 }
 
 test('it resumes when no transcript was reported', () => {
@@ -26,8 +28,7 @@ test('it resumes when no transcript was reported', () => {
 });
 
 test('it resumes when the reported transcript exists', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const transcript = join(ctx.dir, 'transcript.jsonl');
 
   writeFileSync(transcript, '');
@@ -38,7 +39,7 @@ test('it resumes when the reported transcript exists', () => {
 });
 
 test('it does not resume when the reported transcript is gone', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
@@ -95,8 +96,7 @@ test('it takes inbox messages', () => {
 });
 
 test('it runs a headless turn through the configured claude binary under the auto permission mode with the atc-bridge mod', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new ClaudeAdapter(
@@ -165,12 +165,12 @@ test('it advertises no default model or effort when the configured arguments set
   const options = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}))
     .profile.spawnOptions;
 
-  expect([options.model.default, options.effort.default]).toStrictEqual([null, null]);
+  expect(options.model.default).toBeNull();
+  expect(options.effort.default).toBeNull();
 });
 
 test('it runs a headless turn under the permission mode its configured arguments set', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
   const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
 
@@ -211,7 +211,7 @@ test('it keeps the permission mode its configured arguments set in the command t
 });
 
 test('it restores a stock session in the mode its settings set', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     agents: { claude: { settings: { permissions: { defaultMode: 'bypassPermissions' } } } },
@@ -454,7 +454,7 @@ test('it quotes a configured binary path with spaces in the resume command', () 
 });
 
 test('it carries the settings file in the resume command of an entry with its own settings', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     agents: { claude: { settings: { model: 'opus' } } },
@@ -471,78 +471,79 @@ test('it carries the settings file in the resume command of an entry with its ow
     readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
   );
 
-  expect({ command, settings }).toStrictEqual({
-    command: `cd '/work/repo' && claude --settings '${join(ctx.dir, 'state', 'hook-settings-claude.json')}' --resume sess-1`,
-    settings: {
-      model: 'opus',
-      hooks: {
-        SessionStart: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Notification: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Stop: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        UserPromptSubmit: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        SessionEnd: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-      },
-      statusLine: {
-        type: 'command',
-        command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
-        padding: 0,
-      },
+  expect(command).toBe(
+    `cd '/work/repo' && claude --settings '${join(ctx.dir, 'state', 'hook-settings-claude.json')}' --resume sess-1`,
+  );
+
+  expect(settings).toStrictEqual({
+    model: 'opus',
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
+      padding: 0,
     },
   });
 });
 
 test('it restores a stock session without a permission-mode argument', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(parseConfig({}), 'claude'),
@@ -626,7 +627,7 @@ test('it selects the subscription token on the Anthropic API with the placeholde
 });
 
 test('it plans a subscription guest spawn with its own config folder, the placeholder, and no permission mode', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     claudeArgs: ['--permission-mode', 'plan', '--verbose'],
@@ -770,8 +771,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 });
 
 test("it ships the host's Claude config as the session's user settings and keeps it out of the --settings file", () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const claudeDir = join(ctx.dir, 'home', '.claude');
 
   mkdirSync(join(claudeDir, 'skills', 'delegate'), { recursive: true });
@@ -925,7 +925,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
 });
 
 test('it gives a subscription guest spawn its MCP servers with the placeholder in an MCP config of its binding revision', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     authProfiles: {
@@ -1228,7 +1228,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
 });
 
 test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     claudeBin: 'true',
@@ -1292,7 +1292,7 @@ test.each([
 ])(
   'it refuses to start a subscription session in a host whose environment sets %s',
   (name, value) => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
     const config = parseConfig({
       claudeBin: 'true',
@@ -1338,7 +1338,7 @@ test.each([
 );
 
 test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     claudeBin: 'true',
@@ -1413,7 +1413,7 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
 });
 
 test("it sets a profile's variables in a subscription guest's settings env and spawn env", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     authProfiles: {
@@ -1466,88 +1466,87 @@ test("it sets a profile's variables in a subscription guest's settings env and s
 
   const settings: unknown = JSON.parse(settingsFile);
 
-  expect({ env: plan.env, settings }).toStrictEqual({
+  expect(plan.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+    OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+  });
+
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      padding: 0,
+    },
     env: {
-      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
       OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
       OP_CONNECT_TOKEN: 'imp-broker-placeholder',
       CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
-    },
-    settings: {
-      hooks: {
-        SessionStart: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Notification: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Stop: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        UserPromptSubmit: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        SessionEnd: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-      },
-      statusLine: {
-        type: 'command',
-        command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
-        padding: 0,
-      },
-      env: {
-        OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
-        OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-        CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-      },
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
 });
 
 test("it leaves a profile's variables out of the local plan of an entry with a profile env", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     authProfiles: {
@@ -1585,79 +1584,78 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     readFileSync(join(ctx.dir, 'state', 'hook-settings-claude.json'), 'utf8'),
   );
 
-  expect({ plan, settings }).toStrictEqual({
-    settings: {
-      hooks: {
-        SessionStart: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Notification: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Stop: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        UserPromptSubmit: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        SessionEnd: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-      },
-      statusLine: {
-        type: 'command',
-        command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
-        padding: 0,
-      },
-    },
-    plan: {
-      bin: 'claude',
-      args: [
-        '--settings',
-        join(ctx.dir, 'state', 'hook-settings-claude.json'),
-        '--plugin-dir',
-        join(ctx.dir, 'atc-bridge'),
+  expect(plan).toStrictEqual({
+    bin: 'claude',
+    args: [
+      '--settings',
+      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      '--plugin-dir',
+      join(ctx.dir, 'atc-bridge'),
+    ],
+  });
+
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
       ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
+      padding: 0,
     },
   });
 });

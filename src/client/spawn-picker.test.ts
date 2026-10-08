@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-requests';
@@ -14,19 +14,16 @@ import { SpawnPicker } from './spawn-picker';
  * when a test says so. `deps` wires them for the picker's constructor.
  * `counts` records each draw, each return to the screen the flow came
  * from, each attach, and each answer the picker dropped, and `dropped`
- * holds the kind of each dropped answer in order. Disposal removes the
- * directory.
+ * holds the kind of each dropped answer in order.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
   // Typed text fuzzy-filters the directories the directory step lists, the
   // client's own first, by every character in order. The temp root sits
   // directly under /tmp, whatever TMPDIR holds, so the only separators in
   // its path come before any letter a filter such as `acme/` needs.
   const cwd = mkdtempSync('/tmp/atc-spawn-picker-');
 
-  stack.defer(() => {
+  onTestFinished(() => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
@@ -49,8 +46,6 @@ function setupTest() {
     onDropAnswer: host.onDropAnswer,
   };
 
-  const owned = stack.move();
-
   return {
     deps,
     daemon,
@@ -59,14 +54,11 @@ function setupTest() {
     dropped: host.dropped,
     cwd,
     configPath,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
 test('it drops the target and source answer that arrives after esc leaves the agent step', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -110,7 +102,7 @@ test('it drops the target and source answer that arrives after esc leaves the ag
 });
 
 test('it drops the directory history that arrives after esc leaves a daemon without sources', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -150,7 +142,7 @@ test('it drops the directory history that arrives after esc leaves a daemon with
 });
 
 test('it drops a git listing that arrives after the leader leaves the flow', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -195,7 +187,7 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
 });
 
 test('it drops a directory listing that arrives after the leader leaves the flow', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -240,7 +232,7 @@ test('it drops a directory listing that arrives after the leader leaves the flow
 });
 
 test('it drops a reading that arrives after the leader leaves the flow', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -289,7 +281,7 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
 });
 
 test('it drops a probe answer that arrives after esc cancels it and the leader leaves', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -340,7 +332,7 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
 });
 
 test('it neither attaches nor draws a spawn that answers after esc stops waiting on it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -387,7 +379,7 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 });
 
 test('it materializes a directory on the one target when that target is remote', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -437,7 +429,7 @@ test('it materializes a directory on the one target when that target is remote',
 });
 
 test("it shows the daemon's pick for the destination of a repository on a remote target with no destination typed", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -488,7 +480,7 @@ test("it shows the daemon's pick for the destination of a repository on a remote
 });
 
 test('it spawns a repository on a remote target with no destination typed and leaves the directory to the daemon', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -553,7 +545,7 @@ test('it spawns a repository on a remote target with no destination typed and le
 });
 
 test('it sends the directory of a directory spawn after a flow left a repository to the daemon', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -632,7 +624,7 @@ test('it sends the directory of a directory spawn after a flow left a repository
 });
 
 test('it shows the refusal of a remote target without a workspace root when the daemon cannot pick the directory', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A daemon that serves every feature but picking the directory itself.
   const picker = new SpawnPicker({
@@ -682,7 +674,7 @@ test('it shows the refusal of a remote target without a workspace root when the 
 });
 
 test('it sends no spawn to a remote target without a workspace root when the daemon cannot pick the directory', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A daemon that serves every feature but picking the directory itself.
   const picker = new SpawnPicker({
@@ -733,7 +725,7 @@ test('it sends no spawn to a remote target without a workspace root when the dae
 });
 
 test('it holds a session whose workspace left changes behind instead of attaching it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -780,7 +772,7 @@ test('it holds a session whose workspace left changes behind instead of attachin
 });
 
 test('it attaches a held session whose workspace left changes behind on enter', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -829,7 +821,7 @@ test('it attaches a held session whose workspace left changes behind on enter', 
 });
 
 test('it shows the whole note of a workspace that left changes behind, wrapped to the picker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -881,7 +873,7 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
 });
 
 test('it leaves a session whose workspace left changes behind running when esc returns', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -944,7 +936,7 @@ test('it leaves a session whose workspace left changes behind running when esc r
 });
 
 test('it attaches a session spawned without warnings at once', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -985,7 +977,7 @@ test('it attaches a session spawned without warnings at once', async () => {
 });
 
 test('it runs a directory in place on the one target when that target is local', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1034,7 +1026,7 @@ test('it runs a directory in place on the one target when that target is local',
 });
 
 test('it adopts in place on the one local target it offers', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1090,7 +1082,7 @@ test('it adopts in place on the one local target it offers', async () => {
 });
 
 test('it offers an agent that takes the broker credential only the targets that reach the broker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1149,7 +1141,7 @@ test('it offers an agent that takes the broker credential only the targets that 
 });
 
 test('it offers an agent that takes no broker credential every target', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1208,7 +1200,7 @@ test('it offers an agent that takes no broker credential every target', async ()
 });
 
 test('it offers every target to an agent whose broker credential is optional', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1267,7 +1259,7 @@ test('it offers every target to an agent whose broker credential is optional', a
 });
 
 test('it lists a scope read from typed text once, on the target chosen after it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1324,7 +1316,7 @@ test('it lists a scope read from typed text once, on the target chosen after it'
 });
 
 test('it starts a new flow on the default target, not the one the last flow chose', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1423,7 +1415,7 @@ test('it starts a new flow on the default target, not the one the last flow chos
 });
 
 test('it lists a git source again when the flow left it before its listing answered', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1469,7 +1461,7 @@ test('it lists a git source again when the flow left it before its listing answe
 });
 
 test('it reads the targets and sources at once when one agent is installed', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1489,7 +1481,7 @@ test('it reads the targets and sources at once when one agent is installed', () 
 });
 
 test('it waits on the agent choice when more than one agent is installed', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1513,7 +1505,7 @@ test('it waits on the agent choice when more than one agent is installed', () =>
 });
 
 test('it shows how to install an agent when none is installed', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1534,7 +1526,7 @@ test('it shows how to install an agent when none is installed', () => {
 });
 
 test('it reads the targets and sources once when enter repeats on the agent step', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1561,7 +1553,7 @@ test('it reads the targets and sources once when enter repeats on the agent step
 });
 
 test('it returns esc from the directory step to the agent step when more than one agent is installed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1606,7 +1598,7 @@ test('it returns esc from the directory step to the agent step when more than on
 });
 
 test('it leaves the flow on esc from the directory step when one agent is installed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1643,7 +1635,7 @@ test('it leaves the flow on esc from the directory step when one agent is instal
 });
 
 test('it opens the name step after the directory when one agent and one target leave no choice', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1685,7 +1677,7 @@ test('it opens the name step after the directory when one agent and one target l
 });
 
 test('it returns esc from the name step to the directory step when one target left no choice', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1727,7 +1719,7 @@ test('it returns esc from the name step to the directory step when one target le
 });
 
 test('it lists a git source for the one target without a key when one agent and one target leave no choice', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1762,7 +1754,7 @@ test('it lists a git source for the one target without a key when one agent and 
 });
 
 test('it leaves the flow on esc from a git source when one agent and one target leave no choice', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1799,7 +1791,7 @@ test('it leaves the flow on esc from a git source when one agent and one target 
 });
 
 test('it takes the one available target for a directory when the other is unavailable', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1855,7 +1847,7 @@ test('it takes the one available target for a directory when the other is unavai
 });
 
 test('it takes the one target that takes a workspace for a repository', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1889,7 +1881,7 @@ test('it takes the one target that takes a workspace for a repository', async ()
 });
 
 test('it offers both targets for a directory when only one takes a workspace', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1929,7 +1921,7 @@ test('it offers both targets for a directory when only one takes a workspace', a
 });
 
 test('it shows why no target can run a directory when the one target is unavailable', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1971,7 +1963,7 @@ test('it shows why no target can run a directory when the one target is unavaila
 });
 
 test('it shows why no target can run a repository when none takes a workspace', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -1999,7 +1991,7 @@ test('it shows why no target can run a repository when none takes a workspace', 
 });
 
 test('it shows why no target can run an agent whose broker no target reaches', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2043,7 +2035,7 @@ test('it shows why no target can run an agent whose broker no target reaches', a
 });
 
 test('it shows why no target can adopt when none runs on the daemon host', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2083,7 +2075,7 @@ test('it shows why no target can adopt when none runs on the daemon host', async
 });
 
 test('it returns esc from a target step with no usable target to the directory step', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2125,7 +2117,7 @@ test('it returns esc from a target step with no usable target to the directory s
 });
 
 test('it drops the target and source answer of a flow that was left and opened again', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,
@@ -2165,7 +2157,7 @@ test('it drops the target and source answer of a flow that was left and opened a
 });
 
 test('it returns esc from a git source to the agent step when one target left no choice', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const picker = new SpawnPicker({
     ...ctx.deps,

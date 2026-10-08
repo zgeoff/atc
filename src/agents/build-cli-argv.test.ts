@@ -9,10 +9,8 @@ test('it runs the source entry under bun outside a compiled binary', () => {
   const argv = buildCLIArgv(false);
   const run = Bun.spawnSync([...argv, '--version']);
 
-  expect({ argv, version: run.stdout.toString() }).toStrictEqual({
-    argv: [process.execPath, join(repoRoot, 'src/cli.ts')],
-    version: `${pkg.version}\n`,
-  });
+  expect(argv).toStrictEqual([process.execPath, join(repoRoot, 'src/cli.ts')]);
+  expect(run.stdout.toString()).toBe(`${pkg.version}\n`);
 });
 
 test('it runs the binary itself as the entry inside a compiled binary', () => {

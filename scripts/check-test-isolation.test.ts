@@ -6,20 +6,18 @@ import invariant from 'tiny-invariant';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
- * A temp directory for the stand-in tool directory a test builds. Disposal
- * removes it.
+ * A temp directory for the stand-in tool directory a test builds.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-isolation-bin-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test.if(process.platform === 'linux')(
   'it stops with a clear message when GNU stat is not on the PATH',
   () => {
-    using ctx = setupTest();
-
+    const ctx = setupTest();
     const bin = join(ctx.dir, 'bin');
 
     mkdirSync(bin);

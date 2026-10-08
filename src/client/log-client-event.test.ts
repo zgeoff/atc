@@ -6,12 +6,13 @@ import { updateEnv } from '../test-utils/update-env';
 import { logClientEvent } from './log-client-event';
 
 function setupTest() {
-  return setupTempDir('atc-client-log-');
+  const tmp = setupTempDir('atc-client-log-');
+
+  return { dir: tmp.dir };
 }
 
 test('it appends each line to the file the variable holds', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 'client.log');
 
   updateEnv('ATC_CLIENT_LOG', path);
@@ -22,7 +23,7 @@ test('it appends each line to the file the variable holds', () => {
 });
 
 test('it keeps going when the file cannot be written', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('ATC_CLIENT_LOG', join(ctx.dir, 'missing', 'client.log'));
 
@@ -35,8 +36,7 @@ test.each([
   ['unset', undefined],
   ['empty', ''],
 ])('it writes nothing while the variable is %s', (_case, value) => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 'client.log');
 
   updateEnv('ATC_CLIENT_LOG', path);

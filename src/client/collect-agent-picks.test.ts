@@ -10,11 +10,11 @@ import { collectAgentPicks } from './collect-agent-picks';
 function setupTest() {
   const tmp = setupTempDir('atc-picks-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it lists only the agents whose configured binary resolves', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
   createStubBin(ctx.dir, 'my-codex', '#!/bin/sh\nexit 0\n');
@@ -34,7 +34,7 @@ test('it lists only the agents whose configured binary resolves', () => {
 });
 
 test('it lists only the agents whose binary resolves from a config with the old agent keys', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
   createStubBin(ctx.dir, 'my-codex', '#!/bin/sh\nexit 0\n');
@@ -52,7 +52,7 @@ test('it lists only the agents whose binary resolves from a config with the old 
 });
 
 test('it resolves a bare binary name off PATH', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(ctx.dir, 'grok', '#!/bin/sh\nexit 0\n');
   updateEnv('PATH', ctx.dir);
@@ -63,7 +63,7 @@ test('it resolves a bare binary name off PATH', () => {
 });
 
 test('it leaves out a binary that exists without the executable bit', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'my-codex'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
 
@@ -78,7 +78,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
 });
 
 test('it lists agents in registry order with their labels', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
@@ -103,7 +103,7 @@ test('it lists agents in registry order with their labels', () => {
 });
 
 test('it leaves out a configured backend whose binary does not resolve', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
@@ -122,7 +122,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
 });
 
 test('it lists a gateway with auth, which starts on a target with broker auth', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 

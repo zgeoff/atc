@@ -8,7 +8,7 @@ import { collectDirs, findFuzzyScore, pickMatches } from './dirs';
 function setupTest() {
   const tmp = setupTempDir('atc-dirs-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test.each([
@@ -57,7 +57,7 @@ test('#pickMatches drops candidates the filter cannot fuzzy-match', () => {
 });
 
 test('#collectDirs lists the working directory first, then history, roots, and zoxide, without repeats', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'cwd'));
   mkdirSync(join(ctx.dir, 'recent'));
@@ -80,7 +80,7 @@ test('#collectDirs lists the working directory first, then history, roots, and z
 });
 
 test('#collectDirs drops a directory that no longer exists', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'kept'));
 
@@ -95,7 +95,7 @@ test('#collectDirs drops a directory that no longer exists', () => {
 });
 
 test('#collectDirs falls back to the home directory when every source is empty', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const dirs = collectDirs({
     cwd: join(ctx.dir, 'gone'),

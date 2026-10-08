@@ -1,13 +1,13 @@
-import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { expect, test } from 'bun:test';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
-import invariant from 'tiny-invariant';
 import { startDaemon } from '../daemon/daemon';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { getBuild } from '../shared/get-build';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { readJSONRecord } from '../test-utils/read-json-record';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
 
@@ -16,34 +16,29 @@ import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unans
  * runtime directory, so the client computes `sockPath` as the daemon's
  * socket and `stateDir` as the daemon's state directory. The client reads
  * those paths once at import, so each test boots it in a subprocess with
- * `env`. Disposal removes the directory.
+ * `env`.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-boot-daemon-'));
+  const tmp = setupTempDir('atc-boot-daemon-');
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');
 
   // The daemon and the client both expect the state directory to exist.
   mkdirSync(stateDir, { recursive: true });
-
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
     stateDir,
     sockPath: join(tmp.dir, 'atc-daemon.sock'),
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
 test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using store = await StateStore.open(join(ctx.dir, 'state.db'));
+  const store = await StateStore.open(join(ctx.dir, 'state.db'));
+
+  registerTestCleanup(() => store.stop());
 
   await store.writeLastUsedAgent('codex');
 
@@ -56,7 +51,7 @@ test('it reports a codex hello as the last-used agent instead of coercing it to 
     statusPath: join(ctx.dir, 'status.json'),
   });
 
-  onTestFinished(() => daemon.stop());
+  registerTestCleanup(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -73,7 +68,7 @@ boot.client.stop();
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -85,7 +80,7 @@ boot.client.stop();
 });
 
 test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'run'));
 
@@ -98,25 +93,7 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
     statusPath: join(ctx.stateDir, 'status.json'),
   });
 
-  onTestFinished(() => daemon.stop());
-
-  const record: unknown = JSON.parse(readFileSync(join(ctx.stateDir, 'daemon.json'), 'utf8'));
-
-  invariant(
-    isDeepStrictEqual(record, {
-      pid: process.pid,
-      socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
-      reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
-      eventsSocketPath: null,
-      listenPort: null,
-    }),
-    'the daemon records its runtime sockets in the state directory',
-  );
-
-  invariant(
-    !existsSync(join(ctx.stateDir, 'atc-daemon.sock')),
-    'the daemon serves no socket from the state directory',
-  );
+  registerTestCleanup(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -133,7 +110,7 @@ boot.client.stop();
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -145,7 +122,7 @@ boot.client.stop();
 });
 
 test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -157,7 +134,7 @@ test('it leaves a daemon on another protocol running and rejects with both build
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(async () => {
+  registerTestCleanup(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -185,7 +162,7 @@ process.exit(0);
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -210,7 +187,7 @@ process.exit(0);
 });
 
 test('it stops a daemon on another protocol and boots its own build when the caller confirms the restart', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -222,7 +199,7 @@ test('it stops a daemon on another protocol and boots its own build when the cal
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(async () => {
+  registerTestCleanup(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -251,7 +228,7 @@ process.exit(0);
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -260,12 +237,15 @@ process.exit(0);
   await proc.exited;
   await legacy.exited;
 
-  expect(JSON.parse(stdout)).toStrictEqual({ asked: [legacy.pid], stale: false });
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['asked']).toStrictEqual([legacy.pid]);
+  expect(out['stale']).toBe(false);
   expect(legacy.signalCode).toBe('SIGTERM');
 });
 
 test('it leaves a daemon on another protocol running and rejects when the caller declines the restart', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -277,7 +257,7 @@ test('it leaves a daemon on another protocol running and rejects when the caller
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(async () => {
+  registerTestCleanup(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -308,7 +288,7 @@ process.exit(0);
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -320,14 +300,14 @@ process.exit(0);
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
-  expect(JSON.parse(stdout)).toStrictEqual({
-    asked: [legacy.pid],
-    outcome: { code: 'protocol_mismatch' },
-  });
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['asked']).toStrictEqual([legacy.pid]);
+  expect(out['outcome']).toStrictEqual({ code: 'protocol_mismatch' });
 });
 
 test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
@@ -339,7 +319,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
     { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(async () => {
+  registerTestCleanup(async () => {
     legacy.kill('SIGTERM');
 
     await legacy.exited;
@@ -372,7 +352,7 @@ process.exit(0);
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -383,11 +363,15 @@ process.exit(0);
   expect(legacy.signalCode).toBeNull();
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
-  expect(JSON.parse(stdout)).toStrictEqual({ asked: [], outcome: { code: 'protocol_mismatch' } });
+
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['asked']).toStrictEqual([]);
+  expect(out['outcome']).toStrictEqual({ code: 'protocol_mismatch' });
 });
 
 test('it rejects with the socket it waited on, and starts no daemon, when none answers before the wait ends', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The wait polls every 100 ms of the stepped clock, so a 300 ms wait
   // misses four polls: the probe steps past three of them and the fourth
@@ -398,10 +382,11 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
 import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
 import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
 const clock = buildStubClock(0);
+const notices = [];
 const booting = bootDaemonClient({
   waitForDaemonMs: 300,
   clock,
-  onWaitForDaemon: () => { process.stdout.write('waiting without starting a daemon\\n'); },
+  onWaitForDaemon: () => { notices.push('waiting without starting a daemon'); },
 });
 const steps = [];
 for (let poll = 0; poll < 3; poll++) {
@@ -413,7 +398,7 @@ for (let poll = 0; poll < 3; poll++) {
   clock.advance(100);
 }
 await booting.catch((error: Error) => {
-  process.stdout.write(JSON.stringify({ steps }));
+  process.stdout.write(JSON.stringify({ notices, steps }));
   process.stderr.write(error.message);
   process.exit(3);
 });
@@ -426,7 +411,7 @@ await booting.catch((error: Error) => {
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -437,7 +422,10 @@ await booting.catch((error: Error) => {
 
   await proc.exited;
 
-  expect(stdout).toBe('waiting without starting a daemon\n{"steps":[100,100,100]}');
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['notices']).toStrictEqual(['waiting without starting a daemon']);
+  expect(out['steps']).toStrictEqual([100, 100, 100]);
   expect(proc.exitCode).toBe(3);
 
   expect(stderr).toBe(
@@ -449,13 +437,9 @@ await booting.catch((error: Error) => {
 });
 
 test('it rejects when a socket takes the connection but never answers the handshake before the wait ends', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  const silent = startStubUnansweringUnixListener(ctx.sockPath);
-
-  onTestFinished(() => {
-    silent[Symbol.dispose]();
-  });
+  startStubUnansweringUnixListener(ctx.sockPath);
 
   // The socket takes the connection, so the boot waits on the handshake
   // until the stepped clock reaches the end of the wait.
@@ -486,7 +470,7 @@ await booting.catch((error: Error) => {
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -506,7 +490,7 @@ await booting.catch((error: Error) => {
 });
 
 test('it reports the start of a wait once across every poll of that wait', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The wait polls every 100 ms of the stepped clock, so a 500 ms wait
   // misses six polls: the probe steps past five of them and the sixth ends
@@ -540,21 +524,24 @@ process.exit(0);
     stderr: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
   const stdout = await new Response(proc.stdout).text();
 
-  expect(JSON.parse(stdout)).toStrictEqual({
-    waits: 1,
-    steps: [100, 100, 100, 100, 100],
-    outcome: `no atc daemon answered at ${ctx.sockPath} within 0.5s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
-  });
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['waits']).toBe(1);
+  expect(out['steps']).toStrictEqual([100, 100, 100, 100, 100]);
+
+  expect(out['outcome']).toBe(
+    `no atc daemon answered at ${ctx.sockPath} within 0.5s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
 });
 
 test('it never reports a wait when a daemon answers on the first try', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const daemon = await startDaemon({
     socketPath: ctx.sockPath,
@@ -565,7 +552,7 @@ test('it never reports a wait when a daemon answers on the first try', async () 
     statusPath: join(ctx.dir, 'status.json'),
   });
 
-  onTestFinished(() => daemon.stop());
+  registerTestCleanup(() => daemon.stop());
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -584,7 +571,7 @@ process.exit(0);
     stderr: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 

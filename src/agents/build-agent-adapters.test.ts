@@ -9,11 +9,13 @@ import { ClaudeAdapter } from './claude-adapter';
 import { GatewayAdapter } from './gateway-adapter';
 
 function setupTest() {
-  return setupTempDir('agent-adapters-');
+  const tmp = setupTempDir('agent-adapters-');
+
+  return { dir: tmp.dir };
 }
 
 test('it builds two claude adapters with distinct ids and spawn plans from one registry', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     agents: {
@@ -33,40 +35,37 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
     'expected two claude adapters',
   );
 
-  const plans = [
-    first.planSpawn({ prompt: '', resume: false }),
-    second.planSpawn({ prompt: '', resume: false }),
-  ];
+  const firstPlan = first.planSpawn({ prompt: '', resume: false });
+  const secondPlan = second.planSpawn({ prompt: '', resume: false });
 
-  expect({ ids: [first.id, second.id], plans }).toStrictEqual({
-    ids: ['claude', 'claude-b'],
-    plans: [
-      {
-        bin: 'one',
-        args: [
-          '--a',
-          '--settings',
-          join(ctx.dir, 'state', 'hook-settings-claude.json'),
-          '--plugin-dir',
-          join(ctx.dir, 'atc-bridge'),
-        ],
-      },
-      {
-        bin: 'two',
-        args: [
-          '--b',
-          '--settings',
-          join(ctx.dir, 'state', 'hook-settings-claude-b.json'),
-          '--plugin-dir',
-          join(ctx.dir, 'atc-bridge'),
-        ],
-      },
+  expect(first.id).toBe('claude');
+  expect(second.id).toBe('claude-b');
+
+  expect(firstPlan).toStrictEqual({
+    bin: 'one',
+    args: [
+      '--a',
+      '--settings',
+      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      '--plugin-dir',
+      join(ctx.dir, 'atc-bridge'),
+    ],
+  });
+
+  expect(secondPlan).toStrictEqual({
+    bin: 'two',
+    args: [
+      '--b',
+      '--settings',
+      join(ctx.dir, 'state', 'hook-settings-claude-b.json'),
+      '--plugin-dir',
+      join(ctx.dir, 'atc-bridge'),
     ],
   });
 });
 
 test('it hands a gateway entry the settings folder, home and mod folder it is given', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'home', '.claude'), { recursive: true });
 
@@ -103,5 +102,69 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     ],
   });
 
-  expect(settings).toMatchObject({ statusLine: { padding: 3 } });
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'zai'`,
+      padding: 3,
+    },
+    env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
+  });
 });

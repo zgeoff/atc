@@ -7,7 +7,9 @@ import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 // The folder the PATH entry with a stand-in claude binary sits in.
 function setupTest() {
-  return setupTempDir('atc-headless-exec-');
+  const tmp = setupTempDir('atc-headless-exec-');
+
+  return { dir: tmp.dir };
 }
 
 test('it leaves the SDK on its own CLI copy under a source run', () => {
@@ -28,7 +30,7 @@ test('it runs a JavaScript claude entry under node', () => {
 });
 
 test('it resolves a bare binary name on PATH for a compiled binary', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubBin(join(ctx.dir, 'bin'), 'fake-claude', '#!/bin/sh\n');
   updateEnv('PATH', join(ctx.dir, 'bin'));

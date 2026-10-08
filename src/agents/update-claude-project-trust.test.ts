@@ -13,12 +13,13 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateClaudeProjectTrust } from './update-claude-project-trust';
 
 function setupTest() {
-  return setupTempDir('atc-claude-trust-');
+  const tmp = setupTempDir('atc-claude-trust-');
+
+  return { dir: tmp.dir };
 }
 
 test('it trusts the exact root and keeps every other key of the config', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(
@@ -58,8 +59,7 @@ test('it trusts the exact root and keeps every other key of the config', async (
 });
 
 test('it leaves a sibling folder of the root untrusted', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, JSON.stringify({ projects: {} }, null, 2));
@@ -74,8 +74,7 @@ test('it leaves a sibling folder of the root untrusted', async () => {
 });
 
 test('it keeps the fields of an untrusted entry it trusts', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(
@@ -97,8 +96,7 @@ test('it keeps the fields of an untrusted entry it trusts', async () => {
 });
 
 test('it leaves the config untouched when the root is already trusted', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
   const original = '{"projects":{"/work/clone":{"hasTrustDialogAccepted":true}}}';
 
@@ -113,8 +111,7 @@ test('it leaves the config untouched when the root is already trusted', async ()
 });
 
 test('it leaves the config untouched when the trust of an already trusted root is taken back', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
   const original = '{"projects":{"/work/clone":{"hasTrustDialogAccepted":true}}}';
 
@@ -131,8 +128,7 @@ test('it leaves the config untouched when the trust of an already trusted root i
 });
 
 test('it keeps the mode of the config it replaces', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, '{}', { mode: 0o600 });
@@ -144,8 +140,7 @@ test('it keeps the mode of the config it replaces', async () => {
 });
 
 test('it replaces the file a symlinked config points at and keeps the link', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const target = join(ctx.dir, 'dotfiles.json');
   const configPath = join(ctx.dir, '.claude.json');
 
@@ -161,8 +156,7 @@ test('it replaces the file a symlinked config points at and keeps the link', asy
 });
 
 test('it puts back the config as it was when the trust is taken back', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   const original = JSON.stringify(
@@ -181,8 +175,7 @@ test('it puts back the config as it was when the trust is taken back', async () 
 });
 
 test('it puts back an untrusted entry when the trust is taken back', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   const original = JSON.stringify(
@@ -201,8 +194,7 @@ test('it puts back an untrusted entry when the trust is taken back', async () =>
 });
 
 test('it keeps an entry that changed after the trust when the trust is taken back', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, '{}');
@@ -223,8 +215,7 @@ test('it keeps an entry that changed after the trust when the trust is taken bac
 });
 
 test('it creates the config when none exists', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   await updateClaudeProjectTrust(configPath, '/work/clone');
@@ -235,8 +226,7 @@ test('it creates the config when none exists', async () => {
 });
 
 test('it refuses to replace a config that does not parse', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   writeFileSync(configPath, '{"projects":');
@@ -247,8 +237,7 @@ test('it refuses to replace a config that does not parse', () => {
 });
 
 test('it writes only after the Claude CLI releases its config lock', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
 
