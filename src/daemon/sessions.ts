@@ -38,6 +38,8 @@ import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionLifecycle } from './build-session-lifecycle';
 import { buildTarArchive } from './build-tar-archive';
 import { buildTargetIdentity } from './build-target-identity';
+import { createStepTimer } from './create-step-timer';
+import type { StepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
 import type {
   ExecutionCapability,
@@ -216,6 +218,7 @@ interface SpawnHostAccess {
     attempt: number,
   ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
   readonly removeClaim: (dir: string) => Promise<boolean>;
+  readonly timer: StepTimer;
 }
 
 // A workspace directory a spawn on a shared host holds, as the spawn gave
@@ -355,6 +358,9 @@ export class SessionManager {
   log: (line: string) => void = (line) => {
     console.error(line);
   };
+
+  // The clock each remote launch's step timing reads, in milliseconds.
+  now: () => number = () => performance.now();
 
   // Binds the runtime auth of each host whose agent takes its credential
   // from impd's broker; with none, every such start is refused.
@@ -717,6 +723,7 @@ export class SessionManager {
 
     const provider = this.requireExecution(s, 'spawn').provider;
     const auth = this.resolveHarnessAuth(adapter, provider, s.target);
+    const timer = createStepTimer(this.now);
 
     const authSetup: HarnessAuthSetup | null =
       auth === null ? null : { ...auth, mode: 'verify', targetIdentity: s.targetIdentity };
@@ -747,19 +754,24 @@ export class SessionManager {
           authSetup,
           s.cwd,
           false,
+          timer,
         );
 
+        const records = this.records;
+
         const path =
-          this.records === null
+          records === null
             ? null
-            : await this.records.restoreCopy({
-                session: s.id,
-                target: s.target,
-                provider,
-                host: s.hostKey,
-                dir: s.cwd,
-                workspace: s.workspace ?? null,
-              });
+            : await timer.withStep('record', () =>
+                records.restoreCopy({
+                  session: s.id,
+                  target: s.target,
+                  provider,
+                  host: s.hostKey,
+                  dir: s.cwd,
+                  workspace: s.workspace ?? null,
+                }),
+              );
 
         return { plan: planned.plan, recordPath: path };
       });
@@ -821,8 +833,14 @@ export class SessionManager {
     this.onEvent('state', s);
     this.emitChange();
 
-    if (auth !== null) {
-      await this.waitForAuthStart(s, provider, pty);
+    await timer.withStep('harness-start', async () => {
+      if (auth !== null) {
+        await this.waitForAuthStart(s, provider, pty);
+      }
+    });
+
+    if (provider.remote) {
+      this.log(`atc: wake of session ${s.id} on target '${s.target}' took ${timer.formatSteps()}`);
     }
 
     for (const asleep of this.sessions) {
@@ -1071,6 +1089,7 @@ export class SessionManager {
 
     const execution = this.requireExecution({ target, targetIdentity: null }, 'spawn');
     const provider = execution.provider;
+    const timer = createStepTimer(this.now);
 
     const trustClonedWorkspace =
       overrides.trustClonedWorkspace ??
@@ -1151,6 +1170,7 @@ export class SessionManager {
         authSetup,
         startDir,
         hostKey === id,
+        timer,
       );
 
     // A launch behind the broker reads the project settings of the clone it
@@ -1158,7 +1178,10 @@ export class SessionManager {
     const checkWorkspace =
       auth === null
         ? null
-        : (root: string) => this.requireProjectSettings(adapter, provider, hostKey, target, root);
+        : (root: string) =>
+            timer.withStep('project-settings', () =>
+              this.requireProjectSettings(adapter, provider, hostKey, target, root),
+            );
 
     // Takes back trust a spawn accepted in the user's own agent config when
     // the spawn fails before its harness starts.
@@ -1185,11 +1208,10 @@ export class SessionManager {
           }
 
           const files = Object.entries(planned).map(([path, content]) => ({ path, content }));
+          const dir = `${provider.guest.dir}/sessions/${id}`;
 
-          await provider.transferArchive(
-            buildTarArchive(files),
-            `${provider.guest.dir}/sessions/${id}`,
-            hostKey,
+          await timer.withStep('trust-transfer', () =>
+            provider.transferArchive(buildTarArchive(files), dir, hostKey),
           );
         }
       : null;
@@ -1218,23 +1240,28 @@ export class SessionManager {
               setupHost,
               checkWorkspace,
               trustWorkspace,
+              timer,
             );
+
+      const records = this.records;
 
       try {
         published.path =
-          this.records === null
+          records === null
             ? null
-            : await this.records.createRecord(
-                {
-                  session: id,
-                  target,
-                  provider,
-                  host: hostKey,
-                  dir: autoDir && ready.root !== null ? ready.root : cwd,
-                  workspace: ready.materialized?.workspace ?? null,
-                  ...(ready.materialized === null ? {} : { branch: ready.materialized.branch }),
-                },
-                scope,
+            : await timer.withStep('record', () =>
+                records.createRecord(
+                  {
+                    session: id,
+                    target,
+                    provider,
+                    host: hostKey,
+                    dir: autoDir && ready.root !== null ? ready.root : cwd,
+                    workspace: ready.materialized?.workspace ?? null,
+                    ...(ready.materialized === null ? {} : { branch: ready.materialized.branch }),
+                  },
+                  scope,
+                ),
               );
       } catch (error) {
         published.failure = { error };
@@ -1349,17 +1376,27 @@ export class SessionManager {
     // caller takes the failed spawn back with its binding. A shared host
     // that nothing else runs on goes back to sleep first; a host of its
     // own goes with the take-back.
-    if (auth !== null && hostKey === id) {
-      await pty.waitForStart?.();
-    } else if (auth !== null) {
-      await this.waitForAuthStart(session, provider, pty);
-    }
+    await timer.withStep('harness-start', async () => {
+      if (auth !== null && hostKey === id) {
+        await pty.waitForStart?.();
+      } else if (auth !== null) {
+        await this.waitForAuthStart(session, provider, pty);
+      }
+    });
 
     if (setup.attemptID !== null) {
-      await this.requireAuthBinder().updateReady(hostKey, setup.attemptID);
+      const attemptID = setup.attemptID;
+
+      await timer.withStep('auth-ready', () =>
+        this.requireAuthBinder().updateReady(hostKey, attemptID),
+      );
     }
 
     this.startingSpawns.delete(id);
+
+    if (provider.remote) {
+      this.log(`atc: spawn of session ${id} on target '${target}' took ${timer.formatSteps()}`);
+    }
 
     return session;
   }
@@ -1797,6 +1834,7 @@ export class SessionManager {
     setupHost: () => Promise<HarnessSetup>,
     checkWorkspace: ((root: string) => Promise<void>) | null,
     trustWorkspace: ((root: string) => Promise<void>) | null,
+    timer: StepTimer,
   ): Promise<{
     readonly setup: HarnessSetup;
     readonly materialized: MaterializedSpawn | null;
@@ -1819,20 +1857,23 @@ export class SessionManager {
             // to the home there, which only the readied host can resolve.
             hostHome.dir ??= posix.isAbsolute(dir)
               ? ''
-              : await this.resolveHostHome(provider, hostKey);
+              : await timer.withStep('host-home', () => this.resolveHostHome(provider, hostKey));
 
             const base = posix.isAbsolute(dir) ? dir : posix.join(hostHome.dir, dir);
             const candidate = attempt === 1 ? base : `${base}-${attempt}`;
 
-            const landing = this.hasHostLifecycle(target)
-              ? await this.claimHostDir(provider, id, hostKey, target, candidate)
-              : await this.resolveHostDir(provider, null, candidate);
+            const landing = await timer.withStep('dir-claim', () =>
+              this.hasHostLifecycle(target)
+                ? this.claimHostDir(provider, id, hostKey, target, candidate)
+                : this.resolveHostDir(provider, null, candidate),
+            );
 
             readied.root = landing;
 
             return { host: hostKey, dir: landing };
           },
           removeClaim: (landing) => this.removeClaimedDir(provider, id, hostKey, target, landing),
+          timer,
         },
         targetIdentity,
       );
@@ -2128,6 +2169,7 @@ export class SessionManager {
     // Whether the host is a spawn's new host of its own, which a failure
     // once it is readied destroys.
     isNewHost: boolean,
+    timer: StepTimer,
   ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
     const refusal = adapter.findSpawnRefusal?.() ?? null;
 
@@ -2144,6 +2186,7 @@ export class SessionManager {
         host: hostKey,
         daemonID: this.store.daemonID,
         isIdle: () => this.isHostIdle(hostKey, target),
+        timer,
       });
 
       return {
@@ -2161,7 +2204,7 @@ export class SessionManager {
         : {
             atc: guest.atc,
             dir,
-            auth: await this.planGuestAuth(hostKey, auth),
+            auth: await timer.withStep('auth-plan', () => this.planGuestAuth(hostKey, auth)),
           };
 
     const plan =
@@ -2183,13 +2226,18 @@ export class SessionManager {
 
     requireGuestEnv(adapter.id, target, env, auth !== null);
 
-    const attemptID = await this.applyHarnessAuth(hostKey, target, auth);
+    const attemptID =
+      auth === null
+        ? null
+        : await timer.withStep('auth-binding', () => this.applyHarnessAuth(hostKey, target, auth));
 
     try {
-      await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files);
+      await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files, timer);
 
       if (auth !== null && cwd !== null) {
-        await this.requireProjectSettings(adapter, provider, hostKey, target, cwd);
+        await timer.withStep('project-settings', () =>
+          this.requireProjectSettings(adapter, provider, hostKey, target, cwd),
+        );
       }
     } catch (error) {
       if (attemptID !== null || isNewHost) {
@@ -2301,6 +2349,7 @@ export class SessionManager {
 
     // oxlint-disable-next-line prefer-readonly-parameter-types -- file bytes have no readonly form
     planned: GuestSpawnPlan['files'],
+    timer: StepTimer,
   ): Promise<void> {
     await provider.prepareHost({
       host: hostKey,
@@ -2308,12 +2357,15 @@ export class SessionManager {
       installATC: adapter.planGuestSpawn !== undefined,
       log: this.log,
       isIdle: () => this.isHostIdle(hostKey, target),
+      timer,
     });
 
     const check = adapter.planAuthCheck?.();
 
     if (check !== undefined) {
-      const result = await provider.runCommand({ argv: check, cwd: '/', host: hostKey });
+      const result = await timer.withStep('auth-check', () =>
+        provider.runCommand({ argv: check, cwd: '/', host: hostKey }),
+      );
 
       if (result.exitCode !== 0) {
         throw new DaemonError(
@@ -2331,7 +2383,9 @@ export class SessionManager {
     );
 
     if (files.length > 0) {
-      await provider.transferArchive(buildTarArchive(files), dir, hostKey);
+      await timer.withStep('settings-transfer', () =>
+        provider.transferArchive(buildTarArchive(files), dir, hostKey),
+      );
     }
   }
 

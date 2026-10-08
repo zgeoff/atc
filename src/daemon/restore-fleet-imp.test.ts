@@ -156,6 +156,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
   expect(restored.restored).toBe(2);
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    expect.stringMatching(/^atc: wake of session s-first on target 'box' took /),
     'atc could not revive session s-second (no plan for s-second)',
   ]);
 
@@ -227,5 +228,6 @@ test('it logs a first session whose revive fails with a plain error and still re
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     'atc could not revive session s-first (no plan for s-first)',
+    expect.stringMatching(/^atc: wake of session s-second on target 'box' took /),
   ]);
 });

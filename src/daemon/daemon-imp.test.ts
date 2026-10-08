@@ -58,9 +58,51 @@ async function setupTest() {
     dbPath: daemon.dbPath,
     socketPath: daemon.socketPath,
     build: daemon.build,
+    logs: daemon.logs,
     port,
   };
 }
+
+test('it logs how long each step of a spawn on an imp took', async () => {
+  const ctx = await setupTest();
+  const spawned = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  expect<readonly unknown[]>(
+    ctx.logs.filter((line) => line.startsWith('atc: spawn of session')),
+  ).toStrictEqual([
+    expect.stringMatching(
+      new RegExp(
+        String.raw`^atc: spawn of session ${id} on target 'box' took features \d+, inspect-imp \d+, create-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
+      ),
+    ),
+  ]);
+});
+
+test('it logs how long each step of a wake on an imp took', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: 'agent-session-1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await ctx.client.sendRequest('session.kill', { session: id });
+  await ctx.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect<readonly unknown[]>(
+    ctx.logs.filter((line) => line.startsWith('atc: wake of session')),
+  ).toStrictEqual([
+    expect.stringMatching(
+      new RegExp(
+        String.raw`^atc: wake of session ${id} on target 'box' took features \d+, inspect-imp \d+, lease \d+, guest-atc \d+, record \d+, harness-start \d+, total \d+$`,
+      ),
+    ),
+  ]);
+});
 
 test('it starts each top-level session in an imp of its own', async () => {
   const ctx = await setupTest();

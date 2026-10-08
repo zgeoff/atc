@@ -7,6 +7,7 @@ import { isCompiledBinary } from '../shared/is-compiled-binary';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildImpName } from './build-imp-name';
 import { buildTarArchive } from './build-tar-archive';
+import { createStepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
 import type {
   CommandResult,
@@ -242,31 +243,36 @@ export class ImpProvider implements ExecutionProvider {
     const holdsLease = held !== undefined && (held.harnesses > 0 || held.renewTimer !== null);
     let created = false;
     let leased = false;
+    const timer = request.timer ?? createStepTimer();
 
     try {
-      const features = await this.port.readFeatures();
+      const features = await timer.withStep('features', () => this.port.readFeatures());
 
       this.offsets = features.sessionOffsets;
 
-      const existing = await this.port.readImp(name);
+      const existing = await timer.withStep('inspect-imp', () => this.port.readImp(name));
 
       if (existing === null) {
         this.imageATCVersions.delete(name);
 
-        await this.port.createImp({
-          name,
-          ...(this.target.image === undefined ? {} : { image: this.target.image }),
-          ...(this.target.memoryMib === undefined ? {} : { memoryMib: this.target.memoryMib }),
-        });
+        await timer.withStep('create-imp', () =>
+          this.port.createImp({
+            name,
+            ...(this.target.image === undefined ? {} : { image: this.target.image }),
+            ...(this.target.memoryMib === undefined ? {} : { memoryMib: this.target.memoryMib }),
+          }),
+        );
 
         created = true;
       }
 
-      await this.port.acquireLease(name, label, this.leaseSeconds);
+      await timer.withStep('lease', () => this.port.acquireLease(name, label, this.leaseSeconds));
 
       leased = !holdsLease;
 
-      await this.setupGuest(name, request.installATC === true, request.log ?? (() => {}));
+      await timer.withStep('guest-atc', () =>
+        this.setupGuest(name, request.installATC === true, request.log ?? (() => {})),
+      );
     } catch (error) {
       const undone = await this.tryUndoPrepare(name, label, created, leased);
 

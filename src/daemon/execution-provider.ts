@@ -1,5 +1,6 @@
 import type { DaemonError } from '../protocol/daemon-error';
 import type { BrokerAuthHost } from './broker-auth-host';
+import type { StepTimer } from './create-step-timer';
 
 /**
  * The host a session's harness runs on: it starts a process in a
@@ -85,6 +86,10 @@ export interface HostRequest {
   // Whether the daemon has nothing running or starting on the host, which
   // the provider checks before it gives the host's lease back on its own.
   readonly isIdle?: () => boolean;
+
+  // Times each step of the readying under its name, for the launch that
+  // asked for it.
+  readonly timer?: StepTimer;
 }
 
 export interface GuestLayout {

@@ -17,6 +17,8 @@ import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
+import { createStepTimer } from './create-step-timer';
+import type { StepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
 import type { ExecutionProvider } from './execution-provider';
 import { requireGitTransports } from './require-git-transports';
@@ -69,6 +71,9 @@ interface MaterializeDeps {
   // The transports a source may use and git may fetch over, or the invalid
   // list the config holds, which refuses every source that needs git.
   readonly gitTransports: readonly string[] | InvalidGitTransports;
+
+  // Times each step of the build under its name, for the spawn it is for.
+  readonly timer?: StepTimer;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -255,15 +260,18 @@ async function runMaterialization(
   secret: string | null,
 ): Promise<Omit<ReadyWorkspace, 'withheldEnv'>> {
   const transports = requireGitTransports(deps.gitTransports, { phase: 'resolving' });
+  const timer = deps.timer ?? createStepTimer();
 
-  const pinned = await resolveSource(request.source, staging, transports);
+  const pinned = await timer.withStep('resolve-source', () =>
+    resolveSource(request.source, staging, transports),
+  );
 
   // What is recorded and returned is scrubbed of the credential, even
   // where a caller's own ref happens to spell it.
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);
   const ref = secret === null || pinned.ref === null ? pinned.ref : toRedacted(pinned.ref, secret);
 
-  const landing = await claimLanding(request, deps, updateProgress);
+  const landing = await claimLanding(request, deps, updateProgress, timer);
 
   await recordPhase(request, deps, updateProgress, 'cloning', {
     repoURL,
@@ -271,7 +279,7 @@ async function runMaterialization(
     ...(request.autoDir === true ? { dir: landing.dir } : {}),
   });
 
-  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports);
+  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports, timer);
 
   // The archive is in memory, so the clone leaves the daemon's host before
   // the target is touched.
@@ -279,15 +287,16 @@ async function runMaterialization(
   await recordPhase(request, deps, updateProgress, 'transferring', { sha: clone.sha });
 
   try {
-    await deps
-      .requireProvider('transfer')
-      .transferArchive(clone.archive, landing.dir, landing.host);
+    await timer.withStep('transfer', () =>
+      deps.requireProvider('transfer').transferArchive(clone.archive, landing.dir, landing.host),
+    );
   } catch (error) {
     throw toDaemonError(error, 'transfer_failed', 'transferring');
   }
 
   await recordPhase(request, deps, updateProgress, 'verifying', {});
-  await verifyTargetHead(request, deps, landing, clone.sha);
+
+  await timer.withStep('verify', () => verifyTargetHead(request, deps, landing, clone.sha));
 
   const materializedAt = Date.now();
 
@@ -427,6 +436,7 @@ async function claimLanding(
   request: MaterializeRequest,
   deps: MaterializeDeps,
   updateProgress: ProgressTracker,
+  timer: StepTimer,
 ): Promise<Landing> {
   const attempts = request.autoDir === true ? AUTO_DIR_ATTEMPTS : 1;
 
@@ -436,7 +446,9 @@ async function claimLanding(
 
       updateProgress({ landing });
 
-      await claimTargetDir(request, deps, landing, updateProgress);
+      await timer.withStep('dir-create', () =>
+        claimTargetDir(request, deps, landing, updateProgress),
+      );
 
       return landing;
     } catch (error) {
@@ -548,18 +560,21 @@ async function createCleanClone(
   pinned: PinnedSource,
   dir: string,
   transports: readonly string[],
+  timer: StepTimer,
 ): Promise<CleanClone> {
-  const clone = await createWorkspaceClone({
-    source: {
-      kind: 'git',
-      url: pinned.cloneURL,
-      ref: pinned.checkout,
-      ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
-    },
-    dir,
-    transports,
-    ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
-  });
+  const clone = await timer.withStep('clone', () =>
+    createWorkspaceClone({
+      source: {
+        kind: 'git',
+        url: pinned.cloneURL,
+        ref: pinned.checkout,
+        ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
+      },
+      dir,
+      transports,
+      ...(pinned.credential === undefined ? {} : { credential: pinned.credential }),
+    }),
+  );
 
   if (!clone.ok) {
     const { ok: _ok, code, message, ...detail } = clone;
@@ -567,19 +582,24 @@ async function createCleanClone(
     throw new DaemonError(code, message, { phase: 'cloning', ...detail });
   }
 
-  const sanitized = await sanitizeWorkspaceClone(dir, pinned.cloneURL);
+  const sanitized = await timer.withStep('sanitize', () =>
+    sanitizeWorkspaceClone(dir, pinned.cloneURL),
+  );
 
   if (!sanitized.ok) {
     throw new DaemonError(sanitized.code, sanitized.message, { phase: 'cloning' });
   }
 
-  const tar = readWorkspaceTar(dir);
+  const read = await timer.withStep('archive', async () => {
+    const tar = readWorkspaceTar(dir);
 
-  const bytes = await new Response(tar.stream).arrayBuffer();
+    const bytes = await new Response(tar.stream).arrayBuffer();
 
-  const archive = new Uint8Array(bytes);
+    return { archive: new Uint8Array(bytes), outcome: await tar.done };
+  });
 
-  const outcome = await tar.done;
+  const archive = read.archive;
+  const outcome = read.outcome;
 
   if (!outcome.ok) {
     throw new DaemonError(outcome.code, outcome.message, { phase: 'cloning' });
