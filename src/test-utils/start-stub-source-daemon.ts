@@ -13,7 +13,7 @@ import { registerTestCleanup } from './register-test-cleanup';
  * a test; disposal stops it sooner, and a second stop does nothing.
  */
 export async function startStubSourceDaemon(env: Readonly<Record<string, string | undefined>>) {
-  const daemon = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const daemon = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: { ATC_TEST_SOURCES: 'fixture', ...env },
     stdout: 'pipe',
     stderr: 'ignore',

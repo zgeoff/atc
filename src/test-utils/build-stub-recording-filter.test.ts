@@ -6,11 +6,13 @@ import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-recording-filter-');
+  const tmp = setupTempDir('atc-stub-recording-filter-');
+
+  return { dir: tmp.dir };
 }
 
 test('it records each run and passes its input through unchanged', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const filter = createStubBin(
     ctx.dir,
@@ -22,9 +24,10 @@ test('it records each run and passes its input through unchanged', () => {
 
   const second = Bun.spawnSync([filter], { stdin: Buffer.from('hello\n') });
 
-  expect({
-    exitCode: second.exitCode,
-    stdout: second.stdout.toString(),
-    record: readFileSync(join(ctx.dir, 'filter-ran'), 'utf8'),
-  }).toStrictEqual({ exitCode: 0, stdout: 'hello\n', record: 'ran\nran\n' });
+  expect({ exitCode: second.exitCode, stdout: second.stdout.toString() }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'hello\n',
+  });
+
+  expect(readFileSync(join(ctx.dir, 'filter-ran'), 'utf8')).toBe('ran\nran\n');
 });

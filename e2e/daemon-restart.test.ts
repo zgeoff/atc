@@ -554,7 +554,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'src', 'test-utils', 'run-legacy-daemon.ts'),
+      join(import.meta.dir, '..', 'src', 'test-utils', 'run-stub-legacy-daemon.ts'),
       daemon.socketPath,
       daemon.stateDir,
     ],

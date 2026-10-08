@@ -8,13 +8,9 @@ import { waitFor } from './wait-for';
 // A daemon whose agent takes messages, one session on it, and a second
 // client to make that session's tap.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
-
-  stack.use(daemon);
 
   const sessionID = await spawnNamedSession(
     (m, p) => daemon.client.sendRequest(m, p),
@@ -24,13 +20,11 @@ async function setupTest() {
 
   const tapClient = await daemon.openClient();
 
-  const owned = stack.move();
-
-  return { daemon, sessionID, tapClient, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { daemon, sessionID, tapClient };
 }
 
 test('it takes every pending message in the order the daemon accepted them', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = await ctx.daemon.client.sendRequest('session.message', {
     session: ctx.sessionID,
@@ -53,7 +47,7 @@ test('it takes every pending message in the order the daemon accepted them', asy
 });
 
 test('it acks each message it takes', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const sent = await ctx.daemon.client.sendRequest('session.message', {
     session: ctx.sessionID,
@@ -70,8 +64,7 @@ test('it acks each message it takes', async () => {
 });
 
 test('it records the end of its subscription', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const tap = await startStubTap(ctx.tapClient, ctx.sessionID);
   const replacement = await ctx.daemon.openClient();
 

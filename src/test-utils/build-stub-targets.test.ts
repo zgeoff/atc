@@ -1,11 +1,14 @@
-import { expect, mock, onTestFinished, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { buildStubTargets } from './build-stub-targets';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-targets-');
+  const tmp = setupTempDir('atc-stub-targets-');
+
+  return { dir: tmp.dir };
 }
 
 test('it builds a target with a provider for each local-pty entry and none for another kind', () => {
@@ -46,8 +49,7 @@ test('it builds a target with a provider for each local-pty entry and none for a
 });
 
 test('it records the target of each spawn', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const spawned: string[] = [];
 
   const [target] = buildStubTargets([{ id: 'box', provider: 'local-pty', options: {} }], {
@@ -65,7 +67,7 @@ test('it records the target of each spawn', () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness?.kill();
   });
 

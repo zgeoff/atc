@@ -1,9 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { sendMCPRequest } from './send-mcp-request';
 import { startStubMCPServer } from './start-stub-mcp-server';
 
 test('it posts one JSON-RPC request with the bearer token to the MCP endpoint', async () => {
-  using server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: {} });
+  const server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: {} });
 
   await sendMCPRequest(server.url, 'tok', 'tools/call', { name: 'x' });
 
@@ -19,7 +19,7 @@ test('it posts one JSON-RPC request with the bearer token to the MCP endpoint', 
 });
 
 test('it returns the result of the response', async () => {
-  using server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: { tools: [] } });
+  const server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: { tools: [] } });
 
   const result = await sendMCPRequest(server.url, 'tok', 'tools/list');
 
@@ -31,10 +31,6 @@ test('it refuses a response without a result', () => {
     jsonrpc: '2.0',
     id: 1,
     error: { code: -32_601, message: 'no method' },
-  });
-
-  onTestFinished(() => {
-    server[Symbol.dispose]();
   });
 
   expect(sendMCPRequest(server.url, 'tok', 'nope')).rejects.toThrowWithMessage(

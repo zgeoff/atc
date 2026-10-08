@@ -1,22 +1,25 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubRecordingClaude } from './create-stub-recording-claude';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  return setupTempDir('atc-stub-recording-claude-');
+  const tmp = setupTempDir('atc-stub-recording-claude-');
+
+  return { dir: tmp.dir };
 }
 
 test('it returns the path of the stub under the directory', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(createStubRecordingClaude(ctx.dir)).toBe(join(ctx.dir, 'fake-claude'));
 });
 
 test('it writes no start log before it runs', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubRecordingClaude(ctx.dir);
 
@@ -24,12 +27,11 @@ test('it writes no start log before it runs', () => {
 });
 
 test('it records the arguments of a start one per line, then an empty line', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubRecordingClaude(ctx.dir);
   const run = Bun.spawn([bin, '--a', 'two words']);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     run.kill();
   });
 
@@ -39,13 +41,12 @@ test('it records the arguments of a start one per line, then an empty line', asy
 });
 
 test('it appends a later start after an earlier one', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubRecordingClaude(ctx.dir);
   const log = join(ctx.dir, 'claude-starts.log');
   const first = Bun.spawn([bin, '--a']);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.kill();
   });
 
@@ -55,7 +56,7 @@ test('it appends a later start after an earlier one', async () => {
 
   const second = Bun.spawn([bin, '--b']);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.kill();
   });
 
@@ -65,12 +66,11 @@ test('it appends a later start after an earlier one', async () => {
 });
 
 test('it is still running after it records its start', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubRecordingClaude(ctx.dir);
   const run = Bun.spawn([bin]);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     run.kill();
   });
 

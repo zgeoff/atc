@@ -5,11 +5,13 @@ import { runATC } from './run-atc';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-run-atc-');
+  const tmp = setupTempDir('atc-run-atc-');
+
+  return { dir: tmp.dir };
 }
 
 test('it resolves with the exit code and output of a subcommand', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = await runATC({
     command: resolveATCCommand(),
@@ -26,7 +28,7 @@ test('it resolves with the exit code and output of a subcommand', async () => {
 });
 
 test('it lays the run variables over the home', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = await runATC({
     command: resolveATCCommand(),
@@ -39,7 +41,7 @@ test('it lays the run variables over the home', async () => {
 });
 
 test('it removes a variable the run sets to undefined', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = await runATC({
     command: ['/usr/bin/env'],
@@ -53,7 +55,7 @@ test('it removes a variable the run sets to undefined', async () => {
 });
 
 test('it feeds the run its standard input in the directory it names', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = await runATC({
     command: ['/bin/sh', '-c', 'pwd; cat'],

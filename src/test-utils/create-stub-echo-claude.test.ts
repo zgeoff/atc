@@ -4,18 +4,19 @@ import { createStubEchoClaude } from './create-stub-echo-claude';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-echo-claude-');
+  const tmp = setupTempDir('atc-stub-echo-claude-');
+
+  return { dir: tmp.dir };
 }
 
 test('it returns the path of the stub under the directory', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(createStubEchoClaude(ctx.dir)).toBe(join(ctx.dir, 'fake-claude'));
 });
 
 test('it prints its pid, then echoes each line with its pid until it reads quit', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubEchoClaude(ctx.dir);
   const run = Bun.spawn([bin], { stdin: Buffer.from('one\ntwo\nquit\nafter\n'), stdout: 'pipe' });
 
@@ -30,8 +31,7 @@ test('it prints its pid, then echoes each line with its pid until it reads quit'
 });
 
 test('it exits 0 when its input ends without quit', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubEchoClaude(ctx.dir);
   const run = Bun.spawn([bin], { stdin: Buffer.from('one\n'), stdout: 'ignore' });
 

@@ -6,23 +6,14 @@ import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-stub-signed-in-gh-'));
+  const tmp = setupTempDir('atc-stub-signed-in-gh-');
   const gh = createStubBin(tmp.dir, 'gh', buildStubSignedInGH());
-  const owned = stack.move();
 
-  return {
-    dir: tmp.dir,
-    gh,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir: tmp.dir, gh };
 }
 
 test('it prints https for the git protocol', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = Bun.spawnSync([ctx.gh, 'config', 'get', 'git_protocol'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
@@ -32,7 +23,7 @@ test('it prints https for the git protocol', () => {
 });
 
 test("it lists the signed-in account's one public repository", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = Bun.spawnSync(
     [
@@ -59,7 +50,7 @@ test("it lists the signed-in account's one public repository", () => {
 });
 
 test("it lists an owner's one private repository", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = Bun.spawnSync(
     [
@@ -87,7 +78,7 @@ test("it lists an owner's one private repository", () => {
 });
 
 test('it records each command line it runs in the home', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   Bun.spawnSync([ctx.gh, 'repo', 'list', '--limit', '100'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },

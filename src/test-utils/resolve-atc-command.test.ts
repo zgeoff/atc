@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { resolveATCCommand } from './resolve-atc-command';
 import { updateEnv } from './update-env';
 
@@ -25,5 +26,10 @@ test('it runs a source entry that prints the package version', async () => {
 
   const printed = Bun.spawnSync([...resolveATCCommand(), '--version']);
 
-  expect(pkg).toMatchObject({ version: printed.stdout.toString().trim() });
+  invariant(
+    typeof pkg === 'object' && pkg !== null && 'version' in pkg && typeof pkg.version === 'string',
+    'package.json holds no version',
+  );
+
+  expect(printed.stdout.toString().trim()).toBe(pkg.version);
 });

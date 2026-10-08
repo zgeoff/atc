@@ -20,7 +20,7 @@ function main() {
   const stateDir = process.argv.at(3);
 
   if (socketPath === undefined || stateDir === undefined) {
-    throw new Error('usage: run-legacy-daemon.ts <socket path> <state dir>');
+    throw new Error('usage: run-stub-legacy-daemon.ts <socket path> <state dir>');
   }
 
   startStubLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1, owner: 'caller' });

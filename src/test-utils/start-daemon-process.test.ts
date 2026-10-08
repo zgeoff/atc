@@ -6,6 +6,7 @@ import { findDaemonRecord } from '../shared/find-daemon-record';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { resolveATCCommand } from './resolve-atc-command';
 import { setupTempDir } from './setup-temp-dir';
 import { startDaemonProcess } from './start-daemon-process';
@@ -16,13 +17,14 @@ import { waitFor } from './wait-for';
  * writes its own on first run.
  */
 function setupTest() {
-  return setupTempDir('atc-daemon-process-');
+  const tmp = setupTempDir('atc-daemon-process-');
+
+  return { dir: tmp.dir };
 }
 
 test('it starts a daemon that answers a handshake on the socket in the home', async () => {
-  using ctx = setupTest();
-
-  await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   const client = await daemon.openClient();
 
@@ -30,9 +32,8 @@ test('it starts a daemon that answers a handshake on the socket in the home', as
 });
 
 test('it keeps the daemon state in the home and records the daemon process there', async () => {
-  using ctx = setupTest();
-
-  await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   const client = await daemon.openClient();
 
@@ -48,9 +49,9 @@ test('it keeps the daemon state in the home and records the daemon process there
 });
 
 test('it hands the daemon the arguments and keeps its stderr readable', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: resolveATCCommand(),
     home: ctx.dir,
     args: ['--listen', '127.0.0.1:0'],
@@ -63,9 +64,9 @@ test('it hands the daemon the arguments and keeps its stderr readable', async ()
 });
 
 test('it rejects a client with the daemon stderr when the daemon exits before it listens', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: resolveATCCommand(),
     home: ctx.dir,
     args: ['--listen', '127.0.0.1:0'],
@@ -82,9 +83,9 @@ test('it rejects a client with the daemon stderr when the daemon exits before it
 });
 
 test('it rejects a client at once with the daemon stderr when the daemon exited before the client was opened', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: resolveATCCommand(),
     home: ctx.dir,
     args: ['--listen', '127.0.0.1:0'],
@@ -99,29 +100,28 @@ test('it rejects a client at once with the daemon stderr when the daemon exited 
 });
 
 test('it opens a client on the socket a replacement holds when the daemon exits before it listens', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const nextPath = join(ctx.dir, 'next.sock');
   const replacement = Bun.listen({ unix: nextPath, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     replacement.stop(true);
   });
 
   const atc = createStubBin(join(ctx.dir, 'bin'), 'atc', buildStubHandoffDaemon(nextPath));
-
-  await using daemon = startDaemonProcess({ command: [atc], home: ctx.dir });
+  const daemon = startDaemonProcess({ command: [atc], home: ctx.dir });
 
   const client = await daemon.openClient();
+  const exitCode = await daemon.proc.exited;
 
   expect(client).toBeInstanceOf(DaemonClient);
-  expect(daemon.proc.exitCode).toBe(0);
+  expect(exitCode).toBe(0);
 });
 
 test('it lays the config variables over the environment of the daemon', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: resolveATCCommand(),
     home: ctx.dir,
     env: { HOME: join(ctx.dir, 'other') },
@@ -143,9 +143,9 @@ test('it lays the config variables over the environment of the daemon', async ()
 });
 
 test('it removes a variable the config sets to undefined from the environment of the daemon', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: resolveATCCommand(),
     home: ctx.dir,
     env: { XDG_RUNTIME_DIR: undefined },
@@ -171,9 +171,8 @@ test('it removes a variable the config sets to undefined from the environment of
 });
 
 test('it restarts the daemon on the same home after the signal stops it', async () => {
-  using ctx = setupTest();
-
-  await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   const first = await daemon.openClient();
   const before = await first.sendHello('atc/test');
@@ -191,9 +190,8 @@ test('it restarts the daemon on the same home after the signal stops it', async 
 });
 
 test('it kills the daemon on disposal', async () => {
-  using ctx = setupTest();
-
-  await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   await daemon.openClient();
   await daemon[Symbol.asyncDispose]();
@@ -202,10 +200,8 @@ test('it kills the daemon on disposal', async () => {
 });
 
 test('it kills the daemon the state directory records on disposal', async () => {
-  using ctx = setupTest();
-
-  await using daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
-
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
   const recorded = Bun.spawn(['sleep', '30']);
 
   onTestFinished(() => {

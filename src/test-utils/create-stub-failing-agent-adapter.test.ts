@@ -1,10 +1,13 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStubFailingAgentAdapter } from './create-stub-failing-agent-adapter';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-failing-adapter-');
+  const tmp = setupTempDir('atc-failing-adapter-');
+
+  return { dir: tmp.dir };
 }
 
 test('it plans the first spawn with the first plan', () => {
@@ -118,8 +121,7 @@ test('it finds no headless runner once the failing reads the config holds are sp
 });
 
 test('it fails the first read only once a process has written its pid to the ready pipe', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 'ready');
 
   const stub = createStubFailingAgentAdapter({
@@ -135,7 +137,7 @@ test('it fails the first read only once a process has written its pid to the rea
   // holds its pid only if it waited for the write.
   const writer = Bun.spawn(['bash', '-c', `echo $$ > '${path}'`]);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     writer.kill();
   });
 
@@ -148,8 +150,7 @@ test('it fails the first read only once a process has written its pid to the rea
 });
 
 test('it throws from the first read when no process writes the ready pipe in time', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 'ready');
 
   const stub = createStubFailingAgentAdapter({

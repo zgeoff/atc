@@ -7,19 +7,19 @@ import type { HookEvent } from '../protocol/hook-event';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 import { buildMockFleetEntry } from './build-mock-fleet-entry';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startTestDaemon } from './start-test-daemon';
 import { waitFor } from './wait-for';
 
 test('it answers a request on the main client without another handshake', async () => {
-  await using harness = await startTestDaemon();
-
+  const harness = await startTestDaemon();
   const listed = await harness.client.sendRequest('session.list');
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it keeps every socket and state path inside its directory', async () => {
-  await using harness = await startTestDaemon({ prefix: 'atc-paths-' });
+  const harness = await startTestDaemon({ prefix: 'atc-paths-' });
 
   expect([
     harness.socketPath,
@@ -37,7 +37,7 @@ test('it keeps every socket and state path inside its directory', async () => {
 });
 
 test('it names the directory by the prefix', async () => {
-  await using harness = await startTestDaemon({ prefix: 'atc-named-' });
+  const harness = await startTestDaemon({ prefix: 'atc-named-' });
 
   expect(harness.dir).toInclude('/atc-named-');
 });
@@ -45,7 +45,7 @@ test('it names the directory by the prefix', async () => {
 test('it hands the options builder the daemon paths', async () => {
   const seen: unknown[] = [];
 
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: (paths) => {
       seen.push(paths);
 
@@ -66,7 +66,7 @@ test('it hands the options builder the daemon paths', async () => {
 });
 
 test('it boots the daemon with the adapters the options give', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter(),
       adapters: [buildMockAgentAdapter({ id: 'grok' })],
@@ -79,7 +79,7 @@ test('it boots the daemon with the adapters the options give', async () => {
 });
 
 test('it serves a TCP handshake on the listener the options ask for', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'tokens');
 
@@ -97,7 +97,7 @@ test('it serves a TCP handshake on the listener the options ask for', async () =
 });
 
 test('it refuses a TCP client when the daemon has no listener', async () => {
-  await using harness = await startTestDaemon();
+  const harness = await startTestDaemon();
 
   expect(harness.openTCPClient()).rejects.toThrowWithMessage(
     Error,
@@ -106,7 +106,7 @@ test('it refuses a TCP client when the daemon has no listener', async () => {
 });
 
 test('it collects the daemon log lines', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'tokens');
 
@@ -122,12 +122,12 @@ test('it collects the daemon log lines', async () => {
 
   const closed = Promise.withResolvers<void>();
 
-  await Bun.connect({
+  const socket = await Bun.connect({
     hostname: '127.0.0.1',
     port,
     socket: {
-      open(socket) {
-        socket.end('not a handshake\n');
+      open(opened) {
+        opened.end('not a handshake\n');
       },
       close() {
         closed.resolve();
@@ -135,6 +135,10 @@ test('it collects the daemon log lines', async () => {
       data() {},
       error() {},
     },
+  });
+
+  registerTestCleanup(() => {
+    socket.end();
   });
 
   await closed.promise;
@@ -147,7 +151,7 @@ test('it collects the daemon log lines', async () => {
 test('it leaves the log to the options when they set one', async () => {
   const lines: string[] = [];
 
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: (paths) => {
       const tokenFile = join(paths.dir, 'tokens');
 
@@ -168,12 +172,12 @@ test('it leaves the log to the options when they set one', async () => {
 
   const closed = Promise.withResolvers<void>();
 
-  await Bun.connect({
+  const socket = await Bun.connect({
     hostname: '127.0.0.1',
     port,
     socket: {
-      open(socket) {
-        socket.end('not a handshake\n');
+      open(opened) {
+        opened.end('not a handshake\n');
       },
       close() {
         closed.resolve();
@@ -181,6 +185,10 @@ test('it leaves the log to the options when they set one', async () => {
       data() {},
       error() {},
     },
+  });
+
+  registerTestCleanup(() => {
+    socket.end();
   });
 
   await closed.promise;
@@ -193,7 +201,7 @@ test('it leaves the log to the options when they set one', async () => {
 });
 
 test('it collects the events the main client receives', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
@@ -205,7 +213,7 @@ test('it collects the events the main client receives', async () => {
 });
 
 test('it counts each client it opens on the daemon', async () => {
-  await using harness = await startTestDaemon();
+  const harness = await startTestDaemon();
 
   await harness.openClient();
 
@@ -213,7 +221,7 @@ test('it counts each client it opens on the daemon', async () => {
 });
 
 test('it sends the handshake params a client opens with', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({ principals: new Map([['ops', ['local']]]) }),
   });
 
@@ -228,7 +236,7 @@ test('it sends the handshake params a client opens with', async () => {
 test('it delivers hook lines to the session they report on', async () => {
   const seen: HookEvent[] = [];
 
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         normalizeHook: (event) => {
@@ -262,7 +270,7 @@ test('it delivers hook lines to the session they report on', async () => {
 test('it delivers every hook line of a large batch', async () => {
   const seen: HookEvent[] = [];
 
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         normalizeHook: (event) => {
@@ -303,11 +311,10 @@ test('it delivers every hook line of a large batch', async () => {
 });
 
 test('it closes every client the daemon holds when it stops', async () => {
-  await using harness = await startTestDaemon();
-
+  const harness = await startTestDaemon();
   const outside = await DaemonClient.open(harness.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     outside.stop();
   });
 
@@ -323,7 +330,7 @@ test('it closes every client the daemon holds when it stops', async () => {
 });
 
 test('it boots a new daemon with a new main client on restart', async () => {
-  await using harness = await startTestDaemon();
+  const harness = await startTestDaemon();
 
   const before = { daemon: harness.daemon, client: harness.client };
 
@@ -337,7 +344,7 @@ test('it boots a new daemon with a new main client on restart', async () => {
 });
 
 test('it closes the clients of the replaced daemon on restart', async () => {
-  await using harness = await startTestDaemon();
+  const harness = await startTestDaemon();
 
   await harness.openClient();
   await harness.restart();
@@ -346,7 +353,7 @@ test('it closes the clients of the replaced daemon on restart', async () => {
 });
 
 test('it keeps the stored fleet across a restart', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
@@ -372,7 +379,7 @@ test('it keeps the stored fleet across a restart', async () => {
 });
 
 test('it boots on the state written while the daemon is stopped', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
@@ -380,7 +387,7 @@ test('it boots on the state written while the daemon is stopped', async () => {
 
   const store = await StateStore.open(harness.dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   await store.writeFleet([buildMockFleetEntry({ name: 'seeded', exited: true })]);
   await harness.restart();
@@ -392,7 +399,7 @@ test('it boots on the state written while the daemon is stopped', async () => {
 });
 
 test('it boots with the options a restart gives', async () => {
-  await using harness = await startTestDaemon({
+  const harness = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
@@ -408,12 +415,9 @@ test('it boots with the options a restart gives', async () => {
 
 test('it stops the running daemon and removes its directory on dispose', async () => {
   const harness = await startTestDaemon();
-
-  onTestFinished(() => harness[Symbol.asyncDispose]());
-
   const outside = await DaemonClient.open(harness.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     outside.stop();
   });
 
@@ -432,13 +436,11 @@ test('it stops the running daemon and removes its directory on dispose', async (
 test('it stops the daemon a restart booted on dispose', async () => {
   const harness = await startTestDaemon();
 
-  onTestFinished(() => harness[Symbol.asyncDispose]());
-
   await harness.restart();
 
   const outside = await DaemonClient.open(harness.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     outside.stop();
   });
 

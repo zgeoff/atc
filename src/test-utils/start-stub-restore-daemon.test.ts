@@ -4,78 +4,102 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubRestoreDaemon } from './start-stub-restore-daemon';
 
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+// A temp directory holding the stub daemon's socket, with the daemon started.
+function setupTest() {
+  const tmp = setupTempDir('atc-stub-restore-daemon-');
+  const socketPath = join(tmp.dir, 'daemon.sock');
+  const daemon = startStubRestoreDaemon(socketPath);
 
-  const tmp = stack.use(setupTempDir('atc-stub-restore-daemon-'));
-  const daemon = stack.use(startStubRestoreDaemon(join(tmp.dir, 'daemon.sock')));
-
-  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-
-  stack.defer(() => {
-    client.stop();
-  });
-
-  const owned = stack.move();
-
-  return { dir: tmp.dir, daemon, client, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { socketPath, daemon };
 }
 
 test('it answers a fleet restore with an empty result', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   expect(restored).toStrictEqual({});
 });
 
 test('it answers each session list with the next reply the test pushed', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
 
   ctx.daemon.lists.push({ sessions: [{ id: 's-1' }] }, { sessions: [] });
 
-  const first = await ctx.client.sendRequest('session.list');
-  const second = await ctx.client.sendRequest('session.list');
+  const first = await client.sendRequest('session.list');
+  const second = await client.sendRequest('session.list');
 
-  expect([first, second]).toStrictEqual([{ sessions: [{ id: 's-1' }] }, { sessions: [] }]);
+  expect(first).toStrictEqual({ sessions: [{ id: 's-1' }] });
+  expect(second).toStrictEqual({ sessions: [] });
 });
 
 test('it withholds the answer to a session list once no reply is left', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const listed = ctx.client.sendRequest('session.list');
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  const listed = client.sendRequest('session.list');
 
   // Closing the client rejects the withheld list; nothing awaits it.
   void Promise.allSettled([listed]);
 
   // The stub answers in arrival order on one connection, so an answer to
   // the list would reach the client before the restore's.
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   expect(Bun.peek.status(listed)).toBe('pending');
 });
 
 test('it records the method of each request in order', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
 
   ctx.daemon.lists.push({ sessions: [] });
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-  await ctx.client.sendRequest('session.list');
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await client.sendRequest('session.list');
 
   expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'session.list']);
 });
 
 test('it answers a client whose line another client left half written', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
 
   const answered = Promise.withResolvers<void>();
 
   const raw = await Bun.connect({
-    unix: join(ctx.dir, 'daemon.sock'),
+    unix: ctx.socketPath,
     socket: {
       data() {
         answered.resolve();
@@ -83,7 +107,7 @@ test('it answers a client whose line another client left half written', async ()
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     raw.end();
   });
 
@@ -91,17 +115,17 @@ test('it answers a client whose line another client left half written', async ()
 
   await answered.promise;
 
-  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   expect(restored).toStrictEqual({});
 });
 
-test('it stops listening once disposed', async () => {
-  await using ctx = await setupTest();
+test('it stops listening once disposed', () => {
+  const ctx = setupTest();
 
   ctx.daemon[Symbol.dispose]();
 
-  expect(DaemonClient.open(join(ctx.dir, 'daemon.sock'))).rejects.toThrow();
+  expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
 });
 
 test('it stops listening once the test finishes without a dispose', () => {

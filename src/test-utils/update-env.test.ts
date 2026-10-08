@@ -8,7 +8,8 @@ test('it sets a variable to the override value', () => {
 });
 
 test('it unsets a variable when the override value is undefined', () => {
-  updateEnv('GROK_HOME', undefined);
+  updateEnv('ATC_TEST_UPDATE_ENV_UNSET', 'present');
+  updateEnv('ATC_TEST_UPDATE_ENV_UNSET', undefined);
 
-  expect(process.env).not.toContainKey('GROK_HOME');
+  expect(process.env).not.toContainKey('ATC_TEST_UPDATE_ENV_UNSET');
 });

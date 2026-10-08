@@ -1,35 +1,26 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startOutputCapture } from './start-output-capture';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-stub-tui-grok-'));
+  const tmp = setupTempDir('atc-stub-tui-grok-');
 
   // The reporter the script reports through sends its lines here.
-  const reporter = stack.use(startStubReporterSocket(join(tmp.dir, 'report.sock')));
+  const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
   const bin = createStubBin(tmp.dir, 'grok', buildStubTUIGrok());
-  const owned = stack.move();
 
-  return {
-    dir: tmp.dir,
-    bin,
-    lines: reporter.lines,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir: tmp.dir, bin, lines: reporter.lines };
 }
 
 test('it prints its marker with its arguments and then its hooks-done marker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin, '--no-leader'], {
     env: {
@@ -43,7 +34,7 @@ test('it prints its marker with its arguments and then its hooks-done marker', a
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -55,7 +46,7 @@ test('it prints its marker with its arguments and then its hooks-done marker', a
 });
 
 test('it reports its session start and then a permission prompt through the reporter', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin], {
     env: {
@@ -69,7 +60,7 @@ test('it reports its session start and then a permission prompt through the repo
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -97,7 +88,7 @@ test('it reports its session start and then a permission prompt through the repo
 });
 
 test('it reports the events file in place of the permission prompt', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'fake-grok-events.jsonl'),
@@ -116,7 +107,7 @@ test('it reports the events file in place of the permission prompt', async () =>
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -134,7 +125,7 @@ test('it reports the events file in place of the permission prompt', async () =>
 });
 
 test('it reports nothing when the hold-start file exists', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-grok-hold-start'), '');
 
@@ -150,7 +141,7 @@ test('it reports nothing when the hold-start file exists', async () => {
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -169,7 +160,7 @@ test('it reports nothing when the hold-start file exists', async () => {
 });
 
 test('it defers its session start until the defer file goes', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-grok-defer-start'), '');
 
@@ -185,7 +176,7 @@ test('it defers its session start until the defer file goes', async () => {
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -205,4 +196,22 @@ test('it defers its session start until the defer file goes', async () => {
   });
 
   expect(reportedWhileDeferred).toBeEmpty();
+
+  expect(ctx.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    {
+      atcId: 's-1',
+      event: 'SessionStart',
+      payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.dir },
+    },
+    {
+      atcId: 's-1',
+      event: 'Notification',
+      payload: {
+        hookEventName: 'notification',
+        sessionId: 'fake-grok-1',
+        notificationType: 'permission_prompt',
+        message: 'allow edit?',
+      },
+    },
+  ]);
 });

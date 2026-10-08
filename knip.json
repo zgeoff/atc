@@ -5,9 +5,9 @@
     "src/gateway.ts",
     "e2e/**/*.test.ts",
     "src/**/*.test.ts",
-    "src/test-utils/run-source-daemon.ts",
+    "src/test-utils/run-stub-source-daemon.ts",
     "src/test-utils/run-listener-daemon.ts",
-    "src/test-utils/run-legacy-daemon.ts"
+    "src/test-utils/run-stub-legacy-daemon.ts"
   ],
   "project": ["src/**/*.ts", "e2e/**/*.ts"],
   "ignore": ["mods/**"],

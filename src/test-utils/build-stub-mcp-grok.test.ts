@@ -1,34 +1,29 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubMCPGrok } from './build-stub-mcp-grok';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-stub-mcp-grok-'));
+  const tmp = setupTempDir('atc-stub-mcp-grok-');
 
   // The reporter the script reports through sends its lines here.
-  const reporter = stack.use(startStubReporterSocket(join(tmp.dir, 'report.sock')));
+  const reporter = startStubReporterSocket(join(tmp.dir, 'report.sock'));
   const bin = createStubBin(tmp.dir, 'grok', buildStubMCPGrok());
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
     bin,
     lines: reporter.lines,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
 test('it prints its marker and arguments', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin, '--model', 'grok-5'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
@@ -36,7 +31,7 @@ test('it prints its marker and arguments', async () => {
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -48,7 +43,7 @@ test('it prints its marker and arguments', async () => {
 });
 
 test('it records its pid in the home', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
@@ -56,7 +51,7 @@ test('it records its pid in the home', async () => {
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -68,7 +63,7 @@ test('it records its pid in the home', async () => {
 });
 
 test('it stays up after reporting, echoing its input back until the input closes', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin], {
     env: {
@@ -81,7 +76,7 @@ test('it stays up after reporting, echoing its input back until the input closes
     stdout: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 
@@ -101,7 +96,7 @@ test('it stays up after reporting, echoing its input back until the input closes
 });
 
 test('it reports session_start with its session id and working directory through the reporter', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const proc = Bun.spawn([ctx.bin], {
     cwd: ctx.dir,
@@ -114,7 +109,7 @@ test('it reports session_start with its session id and working directory through
     stdout: 'ignore',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill();
   });
 

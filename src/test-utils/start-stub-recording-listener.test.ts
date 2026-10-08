@@ -3,21 +3,21 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubRecordingListener } from './start-stub-recording-listener';
 import { waitFor } from './wait-for';
 
-// A temp directory to hold the listener's socket. Disposal removes it.
+// A temp directory to hold the listener's socket.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-recording-listener-');
 
-  return { path: join(tmp.dir, 'recording.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { path: join(tmp.dir, 'recording.sock') };
 }
 
 test('it records what a connection sends and sends nothing back', async () => {
-  using ctx = setupTest();
-  using listener = startStubRecordingListener(ctx.path);
-
+  const ctx = setupTest();
+  const listener = startStubRecordingListener(ctx.path);
   let replies = '';
 
   const socket = await Bun.connect({
@@ -29,7 +29,7 @@ test('it records what a connection sends and sends nothing back', async () => {
     },
   });
 
-  onTestFinished(() => socket.end());
+  registerTestCleanup(() => socket.end());
 
   const peer = await listener.accepted;
 
@@ -51,9 +51,8 @@ test('it records what a connection sends and sends nothing back', async () => {
 });
 
 test('it hands the test the server side of the first connection', async () => {
-  using ctx = setupTest();
-  using listener = startStubRecordingListener(ctx.path);
-
+  const ctx = setupTest();
+  const listener = startStubRecordingListener(ctx.path);
   const received: string[] = [];
 
   const socket = await Bun.connect({
@@ -65,7 +64,7 @@ test('it hands the test the server side of the first connection', async () => {
     },
   });
 
-  onTestFinished(() => socket.end());
+  registerTestCleanup(() => socket.end());
 
   const peer = await listener.accepted;
 
@@ -77,13 +76,8 @@ test('it hands the test the server side of the first connection', async () => {
 });
 
 test('it stops listening once disposed', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const listener = startStubRecordingListener(ctx.path);
-
-  onTestFinished(() => {
-    listener[Symbol.dispose]();
-  });
 
   listener[Symbol.dispose]();
 

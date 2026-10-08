@@ -129,7 +129,7 @@ test('it leaves a daemon on another protocol running and rejects with both build
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -194,7 +194,7 @@ test('it stops a daemon on another protocol and boots its own build when the cal
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -252,7 +252,7 @@ test('it leaves a daemon on another protocol running and rejects when the caller
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -314,7 +314,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-legacy-daemon.ts'),
+      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],

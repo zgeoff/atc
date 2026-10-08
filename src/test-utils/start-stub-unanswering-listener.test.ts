@@ -1,10 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startStubUnansweringListener } from './start-stub-unanswering-listener';
 import { waitFor } from './wait-for';
 
 test('it records what a connection sends, answers nothing, and keeps the connection open', async () => {
-  using listener = startStubUnansweringListener();
-
+  const listener = startStubUnansweringListener();
   const events: string[] = [];
 
   const socket = await Bun.connect({
@@ -20,7 +20,7 @@ test('it records what a connection sends, answers nothing, and keeps the connect
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 

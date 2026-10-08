@@ -1,11 +1,14 @@
-import { expect, mock, onTestFinished, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  return setupTempDir('atc-stub-provider-');
+  const tmp = setupTempDir('atc-stub-provider-');
+
+  return { dir: tmp.dir };
 }
 
 test('it builds a provider with the capabilities of a local pseudo-terminal', () => {
@@ -33,20 +36,18 @@ test('it applies the kind and capability overrides on top of the defaults', () =
     capabilities: { suspend: true, destroy: true, input: false },
   });
 
-  expect({ kind: provider.kind, capabilities: provider.capabilities }).toStrictEqual({
-    kind: 'imp-like',
-    capabilities: {
-      ...new LocalPTYProvider().capabilities,
-      suspend: true,
-      destroy: true,
-      input: false,
-    },
+  expect(provider.kind).toBe('imp-like');
+
+  expect(provider.capabilities).toStrictEqual({
+    ...new LocalPTYProvider().capabilities,
+    suspend: true,
+    destroy: true,
+    input: false,
   });
 });
 
 test('it runs a command on this machine', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const provider = buildStubExecutionProvider();
 
   expect(provider.runCommand({ argv: ['pwd'], cwd: ctx.dir })).resolves.toStrictEqual({
@@ -63,10 +64,8 @@ test('it records each suspended and destroyed host in order', async () => {
   await provider.destroyHost('host-b');
   await provider.suspendHost('host-c');
 
-  expect({ suspended: provider.suspended, destroyed: provider.destroyed }).toStrictEqual({
-    suspended: ['host-a', 'host-c'],
-    destroyed: ['host-b'],
-  });
+  expect(provider.suspended).toStrictEqual(['host-a', 'host-c']);
+  expect(provider.destroyed).toStrictEqual(['host-b']);
 });
 
 test('it rejects a suspend with the failure it was given and records nothing', () => {
@@ -105,15 +104,12 @@ test('it suspends and destroys again once a failure is cleared', async () => {
   await provider.suspendHost('host-a');
   await provider.destroyHost('host-a');
 
-  expect({ suspended: provider.suspended, destroyed: provider.destroyed }).toStrictEqual({
-    suspended: ['host-a'],
-    destroyed: ['host-a'],
-  });
+  expect(provider.suspended).toStrictEqual(['host-a']);
+  expect(provider.destroyed).toStrictEqual(['host-a']);
 });
 
 test('it reports a harness spec and starts the harness on a local terminal', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const onSpawn = mock(() => {});
   const provider = buildStubExecutionProvider({ onSpawn });
 
@@ -131,7 +127,7 @@ test('it reports a harness spec and starts the harness on a local terminal', asy
   const exited = Promise.withResolvers<number>();
   const harness = provider.spawnHarness(spec);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -146,7 +142,7 @@ test('it reports a harness spec and starts the harness on a local terminal', asy
 });
 
 test('it aborts the spawn with the error the spawn report throws, before the local start runs', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const failure = new Error('the harness could not start');
 
@@ -176,8 +172,7 @@ test('it aborts the spawn with the error the spawn report throws, before the loc
 });
 
 test('it refuses a spec that requires a broker through the local start when the spawn report passes', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const provider = buildStubExecutionProvider();
 
   const spawn = () =>
@@ -203,8 +198,7 @@ test('it refuses a spec that requires a broker through the local start when the 
 });
 
 test('it streams the output of a harness it starts on a local terminal', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const provider = buildStubExecutionProvider();
 
   const harness = provider.spawnHarness({
@@ -218,7 +212,7 @@ test('it streams the output of a harness it starts on a local terminal', async (
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 

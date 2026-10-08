@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -11,26 +11,17 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 // The port under test and a temp directory its sessions and guest sockets
-// run in; disposal kills every process the port started and removes the
-// directory.
+// run in; once the test finishes, the port kills every process it started
+// before the directory goes.
 function setupTest() {
-  using stack = new DisposableStack();
+  const tmp = setupTempDir('atc-stub-imp-port-');
+  const port = createStubImpPort();
 
-  const tmp = stack.use(setupTempDir('atc-stub-imp-port-'));
-  const port = stack.use(createStubImpPort());
-  const owned = stack.move();
-
-  return {
-    port,
-    dir: tmp.dir,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { port, dir: tmp.dir };
 }
 
 test('it refuses a lease under the label hold', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -40,7 +31,7 @@ test('it refuses a lease under the label hold', async () => {
 });
 
 test('it refuses to sleep a leased imp with the leases it shows and a count of the rest', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
@@ -57,7 +48,7 @@ test('it refuses to sleep a leased imp with the leases it shows and a count of t
 });
 
 test('it sleeps an imp once the caller released its own lease', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
@@ -68,7 +59,7 @@ test('it sleeps an imp once the caller released its own lease', async () => {
 });
 
 test('it refuses a renewal of a lease a forced sleep ended', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
@@ -81,7 +72,7 @@ test('it refuses a renewal of a lease a forced sleep ended', async () => {
 });
 
 test('it streams a started session with offsets and delivers its exit with the end', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -134,7 +125,7 @@ test('it streams a started session with offsets and delivers its exit with the e
 });
 
 test('it resumes a running generation from the exact offset asked for', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -215,7 +206,7 @@ test('it resumes a running generation from the exact offset asked for', async ()
 });
 
 test('it answers a resume below the ring with a gap and data from the ring start', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -293,7 +284,7 @@ test('it answers a resume below the ring with a gap and data from the ring start
 });
 
 test('it refuses a resume past the end with INVALID_RESUME', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -350,7 +341,7 @@ test('it refuses a resume past the end with INVALID_RESUME', async () => {
 });
 
 test('it answers an attach to a sleeping imp without wake with INVALID_STATE', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.suspendImp('imp-a');
@@ -377,7 +368,7 @@ test('it answers an attach to a sleeping imp without wake with INVALID_STATE', a
 });
 
 test('it answers an attach after a cold boot with NO_SESSION and the boot that ended it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -425,7 +416,7 @@ test('it answers an attach after a cold boot with NO_SESSION and the boot that e
 });
 
 test('it keeps the last four cold boots, newest first', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -481,7 +472,7 @@ test('it keeps the last four cold boots, newest first', async () => {
 });
 
 test('it replays without offsets and ignores a resume for an agent without continuity', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -515,7 +506,7 @@ test('it replays without offsets and ignores a resume for an agent without conti
 });
 
 test('it closes a connection with the close code a test drops it with', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -549,7 +540,7 @@ test('it closes a connection with the close code a test drops it with', async ()
 });
 
 test('it ends a connection whose output handler throws with a local error and keeps the process', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -581,7 +572,7 @@ test('it ends a connection whose output handler throws with a local error and ke
 });
 
 test('it detaches the earlier connection when a second one attaches', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -618,7 +609,7 @@ test('it detaches the earlier connection when a second one attaches', async () =
 });
 
 test('it relays each guest connection on a reverse forward to the daemon', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -645,7 +636,7 @@ test('it relays each guest connection on a reverse forward to the daemon', async
 });
 
 test('it writes every byte the daemon sends to the guest end of a relayed connection', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -678,7 +669,7 @@ test('it writes every byte the daemon sends to the guest end of a relayed connec
 });
 
 test('it closes every guest connection on its forwards', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -714,7 +705,7 @@ test('it closes every guest connection on its forwards', async () => {
 });
 
 test('it keeps listening for the next guest connection after it closes every one', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -760,7 +751,7 @@ test('it keeps listening for the next guest connection after it closes every one
 });
 
 test('it closes each new guest connection without relaying it while relays are refused', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -794,7 +785,7 @@ test('it closes each new guest connection without relaying it while relays are r
 });
 
 test('it relays guest connections again once the refusal stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -806,6 +797,27 @@ test('it relays guest connections again once the refusal stops', async () => {
   });
 
   ctx.port.startRelayRefusal();
+
+  const refusedClosed = Promise.withResolvers<void>();
+
+  const refused = await Bun.connect({
+    unix: guestPath,
+    socket: {
+      data() {},
+      close() {
+        refusedClosed.resolve();
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    refused.end();
+  });
+
+  await refusedClosed.promise;
+
+  const relayedWhileRefused = connections;
+
   ctx.port.stopRelayRefusal();
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
@@ -817,10 +829,13 @@ test('it relays guest connections again once the refusal stops', async () => {
   await waitFor(() => {
     expect(connections).toBe(1);
   });
+
+  expect(relayedWhileRefused).toBe(0);
+  expect(connections).toBe(1);
 });
 
 test('it drops what a guest writes while guest bytes are dropped', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -851,7 +866,7 @@ test('it drops what a guest writes while guest bytes are dropped', async () => {
 });
 
 test('it relays what a guest writes once the drop stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -865,7 +880,6 @@ test('it relays what a guest writes once the drop stops', async () => {
   });
 
   ctx.port.startGuestByteDrop();
-  ctx.port.stopGuestByteDrop();
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
 
@@ -873,15 +887,28 @@ test('it relays what a guest writes once the drop stops', async () => {
     socket.end();
   });
 
+  socket.write('lost\n');
+
+  await waitFor(() => {
+    expect(ctx.port.countDroppedGuestBytes()).toBe(5);
+  });
+
+  const receivedWhileDropped = received.join('');
+
+  ctx.port.stopGuestByteDrop();
   socket.write('kept\n');
 
   await waitFor(() => {
     expect(received.join('')).toBe('kept\n');
   });
+
+  expect(receivedWhileDropped).toBe('');
+  expect(ctx.port.countDroppedGuestBytes()).toBe(5);
+  expect(received.join('')).toBe('kept\n');
 });
 
 test('it still writes what the daemon sends to the guest while guest bytes are dropped', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -913,7 +940,7 @@ test('it still writes what the daemon sends to the guest while guest bytes are d
 });
 
 test('it runs a command in a running imp with the input it is given', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -930,7 +957,7 @@ test('it runs a command in a running imp with the input it is given', async () =
 });
 
 test('it runs a command with the guest home as HOME once the test gives one', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -945,7 +972,7 @@ test('it runs a command with the guest home as HOME once the test gives one', as
 });
 
 test('it ends the output and exit of a command that runs while a session PTY opens in its imp', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -996,7 +1023,7 @@ test('it ends the output and exit of a command that runs while a session PTY ope
 });
 
 test('it holds a matching command and gives the held argv on entry', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1010,7 +1037,7 @@ test('it holds a matching command and gives the held argv on entry', async () =>
 });
 
 test('it runs a held command once its hold stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1027,7 +1054,7 @@ test('it runs a held command once its hold stops', async () => {
 });
 
 test('it lets a held command run once its hold is disposed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1044,7 +1071,7 @@ test('it lets a held command run once its hold is disposed', async () => {
 });
 
 test('it keeps a held command waiting until its hold stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1058,15 +1085,13 @@ test('it keeps a held command waiting until its hold stops', async () => {
   // so a hold that let its command go would have counted it out by then.
   await ctx.port.runCommand('imp-a', { argv: ['sh', '-c', 'true'] });
 
-  expect({
-    held: ctx.port.countHeldCommands(),
-    status: Bun.peek.status(result),
-    ran: existsSync(marker),
-  }).toStrictEqual({ held: 1, status: 'pending', ran: false });
+  expect(ctx.port.countHeldCommands()).toBe(1);
+  expect(Bun.peek.status(result)).toBe('pending');
+  expect(existsSync(marker)).toBe(false);
 });
 
 test('it counts no held command once the command hold stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1083,7 +1108,7 @@ test('it counts no held command once the command hold stops', async () => {
 });
 
 test('it runs every held command once the active hold stops from the port', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1100,7 +1125,7 @@ test('it runs every held command once the active hold stops from the port', asyn
 });
 
 test('it runs a command whose argv does not hold the held text at once', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1112,7 +1137,7 @@ test('it runs a command whose argv does not hold the held text at once', async (
 });
 
 test('it refuses a second command hold while one is active', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.startCommandHold('tar -x');
 
@@ -1123,8 +1148,7 @@ test('it refuses a second command hold while one is active', () => {
 });
 
 test('it keeps a newer command hold active when an earlier hold stops again', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const earlier = ctx.port.startCommandHold('tar -x');
 
   earlier.stop();
@@ -1138,7 +1162,7 @@ test('it keeps a newer command hold active when an earlier hold stops again', ()
 });
 
 test('it gives each imp made under a name a new id', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const first = await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1150,7 +1174,7 @@ test('it gives each imp made under a name a new id', async () => {
 });
 
 test('it reads the imp made last under a name', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.destroyImp('imp-a');
@@ -1168,7 +1192,7 @@ test('it reads the imp made last under a name', async () => {
 });
 
 test('it reports the features of an old daemon without the grant and exec requirement flags', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setOldDaemonFeatures();
 
@@ -1185,8 +1209,7 @@ test('it reports the features of an old daemon without the grant and exec requir
 });
 
 test('it answers tokens.whoami with the identity a test set', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const set = buildMockImpIdentity({ grantable: ['glm'] });
 
   ctx.port.setIdentity(set);
@@ -1198,7 +1221,7 @@ test('it answers tokens.whoami with the identity a test set', async () => {
 });
 
 test('it grants a secret to an imp within the patterns once however often it is granted', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1216,7 +1239,7 @@ test('it grants a secret to an imp within the patterns once however often it is 
 });
 
 test('it lists each secret with the imps it is granted to', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1240,7 +1263,7 @@ test('it lists each secret with the imps it is granted to', async () => {
 });
 
 test('it lists the sign-in state of an oauth secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.createSecret(
     'claude',
@@ -1263,7 +1286,7 @@ test('it lists the sign-in state of an oauth secret', async () => {
 });
 
 test('it records each grant call it receives in order', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1285,7 +1308,7 @@ test('it records each grant call it receives in order', async () => {
 });
 
 test('it refuses a grant of a secret the token may not grant', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -1300,7 +1323,7 @@ test('it refuses a grant of a secret the token may not grant', async () => {
 });
 
 test('it refuses a grant to an imp outside the token patterns', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1317,7 +1340,7 @@ test('it refuses a grant to an imp outside the token patterns', async () => {
 });
 
 test('it refuses a grant from a token without the manage scope', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ scope: 'read', grantable: ['glm'] }));
 
@@ -1334,7 +1357,7 @@ test('it refuses a grant from a token without the manage scope', async () => {
 });
 
 test('it refuses a grant of a secret impd does not hold', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1347,7 +1370,7 @@ test('it refuses a grant of a secret impd does not hold', async () => {
 });
 
 test('it refuses a second secret for a host another grant covers', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm', 'glm-b'] }));
 
@@ -1369,7 +1392,7 @@ test('it refuses a second secret for a host another grant covers', async () => {
 });
 
 test('it revokes a held grant', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1386,7 +1409,7 @@ test('it revokes a held grant', async () => {
 });
 
 test('it reports a revoke of a grant already revoked as nothing removed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1404,7 +1427,7 @@ test('it reports a revoke of a grant already revoked as nothing removed', async 
 });
 
 test('it lists no grant of a revoked secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1422,7 +1445,7 @@ test('it lists no grant of a revoked secret', async () => {
 });
 
 test('it fails every grant removal with the code it is given while removals fail', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1442,7 +1465,7 @@ test('it fails every grant removal with the code it is given while removals fail
 });
 
 test('it removes grants again once the removal failure is cleared', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1454,15 +1477,23 @@ test('it removes grants again once the removal failure is cleared', async () => 
   await ctx.port.createGrant('atc-s1', 'glm');
 
   ctx.port.setGrantRemovalFailure('UNAVAILABLE');
+
+  const [failed] = await Promise.allSettled([ctx.port.removeGrant('atc-s1', 'glm')]);
+
   ctx.port.setGrantRemovalFailure(null);
 
   const removed = await ctx.port.removeGrant('atc-s1', 'glm');
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNAVAILABLE', message: 'impd did not remove the grant' },
+  });
 
   expect(removed).toBeTrue();
 });
 
 test('it drops every grant of a rebound secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1481,7 +1512,7 @@ test('it drops every grant of a rebound secret', async () => {
 });
 
 test('it stops the token granting a rebound secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1500,7 +1531,7 @@ test('it stops the token granting a rebound secret', async () => {
 });
 
 test('it lets the token grant a rebound secret again once its identity is set anew', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1521,7 +1552,7 @@ test('it lets the token grant a rebound secret again once its identity is set an
 });
 
 test('it drops every grant of a removed secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1540,7 +1571,7 @@ test('it drops every grant of a removed secret', async () => {
 });
 
 test('it stops the token granting a secret made again under a removed name', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1563,7 +1594,7 @@ test('it stops the token granting a secret made again under a removed name', asy
 });
 
 test('it drops the grants of a destroyed imp', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1582,7 +1613,7 @@ test('it drops the grants of a destroyed imp', async () => {
 });
 
 test('it refuses a start that requires the broker on an imp without a grant and runs nothing', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -1609,25 +1640,21 @@ test('it refuses a start that requires the broker on an imp without a grant and 
   );
 
   const outcome = await connection.outcome;
+  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
 
-  expect({
-    outcome,
-    started,
-    ran: await Bun.file(join(ctx.dir, 'ran')).exists(),
-  }).toStrictEqual({
-    outcome: {
-      kind: 'failed',
-      code: 'PRECONDITION_FAILED',
-      message: 'the broker is not ready in imp atc-s1',
-      data: { reason: 'broker_not_ready', detail: 'the imp holds no grant' },
-    },
-    started: [],
-    ran: false,
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready in imp atc-s1',
+    data: { reason: 'broker_not_ready', detail: 'the imp holds no grant' },
   });
+
+  expect(started).toStrictEqual([]);
+  expect(ran).toBe(false);
 });
 
 test('it refuses a start that requires the broker while the broker fails, though the imp holds a grant', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1656,20 +1683,20 @@ test('it refuses a start that requires the broker while the broker fails, though
   );
 
   const outcome = await connection.outcome;
+  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
 
-  expect({ outcome, ran: await Bun.file(join(ctx.dir, 'ran')).exists() }).toStrictEqual({
-    outcome: {
-      kind: 'failed',
-      code: 'PRECONDITION_FAILED',
-      message: 'the broker is not ready in imp atc-s1',
-      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
-    },
-    ran: false,
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready in imp atc-s1',
+    data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
   });
+
+  expect(ran).toBe(false);
 });
 
 test('it runs a start that requires the broker on an imp with a grant and a working broker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1701,7 +1728,7 @@ test('it runs a start that requires the broker on an imp with a grant and a work
 });
 
 test('it runs a start that requires nothing while the broker fails', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'atc-s1' });
 
@@ -1727,7 +1754,7 @@ test('it runs a start that requires nothing while the broker fails', async () =>
 });
 
 test('it refuses a start that requires the broker and sets a broker variable, with the variable as the detail', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1754,23 +1781,20 @@ test('it refuses a start that requires the broker and sets a broker variable, wi
   );
 
   const outcome = await connection.outcome;
+  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
 
-  expect({
-    outcome,
-    ran: await Bun.file(join(ctx.dir, 'ran')).exists(),
-  }).toStrictEqual({
-    outcome: {
-      kind: 'failed',
-      code: 'PRECONDITION_FAILED',
-      message: 'the broker is not ready in imp atc-s1',
-      data: { reason: 'broker_not_ready', detail: 'HTTPS_PROXY' },
-    },
-    ran: false,
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready in imp atc-s1',
+    data: { reason: 'broker_not_ready', detail: 'HTTPS_PROXY' },
   });
+
+  expect(ran).toBe(false);
 });
 
 test('it lets an attach that requires the broker join a session that started with it required', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1831,7 +1855,7 @@ test('it lets an attach that requires the broker join a session that started wit
 });
 
 test('it refuses an attach that requires the broker to a session that started without it required', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -1892,7 +1916,7 @@ test('it refuses an attach that requires the broker to a session that started wi
 });
 
 test('it refuses a lease whose time to live is under ten seconds', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1902,7 +1926,7 @@ test('it refuses a lease whose time to live is under ten seconds', async () => {
 });
 
 test('it refuses a lease on an imp it does not hold with NOT_FOUND', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(ctx.port.acquireLease('imp-a', 'atc-d1', 60)).rejects.toMatchObject({
     code: 'NOT_FOUND',
@@ -1911,7 +1935,7 @@ test('it refuses a lease on an imp it does not hold with NOT_FOUND', () => {
 });
 
 test('it wakes a sleeping imp that a lease is acquired on', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.suspendImp('imp-a');
@@ -1921,7 +1945,7 @@ test('it wakes a sleeping imp that a lease is acquired on', async () => {
 });
 
 test('it renews a lease the caller holds for the new time to live', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
@@ -1936,7 +1960,7 @@ test('it renews a lease the caller holds for the new time to live', async () => 
 });
 
 test('it refuses to create an imp under a name it already holds with CONFLICT', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1947,7 +1971,7 @@ test('it refuses to create an imp under a name it already holds with CONFLICT', 
 });
 
 test('it reads no imp under a name it does not hold', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const view = await ctx.port.readImp('imp-a');
 
@@ -1955,13 +1979,13 @@ test('it reads no imp under a name it does not hold', async () => {
 });
 
 test('it reads no state for an imp it does not hold', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(ctx.port.findState('imp-a')).toBeNull();
 });
 
 test('it collects the names of the imps it holds', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.createImp({ name: 'imp-b' });
@@ -1970,7 +1994,7 @@ test('it collects the names of the imps it holds', async () => {
 });
 
 test('it fails a lease acquisition with the code it is given once the skipped ones go through', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1985,21 +2009,25 @@ test('it fails a lease acquisition with the code it is given once the skipped on
 });
 
 test('it lets lease acquisitions through again after the one failure', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
   ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
 
-  await Promise.allSettled([ctx.port.acquireLease('imp-a', 'atc-d1', 60)]);
-
+  const [failed] = await Promise.allSettled([ctx.port.acquireLease('imp-a', 'atc-d1', 60)]);
   const lease = await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNAVAILABLE', message: 'impd refused the lease (UNAVAILABLE)' },
+  });
 
   expect(lease.owner.label).toBe('atc-d1');
 });
 
 test('it holds a lease acquisition while the lease hold lasts', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2015,7 +2043,7 @@ test('it holds a lease acquisition while the lease hold lasts', async () => {
 });
 
 test('it lets a held lease acquisition through once the lease hold stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2023,15 +2051,22 @@ test('it lets a held lease acquisition through once the lease hold stops', async
 
   const acquiring = ctx.port.acquireLease('imp-a', 'atc-d1', 60);
 
+  await waitFor(() => {
+    expect(ctx.port.countHeldLeases()).toBe(1);
+  });
+
+  const statusWhileHeld = Bun.peek.status(acquiring);
+
   ctx.port.stopLeaseHold();
 
   const lease = await acquiring;
 
+  expect(statusWhileHeld).toBe('pending');
   expect(lease.owner.label).toBe('atc-d1');
 });
 
 test('it holds a lease release while the release hold lasts', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
@@ -2048,7 +2083,7 @@ test('it holds a lease release while the release hold lasts', async () => {
 });
 
 test('it lets a held lease release through once the release hold stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
@@ -2057,15 +2092,22 @@ test('it lets a held lease release through once the release hold stops', async (
 
   const releasing = ctx.port.releaseLease('imp-a', 'atc-d1');
 
+  await waitFor(() => {
+    expect(ctx.port.countHeldReleases()).toBe(1);
+  });
+
+  const statusWhileHeld = Bun.peek.status(releasing);
+
   ctx.port.stopReleaseHold();
 
   const released = await releasing;
 
+  expect(statusWhileHeld).toBe('pending');
   expect(released).toBeTrue();
 });
 
 test('it fails every imp destroy with the code it is given while destroys fail', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2078,7 +2120,7 @@ test('it fails every imp destroy with the code it is given while destroys fail',
 });
 
 test('it keeps the imp a failed destroy left', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2090,20 +2132,28 @@ test('it keeps the imp a failed destroy left', async () => {
 });
 
 test('it destroys imps again once the destroy failure is cleared', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
   ctx.port.setDestroyFailure('UNAVAILABLE');
+
+  const [failed] = await Promise.allSettled([ctx.port.destroyImp('imp-a')]);
+
   ctx.port.setDestroyFailure(null);
 
   await ctx.port.destroyImp('imp-a');
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNAVAILABLE', message: 'impd could not destroy imp-a' },
+  });
 
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
 });
 
 test('it fails the next feature reads as an unreachable impd', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setFeatureFailures(1);
 
@@ -2114,13 +2164,17 @@ test('it fails the next feature reads as an unreachable impd', () => {
 });
 
 test('it answers a feature read once the failures are spent', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setFeatureFailures(1);
 
-  await Promise.allSettled([ctx.port.readFeatures()]);
-
+  const [failed] = await Promise.allSettled([ctx.port.readFeatures()]);
   const features = await ctx.port.readFeatures();
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNREACHABLE', message: 'impd did not answer' },
+  });
 
   expect(features).toStrictEqual({
     sessionOffsets: true,
@@ -2132,8 +2186,19 @@ test('it answers a feature read once the failures are spent', async () => {
   });
 });
 
+test('it counts each feature read that failed as an unreachable impd', async () => {
+  const ctx = setupTest();
+
+  ctx.port.setFeatureFailures(2);
+
+  await Promise.allSettled([ctx.port.readFeatures(), ctx.port.readFeatures()]);
+  await ctx.port.readFeatures();
+
+  expect(ctx.port.countFailedFeatureReads()).toBe(2);
+});
+
 test('it exits 1 from a command whose argv holds the failing text without running it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2143,29 +2208,41 @@ test('it exits 1 from a command whose argv holds the failing text without runnin
     argv: ['touch', join(ctx.dir, 'ran')],
   });
 
+  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
+
   expect({
     code: result.code,
     stdout: Buffer.from(result.stdout).toString(),
     stderr: Buffer.from(result.stderr).toString(),
-    ran: await Bun.file(join(ctx.dir, 'ran')).exists(),
-  }).toStrictEqual({ code: 1, stdout: '', stderr: 'the command failed\n', ran: false });
+  }).toStrictEqual({ code: 1, stdout: '', stderr: 'the command failed\n' });
+
+  expect(ran).toBe(false);
 });
 
 test('it runs commands again once the command failure is cleared', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
   ctx.port.setCommandFailure('echo');
+
+  const failed = await ctx.port.runCommand('imp-a', { argv: ['echo', 'ran'] });
+
   ctx.port.setCommandFailure(null);
 
   const result = await ctx.port.runCommand('imp-a', { argv: ['echo', 'ran'] });
+
+  expect({
+    code: failed.code,
+    stdout: Buffer.from(failed.stdout).toString(),
+    stderr: Buffer.from(failed.stderr).toString(),
+  }).toStrictEqual({ code: 1, stdout: '', stderr: 'the command failed\n' });
 
   expect(Buffer.from(result.stdout).toString()).toBe('ran\n');
 });
 
 test('it refuses a command in an imp it does not hold with NOT_FOUND', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(ctx.port.runCommand('imp-a', { argv: ['true'] })).rejects.toMatchObject({
     code: 'NOT_FOUND',
@@ -2173,7 +2250,7 @@ test('it refuses a command in an imp it does not hold with NOT_FOUND', () => {
 });
 
 test('it refuses a command in a sleeping imp with INVALID_STATE', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
   await ctx.port.suspendImp('imp-a');
@@ -2185,7 +2262,7 @@ test('it refuses a command in a sleeping imp with INVALID_STATE', async () => {
 });
 
 test('it records every session request it sends to impd', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2208,7 +2285,7 @@ test('it records every session request it sends to impd', async () => {
 });
 
 test('it sends nothing for a session whose gate stays closed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2229,14 +2306,17 @@ test('it sends nothing for a session whose gate stays closed', async () => {
 
   const outcome = await connection.outcome;
 
-  expect({ outcome, requests: ctx.port.sessionRequests }).toStrictEqual({
-    outcome: { kind: 'closed', reason: 'closed before sending', closeCode: 1000 },
-    requests: [],
+  expect(outcome).toStrictEqual({
+    kind: 'closed',
+    reason: 'closed before sending',
+    closeCode: 1000,
   });
+
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it refuses a session on an imp it does not hold with NOT_FOUND', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const connection = ctx.port.openSession(
     { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
@@ -2254,7 +2334,7 @@ test('it refuses a session on an imp it does not hold with NOT_FOUND', async () 
 });
 
 test('it drops the next session request with the close code it is given', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2275,15 +2355,14 @@ test('it drops the next session request with the close code it is given', async 
   );
 
   const outcome = await connection.outcome;
+  const ran = await Bun.file(join(ctx.dir, 'ran')).exists();
 
-  expect({ outcome, ran: await Bun.file(join(ctx.dir, 'ran')).exists() }).toStrictEqual({
-    outcome: { kind: 'closed', reason: 'code 1006', closeCode: 1006 },
-    ran: false,
-  });
+  expect(outcome).toStrictEqual({ kind: 'closed', reason: 'code 1006', closeCode: 1006 });
+  expect(ran).toBe(false);
 });
 
 test('it answers the session request after the dropped ones', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2294,7 +2373,7 @@ test('it answers the session request after the dropped ones', async () => {
     { onStarted: () => {}, onOutput: () => {} },
   );
 
-  await dropped.outcome;
+  const droppedOutcome = await dropped.outcome;
 
   const connection = ctx.port.openSession(
     {
@@ -2312,11 +2391,12 @@ test('it answers the session request after the dropped ones', async () => {
 
   const outcome = await connection.outcome;
 
+  expect(droppedOutcome).toStrictEqual({ kind: 'closed', closeCode: 1006, reason: 'code 1006' });
   expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
 });
 
 test('it refuses the next session request with the code and data it is given', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2338,7 +2418,7 @@ test('it refuses the next session request with the code and data it is given', a
 });
 
 test('it refuses the next session request with the message it is given', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2360,7 +2440,7 @@ test('it refuses the next session request with the message it is given', async (
 });
 
 test('it throws from opening the next session connections', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2375,7 +2455,7 @@ test('it throws from opening the next session connections', async () => {
 });
 
 test('it ends the next session connections unreachable without sending their request', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2388,14 +2468,12 @@ test('it ends the next session connections unreachable without sending their req
 
   const outcome = await connection.outcome;
 
-  expect({ outcome, requests: ctx.port.sessionRequests }).toStrictEqual({
-    outcome: { kind: 'unreachable', detail: 'the upgrade failed' },
-    requests: [],
-  });
+  expect(outcome).toStrictEqual({ kind: 'unreachable', detail: 'the upgrade failed' });
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it holds a session connection open without sending its request while upgrades are held', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2406,14 +2484,12 @@ test('it holds a session connection open without sending its request while upgra
     { onStarted: () => {}, onOutput: () => {} },
   );
 
-  expect({
-    held: ctx.port.countHeldUpgrades(),
-    requests: ctx.port.sessionRequests,
-  }).toStrictEqual({ held: 1, requests: [] });
+  expect(ctx.port.countHeldUpgrades()).toBe(1);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it sends each held session request once the upgrade hold stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2433,18 +2509,23 @@ test('it sends each held session request once the upgrade hold stops', async () 
     { onStarted: () => {}, onOutput: () => {} },
   );
 
+  await waitFor(() => {
+    expect(ctx.port.countHeldUpgrades()).toBe(1);
+  });
+
+  const requestsWhileHeld = ctx.port.sessionRequests.length;
+
   ctx.port.stopUpgradeHold();
 
   const outcome = await connection.outcome;
 
-  expect({ outcome, held: ctx.port.countHeldUpgrades() }).toStrictEqual({
-    outcome: { kind: 'exit', code: 0, signal: null, offset: 3 },
-    held: 0,
-  });
+  expect(requestsWhileHeld).toBe(0);
+  expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
+  expect(ctx.port.countHeldUpgrades()).toBe(0);
 });
 
 test('it holds every session answer back while the answer hold lasts', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2479,7 +2560,7 @@ test('it holds every session answer back while the answer hold lasts', async () 
 });
 
 test('it sends every held answer once the answer hold stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2511,7 +2592,7 @@ test('it sends every held answer once the answer hold stops', async () => {
 });
 
 test('it starts an exact resume the overlap it is given before the offset asked for', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2561,7 +2642,7 @@ test('it starts an exact resume the overlap it is given before the offset asked 
 });
 
 test('it reads the generation and boot a started session runs under', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2610,7 +2691,7 @@ test('it reads the generation and boot a started session runs under', async () =
 });
 
 test('it throws reading the generation of a session the imp does not run', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2621,7 +2702,7 @@ test('it throws reading the generation of a session the imp does not run', async
 });
 
 test('it writes what a connection sends to the session process', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2659,7 +2740,7 @@ test('it writes what a connection sends to the session process', async () => {
 });
 
 test('it delivers a signal a connection sends to the session process', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2694,7 +2775,7 @@ test('it delivers a signal a connection sends to the session process', async () 
 });
 
 test('it answers a resume from another generation with the running one and data from the ring start', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2770,7 +2851,7 @@ test('it answers a resume from another generation with the running one and data 
 });
 
 test('it starts a fresh attach on a wrapped ring at the next line, after the mode prelude', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2837,7 +2918,7 @@ test('it starts a fresh attach on a wrapped ring at the next line, after the mod
 });
 
 test('it finds no undelivered exit for a session whose process still runs', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2863,7 +2944,7 @@ test('it finds no undelivered exit for a session whose process still runs', asyn
 });
 
 test('it delivers an exit no connection received to the next attach, with the generation it ended', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2911,31 +2992,30 @@ test('it delivers an exit no connection received to the next attach, with the ge
 
   const outcome = await attached.outcome;
 
-  expect({ started, outcome }).toStrictEqual({
-    started: [
-      {
-        created: false,
-        output: {
-          continuity: 'offsets',
-          bootId: ctx.port.getBootID('imp-a'),
-          executionGeneration: generation,
-          bufferStart: 0,
-          end: 0,
-          offset: 0,
-          prelude: 0,
-          coldBoots: [
-            { bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() },
-          ],
-          previous: { executionGeneration: generation, end: 0, exitCode: 3 },
-        },
+  expect(started).toStrictEqual([
+    {
+      created: false,
+      output: {
+        continuity: 'offsets',
+        bootId: ctx.port.getBootID('imp-a'),
+        executionGeneration: generation,
+        bufferStart: 0,
+        end: 0,
+        offset: 0,
+        prelude: 0,
+        coldBoots: [
+          { bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() },
+        ],
+        previous: { executionGeneration: generation, end: 0, exitCode: 3 },
       },
-    ],
-    outcome: { kind: 'exit', code: 3, signal: null, offset: 0 },
-  });
+    },
+  ]);
+
+  expect(outcome).toStrictEqual({ kind: 'exit', code: 3, signal: null, offset: 0 });
 });
 
 test('it answers an attach after the exit was delivered with NO_SESSION and the generation that ended', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -2994,7 +3074,7 @@ test('it answers an attach after the exit was delivered with NO_SESSION and the 
 });
 
 test('it resizes the terminal of the session a connection holds', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -3031,7 +3111,7 @@ test('it resizes the terminal of the session a connection holds', async () => {
 });
 
 test('it runs a start that requires the broker once a broker failure stops', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
 
@@ -3043,6 +3123,24 @@ test('it runs a start that requires the broker once a broker failure stops', asy
   await ctx.port.createGrant('atc-s1', 'glm');
 
   ctx.port.startBrokerFailure();
+
+  const refused = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's0',
+      argv: ['printf', 'ran'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const refusedOutcome = await refused.outcome;
+
   ctx.port.stopBrokerFailure();
 
   const connection = ctx.port.openSession(
@@ -3062,11 +3160,18 @@ test('it runs a start that requires the broker once a broker failure stops', asy
 
   const outcome = await connection.outcome;
 
+  expect(refusedOutcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready in imp atc-s1',
+    data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+  });
+
   expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
 });
 
 test('it sends nothing for a session whose gate throws', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -3089,14 +3194,17 @@ test('it sends nothing for a session whose gate throws', async () => {
 
   const outcome = await connection.outcome;
 
-  expect({ outcome, requests: ctx.port.sessionRequests }).toStrictEqual({
-    outcome: { kind: 'closed', reason: 'closed before sending', closeCode: 1000 },
-    requests: [],
+  expect(outcome).toStrictEqual({
+    kind: 'closed',
+    reason: 'closed before sending',
+    closeCode: 1000,
   });
+
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it starts a session with a relative working directory under the guest home once the test gives one', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -3131,7 +3239,7 @@ test('it starts a session with a relative working directory under the guest home
 });
 
 test('it finds no undelivered exit once an attach has delivered it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -3172,7 +3280,7 @@ test('it finds no undelivered exit once an attach has delivered it', async () =>
 });
 
 test('it finds no undelivered exit for a session the imp does not hold', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -3180,7 +3288,7 @@ test('it finds no undelivered exit for a session the imp does not hold', async (
 });
 
 test('it records the spec of each imp it is asked to create, in order', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a', image: 'base', memoryMib: 512 });
   await ctx.port.createImp({ name: 'imp-b' });
@@ -3199,13 +3307,24 @@ test('it stops every forward once the test finishes without a dispose', () => {
 
   port.openReverseForward('imp-a', guestPath, () => {});
 
+  // Runs after the port's own release; it removes a socket the stop left
+  // before it checks, so a failing stop leaks nothing.
   onTestFinished(() => {
-    expect(existsSync(guestPath)).toBeFalse();
+    const left = existsSync(guestPath);
+
+    rmSync(guestPath, { force: true });
+
+    expect(left).toBeFalse();
   });
 });
 
 test('it stops every forward once disposed', () => {
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
+
+  onTestFinished(() => {
+    rmSync(guestPath, { force: true });
+  });
+
   const port = createStubImpPort();
 
   port.openReverseForward('imp-a', guestPath, () => {});

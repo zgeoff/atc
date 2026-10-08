@@ -3,24 +3,22 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubClosingListener } from './start-stub-closing-listener';
 
-// A temp directory to hold the listener's socket. Disposal removes it.
+// A temp directory to hold the listener's socket, removed once the test
+// finishes.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-closing-');
 
-  return { path: join(tmp.dir, 'closing.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { path: join(tmp.dir, 'closing.sock') };
 }
 
 test('it ends a connection as soon as it opens without sending anything', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  const listener = startStubClosingListener(ctx.path);
-
-  onTestFinished(() => {
-    listener[Symbol.dispose]();
-  });
+  startStubClosingListener(ctx.path);
 
   const events: string[] = [];
   const closed = Promise.withResolvers<void>();
@@ -38,7 +36,7 @@ test('it ends a connection as soon as it opens without sending anything', async 
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -48,8 +46,7 @@ test('it ends a connection as soon as it opens without sending anything', async 
 });
 
 test('it stops listening once disposed', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const listener = startStubClosingListener(ctx.path);
 
   listener[Symbol.dispose]();

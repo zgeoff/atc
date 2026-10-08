@@ -2,7 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { startStubMCPServer } from './start-stub-mcp-server';
 
 test('it answers a request with the body it was given', async () => {
-  using server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: { tools: [] } });
+  const server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: { tools: [] } });
 
   const response = await fetch(`${server.url}/mcp`, { method: 'POST', body: '{}' });
   const body: unknown = await response.json();
@@ -11,7 +11,7 @@ test('it answers a request with the body it was given', async () => {
 });
 
 test('it records the method, path, headers, and body of each request', async () => {
-  using server = startStubMCPServer({});
+  const server = startStubMCPServer({});
 
   await fetch(`${server.url}/mcp`, {
     method: 'POST',

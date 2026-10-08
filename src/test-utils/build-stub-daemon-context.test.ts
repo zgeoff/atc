@@ -6,15 +6,9 @@ import { buildStubDaemonContext } from './build-stub-daemon-context';
 test('it builds a daemon of build atc/test with id d-1 and a day of idempotency retention', () => {
   const daemon = buildStubDaemonContext();
 
-  expect({
-    build: daemon.build,
-    daemonID: daemon.daemonID,
-    idempotencyRetentionMs: daemon.idempotencyRetentionMs,
-  }).toStrictEqual({
-    build: 'atc/test',
-    daemonID: toDaemonID('d-1'),
-    idempotencyRetentionMs: 86_400_000,
-  });
+  expect(daemon.build).toBe('atc/test');
+  expect(daemon.daemonID).toBe(toDaemonID('d-1'));
+  expect(daemon.idempotencyRetentionMs).toBe(86_400_000);
 });
 
 test('it holds no sessions', () => {

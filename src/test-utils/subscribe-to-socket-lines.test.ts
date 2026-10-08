@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubWaitClock } from './build-stub-wait-clock';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubRecordingListener } from './start-stub-recording-listener';
 import { startStubStalledListener } from './start-stub-stalled-listener';
@@ -11,41 +12,21 @@ import { waitFor } from './wait-for';
 
 // A unix socket server and a subscriber connected to it; `peer` is the
 // server's side of that connection, which the test writes through, and
-// `received` collects what the subscriber sends. A second server at
-// `stalledPath` accepts connections and never reads them. The config's clock,
-// when given, is the one the subscriber's line waits read.
+// `received` collects what the subscriber sends. The config's clock, when
+// given, is the one the subscriber's line waits read.
 async function setupTest(config: Parameters<typeof subscribeToSocketLines>[1] = {}) {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-sock-lines-'));
+  const tmp = setupTempDir('atc-sock-lines-');
   const path = join(tmp.dir, 'lines.sock');
-  const listener = stack.use(startStubRecordingListener(path));
+  const listener = startStubRecordingListener(path);
 
-  const subscribed = await subscribeToSocketLines(path, config);
-
-  const subscriber = stack.use(subscribed);
-
+  const subscriber = await subscribeToSocketLines(path, config);
   const peer = await listener.accepted;
 
-  const stalledPath = join(tmp.dir, 'stalled.sock');
-
-  const stalled = await startStubStalledListener(stalledPath);
-
-  stack.use(stalled);
-
-  const owned = stack.move();
-
-  return {
-    subscriber,
-    peer,
-    received: listener.received,
-    stalledPath,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { subscriber, peer, received: listener.received };
 }
 
 test('it collects each complete line the socket sends', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.peer.write('{"a":1}\n{"b":2}\n');
 
@@ -55,7 +36,7 @@ test('it collects each complete line the socket sends', async () => {
 });
 
 test('it buffers a line split across reads until its end arrives', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.peer.write('{"a":1}\n{"b"');
 
@@ -69,7 +50,7 @@ test('it buffers a line split across reads until its end arrives', async () => {
 });
 
 test('it skips blank lines', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.peer.write('\n  \n{"a":1}\n');
 
@@ -79,7 +60,7 @@ test('it skips blank lines', async () => {
 });
 
 test('it writes to the socket', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.subscriber.write('go');
 
@@ -89,7 +70,7 @@ test('it writes to the socket', async () => {
 });
 
 test('it sends a payload larger than one socket write whole', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const line = 'x'.repeat(3_000_000);
 
@@ -101,8 +82,13 @@ test('it sends a payload larger than one socket write whole', async () => {
 });
 
 test('it throws on a write while the unsent bytes fill the queue', async () => {
-  await using ctx = await setupTest();
-  await using subscriber = await subscribeToSocketLines(ctx.stalledPath, { queueBytes: 1024 });
+  // A server that accepts connections and never reads them.
+  const tmp = setupTempDir('atc-sock-lines-');
+  const stalledPath = join(tmp.dir, 'stalled.sock');
+
+  await startStubStalledListener(stalledPath);
+
+  const subscriber = await subscribeToSocketLines(stalledPath, { queueBytes: 1024 });
 
   subscriber.write(`${'x'.repeat(3_000_000)}\n`);
 
@@ -115,7 +101,7 @@ test('it throws on a write while the unsent bytes fill the queue', async () => {
 });
 
 test('it resolves closed once the peer ends the connection', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.peer.end();
 
@@ -125,7 +111,7 @@ test('it resolves closed once the peer ends the connection', async () => {
 test('it throws listing the collected lines when the count never arrives', async () => {
   const clock = buildStubWaitClock();
 
-  await using ctx = await setupTest({ now: clock.now, wait: clock.wait });
+  const ctx = await setupTest({ now: clock.now, wait: clock.wait });
 
   ctx.peer.write('{"a":1}\n');
 
@@ -140,7 +126,7 @@ test('it throws listing the collected lines when the count never arrives', async
 });
 
 test('it throws listing the collected lines once the connection closes short of the count', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.peer.end('only\n');
 
@@ -164,23 +150,24 @@ test('it ends its connection once the test finishes without a dispose', async ()
     },
   });
 
-  await subscribeToSocketLines(path);
+  registerTestCleanup(() => {
+    server.stop(true);
+  });
 
-  // The server stops only after this check, so a close it sees comes from
-  // the subscriber.
-  onTestFinished(async () => {
+  // Releases run last registered first: the subscriber ends, then this
+  // check runs, then the server stops, so a close it sees comes from the
+  // subscriber.
+  registerTestCleanup(async () => {
     await waitFor(() => {
       expect(closes).toStrictEqual(['closed']);
     });
   });
 
-  onTestFinished(() => {
-    server.stop(true);
-  });
+  await subscribeToSocketLines(path);
 });
 
 test('it ends its connection once disposed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.subscriber[Symbol.asyncDispose]();
 

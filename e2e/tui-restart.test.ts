@@ -54,7 +54,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'src', 'test-utils', 'run-legacy-daemon.ts'),
+      join(import.meta.dir, '..', 'src', 'test-utils', 'run-stub-legacy-daemon.ts'),
       socketPath,
       stateDir,
     ],

@@ -1,40 +1,37 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { createStubHarnessGuest } from './create-stub-harness-guest';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
   const tmp = setupTempDir('atc-stub-harness-guest-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it creates the script and the burst pipe under the directory', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
-  expect({
-    guest,
-    executable: statSync(guest.path).mode & 0o111,
-    pipe: statSync(guest.burstPath).isFIFO(),
-  }).toStrictEqual({
-    guest: { path: join(ctx.dir, 'harness'), burstPath: join(ctx.dir, 'burst') },
-    executable: 0o111,
-    pipe: true,
+  expect(guest).toStrictEqual({
+    path: join(ctx.dir, 'harness'),
+    burstPath: join(ctx.dir, 'burst'),
   });
+
+  expect(statSync(guest.path).mode & 0o111).toBe(0o111);
+  expect(statSync(guest.burstPath).isFIFO()).toBe(true);
 });
 
 test('it prints its pid on start, echoes each line, and exits 3 on quit', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
   const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 
@@ -51,8 +48,7 @@ test('it prints its pid on start, echoes each line, and exits 3 on quit', async 
 });
 
 test('it prints the terminal size it starts at', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   const decoder = new TextDecoder();
@@ -69,7 +65,7 @@ test('it prints the terminal size it starts at', async () => {
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
     proc.terminal?.close();
   });
@@ -80,8 +76,7 @@ test('it prints the terminal size it starts at', async () => {
 });
 
 test('it prints the terminal size again on size', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   const decoder = new TextDecoder();
@@ -98,7 +93,7 @@ test('it prints the terminal size again on size', async () => {
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
     proc.terminal?.close();
   });
@@ -111,13 +106,12 @@ test('it prints the terminal size again on size', async () => {
 });
 
 test('it prints the burst on later once a line reaches the burst pipe', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
   const output: string[] = [];
   const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 
@@ -145,8 +139,9 @@ test('it prints the burst on later once a line reaches the burst pipe', async ()
 
   await read;
 
-  expect({ beforeBurst, afterBurst: output.join('') }).toStrictEqual({
-    beforeBurst: `UP:${proc.pid} START:\nGOT:later\n`,
-    afterBurst: `UP:${proc.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`,
-  });
+  expect(beforeBurst).toBe(`UP:${proc.pid} START:\nGOT:later\n`);
+
+  expect(output.join('')).toBe(
+    `UP:${proc.pid} START:\nGOT:later\n${'x'.repeat(300_000)}\nBURST_DONE\n`,
+  );
 });

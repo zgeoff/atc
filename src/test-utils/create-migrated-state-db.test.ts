@@ -1,41 +1,43 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { StateStore } from '../store/state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { updateEnv } from './update-env';
 
 function setupTest() {
-  return setupTempDir('atc-migrated-state-');
+  const tmp = setupTempDir('atc-migrated-state-');
+
+  return { dir: tmp.dir };
 }
 
 test('it creates a database the store opens without running a migration', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const dbPath = join(ctx.dir, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
   const before = new Database(dbPath);
 
-  onTestFinished(() => {
+  const closeBefore = registerTestCleanup(() => {
     before.close();
   });
 
   const ledgerBefore = before.query('SELECT name, timestamp FROM kysely_migration').all();
 
-  before.close();
+  closeBefore();
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  const stopStore = registerTestCleanup(() => store.stop());
 
-  await store.stop();
+  await stopStore();
 
   const after = new Database(dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     after.close();
   });
 
@@ -45,28 +47,26 @@ test('it creates a database the store opens without running a migration', async 
 });
 
 test('it creates a database whose migration ledger holds every migration', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const freshPath = join(ctx.dir, 'fresh.db');
   const copyPath = join(ctx.dir, 'copy.db');
 
   const fresh = await StateStore.open(freshPath);
 
-  onTestFinished(() => fresh.stop());
+  const stopFresh = registerTestCleanup(() => fresh.stop());
 
-  await fresh.stop();
-
+  await stopFresh();
   await createMigratedStateDB(copyPath);
 
   const freshDB = new Database(freshPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     freshDB.close();
   });
 
   const copyDB = new Database(copyPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     copyDB.close();
   });
 
@@ -76,8 +76,7 @@ test('it creates a database whose migration ledger holds every migration', async
 });
 
 test('it creates a separate file for each call', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const firstPath = join(ctx.dir, 'first.db');
   const secondPath = join(ctx.dir, 'second.db');
 
@@ -86,7 +85,7 @@ test('it creates a separate file for each call', async () => {
 
   const first = new Database(firstPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.close();
   });
 
@@ -94,7 +93,7 @@ test('it creates a separate file for each call', async () => {
 
   const second = new Database(secondPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.close();
   });
 
@@ -104,7 +103,7 @@ test('it creates a separate file for each call', async () => {
 });
 
 test('it rejects when the test home is unset', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('ATC_TEST_HOME', undefined);
 

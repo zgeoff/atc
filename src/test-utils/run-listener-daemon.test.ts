@@ -1,29 +1,32 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 // The listener daemon running on state in a temp directory, with what it
 // printed once it listened, everything it writes to stderr, and a client
-// connected to its daemon socket that has sent nothing. Disposal closes the
+// connected to its daemon socket that has sent nothing. Cleanup closes the
 // client, kills the daemon, then removes the directory.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-run-listener-'));
+  const tmp = setupTempDir('atc-run-listener-');
 
   // The listener refuses to start without a token file.
   writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  const proc = stack.use(
-    Bun.spawn([process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')], {
-      env: { ...process.env, ATC_TEST_DIR: tmp.dir },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    }),
-  );
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')], {
+    env: { ...process.env, ATC_TEST_DIR: tmp.dir },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  registerTestCleanup(async () => {
+    proc.kill();
+
+    await proc.exited;
+  });
 
   const stderr: string[] = [];
 
@@ -39,17 +42,15 @@ async function setupTest() {
 
   const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
-  const owned = stack.move();
-
-  return { proc, printed, stderr, client, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { proc, printed, stderr, client };
 }
 
 test('it prints the loopback port its TCP listener bound', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const socket = await Bun.connect({
     hostname: '127.0.0.1',
@@ -57,15 +58,14 @@ test('it prints the loopback port its TCP listener bound', async () => {
     socket: { data() {} },
   });
 
-  onTestFinished(() => socket.end());
+  registerTestCleanup(() => socket.end());
 
   expect(ctx.printed).toMatch(/^[1-9]\d*\n$/);
   expect(socket.remotePort).toBe(Number(ctx.printed.trim()));
 });
 
 test('it answers a hello on the daemon socket in its test directory', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const hello = await ctx.client.sendHello('atc/test-build');
 
   expect(hello).toStrictEqual({
@@ -104,7 +104,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
 });
 
 test('it logs a refused handshake on its stderr', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const closed = Promise.withResolvers<void>();
 
@@ -122,7 +122,7 @@ test('it logs a refused handshake on its stderr', async () => {
     },
   });
 
-  onTestFinished(() => socket.end());
+  registerTestCleanup(() => socket.end());
 
   await closed.promise;
 
@@ -132,7 +132,7 @@ test('it logs a refused handshake on its stderr', async () => {
 });
 
 test('it stops with exit code 0 on SIGTERM', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.proc.kill('SIGTERM');
 

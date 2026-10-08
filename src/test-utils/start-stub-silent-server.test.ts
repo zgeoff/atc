@@ -1,13 +1,14 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { registerTestCleanup } from './register-test-cleanup';
 import { startStubSilentServer } from './start-stub-silent-server';
 import { waitFor } from './wait-for';
 
 test('it takes a request and never answers it', async () => {
-  await using server = startStubSilentServer();
+  const server = startStubSilentServer();
 
   const controller = new AbortController();
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     controller.abort();
   });
 
@@ -23,11 +24,11 @@ test('it takes a request and never answers it', async () => {
 });
 
 test('it records the path of each request in order', async () => {
-  await using server = startStubSilentServer();
+  const server = startStubSilentServer();
 
   const controller = new AbortController();
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     controller.abort();
   });
 

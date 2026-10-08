@@ -6,35 +6,30 @@ import { createGitFixture } from './create-git-fixture';
 import { updateEnv } from './update-env';
 
 test('it pushes the initial commit to the upstream main branch', async () => {
-  await using fixture = await createGitFixture();
-
+  const fixture = await createGitFixture();
   const upstreamMain = await $`git rev-parse main`.env(fixture.env).cwd(fixture.upstream).text();
 
   expect(upstreamMain.trim()).toBe(fixture.sha);
 });
 
 test('it checks out the initial commit in the work clone', async () => {
-  await using fixture = await createGitFixture();
-
+  const fixture = await createGitFixture();
   const log = await $`git log --format=%s%n%H`.env(fixture.env).cwd(fixture.work).text();
 
-  expect([log, readFileSync(join(fixture.work, 'README.md'), 'utf8')]).toStrictEqual([
-    `initial\n${fixture.sha}\n`,
-    'hello\n',
-  ]);
+  expect(log).toBe(`initial\n${fixture.sha}\n`);
+  expect(readFileSync(join(fixture.work, 'README.md'), 'utf8')).toBe('hello\n');
 });
 
 test('it points the work clone at its own upstream', async () => {
-  await using fixture = await createGitFixture();
-
+  const fixture = await createGitFixture();
   const origin = await $`git remote get-url origin`.env(fixture.env).cwd(fixture.work).text();
 
   expect(origin.trim()).toBe(fixture.upstream);
 });
 
 test('it never pushes one fixture into another', async () => {
-  await using first = await createGitFixture();
-  await using second = await createGitFixture();
+  const first = await createGitFixture();
+  const second = await createGitFixture();
 
   writeFileSync(join(first.work, 'more.txt'), 'more\n');
 
@@ -48,7 +43,7 @@ test('it never pushes one fixture into another', async () => {
 });
 
 test('it commits as atc without signing', async () => {
-  await using fixture = await createGitFixture();
+  const fixture = await createGitFixture();
 
   const settings = await $`git config --local --get-regexp ${'^(user|commit|tag)[.]'}`
     .env(fixture.env)
@@ -63,7 +58,7 @@ test('it commits as atc without signing', async () => {
 test('it holds no git variable of the host in its env', async () => {
   updateEnv('GIT_DIR', '/nowhere');
 
-  await using fixture = await createGitFixture();
+  const fixture = await createGitFixture();
 
   expect(Object.entries(fixture.env).filter(([name]) => name.startsWith('GIT_'))).toStrictEqual([
     ['GIT_CONFIG_NOSYSTEM', '1'],
@@ -72,7 +67,7 @@ test('it holds no git variable of the host in its env', async () => {
 });
 
 test('it lays the upstream and the work clone out in its directory', async () => {
-  await using fixture = await createGitFixture({ prefix: 'atc-layout-' });
+  const fixture = await createGitFixture({ prefix: 'atc-layout-' });
 
   expect({
     name: basename(fixture.dir),
@@ -87,8 +82,6 @@ test('it lays the upstream and the work clone out in its directory', async () =>
 
 test('it removes its directory on dispose', async () => {
   const fixture = await createGitFixture();
-
-  onTestFinished(() => fixture[Symbol.asyncDispose]());
 
   await fixture[Symbol.asyncDispose]();
 

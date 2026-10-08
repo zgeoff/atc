@@ -121,6 +121,9 @@ class StubImpPort implements ImpPort {
   // Feature reads still to fail as an unreachable impd before they answer.
   private featureFailures = 0;
 
+  // Feature reads that failed as an unreachable impd.
+  private failedFeatureReads = 0;
+
   // Session connections whose opening still throws before it returns, as
   // an invalid authorization header makes the socket's constructor throw.
   private openFailures = 0;
@@ -198,6 +201,7 @@ class StubImpPort implements ImpPort {
 
     if (this.featureFailures > 0) {
       this.featureFailures -= 1;
+      this.failedFeatureReads += 1;
 
       return Promise.reject(new ImpPortError('UNREACHABLE', 'impd did not answer'));
     }
@@ -1107,6 +1111,11 @@ class StubImpPort implements ImpPort {
    */
   setFeatureFailures(count: number): void {
     this.featureFailures = count;
+  }
+
+  // How many feature reads failed as an unreachable impd.
+  countFailedFeatureReads(): number {
+    return this.failedFeatureReads;
   }
 
   /**

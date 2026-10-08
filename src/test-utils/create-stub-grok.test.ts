@@ -7,12 +7,13 @@ import { createStubGrok } from './create-stub-grok';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-stub-grok-');
+  const tmp = setupTempDir('atc-stub-grok-');
+
+  return { dir: tmp.dir };
 }
 
 test('it reports a start in its directory and a permission prompt as grok hooks', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");
@@ -31,8 +32,7 @@ test('it reports a start in its directory and a permission prompt as grok hooks'
 });
 
 test('it reports the events file in place of the permission prompt', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");
@@ -56,8 +56,7 @@ test('it reports the events file in place of the permission prompt', () => {
 });
 
 test('it prints its arguments, then that its hooks are done, then runs the composer', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");
@@ -75,8 +74,7 @@ test('it prints its arguments, then that its hooks are done, then runs the compo
 });
 
 test('it reports nothing and only echoes input while the home holds its start', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");

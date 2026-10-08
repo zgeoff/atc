@@ -4,25 +4,27 @@ import { existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubAnsweringListener } from './start-stub-answering-listener';
 import { waitFor } from './wait-for';
 
-// A temp directory to hold the listener's socket. Disposal removes it.
+// A temp directory to hold the listener's socket, removed once the test
+// finishes.
 function setupTest() {
   const tmp = setupTempDir('atc-stub-answering-');
 
-  return { path: join(tmp.dir, 'answering.sock'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { path: join(tmp.dir, 'answering.sock') };
 }
 
 test('it records the first read and answers it with one line', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using listener = await startStubAnsweringListener(ctx.path);
+  const listener = await startStubAnsweringListener(ctx.path);
 
   const socket = createConnection(ctx.path);
 
-  onTestFinished(() => socket.destroy());
+  registerTestCleanup(() => socket.destroy());
 
   const answered = Promise.withResolvers<string>();
 
@@ -34,21 +36,19 @@ test('it records the first read and answers it with one line', async () => {
 
   const answer = await answered.promise;
 
-  expect({ answer, lines: listener.lines, peers: listener.peers.length }).toStrictEqual({
-    answer: 'answer\n',
-    lines: ['hello\n'],
-    peers: 1,
-  });
+  expect(answer).toBe('answer\n');
+  expect(listener.lines).toStrictEqual(['hello\n']);
+  expect(listener.peers.length).toBe(1);
 });
 
 test('it leaves every byte after the first read unread', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using listener = await startStubAnsweringListener(ctx.path);
+  const listener = await startStubAnsweringListener(ctx.path);
 
   const socket = createConnection(ctx.path);
 
-  onTestFinished(() => socket.destroy());
+  registerTestCleanup(() => socket.destroy());
 
   const answered = Promise.withResolvers<void>();
 
@@ -70,15 +70,13 @@ test('it leaves every byte after the first read unread', async () => {
 });
 
 test('it closes every connection it accepted once disposed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const listener = await startStubAnsweringListener(ctx.path);
 
-  onTestFinished(() => listener[Symbol.asyncDispose]());
-
   const socket = createConnection(ctx.path);
 
-  onTestFinished(() => socket.destroy());
+  registerTestCleanup(() => socket.destroy());
 
   const closed = Promise.withResolvers<void>();
 
@@ -96,11 +94,9 @@ test('it closes every connection it accepted once disposed', async () => {
 });
 
 test('it stops listening once disposed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const listener = await startStubAnsweringListener(ctx.path);
-
-  onTestFinished(() => listener[Symbol.asyncDispose]());
 
   await listener[Symbol.asyncDispose]();
 

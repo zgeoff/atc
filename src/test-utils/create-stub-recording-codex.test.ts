@@ -1,22 +1,25 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubRecordingCodex } from './create-stub-recording-codex';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 function setupTest() {
-  return setupTempDir('atc-stub-recording-codex-');
+  const tmp = setupTempDir('atc-stub-recording-codex-');
+
+  return { dir: tmp.dir };
 }
 
 test('it returns the path of the stub under the directory', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(createStubRecordingCodex(ctx.dir)).toBe(join(ctx.dir, 'fake-codex'));
 });
 
 test('it writes no start log before it runs', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   createStubRecordingCodex(ctx.dir);
 
@@ -24,15 +27,14 @@ test('it writes no start log before it runs', () => {
 });
 
 test('it records its Codex home and arguments on one line for a start', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubRecordingCodex(ctx.dir);
 
   const run = Bun.spawn([bin, '--a', 'two words'], {
     env: { ...process.env, CODEX_HOME: '/codex/home' },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     run.kill();
   });
 
@@ -44,13 +46,12 @@ test('it records its Codex home and arguments on one line for a start', async ()
 });
 
 test('it appends a later start after an earlier one', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubRecordingCodex(ctx.dir);
   const log = join(ctx.dir, 'codex-starts.log');
   const first = Bun.spawn([bin, '--a'], { env: { ...process.env, CODEX_HOME: '/one' } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.kill();
   });
 
@@ -60,7 +61,7 @@ test('it appends a later start after an earlier one', async () => {
 
   const second = Bun.spawn([bin, '--b'], { env: { ...process.env, CODEX_HOME: '/two' } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.kill();
   });
 
@@ -70,12 +71,11 @@ test('it appends a later start after an earlier one', async () => {
 });
 
 test('it is still running after it records its start', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const bin = createStubRecordingCodex(ctx.dir);
   const run = Bun.spawn([bin]);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     run.kill();
   });
 
