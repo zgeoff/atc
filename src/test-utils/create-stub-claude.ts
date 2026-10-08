@@ -29,7 +29,8 @@ interface StubClaudeConfig {
  * first stub to find it removes it; `fake-claude-tap` runs `atc tap` into
  * `$HOME/tap.jsonl`; `fake-claude-events.jsonl` holds more hook payloads to
  * report, one per line, after the `Notification`; `fake-claude-exit` exits
- * once they are reported.
+ * once they are reported; `fake-claude-composer-last` runs the composer once
+ * they are reported.
  */
 export function createStubClaude(dir: string, config: StubClaudeConfig): string {
   const atc = config.atc.map((part) => `"${part}"`).join(' ');
@@ -69,6 +70,7 @@ if [ -f "$HOME/fake-claude-events.jsonl" ]; then
   done < "$HOME/fake-claude-events.jsonl"
 fi
 if [ -f "$HOME/fake-claude-exit" ]; then exit 0; fi
+if [ -f "$HOME/fake-claude-composer-last" ]; then exec "${process.execPath}" "${config.composer}"; fi
 while read -r line; do echo "GOT:$line"; done
 `,
   );
