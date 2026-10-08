@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import type { AgentID } from './agent-id';
@@ -243,13 +243,24 @@ function buildUnusableConfig(
 
 /**
  * Writes the first-run config, never over a file that appeared since the
- * read. A failure leaves the defaults in effect for this run, so it is not
- * an error.
+ * read. The text goes to a file of this process's own first and is linked
+ * into place whole, so another process that starts at the same moment
+ * reads either no file or the complete one, never a half-written one. A
+ * failure leaves the defaults in effect for this run, so it is not an
+ * error.
  */
 function tryWriteDefaultConfig(file: string): void {
+  const staged = `${file}.${process.pid}.tmp`;
+
   try {
     mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, renderDefaultConfig(), { flag: 'wx' });
+
+    try {
+      writeFileSync(staged, renderDefaultConfig(), { flag: 'wx' });
+      linkSync(staged, file);
+    } finally {
+      rmSync(staged, { force: true });
+    }
   } catch {}
 }
 

@@ -982,6 +982,14 @@ test('#loadConfig writes the default config when the file is missing', () => {
   });
 });
 
+test('#loadConfig leaves only the config file in its directory after it writes the default config', () => {
+  const ctx = setupTest();
+
+  loadConfig(join(ctx.dir, 'atc', 'config.json'), join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+
+  expect(readdirSync(join(ctx.dir, 'atc'))).toStrictEqual(['config.json']);
+});
+
 test('#loadConfig returns the defaults when the file is missing', () => {
   const ctx = setupTest();
 
