@@ -341,11 +341,11 @@ state store's driver implements them under the names the library requires.
 
 ## Testing
 
-Testing conventions live in the shared `testing` skill and in atc's `project-testing` skill (the PTY
-harness, the fake `claude`, and the daemon-phase rules); load both. Two rules worth restating here:
-never spawn the real `claude` binary in tests (verification against real Claude Code happens
-manually before merging changes to the integration contract), and every gate is invoked as a root
-package script. One exception to the first rule: `test:atc-bridge` runs `claude plugin validate` and
+Testing conventions live in the shared `testing` skill and in atc's `project-testing` skill (the
+test home and the PTY harness); load both. Two rules worth restating here: never spawn the real
+`claude` binary in tests (verification against real Claude Code happens manually before merging
+changes to the integration contract), and every gate is invoked as a root package script. One
+exception to the first rule: `test:atc-bridge` runs `claude plugin validate` and
 `claude plugin test` on the mod, and neither starts a session.
 
 ## Dependencies

@@ -16,7 +16,7 @@ test('it stops its screen model on dispose', () => {
   expect(runtime.screen).toBeNull();
 });
 
-test('it clears its resize, detect, and boot timers on dispose so they never fire', () => {
+test('it clears its resize and detect timers on dispose so they never fire', () => {
   jest.useFakeTimers();
 
   onTestFinished(() => jest.useRealTimers());
@@ -25,21 +25,18 @@ test('it clears its resize, detect, and boot timers on dispose so they never fir
 
   const resize = mock(() => {});
   const detect = mock(() => {});
-  const boot = mock(() => {});
 
   runtime.resizeTimer = setTimeout(resize, 20);
   runtime.detectTimer = setTimeout(detect, 20);
-  runtime.bootTimer = setTimeout(boot, 20);
 
   runtime.dispose();
   jest.advanceTimersByTime(20);
 
   expect(resize).not.toHaveBeenCalled();
   expect(detect).not.toHaveBeenCalled();
-  expect(boot).not.toHaveBeenCalled();
 });
 
-test('it leaves its resize, detect, and boot timers to fire when it stops only its headless run', () => {
+test('it leaves its resize and detect timers to fire when it stops only its headless run', () => {
   jest.useFakeTimers();
 
   onTestFinished(() => jest.useRealTimers());
@@ -48,11 +45,9 @@ test('it leaves its resize, detect, and boot timers to fire when it stops only i
 
   const resize = mock(() => {});
   const detect = mock(() => {});
-  const boot = mock(() => {});
 
   runtime.resizeTimer = setTimeout(resize, 20);
   runtime.detectTimer = setTimeout(detect, 20);
-  runtime.bootTimer = setTimeout(boot, 20);
   runtime.headlessRun = { stop: () => {} };
 
   runtime.stopHeadlessRun();
@@ -60,7 +55,6 @@ test('it leaves its resize, detect, and boot timers to fire when it stops only i
 
   expect(resize).toHaveBeenCalledOnce();
   expect(detect).toHaveBeenCalledOnce();
-  expect(boot).toHaveBeenCalledOnce();
 });
 
 test('it stops a live headless run on dispose', () => {
