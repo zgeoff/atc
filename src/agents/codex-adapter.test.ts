@@ -21,7 +21,7 @@ test('it spawns a fresh codex command with the prompt', () => {
 
   expect(adapter.planSpawn({ prompt: 'fix the bug', resume: false })).toStrictEqual({
     bin: 'codex',
-    args: ['fix the bug'],
+    args: ['--no-daemon', 'fix the bug'],
   });
 });
 
@@ -30,7 +30,7 @@ test('it spawns codex resume with the picker when no id was captured', () => {
 
   expect(adapter.planSpawn({ prompt: '', resume: true })).toStrictEqual({
     bin: 'codex',
-    args: ['resume'],
+    args: ['--no-daemon', 'resume'],
   });
 });
 
@@ -39,7 +39,7 @@ test('it spawns codex resume with the captured id', () => {
 
   expect(adapter.planSpawn({ prompt: '', resume: toAgentSessionID('c-1') })).toStrictEqual({
     bin: 'codex',
-    args: ['resume', 'c-1'],
+    args: ['--no-daemon', 'resume', 'c-1'],
   });
 });
 
@@ -50,7 +50,7 @@ test('it keeps the configured codex arguments when a spawn sets no model', () =>
 
   expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
     bin: 'codex',
-    args: ['--model', 'gpt-a'],
+    args: ['--no-daemon', '--model', 'gpt-a'],
   });
 });
 
@@ -61,8 +61,27 @@ test("it replaces the configured codex model with a spawn's model passed as -m",
 
   expect(
     adapter.planSpawn({ prompt: 'go', resume: toAgentSessionID('c-1'), model: 'gpt-b' }),
-  ).toStrictEqual({ bin: 'codex', args: ['--search', '-m', 'gpt-b', 'resume', 'c-1', 'go'] });
+  ).toStrictEqual({
+    bin: 'codex',
+    args: ['--no-daemon', '--search', '-m', 'gpt-b', 'resume', 'c-1', 'go'],
+  });
 });
+
+test.each([
+  ['--remote', ['--remote', 'ws://127.0.0.1:4500']],
+  ['--remote=', ['--remote=ws://127.0.0.1:4500']],
+  ['--no-daemon', ['--no-daemon', '-m', 'gpt-a']],
+])(
+  'it adds no --no-daemon of its own when the configured arguments hold %s',
+  (_spelling, codexArgs) => {
+    const adapter = new CodexAdapter(getAgentEntry(parseConfig({ codexArgs }), 'codex'));
+
+    expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
+      bin: 'codex',
+      args: codexArgs,
+    });
+  },
+);
 
 test('it advertises a codex model with the configured default and no effort', () => {
   const config = parseConfig({ codexArgs: ['-m', 'gpt-a'] });
@@ -412,7 +431,7 @@ test('it plans a remote spawn with auth but without the broker as a local spawn 
     },
   );
 
-  expect(plan).toStrictEqual({ bin: 'codex', args: ['go'], files: {} });
+  expect(plan).toStrictEqual({ bin: 'codex', args: ['--no-daemon', 'go'], files: {} });
 });
 
 test('it plans a spawn behind the broker with a Codex home of its own and hooks it trusts at launch', () => {
@@ -475,6 +494,7 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
       '--dangerously-bypass-hook-trust',
       '-c',
       'cli_auth_credentials_store="file"',
+      '--no-daemon',
       'resume',
       'c-1',
       'go',

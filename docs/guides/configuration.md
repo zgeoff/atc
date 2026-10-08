@@ -393,6 +393,14 @@ Codex and Grok take `args` as well as `bin`. A `--leader` or `--no-leader` in a 
 is dropped, since atc always appends `--no-leader`. A spawn's model replaces a `-m` or `--model` in
 a Codex entry's `args`.
 
+atc starts every Codex session with `--no-daemon`, which needs Codex CLI 0.156 or later. Codex's
+shared background server keeps the environment of the terminal that started it and runs the hooks
+and tools of every terminal on it there. A session on that server would therefore report its hook
+events, replies, and renames as the session that started the server. A Codex entry whose `args`
+already hold `--no-daemon` gets no second copy, since Codex refuses a repeated flag. One whose
+`args` hold `--remote` gets no `--no-daemon`, since Codex refuses the pair; its sessions report as
+whatever environment the remote server runs in.
+
 ### Several entries per harness
 
 Each entry has its own id, binary, arguments, settings, and generated settings file, so several

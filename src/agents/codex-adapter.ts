@@ -53,6 +53,11 @@ type CodexHookPayload = z.infer<typeof CODEX_HOOK_PAYLOAD_SCHEMA>;
 // The spellings of the Codex CLI's model flag.
 const CODEX_MODEL_FLAGS = ['-m', '--model'];
 
+// The Codex CLI flag that runs a terminal without the shared background
+// server, and the flag that connects it to a remote server instead.
+const NO_DAEMON_FLAG = '--no-daemon';
+const REMOTE_FLAG = '--remote';
+
 /**
  * The Codex CLI adapter: spawn arguments, hook payload mapping, resume
  * semantics, and session_index.jsonl name-pulling. Hooks are a user-installed
@@ -118,6 +123,14 @@ export class CodexAdapter implements AgentAdapter {
     return {
       bin: this.entry.bin,
       args: [
+        // Codex's shared background server keeps the environment of the
+        // terminal that started it and runs every thread's hooks and tools
+        // there, so a terminal on it reports as that first session. Each
+        // terminal therefore runs its own server. The configured arguments
+        // already carry the flag, or connect to a remote server, which Codex
+        // refuses to combine with it; either way Codex takes no second copy.
+        ...(this.entry.args.some(isDaemonChoiceFlag) ? [] : [NO_DAEMON_FLAG]),
+
         // A model override replaces any model flag the configured arguments
         // carry, and travels as its own argument.
         ...(opts.model === undefined
@@ -419,4 +432,11 @@ function buildCodexSpawnOptions(codexArgs: readonly string[]): SpawnOptionSpecs 
       note: 'Codex documents its reasoning effort levels as depending on the model, with no closed list, so atc does not pass one.',
     },
   };
+}
+
+// Whether a configured argument already decides which server a terminal
+// uses: the flag that runs it without the shared one, or the remote server
+// flag in either of its spellings.
+function isDaemonChoiceFlag(arg: string): boolean {
+  return arg === NO_DAEMON_FLAG || arg === REMOTE_FLAG || arg.startsWith(`${REMOTE_FLAG}=`);
 }
