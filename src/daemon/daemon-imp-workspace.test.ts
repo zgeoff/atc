@@ -15,6 +15,7 @@ import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
@@ -35,17 +36,14 @@ import { LocalPTYProvider } from './local-pty-provider';
  * daemon stops.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+  const git = await createGitFixture({ prefix: 'atc-imp-workspace-git-' });
 
-  const gitFixture = await createGitFixture({ prefix: 'atc-imp-workspace-git-' });
-
-  const git = stack.use(gitFixture);
-  const tmp = stack.use(setupTempDir('atc-imp-workspace-'));
-  const port = stack.use(createStubImpPort());
+  const tmp = setupTempDir('atc-imp-workspace-');
+  const port = createStubImpPort();
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -109,7 +107,7 @@ async function setupTest() {
     planAuthCheck: () => ['false'],
   });
 
-  const started = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-workspace-daemon-',
     options: () => ({
       gitTransports: ['https', 'ssh', 'http', 'file'],
@@ -128,16 +126,12 @@ async function setupTest() {
     }),
   });
 
-  const daemon = stack.use(started);
-
   // A held command or lease would keep a spawn, and so the daemon's stop,
   // waiting.
-  stack.defer(() => {
+  registerTestCleanup(() => {
     port.stopCommandHold();
     port.stopLeaseHold();
   });
-
-  const owned = stack.move();
 
   return {
     client: daemon.client,
@@ -149,12 +143,11 @@ async function setupTest() {
     env: git.env,
     dbPath: daemon.dbPath,
     logs: daemon.logs,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it materializes a workspace on the host of an imp spawn and starts the session there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -171,30 +164,32 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
   const session = getRecord(spawned, 'session');
   const [imp] = ctx.port.collectImpNames();
 
-  expect<Record<string, unknown>>({
-    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
-    session,
-    imps: ctx.port.collectImpNames(),
-    claims: ctx.port.calls.filter((call) => call.startsWith(`exec.run ${imp} mkdir`)),
-    unpacks: ctx.port.calls.filter((call) => call.includes(dest) && call.includes('tar -x')),
-    started: ctx.port.sessionRequests.map((request) => request.kind),
-  }).toMatchObject({
-    readme: committed,
-    session: { locator: { targetID: 'box' }, alive: true, workspace: { sha: expect.toBeString() } },
-    imps: [expect.stringMatching(/^atc-[0-9a-f]{20}$/)],
-    claims: [
-      `exec.run ${imp} mkdir -p -- ${join(ctx.dir, 'box')}`,
-      `exec.run ${imp} mkdir -- ${dest}`,
-    ],
-    unpacks: [
-      `exec.run ${imp} sh -c mkdir -p "$1" && tar -x --no-same-owner -f - -C "$1" sh ${dest}`,
-    ],
-    started: ['start'],
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+
+  expect(session).toMatchObject({
+    locator: { targetID: 'box' },
+    alive: true,
+    workspace: { sha: expect.toBeString() },
   });
+
+  expect(ctx.port.collectImpNames()).toMatchObject([expect.stringMatching(/^atc-[0-9a-f]{20}$/)]);
+
+  expect(ctx.port.calls.filter((call) => call.startsWith(`exec.run ${imp} mkdir`))).toMatchObject([
+    `exec.run ${imp} mkdir -p -- ${join(ctx.dir, 'box')}`,
+    `exec.run ${imp} mkdir -- ${dest}`,
+  ]);
+
+  expect(
+    ctx.port.calls.filter((call) => call.includes(dest) && call.includes('tar -x')),
+  ).toMatchObject([
+    `exec.run ${imp} sh -c mkdir -p "$1" && tar -x --no-same-owner -f - -C "$1" sh ${dest}`,
+  ]);
+
+  expect(ctx.port.sessionRequests.map((request) => request.kind)).toMatchObject(['start']);
 });
 
 test('it materializes a git source without a cwd under the home of an imp and starts the session in it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -212,21 +207,22 @@ test('it materializes a git source without a cwd under the home of an imp and st
     workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
   });
 
-  expect<Record<string, unknown>>({
-    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
-    session: getRecord(spawned, 'session'),
-    started: ctx.port.sessionRequests.flatMap((request) =>
-      request.kind === 'start' ? [request.cwd] : [],
-    ),
-  }).toMatchObject({
-    readme: committed,
-    session: { cwd: dest, repoRoot: dest, locator: { targetID: 'box' }, alive: true },
-    started: [dest],
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+
+  expect(getRecord(spawned, 'session')).toMatchObject({
+    cwd: dest,
+    repoRoot: dest,
+    locator: { targetID: 'box' },
+    alive: true,
   });
+
+  expect(
+    ctx.port.sessionRequests.flatMap((request) => (request.kind === 'start' ? [request.cwd] : [])),
+  ).toMatchObject([dest]);
 });
 
 test('it lands concurrent sub-sessions of one repository without a cwd side by side on their shared imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -270,7 +266,7 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
 });
 
 test('it materializes a workspace for a local spawn on the daemon host and starts the session there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -284,23 +280,19 @@ test('it materializes a workspace for a local spawn on the daemon host and start
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect<Record<string, unknown>>({
-    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
-    session: getRecord(spawned, 'session'),
-    calls: ctx.port.calls,
-  }).toMatchObject({
-    readme: committed,
-    session: {
-      locator: { targetID: 'local' },
-      alive: true,
-      workspace: { sha: expect.toBeString() },
-    },
-    calls: [],
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+
+  expect(getRecord(spawned, 'session')).toMatchObject({
+    locator: { targetID: 'local' },
+    alive: true,
+    workspace: { sha: expect.toBeString() },
   });
+
+  expect(ctx.port.calls).toStrictEqual([]);
 });
 
 test('it refuses a workspace sub-session under a revoked parent before resolving its source or touching impd', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -328,25 +320,22 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
 
   const listed = await ctx.client.sendRequest('session.list');
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   const rows = db.query('select count(*) as n from workspace_materialization').get();
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
-
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls.filter((call) => !call.startsWith('leases.renew')),
-    sessions: getRecord(listed, 'sessions'),
-    rows,
-  }).toStrictEqual({
-    calls: [],
-    sessions: [expect.objectContaining({ id: parentID })],
-    rows: { n: 0 },
-  });
+  expect(ctx.port.calls.filter((call) => !call.startsWith('leases.renew'))).toStrictEqual([]);
+  expect(listed['sessions']).toStrictEqual([expect.objectContaining({ id: parentID })]);
+  expect(rows).toStrictEqual({ n: 0 });
 });
 
 test('it materializes a workspace sub-session on the host of a ready parent and starts it there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -367,19 +356,18 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect<Record<string, unknown>>({
-    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
-    session: getRecord(spawned, 'session'),
-    imps: ctx.port.collectImpNames(),
-  }).toMatchObject({
-    readme: committed,
-    session: { alive: true, workspace: { sha: expect.toBeString() } },
-    imps: [expect.toBeString()],
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+
+  expect(getRecord(spawned, 'session')).toMatchObject({
+    alive: true,
+    workspace: { sha: expect.toBeString() },
   });
+
+  expect(ctx.port.collectImpNames()).toMatchObject([expect.toBeString()]);
 });
 
 test('it destroys the host of its own that a spawn readied when its workspace fails there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const dest = join(ctx.dir, 'box', 'ws');
 
@@ -399,19 +387,16 @@ test('it destroys the host of its own that a spawn readied when its workspace fa
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists' });
 
-  expect<Record<string, unknown>>({
-    created: ctx.port.calls.filter((call) => call.startsWith('imps.create')),
-    imps: ctx.port.collectImpNames(),
-    listed,
-  }).toStrictEqual({
-    created: [expect.toBeString()],
-    imps: [],
-    listed: { sessions: [] },
-  });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toBeString(),
+  ]);
+
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it takes back the imp and binding a brokered spawn provisioned when its workspace fails there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const dest = join(ctx.dir, 'box', 'ws');
 
@@ -426,25 +411,26 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
 
   await spawn.catch(() => null);
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   const rows = db.query('select count(*) as n from runtime_auth_binding').get();
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists' });
 
-  expect<Record<string, unknown>>({
-    created: ctx.port.calls.filter((call) => call.startsWith('imps.create')),
-    imps: ctx.port.collectImpNames(),
-    rows,
-  }).toStrictEqual({
-    created: [expect.toBeString()],
-    imps: [],
-    rows: { n: 0 },
-  });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toBeString(),
+  ]);
+
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(rows).toStrictEqual({ n: 0 });
 });
 
 test("it leaves a parent running on its host when a sub-session's workspace fails there", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -472,18 +458,15 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
   const [imp] = ctx.port.collectImpNames();
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists' });
+  expect(ctx.port.findState(String(imp))).toBe('running');
 
-  expect<Record<string, unknown>>({
-    state: ctx.port.findState(String(imp)),
-    listed,
-  }).toStrictEqual({
-    state: 'running',
-    listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
+  expect(listed).toStrictEqual({
+    sessions: [expect.objectContaining({ id: parentID, alive: true })],
   });
 });
 
 test('it destroys the host of its own that a plain workspace spawn readied when its agent is not signed in there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -494,21 +477,20 @@ test('it destroys the host of its own that a plain workspace spawn readied when 
 
   await spawn.catch(() => null);
 
+  const listed = await ctx.client.sendRequest('session.list');
+
   expect(spawn).rejects.toMatchObject({ code: 'auth_not_configured' });
 
-  expect<Record<string, unknown>>({
-    created: ctx.port.calls.filter((call) => call.startsWith('imps.create')),
-    imps: ctx.port.collectImpNames(),
-    listed: await ctx.client.sendRequest('session.list'),
-  }).toStrictEqual({
-    created: [expect.toStartWith('imps.create ')],
-    imps: [],
-    listed: { sessions: [] },
-  });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toStartWith('imps.create '),
+  ]);
+
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it answers outcome_unknown for a workspace spawn whose host it cannot take back after a failed sign-in check', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.port.setDestroyFailure('INTERNAL');
 
@@ -524,7 +506,7 @@ test('it answers outcome_unknown for a workspace spawn whose host it cannot take
 });
 
 test('it keeps the key of a workspace spawn whose host it cannot take back as outcome_unknown, so a retry creates no imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.port.setDestroyFailure('INTERNAL');
 
@@ -556,7 +538,7 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
 });
 
 test('it refuses a workspace spawn whose host fails its sign-in check and takes the host back', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -568,20 +550,21 @@ test('it refuses a workspace spawn whose host fails its sign-in check and takes 
 
   await spawn.catch(() => null);
 
-  using db = new Database(ctx.dbPath, { readonly: true });
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   const rows = db.query('select count(*) as n from runtime_auth_binding').get();
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_not_configured' });
-
-  expect<Record<string, unknown>>({ imps: ctx.port.collectImpNames(), rows }).toStrictEqual({
-    imps: [],
-    rows: { n: 0 },
-  });
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(rows).toStrictEqual({ n: 0 });
 });
 
 test("it refuses a sub-session workspace inside its parent's directory before claiming or transferring anything", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -612,7 +595,7 @@ test("it refuses a sub-session workspace inside its parent's directory before cl
 });
 
 test("it materializes a sub-session workspace beside its parent's directory on the shared host", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -633,17 +616,16 @@ test("it materializes a sub-session workspace beside its parent's directory on t
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect<Record<string, unknown>>({
-    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
-    session: getRecord(spawned, 'session'),
-  }).toMatchObject({
-    readme: committed,
-    session: { alive: true, workspace: { sha: expect.toBeString() } },
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+
+  expect(getRecord(spawned, 'session')).toMatchObject({
+    alive: true,
+    workspace: { sha: expect.toBeString() },
   });
 });
 
 test('it refuses a git workspace whose credential variable is unset before touching impd', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', undefined);
 
@@ -670,7 +652,7 @@ test('it refuses a git workspace whose credential variable is unset before touch
 });
 
 test('it materializes a git workspace on an imp host when its credential variable is set', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -691,17 +673,16 @@ test('it materializes a git workspace on an imp host when its credential variabl
     },
   });
 
-  expect<Record<string, unknown>>({
-    readme: readFileSync(join(dest, 'README.md'), 'utf8'),
-    session: getRecord(spawned, 'session'),
-  }).toMatchObject({
-    readme: committed,
-    session: { alive: true, workspace: { sha: expect.toBeString() } },
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+
+  expect(getRecord(spawned, 'session')).toMatchObject({
+    alive: true,
+    workspace: { sha: expect.toBeString() },
   });
 });
 
 test('it claims the directory of a workspace sub-session on the shared host before it unpacks there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -731,7 +712,7 @@ test('it claims the directory of a workspace sub-session on the shared host befo
 });
 
 test('it claims the directory of a workspace sub-session under the home of the shared host before it unpacks there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const home = join(ctx.dir, 'box');
 
@@ -767,7 +748,7 @@ test('it claims the directory of a workspace sub-session under the home of the s
 });
 
 test('it refuses a workspace spawn inside another one still materializing on the shared host before its first mkdir', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -819,7 +800,7 @@ test('it refuses a workspace spawn inside another one still materializing on the
 });
 
 test('it materializes concurrent workspace spawns into sibling directories on the shared host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -853,14 +834,19 @@ test('it materializes concurrent workspace spawns into sibling directories on th
 
   const spawned = await Promise.all(spawns);
 
-  expect<Record<string, unknown>>({
-    sessions: spawned.map((answer) => getRecord(answer, 'session')['alive']),
-    readmes: [first, second].map((dir) => readFileSync(join(dir, 'README.md'), 'utf8')),
-  }).toStrictEqual({ sessions: [true, true], readmes: [committed, committed] });
+  expect(spawned.map((answer) => getRecord(answer, 'session')['alive'])).toStrictEqual([
+    true,
+    true,
+  ]);
+
+  expect([first, second].map((dir) => readFileSync(join(dir, 'README.md'), 'utf8'))).toStrictEqual([
+    committed,
+    committed,
+  ]);
 });
 
 test("it keeps another session's files inside its directory when a workspace spawn rolls back on the shared host", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -913,7 +899,7 @@ test("it keeps another session's files inside its directory when a workspace spa
 });
 
 test('it refuses a plain sub-session inside a workspace still materializing on the shared host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -957,7 +943,7 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
 });
 
 test('it keeps the files of a plain sub-session still starting through a symlink when a workspace rolls back', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1015,7 +1001,7 @@ test('it keeps the files of a plain sub-session still starting through a symlink
 });
 
 test('it refuses a plain sub-session on the shared host while a workspace rollback removes its directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1064,7 +1050,7 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
 });
 
 test('it starts a plain sub-session on the shared host once a workspace rollback that refused one has removed its directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1118,14 +1104,12 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
     parent: parentID,
   });
 
-  expect<Record<string, unknown>>({
-    alive: getRecord(after, 'session')['alive'],
-    rolledBack: existsSync(outer),
-  }).toStrictEqual({ alive: true, rolledBack: false });
+  expect(getRecord(after, 'session')['alive']).toBe(true);
+  expect(existsSync(outer)).toBe(false);
 });
 
 test('it keeps the files of a relative plain sub-session still starting when a workspace rolls back', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const home = join(ctx.dir, 'box');
 
@@ -1189,7 +1173,7 @@ test('it keeps the files of a relative plain sub-session still starting when a w
 });
 
 test('it keeps its directory when a workspace rollback cannot resolve a plain sub-session still starting', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1262,7 +1246,7 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
 });
 
 test('it keeps its directory when a workspace rollback cannot resolve a relative plain sub-session still starting', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const home = join(ctx.dir, 'box');
 
@@ -1340,7 +1324,7 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
 });
 
 test('it starts a plain sub-session beside a workspace still materializing on the shared host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1378,7 +1362,7 @@ test('it starts a plain sub-session beside a workspace still materializing on th
 });
 
 test('it removes the directory it claimed when a workspace spawn rolls back on the shared host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1405,7 +1389,7 @@ test('it removes the directory it claimed when a workspace spawn rolls back on t
 });
 
 test('it gives back the directory a rolled-back workspace spawn claimed, so a retry materializes there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1441,7 +1425,7 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
 });
 
 test("it removes a sub-session's checkout but keeps its parent and the files beside it when its start fails on the shared host", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -1476,26 +1460,19 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
   const listed = await ctx.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
+  expect(existsSync(dest)).toBe(false);
+  expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
+  expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe(committed);
+  expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([imp]);
+  expect(ctx.port.findState(String(imp))).toBe('running');
 
-  expect<Record<string, unknown>>({
-    exists: existsSync(dest),
-    beside: readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8'),
-    parentFiles: readFileSync(join(ctx.work, 'README.md'), 'utf8'),
-    imps: ctx.port.collectImpNames(),
-    state: ctx.port.findState(String(imp)),
-    listed,
-  }).toStrictEqual({
-    exists: false,
-    beside: 'kept\n',
-    parentFiles: committed,
-    imps: [imp],
-    state: 'running',
-    listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
+  expect(listed).toStrictEqual({
+    sessions: [expect.objectContaining({ id: parentID, alive: true })],
   });
 });
 
 test('it spawns a sub-session again on the shared host after its failed start removed its checkout', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -1540,30 +1517,22 @@ test('it spawns a sub-session again on the shared host after its failed start re
 
   const after = await ctx.client.sendRequest('session.list');
 
-  expect<Record<string, unknown>>({
-    beside: readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8'),
-    parentFiles: readFileSync(join(ctx.work, 'README.md'), 'utf8'),
-    imps: ctx.port.collectImpNames(),
-    state: ctx.port.findState(String(imp)),
-    retried: getRecord(retried, 'session')['alive'],
-    listed: after,
-  }).toStrictEqual({
-    beside: 'kept\n',
-    parentFiles: committed,
-    imps: [imp],
-    state: 'running',
-    retried: true,
-    listed: {
-      sessions: expect.toIncludeSameMembers([
-        expect.objectContaining({ id: parentID, alive: true }),
-        expect.objectContaining({ id: retriedID, alive: true }),
-      ]),
-    },
+  expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
+  expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe(committed);
+  expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([imp]);
+  expect(ctx.port.findState(String(imp))).toBe('running');
+  expect(getRecord(retried, 'session')['alive']).toBe(true);
+
+  expect(after).toStrictEqual({
+    sessions: expect.toIncludeSameMembers([
+      expect.objectContaining({ id: parentID, alive: true }),
+      expect.objectContaining({ id: retriedID, alive: true }),
+    ]),
   });
 });
 
 test("it removes a sub-session's checkout on its parent's sleeping host when its start fails there, then lets the host sleep again", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1599,15 +1568,12 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
-
-  expect<Record<string, unknown>>({
-    exists: existsSync(dest),
-    state: ctx.port.findState(String(imp)),
-  }).toStrictEqual({ exists: false, state: 'sleeping' });
+  expect(existsSync(dest)).toBe(false);
+  expect(ctx.port.findState(String(imp))).toBe('sleeping');
 });
 
 test("it answers outcome_unknown and logs the path of a sub-session's checkout it cannot remove when its start fails on the shared host", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1634,21 +1600,22 @@ test("it answers outcome_unknown and logs the path of a sub-session's checkout i
 
   await first.catch(() => null);
 
-  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+  const listed = await ctx.client.sendRequest('session.list');
 
-  expect<Record<string, unknown>>({
-    exists: existsSync(join(dest, 'README.md')),
-    logged: ctx.logs.filter((line) => line.startsWith(`atc: left ${dest} `)),
-    listed: await ctx.client.sendRequest('session.list'),
-  }).toStrictEqual({
-    exists: true,
-    logged: [expect.toEndWith('; remove it by hand')],
-    listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
+  expect(first).rejects.toMatchObject({ code: 'outcome_unknown' });
+  expect(existsSync(join(dest, 'README.md'))).toBe(true);
+
+  expect(ctx.logs.filter((line) => line.startsWith(`atc: left ${dest} `))).toStrictEqual([
+    expect.toEndWith('; remove it by hand'),
+  ]);
+
+  expect(listed).toStrictEqual({
+    sessions: [expect.objectContaining({ id: parentID, alive: true })],
   });
 });
 
 test("it keeps the key of a sub-session's checkout it cannot remove, so a retry is answered outcome_unknown", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1692,7 +1659,7 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
 });
 
 test("it keeps the claim on a sub-session's checkout it cannot remove, so a spawn inside it is refused", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1726,19 +1693,18 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
 
   await inside.catch(() => null);
 
-  expect(inside).rejects.toMatchObject({ code: 'workspace_overlap' });
+  const listed = await ctx.client.sendRequest('session.list');
 
-  expect<Record<string, unknown>>({
-    exists: existsSync(join(dest, 'README.md')),
-    listed: await ctx.client.sendRequest('session.list'),
-  }).toStrictEqual({
-    exists: true,
-    listed: { sessions: [expect.objectContaining({ id: parentID, alive: true })] },
+  expect(inside).rejects.toMatchObject({ code: 'workspace_overlap' });
+  expect(existsSync(join(dest, 'README.md'))).toBe(true);
+
+  expect(listed).toStrictEqual({
+    sessions: [expect.objectContaining({ id: parentID, alive: true })],
   });
 });
 
 test("it refuses a workspace destination that a symlink places inside its parent's directory before claiming it", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -1768,7 +1734,7 @@ test("it refuses a workspace destination that a symlink places inside its parent
 });
 
 test("it refuses a workspace destination inside its parent's relative directory as the host resolves it", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const home = join(ctx.dir, 'home');
 
@@ -1802,7 +1768,7 @@ test("it refuses a workspace destination inside its parent's relative directory 
 });
 
 test('it materializes a workspace through a symlinked directory that leads away from its parent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -1824,14 +1790,12 @@ test('it materializes a workspace through a symlinked directory that leads away 
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect<Record<string, unknown>>({
-    alive: getRecord(spawned, 'session')['alive'],
-    readme: readFileSync(join(ctx.dir, 'elsewhere', 'new', 'README.md'), 'utf8'),
-  }).toStrictEqual({ alive: true, readme: committed });
+  expect(getRecord(spawned, 'session')['alive']).toBe(true);
+  expect(readFileSync(join(ctx.dir, 'elsewhere', 'new', 'README.md'), 'utf8')).toBe(committed);
 });
 
 test('it answers outcome_unknown for a workspace spawn whose own host it cannot destroy after its workspace fails', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const dest = join(ctx.dir, 'box', 'ws');
 
@@ -1851,7 +1815,7 @@ test('it answers outcome_unknown for a workspace spawn whose own host it cannot 
 });
 
 test('it keeps the key of a workspace spawn whose own host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.dir, 'box', 'ws'), { recursive: true });
 
@@ -1885,7 +1849,7 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
 });
 
 test('it answers outcome_unknown for a spawn whose failed readying leaves an imp it cannot destroy', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.port.setAcquireFailure(0, 'INTERNAL');
   ctx.port.setDestroyFailure('INTERNAL');
@@ -1902,7 +1866,7 @@ test('it answers outcome_unknown for a spawn whose failed readying leaves an imp
 });
 
 test('it keeps the key of a spawn whose failed readying leaves an imp it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.port.setAcquireFailure(0, 'INTERNAL');
   ctx.port.setDestroyFailure('INTERNAL');
@@ -1935,7 +1899,7 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
 });
 
 test('it refuses a spawn whose readying fails and destroys the imp the readying created', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.port.setAcquireFailure(0, 'INTERNAL');
 
@@ -1954,7 +1918,7 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
 });
 
 test('it keeps the files of a session listed inside its directory while a workspace rollback resolves the host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.work,
@@ -2014,7 +1978,7 @@ test('it keeps the files of a session listed inside its directory while a worksp
 });
 
 test('it refuses a workspace cwd with a dot-dot segment before touching impd', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: `${ctx.dir}/alias/../new`,
@@ -2030,7 +1994,7 @@ test('it refuses a workspace cwd with a dot-dot segment before touching impd', a
 });
 
 test('it refuses a workspace cwd with a control character before touching impd', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'new\n'),
@@ -2046,7 +2010,7 @@ test('it refuses a workspace cwd with a control character before touching impd',
 });
 
 test('it materializes a workspace through a symlink to a directory whose name ends in a newline beside its parent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -2071,15 +2035,13 @@ test('it materializes a workspace through a symlink to a directory whose name en
     workspace: { kind: 'path', path: ctx.work },
   });
 
-  expect<Record<string, unknown>>({
-    alive: getRecord(spawned, 'session')['alive'],
-    readme: readFileSync(join(busy, 'sub\n', 'new', 'README.md'), 'utf8'),
-    untouched: existsSync(join(busy, 'sub', 'new')),
-  }).toStrictEqual({ alive: true, readme: committed, untouched: false });
+  expect(getRecord(spawned, 'session')['alive']).toBe(true);
+  expect(readFileSync(join(busy, 'sub\n', 'new', 'README.md'), 'utf8')).toBe(committed);
+  expect(existsSync(join(busy, 'sub', 'new'))).toBe(false);
 });
 
 test('it removes only the directory it created when a symlink in the requested path changes before a rollback', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const safe = join(ctx.dir, 'safe');
   const busy = join(ctx.dir, 'busy');
@@ -2113,15 +2075,12 @@ test('it removes only the directory it created when a symlink in the requested p
 
   expect(spawn).rejects.toMatchObject({ code: 'transfer_failed' });
   expect(spawn).rejects.not.toMatchObject({ data: { leftDir: expect.toBeString() } });
-
-  expect<Record<string, unknown>>({
-    kept: readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8'),
-    exists: existsSync(join(safe, 'new')),
-  }).toStrictEqual({ kept: 'kept\n', exists: false });
+  expect(readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
+  expect(existsSync(join(safe, 'new'))).toBe(false);
 });
 
 test('it leaves its directory and reports it when the directory it created no longer resolves to itself before a rollback', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const safe = join(ctx.dir, 'safe');
   const busy = join(ctx.dir, 'busy');
@@ -2156,8 +2115,6 @@ test('it leaves its directory and reports it when the directory it created no lo
     data: { leftDir: join(safe, 'new') },
   });
 
-  expect<Record<string, unknown>>({
-    kept: readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8'),
-    left: existsSync(join(ctx.dir, 'safe-old', 'new')),
-  }).toStrictEqual({ kept: 'kept\n', left: true });
+  expect(readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
+  expect(existsSync(join(ctx.dir, 'safe-old', 'new'))).toBe(true);
 });

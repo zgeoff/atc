@@ -11,6 +11,7 @@ import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
@@ -24,20 +25,16 @@ import { ImpProvider } from './imp-provider';
  * git clone with one commit, holding `README.md`.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-project-settings-'));
+  const tmp = setupTempDir('atc-project-settings-');
 
   const git = await createGitFixture({ prefix: 'atc-project-settings-git-' });
-
-  stack.use(git);
 
   // Both agent entries run this binary for every spawn.
   const fakeClaude = createStubRecordingClaude(tmp.dir);
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
 
   // A brokered spawn needs a token that may grant each agent's secret, and
   // the secrets themselves.
@@ -63,7 +60,7 @@ async function setupTest() {
     { atcBinary: null },
   );
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -104,10 +101,6 @@ async function setupTest() {
     }),
   });
 
-  stack.use(harness);
-
-  const owned = stack.move();
-
   return {
     client: harness.client,
     port,
@@ -115,7 +108,6 @@ async function setupTest() {
     work: git.work,
     gitEnv: git.env,
     dir: tmp.dir,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
@@ -150,7 +142,7 @@ test.each([
 ] as const)(
   'it refuses a trusted subscription clone whose %s sets %s and starts nothing',
   async (file, setting, content) => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
 
     mkdirSync(join(ctx.work, '.claude'));
     writeFileSync(join(ctx.work, file), content);
@@ -190,7 +182,7 @@ test.each([
 );
 
 test('it refuses an untrusted subscription clone whose settings set apiKeyHelper', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
   writeFileSync(join(ctx.work, '.claude/settings.json'), '{"apiKeyHelper":"echo key"}');
@@ -225,7 +217,7 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
 test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
   'it refuses a subscription clone whose settings file holds %s, which is not a JSON object',
   async (content) => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
 
     mkdirSync(join(ctx.work, '.claude'));
     writeFileSync(join(ctx.work, '.claude/settings.json'), content);
@@ -260,7 +252,7 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
 );
 
 test('it refuses a subscription clone whose settings file is a dangling symlink', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
   symlinkSync(join(ctx.dir, 'missing', 'settings.json'), join(ctx.work, '.claude/settings.json'));
@@ -293,7 +285,7 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
 });
 
 test('it starts a trusted subscription clone whose settings set neither a credential nor a provider', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
 
@@ -320,7 +312,7 @@ test('it starts a trusted subscription clone whose settings set neither a creden
 });
 
 test('it starts a trusted subscription clone with no project settings files', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'clone'),
@@ -336,7 +328,7 @@ test('it starts a trusted subscription clone with no project settings files', as
 });
 
 test('it refuses a subscription launch in an existing folder whose local settings set a credential', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
 
@@ -369,7 +361,7 @@ test('it refuses a subscription launch in an existing folder whose local setting
 });
 
 test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
   writeFileSync(join(ctx.work, '.claude/settings.json'), '{"apiKeyHelper":"echo key"}');
@@ -403,7 +395,7 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
 });
 
 test('it refuses a subscription clone whose settings file is a symlink to an endless device', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
   symlinkSync('/dev/zero', join(ctx.work, '.claude/settings.json'));
@@ -436,7 +428,7 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
 });
 
 test('it refuses a subscription launch in a subfolder whose repository root holds local settings with a credential', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
   mkdirSync(join(ctx.work, 'sub'));
@@ -465,7 +457,7 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
 });
 
 test('it refuses a subscription launch in a worktree whose main checkout holds local settings with a credential', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
 
@@ -501,7 +493,7 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
 });
 
 test('it refuses a launch path whose symlink and parent step resolve to a folder with conflicting settings', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   mkdirSync(join(ctx.work, '.claude'));
   mkdirSync(join(ctx.work, 'sub'));

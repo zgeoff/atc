@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ClaudeAdapter } from '../agents/claude-adapter';
@@ -9,6 +9,7 @@ import { getRecord } from '../shared/get-record';
 import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
@@ -19,12 +20,10 @@ import { ImpProvider } from './imp-provider';
 // a temp directory, the stub guest atc running this source tree, and the
 // stub claude as Claude's binary.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-imp-bridge-'));
+  const tmp = setupTempDir('atc-imp-bridge-');
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
   const guestDir = join(tmp.dir, 'g');
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
   const config = parseConfig({ claudeBin: clis.claude });
 
   const daemon = await startTestDaemon({
@@ -48,21 +47,11 @@ async function setupTest() {
     }),
   });
 
-  stack.use(daemon);
-
-  const owned = stack.move();
-
-  return {
-    daemon,
-    port,
-    dir: tmp.dir,
-    guestDir,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { daemon, port, dir: tmp.dir, guestDir };
 }
 
 test("it delivers a message to a remote session's tap", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const tapLog = join(ctx.dir, 'tap.log');
 
@@ -90,7 +79,7 @@ test("it delivers a message to a remote session's tap", async () => {
 });
 
 test('it records the answer a remote session reports to a message its tap took', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const tapLog = join(ctx.dir, 'tap.log');
 
@@ -130,7 +119,7 @@ test('it records the answer a remote session reports to a message its tap took',
 });
 
 test("it answers a status read on a remote session's bridge with that session's own state", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.dir,
@@ -163,7 +152,7 @@ test("it answers a status read on a remote session's bridge with that session's 
 });
 
 test('it answers an op the bridge does not offer with forbidden and closes the connection', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.dir,
@@ -186,7 +175,7 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
     answers.push(line);
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -198,7 +187,7 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
 });
 
 test('it delivers a message sent after a sleep and a wake to the tap that ran before, and each message once', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const tapLog = join(ctx.dir, 'tap.log');
 
@@ -258,7 +247,7 @@ test('it delivers a message sent after a sleep and a wake to the tap that ran be
 });
 
 test('it delivers a message and a report held back while the bridge was unreachable once each after it reconnects', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const tapLog = join(ctx.dir, 'tap.log');
 
@@ -309,18 +298,16 @@ test('it delivers a message and a report held back while the bridge was unreacha
       .filter((line) => line !== '')
       .map((line): unknown => JSON.parse(line));
 
-    expect({
-      printed,
-      reports: ctx.daemon.events.filter((event) => event.ev === 'SessionReport'),
-    }).toMatchObject({
-      printed: [{ id: first['message'] }, { id: held['message'] }],
-      reports: [{ text: 'while away' }],
-    });
+    expect(printed).toMatchObject([{ id: first['message'] }, { id: held['message'] }]);
+
+    expect(ctx.daemon.events.filter((event) => event.ev === 'SessionReport')).toMatchObject([
+      { text: 'while away' },
+    ]);
   });
 });
 
 test('it prints a message whose ack was lost once, and acks it again when the tap reconnects', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const tapLog = join(ctx.dir, 'tap.log');
 
@@ -369,10 +356,9 @@ test('it prints a message whose ack was lost once, and acks it again when the ta
       .filter((line) => line !== '')
       .map((line): unknown => JSON.parse(line));
 
-    expect({ unacked, read, printed }).toMatchObject({
-      unacked: { status: 'accepted' },
-      read: { status: 'delivered' },
-      printed: [{ id: ready['message'] }, { id: lost['message'] }],
-    });
+    expect(read['status']).toBe('delivered');
+    expect(printed).toMatchObject([{ id: ready['message'] }, { id: lost['message'] }]);
   });
+
+  expect(unacked['status']).toBe('accepted');
 });

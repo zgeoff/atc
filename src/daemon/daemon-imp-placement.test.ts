@@ -15,9 +15,7 @@ import { LocalPTYProvider } from './local-pty-provider';
  * session runs an agent that stays up reading its input, on any target.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
 
   const daemon = await startTestDaemon({
     options: (paths) => {
@@ -46,15 +44,11 @@ async function setupTest() {
     },
   });
 
-  stack.use(daemon);
-
-  const moved = stack.move();
-
-  return { port, daemon, [Symbol.asyncDispose]: () => moved.disposeAsync() };
+  return { port, daemon };
 }
 
 test("it runs a sub-session on its parent's target as another session in its parent's imp", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.dir,
@@ -77,15 +71,13 @@ test("it runs a sub-session on its parent's target as another session in its par
   // Each distinct session the imp was asked to start, once.
   const sessions = [...new Set(ctx.port.sessionRequests.map((request) => request.session))];
 
-  expect<Record<string, unknown>>({ imps, names, sessions }).toStrictEqual({
-    imps: [expect.any(String)],
-    names: [imps[0], imps[0]],
-    sessions: [expect.any(String), expect.any(String)],
-  });
+  expect<readonly unknown[]>(imps).toStrictEqual([expect.any(String)]);
+  expect<readonly unknown[]>(names).toStrictEqual([imps[0], imps[0]]);
+  expect<readonly unknown[]>(sessions).toStrictEqual([expect.any(String), expect.any(String)]);
 });
 
 test("it puts a parent's imp to sleep once its only session is killed", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.dir,
@@ -104,7 +96,7 @@ test("it puts a parent's imp to sleep once its only session is killed", async ()
 });
 
 test("it wakes a sleeping parent's imp to start a sub-session there", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.dir,
@@ -126,14 +118,12 @@ test("it wakes a sleeping parent's imp to start a sub-session there", async () =
     parent: parentID,
   });
 
-  expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames(),
-    state: ctx.port.findState(String(imp)),
-  }).toStrictEqual({ imps: [imp], state: 'running' });
+  expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([imp]);
+  expect(ctx.port.findState(String(imp))).toBe('running');
 });
 
 test('it gives a sub-session without a target a host of its own on the default target', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.dir,
@@ -149,19 +139,13 @@ test('it gives a sub-session without a target a host of its own on the default t
     parent: getRecord(parent, 'session')['id'],
   });
 
-  expect({
-    locator: getRecord(getRecord(child, 'session'), 'locator'),
-    imps: ctx.port.collectImpNames(),
-    requests: ctx.port.sessionRequests,
-  }).toMatchObject({
-    locator: { targetID: 'local' },
-    imps: [expect.any(String)],
-    requests: [expect.anything()],
-  });
+  expect(getRecord(getRecord(child, 'session'), 'locator')).toMatchObject({ targetID: 'local' });
+  expect(ctx.port.collectImpNames()).toMatchObject([expect.any(String)]);
+  expect(ctx.port.sessionRequests).toMatchObject([expect.anything()]);
 });
 
 test('it gives a sub-session on another imp target an imp of its own', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.daemon.dir,
