@@ -53,14 +53,21 @@ import { registerTestCleanup } from './register-test-cleanup';
  * broker variable, and when it would join a process that started without
  * the broker required. Once the current test finishes, the stand-in kills
  * every process and stops every forward it holds, so it must be created inside
- * a test; `stop` does so sooner, and a second stop does nothing. Leases
- * expire, and cold boots are stamped, by `now`, the wall clock when absent.
+ * a test; `stop` does so sooner, and a second stop does nothing. A stop
+ * that finds a guest command ended in part, such as one that exited while
+ * its output stayed open, reports one line per command through `report`,
+ * stderr when absent: its argv and which of its stdout, stderr, and exit
+ * it still waited for. Leases expire, and cold boots are
+ * stamped, by `now`, the wall clock when absent.
  */
 export function createStubImpPort(
   principal = 'token:atc',
   now: () => number = Date.now,
+  report: (line: string) => void = (line) => {
+    console.error(line);
+  },
 ): StubImpPort {
-  return new StubImpPort(principal, now);
+  return new StubImpPort(principal, now, report);
 }
 
 interface StubConnection {
@@ -253,8 +260,12 @@ class StubImpPort implements ImpPort {
   // How many commands wait on a command hold.
   private heldCommands = 0;
 
-  // The guest commands running now, which a stop kills.
-  private readonly commands = new Set<Subprocess>();
+  // The guest commands running now, which a stop kills, each with its argv
+  // and the parts of its end not yet seen: stdout, stderr, and exit.
+  private readonly commands = new Map<
+    Subprocess,
+    { readonly line: string; readonly pending: Set<string> }
+  >();
 
   // Set once the stand-in stops, so a command a hold released never runs.
   private stopped = false;
@@ -291,9 +302,13 @@ class StubImpPort implements ImpPort {
 
   private readonly forwards = new Set<{ stop: () => void; stopRelays: () => void }>();
 
-  constructor(principal: string, now: () => number) {
+  // Takes one line per guest command a stop finds still running.
+  private readonly report: (line: string) => void;
+
+  constructor(principal: string, now: () => number, report: (line: string) => void) {
     this.principal = principal;
     this.now = now;
+    this.report = report;
   }
 
   readFeatures(): Promise<ImpFeatures> {
@@ -732,12 +747,20 @@ class StubImpPort implements ImpPort {
       stderr: 'pipe',
     });
 
-    this.commands.add(proc);
+    const pending = new Set(['stdout', 'stderr', 'exit']);
+
+    this.commands.set(proc, { line, pending });
 
     const [stdout, stderr, code] = await Promise.all([
-      new Response(proc.stdout).bytes(),
-      new Response(proc.stderr).bytes(),
-      proc.exited,
+      new Response(proc.stdout).bytes().finally(() => {
+        pending.delete('stdout');
+      }),
+      new Response(proc.stderr).bytes().finally(() => {
+        pending.delete('stderr');
+      }),
+      proc.exited.finally(() => {
+        pending.delete('exit');
+      }),
     ]);
 
     this.commands.delete(proc);
@@ -1301,7 +1324,20 @@ class StubImpPort implements ImpPort {
 
     this.stopCommandHold();
 
-    const commands = [...this.commands];
+    const commands = [...this.commands.keys()];
+
+    // A command that ended in part, its exit seen but its output still open
+    // or the reverse, is a wait that may never end. One with nothing seen
+    // yet is a command the stop cuts short, which is ordinary.
+    for (const running of this.commands.values()) {
+      if (running.pending.size === 0 || running.pending.size === 3) {
+        continue;
+      }
+
+      this.report(
+        `the stub imp port stopped while a guest command still ran: ${running.line}; it waited for ${[...running.pending].join(', ')}`,
+      );
+    }
 
     for (const command of commands) {
       command.kill('SIGKILL');

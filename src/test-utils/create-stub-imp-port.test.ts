@@ -1222,6 +1222,72 @@ test('it kills a running command once the port stops', async () => {
   expect(ran.code).toBe(137);
 });
 
+test('it reports a command that exited while a child it left holds its output open when the port stops', async () => {
+  const tmp = setupTempDir('atc-stub-imp-port-');
+  const reported: string[] = [];
+
+  const port = createStubImpPort('token:atc', Date.now, (line) => {
+    reported.push(line);
+  });
+
+  await port.createImp({ name: 'imp-a' });
+
+  const marker = join(tmp.dir, 'pids');
+
+  void port.runCommand('imp-a', {
+    argv: ['sh', '-c', 'sleep 30 & echo "$$ $!" > "$1"', 'sh', marker],
+  });
+
+  const pids = await waitFor(() => {
+    const [shell, child] = readFileSync(marker, 'utf8').trim().split(' ').map(Number);
+
+    invariant(shell !== undefined && child !== undefined);
+
+    return { shell, child };
+  });
+
+  onTestFinished(() => {
+    process.kill(pids.child, 'SIGKILL');
+  });
+
+  // A shell the port has reaped is gone from the process table, so the port
+  // has seen its exit.
+  await waitFor(() => {
+    expect(() => process.kill(pids.shell, 0)).toThrow();
+  });
+
+  await port.stop();
+
+  expect(reported).toStrictEqual([
+    `the stub imp port stopped while a guest command still ran: sh -c sleep 30 & echo "$$ $!" > "$1" sh ${marker}; it waited for stdout, stderr`,
+  ]);
+});
+
+test('it reports nothing for a running command the port stop cuts short', async () => {
+  const tmp = setupTempDir('atc-stub-imp-port-');
+  const reported: string[] = [];
+
+  const port = createStubImpPort('token:atc', Date.now, (line) => {
+    reported.push(line);
+  });
+
+  await port.createImp({ name: 'imp-a' });
+
+  const marker = join(tmp.dir, 'started');
+
+  void port.runCommand('imp-a', {
+    argv: ['sh', '-c', 'touch "$1"; exec sleep 30', 'sh', marker],
+  });
+
+  await waitFor(() => {
+    expect(existsSync(marker)).toBeTrue();
+  });
+
+  await port.stop();
+
+  expect(reported).toStrictEqual([]);
+});
+
 test('it runs a command whose argv does not hold the held text at once', async () => {
   const ctx = setupTest();
 
