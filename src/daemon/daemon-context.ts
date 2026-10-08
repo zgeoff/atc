@@ -1,5 +1,7 @@
 import type { AgentAdapter, SpawnOptions, SpawnOverrides } from '../agents/agent-adapter';
+import type { DeclaredScope } from '../protocol/parse-declared-scope';
 import type { EventMsg } from '../protocol/protocol';
+import type { PublishedRecord } from '../protocol/published-record';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { AgentID } from '../shared/agent-id';
 import type { TargetConfigError } from '../shared/collect-targets';
@@ -40,6 +42,10 @@ export interface SpawnParams {
   // session in cwd as it stands.
   readonly workspace: SpawnWorkspaceSource | null;
 
+  // The scope beyond its workspace the session's record holds once each
+  // entry is checked on its host; null declares none.
+  readonly scope: DeclaredScope | null;
+
   // Whether the daemon picked cwd for a git workspace the spawn gave no
   // directory for, so a held directory moves the spawn to a numbered one
   // beside it.
@@ -52,6 +58,10 @@ interface SessionRecord {
   readonly lastActivityAt: number;
   readonly pending: { readonly message: string } | null;
   readonly result: string | null;
+
+  // The record atc publishes for the session; null for a session that has
+  // none yet.
+  readonly sessionRecord: PublishedRecord | null;
 }
 
 /**
@@ -248,6 +258,17 @@ export interface DaemonContext {
   // answers the new revision, or null for no such session.
   readonly updateSessionAuth: (id: SessionID) => Promise<number | null>;
   readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
+
+  // Adds a checked scope to a session's published record and returns the
+  // record as it stands after; 'missing' for no such session.
+  readonly updateSessionScope: (
+    id: SessionID,
+    scope: DeclaredScope,
+  ) => Promise<PublishedRecord | 'missing'>;
+
+  // Whether the session is the caller itself or a session the caller is a
+  // sub-session of, at any depth.
+  readonly isCallerTree: (id: SessionID, caller: SessionID) => boolean;
   readonly quitDaemon: () => void;
   readonly ackSession: (id: SessionID) => boolean;
   readonly buildResumeCommand: (id: SessionID) => string | null;

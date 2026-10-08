@@ -154,6 +154,16 @@ interface RuntimeAuthGrantTable {
   updated_at: number;
 }
 
+// One session's published record, keyed by the session.
+interface PublishedRecordTable {
+  session_id: string;
+
+  // The record as JSON, in the format its version defines.
+  record: string;
+  revision: number;
+  updated_at: number;
+}
+
 interface MessagesTable {
   id: string;
   atc_id: string;
@@ -186,6 +196,7 @@ export interface StateStoreSchema {
   workspace_materialization: WorkspaceMaterializationTable;
   runtime_auth_binding: RuntimeAuthBindingTable;
   runtime_auth_grant: RuntimeAuthGrantTable;
+  published_record: PublishedRecordTable;
 }
 
 // Every shape the fleet table has shipped with: the oldest carries only
@@ -554,6 +565,18 @@ const MIGRATIONS: Record<string, Migration> = {
       await db.schema
         .alterTable('fleet')
         .addColumn('resume_interrupted_turns', 'integer')
+        .execute();
+    },
+  },
+  '027_create_published_record': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema
+        .createTable('published_record')
+        .ifNotExists()
+        .addColumn('session_id', 'text', (c) => c.primaryKey())
+        .addColumn('record', 'text', (c) => c.notNull())
+        .addColumn('revision', 'integer', (c) => c.notNull())
+        .addColumn('updated_at', 'integer', (c) => c.notNull())
         .execute();
     },
   },

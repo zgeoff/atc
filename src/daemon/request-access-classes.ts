@@ -34,6 +34,7 @@ export const REQUEST_ACCESS_CLASSES: Readonly<Record<RequestMethod, RequestAcces
   'session.auth.revoke': 'owner',
   'session.auth.rebind': 'owner',
   'session.update': 'principal',
+  'session.scope.add': 'principal',
   'session.attach': 'principal',
   'session.detach': 'principal',
   'session.input': 'principal',

@@ -13,6 +13,7 @@ import type {
 import type { AdapterEvent } from '../protocol/adapter-event';
 import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
+import type { PublishedRecord } from '../protocol/published-record';
 import type { AgentID } from '../shared/agent-id';
 import type { AgentSessionID } from '../shared/agent-session-id';
 import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
@@ -29,6 +30,7 @@ import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-ent
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
+import { parsePublishedRecord } from './parse-published-record';
 import { runMigrations } from './run-migrations';
 import type { StateStoreSchema } from './run-migrations';
 import type {
@@ -1001,6 +1003,36 @@ export class StateStore {
       .set({ phase: 'failed', error_code: 'workspace_interrupted', updated_at: at })
       .where('phase', 'not in', ['ready', 'failed'])
       .execute();
+  }
+
+  // A row whose JSON no longer reads as a record counts as no record, so
+  // the next delivery records the session afresh.
+  async findPublishedRecord(sessionID: SessionID): Promise<PublishedRecord | null> {
+    const row = await this.db
+      .selectFrom('published_record')
+      .select('record')
+      .where('session_id', '=', sessionID)
+      .executeTakeFirst();
+
+    return row === undefined ? null : parsePublishedRecord(row.record);
+  }
+
+  async writePublishedRecord(record: PublishedRecord): Promise<void> {
+    const values = {
+      record: JSON.stringify(record),
+      revision: record.revision,
+      updated_at: Date.parse(record.updatedAt),
+    };
+
+    await this.db
+      .insertInto('published_record')
+      .values({ session_id: record.session, ...values })
+      .onConflict((oc) => oc.column('session_id').doUpdateSet(values))
+      .execute();
+  }
+
+  async removePublishedRecord(sessionID: SessionID): Promise<void> {
+    await this.db.deleteFrom('published_record').where('session_id', '=', sessionID).execute();
   }
 
   // Records a host's binding as its first attempt starts provisioning it,

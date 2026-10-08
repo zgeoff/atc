@@ -6,6 +6,8 @@ import { encodeCursor } from '../protocol/encode-cursor';
 import { LineDecoder } from '../protocol/line-decoder';
 import { OutboundQueue } from '../protocol/outbound-queue';
 import type { SocketWriter } from '../protocol/outbound-queue';
+import { parseDeclaredScope } from '../protocol/parse-declared-scope';
+import type { DeclaredScope } from '../protocol/parse-declared-scope';
 import { parseRequestParams } from '../protocol/parse-request-params';
 import type { RequestMethod } from '../protocol/parse-request-params';
 import {
@@ -102,6 +104,11 @@ export class DaemonConnection {
   private principal: string | null = null;
 
   private access: TargetAccess | null = null;
+
+  // The atc session the client runs inside, from its handshake; null for a
+  // client that gave none. A session never changes its own record or that
+  // of a session it is a sub-session of through it.
+  private callerSession: SessionID | null = null;
 
   // The sessions in this limited connection's view, the sessions the daemon
   // holds that the view leaves out, and the permission requests the
@@ -629,6 +636,11 @@ export class DaemonConnection {
 
         return;
       }
+      case 'session.scope.add': {
+        await this.applyScopeAdd(req, ctx);
+
+        return;
+      }
       case 'session.kill': {
         await this.applySessionVerb(req, 'session.kill', ctx.killSession);
 
@@ -919,6 +931,48 @@ export class DaemonConnection {
     }
   }
 
+  // A client inside a session never adds to the record of that session or
+  // of a session it is a sub-session of: only a caller outside the tree
+  // vouches for what the session may touch.
+  private async applyScopeAdd(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('session.scope.add', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+    const declared = parseDeclaredScope(parsed.data.scope);
+
+    if (!declared.ok) {
+      this.sendErr(req.id, 'scope_invalid', declared.message, { entry: declared.entry });
+
+      return;
+    }
+
+    if (this.callerSession !== null && ctx.isCallerTree(sessionID, this.callerSession)) {
+      this.sendErr(
+        req.id,
+        'unauthorized',
+        `session '${this.callerSession}' cannot add to the scope of session '${sessionID}': a session never widens its own scope or that of a session above it`,
+      );
+
+      return;
+    }
+
+    const record = await ctx.updateSessionScope(sessionID, declared.scope);
+
+    if (record === 'missing') {
+      this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
+
+      return;
+    }
+
+    this.sendOk(req.id, { record });
+  }
+
   private async applySpawn(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('session.spawn', req.p);
 
@@ -1041,6 +1095,7 @@ export class DaemonConnection {
         target,
         workspace: data.workspace ?? null,
         autoDir: cwd === undefined,
+        scope: requireDeclaredScope(data.scope),
       };
     };
 
@@ -1668,6 +1723,8 @@ export class DaemonConnection {
       this.setPrincipal(principal);
     }
 
+    this.callerSession = parsedHello.ok ? (parsedHello.data.session ?? null) : null;
+
     if (req.v !== PROTOCOL_V) {
       this.sendErr(
         req.id,
@@ -1745,6 +1802,7 @@ export class DaemonConnection {
         this.setPrincipal(principal);
       }
 
+      this.callerSession = parsedHello.data.session ?? null;
       this.fingerprint = fingerprint;
 
       await this.sendHelloOk(req.id);
@@ -1850,4 +1908,20 @@ function isPlainWorkspaceDir(dir: string): boolean {
   return (
     !CONTROL_CHARACTER.test(dir) && !dir.split('/').some((part) => part === '.' || part === '..')
   );
+}
+
+// A spawn without a scope declares none; one whose scope does not read
+// refuses before anything starts, with the entry at fault.
+function requireDeclaredScope(raw: unknown): DeclaredScope | null {
+  if (raw === undefined) {
+    return null;
+  }
+
+  const parsed = parseDeclaredScope(raw);
+
+  if (!parsed.ok) {
+    throw new DaemonError('scope_invalid', parsed.message, { entry: parsed.entry });
+  }
+
+  return parsed.scope;
 }

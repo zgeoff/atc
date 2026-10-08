@@ -169,6 +169,10 @@ export interface HeadlessRunRequest {
   // Environment variable names the run's process goes without, such as the
   // credential a session's workspace was cloned with.
   readonly withheldEnv?: readonly string[];
+
+  // Where the session's published record lies, which the run's process
+  // reads from ATC_SESSION_RECORD.
+  readonly recordPath?: string;
 }
 
 export interface HeadlessRunEvents {

@@ -41,6 +41,40 @@ const DIRS_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   { io: 'input' },
 );
 
+// The scope a session may touch beyond its own workspace, which atc checks
+// entry by entry on the session's host.
+const SCOPE_WORKTREE = z.strictObject({ path: z.string() });
+const SCOPE_BRANCH = z.strictObject({ name: z.string(), repo: z.string().optional() });
+const SCOPE_PULL_REQUEST_NUMBER = z.number().int();
+
+const SCOPE_PULL_REQUEST = z.strictObject({
+  number: SCOPE_PULL_REQUEST_NUMBER,
+  repo: z.string().optional(),
+});
+
+const SCOPE_FIELD = z
+  .strictObject({
+    worktrees: z
+      .array(SCOPE_WORKTREE)
+      .optional()
+      .describe('Absolute paths of git worktrees on the session host, each its worktree top level'),
+    branches: z
+      .array(SCOPE_BRANCH)
+      .optional()
+      .describe(
+        "Branches that exist in repo, an absolute repository path on the session host; repo defaults to the session's directory",
+      ),
+    pullRequests: z
+      .array(SCOPE_PULL_REQUEST)
+      .optional()
+      .describe(
+        "GitHub pull requests of repo, as owner/name; repo defaults to the GitHub repository of the workspace's origin",
+      ),
+  })
+  .describe(
+    "Worktrees, branches, and pull requests the session may touch beyond its own workspace. atc checks each entry on the session's host, refuses an invalid or unknown entry with scope_invalid naming it, and records the rest in the session's record, which the session reads at $ATC_SESSION_RECORD.",
+  );
+
 const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
     daemon: DAEMON_FIELD,
@@ -65,6 +99,7 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     trustClonedWorkspace: SPAWN_SCHEMA.shape.trustClonedWorkspace.describe(
       "Trust the exact verified clone for this launch. An explicit true or false overrides the configured target trustClonedWorkspace default; omitting both keeps trust off. Requires a workspace source and either stock Claude on the local target, which adds trust for the clone root alone to the user's Claude config, or, on an imp target, a brokered Claude gateway or stock Claude signed in through the broker, each with isolated guest config; other launches are refused. Accepts repository configuration and helpers without changing tool permission mode. Existing guest config is preserved.",
     ),
+    scope: SCOPE_FIELD.optional(),
     detached: z
       .boolean()
       .optional()
@@ -73,6 +108,11 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       ),
     idempotencyKey: IDEMPOTENCY_KEY_FIELD,
   }),
+  { io: 'input' },
+);
+
+const SCOPE_ADD_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
+  SESSION_ID_BASE.extend({ scope: SCOPE_FIELD }).strict(),
   { io: 'input' },
 );
 
@@ -420,6 +460,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         target: 'spawn.target',
         workspace: 'spawn.workspace',
         trustClonedWorkspace: 'spawn.workspace.trust',
+        scope: 'session.record',
       },
     },
   },
@@ -449,6 +490,15 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     description:
       'Read the current terminal screen of a session as plain text, without attaching to it. Use it to see what a session printed or what it is waiting on before answering it with atc_session_input. A killed session keeps its last screen.',
     inputSchema: SESSION_INPUT,
+  },
+  {
+    name: 'atc_session_scope_add',
+    annotations: ADDITIVE,
+    scope: 'spawn',
+    description:
+      "Add worktrees, branches, or pull requests to the scope a session's record holds, as checked by atc on the session's host. Entries the record already holds change nothing, and atc never removes an entry. A session can never add to its own scope or to that of a session it is a sub-session of; ask whoever started it. Returns the record as it stands after.",
+    inputSchema: SCOPE_ADD_INPUT,
+    requires: { tool: 'session.record' },
   },
   {
     name: 'atc_session_update',

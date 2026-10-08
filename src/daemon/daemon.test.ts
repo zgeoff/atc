@@ -80,6 +80,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'transport.tcp',
       'idempotency.replayOnly',
       'session.auth',
+      'session.record',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
@@ -695,6 +696,11 @@ test("it reads a spawned session's prompt through session.get", async () => {
     lastActivityAt: expect.toBeNumber(),
     pending: null,
     result: null,
+    sessionRecord: expect.objectContaining({
+      format: 'atc.session-record',
+      session: id,
+      revision: 1,
+    }),
   });
 });
 

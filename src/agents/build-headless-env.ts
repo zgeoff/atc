@@ -8,6 +8,9 @@ interface HeadlessEnvParams {
 
   // Variables the run goes without, such as a workspace credential.
   readonly withheldEnv?: readonly string[];
+
+  // Where the session's published record lies.
+  readonly recordPath?: string;
 }
 
 /**
@@ -23,6 +26,7 @@ export function buildHeadlessEnv(params: HeadlessEnvParams): Record<string, stri
       ...(params.sessionID === undefined
         ? {}
         : { ATC_SESSION_ID: params.sessionID, ATC_SOCKET: params.socketPath }),
+      ...(params.recordPath === undefined ? {} : { ATC_SESSION_RECORD: params.recordPath }),
     },
     params.withheldEnv,
   );

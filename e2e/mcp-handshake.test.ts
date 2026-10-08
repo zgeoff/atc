@@ -197,6 +197,69 @@ test('it lists the fleet tools', async () => {
                   "description": "First message for the session",
                   "type": "string",
                 },
+                "scope": {
+                  "additionalProperties": false,
+                  "description": "Worktrees, branches, and pull requests the session may touch beyond its own workspace. atc checks each entry on the session's host, refuses an invalid or unknown entry with scope_invalid naming it, and records the rest in the session's record, which the session reads at $ATC_SESSION_RECORD.",
+                  "properties": {
+                    "branches": {
+                      "description": "Branches that exist in repo, an absolute repository path on the session host; repo defaults to the session's directory",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                          },
+                          "repo": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "name",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "pullRequests": {
+                      "description": "GitHub pull requests of repo, as owner/name; repo defaults to the GitHub repository of the workspace's origin",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "number": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer",
+                          },
+                          "repo": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "number",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "worktrees": {
+                      "description": "Absolute paths of git worktrees on the session host, each its worktree top level",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "path",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                  },
+                  "type": "object",
+                },
                 "target": {
                   "description": "Execution target for the new session, one of the target ids in atc_agents_list. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.",
                   "minLength": 1,
@@ -335,6 +398,93 @@ test('it lists the fleet tools', async () => {
               "type": "object",
             },
             "name": "atc_session_screen",
+          },
+          {
+            "annotations": {
+              "destructiveHint": false,
+              "openWorldHint": false,
+              "readOnlyHint": false,
+            },
+            "description": "Add worktrees, branches, or pull requests to the scope a session's record holds, as checked by atc on the session's host. Entries the record already holds change nothing, and atc never removes an entry. A session can never add to its own scope or to that of a session it is a sub-session of; ask whoever started it. Returns the record as it stands after.",
+            "inputSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "scope": {
+                  "additionalProperties": false,
+                  "description": "Worktrees, branches, and pull requests the session may touch beyond its own workspace. atc checks each entry on the session's host, refuses an invalid or unknown entry with scope_invalid naming it, and records the rest in the session's record, which the session reads at $ATC_SESSION_RECORD.",
+                  "properties": {
+                    "branches": {
+                      "description": "Branches that exist in repo, an absolute repository path on the session host; repo defaults to the session's directory",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                          },
+                          "repo": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "name",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "pullRequests": {
+                      "description": "GitHub pull requests of repo, as owner/name; repo defaults to the GitHub repository of the workspace's origin",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "number": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer",
+                          },
+                          "repo": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "number",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "worktrees": {
+                      "description": "Absolute paths of git worktrees on the session host, each its worktree top level",
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "path",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                  },
+                  "type": "object",
+                },
+                "session": {
+                  "description": "The atc session id, from atc_session_list",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "session",
+                "scope",
+              ],
+              "type": "object",
+            },
+            "name": "atc_session_scope_add",
           },
           {
             "annotations": {
@@ -1284,6 +1434,14 @@ test('it lists every tool with its three safety hints', async () => {
         }),
         expect.objectContaining({
           name: 'atc_session_screen',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_session_scope_add',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),

@@ -58,6 +58,7 @@ export function runTool(
         ...(args['trustClonedWorkspace'] === undefined
           ? {}
           : { trustClonedWorkspace: args['trustClonedWorkspace'] }),
+        ...(args['scope'] === undefined ? {} : { scope: args['scope'] }),
         cols: 100,
         rows: 30,
       };
@@ -85,6 +86,9 @@ export function runTool(
           ? ['spawn.workspace.autoDir']
           : [];
 
+      const scopeFeatures: readonly DaemonFeature[] =
+        args['scope'] === undefined ? [] : ['session.record'];
+
       const required = [
         ...optionFeatures,
         ...keyFeatures,
@@ -92,6 +96,7 @@ export function runTool(
         ...workspaceFeatures,
         ...trustFeatures,
         ...autoDirFeatures,
+        ...scopeFeatures,
       ];
 
       const ok =
@@ -140,6 +145,15 @@ export function runTool(
       });
 
       return { text: 'updated', structured: null };
+    })
+    .with('atc_session_scope_add', async () => {
+      const ok = await caller.sendRequest(
+        'session.scope.add',
+        { session: args['session'], scope: args['scope'] },
+        ['session.record'],
+      );
+
+      return { text: JSON.stringify(ok), structured: ok };
     })
     .with('atc_session_kill', async () => {
       await caller.sendRequest('session.kill', { session: args['session'] });

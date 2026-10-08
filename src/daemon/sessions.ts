@@ -12,7 +12,9 @@ import type { AdapterEvent } from '../protocol/adapter-event';
 import { countSessionStates } from '../protocol/count-session-states';
 import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
+import type { DeclaredScope } from '../protocol/parse-declared-scope';
 import type { ErrorCode } from '../protocol/protocol';
+import type { PublishedRecord } from '../protocol/published-record';
 import type { SessionState } from '../protocol/session-state';
 import { sortSessionViews } from '../protocol/sort-session-views';
 import type { AgentID } from '../shared/agent-id';
@@ -50,6 +52,7 @@ import { loadOAuthStates } from './load-oauth-states';
 import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
+import type { PublishedRecords } from './published-records';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
@@ -191,6 +194,9 @@ export interface Session {
 // A session's ready workspace and the variables its harnesses go without.
 interface MaterializedSpawn {
   readonly workspace: SessionWorkspace;
+
+  // The branch the checkout is on, null for a detached checkout.
+  readonly branch: string | null;
   readonly withheldEnv: readonly string[];
 }
 
@@ -353,6 +359,10 @@ export class SessionManager {
   // Binds the runtime auth of each host whose agent takes its credential
   // from impd's broker; with none, every such start is refused.
   authBinder: RuntimeAuthBinder | null = null;
+
+  // Publishes each session's record before its harness starts; with none,
+  // sessions start without a record.
+  records: PublishedRecords | null = null;
 
   // Whether any registered adapter has a screen detector, decided once at
   // construction since the registry never changes afterward. Lets a hot path
@@ -709,25 +719,48 @@ export class SessionManager {
     this.adopting.add(id);
 
     let plan: HarnessPlan;
+    let recordPath: string | null;
+    const resume = s.agentSessionID;
 
+    // The record is placed again while the host still counts as readying,
+    // so a host that lost its copy, such as one that booted cold, has it
+    // back before the harness starts.
     try {
-      const setup = await this.setupHarness(
-        adapter,
-        provider,
-        s.id,
-        s.hostKey,
-        s.target,
-        {
-          prompt: '',
-          resume: s.agentSessionID,
-          ...(s.model === undefined ? {} : { model: s.model }),
-          ...(s.effort === undefined ? {} : { effort: s.effort }),
-        },
-        authSetup,
-        s.cwd,
-      );
+      const setup = await this.withHostReadying(s.hostKey, async () => {
+        const planned = await this.setupHarnessOnHost(
+          adapter,
+          provider,
+          s.id,
+          s.hostKey,
+          s.target,
+          {
+            prompt: '',
+            resume,
+            ...(s.model === undefined ? {} : { model: s.model }),
+            ...(s.effort === undefined ? {} : { effort: s.effort }),
+          },
+          authSetup,
+          s.cwd,
+          false,
+        );
+
+        const path =
+          this.records === null
+            ? null
+            : await this.records.restoreCopy({
+                session: s.id,
+                target: s.target,
+                provider,
+                host: s.hostKey,
+                dir: s.cwd,
+                workspace: s.workspace ?? null,
+              });
+
+        return { plan: planned.plan, recordPath: path };
+      });
 
       plan = setup.plan;
+      recordPath = setup.recordPath;
     } finally {
       this.adopting.delete(id);
     }
@@ -753,7 +786,12 @@ export class SessionManager {
       bin: plan.bin,
       args: plan.args,
       cwd: s.cwd,
-      env: { ...plan.env, ATC_SESSION_ID: s.id, ATC_SOCKET: socketPath },
+      env: {
+        ...plan.env,
+        ATC_SESSION_ID: s.id,
+        ATC_SOCKET: socketPath,
+        ...(recordPath === null ? {} : { ATC_SESSION_RECORD: recordPath }),
+      },
       withheldEnv: s.withheldEnv,
       cols,
       rows,
@@ -840,6 +878,67 @@ export class SessionManager {
       this.onEvent('state', s);
       this.emitChange();
     });
+  }
+
+  // Adds a checked scope to a session's published record and returns the
+  // record as it stands after. The checks run on the session's host, so a
+  // remote host that is not awake refuses the change until a revive wakes
+  // it.
+  async updateScope(id: SessionID, scope: DeclaredScope): Promise<PublishedRecord | 'missing'> {
+    const s = this.sessions.find((x) => x.id === id);
+
+    if (s === undefined) {
+      return 'missing';
+    }
+
+    if (this.records === null) {
+      throw new DaemonError('unsupported', 'this daemon publishes no session records');
+    }
+
+    const provider = this.requireExecution(s, 'spawn').provider;
+
+    if (provider.remote && s.vm !== 'awake') {
+      throw new DaemonError(
+        'host_unavailable',
+        `the host of session ${id} is not awake; revive the session before adding to its scope`,
+        { provider: provider.kind, problem: 'host_asleep', host: s.hostKey },
+      );
+    }
+
+    const subject = {
+      session: s.id,
+      target: s.target,
+      provider,
+      host: s.hostKey,
+      dir: s.cwd,
+      workspace: s.workspace ?? null,
+    };
+
+    const record = await this.records.updateScope(subject, scope);
+
+    return record;
+  }
+
+  // Whether the session is the caller or a session the caller sits under,
+  // following each parent link the fleet holds.
+  isCallerTree(id: SessionID, caller: SessionID): boolean {
+    let current: SessionID | null = caller;
+
+    const seen = new Set<SessionID>();
+
+    while (current !== null && !seen.has(current)) {
+      if (current === id) {
+        return true;
+      }
+
+      seen.add(current);
+
+      const at: SessionID = current;
+
+      current = this.sessions.find((x) => x.id === at)?.parent ?? null;
+    }
+
+    return false;
   }
 
   /**
@@ -957,6 +1056,7 @@ export class SessionManager {
     materialize: SpawnMaterializer | null = null,
     requireInReach: () => void = () => {},
     autoDir = false,
+    scope: DeclaredScope | null = null,
   ): Promise<Session> {
     const adapter = this.findAdapter(agent);
 
@@ -1091,23 +1191,51 @@ export class SessionManager {
 
     // The host stays readying until its workspace is in place, so nothing
     // gives its lease back or puts it to sleep in between.
+    // The record is published while the host still counts as readying, so
+    // nothing sleeps it between the record and the harness start.
+    const published: { path: string | null; failure: { readonly error: unknown } | null } = {
+      path: null,
+      failure: null,
+    };
+
     const prepared = await this.withHostReadying(hostKey, async () => {
-      if (materialize === null) {
-        return { setup: await setupHost(), materialized: null, root: null };
+      const ready =
+        materialize === null
+          ? { setup: await setupHost(), materialized: null, root: null }
+          : await this.materializeOnSpawnHost(
+              provider,
+              id,
+              hostKey,
+              target,
+              cwd,
+              execution.identity,
+              materialize,
+              setupHost,
+              checkWorkspace,
+              trustWorkspace,
+            );
+
+      try {
+        published.path =
+          this.records === null
+            ? null
+            : await this.records.createRecord(
+                {
+                  session: id,
+                  target,
+                  provider,
+                  host: hostKey,
+                  dir: autoDir && ready.root !== null ? ready.root : cwd,
+                  workspace: ready.materialized?.workspace ?? null,
+                  ...(ready.materialized === null ? {} : { branch: ready.materialized.branch }),
+                },
+                scope,
+              );
+      } catch (error) {
+        published.failure = { error };
       }
 
-      return this.materializeOnSpawnHost(
-        provider,
-        id,
-        hostKey,
-        target,
-        cwd,
-        execution.identity,
-        materialize,
-        setupHost,
-        checkWorkspace,
-        trustWorkspace,
-      );
+      return ready;
     });
 
     // A spawn whose directory the daemon picked runs in the one it claimed,
@@ -1116,6 +1244,17 @@ export class SessionManager {
     const setup = prepared.setup;
     const materialized = prepared.materialized;
     const readied: SpawnReadied = { attemptID: setup.attemptID, root: prepared.root };
+
+    // A scope that fails its check, or a record that cannot be placed,
+    // takes back what the spawn readied before any harness starts.
+    if (published.failure !== null) {
+      await this.removeLocalTrust(localTrust.remove, id);
+      await this.records?.remove(id);
+      await this.removeFailedSpawnEffects(provider, id, hostKey, target, readied);
+
+      throw published.failure.error;
+    }
+
     const plan = setup.plan;
     const binding = this.mintBridgeBinding(id, target, execution.identity, hostKey);
     let pty: HarnessHandle;
@@ -1132,7 +1271,12 @@ export class SessionManager {
         bin: plan.bin,
         args: plan.args,
         cwd: dir,
-        env: { ...plan.env, ATC_SESSION_ID: id, ATC_SOCKET: socketPath },
+        env: {
+          ...plan.env,
+          ATC_SESSION_ID: id,
+          ATC_SOCKET: socketPath,
+          ...(published.path === null ? {} : { ATC_SESSION_RECORD: published.path }),
+        },
         withheldEnv: materialized?.withheldEnv ?? [],
         cols,
         rows,
@@ -1143,6 +1287,7 @@ export class SessionManager {
       });
     } catch (error) {
       await this.removeLocalTrust(localTrust.remove, id);
+      await this.records?.remove(id);
       await this.removeFailedSpawnEffects(provider, id, hostKey, target, readied);
 
       throw error;
@@ -1937,28 +2082,6 @@ export class SessionManager {
   }
 
   // Readies the host a harness is about to start on and plans the harness.
-  // On a remote host the agent plans a guest spawn, whose files unpack into
-  // the session's own guest folder, and the agent's sign-in check runs
-  // there first. Every refusal comes before the harness starts. A harness
-  // behind the broker has its binding created or verified before the host
-  // is readied, and a binding this call created is taken back when a later
-  // step fails; the attempt that created it comes back with the plan. A
-  // spawn's new host of its own without a binding is destroyed instead.
-  private setupHarness(
-    adapter: AgentAdapter,
-    provider: ExecutionProvider,
-    id: SessionID,
-    hostKey: SessionID,
-    target: string,
-    options: SpawnOptions,
-    auth: HarnessAuthSetup | null,
-    dir: string,
-  ): Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }> {
-    return this.withHostReadying(hostKey, () =>
-      this.setupHarnessOnHost(adapter, provider, id, hostKey, target, options, auth, dir, false),
-    );
-  }
-
   // Counts a host as readying while run runs, so it is not idle then.
   private async withHostReadying<T>(hostKey: SessionID, run: () => Promise<T>): Promise<T> {
     this.readying.set(hostKey, (this.readying.get(hostKey) ?? 0) + 1);
@@ -1976,6 +2099,13 @@ export class SessionManager {
     }
   }
 
+  // On a remote host the agent plans a guest spawn, whose files unpack into
+  // the session's own guest folder, and the agent's sign-in check runs
+  // there first. Every refusal comes before the harness starts. A harness
+  // behind the broker has its binding created or verified before the host
+  // is readied, and a binding this call created is taken back when a later
+  // step fails; the attempt that created it comes back with the plan. A
+  // spawn's new host of its own without a binding is destroyed instead.
   private async setupHarnessOnHost(
     adapter: AgentAdapter,
     provider: ExecutionProvider,
@@ -3075,6 +3205,8 @@ export class SessionManager {
 
     for (const id of removed) {
       this.removedIDs.delete(id);
+
+      await this.records?.remove(id);
     }
   }
 
