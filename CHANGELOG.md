@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.6.0...@zgeoff/atc@3.6.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* **geo-183:** start knip's tsconfig search inside the working directory ([#443](https://github.com/zgeoff/atc/issues/443)) ([c0ec7c7](https://github.com/zgeoff/atc/commit/c0ec7c7584c668c92f38589fde8af050f3cc0b74))
+
 ## [3.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.5.0...@zgeoff/atc@3.6.0) (2026-10-08)
 
 ### Features
