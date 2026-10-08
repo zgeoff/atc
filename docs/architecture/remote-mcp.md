@@ -12,7 +12,8 @@ stdio `atc mcp` server work the same either way.
 
 `atc mcp --http` is a foreground process beside the daemon and a client of the daemon's socket, like
 `atc mcp`. It binds `127.0.0.1:8414` unless `--host`, `--port`, or config sets another address.
-Exposing it to the internet is your job, and Ctrl-C ends remote access.
+`--port 0` binds a free port that the kernel picks, and the [startup line](#startup-line) holds the
+port it bound. Exposing it to the internet is your job, and Ctrl-C ends remote access.
 
 atc speaks plain HTTP and does not terminate TLS. Plain HTTP must never cross an untrusted network,
 so put the server behind a TLS-terminating reverse proxy or tunnel, or reach it only over an
@@ -39,9 +40,7 @@ holds no request body, query, cookie, or header other than `MCP-Protocol-Version
 The path, JSON-RPC method, tool name, and version come from the client and appear as sent, without
 control characters or whitespace and cut to a fixed length, so a client that puts a secret in one of
 them puts it in the line. The lines are always on, since the terminal running `atc mcp --http` is
-your own. Approval lines go to stdout, so redirecting stderr keeps them on screen. The startup line
-shows the address the server is bound to, such as `http://100.67.122.120:8414` with
-`--host 100.67.122.120`.
+your own. Approval lines go to stdout, so redirecting stderr keeps them on screen.
 
 When the daemon restarts, the HTTP process reconnects on its next request. A read-only tool call in
 flight at that moment is retried once on a fresh connection. So is a spawn or a message, when the
@@ -60,6 +59,19 @@ feature, the server leaves the input out of `tools/list` and refuses a call that
 session is gone, the fallback has different params, so it runs under a key of its own: `top-level:`
 and the SHA-256 of the caller's key in hex. A retry derives the same key, and the derived key always
 fits the daemon's 200-character cap.
+
+### Startup line
+
+Once the server accepts requests, it prints its startup line as the first line on stdout:
+
+```text
+atc mcp --http: serving <origin>/mcp, listening on http://<host>:<port>
+```
+
+`<host>:<port>` holds the address the server bound, such as `http://100.67.122.120:8414` with
+`--host 100.67.122.120`. With `--port 0`, `<port>` holds the port the kernel picked, so a script or
+a test reads the port from this line instead of probing for a free one. The [gateway](#gateway)
+prints the same line with `atc-gateway:` in place of `atc mcp --http:`.
 
 ## Running under systemd
 
@@ -127,7 +139,7 @@ atc-gateway serve --host 0.0.0.0 --port 8414 --public-url https://atc.example.co
 | Flag           | Value                                                                      | Default                  |
 | -------------- | -------------------------------------------------------------------------- | ------------------------ |
 | `--host`       | the address to bind                                                        | `127.0.0.1`              |
-| `--port`       | the port to listen on                                                      | `8414`                   |
+| `--port`       | the port to listen on; `0` for a free port                                 | `8414`                   |
 | `--public-url` | the origin clients reach, the OAuth issuer; the resource is `<origin>/mcp` | required                 |
 | `--registry`   | the registry file                                                          | required                 |
 | `--state-dir`  | the directory for `gateway.db` and `mcp-auth.db`                           | `$ATC_GATEWAY_STATE_DIR` |
@@ -146,7 +158,8 @@ The bearer token for each daemon comes from `ATC_GATEWAY_TOKEN_<NAME>`, the name
 `-` as `_`, such as `ATC_GATEWAY_TOKEN_CLOUD`. It is a token from that daemon's
 [token file](./daemon.md#the-tcp-listener). A registry that cannot be read or parsed, or a daemon
 without its token, makes the gateway print each problem to stderr and exit 1. The bind rule of
-`atc mcp --http` holds: a host other than loopback needs an https public URL.
+`atc mcp --http` holds: a host other than loopback needs an https public URL. With `--port 0`, the
+gateway's [startup line](#startup-line) holds the port the kernel picked.
 
 The gateway writes only in its state directory: `gateway.db` holds the bindings for retried spawns
 and messages, and `mcp-auth.db` the authorization server. With neither `--state-dir` nor

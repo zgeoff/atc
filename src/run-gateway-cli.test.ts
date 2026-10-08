@@ -258,11 +258,45 @@ test('it exits 1 on a port it cannot parse', async () => {
   );
 
   expect(io.printError).toHaveBeenCalledExactlyOnceWith(
-    "atc-gateway: --port takes a port from 1 to 65535, not 'abc'",
+    "atc-gateway: --port takes a port from 0 to 65535, not 'abc'",
   );
 
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
   expect(io.runGateway).not.toHaveBeenCalled();
+});
+
+test('it serves on port 0 for the kernel to pick a free port', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(
+    [
+      'serve',
+      '--port',
+      '0',
+      '--public-url',
+      'https://atc.geoff.cloud',
+      '--registry',
+      'registry.json',
+      '--state-dir',
+      'flagged',
+    ],
+    {},
+    io,
+  );
+
+  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${pkg.version}`, {
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: 'https://atc.geoff.cloud',
+    registryPath: 'registry.json',
+    stateDir: 'flagged',
+  });
 });
 
 test.each([

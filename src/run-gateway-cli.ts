@@ -194,7 +194,10 @@ function buildGatewayCommand(stateDir: string | null, io: GatewayCLIIO) {
     meta: { name: 'serve', description: 'Serve MCP over HTTP behind OAuth' },
     args: {
       host: { type: 'string', description: 'Address to bind (default 127.0.0.1)' },
-      port: { type: 'string', description: 'Port to listen on (default 8414)' },
+      port: {
+        type: 'string',
+        description: 'Port to listen on, or 0 for a free one (default 8414)',
+      },
       'public-url': {
         type: 'string',
         required: true,
