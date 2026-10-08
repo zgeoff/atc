@@ -77,3 +77,35 @@ test('it refuses a list longer than 64 entries', () => {
     message: 'scope.worktrees is invalid: worktrees holds at most 64 entries',
   });
 });
+
+test('it refuses a key a scope does not define with the keys it holds', () => {
+  expect(parseDeclaredScope({ notes: 'anything under ~/src' })).toStrictEqual({
+    ok: false,
+    entry: 'scope.notes',
+    message: 'scope.notes is invalid: a scope holds only worktrees, branches, and pullRequests',
+  });
+});
+
+test('it refuses a key an entry does not define with the keys its kind holds', () => {
+  expect(parseDeclaredScope({ branches: [{ name: 'main', why: 'mine' }] })).toStrictEqual({
+    ok: false,
+    entry: 'scope.branches[0]',
+    message: 'scope.branches[0] is invalid: a branch holds only name and repo',
+  });
+});
+
+test('it refuses a scope that is not an object', () => {
+  expect(parseDeclaredScope('everything under /src')).toStrictEqual({
+    ok: false,
+    entry: 'scope',
+    message: 'scope is invalid: scope must be an object',
+  });
+});
+
+test('it refuses an entry that is not an object', () => {
+  expect(parseDeclaredScope({ worktrees: ['/src/app'] })).toStrictEqual({
+    ok: false,
+    entry: 'scope.worktrees[0]',
+    message: 'scope.worktrees[0] is invalid: an entry must be an object',
+  });
+});

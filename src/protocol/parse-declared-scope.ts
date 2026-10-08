@@ -40,18 +40,26 @@ const GITHUB_REPO = z
 
 // How many entries one list of a declared scope holds at most.
 const MAX_ENTRIES = 64;
-const WORKTREE_ENTRY = z.strictObject({ path: ABSOLUTE_PATH });
-const BRANCH_ENTRY = z.strictObject({ name: BRANCH_NAME, repo: ABSOLUTE_PATH.optional() });
+
+const WORKTREE_ENTRY = z.strictObject(
+  { path: ABSOLUTE_PATH },
+  { error: buildEntryError('a worktree holds only path') },
+);
+
+const BRANCH_ENTRY = z.strictObject(
+  { name: BRANCH_NAME, repo: ABSOLUTE_PATH.optional() },
+  { error: buildEntryError('a branch holds only name and repo') },
+);
 
 const PULL_REQUEST_NUMBER = z
   .number({ error: 'a pull request number must be a number' })
   .int('a pull request number must be a whole number')
   .positive('a pull request number must be positive');
 
-const PULL_REQUEST_ENTRY = z.strictObject({
-  number: PULL_REQUEST_NUMBER,
-  repo: GITHUB_REPO.optional(),
-});
+const PULL_REQUEST_ENTRY = z.strictObject(
+  { number: PULL_REQUEST_NUMBER, repo: GITHUB_REPO.optional() },
+  { error: buildEntryError('a pull request holds only number and repo') },
+);
 
 const SCOPE = z.strictObject(
   {
@@ -68,7 +76,12 @@ const SCOPE = z.strictObject(
       .max(MAX_ENTRIES, `pullRequests holds at most ${MAX_ENTRIES} entries`)
       .optional(),
   },
-  { error: 'scope must be an object' },
+  {
+    error: (issue) =>
+      issue.code === 'unrecognized_keys'
+        ? 'a scope holds only worktrees, branches, and pullRequests'
+        : 'scope must be an object',
+  },
 );
 
 /**
@@ -135,4 +148,11 @@ function formatEntry(issue: IssueLocation): string {
   }
 
   return typeof index === 'number' ? `scope.${list}[${index}]` : `scope.${list}`;
+}
+
+// The message for an entry that is not an object, or that holds a key its
+// kind does not define.
+function buildEntryError(unrecognized: string): (issue: Readonly<{ code?: string }>) => string {
+  return (issue) =>
+    issue.code === 'unrecognized_keys' ? unrecognized : 'an entry must be an object';
 }
