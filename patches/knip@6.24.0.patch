@@ -1,0 +1,13 @@
+diff --git a/dist/util/jiti.js b/dist/util/jiti.js
+index ddabad3e438dbf32553afc3ed3f0df88f5242fb3..b9a075b6c92583c9e63689b4deaa7ec84d5a231c 100644
+--- a/dist/util/jiti.js
++++ b/dist/util/jiti.js
+@@ -9,5 +9,7 @@ const options = {
+     },
+     tsconfigPaths: true,
+ };
+-const createLoader = (options) => createJiti(process.cwd(), options);
++// jiti searches for tsconfig.json from the parent folder of the path it gets,
++// so a path inside the working directory keeps the search from starting above it.
++const createLoader = (options) => createJiti(join(process.cwd(), '_index.js'), options);
+ export const jiti = createLoader(options);
