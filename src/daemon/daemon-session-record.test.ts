@@ -140,9 +140,8 @@ test('it refuses a spawn whose worktree is not a git worktree and leaves no reco
 
   expect(ctx.box.harnesses).toBeEmpty();
 
-  const copies = existsSync(ctx.records) ? [...new Bun.Glob('*.json').scanSync(ctx.records)] : [];
-
-  expect(copies).toBeEmpty();
+  // The daemon makes the copies' directory with its first copy.
+  expect(existsSync(ctx.records)).toBeFalse();
 });
 
 test("it refuses the session's own write to its record", async () => {

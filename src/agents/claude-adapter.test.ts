@@ -55,7 +55,7 @@ test('it maps a non-object hook payload to a bare heartbeat instead of throwing'
     atcId: toSessionID('s1'),
     event: 'Stop',
 
-    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a payload shape the HookEvent type rules out but a hostile or buggy reporter could still send
+    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a non-object payload that the hook event's declared shape rules out but a hostile or buggy reporter could still send
     payload: 'garbage' as unknown as Record<string, unknown>,
   });
 

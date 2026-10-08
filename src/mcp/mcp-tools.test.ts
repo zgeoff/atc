@@ -102,9 +102,7 @@ test('it rejects an agents result whose installed flag is not a boolean', () => 
 
   const parsed = z.fromJSONSchema(schema).safeParse(result);
 
-  expect(parsed.error?.issues).toPartiallyContain(
-    expect.objectContaining({ path: ['agents', 0, 'installed'] }),
-  );
+  expect(parsed.error?.issues).toPartiallyContain({ path: ['agents', 0, 'installed'] });
 });
 
 test('it gives every tool one of the four scopes', () => {

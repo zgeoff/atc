@@ -192,21 +192,26 @@ test('it refuses a spawn whose declared scope fails its check and records nothin
 
   const session = toSessionID('s-refused');
 
-  expect(
-    ctx.records.createRecord(
-      {
-        session,
-        target: 'local',
-        provider: ctx.provider,
-        host: session,
-        dir: ctx.fixture.work,
-        workspace: null,
-      },
-      { worktrees: [], branches: [{ name: 'gone' }], pullRequests: [] },
-    ),
-  ).rejects.toMatchObject({ code: 'scope_invalid', data: { entry: 'scope.branches[0]' } });
+  const created = ctx.records.createRecord(
+    {
+      session,
+      target: 'local',
+      provider: ctx.provider,
+      host: session,
+      dir: ctx.fixture.work,
+      workspace: null,
+    },
+    { worktrees: [], branches: [{ name: 'gone' }], pullRequests: [] },
+  );
+
+  await Promise.allSettled([created]);
 
   const stored = await ctx.store.findPublishedRecord(session);
+
+  expect(created).rejects.toMatchObject({
+    code: 'scope_invalid',
+    data: { entry: 'scope.branches[0]' },
+  });
 
   expect(stored).toBeNull();
   expect(existsSync(join(ctx.localDir, 's-refused.json'))).toBe(false);
@@ -339,16 +344,21 @@ test('it leaves the record as it was when an added entry fails its check', async
   const before = await ctx.store.findPublishedRecord(session);
   const beforeText = await Bun.file(path).text();
 
-  expect(
-    ctx.records.updateScope(subject, {
-      worktrees: [],
-      branches: [{ name: 'main' }, { name: 'gone' }],
-      pullRequests: [],
-    }),
-  ).rejects.toMatchObject({ code: 'scope_invalid', data: { entry: 'scope.branches[1]' } });
+  const updated = ctx.records.updateScope(subject, {
+    worktrees: [],
+    branches: [{ name: 'main' }, { name: 'gone' }],
+    pullRequests: [],
+  });
+
+  await Promise.allSettled([updated]);
 
   const text = await Bun.file(path).text();
   const stored = await ctx.store.findPublishedRecord(session);
+
+  expect(updated).rejects.toMatchObject({
+    code: 'scope_invalid',
+    data: { entry: 'scope.branches[1]' },
+  });
 
   expect(text).toBe(beforeText);
   expect(stored).toStrictEqual(before);
@@ -444,8 +454,6 @@ test('it rewrites the copy on a retry after a failed copy write left the store a
 
   const failed = ctx.records.updateScope(subject, added);
 
-  expect(failed).rejects.toThrow();
-
   await Promise.allSettled([failed]);
 
   rmSync(ctx.localDir, { force: true });
@@ -453,6 +461,7 @@ test('it rewrites the copy on a retry after a failed copy write left the store a
   const retried = await ctx.records.updateScope(subject, added);
   const text = await Bun.file(path).text();
 
+  expect(failed).rejects.toThrow();
   expect(retried.revision).toBe(2);
   expect(parsePublishedRecord(text)).toStrictEqual(retried);
 });
