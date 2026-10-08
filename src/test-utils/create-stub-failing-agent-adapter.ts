@@ -102,6 +102,7 @@ async function createPipe(path: string): Promise<void> {
 // Reading the pipe blocks until a writer opens it and closes it, so the
 // read returns once the process has written its pid.
 function readPID(ready: ReadyPipe): number {
+  // oxlint-disable-next-line no-restricted-properties -- the adapter reads the pid inside a synchronous getter, so only a blocking read fits
   const read = Bun.spawnSync({ cmd: ['cat', ready.path], timeout: ready.timeoutMs });
 
   if (read.exitedDueToTimeout === true) {

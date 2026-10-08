@@ -141,6 +141,35 @@
         ]
       }
     ],
+    // Bun's synchronous spawn can lose a child's exit and spin its caller
+    // forever (oven-sh/bun#34069); an async spawn keeps the caller's event
+    // loop and its timeouts alive. The property rule catches access and
+    // destructuring on `Bun` itself, not on an alias of it.
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "Bun",
+        "property": "spawnSync",
+        "message": "Use an async spawn: Bun.spawnSync can lose a child's exit and hang (oven-sh/bun#34069)."
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "node:child_process",
+            "importNames": ["spawnSync", "execSync", "execFileSync"],
+            "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+          },
+          {
+            "name": "child_process",
+            "importNames": ["spawnSync", "execSync", "execFileSync"],
+            "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+          }
+        ]
+      }
+    ],
     "max-statements": "off",
     "max-lines-per-function": "off",
     "max-lines": "off",
