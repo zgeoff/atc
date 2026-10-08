@@ -143,7 +143,8 @@
     ],
     // Bun's synchronous spawn can lose a child's exit and spin its caller
     // forever (oven-sh/bun#34069); an async spawn keeps the caller's event
-    // loop and its timeouts alive
+    // loop and its timeouts alive. The property rule catches access and
+    // destructuring on `Bun` itself, not on an alias of it.
     "no-restricted-properties": [
       "error",
       {
