@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.7.0...@zgeoff/atc@3.8.0) (2026-10-08)
+
+### Features
+
+- **geo-194:** copy atc into an imp only when the image's differs
+  ([#454](https://github.com/zgeoff/atc/issues/454))
+  ([a62a0bf](https://github.com/zgeoff/atc/commit/a62a0bfd93dc0dd2c6e572a84eaee2ab2a203f8a))
+
 ## [3.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.6.2...@zgeoff/atc@3.7.0) (2026-10-08)
 
 ### Features
