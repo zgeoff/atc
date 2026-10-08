@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { writeATCBridge } from './write-atc-bridge';
@@ -39,11 +40,13 @@ test('it writes the mod files and the atc command into the folder', () => {
 test("it renders this install's own atc command by default", () => {
   using ctx = setupTest();
 
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+
   writeATCBridge(ctx.empty);
 
   // Under bun, this install's command runs the source entry with the running
   // bun.
-  const argv = [process.execPath, join(import.meta.dir, '..', 'cli.ts')];
+  const argv = [process.execPath, join(repoRoot, 'src/cli.ts')];
 
   expect(readFileSync(join(ctx.empty, 'hooks', 'atc-cli.ts'), 'utf8')).toBe(
     `export const ATC_CLI: readonly string[] = ${JSON.stringify(argv)};\n`,
