@@ -61,13 +61,14 @@ function toAssignment([name, value]: readonly [string, string]): string {
 const SHELL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // The shell's `$0` is the program path, and the values sit in `$1` onward,
-// in the order of the names, ahead of the program's own arguments.
+// in the order of the names, ahead of the program's own arguments. Each
+// index is braced, since the shell reads `$10` as `$1` then a `0`.
 function buildShellScript(names: readonly string[]): string {
   if (names.length === 0) {
     return 'exec "$0" "$@"';
   }
 
-  const exports = names.map((name, index) => `${name}="$${index + 1}"`).join(' ');
+  const exports = names.map((name, index) => `${name}="\${${index + 1}}"`).join(' ');
 
   return `export ${exports}; shift ${names.length}; exec "$0" "$@"`;
 }

@@ -65,7 +65,7 @@ test('it exports the DYLD_ entries inside the shell for a program path holding =
       "--",
       "/bin/sh",
       "-c",
-      "export DYLD_ATC_TEST="$1" DYLD_ATC_OTHER="$2"; shift 2; exec "$0" "$@"",
+      "export DYLD_ATC_TEST="\${1}" DYLD_ATC_OTHER="\${2}"; shift 2; exec "$0" "$@"",
       "/opt/agent=dir/claude",
       "one",
       "two",
@@ -100,6 +100,43 @@ test('it starts a program path holding = with a DYLD_ value that holds quotes, s
   );
 
   expect(result.stdout).toBe(`DYLD:[${value}] ARGS:[first arg|$HOME]`);
+});
+
+test('it starts a program path holding = with ten DYLD_ values, each under its own name', async () => {
+  const ctx = setupTest();
+
+  const bin = createStubBin(
+    join(ctx.dir, 'agent=dir'),
+    'agent',
+    '#!/bin/sh\nprintf \'FIRST:[%s] TENTH:[%s] ARG:[%s]\' "$DYLD_ATC_1" "$DYLD_ATC_10" "$1"\n',
+  );
+
+  const result = await runCommand(
+    [
+      '/usr/bin/env',
+      ...buildHarnessArgv({
+        unset: [],
+        env: {
+          DYLD_ATC_1: 'one',
+          DYLD_ATC_2: 'two',
+          DYLD_ATC_3: 'three',
+          DYLD_ATC_4: 'four',
+          DYLD_ATC_5: 'five',
+          DYLD_ATC_6: 'six',
+          DYLD_ATC_7: 'seven',
+          DYLD_ATC_8: 'eight',
+          DYLD_ATC_9: 'nine',
+          DYLD_ATC_10: 'ten',
+        },
+        platform: 'darwin',
+        bin,
+        args: ['first arg'],
+      }),
+    ],
+    { env: { PATH: '/usr/bin:/bin' } },
+  );
+
+  expect(result.stdout).toBe('FIRST:[one] TENTH:[ten] ARG:[first arg]');
 });
 
 test('it starts a program path holding = when a DYLD_ name is one the shell cannot export', async () => {
