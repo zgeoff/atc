@@ -10,6 +10,7 @@ import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
 import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { KEYS } from '../test-utils/keys';
+import { runCommand } from '../test-utils/run-command';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { ClaudeAdapter } from './claude-adapter';
@@ -1235,7 +1236,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
   );
 });
 
-test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', () => {
+test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', async () => {
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1275,13 +1276,13 @@ test('it refuses to start a subscription session in a host whose environment set
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
-  const run = Bun.spawnSync([plan.bin, ...plan.args], {
+  const run = await runCommand([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
   });
 
   expect(run.exitCode).toBe(78);
 
-  expect(run.stderr.toString()).toBe(
+  expect(run.stderr).toBe(
     "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
   );
 
@@ -1299,7 +1300,7 @@ test.each([
   ['CLAUDE_CODE_USE_GATEWAY', '1'],
 ])(
   'it refuses to start a subscription session in a host whose environment sets %s',
-  (name, value) => {
+  async (name, value) => {
     const ctx = setupTest();
 
     const config = parseConfig({
@@ -1334,18 +1335,18 @@ test.each([
 
     invariant(plan !== null, 'expected a guest spawn plan');
 
-    const run = Bun.spawnSync([plan.bin, ...plan.args], {
+    const run = await runCommand([plan.bin, ...plan.args], {
       env: { PATH: process.env['PATH'] ?? '', ...plan.env, [name]: value },
     });
 
-    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+    expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
       exitCode: 78,
       stderr: `atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n`,
     });
   },
 );
 
-test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', () => {
+test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', async () => {
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1385,7 +1386,7 @@ test('it starts a subscription session with a seeded config folder in a host who
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
-  const run = Bun.spawnSync([plan.bin, ...plan.args], {
+  const run = await runCommand([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env },
   });
 

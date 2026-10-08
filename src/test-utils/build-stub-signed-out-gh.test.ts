@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { buildStubSignedOutGH } from './build-stub-signed-out-gh';
 import { createStubBin } from './create-stub-bin';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -9,15 +10,16 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it refuses every command with the sign-in hint and exit code 4', () => {
+test('it refuses every command with the sign-in hint and exit code 4', async () => {
   const ctx = setupTest();
   const gh = createStubBin(ctx.dir, 'gh', buildStubSignedOutGH());
-  const result = Bun.spawnSync([gh, 'repo', 'list']);
+
+  const result = await runCommand([gh, 'repo', 'list']);
 
   expect({
     exitCode: result.exitCode,
-    stdout: result.stdout.toString(),
-    stderr: result.stderr.toString(),
+    stdout: result.stdout,
+    stderr: result.stderr,
   }).toStrictEqual({
     exitCode: 4,
     stdout: '',

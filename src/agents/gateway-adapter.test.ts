@@ -9,6 +9,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { buildMockGatewayConfig } from '../test-utils/build-mock-gateway-config';
 import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
 import { KEYS } from '../test-utils/keys';
+import { runCommand } from '../test-utils/run-command';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
@@ -1230,7 +1231,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
   expect(JSON.stringify(plan)).not.toMatch(/canary-sk-7f3e9b21d4c8a6|apiKeyHelper/u);
 });
 
-test("it seeds a brokered guest's Claude config with the onboarding state when the folder holds none", () => {
+test("it seeds a brokered guest's Claude config with the onboarding state when the folder holds none", async () => {
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1272,14 +1273,15 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
-  const run = Bun.spawnSync([plan.bin, ...plan.args]);
+  const run = await runCommand([plan.bin, ...plan.args]);
+
   const seeded = readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8');
 
   expect(run.exitCode).toBe(0);
   expect(JSON.parse(seeded)).toStrictEqual({ hasCompletedOnboarding: true });
 });
 
-test("it keeps the state an earlier run left in a brokered guest's Claude config, an accepted folder trust included", () => {
+test("it keeps the state an earlier run left in a brokered guest's Claude config, an accepted folder trust included", async () => {
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1328,7 +1330,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
   mkdirSync(join(ctx.dir, 'claude-config'));
   writeFileSync(join(ctx.dir, 'claude-config', '.claude.json'), earlier);
 
-  const run = Bun.spawnSync([plan.bin, ...plan.args]);
+  const run = await runCommand([plan.bin, ...plan.args]);
 
   expect(run.exitCode).toBe(0);
   expect(readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8')).toBe(earlier);

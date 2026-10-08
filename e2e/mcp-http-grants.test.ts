@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import invariant from 'tiny-invariant';
 import { readJSONRecord } from '../src/test-utils/read-json-record';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
+import { runCommand } from '../src/test-utils/run-command';
 import { runMCPAuthorization } from '../src/test-utils/run-mcp-authorization';
 import { setupMCPHTTP } from '../src/test-utils/setup-mcp-http';
 
@@ -70,7 +71,7 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
     .where('clientId', '=', clientID)
     .execute();
 
-  const revoked = Bun.spawnSync(
+  const revoked = await runCommand(
     [...ctx.atc, 'grants', '--revoke', '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
     { env: ctx.env },
   );
@@ -85,8 +86,8 @@ test('it revokes a grant whose id starts with a dash with --revoke <id> so its a
 
   expect({
     exitCode: revoked.exitCode,
-    stdout: revoked.stdout.toString(),
-    stderr: revoked.stderr.toString(),
+    stdout: revoked.stdout,
+    stderr: revoked.stderr,
   }).toStrictEqual({
     exitCode: 0,
     stdout: 'Revoked grant -yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc\n',

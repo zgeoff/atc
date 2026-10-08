@@ -1,5 +1,6 @@
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { runCommand } from './run-command';
 
 interface Plan {
   readonly bin: string;
@@ -34,20 +35,20 @@ interface FailingAgentAdapterConfig {
  * read finds no headless runner. Every member but the spawn plan and the
  * headless runner is the mock adapter's.
  *
- * With a ready pipe, the stub makes the pipe at that path, and the first
- * failing read blocks until a process writes its pid there, which the
- * headless runner read is synchronous for. A read that finds no writer
+ * With a ready pipe, the stub makes the pipe at that path before it
+ * resolves, and the first failing read blocks until a process writes its
+ * pid there, which the headless runner read is synchronous for. A read that finds no writer
  * within the timeout throws instead of failing the start. `getReadyPID`
  * returns the pid that read took. `countPlans` reads how many spawns the
  * adapter has planned.
  */
-export function createStubFailingAgentAdapter(config: FailingAgentAdapterConfig) {
+export async function createStubFailingAgentAdapter(config: FailingAgentAdapterConfig) {
   let planned = 0;
   let readsToFail = 0;
   let readyPID: number | null = null;
 
   if (config.ready !== null) {
-    createPipe(config.ready.path);
+    await createPipe(config.ready.path);
   }
 
   const adapter: AgentAdapter = {
@@ -90,11 +91,11 @@ export function createStubFailingAgentAdapter(config: FailingAgentAdapterConfig)
   };
 }
 
-function createPipe(path: string): void {
-  const made = Bun.spawnSync(['mkfifo', path]);
+async function createPipe(path: string): Promise<void> {
+  const made = await runCommand(['mkfifo', path]);
 
   if (made.exitCode !== 0) {
-    throw new Error(`mkfifo could not make ${path} (${made.stderr.toString().trim()})`);
+    throw new Error(`mkfifo could not make ${path} (${made.stderr.trim()})`);
   }
 }
 

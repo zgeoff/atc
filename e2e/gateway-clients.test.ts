@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { resolveGatewayCommand } from '../src/test-utils/resolve-gateway-command';
+import { runCommand } from '../src/test-utils/run-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
@@ -27,10 +28,10 @@ function setupTest() {
   };
 }
 
-test('it adds a client to the state directory given before its subcommands over the environment', () => {
+test('it adds a client to the state directory given before its subcommands over the environment', async () => {
   const ctx = setupTest();
 
-  const added = Bun.spawnSync(
+  const added = await runCommand(
     [
       ...ctx.command,
       '--state-dir',
@@ -44,29 +45,23 @@ test('it adds a client to the state directory given before its subcommands over 
     { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' } },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
 
-  invariant(
-    clientID !== undefined,
-    `no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`,
-  );
+  invariant(clientID !== undefined, `no client ID in: ${added.stdout}${added.stderr}`);
 
-  const listed = Bun.spawnSync([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.dir,
     env: ctx.env,
   });
 
-  expect(listed.stdout.toString()).toBe(
-    `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
-  );
-
+  expect(listed.stdout).toBe(`${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`);
   expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['flagged']);
 });
 
-test('it lists the clients in the state directory given after its subcommands over the environment', () => {
+test('it lists the clients in the state directory given after its subcommands over the environment', async () => {
   const ctx = setupTest();
 
-  const added = Bun.spawnSync(
+  const added = await runCommand(
     [
       ...ctx.command,
       'clients',
@@ -79,19 +74,16 @@ test('it lists the clients in the state directory given after its subcommands ov
     { cwd: ctx.dir, env: ctx.env },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
 
-  invariant(
-    clientID !== undefined,
-    `no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`,
-  );
+  invariant(clientID !== undefined, `no client ID in: ${added.stdout}${added.stderr}`);
 
-  const listed = Bun.spawnSync([...ctx.command, 'clients', 'list', '--state-dir', 'flagged'], {
+  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir', 'flagged'], {
     cwd: ctx.dir,
     env: { ...ctx.env, ATC_GATEWAY_STATE_DIR: 'from-env' },
   });
 
-  expect({ exitCode: listed.exitCode, stdout: listed.stdout.toString() }).toStrictEqual({
+  expect({ exitCode: listed.exitCode, stdout: listed.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback\n`,
   });
@@ -99,10 +91,10 @@ test('it lists the clients in the state directory given after its subcommands ov
   expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['flagged']);
 });
 
-test('it removes a client from the state directory given between its subcommands over the environment', () => {
+test('it removes a client from the state directory given between its subcommands over the environment', async () => {
   const ctx = setupTest();
 
-  const added = Bun.spawnSync(
+  const added = await runCommand(
     [
       ...ctx.command,
       'clients',
@@ -115,14 +107,11 @@ test('it removes a client from the state directory given between its subcommands
     { cwd: ctx.dir, env: ctx.env },
   );
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
 
-  invariant(
-    clientID !== undefined,
-    `no client ID in: ${added.stdout.toString()}${added.stderr.toString()}`,
-  );
+  invariant(clientID !== undefined, `no client ID in: ${added.stdout}${added.stderr}`);
 
-  const removed = Bun.spawnSync(
+  const removed = await runCommand(
     [...ctx.command, 'clients', '--state-dir', 'flagged', 'remove', clientID],
     {
       cwd: ctx.dir,
@@ -130,26 +119,24 @@ test('it removes a client from the state directory given between its subcommands
     },
   );
 
-  const listed = Bun.spawnSync([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.dir,
     env: ctx.env,
   });
 
-  expect(removed.stdout.toString()).toBe(
-    `Removed client ${clientID} and revoked every grant it held\n`,
-  );
+  expect(removed.stdout).toBe(`Removed client ${clientID} and revoked every grant it held\n`);
 
-  expect(listed.stdout.toString()).toBe(
+  expect(listed.stdout).toBe(
     'No clients. Add one with: atc-gateway clients add <name> --redirect-uri <uri>\n',
   );
 
   expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['flagged']);
 });
 
-test('it exits 1 on two state directories that differ', () => {
+test('it exits 1 on two state directories that differ', async () => {
   const ctx = setupTest();
 
-  const added = Bun.spawnSync(
+  const added = await runCommand(
     [
       ...ctx.command,
       '--state-dir=first',
@@ -166,8 +153,8 @@ test('it exits 1 on two state directories that differ', () => {
 
   expect({
     exitCode: added.exitCode,
-    stdout: added.stdout.toString(),
-    stderr: added.stderr.toString(),
+    stdout: added.stdout,
+    stderr: added.stderr,
   }).toStrictEqual({
     exitCode: 1,
     stdout: '',

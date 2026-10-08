@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCommand } from '../test-utils/run-command';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 
@@ -11,7 +12,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test("it replaces the config folder's bundle with the one each launch stages", () => {
+test("it replaces the config folder's bundle with the one each launch stages", async () => {
   const ctx = setupTest();
   const first = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'k1');
   const second = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'k2');
@@ -23,14 +24,14 @@ test("it replaces the config folder's bundle with the one each launch stages", (
   writeFileSync(join(staged, 'k1', 'skills', 'old-skill', 'SKILL.md'), 'old');
   writeFileSync(join(staged, 'k1', 'settings.json'), '{"model":"opus"}');
 
-  Bun.spawnSync([first.bin, ...first.args]);
+  await runCommand([first.bin, ...first.args]);
 
   writeFileSync(join(config, '.claude.json'), '{"written":"by the CLI"}');
   mkdirSync(join(staged, 'k2', 'skills', 'new-skill'), { recursive: true });
   writeFileSync(join(staged, 'k2', 'skills', 'new-skill', 'SKILL.md'), 'new');
   writeFileSync(join(staged, 'k2', 'settings.json'), '{"model":"sonnet"}');
 
-  const run = Bun.spawnSync([second.bin, ...second.args]);
+  const run = await runCommand([second.bin, ...second.args]);
 
   expect(run.exitCode).toBe(0);
   expect(existsSync(join(config, 'skills', 'old-skill'))).toBeFalse();
@@ -40,7 +41,7 @@ test("it replaces the config folder's bundle with the one each launch stages", (
   expect(existsSync(staged)).toBeFalse();
 });
 
-test('it never copies a bundle an earlier launch staged and left behind', () => {
+test('it never copies a bundle an earlier launch staged and left behind', async () => {
   const ctx = setupTest();
   const launch = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'current');
   const config = join(ctx.dir, 'claude-config');
@@ -52,7 +53,7 @@ test('it never copies a bundle an earlier launch staged and left behind', () => 
   mkdirSync(join(staged, 'current', 'skills', 'kept-skill'), { recursive: true });
   writeFileSync(join(staged, 'current', 'skills', 'kept-skill', 'SKILL.md'), 'kept');
 
-  const run = Bun.spawnSync([launch.bin, ...launch.args]);
+  const run = await runCommand([launch.bin, ...launch.args]);
 
   expect(run.exitCode).toBe(0);
   expect(existsSync(join(config, 'skills', 'removed-skill'))).toBeFalse();
@@ -60,7 +61,7 @@ test('it never copies a bundle an earlier launch staged and left behind', () => 
   expect(existsSync(staged)).toBeFalse();
 });
 
-test("it keeps the config folder's bundle when a launch stages none", () => {
+test("it keeps the config folder's bundle when a launch stages none", async () => {
   const ctx = setupTest();
   const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
   const config = join(ctx.dir, 'claude-config');
@@ -69,7 +70,7 @@ test("it keeps the config folder's bundle when a launch stages none", () => {
   mkdirSync(join(config, 'skills', 'kept'), { recursive: true });
   writeFileSync(join(config, 'skills', 'kept', 'SKILL.md'), 'kept');
 
-  const run = Bun.spawnSync([launch.bin, ...launch.args]);
+  const run = await runCommand([launch.bin, ...launch.args]);
 
   expect(run.exitCode).toBe(0);
   expect(readFileSync(join(config, 'skills', 'kept', 'SKILL.md'), 'utf8')).toBe('kept');

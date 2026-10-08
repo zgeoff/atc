@@ -140,6 +140,7 @@
     "src/test-utils/start-stub-reporter-socket.test.ts": 262,
     "src/test-utils/start-stub-session-bridge.test.ts": 255,
     "src/test-utils/run-atc.test.ts": 254,
+    "src/test-utils/run-command.test.ts": 254,
     "src/daemon/daemon-last-used.test.ts": 253,
     "src/workspace/read-workspace-tar.test.ts": 249,
     "src/test-utils/build-stub-mcp-grok.test.ts": 245,

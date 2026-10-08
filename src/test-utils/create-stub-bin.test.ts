@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { chmodSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubBin } from './create-stub-bin';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -16,12 +17,13 @@ test('it returns the script path under the directory', () => {
   expect(createStubBin(ctx.dir, 'gh', '#!/bin/sh\n')).toBe(join(ctx.dir, 'gh'));
 });
 
-test('it writes a script that runs as a command', () => {
+test('it writes a script that runs as a command', async () => {
   const ctx = setupTest();
   const path = createStubBin(ctx.dir, 'gh', '#!/bin/sh\necho "fake gh $1"\n');
-  const result = Bun.spawnSync([path, 'auth']);
 
-  expect(result.stdout.toString()).toBe('fake gh auth\n');
+  const result = await runCommand([path, 'auth']);
+
+  expect(result.stdout).toBe('fake gh auth\n');
 });
 
 test('it marks the script executable for every user', () => {
@@ -31,14 +33,16 @@ test('it marks the script executable for every user', () => {
   expect(statSync(path).mode & 0o777).toBe(0o755);
 });
 
-test('it creates a missing directory', () => {
+test('it creates a missing directory', async () => {
   const ctx = setupTest();
   const path = createStubBin(join(ctx.dir, 'bin', 'nested'), 'zoxide', '#!/bin/sh\necho z\n');
 
-  expect(Bun.spawnSync([path]).stdout.toString()).toBe('z\n');
+  const run = await runCommand([path]);
+
+  expect(run.stdout).toBe('z\n');
 });
 
-test('it replaces an existing file and makes it executable', () => {
+test('it replaces an existing file and makes it executable', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 'codex');
 
@@ -46,5 +50,7 @@ test('it replaces an existing file and makes it executable', () => {
   chmodSync(path, 0o644);
   createStubBin(ctx.dir, 'codex', '#!/bin/sh\necho fresh\n');
 
-  expect(Bun.spawnSync([path]).stdout.toString()).toBe('fresh\n');
+  const run = await runCommand([path]);
+
+  expect(run.stdout).toBe('fresh\n');
 });

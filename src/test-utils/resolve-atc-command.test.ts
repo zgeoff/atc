@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import invariant from 'tiny-invariant';
 import { resolveATCCommand } from './resolve-atc-command';
+import { runCommand } from './run-command';
 import { updateEnv } from './update-env';
 
 test('it runs the source entry under the test bun when no binary is set', () => {
@@ -23,13 +24,12 @@ test('it runs a source entry that prints the package version', async () => {
   updateEnv('ATC_BIN', undefined);
 
   const pkg: unknown = await Bun.file(join(import.meta.dir, '..', '..', 'package.json')).json();
-
-  const printed = Bun.spawnSync([...resolveATCCommand(), '--version']);
+  const printed = await runCommand([...resolveATCCommand(), '--version']);
 
   invariant(
     typeof pkg === 'object' && pkg !== null && 'version' in pkg && typeof pkg.version === 'string',
     'package.json holds no version',
   );
 
-  expect(printed.stdout.toString().trim()).toBe(pkg.version);
+  expect(printed.stdout.trim()).toBe(pkg.version);
 });

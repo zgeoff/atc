@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildStubHeldGH } from './build-stub-held-gh';
 import { createStubBin } from './create-stub-bin';
 import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -17,24 +18,24 @@ function setupTest() {
   };
 }
 
-test('it prints https for the git protocol', () => {
+test('it prints https for the git protocol', async () => {
   const ctx = setupTest();
 
-  const result = Bun.spawnSync([ctx.gh, 'config', 'get', 'git_protocol'], {
+  const result = await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 
-  expect(result.stdout.toString()).toBe('https\n');
+  expect(result.stdout).toBe('https\n');
 });
 
-test('it lists one repository at once when no hold file exists', () => {
+test('it lists one repository at once when no hold file exists', async () => {
   const ctx = setupTest();
 
-  const result = Bun.spawnSync([ctx.gh, 'repo', 'list', '--limit', '100'], {
+  const result = await runCommand([ctx.gh, 'repo', 'list', '--limit', '100'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 
-  expect(JSON.parse(result.stdout.toString())).toStrictEqual([
+  expect(JSON.parse(result.stdout)).toStrictEqual([
     {
       nameWithOwner: 'me/dots',
       description: 'dotfiles',

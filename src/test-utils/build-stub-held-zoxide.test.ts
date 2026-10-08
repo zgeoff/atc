@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildStubHeldZoxide } from './build-stub-held-zoxide';
 import { createStubBin } from './create-stub-bin';
 import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -17,14 +18,14 @@ function setupTest() {
   };
 }
 
-test('it lists no directories at once when no hold file exists', () => {
+test('it lists no directories at once when no hold file exists', async () => {
   const ctx = setupTest();
 
-  const result = Bun.spawnSync([ctx.zoxide, 'query', '-l'], {
+  const result = await runCommand([ctx.zoxide, 'query', '-l'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 
-  expect({ exitCode: result.exitCode, stdout: result.stdout.toString() }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stdout: result.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: '',
   });

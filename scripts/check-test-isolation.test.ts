@@ -3,6 +3,7 @@ import { mkdirSync, symlinkSync } from 'node:fs';
 import { type } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
+import { runCommand } from '../src/test-utils/run-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
@@ -16,7 +17,7 @@ function setupTest() {
 
 test.if(process.platform === 'linux')(
   'it stops with a clear message when GNU stat is not on the PATH',
-  () => {
+  async () => {
     const ctx = setupTest();
     const bin = join(ctx.dir, 'bin');
 
@@ -33,14 +34,12 @@ test.if(process.platform === 'linux')(
 
     invariant(bash !== null, 'bash is missing from this host');
 
-    const run = Bun.spawnSync([bash, 'scripts/check-test-isolation.sh', 'true'], {
+    const run = await runCommand([bash, 'scripts/check-test-isolation.sh', 'true'], {
       cwd: join(import.meta.dir, '..'),
       env: { ...process.env, PATH: bin },
-      stdout: 'pipe',
-      stderr: 'pipe',
     });
 
-    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+    expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
       exitCode: 2,
       stderr: 'test isolation: needs GNU coreutils: stat is missing or not the GNU build\n',
     });
@@ -51,18 +50,16 @@ test.if(process.platform === 'linux')(
 // host's own bash and uname, never a GNU tool.
 test.if(process.platform !== 'linux')(
   'it stops with a clear message on a platform other than Linux',
-  () => {
+  async () => {
     const bash = Bun.which('bash');
 
     invariant(bash !== null, 'bash is missing from this host');
 
-    const run = Bun.spawnSync([bash, 'scripts/check-test-isolation.sh', 'true'], {
+    const run = await runCommand([bash, 'scripts/check-test-isolation.sh', 'true'], {
       cwd: join(import.meta.dir, '..'),
-      stdout: 'pipe',
-      stderr: 'pipe',
     });
 
-    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+    expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
       exitCode: 2,
       stderr: `test isolation: runs on Linux only, not ${type()}\n`,
     });

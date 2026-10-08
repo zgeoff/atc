@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { createStubBin } from './create-stub-bin';
+import { runCommand } from './run-command';
 
 /**
  * Creates a stand-in guest program for a harness to run, under the
@@ -8,12 +9,13 @@ import { createStubBin } from './create-stub-bin';
  * `GOT:<line>`, prints `SIZE:<rows> <cols>` on `size`, and exits 3 on
  * `quit`. On `later` it waits for a line on the named pipe at `burstPath`,
  * then prints 300000 `x` bytes, more than impd's ring keeps, a newline, and
- * `BURST_DONE`. Returns the script's path and the pipe's.
+ * `BURST_DONE`. Resolves with the script's path and the pipe's once the pipe
+ * exists.
  */
-export function createStubHarnessGuest(dir: string) {
+export async function createStubHarnessGuest(dir: string) {
   const burstPath = join(dir, 'burst');
 
-  Bun.spawnSync(['mkfifo', burstPath]);
+  await runCommand(['mkfifo', burstPath]);
 
   const path = createStubBin(
     dir,

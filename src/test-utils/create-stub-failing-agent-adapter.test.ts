@@ -10,8 +10,8 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it plans the first spawn with the first plan', () => {
-  const stub = createStubFailingAgentAdapter({
+test('it plans the first spawn with the first plan', async () => {
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 1,
@@ -24,8 +24,8 @@ test('it plans the first spawn with the first plan', () => {
   });
 });
 
-test('it plans every spawn after the first with the later plan', () => {
-  const stub = createStubFailingAgentAdapter({
+test('it plans every spawn after the first with the later plan', async () => {
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 1,
@@ -45,8 +45,8 @@ test('it plans every spawn after the first with the later plan', () => {
   ]);
 });
 
-test('it counts the spawns it planned', () => {
-  const stub = createStubFailingAgentAdapter({
+test('it counts the spawns it planned', async () => {
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 1,
@@ -59,8 +59,8 @@ test('it counts the spawns it planned', () => {
   expect(stub.countPlans()).toBe(2);
 });
 
-test('it finds no headless runner before the first spawn is planned', () => {
-  const stub = createStubFailingAgentAdapter({
+test('it finds no headless runner before the first spawn is planned', async () => {
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 1,
@@ -70,8 +70,8 @@ test('it finds no headless runner before the first spawn is planned', () => {
   expect(stub.adapter.headlessRunner).toBeNull();
 });
 
-test('it throws from the first headless runner read once the first spawn is planned', () => {
-  const stub = createStubFailingAgentAdapter({
+test('it throws from the first headless runner read once the first spawn is planned', async () => {
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 2,
@@ -87,7 +87,7 @@ test('it throws from the first headless runner read once the first spawn is plan
 });
 
 test('it throws from the second headless runner read when the config holds two', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 2,
@@ -106,7 +106,7 @@ test('it throws from the second headless runner read when the config holds two',
 });
 
 test('it finds no headless runner once the failing reads the config holds are spent', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 2,
@@ -127,11 +127,11 @@ test('it finds no headless runner once the failing reads the config holds are sp
   expect(runner).toBeNull();
 });
 
-test('it fails the first read only once a process has written its pid to the ready pipe', () => {
+test('it fails the first read only once a process has written its pid to the ready pipe', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 'ready');
 
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 1,
@@ -156,11 +156,11 @@ test('it fails the first read only once a process has written its pid to the rea
   expect(stub.getReadyPID()).toBe(writer.pid);
 });
 
-test('it throws from the first read when no process writes the ready pipe in time', () => {
+test('it throws from the first read when no process writes the ready pipe in time', async () => {
   const ctx = setupTest();
   const path = join(ctx.dir, 'ready');
 
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 1,
@@ -175,8 +175,8 @@ test('it throws from the first read when no process writes the ready pipe in tim
   );
 });
 
-test('it refuses to return a ready pid before any process has written one', () => {
-  const stub = createStubFailingAgentAdapter({
+test('it refuses to return a ready pid before any process has written one', async () => {
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'first', args: [] },
     laterPlan: { bin: 'later', args: [] },
     failedReads: 1,

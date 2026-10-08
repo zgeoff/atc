@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildStubGH } from './build-stub-gh';
 import { createStubBin } from './create-stub-bin';
 import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -13,7 +14,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it prints the reply of the first argument verbatim and exits with its code', () => {
+test('it prints the reply of the first argument verbatim and exits with its code', async () => {
   const ctx = setupTest();
 
   const gh = createStubBin(
@@ -27,16 +28,16 @@ test('it prints the reply of the first argument verbatim and exits with its code
     }),
   );
 
-  const result = Bun.spawnSync([gh, 'repo', 'list']);
+  const result = await runCommand([gh, 'repo', 'list']);
 
   expect({
     exitCode: result.exitCode,
-    stdout: result.stdout.toString(),
-    stderr: result.stderr.toString(),
+    stdout: result.stdout,
+    stderr: result.stderr,
   }).toStrictEqual({ exitCode: 3, stdout: '[{"description":"it\'s mine"}]\n', stderr: 'warn\n' });
 });
 
-test('it prints nothing and exits 0 for a command without a reply', () => {
+test('it prints nothing and exits 0 for a command without a reply', async () => {
   const ctx = setupTest();
 
   const gh = createStubBin(
@@ -45,22 +46,22 @@ test('it prints nothing and exits 0 for a command without a reply', () => {
     buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }),
   );
 
-  const result = Bun.spawnSync([gh, 'repo', 'list']);
+  const result = await runCommand([gh, 'repo', 'list']);
 
   expect({
     exitCode: result.exitCode,
-    stdout: result.stdout.toString(),
-    stderr: result.stderr.toString(),
+    stdout: result.stdout,
+    stderr: result.stderr,
   }).toStrictEqual({ exitCode: 0, stdout: '', stderr: '' });
 });
 
-test('it records the arguments of each run as one line', () => {
+test('it records the arguments of each run as one line', async () => {
   const ctx = setupTest();
   const argvFile = join(ctx.dir, "it's argv");
   const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: {}, argvFile }));
 
-  Bun.spawnSync([gh, 'repo', 'list', 'acme']);
-  Bun.spawnSync([gh, 'config', 'get', 'git_protocol']);
+  await runCommand([gh, 'repo', 'list', 'acme']);
+  await runCommand([gh, 'config', 'get', 'git_protocol']);
 
   expect(readFileSync(argvFile, 'utf8')).toBe('repo list acme\nconfig get git_protocol\n');
 });

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
 import { createStubCodex } from './create-stub-codex';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -12,7 +13,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it reports a start in its directory and a finished turn as codex hooks', () => {
+test('it reports a start in its directory and a finished turn as codex hooks', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
@@ -20,7 +21,7 @@ test('it reports a start in its directory and a finished turn as codex hooks', (
 
   const stub = createStubCodex(ctx.dir, { atc: [atc], composer: join(ctx.dir, 'composer.js') });
 
-  Bun.spawnSync([stub], {
+  await runCommand([stub], {
     cwd: ctx.dir,
     env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-1' },
   });
@@ -31,7 +32,7 @@ test('it reports a start in its directory and a finished turn as codex hooks', (
   );
 });
 
-test('it prints its arguments, then runs the composer', () => {
+test('it prints its arguments, then runs the composer', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
@@ -39,10 +40,10 @@ test('it prints its arguments, then runs the composer', () => {
 
   const stub = createStubCodex(ctx.dir, { atc: [atc], composer: join(ctx.dir, 'composer.js') });
 
-  const run = Bun.spawnSync([stub, 'resume', 'fake-codex-1'], {
+  const run = await runCommand([stub, 'resume', 'fake-codex-1'], {
     cwd: ctx.dir,
     env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-1' },
   });
 
-  expect(run.stdout.toString()).toBe('FAKE_CODEX_UP args: resume fake-codex-1\nCOMPOSER_RAN\n');
+  expect(run.stdout).toBe('FAKE_CODEX_UP args: resume fake-codex-1\nCOMPOSER_RAN\n');
 });

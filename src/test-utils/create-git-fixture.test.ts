@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { $ } from 'bun';
 import { createGitFixture } from './create-git-fixture';
+import { runCommand } from './run-command';
 import { updateEnv } from './update-env';
 
 test('it pushes the initial commit to the upstream main branch', async () => {
@@ -88,8 +89,8 @@ test('it removes its directory once removed', async () => {
   expect(existsSync(fixture.dir)).toBeFalse();
 });
 
-test('it refuses to build its template outside the test home', () => {
-  const result = Bun.spawnSync(
+test('it refuses to build its template outside the test home', async () => {
+  const result = await runCommand(
     [
       process.execPath,
       '-e',
@@ -103,9 +104,7 @@ test('it refuses to build its template outside the test home', () => {
     },
   );
 
-  expect(result.stderr.toString()).toInclude(
-    'a git fixture needs the test home; run `bun run test`',
-  );
+  expect(result.stderr).toInclude('a git fixture needs the test home; run `bun run test`');
 });
 
 test('it removes its directory once the test finishes without a remove', async () => {

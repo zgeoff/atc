@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -78,16 +79,13 @@ test('it refuses a handshake on the current protocol with protocol_mismatch', as
   });
 });
 
-test('it stops with a usage error when given no socket path and state directory', () => {
-  const run = Bun.spawnSync(
-    [process.execPath, join(import.meta.dir, 'run-stub-legacy-daemon.ts')],
-    {
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  );
+test('it stops with a usage error when given no socket path and state directory', async () => {
+  const run = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'run-stub-legacy-daemon.ts'),
+  ]);
 
-  expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
     exitCode: 1,
     stderr: expect.toInclude('usage: run-stub-legacy-daemon.ts <socket path> <state dir>'),
   });
