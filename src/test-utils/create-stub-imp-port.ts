@@ -698,12 +698,12 @@ class StubImpPort implements ImpPort {
       await hold.done.promise;
 
       this.heldCommands -= 1;
+    }
 
-      // A stop kills every running command, so a held one it released
-      // ends the same way, without running.
-      if (this.stopped) {
-        return { code: KILLED_CODE, stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
-      }
+    // A command that gets past the hold after a stop, held or not, ends as a
+    // killed one does, so no process outlives the stop.
+    if (this.stopped) {
+      return { code: KILLED_CODE, stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
     }
 
     if (this.commandFailure !== null && line.includes(this.commandFailure)) {
