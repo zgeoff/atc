@@ -186,43 +186,63 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
 // Claude kills a hook that runs past its 5 s limit. A hook starts at the
 // same moment as the session's other atc processes on a guest of two vCPUs,
 // so the CPU a start costs, not its wall time on an idle runner, decides
-// whether it finishes in time. Five sequential starts give a median that one
-// noisy start cannot move. Without an event socket the reporter exits as
-// soon as it starts, so the median is the start alone, and a start that
-// fails before its work counts as a failure, not as a cheap start.
+// whether it finishes in time. One runner type can differ twofold in speed
+// from one machine to the next, so the budget is a multiple of a bare start
+// of the Bun runtime, which this file runs under and the binary embeds,
+// measured on the same machine with its starts interleaved with the
+// reporter's. A bare start costs relatively more on macOS, so the multiple
+// is per platform, about halfway between a healthy start and one that parses
+// the whole bundle. Nine starts of each give medians that one noisy start
+// cannot move. Without an event socket the reporter exits as soon as it
+// starts, so its median is the start alone, and a start that fails before
+// its work counts as a failure, not as a cheap start.
 test.skipIf(process.env['ATC_BIN'] === undefined)(
-  'it starts the hook reporter of the compiled binary within 75 ms of CPU time',
+  'it starts the hook reporter of the compiled binary within a fixed multiple of the CPU time of a bare Bun start',
   async () => {
     const ctx = setupTest();
     const exitCodes: number[] = [];
-    const cpuMs: number[] = [];
+    const reporterCPUMs: number[] = [];
+    const bareCPUMs: number[] = [];
 
-    for (let run = 0; run < 5; run += 1) {
-      const proc = Bun.spawn([...ctx.atc, 'hook-report', '--agent', 'claude'], {
-        cwd: ctx.home,
-        env: { PATH: process.env['PATH'], HOME: ctx.home },
-        stdin: 'ignore',
-        stdout: 'ignore',
-        stderr: 'ignore',
-      });
+    const starts: [command: string[], cpuMs: number[]][] = [
+      [[...ctx.atc, 'hook-report', '--agent', 'claude'], reporterCPUMs],
+      [[process.execPath, '-e', '0'], bareCPUMs],
+    ];
 
-      const exitCode = await proc.exited;
+    for (let run = 0; run < 9; run += 1) {
+      for (const [command, cpuMs] of starts) {
+        const proc = Bun.spawn(command, {
+          cwd: ctx.home,
+          env: { PATH: process.env['PATH'], HOME: ctx.home },
+          stdin: 'ignore',
+          stdout: 'ignore',
+          stderr: 'ignore',
+        });
 
-      exitCodes.push(exitCode);
+        const exitCode = await proc.exited;
 
-      const usage = proc.resourceUsage();
+        exitCodes.push(exitCode);
 
-      invariant(usage);
+        const usage = proc.resourceUsage();
 
-      // The types declare a number, while Bun returns the microseconds as a
-      // bigint, which division by a number throws on.
-      // oxlint-disable-next-line no-unnecessary-type-conversion
-      cpuMs.push(Number(usage.cpuTime.total) / 1000);
+        invariant(usage);
+
+        // The types declare a number, while Bun returns the microseconds as a
+        // bigint, which division by a number throws on.
+        // oxlint-disable-next-line no-unnecessary-type-conversion
+        cpuMs.push(Number(usage.cpuTime.total) / 1000);
+      }
     }
 
-    const median = cpuMs.toSorted((a, b) => a - b).at(2);
+    const multiples: Partial<Record<string, number>> = { linux: 16, darwin: 8 };
+    const multiple = multiples[process.platform];
+    const reporterMedian = reporterCPUMs.toSorted((a, b) => a - b).at(4);
+    const bareMedian = bareCPUMs.toSorted((a, b) => a - b).at(4);
 
-    expect(exitCodes).toStrictEqual([0, 0, 0, 0, 0]);
-    expect(median).toBeLessThan(75);
+    invariant(multiple !== undefined, `no startup budget for ${process.platform}`);
+    invariant(reporterMedian !== undefined && bareMedian !== undefined);
+
+    expect(exitCodes).toStrictEqual(Array.from({ length: 18 }, () => 0));
+    expect(reporterMedian).toBeLessThan(multiple * bareMedian);
   },
 );
