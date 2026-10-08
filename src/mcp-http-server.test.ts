@@ -209,3 +209,37 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
   expect(codes).toStrictEqual([0]);
   expect(fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' })).rejects.toThrow();
 });
+
+test('it exits 1 with the reason when no daemon answers at its daemon paths', async () => {
+  const tmp = setupTempDir('atc-mcp-http-server-');
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      dbPath: join(tmp.dir, 'mcp-auth.db'),
+      daemonPaths: {
+        socketPath: join(tmp.dir, 'atc-daemon.sock'),
+        recordFile: join(tmp.dir, 'daemon.json'),
+        pidFile: join(tmp.dir, 'atc-daemon.pid'),
+      },
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        codes.push(code);
+      },
+      registerSignal: () => {},
+    },
+  );
+
+  expect(errors).toStrictEqual([
+    `atc mcp --http: no atc daemon answered at ${join(tmp.dir, 'atc-daemon.sock')}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`,
+  ]);
+
+  expect(codes).toStrictEqual([1]);
+});

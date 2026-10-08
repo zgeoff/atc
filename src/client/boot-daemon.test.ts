@@ -9,6 +9,7 @@ import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { readJSONRecord } from '../test-utils/read-json-record';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
 import { bootDaemonClient } from './boot-daemon';
 
@@ -628,4 +629,77 @@ test('it rejects with the socket path it is given when a wait finds no daemon th
     Error,
     `no atc daemon answered at ${join(ctx.dir, 'given', 'atc-daemon.sock')} within 0s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
   );
+});
+
+test('it rejects at once and starts no daemon when none answers at the paths it is given', () => {
+  const ctx = setupTest();
+
+  expect(
+    bootDaemonClient({
+      paths: {
+        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.dir, 'given', 'daemon.json'),
+        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `no atc daemon answered at ${join(ctx.dir, 'given', 'atc-daemon.sock')}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`,
+  );
+});
+
+test('it reads the pid of a daemon on another protocol from the pid file at the paths it is given', () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.dir, 'given'));
+  startStubLegacyDaemon(join(ctx.dir, 'given', 'atc-daemon.sock'), { protocol: PROTOCOL_V + 1 });
+  writeFileSync(join(ctx.dir, 'given', 'atc-daemon.pid'), '4242');
+
+  expect(
+    bootDaemonClient({
+      paths: {
+        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.dir, 'given', 'daemon.json'),
+        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: expect.toStartWith(
+      `the atc daemon (pid 4242, socket ${join(ctx.dir, 'given', 'atc-daemon.sock')}) speaks another protocol than this client`,
+    ),
+  });
+});
+
+test('it reads the pid of a daemon on another protocol from the record at the paths it is given', () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.dir, 'given'));
+  startStubLegacyDaemon(join(ctx.dir, 'given', 'atc-daemon.sock'), { protocol: PROTOCOL_V + 1 });
+
+  writeFileSync(
+    join(ctx.dir, 'given', 'daemon.json'),
+    JSON.stringify({
+      pid: 4343,
+      socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+      reporterSocketPath: join(ctx.dir, 'given', 'atc.sock'),
+      eventsSocketPath: null,
+      listenPort: null,
+    }),
+  );
+
+  expect(
+    bootDaemonClient({
+      paths: {
+        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.dir, 'given', 'daemon.json'),
+        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: expect.toStartWith(
+      `the atc daemon (pid 4343, socket ${join(ctx.dir, 'given', 'atc-daemon.sock')}) speaks another protocol than this client`,
+    ),
+  });
 });

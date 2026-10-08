@@ -66,9 +66,9 @@ export interface DaemonBootOptions {
   readonly clock?: Clock;
 
   // Where the boot looks for a running daemon and its pid; this process's
-  // own paths when absent. A daemon the boot starts itself takes this
-  // process's own paths, so a caller that sets them either waits or has a
-  // daemon listening there already.
+  // own paths when absent. `atc daemon` takes no paths of its own, only the
+  // environment's, so a boot given paths never starts a daemon: when none
+  // answers there, it rejects at once.
   readonly paths?: DaemonPaths;
 }
 
@@ -115,7 +115,12 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const build = getBuild();
-    const opened = wait === null ? await openOrBootDaemon(paths) : await waitForDaemon(wait);
+
+    const opened =
+      wait === null
+        ? await openOrBootDaemon(paths, options.paths === undefined)
+        : await waitForDaemon(wait);
+
     const client = opened.client;
 
     try {
@@ -168,11 +173,20 @@ interface OpenedDaemon {
   readonly socketPath: string;
 }
 
-async function openOrBootDaemon(paths: DaemonPaths): Promise<OpenedDaemon> {
+/**
+ * Opens the daemon at the known paths, starting one first when none
+ * answers and the boot may start one. A boot that may not start one, since
+ * a daemon it started would listen elsewhere, rejects instead.
+ */
+async function openOrBootDaemon(paths: DaemonPaths, canStart: boolean): Promise<OpenedDaemon> {
   const opened = await tryOpenKnownDaemon(paths);
 
   if (opened !== null) {
     return opened;
+  }
+
+  if (!canStart) {
+    throw new Error(formatGivenPathsFailure(paths));
   }
 
   await bootDaemonOnce();
@@ -312,6 +326,15 @@ function formatBootFailure(paths: DaemonPaths): string {
   return (
     formatUnreachableDaemon(paths) ??
     'the atc daemon did not come up; try `atc daemon` for its output'
+  );
+}
+
+// A boot given its own paths starts no daemon, since `atc daemon` would
+// listen at this process's paths instead, so the message says so.
+function formatGivenPathsFailure(paths: DaemonPaths): string {
+  return (
+    formatUnreachableDaemon(paths) ??
+    `no atc daemon answered at ${paths.socketPath}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`
   );
 }
 

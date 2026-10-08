@@ -8,7 +8,7 @@ import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
 import type { MCPHTTPConfig } from './shared/collect-mcp-http-config';
-import { daemonPidFile, daemonRecordFile, daemonSocketPath, mcpAuthDBFile } from './shared/config';
+import { mcpAuthDBFile } from './shared/config';
 import { loadMCPHTTPConfig } from './shared/load-mcp-http-config';
 
 interface MCPHTTPFlags {
@@ -20,12 +20,13 @@ interface MCPHTTPFlags {
 
 // What the server reaches outside itself, the process's own by default: its
 // config, the authorization database, the files that locate the daemon it
-// boots or waits for, the console, the exit, and the signal listeners that
+// boots or waits for (null for the process's own, the only ones at which it
+// starts a daemon), the console, the exit, and the signal listeners that
 // stop it.
 interface MCPHTTPServerIO {
   readonly loadConfig: () => MCPHTTPConfig;
   readonly dbPath: string;
-  readonly daemonPaths: DaemonPaths;
+  readonly daemonPaths: DaemonPaths | null;
   readonly print: (line: string) => void;
   readonly printError: (line: string) => void;
   readonly exit: (code: number) => void;
@@ -35,11 +36,7 @@ interface MCPHTTPServerIO {
 const PROCESS_IO: MCPHTTPServerIO = {
   loadConfig: loadMCPHTTPConfig,
   dbPath: mcpAuthDBFile,
-  daemonPaths: {
-    socketPath: daemonSocketPath,
-    recordFile: daemonRecordFile,
-    pidFile: daemonPidFile,
-  },
+  daemonPaths: null,
   print: (line) => {
     console.log(line);
   },
@@ -84,10 +81,13 @@ export async function runMCPHTTPServer(
       }
     : {};
 
+  const bootOptions =
+    io.daemonPaths === null ? waitOptions : { ...waitOptions, paths: io.daemonPaths };
+
   let boot: DaemonBoot;
 
   try {
-    boot = await bootDaemonClient({ ...waitOptions, paths: io.daemonPaths });
+    boot = await bootDaemonClient(bootOptions);
   } catch (error) {
     io.printError(`atc mcp --http: ${error instanceof Error ? error.message : String(error)}`);
     io.exit(1);
