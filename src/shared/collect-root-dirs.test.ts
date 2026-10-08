@@ -7,11 +7,11 @@ import { collectRootDirs } from './collect-root-dirs';
 function setupTest() {
   const tmp = setupTempDir('atc-roots-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it lists each child directory of a root and the worktrees under it, sorted', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'zeta'));
   mkdirSync(join(ctx.dir, 'atc', '.worktrees', 'fix-picker'), { recursive: true });
@@ -27,7 +27,7 @@ test('it lists each child directory of a root and the worktrees under it, sorted
 });
 
 test('it skips hidden directories under a root', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.cache'));
   mkdirSync(join(ctx.dir, 'app'));
@@ -36,7 +36,7 @@ test('it skips hidden directories under a root', () => {
 });
 
 test('it contributes nothing for a root that does not exist', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(collectRootDirs([join(ctx.dir, 'missing')])).toStrictEqual([]);
 });

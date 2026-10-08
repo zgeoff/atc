@@ -15,12 +15,11 @@ async function setupTest() {
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
   };
 }
 
 test('it removes every credential setting from the clone config', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git config --local credential.helper store`.env(ctx.env).cwd(ctx.work).quiet();
 
@@ -46,7 +45,7 @@ test('it removes every credential setting from the clone config', async () => {
 });
 
 test('it removes an http extra header that could carry a token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git config --local http.https://github.com/.extraheader 'Authorization: Bearer tok'`
     .env(ctx.env)
@@ -61,7 +60,7 @@ test('it removes an http extra header that could carry a token', async () => {
 });
 
 test('it resets a token-bearing origin URL to the token-free one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -90,7 +89,7 @@ test('it resets a token-bearing origin URL to the token-free one', async () => {
 });
 
 test('it removes a token-bearing push URL from another remote', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git config --local remote.fork.pushurl https://tok@github.com/fork/atc.git`
     .env(ctx.env)
@@ -105,7 +104,7 @@ test('it removes a token-bearing push URL from another remote', async () => {
 });
 
 test('it keeps an ssh origin user, which is a login rather than a credential', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -122,7 +121,7 @@ test('it keeps an ssh origin user, which is a login rather than a credential', a
 });
 
 test('it removes a URL rewrite that injects userinfo and keeps a clean one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git config --local url.https://tok@github.com/.insteadOf https://github.com/`
     .env(ctx.env)
@@ -145,7 +144,7 @@ test('it removes a URL rewrite that injects userinfo and keeps a clean one', asy
 });
 
 test('it removes every hook', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await mkdir(join(ctx.work, '.git', 'hooks'), { recursive: true });
 
@@ -161,7 +160,7 @@ test('it removes every hook', async () => {
 });
 
 test('it removes credential files from the work tree and the git directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, '.git-credentials'), 'https://bob:tok@github.com\n');
   await writeFile(join(ctx.work, '.netrc'), 'machine github.com password tok\n');
@@ -176,30 +175,27 @@ test('it removes credential files from the work tree and the git directory', asy
 });
 
 test('it never removes an ordinary work-tree file', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await mkdir(join(ctx.work, 'src'), { recursive: true });
   await writeFile(join(ctx.work, 'notes.md'), 'remember the milk\n');
   await writeFile(join(ctx.work, 'src', 'index.ts'), 'export {};\n');
 
   const sanitized = await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
+  const notes = await readFile(join(ctx.work, 'notes.md'), 'utf8');
+  const index = await readFile(join(ctx.work, 'src', 'index.ts'), 'utf8');
 
-  const kept = {
-    notes: await readFile(join(ctx.work, 'notes.md'), 'utf8'),
-    index: await readFile(join(ctx.work, 'src', 'index.ts'), 'utf8'),
-  };
-
-  expect({ sanitized, kept }).toStrictEqual({
-    sanitized: {
-      ok: true,
-      provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: expect.toBeString() },
-    },
-    kept: { notes: 'remember the milk\n', index: 'export {};\n' },
+  expect(sanitized).toStrictEqual({
+    ok: true,
+    provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: expect.toBeString() },
   });
+
+  expect(notes).toBe('remember the milk\n');
+  expect(index).toBe('export {};\n');
 });
 
 test('it removes the reflogs that record the clone URL', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
 
@@ -207,7 +203,7 @@ test('it removes the reflogs that record the clone URL', async () => {
 });
 
 test('it keeps HEAD, the branch, and a readable history', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -231,7 +227,7 @@ test('it keeps HEAD, the branch, and a readable history', async () => {
 });
 
 test('it refuses a clone whose history no longer reads', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await rm(join(ctx.work, '.git', 'objects'), { recursive: true, force: true });
   await mkdir(join(ctx.work, '.git', 'objects'));
@@ -246,8 +242,7 @@ test('it refuses a clone whose history no longer reads', async () => {
 });
 
 test('it refuses a URL it cannot read as a repository URL', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const sanitized = await sanitizeWorkspaceClone(ctx.work, 'not a url');
 
   expect(sanitized).toStrictEqual({

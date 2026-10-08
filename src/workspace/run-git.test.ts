@@ -6,11 +6,13 @@ import { runGit } from './run-git';
 
 // A directory outside any repository for git to run in.
 function setupTest() {
-  return setupTempDir('atc-run-git-');
+  const tmp = setupTempDir('atc-run-git-');
+
+  return { dir: tmp.dir };
 }
 
 test('it drops git config that the host environment injects', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('GIT_CONFIG_KEY_0', 'atc.injected');
   updateEnv('GIT_CONFIG_VALUE_0', 'yes');
@@ -25,7 +27,7 @@ test('it drops git config that the host environment injects', async () => {
 });
 
 test('it reads no system attributes file in an isolated command', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const located = await runGit(['var', 'GIT_ATTR_SYSTEM'], { cwd: ctx.dir, isolated: true });
 
@@ -33,8 +35,7 @@ test('it reads no system attributes file in an isolated command', async () => {
 });
 
 test('it stops a command that runs past its time limit and reports it timed out', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const groups: number[] = [];
 
   const run = await runGit(['-c', 'alias.wait=!sleep 30', 'wait'], {
@@ -56,8 +57,7 @@ test('it stops a command that runs past its time limit and reports it timed out'
 });
 
 test('it reports the pid of the git it starts', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const spawned: number[] = [];
 
   const run = await runGit(['-c', 'alias.parent=!echo $PPID', 'parent'], {

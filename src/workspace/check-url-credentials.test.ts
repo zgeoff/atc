@@ -4,8 +4,10 @@ import { createGitFixture } from '../test-utils/create-git-fixture';
 import { checkURLCredentials } from './check-url-credentials';
 
 // A repository whose own config holds the rewrites a test adds.
-function setupTest() {
-  return createGitFixture({ prefix: 'atc-url-credentials-' });
+async function setupTest() {
+  const fixture = await createGitFixture({ prefix: 'atc-url-credentials-' });
+
+  return { env: fixture.env, work: fixture.work };
 }
 
 test.each([
@@ -14,8 +16,7 @@ test.each([
   ['an scp-style URL', 'git@github.com:owner/repo.git'],
   ['a local path', '/srv/git/repo.git'],
 ])('it accepts %s that carries no credential', async (_, url) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const finding = await checkURLCredentials(url, ctx.work);
 
   expect(finding).toStrictEqual({ ok: true });
@@ -28,8 +29,7 @@ test.each([
   ['a fragment', 'https://github.com/owner/repo.git#tok-1'],
   ['an ssh password', 'ssh://git:tok-1@github.com/owner/repo.git'],
 ])('it refuses a URL whose %s carries a credential', async (_, url) => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const finding = await checkURLCredentials(url, ctx.work);
 
   expect(finding).toStrictEqual({
@@ -40,7 +40,7 @@ test.each([
 });
 
 test('it refuses a URL an insteadOf rewrite expands into one with a token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git config url.https://x-access-token:tok-1@github.com/.insteadOf https://github.com/`
     .env(ctx.env)
@@ -58,7 +58,7 @@ test('it refuses a URL an insteadOf rewrite expands into one with a token', asyn
 });
 
 test('it accepts a URL an insteadOf rewrite expands into one without a token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git config url.https://mirror.example.com/.insteadOf https://github.com/`
     .env(ctx.env)

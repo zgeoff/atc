@@ -7,7 +7,7 @@ import { loadConfig, parseConfig, renderDefaultConfig } from './config';
 function setupTest() {
   const tmp = setupTempDir('atc-config-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('#parseConfig leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
@@ -961,8 +961,7 @@ test('#renderDefaultConfig writes an agents map with the claude entry and no old
 });
 
 test('#loadConfig writes the default config when the file is missing', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'config.json');
 
   loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
@@ -984,7 +983,7 @@ test('#loadConfig writes the default config when the file is missing', () => {
 });
 
 test('#loadConfig returns the defaults when the file is missing', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(
     loadConfig(join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), join(ctx.dir, 'state')),
@@ -1027,8 +1026,7 @@ test('#loadConfig returns the defaults when the file is missing', () => {
 });
 
 test('#loadConfig reads an existing file against the home it is given', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'config.json');
 
   writeFileSync(
@@ -1075,8 +1073,7 @@ test('#loadConfig reads an existing file against the home it is given', () => {
 });
 
 test('#loadConfig creates the state directory it is given', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const state = join(ctx.dir, 'state', 'atc');
 
   loadConfig(join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), state);
@@ -1085,8 +1082,7 @@ test('#loadConfig creates the state directory it is given', () => {
 });
 
 test('#loadConfig never overwrites an existing file it cannot use', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'config.json');
 
   writeFileSync(file, '{ "agents": ');
@@ -1096,8 +1092,7 @@ test('#loadConfig never overwrites an existing file it cannot use', () => {
 });
 
 test('#loadConfig leaves every target unusable when the file cannot be read', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'config.json');
 
   mkdirSync(file);
@@ -1141,8 +1136,7 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
 });
 
 test('#loadConfig leaves every target unusable when the file is not valid JSON', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'config.json');
 
   writeFileSync(file, '{ "agents": ');

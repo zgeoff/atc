@@ -16,12 +16,11 @@ async function setupTest() {
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
   };
 }
 
 test('it resolves a clean pushed checkout to its origin URL and HEAD', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -42,7 +41,7 @@ test('it resolves a clean pushed checkout to its origin URL and HEAD', async () 
 });
 
 test('it resolves a subdirectory to the checkout that holds it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -67,7 +66,7 @@ test('it resolves a subdirectory to the checkout that holds it', async () => {
 });
 
 test('it strips a token from the origin URL', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -95,7 +94,7 @@ test('it strips a token from the origin URL', async () => {
 });
 
 test('it resolves a checkout with an uncommitted change to HEAD with a warning that counts it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -120,7 +119,7 @@ test('it resolves a checkout with an uncommitted change to HEAD with a warning t
 });
 
 test('it resolves a checkout with untracked files to HEAD without naming them', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -146,7 +145,7 @@ test('it resolves a checkout with untracked files to HEAD without naming them', 
 });
 
 test('it counts each file inside an untracked directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -174,7 +173,7 @@ test('it counts each file inside an untracked directory', async () => {
 });
 
 test('it leaves the changes of a dirty checkout as they were', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'README.md'), 'edited\n');
   await writeFile(join(ctx.work, 'notes.txt'), 'scratch\n');
@@ -195,7 +194,7 @@ test('it leaves the changes of a dirty checkout as they were', async () => {
 });
 
 test('it refuses a checkout with an uncommitted change when dirt is refused', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'README.md'), 'edited\n');
 
@@ -212,7 +211,7 @@ test('it refuses a checkout with an uncommitted change when dirt is refused', as
 });
 
 test('it refuses a checkout with an untracked file when dirt is refused', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'notes.txt'), 'scratch\n');
 
@@ -229,7 +228,7 @@ test('it refuses a checkout with an untracked file when dirt is refused', async 
 });
 
 test('it refuses a dirty checkout whose HEAD origin does not hold rather than resolve an older commit', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'README.md'), 'local\n');
 
@@ -253,7 +252,7 @@ test('it refuses a dirty checkout whose HEAD origin does not hold rather than re
 });
 
 test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -281,7 +280,7 @@ test('it resolves a dirty checkout to HEAD with a warning when dirt is allowed',
 });
 
 test('it refuses a directory outside any git repository', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await mkdir(join(ctx.dir, 'loose'));
 
@@ -297,7 +296,7 @@ test('it refuses a directory outside any git repository', async () => {
 });
 
 test('it refuses a path that does not exist', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const resolved = await resolvePathSource(join(ctx.dir, 'missing'), {
     transports: ['https', 'ssh', 'file'],
@@ -311,7 +310,7 @@ test('it refuses a path that does not exist', async () => {
 });
 
 test('it refuses a repository with no commits', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git init --quiet --template= ${join(ctx.dir, 'empty')}`.env(ctx.env).quiet();
 
@@ -327,7 +326,7 @@ test('it refuses a repository with no commits', async () => {
 });
 
 test('it refuses a HEAD commit that was never pushed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'README.md'), 'local only\n');
 
@@ -349,7 +348,7 @@ test('it refuses a HEAD commit that was never pushed', async () => {
 });
 
 test('it refuses a HEAD commit that only another remote holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'README.md'), 'fork only\n');
 
@@ -372,7 +371,7 @@ test('it refuses a HEAD commit that only another remote holds', async () => {
 });
 
 test('it accepts a pushed HEAD whose remote-tracking ref was never fetched', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'README.md'), 'pushed elsewhere\n');
 
@@ -402,7 +401,7 @@ test('it accepts a pushed HEAD whose remote-tracking ref was never fetched', asy
 });
 
 test('it refuses a checkout with no origin remote', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git remote remove origin`.env(ctx.env).cwd(ctx.work).quiet();
 
@@ -416,7 +415,7 @@ test('it refuses a checkout with no origin remote', async () => {
 });
 
 test('it refuses an origin URL it cannot read as a repository URL', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git remote set-url origin 'not a url'`.env(ctx.env).cwd(ctx.work).quiet();
 
@@ -430,7 +429,7 @@ test('it refuses an origin URL it cannot read as a repository URL', async () => 
 });
 
 test('it refuses a checkout that uses submodules', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git ${['-c', 'protocol.file.allow=always', 'submodule', '--quiet', 'add', ctx.upstream, 'vendored']}`
     .env(ctx.env)
@@ -450,7 +449,7 @@ test('it refuses a checkout that uses submodules', async () => {
 });
 
 test('it resolves the checkout it is given when a git hook exports another GIT_DIR', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -475,7 +474,7 @@ test('it resolves the checkout it is given when a git hook exports another GIT_D
 });
 
 test('it refuses a checkout whose HEAD tree cannot be listed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -499,7 +498,7 @@ test('it refuses a checkout whose HEAD tree cannot be listed', async () => {
 });
 
 test('it refuses a checkout whose status cannot be read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, '.git', 'index'), 'not an index');
 

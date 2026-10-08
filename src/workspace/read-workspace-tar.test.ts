@@ -14,12 +14,11 @@ async function setupTest() {
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
   };
 }
 
 test('it streams a tar that unpacks to the same checkout and commit', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -48,7 +47,7 @@ test('it streams a tar that unpacks to the same checkout and commit', async () =
 });
 
 test('it reports a directory tar cannot read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const tar = readWorkspaceTar(join(ctx.dir, 'missing'));
 
@@ -66,7 +65,7 @@ test('it reports a directory tar cannot read', async () => {
 // TAR_OPTIONS reaches tar through the environment a process starts with, so
 // these tests archive from a child process that starts with it set.
 test('it archives a tracked symlink as a link when the host asks tar to dereference', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.dir, 'outside.txt'), 'atc-outside-marker-7f3a\n');
   await symlink(join(ctx.dir, 'outside.txt'), join(ctx.work, 'link'));
@@ -98,7 +97,7 @@ test('it archives a tracked symlink as a link when the host asks tar to derefere
 });
 
 test('it archives every tracked file when the host asks tar to exclude some', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'notes.txt'), 'kept\n');
 

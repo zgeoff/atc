@@ -7,11 +7,11 @@ import { getBuild } from './get-build';
 function setupTest() {
   const tmp = setupTempDir('atc-get-build-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it changes the build string when a .ts file in a sibling directory changes', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'daemon'));
   mkdirSync(join(ctx.dir, 'shared'));
@@ -28,7 +28,7 @@ test('it changes the build string when a .ts file in a sibling directory changes
 });
 
 test('it keeps the build string when a file that is not .ts changes', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'daemon'));
   writeFileSync(join(ctx.dir, 'daemon', 'sessions.ts'), '');

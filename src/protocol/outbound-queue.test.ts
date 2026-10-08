@@ -3,6 +3,7 @@ import { once } from 'node:events';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import type { Socket } from 'bun';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { OutboundQueue } from './outbound-queue';
@@ -10,9 +11,7 @@ import { OutboundQueue } from './outbound-queue';
 // A Unix socket server and a paused client connected to it. The server's
 // drain callback flushes whatever queue the test hangs on the socket.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const temp = stack.use(setupTempDir('atc-queue-'));
+  const temp = setupTempDir('atc-queue-');
   const opened = Promise.withResolvers<Socket<{ queue: OutboundQueue }>>();
 
   const server = Bun.listen<{ queue: OutboundQueue }>({
@@ -29,13 +28,13 @@ async function setupTest() {
     },
   });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     server.stop(true);
   });
 
   const client = connect(join(temp.dir, 'q.sock'));
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     client.destroy();
   });
 
@@ -45,13 +44,11 @@ async function setupTest() {
 
   const socket = await opened.promise;
 
-  const owned = stack.move();
-
-  return { client, socket, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { client, socket };
 }
 
 test('it parks what a paused reader cannot take instead of refusing it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
 
@@ -66,7 +63,7 @@ test('it parks what a paused reader cannot take instead of refusing it', async (
 });
 
 test('it delivers every byte to a slow reader without loss', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
 
@@ -103,7 +100,7 @@ test('it delivers every byte to a slow reader without loss', async () => {
 });
 
 test('it queues the unwritten rest of a payload past its capacity', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const queue = new OutboundQueue(ctx.socket, 64);
 
@@ -118,7 +115,7 @@ test('it queues the unwritten rest of a payload past its capacity', async () => 
 });
 
 test('it refuses a whole payload once the queue is over capacity', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const queue = new OutboundQueue(ctx.socket, 64);
 
@@ -138,7 +135,7 @@ test('it refuses a whole payload once the queue is over capacity', async () => {
 });
 
 test('it preserves payload order across short writes and drains', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const queue = new OutboundQueue(ctx.socket, 8 * 1024 * 1024);
 

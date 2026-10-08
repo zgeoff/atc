@@ -7,7 +7,8 @@ test('it holds a line split across chunks until its newline arrives', () => {
   const first = decoder.splitText('{"id":1,');
   const second = decoder.splitText('"m":"x"}\n');
 
-  expect({ first, second }).toStrictEqual({ first: [], second: ['{"id":1,"m":"x"}'] });
+  expect(first).toStrictEqual([]);
+  expect(second).toStrictEqual(['{"id":1,"m":"x"}']);
 });
 
 test('it returns every whole line of a chunk in order and keeps the unterminated tail', () => {
@@ -15,10 +16,8 @@ test('it returns every whole line of a chunk in order and keeps the unterminated
 
   const lines = decoder.splitText('{"a":1}\n{"b":2}\n{"c":');
 
-  expect({ lines, pendingLength: decoder.pendingLength }).toStrictEqual({
-    lines: ['{"a":1}', '{"b":2}'],
-    pendingLength: 5,
-  });
+  expect(lines).toStrictEqual(['{"a":1}', '{"b":2}']);
+  expect(decoder.pendingLength).toBe(5);
 });
 
 test('it drops empty and whitespace-only lines', () => {
@@ -40,7 +39,8 @@ test('it decodes a multi-byte character split across two reads whole', () => {
   const first = decoder.splitChunk(bytes.subarray(0, 7));
   const second = decoder.splitChunk(bytes.subarray(7));
 
-  expect({ first, second }).toStrictEqual({ first: [], second: ['{"t":"é✓"}'] });
+  expect(first).toStrictEqual([]);
+  expect(second).toStrictEqual(['{"t":"é✓"}']);
 });
 
 test('it counts the buffered tail so a caller can refuse a line over its limit', () => {

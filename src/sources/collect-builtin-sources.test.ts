@@ -8,11 +8,11 @@ import { collectBuiltinSources } from './collect-builtin-sources';
 function setupTest() {
   const temp = setupTempDir('atc-builtin-sources-');
 
-  return { homeDir: temp.dir, gh: join(temp.dir, 'gh'), [Symbol.dispose]: temp[Symbol.dispose] };
+  return { homeDir: temp.dir, gh: join(temp.dir, 'gh') };
 }
 
 test('it leaves GitHub out when gh is not on the host', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const sources = collectBuiltinSources({
     roots: [],
@@ -26,7 +26,7 @@ test('it leaves GitHub out when gh is not on the host', () => {
 });
 
 test('it offers GitHub when gh is on the host', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(ctx.gh, '#!/bin/sh\n', { mode: 0o755 });
 

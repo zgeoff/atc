@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CompiledQuery } from 'kysely';
@@ -12,13 +12,12 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { readQueryPlan } from '../test-utils/read-query-plan';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { StateStore } from './state-store';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-store-'));
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   await createMigratedStateDB(dbPath);
@@ -29,15 +28,13 @@ async function setupTest() {
     queries.push(query);
   });
 
-  stack.defer(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
-  const owned = stack.move();
-
-  return { dbPath, store, queries, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { dbPath, store, queries };
 }
 
 test('it round-trips the fleet', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = buildMockFleetEntry();
   const second = buildMockFleetEntry();
@@ -50,7 +47,7 @@ test('it round-trips the fleet', async () => {
 });
 
 test('it keeps a stored row that a later write does not cover', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = buildMockFleetEntry();
   const second = buildMockFleetEntry();
@@ -64,7 +61,7 @@ test('it keeps a stored row that a later write does not cover', async () => {
 });
 
 test('it drops the row of a session the write removes', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const removed = buildMockFleetEntry();
   const kept = buildMockFleetEntry();
@@ -78,7 +75,7 @@ test('it drops the row of a session the write removes', async () => {
 });
 
 test('it drops a stored row whose agent session id a written entry holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const old = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-old'), exited: true });
   const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-old') });
@@ -92,7 +89,7 @@ test('it drops a stored row whose agent session id a written entry holds', async
 });
 
 test('it relinks a stored sub-session to the session that replaced its parent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const old = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-old'), exited: true });
   const child = buildMockFleetEntry({ exited: true, parent: old.sessionID });
@@ -107,7 +104,7 @@ test('it relinks a stored sub-session to the session that replaced its parent', 
 });
 
 test('it never lets two overlapping writes leave a mixed or half-written fleet', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A seeded fleet is what makes the between-read meaningful: with rows
   // already stored, an empty result can only mean a read landed between a
@@ -132,7 +129,7 @@ test('it never lets two overlapping writes leave a mixed or half-written fleet',
 });
 
 test('it resolves stop only after an unawaited fleet write lands', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const entry = buildMockFleetEntry();
   const write = ctx.store.writeFleet([entry]);
@@ -143,7 +140,7 @@ test('it resolves stop only after an unawaited fleet write lands', async () => {
 
   const db = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -153,15 +150,14 @@ test('it resolves stop only after an unawaited fleet write lands', async () => {
 });
 
 test('it seeds the fleet from a legacy fleet.json once', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const legacy = join(tmp.dir, 'fleet.json');
 
   writeFileSync(legacy, JSON.stringify([{ name: 'seeded', cwd: '/z', claudeId: 'c9' }]));
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'), legacy);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -179,8 +175,7 @@ test('it seeds the fleet from a legacy fleet.json once', async () => {
 });
 
 test('it never overwrites an existing fleet table from the legacy file', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const legacy = join(tmp.dir, 'fleet.json');
   const dbPath = join(tmp.dir, 'state.db');
 
@@ -188,7 +183,7 @@ test('it never overwrites an existing fleet table from the legacy file', async (
 
   const first = await StateStore.open(dbPath, legacy);
 
-  onTestFinished(() => first.stop());
+  registerTestCleanup(() => first.stop());
 
   const fresh = buildMockFleetEntry();
 
@@ -197,7 +192,7 @@ test('it never overwrites an existing fleet table from the legacy file', async (
 
   const second = await StateStore.open(dbPath, legacy);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   const fleet = await second.loadFleet();
 
@@ -216,7 +211,7 @@ test('it never overwrites an existing fleet table from the legacy file', async (
 });
 
 test('it records hook events into the trail', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent({
     atcId: toSessionID('s1'),
@@ -226,7 +221,7 @@ test('it records hook events into the trail', async () => {
 
   const db = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -242,7 +237,7 @@ test('it records hook events into the trail', async () => {
 });
 
 test('it records a Grok session id from the camelCase payload key', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent({
     atcId: toSessionID('s1'),
@@ -252,7 +247,7 @@ test('it records a Grok session id from the camelCase payload key', async () => 
 
   const db = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -268,7 +263,7 @@ test('it records a Grok session id from the camelCase payload key', async () => 
 });
 
 test('it reports recency for a Grok session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent({
     atcId: toSessionID('s1'),
@@ -282,11 +277,11 @@ test('it reports recency for a Grok session id', async () => {
 });
 
 test('it reports the latest event timestamp per agent session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const db = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -309,11 +304,11 @@ test('it reports the latest event timestamp per agent session', async () => {
 });
 
 test('it returns an empty recency map when no event carries a session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const db = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -329,7 +324,7 @@ test('it returns an empty recency map when no event carries a session id', async
 });
 
 test('it lists spawn directories most recent first without duplicates', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' }, 1000);
   await ctx.store.recordSpawnDir('/b', { target: 'local', targetIdentity: 'local-pty:x' }, 2000);
@@ -344,7 +339,7 @@ test('it lists spawn directories most recent first without duplicates', async ()
 });
 
 test('it lists a spawn directory once for each target it was spawned on', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordSpawnDir('/a', { target: 'local', targetIdentity: 'local-pty:x' }, 1000);
   await ctx.store.recordSpawnDir('/a', { target: 'box', targetIdentity: 'imp:y' }, 2000);
@@ -360,13 +355,12 @@ test('it lists a spawn directory once for each target it was spawned on', async 
 });
 
 test('it carries spawn directories from before their target was recorded over as spawns on the default local target', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -376,7 +370,7 @@ test('it carries spawn directories from before their target was recorded over as
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const dirs = await store.collectSpawnDirs();
 
@@ -393,7 +387,7 @@ test('it carries spawn directories from before their target was recorded over as
 });
 
 test('it round-trips a grok fleet row', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const entry = buildMockFleetEntry({ agent: 'grok' });
 
@@ -405,7 +399,7 @@ test('it round-trips a grok fleet row', async () => {
 });
 
 test('it round-trips an exited fleet row', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const archived = buildMockFleetEntry({ exited: true });
   const live = buildMockFleetEntry();
@@ -418,7 +412,7 @@ test('it round-trips an exited fleet row', async () => {
 });
 
 test('it round-trips a sub-session fleet row', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const wrangler = buildMockFleetEntry();
   const worker = buildMockFleetEntry({ parent: wrangler.sessionID });
@@ -431,7 +425,7 @@ test('it round-trips a sub-session fleet row', async () => {
 });
 
 test('it round-trips a fleet row with its model and effort', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const entry = buildMockFleetEntry({ model: 'opus[1m]', effort: 'xhigh' });
 
@@ -443,7 +437,7 @@ test('it round-trips a fleet row with its model and effort', async () => {
 });
 
 test('it round-trips a fleet row with what the operator asked of it and its host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const sleeper = buildMockFleetEntry({
     sessionID: toSessionID('s-c1'),
@@ -466,7 +460,7 @@ test('it round-trips a fleet row with what the operator asked of it and its host
 });
 
 test('it round-trips a fleet row with its execution target and identity', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const remote = buildMockFleetEntry({ target: 'box', targetIdentity: 'imp:0123456789abcdef' });
   const untargeted = buildMockFleetEntry();
@@ -479,13 +473,12 @@ test('it round-trips a fleet row with its execution target and identity', async 
 });
 
 test('it adds parent to a fleet row that predates it', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -509,7 +502,7 @@ test('it adds parent to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -529,15 +522,14 @@ test('it adds parent to a fleet row that predates it', async () => {
 });
 
 test('it loads claude as the last-used agent before any write', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const agent = await ctx.store.loadLastUsedAgent();
 
   expect(agent).toBe('claude');
 });
 
 test('it loads the last-used agent a write recorded', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.writeLastUsedAgent('grok');
 
@@ -547,7 +539,7 @@ test('it loads the last-used agent a write recorded', async () => {
 });
 
 test('it loads the later of two last-used agent writes', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.writeLastUsedAgent('grok');
   await ctx.store.writeLastUsedAgent('claude');
@@ -558,14 +550,14 @@ test('it loads the later of two last-used agent writes', async () => {
 });
 
 test('it loads last-used agent from a reopened store', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.writeLastUsedAgent('grok');
   await ctx.store.stop();
 
   const second = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   const agent = await second.loadLastUsedAgent();
 
@@ -573,13 +565,12 @@ test('it loads last-used agent from a reopened store', async () => {
 });
 
 test('it renames the id column and defaults agent for a store written before both', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -597,13 +588,13 @@ test('it renames the id column and defaults agent for a store written before bot
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   const reader = new Database(dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     reader.close();
   });
 
@@ -625,13 +616,12 @@ test('it renames the id column and defaults agent for a store written before bot
 });
 
 test('it adds pinned to a fleet row that predates it', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -654,7 +644,7 @@ test('it adds pinned to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -674,13 +664,12 @@ test('it adds pinned to a fleet row that predates it', async () => {
 });
 
 test('it adds the last-attached time to a fleet row that predates it', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -703,7 +692,7 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -723,13 +712,12 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
 });
 
 test('it adds agent to a fleet row that predates it', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -752,7 +740,7 @@ test('it adds agent to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -773,13 +761,12 @@ test('it adds agent to a fleet row that predates it', async () => {
 });
 
 test('it adds exited to a fleet row that predates it', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -802,7 +789,7 @@ test('it adds exited to a fleet row that predates it', async () => {
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -822,13 +809,12 @@ test('it adds exited to a fleet row that predates it', async () => {
 });
 
 test('it runs every migration once on the first open of a legacy database', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const legacy = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     legacy.close();
   });
 
@@ -845,13 +831,13 @@ test('it runs every migration once on the first open of a legacy database', asyn
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   await store.stop();
 
   const ledger = new Database(dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     ledger.close();
   });
 
@@ -891,13 +877,12 @@ test('it runs every migration once on the first open of a legacy database', asyn
 });
 
 test('it re-runs no migration when it reopens a migrated database', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const legacy = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     legacy.close();
   });
 
@@ -914,13 +899,13 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   const first = await StateStore.open(dbPath);
 
-  onTestFinished(() => first.stop());
+  registerTestCleanup(() => first.stop());
 
   await first.stop();
 
   const ledger = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     ledger.close();
   });
 
@@ -928,7 +913,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   const second = await StateStore.open(dbPath);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   await second.stop();
 
@@ -941,13 +926,12 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const legacy = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     legacy.close();
   });
 
@@ -964,7 +948,7 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
 
   const first = await StateStore.open(dbPath);
 
-  onTestFinished(() => first.stop());
+  registerTestCleanup(() => first.stop());
 
   const added = buildMockFleetEntry();
 
@@ -973,7 +957,7 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
 
   const second = await StateStore.open(dbPath);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   const fleet = await second.loadFleet();
 
@@ -992,14 +976,13 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
 });
 
 test('it ends a fresh database at the same fleet schema as a fully migrated old one', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const freshPath = join(tmp.dir, 'fresh.db');
   const oldPath = join(tmp.dir, 'old.db');
 
   const old = new Database(oldPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     old.close();
   });
 
@@ -1020,24 +1003,24 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
 
   const freshStore = await StateStore.open(freshPath);
 
-  onTestFinished(() => freshStore.stop());
+  registerTestCleanup(() => freshStore.stop());
 
   const oldStore = await StateStore.open(oldPath);
 
-  onTestFinished(() => oldStore.stop());
+  registerTestCleanup(() => oldStore.stop());
 
   await freshStore.stop();
   await oldStore.stop();
 
   const freshDB = new Database(freshPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     freshDB.close();
   });
 
   const oldDB = new Database(oldPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     oldDB.close();
   });
 
@@ -1068,13 +1051,12 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
 });
 
 test('it loads claude as the last-used agent from a database that predates prefs', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -1108,7 +1090,7 @@ test('it loads claude as the last-used agent from a database that predates prefs
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const agent = await store.loadLastUsedAgent();
 
@@ -1116,13 +1098,12 @@ test('it loads claude as the last-used agent from a database that predates prefs
 });
 
 test('it records a last-used agent in a database that predates prefs', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -1156,7 +1137,7 @@ test('it records a last-used agent in a database that predates prefs', async () 
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   await store.writeLastUsedAgent('grok');
 
@@ -1166,7 +1147,7 @@ test('it records a last-used agent in a database that predates prefs', async () 
 });
 
 test("it round-trips a fleet row's prompt, result, and transcript path", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const entry = buildMockFleetEntry({
     prompt: 'fix the auth bug',
@@ -1182,7 +1163,7 @@ test("it round-trips a fleet row's prompt, result, and transcript path", async (
 });
 
 test('it records a hook event with its normalized kind and detail', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
@@ -1204,7 +1185,7 @@ test('it records a hook event with its normalized kind and detail', async () => 
 });
 
 test('it falls back to the hook message for an event recorded without a detail', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'Notification', payload: { message: 'needs permission' } },
@@ -1226,7 +1207,7 @@ test('it falls back to the hook message for an event recorded without a detail',
 });
 
 test('it leaves heartbeats and unclassified events out of the event reads', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent({ atcId: toSessionID('s1'), event: 'Statusline', payload: {} });
 
@@ -1255,7 +1236,7 @@ test('it leaves heartbeats and unclassified events out of the event reads', asyn
 });
 
 test('it collects events after an id oldest first, up to the limit', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
@@ -1291,7 +1272,7 @@ test('it collects events after an id oldest first, up to the limit', async () =>
 });
 
 test('it collects the latest events oldest first', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
@@ -1331,7 +1312,7 @@ test('it collects the latest events oldest first', async () => {
 });
 
 test("it loads a session's last activity time by its agent session id", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const before = Date.now();
 
@@ -1346,15 +1327,14 @@ test("it loads a session's last activity time by its agent session id", async ()
 });
 
 test('it loads no last activity time for a session that never reported', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const at = await ctx.store.loadLastActivityAt(toSessionID('s1'), undefined);
 
   expect(at).toBeNull();
 });
 
 test('it updates one fleet row without touching its siblings', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const updated = buildMockFleetEntry();
   const sibling = buildMockFleetEntry();
@@ -1375,7 +1355,7 @@ test('it updates one fleet row without touching its siblings', async () => {
 });
 
 test('it ignores an update for a session with no fleet row', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.updateFleetEntry(toSessionID('ghost'), { result: 'done' });
 
@@ -1385,7 +1365,7 @@ test('it ignores an update for a session with no fleet row', async () => {
 });
 
 test('it serves the trail read after an id from an index', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.collectEventsAfter(5, 5);
 
@@ -1399,7 +1379,7 @@ test('it serves the trail read after an id from an index', async () => {
 });
 
 test('it serves the latest trail read from an index', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.collectLatestEvents(5);
 
@@ -1413,7 +1393,7 @@ test('it serves the latest trail read from an index', async () => {
 });
 
 test('it serves the last activity lookup from an index on each id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.loadLastActivityAt(toSessionID('s1'), toAgentSessionID('c1'));
 
@@ -1428,7 +1408,7 @@ test('it serves the last activity lookup from an index on each id', async () => 
 });
 
 test('it lists an accepted message as pending for the session it was sent to', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1440,7 +1420,7 @@ test('it lists an accepted message as pending for the session it was sent to', a
 });
 
 test('it lists pending messages in the order they were sent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = buildMockMessageRecord({
     id: toMessageID('m-z'),
@@ -1470,7 +1450,7 @@ test('it lists pending messages in the order they were sent', async () => {
 });
 
 test('it finds pending messages by agent session id under a new atc id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord({
     atcID: toSessionID('s1'),
@@ -1488,7 +1468,7 @@ test('it finds pending messages by agent session id under a new atc id', async (
 });
 
 test('it moves an accepted message to delivered', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1504,7 +1484,7 @@ test('it moves an accepted message to delivered', async () => {
 });
 
 test('it refuses to deliver a message a second time', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1517,7 +1497,7 @@ test('it refuses to deliver a message a second time', async () => {
 });
 
 test('it drops a delivered message from the pending list', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1530,7 +1510,7 @@ test('it drops a delivered message from the pending list', async () => {
 });
 
 test('it moves a delivered message to answered with the final text', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1556,7 +1536,7 @@ test('it moves a delivered message to answered with the final text', async () =>
 });
 
 test('it answers an accepted message that was never acked', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1580,7 +1560,7 @@ test('it answers an accepted message that was never acked', async () => {
 });
 
 test('it refuses to deliver a message owned by another session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
@@ -1596,7 +1576,7 @@ test('it refuses to deliver a message owned by another session', async () => {
 });
 
 test('it refuses to answer a message owned by another session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
@@ -1613,7 +1593,7 @@ test('it refuses to answer a message owned by another session', async () => {
 });
 
 test('it gives messages sent before SessionStart their agent session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
@@ -1629,7 +1609,7 @@ test('it gives messages sent before SessionStart their agent session id', async 
 });
 
 test('it moves messages to a changed agent session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord({
     atcID: toSessionID('s1'),
@@ -1653,7 +1633,7 @@ test('it moves messages to a changed agent session id', async () => {
 });
 
 test('it keeps messages across a store reopen', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1662,7 +1642,7 @@ test('it keeps messages across a store reopen', async () => {
 
   const second = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   const pending = await second.collectPendingMessages({ atcID: record.atcID });
 
@@ -1670,7 +1650,7 @@ test('it keeps messages across a store reopen', async () => {
 });
 
 test('it finds a message for its own session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1682,7 +1662,7 @@ test('it finds a message for its own session', async () => {
 });
 
 test('it finds no message for another session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
@@ -1694,7 +1674,7 @@ test('it finds no message for another session', async () => {
 });
 
 test('it serves the pending messages of an atc id from an index', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.collectPendingMessages({ atcID: toSessionID('s1') });
 
@@ -1708,7 +1688,7 @@ test('it serves the pending messages of an atc id from an index', async () => {
 });
 
 test('it serves the pending messages of an agent session id from an index', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.collectPendingMessages({
     atcID: toSessionID('s1'),
@@ -1725,7 +1705,7 @@ test('it serves the pending messages of an agent session id from an index', asyn
 });
 
 test('it finds a message by its id alone', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
 
@@ -1737,7 +1717,7 @@ test('it finds a message by its id alone', async () => {
 });
 
 test('it finds no message for an unknown id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.writeMessage(buildMockMessageRecord({ id: toMessageID('m-1') }));
 
@@ -1747,7 +1727,7 @@ test('it finds no message for an unknown id', async () => {
 });
 
 test('it records a message status change into the trail with its message id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -1774,7 +1754,7 @@ test('it records a message status change into the trail with its message id', as
 });
 
 test('it records a report into the trail with its label', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -1802,7 +1782,7 @@ test('it records a report into the trail with its label', async () => {
 });
 
 test('it stores a report resent under the same report id once', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = await ctx.store.recordTrailEntry({
     at: 1000,
@@ -1828,25 +1808,24 @@ test('it stores a report resent under the same report id once', async () => {
 
   const events = await ctx.store.collectLatestEvents(10);
 
-  expect({ first, resent, events }).toStrictEqual({
-    first: true,
-    resent: false,
-    events: [
-      {
-        id: expect.toBeNumber(),
-        at: 1000,
-        atcID: toSessionID('s1'),
-        agentSessionID: null,
-        kind: 'report',
-        detail: 'need review',
-        label: 'blocked',
-      },
-    ],
-  });
+  expect(first).toBeTrue();
+  expect(resent).toBeFalse();
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: 1000,
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'report',
+      detail: 'need review',
+      label: 'blocked',
+    },
+  ]);
 });
 
 test('it stores every report that carries no report id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -1870,33 +1849,32 @@ test('it stores every report that carries no report id', async () => {
 
   const events = await ctx.store.collectLatestEvents(10);
 
-  expect({ second, events }).toStrictEqual({
-    second: true,
-    events: [
-      {
-        id: expect.toBeNumber(),
-        at: 1000,
-        atcID: toSessionID('s1'),
-        agentSessionID: null,
-        kind: 'report',
-        detail: 'need review',
-        label: 'blocked',
-      },
-      {
-        id: expect.toBeNumber(),
-        at: 2000,
-        atcID: toSessionID('s1'),
-        agentSessionID: null,
-        kind: 'report',
-        detail: 'need review',
-        label: 'blocked',
-      },
-    ],
-  });
+  expect(second).toBeTrue();
+
+  expect(events).toStrictEqual([
+    {
+      id: expect.toBeNumber(),
+      at: 1000,
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'report',
+      detail: 'need review',
+      label: 'blocked',
+    },
+    {
+      id: expect.toBeNumber(),
+      at: 2000,
+      atcID: toSessionID('s1'),
+      agentSessionID: null,
+      kind: 'report',
+      detail: 'need review',
+      label: 'blocked',
+    },
+  ]);
 });
 
 test("it finds a report's whole text by its trail id", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -1926,7 +1904,7 @@ test("it finds a report's whole text by its trail id", async () => {
 });
 
 test('it misses a trail id whose row is not a report', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
@@ -1943,7 +1921,7 @@ test('it misses a trail id whose row is not a report', async () => {
 });
 
 test('it finds a report of a session inside the scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -1976,7 +1954,7 @@ test('it finds a report of a session inside the scope', async () => {
 });
 
 test('it misses a report of a session outside the scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -2001,7 +1979,7 @@ test('it misses a report of a session outside the scope', async () => {
 });
 
 test('it finds the preview of a report recorded without its whole text', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -2017,7 +1995,7 @@ test('it finds the preview of a report recorded without its whole text', async (
 
   const db = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -2026,7 +2004,7 @@ test('it finds the preview of a report recorded without its whole text', async (
 
   const store = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const [event] = await store.collectLatestEvents(1);
 
@@ -2046,7 +2024,7 @@ test('it finds the preview of a report recorded without its whole text', async (
 });
 
 test('it reads the trail in order across hook events and message entries', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordEvent(
     { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
@@ -2099,7 +2077,7 @@ test('it reads the trail in order across hook events and message entries', async
 });
 
 test('it stamps trail entries recorded before the agent session id was known', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
@@ -2147,7 +2125,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
 });
 
 test("it counts a trail entry toward its session's last activity time", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 5000,
@@ -2165,7 +2143,7 @@ test("it counts a trail entry toward its session's last activity time", async ()
 });
 
 test('it answers every message of one turn in one call and returns them oldest first', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const two = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
   const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
@@ -2188,7 +2166,7 @@ test('it answers every message of one turn in one call and returns them oldest f
 });
 
 test('it lists the other messages answered in the same turn as siblings', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const two = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
   const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
@@ -2214,7 +2192,7 @@ test('it lists the other messages answered in the same turn as siblings', async 
 });
 
 test('it lists the other messages of one turn in send order when they share a send time', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = buildMockMessageRecord({
     id: toMessageID('m-c'),
@@ -2259,8 +2237,7 @@ test('it lists the other messages of one turn in send order when they share a se
 });
 
 test('it links a legacy fleet.json sub-session to its parent by the minted session id', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const legacy = join(tmp.dir, 'fleet.json');
 
   writeFileSync(
@@ -2273,7 +2250,7 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'), legacy);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
@@ -2286,13 +2263,12 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
 });
 
 test('it rebuilds a fleet at the model-and-effort shape keyed by a minted session id', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -2380,13 +2356,13 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const fleet = await store.loadFleet();
 
   const reader = new Database(dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     reader.close();
   });
 
@@ -2452,7 +2428,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 });
 
 test('it keeps a fleet row that has no agent session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The factory always sets an agent session id, so this row is written out.
   await ctx.store.writeFleet([
@@ -2467,7 +2443,7 @@ test('it keeps a fleet row that has no agent session id', async () => {
 });
 
 test('it keeps the later of two fleet entries that share an agent session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const first = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-first') });
   const resumed = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-first') });
@@ -2480,7 +2456,7 @@ test('it keeps the later of two fleet entries that share an agent session id', a
 });
 
 test('it mints a random uuid as the daemon id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.store.daemonID).toMatch(
     /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/,
@@ -2488,7 +2464,7 @@ test('it mints a random uuid as the daemon id', async () => {
 });
 
 test('it keeps the same daemon id across a reopen', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const firstID = ctx.store.daemonID;
 
@@ -2496,19 +2472,18 @@ test('it keeps the same daemon id across a reopen', async () => {
 
   const second = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   expect(second.daemonID).toBe(firstID);
 });
 
 test('it records this daemon as the owner of every fleet row it migrates', async () => {
-  await using tmp = setupTempDir('atc-store-');
-
+  const tmp = setupTempDir('atc-store-');
   const dbPath = join(tmp.dir, 'state.db');
 
   const db = new Database(dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -2533,7 +2508,7 @@ test('it records this daemon as the owner of every fleet row it migrates', async
 
   const store = await StateStore.open(dbPath);
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const daemonID = store.daemonID;
 
@@ -2543,7 +2518,7 @@ test('it records this daemon as the owner of every fleet row it migrates', async
 
   const reader = new Database(dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     reader.close();
   });
 
@@ -2561,11 +2536,11 @@ test('it records this daemon as the owner of every fleet row it migrates', async
 });
 
 test("it rewrites only this daemon's fleet rows and leaves another daemon's in place", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const other = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     other.close();
   });
 
@@ -2587,7 +2562,7 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
 
   const reader = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     reader.close();
   });
 
@@ -2603,7 +2578,7 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
 });
 
 test('it rejects a fleet write for a session whose ownership epoch moved on as stale_epoch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const before = buildMockFleetEntry({ sessionID: toSessionID('s-1') });
 
@@ -2611,7 +2586,7 @@ test('it rejects a fleet write for a session whose ownership epoch moved on as s
 
   const other = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     other.close();
   });
 
@@ -2628,11 +2603,11 @@ test('it rejects a fleet write for a session whose ownership epoch moved on as s
 });
 
 test('it rejects a fleet write for a session another daemon owns as stale_epoch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const other = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     other.close();
   });
 
@@ -2648,13 +2623,13 @@ test('it rejects a fleet write for a session another daemon owns as stale_epoch'
 });
 
 test('it rejects a fleet row update for a session whose ownership epoch moved on as stale_epoch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-1') })]);
 
   const other = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     other.close();
   });
 
@@ -2667,7 +2642,7 @@ test('it rejects a fleet row update for a session whose ownership epoch moved on
 });
 
 test('it claims a free idempotency key', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const claim = {
     principal: 'local',
@@ -2684,7 +2659,7 @@ test('it claims a free idempotency key', async () => {
 });
 
 test('it hands back the record of a held idempotency key', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const claim = {
     principal: 'local',
@@ -2714,7 +2689,7 @@ test('it hands back the record of a held idempotency key', async () => {
 });
 
 test("it keeps the target a completed key's effect was bound to", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const claim = {
     principal: 'local',
@@ -2749,7 +2724,7 @@ test("it keeps the target a completed key's effect was bound to", async () => {
 });
 
 test('it reconciles an interrupted spawn key by whether its session reached the fleet', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const claim = { principal: 'local', operation: 'session.spawn', payloadHash: 'h', at: 1000 };
 
@@ -2761,36 +2736,35 @@ test('it reconciles an interrupted spawn key by whether its session reached the 
   const landed = await ctx.store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 'x' });
   const lost = await ctx.store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 'x' });
 
-  expect({ landed, lost }).toStrictEqual({
-    landed: {
-      principal: 'local',
-      operation: 'session.spawn',
-      key: 'landed',
-      payloadHash: 'h',
-      state: 'completed',
-      effectRef: 's-landed',
-      result: null,
-      effectTarget: null,
-      createdAt: 1000,
-      updatedAt: 5000,
-    },
-    lost: {
-      principal: 'local',
-      operation: 'session.spawn',
-      key: 'lost',
-      payloadHash: 'h',
-      state: 'outcome_unknown',
-      effectRef: 's-lost',
-      result: null,
-      effectTarget: null,
-      createdAt: 1000,
-      updatedAt: 5000,
-    },
+  expect(landed).toStrictEqual({
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'landed',
+    payloadHash: 'h',
+    state: 'completed',
+    effectRef: 's-landed',
+    result: null,
+    effectTarget: null,
+    createdAt: 1000,
+    updatedAt: 5000,
+  });
+
+  expect(lost).toStrictEqual({
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'lost',
+    payloadHash: 'h',
+    state: 'outcome_unknown',
+    effectRef: 's-lost',
+    result: null,
+    effectTarget: null,
+    createdAt: 1000,
+    updatedAt: 5000,
   });
 });
 
 test('it expires completed idempotency keys and keeps unknown outcomes of the same age', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const claim = { principal: 'local', operation: 'session.spawn', payloadHash: 'h', at: 1000 };
 
@@ -2826,7 +2800,7 @@ test('it expires completed idempotency keys and keeps unknown outcomes of the sa
 });
 
 test('it writes no row as its own parent when every row in a chain shares one agent session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const top = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-top') });
 
@@ -2845,7 +2819,7 @@ test('it writes no row as its own parent when every row in a chain shares one ag
 });
 
 test('it moves the sub-sessions of a replaced row up to the parent of the sub-session that replaced it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const other = buildMockFleetEntry();
   const first = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-first') });
@@ -2864,7 +2838,7 @@ test('it moves the sub-sessions of a replaced row up to the parent of the sub-se
 });
 
 test('it breaks the cycle two crossed resumes make by keeping the earlier row top-level', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // R resumes P's agent session under Q, and S resumes Q's under P: replacing
   // P with R and Q with S links R under S and S under R.
@@ -2881,7 +2855,7 @@ test('it breaks the cycle two crossed resumes make by keeping the earlier row to
 });
 
 test('it moves a worker under a row that a resume of its own parent replaced', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const p = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
   const w = buildMockFleetEntry({ parent: p.sessionID });
@@ -2895,7 +2869,7 @@ test('it moves a worker under a row that a resume of its own parent replaced', a
 });
 
 test('it writes three resumes crossed in a ring as one top-level row with every other row under it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // R resumes P under Q, S resumes Q under T, and U resumes T under P, and
   // each replaced row has a worker of its own.
@@ -2931,7 +2905,7 @@ test('it writes three resumes crossed in a ring as one top-level row with every 
 });
 
 test("it moves a worker of a replaced row under the parent of the sub-session that took the row's place", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const o = buildMockFleetEntry();
   const f = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-f') });
@@ -2946,7 +2920,7 @@ test("it moves a worker of a replaced row under the parent of the sub-session th
 });
 
 test('it writes a row whose parent the write does not hold as a top-level row', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const orphan = buildMockFleetEntry();
 
@@ -2958,7 +2932,7 @@ test('it writes a row whose parent the write does not hold as a top-level row', 
 });
 
 test("it moves a row that replaced its own parent under that parent's parent", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const top = buildMockFleetEntry();
 
@@ -2977,7 +2951,7 @@ test("it moves a row that replaced its own parent under that parent's parent", a
 });
 
 test('it records a workspace materialization through its phases', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createMaterialization(
     {
@@ -3022,7 +2996,7 @@ test('it records a workspace materialization through its phases', async () => {
 });
 
 test('it fails every materialization a stopped daemon left short of ready', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createMaterialization(
     {
@@ -3111,7 +3085,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
 
   const second = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   await second.reconcileMaterializations(5000);
 
@@ -3216,7 +3190,7 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
 });
 
 test('it loads a fleet row with its ready workspace and withheld variables, and none short of ready', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createMaterialization(
     {
@@ -3282,7 +3256,7 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
 });
 
 test('it upgrades a database from before runtime auth and keeps every existing row', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const entry = buildMockFleetEntry({
     sessionID: toSessionID('s1'),
@@ -3302,7 +3276,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
 
   const older = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     older.close();
   });
 
@@ -3313,11 +3287,11 @@ test('it upgrades a database from before runtime auth and keeps every existing r
 
   const upgraded = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => upgraded.stop());
+  registerTestCleanup(() => upgraded.stop());
 
   const reader = new Database(ctx.dbPath, { readonly: true });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     reader.close();
   });
 
@@ -3327,21 +3301,26 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .map((row) => row.name)
     .slice(-2);
 
-  expect({
-    fleet: await upgraded.loadFleet(),
-    dirs: await upgraded.collectSpawnDirs(),
-    binding: await upgraded.findAuthBinding(toSessionID('s1')),
-    ledger,
-  }).toStrictEqual({
-    fleet: [entry],
-    dirs: [{ cwd: '/x', grant: { target: 'box', targetIdentity: 'imp:0123456789abcdef' } }],
-    binding: null,
-    ledger: ['025_create_runtime_auth', '026_add_fleet_resume_interrupted_turns'],
-  });
+  const fleet = await upgraded.loadFleet();
+  const dirs = await upgraded.collectSpawnDirs();
+  const binding = await upgraded.findAuthBinding(toSessionID('s1'));
+
+  expect(fleet).toStrictEqual([entry]);
+
+  expect(dirs).toStrictEqual([
+    { cwd: '/x', grant: { target: 'box', targetIdentity: 'imp:0123456789abcdef' } },
+  ]);
+
+  expect(binding).toBeNull();
+
+  expect(ledger).toStrictEqual([
+    '025_create_runtime_auth',
+    '026_add_fleet_resume_interrupted_turns',
+  ]);
 });
 
 test('it records a runtime auth binding as provisioning at its first revision', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createAuthBinding(
     {
@@ -3378,7 +3357,7 @@ test('it records a runtime auth binding as provisioning at its first revision', 
 });
 
 test('it keeps the old revision of a binding whose rebind failed beside the failed attempt', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createAuthBinding(
     {
@@ -3440,7 +3419,7 @@ test('it keeps the old revision of a binding whose rebind failed beside the fail
 });
 
 test('it marks a binding revoked with the time of the revocation', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createAuthBinding(
     {
@@ -3483,7 +3462,7 @@ test('it marks a binding revoked with the time of the revocation', async () => {
 });
 
 test('it writes a grant row per secret and moves it through its phases in place', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.upsertAuthGrant(
     {
@@ -3546,7 +3525,7 @@ test('it writes a grant row per secret and moves it through its phases in place'
 });
 
 test('it removes a binding and its grants and leaves another host untouched', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createAuthBinding(
     {
@@ -3600,47 +3579,47 @@ test('it removes a binding and its grants and leaves another host untouched', as
 
   await ctx.store.removeAuthBinding(toSessionID('s1'));
 
-  expect({
-    removed: await ctx.store.findAuthBinding(toSessionID('s1')),
-    removedGrants: await ctx.store.collectAuthGrants(toSessionID('s1')),
-    kept: await ctx.store.findAuthBinding(toSessionID('s2')),
-    keptGrants: await ctx.store.collectAuthGrants(toSessionID('s2')),
-  }).toStrictEqual({
-    removed: null,
-    removedGrants: [],
-    kept: {
-      hostKey: toSessionID('s2'),
-      target: 'box',
-      targetIdentity: 'imp:0123456789abcdef',
-      impName: 'atc-s2',
-      impID: null,
-      revision: 1,
-      bindingHash: 'a'.repeat(64),
-      bindingJSON: '{"secrets":[]}',
-      state: 'provisioning',
-      attemptID: 'attempt-2',
-      impCreatedByAttempt: false,
-      rebind: null,
-      createdAt: 1000,
-      updatedAt: 1000,
-      revokedAt: null,
-    },
-    keptGrants: [
-      {
-        hostKey: toSessionID('s2'),
-        secret: 'glm',
-        revision: 1,
-        attemptID: 'attempt-2',
-        preexisting: false,
-        phase: 'granted',
-        updatedAt: 1000,
-      },
-    ],
+  const removed = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const removedGrants = await ctx.store.collectAuthGrants(toSessionID('s1'));
+  const kept = await ctx.store.findAuthBinding(toSessionID('s2'));
+  const keptGrants = await ctx.store.collectAuthGrants(toSessionID('s2'));
+
+  expect(removed).toBeNull();
+  expect(removedGrants).toStrictEqual([]);
+
+  expect(kept).toStrictEqual({
+    hostKey: toSessionID('s2'),
+    target: 'box',
+    targetIdentity: 'imp:0123456789abcdef',
+    impName: 'atc-s2',
+    impID: null,
+    revision: 1,
+    bindingHash: 'a'.repeat(64),
+    bindingJSON: '{"secrets":[]}',
+    state: 'provisioning',
+    attemptID: 'attempt-2',
+    impCreatedByAttempt: false,
+    rebind: null,
+    createdAt: 1000,
+    updatedAt: 1000,
+    revokedAt: null,
   });
+
+  expect(keptGrants).toStrictEqual([
+    {
+      hostKey: toSessionID('s2'),
+      secret: 'glm',
+      revision: 1,
+      attemptID: 'attempt-2',
+      preexisting: false,
+      phase: 'granted',
+      updatedAt: 1000,
+    },
+  ]);
 });
 
 test('it reconciles a grant a stopped daemon left granting as uncertain and leaves settled grants alone', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.upsertAuthGrant(
     {
@@ -3670,7 +3649,7 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
 
   const second = await StateStore.open(ctx.dbPath);
 
-  onTestFinished(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
   await second.reconcileAuthBindings(5000);
 
@@ -3699,7 +3678,7 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
 });
 
 test('it collects every host binding by host key', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createAuthBinding(
     {
@@ -3768,7 +3747,7 @@ test('it collects every host binding by host key', async () => {
 });
 
 test('it closes its connection when disposed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store[Symbol.asyncDispose]();
 
@@ -3776,7 +3755,7 @@ test('it closes its connection when disposed', async () => {
 });
 
 test('it stays closed when disposed after a stop', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.stop();
 
