@@ -12,7 +12,7 @@ import { buildStubClock } from '../test-utils/build-stub-clock';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { tryBindAddresses } from '../test-utils/try-bind-addresses';
+import { tryCreateListeners } from '../test-utils/try-create-listeners';
 import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
@@ -1336,7 +1336,7 @@ test('it logs a refusal after the window as a new line after the count of the fo
 // These peers dial from loopback aliases past 127.0.0.1, which Linux routes
 // on its own and stock macOS lacks, so a host without them skips the test.
 // The refusal log's unit tests cover the same windows with any peer.
-test.skipIf(!tryBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
+test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it logs a line for each new peer while the cap of refusal windows has room',
   async () => {
     const daemon = await startTestDaemon({
@@ -1396,7 +1396,7 @@ test.skipIf(!tryBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
 // These peers dial from loopback aliases past 127.0.0.1, which Linux routes
 // on its own and stock macOS lacks, so a host without them skips the test.
 // The refusal log's unit tests cover the same windows with any peer.
-test.skipIf(!tryBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
+test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it folds refusals from peers past the cap of refusal windows into one overflow line',
   async () => {
     const daemon = await startTestDaemon({
