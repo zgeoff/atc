@@ -59,12 +59,6 @@ export function createStubImpPort(principal = 'token:atc'): StubImpPort {
   return new StubImpPort(principal);
 }
 
-interface StubLease {
-  readonly principal: string;
-  readonly label: string;
-  readonly until: number;
-}
-
 interface StubConnection {
   readonly handlers: ImpSessionHandlers;
   sent: number;
@@ -87,6 +81,12 @@ interface StubProcess {
   // Whether its start required the broker, which an attach that requires
   // it needs.
   readonly requireBroker: boolean;
+}
+
+interface StubLease {
+  readonly principal: string;
+  readonly label: string;
+  readonly until: number;
 }
 
 interface StubImp {
@@ -1757,6 +1757,25 @@ function buildLease(name: string, principal: string, label: string, until: numbe
   return { name, owner: { principal, display: principal, label }, until };
 }
 
+function tryKill(pty: IPty, signal: NodeJS.Signals): void {
+  try {
+    process.kill(pty.pid, signal);
+  } catch {}
+}
+
+// A gate that throws keeps the request from going out, as a closed one does.
+function tryPassGate(gate: () => boolean): boolean {
+  try {
+    return gate();
+  } catch {
+    return false;
+  }
+}
+
+function toSignal(name: string): NodeJS.Signals {
+  return name === 'SIGKILL' || name === 'SIGTERM' || name === 'SIGINT' ? name : 'SIGHUP';
+}
+
 // oxlint-disable-next-line prefer-readonly-parameter-types -- byte arrays have no readonly form
 function mergeTail(ring: Uint8Array, data: Uint8Array, limit: number): Uint8Array {
   const joined = new Uint8Array(ring.length + data.length);
@@ -1792,23 +1811,4 @@ function findSessionName(imp: StubImp, proc: StubProcess): string | undefined {
   }
 
   return undefined;
-}
-
-function toSignal(name: string): NodeJS.Signals {
-  return name === 'SIGKILL' || name === 'SIGTERM' || name === 'SIGINT' ? name : 'SIGHUP';
-}
-
-function tryKill(pty: IPty, signal: NodeJS.Signals): void {
-  try {
-    process.kill(pty.pid, signal);
-  } catch {}
-}
-
-// A gate that throws keeps the request from going out, as a closed one does.
-function tryPassGate(gate: () => boolean): boolean {
-  try {
-    return gate();
-  } catch {
-    return false;
-  }
 }

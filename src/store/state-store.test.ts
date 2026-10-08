@@ -3831,10 +3831,8 @@ test("it removes one session's published record and keeps another's", async () =
   await ctx.store.removePublishedRecord(toSessionID('s-gone'));
 
   const gone = await ctx.store.findPublishedRecord(toSessionID('s-gone'));
-
-  expect(gone).toBeNull();
-
   const stored = await ctx.store.findPublishedRecord(toSessionID('s-kept'));
 
+  expect(gone).toBeNull();
   expect(stored).toStrictEqual(kept);
 });

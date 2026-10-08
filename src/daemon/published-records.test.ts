@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -8,6 +8,7 @@ import { parsePublishedRecord } from '../store/parse-published-record';
 import { StateStore } from '../store/state-store';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { readJSONRecord } from '../test-utils/read-json-record';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { LocalPTYProvider } from './local-pty-provider';
 import { PublishedRecords } from './published-records';
@@ -19,7 +20,7 @@ async function setupTest() {
 
   const store = await StateStore.open(join(tmp.dir, 'atc.db'));
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const localDir = join(tmp.dir, 'records');
 

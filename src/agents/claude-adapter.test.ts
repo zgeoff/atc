@@ -1280,11 +1280,12 @@ test('it refuses to start a subscription session in a host whose environment set
     env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
   });
 
-  expect(run.exitCode).toBe(78);
-
-  expect(run.stderr).toBe(
-    "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
-  );
+  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
+    exitCode: 78,
+    stdout: '',
+    stderr:
+      "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
+  });
 
   expect(existsSync(join(ctx.dir, 'claude-config'))).toBeFalse();
 });

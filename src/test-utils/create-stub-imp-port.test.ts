@@ -1579,6 +1579,14 @@ test('it lets the token grant a rebound secret again once its identity is set an
   expect(grants).toStrictEqual(['glm']);
 });
 
+test('it refuses to rebind a secret impd does not hold', () => {
+  const ctx = setupTest();
+
+  expect(() =>
+    ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]),
+  ).toThrowWithMessage(Error, 'no secret glm');
+});
+
 test('it drops every grant of a removed secret', async () => {
   const ctx = setupTest();
 
