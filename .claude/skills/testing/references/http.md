@@ -4,7 +4,8 @@ A package that calls a remote service over HTTP or RPC tests against MSW handler
 answer from an in-memory store that holds the remote service's state, so a test shapes that state
 and lets the real client code run: its requests, serialisation, retries, and error handling.
 Per-test handlers exist only for what the store cannot express. The [testing skill](../SKILL.md)
-rules on setup, data, and assertions apply throughout.
+rules on setup, data, and assertions apply throughout. Real application and native transport cases
+follow [Real applications and transport](../SKILL.md#real-applications-and-transport).
 
 ## The server and its lifecycle
 
