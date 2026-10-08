@@ -126,10 +126,10 @@ export class CodexAdapter implements AgentAdapter {
         // Codex's shared background server keeps the environment of the
         // terminal that started it and runs every thread's hooks and tools
         // there, so a terminal on it reports as that first session. Each
-        // terminal therefore runs its own server, unless the configured
-        // arguments connect it to a remote one, which Codex refuses to
-        // combine with this flag.
-        ...(this.entry.args.some(isRemoteFlag) ? [] : [NO_DAEMON_FLAG]),
+        // terminal therefore runs its own server. The configured arguments
+        // already carry the flag, or connect to a remote server, which Codex
+        // refuses to combine with it; either way Codex takes no second copy.
+        ...(this.entry.args.some(isDaemonChoiceFlag) ? [] : [NO_DAEMON_FLAG]),
 
         // A model override replaces any model flag the configured arguments
         // carry, and travels as its own argument.
@@ -434,8 +434,9 @@ function buildCodexSpawnOptions(codexArgs: readonly string[]): SpawnOptionSpecs 
   };
 }
 
-// Whether a configured argument is the remote server flag, in either of
-// its spellings.
-function isRemoteFlag(arg: string): boolean {
-  return arg === REMOTE_FLAG || arg.startsWith(`${REMOTE_FLAG}=`);
+// Whether a configured argument already decides which server a terminal
+// uses: the flag that runs it without the shared one, or the remote server
+// flag in either of its spellings.
+function isDaemonChoiceFlag(arg: string): boolean {
+  return arg === NO_DAEMON_FLAG || arg === REMOTE_FLAG || arg.startsWith(`${REMOTE_FLAG}=`);
 }

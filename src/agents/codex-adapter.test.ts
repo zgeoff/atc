@@ -70,8 +70,9 @@ test("it replaces the configured codex model with a spawn's model passed as -m",
 test.each([
   ['--remote', ['--remote', 'ws://127.0.0.1:4500']],
   ['--remote=', ['--remote=ws://127.0.0.1:4500']],
+  ['--no-daemon', ['--no-daemon', '-m', 'gpt-a']],
 ])(
-  'it spawns codex without --no-daemon when the configured arguments hold %s',
+  'it adds no --no-daemon of its own when the configured arguments hold %s',
   (_spelling, codexArgs) => {
     const adapter = new CodexAdapter(getAgentEntry(parseConfig({ codexArgs }), 'codex'));
 
