@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { closeSync, constants, createReadStream, openSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { sendLinesBeforeHandshake } from '../test-utils/send-lines-before-handshake';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
@@ -14,9 +15,7 @@ import { waitFor } from '../test-utils/wait-for';
  * the port its listener bound, which `port` holds.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-non-blocking-log-'));
+  const tmp = setupTempDir('atc-non-blocking-log-');
   const fifoPath = join(tmp.dir, 'stderr');
 
   // The listener refuses to start without a token file.
@@ -29,7 +28,7 @@ async function setupTest() {
   // never reads.
   const readEnd = openSync(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     closeSync(readEnd);
   });
 
@@ -44,7 +43,7 @@ async function setupTest() {
     },
   );
 
-  stack.defer(async () => {
+  registerTestCleanup(async () => {
     proc.kill('SIGKILL');
 
     await proc.exited;
@@ -54,19 +53,16 @@ async function setupTest() {
 
   const first = await proc.stdout.getReader().read();
 
-  const owned = stack.move();
-
   return {
     dir: tmp.dir,
     fifoPath,
     proc,
     port: Number(new TextDecoder().decode(first.value).trim()),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it answers another client while a flood of refusals fills a stderr nobody reads', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await sendLinesBeforeHandshake(ctx.port, 3000);
 
@@ -84,7 +80,7 @@ test('it answers another client while a flood of refusals fills a stderr nobody 
 });
 
 test('it logs how many lines it dropped once the stderr reader reads again', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const output: string[] = [];
 
@@ -104,7 +100,7 @@ test('it logs how many lines it dropped once the stderr reader reads again', asy
 });
 
 test('it delivers every line to a stderr reader that keeps reading', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const output: string[] = [];
   const reader = createReadStream(ctx.fifoPath, { encoding: 'utf8' });
@@ -115,7 +111,20 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
     output.push(String(chunk));
   });
 
-  await sendLinesBeforeHandshake(ctx.port, 2000);
+  await waitFor(() => {
+    expect(output.join('')).toStartWith('atc tcp event=listening ');
+  });
+
+  // The log holds 64 KiB behind a write in flight and drops past that,
+  // however fast its reader reads, so the refusals go out in bursts of 500
+  // lines (about 39 KiB) and the reader takes each burst before the next.
+  for (let sent = 500; sent <= 2000; sent += 500) {
+    await sendLinesBeforeHandshake(ctx.port, 500);
+
+    await waitFor(() => {
+      expect(output.join('').split('\n')).toHaveLength(sent + 2);
+    });
+  }
 
   await waitFor(() => {
     expect(output.join('').split('\n')).toStrictEqual([
@@ -130,7 +139,7 @@ test('it delivers every line to a stderr reader that keeps reading', async () =>
 });
 
 test('it exits cleanly on SIGTERM while a flood of refusals fills the unread stderr', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await sendLinesBeforeHandshake(ctx.port, 3000);
 
@@ -140,15 +149,13 @@ test('it exits cleanly on SIGTERM while a flood of refusals fills the unread std
 
   const exitCode = await ctx.proc.exited;
 
-  expect({ running, exitCode, signalCode: ctx.proc.signalCode }).toStrictEqual({
-    running: 'pending',
-    exitCode: 0,
-    signalCode: null,
-  });
+  expect(running).toBe('pending');
+  expect(exitCode).toBe(0);
+  expect(ctx.proc.signalCode).toBeNull();
 });
 
 test('it writes every line it holds at SIGTERM, and the count of the ones it dropped, to a stderr reader that starts to read after it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const output: string[] = [];
 
