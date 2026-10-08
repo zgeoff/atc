@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubAnsweringListener } from './start-stub-answering-listener';
 import { startStubStalledClient } from './start-stub-stalled-client';
@@ -89,17 +90,17 @@ test('it closes its connection once the test finishes without a dispose', async 
     },
   });
 
-  await startStubStalledClient(path, 'atc/stub');
+  registerTestCleanup(() => {
+    server.stop(true);
+  });
 
-  // The server stops only after this check, so a close it sees comes from
-  // the client.
-  onTestFinished(async () => {
+  // Releases run last registered first: the client closes, then this check
+  // runs, then the server stops, so a close it sees comes from the client.
+  registerTestCleanup(async () => {
     await waitFor(() => {
       expect(closes).toStrictEqual(['closed']);
     });
   });
 
-  onTestFinished(() => {
-    server.stop(true);
-  });
+  await startStubStalledClient(path, 'atc/stub');
 });

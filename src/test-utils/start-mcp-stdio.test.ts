@@ -69,10 +69,9 @@ test('it rejects a request still pending when the server stops', async () => {
   const mcp = await startMCPStdio({ home: ctx.home });
 
   const held = mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
-  const stopping = mcp[Symbol.asyncDispose]();
 
-  onTestFinished(() => stopping);
-
+  // The helper's own release awaits this stop once the test finishes.
+  void mcp[Symbol.asyncDispose]();
   expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/);
 });
 

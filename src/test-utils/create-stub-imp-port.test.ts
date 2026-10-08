@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -797,6 +797,27 @@ test('it relays guest connections again once the refusal stops', async () => {
   });
 
   ctx.port.startRelayRefusal();
+
+  const refusedClosed = Promise.withResolvers<void>();
+
+  const refused = await Bun.connect({
+    unix: guestPath,
+    socket: {
+      data() {},
+      close() {
+        refusedClosed.resolve();
+      },
+    },
+  });
+
+  onTestFinished(() => {
+    refused.end();
+  });
+
+  await refusedClosed.promise;
+
+  const relayedWhileRefused = connections;
+
   ctx.port.stopRelayRefusal();
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
@@ -808,6 +829,9 @@ test('it relays guest connections again once the refusal stops', async () => {
   await waitFor(() => {
     expect(connections).toBe(1);
   });
+
+  expect(relayedWhileRefused).toBe(0);
+  expect(connections).toBe(1);
 });
 
 test('it drops what a guest writes while guest bytes are dropped', async () => {
@@ -856,7 +880,6 @@ test('it relays what a guest writes once the drop stops', async () => {
   });
 
   ctx.port.startGuestByteDrop();
-  ctx.port.stopGuestByteDrop();
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
 
@@ -864,11 +887,24 @@ test('it relays what a guest writes once the drop stops', async () => {
     socket.end();
   });
 
+  socket.write('lost\n');
+
+  await waitFor(() => {
+    expect(ctx.port.countDroppedGuestBytes()).toBe(5);
+  });
+
+  const receivedWhileDropped = received.join('');
+
+  ctx.port.stopGuestByteDrop();
   socket.write('kept\n');
 
   await waitFor(() => {
     expect(received.join('')).toBe('kept\n');
   });
+
+  expect(receivedWhileDropped).toBe('');
+  expect(ctx.port.countDroppedGuestBytes()).toBe(5);
+  expect(received.join('')).toBe('kept\n');
 });
 
 test('it still writes what the daemon sends to the guest while guest bytes are dropped', async () => {
@@ -1441,9 +1477,17 @@ test('it removes grants again once the removal failure is cleared', async () => 
   await ctx.port.createGrant('atc-s1', 'glm');
 
   ctx.port.setGrantRemovalFailure('UNAVAILABLE');
+
+  const [failed] = await Promise.allSettled([ctx.port.removeGrant('atc-s1', 'glm')]);
+
   ctx.port.setGrantRemovalFailure(null);
 
   const removed = await ctx.port.removeGrant('atc-s1', 'glm');
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNAVAILABLE', message: 'impd did not remove the grant' },
+  });
 
   expect(removed).toBeTrue();
 });
@@ -1971,9 +2015,13 @@ test('it lets lease acquisitions through again after the one failure', async () 
 
   ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
 
-  await Promise.allSettled([ctx.port.acquireLease('imp-a', 'atc-d1', 60)]);
-
+  const [failed] = await Promise.allSettled([ctx.port.acquireLease('imp-a', 'atc-d1', 60)]);
   const lease = await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNAVAILABLE', message: 'impd refused the lease (UNAVAILABLE)' },
+  });
 
   expect(lease.owner.label).toBe('atc-d1');
 });
@@ -2003,10 +2051,17 @@ test('it lets a held lease acquisition through once the lease hold stops', async
 
   const acquiring = ctx.port.acquireLease('imp-a', 'atc-d1', 60);
 
+  await waitFor(() => {
+    expect(ctx.port.countHeldLeases()).toBe(1);
+  });
+
+  const statusWhileHeld = Bun.peek.status(acquiring);
+
   ctx.port.stopLeaseHold();
 
   const lease = await acquiring;
 
+  expect(statusWhileHeld).toBe('pending');
   expect(lease.owner.label).toBe('atc-d1');
 });
 
@@ -2037,10 +2092,17 @@ test('it lets a held lease release through once the release hold stops', async (
 
   const releasing = ctx.port.releaseLease('imp-a', 'atc-d1');
 
+  await waitFor(() => {
+    expect(ctx.port.countHeldReleases()).toBe(1);
+  });
+
+  const statusWhileHeld = Bun.peek.status(releasing);
+
   ctx.port.stopReleaseHold();
 
   const released = await releasing;
 
+  expect(statusWhileHeld).toBe('pending');
   expect(released).toBeTrue();
 });
 
@@ -2075,9 +2137,17 @@ test('it destroys imps again once the destroy failure is cleared', async () => {
   await ctx.port.createImp({ name: 'imp-a' });
 
   ctx.port.setDestroyFailure('UNAVAILABLE');
+
+  const [failed] = await Promise.allSettled([ctx.port.destroyImp('imp-a')]);
+
   ctx.port.setDestroyFailure(null);
 
   await ctx.port.destroyImp('imp-a');
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNAVAILABLE', message: 'impd could not destroy imp-a' },
+  });
 
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
 });
@@ -2098,9 +2168,13 @@ test('it answers a feature read once the failures are spent', async () => {
 
   ctx.port.setFeatureFailures(1);
 
-  await Promise.allSettled([ctx.port.readFeatures()]);
-
+  const [failed] = await Promise.allSettled([ctx.port.readFeatures()]);
   const features = await ctx.port.readFeatures();
+
+  expect(failed).toMatchObject({
+    status: 'rejected',
+    reason: { code: 'UNREACHABLE', message: 'impd did not answer' },
+  });
 
   expect(features).toStrictEqual({
     sessionOffsets: true,
@@ -2110,6 +2184,17 @@ test('it answers a feature read once the failures are spent', async () => {
     execRequire: true,
     oauthSecrets: true,
   });
+});
+
+test('it counts each feature read that failed as an unreachable impd', async () => {
+  const ctx = setupTest();
+
+  ctx.port.setFeatureFailures(2);
+
+  await Promise.allSettled([ctx.port.readFeatures(), ctx.port.readFeatures()]);
+  await ctx.port.readFeatures();
+
+  expect(ctx.port.countFailedFeatureReads()).toBe(2);
 });
 
 test('it exits 1 from a command whose argv holds the failing text without running it', async () => {
@@ -2140,9 +2225,18 @@ test('it runs commands again once the command failure is cleared', async () => {
   await ctx.port.createImp({ name: 'imp-a' });
 
   ctx.port.setCommandFailure('echo');
+
+  const failed = await ctx.port.runCommand('imp-a', { argv: ['echo', 'ran'] });
+
   ctx.port.setCommandFailure(null);
 
   const result = await ctx.port.runCommand('imp-a', { argv: ['echo', 'ran'] });
+
+  expect({
+    code: failed.code,
+    stdout: Buffer.from(failed.stdout).toString(),
+    stderr: Buffer.from(failed.stderr).toString(),
+  }).toStrictEqual({ code: 1, stdout: '', stderr: 'the command failed\n' });
 
   expect(Buffer.from(result.stdout).toString()).toBe('ran\n');
 });
@@ -2279,7 +2373,7 @@ test('it answers the session request after the dropped ones', async () => {
     { onStarted: () => {}, onOutput: () => {} },
   );
 
-  await dropped.outcome;
+  const droppedOutcome = await dropped.outcome;
 
   const connection = ctx.port.openSession(
     {
@@ -2297,6 +2391,7 @@ test('it answers the session request after the dropped ones', async () => {
 
   const outcome = await connection.outcome;
 
+  expect(droppedOutcome).toStrictEqual({ kind: 'closed', closeCode: 1006, reason: 'code 1006' });
   expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
 });
 
@@ -2414,10 +2509,17 @@ test('it sends each held session request once the upgrade hold stops', async () 
     { onStarted: () => {}, onOutput: () => {} },
   );
 
+  await waitFor(() => {
+    expect(ctx.port.countHeldUpgrades()).toBe(1);
+  });
+
+  const requestsWhileHeld = ctx.port.sessionRequests.length;
+
   ctx.port.stopUpgradeHold();
 
   const outcome = await connection.outcome;
 
+  expect(requestsWhileHeld).toBe(0);
   expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
   expect(ctx.port.countHeldUpgrades()).toBe(0);
 });
@@ -3021,6 +3123,24 @@ test('it runs a start that requires the broker once a broker failure stops', asy
   await ctx.port.createGrant('atc-s1', 'glm');
 
   ctx.port.startBrokerFailure();
+
+  const refused = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'atc-s1',
+      session: 's0',
+      argv: ['printf', 'ran'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+      require: ['broker'],
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  const refusedOutcome = await refused.outcome;
+
   ctx.port.stopBrokerFailure();
 
   const connection = ctx.port.openSession(
@@ -3039,6 +3159,13 @@ test('it runs a start that requires the broker once a broker failure stops', asy
   );
 
   const outcome = await connection.outcome;
+
+  expect(refusedOutcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready in imp atc-s1',
+    data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+  });
 
   expect(outcome).toStrictEqual({ kind: 'exit', code: 0, signal: null, offset: 3 });
 });
@@ -3180,13 +3307,24 @@ test('it stops every forward once the test finishes without a dispose', () => {
 
   port.openReverseForward('imp-a', guestPath, () => {});
 
+  // Runs after the port's own release; it removes a socket the stop left
+  // before it checks, so a failing stop leaks nothing.
   onTestFinished(() => {
-    expect(existsSync(guestPath)).toBeFalse();
+    const left = existsSync(guestPath);
+
+    rmSync(guestPath, { force: true });
+
+    expect(left).toBeFalse();
   });
 });
 
 test('it stops every forward once disposed', () => {
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
+
+  onTestFinished(() => {
+    rmSync(guestPath, { force: true });
+  });
+
   const port = createStubImpPort();
 
   port.openReverseForward('imp-a', guestPath, () => {});

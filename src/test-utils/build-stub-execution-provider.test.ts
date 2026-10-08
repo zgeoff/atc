@@ -36,14 +36,13 @@ test('it applies the kind and capability overrides on top of the defaults', () =
     capabilities: { suspend: true, destroy: true, input: false },
   });
 
-  expect({ kind: provider.kind, capabilities: provider.capabilities }).toStrictEqual({
-    kind: 'imp-like',
-    capabilities: {
-      ...new LocalPTYProvider().capabilities,
-      suspend: true,
-      destroy: true,
-      input: false,
-    },
+  expect(provider.kind).toBe('imp-like');
+
+  expect(provider.capabilities).toStrictEqual({
+    ...new LocalPTYProvider().capabilities,
+    suspend: true,
+    destroy: true,
+    input: false,
   });
 });
 

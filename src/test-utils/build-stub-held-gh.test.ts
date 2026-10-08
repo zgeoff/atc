@@ -63,12 +63,12 @@ test('it holds the listing until the hold file goes', async () => {
     expect(existsSync(join(ctx.dir, 'gh-held'))).toBe(true);
   });
 
-  const exitedWhileHeld = proc.exitCode;
+  const statusWhileHeld = Bun.peek.status(proc.exited);
 
   rmSync(join(ctx.dir, 'gh-hold'));
 
   const exitCode = await proc.exited;
 
-  expect(exitedWhileHeld).toBeNull();
+  expect(statusWhileHeld).toBe('pending');
   expect(exitCode).toBe(0);
 });

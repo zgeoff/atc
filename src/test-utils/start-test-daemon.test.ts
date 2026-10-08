@@ -122,12 +122,12 @@ test('it collects the daemon log lines', async () => {
 
   const closed = Promise.withResolvers<void>();
 
-  await Bun.connect({
+  const socket = await Bun.connect({
     hostname: '127.0.0.1',
     port,
     socket: {
-      open(socket) {
-        socket.end('not a handshake\n');
+      open(opened) {
+        opened.end('not a handshake\n');
       },
       close() {
         closed.resolve();
@@ -135,6 +135,10 @@ test('it collects the daemon log lines', async () => {
       data() {},
       error() {},
     },
+  });
+
+  registerTestCleanup(() => {
+    socket.end();
   });
 
   await closed.promise;
@@ -168,12 +172,12 @@ test('it leaves the log to the options when they set one', async () => {
 
   const closed = Promise.withResolvers<void>();
 
-  await Bun.connect({
+  const socket = await Bun.connect({
     hostname: '127.0.0.1',
     port,
     socket: {
-      open(socket) {
-        socket.end('not a handshake\n');
+      open(opened) {
+        opened.end('not a handshake\n');
       },
       close() {
         closed.resolve();
@@ -181,6 +185,10 @@ test('it leaves the log to the options when they set one', async () => {
       data() {},
       error() {},
     },
+  });
+
+  registerTestCleanup(() => {
+    socket.end();
   });
 
   await closed.promise;

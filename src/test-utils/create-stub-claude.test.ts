@@ -293,8 +293,21 @@ test('it holds its reports at the gate until an input line arrives, removing the
 
   await proc.exited;
 
+  const hooks = readFileSync(join(ctx.dir, 'hooks.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line): unknown => JSON.parse(line));
+
   expect(heldReports).toBeFalse();
-  expect(readFileSync(join(ctx.dir, 'hooks.jsonl'), 'utf8')).toInclude('SessionStart');
+
+  expect(hooks).toStrictEqual([
+    {
+      hook_event_name: 'SessionStart',
+      session_id: 'fake-1',
+      transcript_path: join(ctx.dir, 'fake-transcript.jsonl'),
+    },
+    { hook_event_name: 'Notification', session_id: 'fake-1', message: 'needs permission' },
+  ]);
 });
 
 test('it runs a daemon restart after its start once and removes the request', () => {

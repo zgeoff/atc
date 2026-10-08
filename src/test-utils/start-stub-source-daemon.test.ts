@@ -74,7 +74,7 @@ test('it stops the daemon process on dispose', async () => {
   expect(() => process.kill(daemon.pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
 });
 
-test('it rejects when the daemon exits before it listens', async () => {
+test('it rejects when the daemon exits before it listens', () => {
   const ctx = setupTest();
 
   // A runtime directory that is a file leaves the daemon nowhere to write
@@ -87,9 +87,7 @@ test('it rejects when the daemon exits before it listens', async () => {
     XDG_RUNTIME_DIR: join(ctx.dir, 'not-a-dir'),
   });
 
-  await expect(starting).toReject();
-
-  expect(starting).rejects.toThrow('the source daemon exited before it listened');
+  expect(starting).rejects.toThrowWithMessage(Error, 'the source daemon exited before it listened');
 });
 
 test('it stops the daemon once the test finishes without a dispose', async () => {

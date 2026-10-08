@@ -196,4 +196,22 @@ test('it defers its session start until the defer file goes', async () => {
   });
 
   expect(reportedWhileDeferred).toBeEmpty();
+
+  expect(ctx.lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    {
+      atcId: 's-1',
+      event: 'SessionStart',
+      payload: { hookEventName: 'session_start', sessionId: 'fake-grok-1', cwd: ctx.dir },
+    },
+    {
+      atcId: 's-1',
+      event: 'Notification',
+      payload: {
+        hookEventName: 'notification',
+        sessionId: 'fake-grok-1',
+        notificationType: 'permission_prompt',
+        message: 'allow edit?',
+      },
+    },
+  ]);
 });

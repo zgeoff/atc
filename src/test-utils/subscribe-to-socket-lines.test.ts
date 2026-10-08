@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubWaitClock } from './build-stub-wait-clock';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubRecordingListener } from './start-stub-recording-listener';
 import { startStubStalledListener } from './start-stub-stalled-listener';
@@ -149,19 +150,20 @@ test('it ends its connection once the test finishes without a dispose', async ()
     },
   });
 
-  await subscribeToSocketLines(path);
+  registerTestCleanup(() => {
+    server.stop(true);
+  });
 
-  // The server stops only after this check, so a close it sees comes from
-  // the subscriber.
-  onTestFinished(async () => {
+  // Releases run last registered first: the subscriber ends, then this
+  // check runs, then the server stops, so a close it sees comes from the
+  // subscriber.
+  registerTestCleanup(async () => {
     await waitFor(() => {
       expect(closes).toStrictEqual(['closed']);
     });
   });
 
-  onTestFinished(() => {
-    server.stop(true);
-  });
+  await subscribeToSocketLines(path);
 });
 
 test('it ends its connection once disposed', async () => {
