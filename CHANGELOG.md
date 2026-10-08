@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.6.1...@zgeoff/atc@3.6.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* **geo-184:** compile binaries to bytecode so hooks start fast ([#449](https://github.com/zgeoff/atc/issues/449)) ([7adcc7d](https://github.com/zgeoff/atc/commit/7adcc7d3d4d17946ba70281bf6f01a6b71791e36))
+
 ## [3.6.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.6.0...@zgeoff/atc@3.6.1) (2026-10-08)
 
 ### Bug Fixes
