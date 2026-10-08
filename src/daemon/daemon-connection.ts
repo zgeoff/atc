@@ -853,7 +853,7 @@ export class DaemonConnection {
         return;
       }
       case 'session.submit': {
-        this.applySubmit(req, ctx);
+        await this.applySubmit(req, ctx);
 
         return;
       }
@@ -1282,7 +1282,7 @@ export class DaemonConnection {
     this.sendInputResult(req, sessionID, ctx.writeSessionInput(sessionID, parsed.data.d));
   }
 
-  private applySubmit(req: RequestMsg, ctx: DaemonContext): void {
+  private async applySubmit(req: RequestMsg, ctx: DaemonContext): Promise<void> {
     const parsed = parseRequestParams('session.submit', req.p);
 
     if (!parsed.ok) {
@@ -1293,7 +1293,9 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
-    this.sendInputResult(req, sessionID, ctx.writeSessionLine(sessionID, parsed.data.text));
+    const result = await ctx.writeSessionLine(sessionID, parsed.data.text);
+
+    this.sendInputResult(req, sessionID, result);
   }
 
   private sendInputResult(

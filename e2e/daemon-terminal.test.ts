@@ -620,72 +620,214 @@ test('it types a slash command name to a claude session and pastes its long argu
   expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"/goal ${'a'.repeat(1994)}"`]);
 });
 
-test.each([['codex'], ['grok']])(
-  'it pastes a slash command line to a %s session whole',
-  async (agent) => {
-    const ctx = setupTest();
+test('it pastes a slash command line to a grok session whole', async () => {
+  const ctx = setupTest();
 
-    writeFileSync(
-      ctx.configPath,
-      JSON.stringify({
-        agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok }, codex: { bin: ctx.codex } },
-      }),
-    );
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok }, codex: { bin: ctx.codex } },
+    }),
+  );
 
-    const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    const client = await daemon.openClient();
+  const client = await daemon.openClient();
 
-    const events: EventMsg[] = [];
+  const events: EventMsg[] = [];
 
-    client.onEvent = (event) => {
-      events.push(event);
-    };
+  client.onEvent = (event) => {
+    events.push(event);
+  };
 
-    await client.sendHello('atc/test');
+  await client.sendHello('atc/test');
 
-    const ok = await client.sendRequest('session.spawn', {
-      cwd: ctx.home,
-      agent,
-      cols: 80,
-      rows: 24,
-    });
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'grok',
+    cols: 80,
+    rows: 24,
+  });
 
-    const id = getString(getRecord(ok, 'session'), 'id');
+  const id = getString(getRecord(ok, 'session'), 'id');
 
-    await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
 
-    // A screen read waits for the daemon's parse, so once it shows the
-    // banner, the paste mode the composer turned on just before it is in
-    // force.
-    await waitFor(async () => {
-      const read = await client.sendRequest('session.screen', { session: id });
+  // A screen read waits for the daemon's parse, so once it shows the
+  // banner, the paste mode the composer turned on just before it is in
+  // force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
 
-      expect(read['text']).toInclude('FAKE_COMPOSER_READY');
-    });
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
 
-    await client.sendRequest('session.submit', { session: id, text: '/goal finish it' });
+  await client.sendRequest('session.submit', { session: id, text: '/goal finish it' });
 
-    // The composer echoes every byte it has read after each read, so its
-    // last echo holds the whole input as it arrived.
-    const submitted = await waitFor(() => {
-      const output = events
-        .filter((e) => e.ev === 'SessionOutput')
-        .map((e) => String(e['d']))
-        .join('');
+  // The composer echoes every byte it has read after each read, so its
+  // last echo holds the whole input as it arrived.
+  const submitted = await waitFor(() => {
+    const output = events
+      .filter((e) => e.ev === 'SessionOutput')
+      .map((e) => String(e['d']))
+      .join('');
 
-      expect(output).toMatch(/SUBMIT:.*\r/);
+    expect(output).toMatch(/SUBMIT:.*\r/);
 
-      return output;
-    });
+    return output;
+  });
 
-    expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
-      `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}/goal finish it${KEYS.pasteClose}${KEYS.enter}`)}`,
-    );
+  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+    `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}/goal finish it${KEYS.pasteClose}${KEYS.enter}`)}`,
+  );
 
-    expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual(['SUBMIT:"/goal finish it"']);
-  },
-);
+  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual(['SUBMIT:"/goal finish it"']);
+});
+
+test('it pastes a slash command name to a codex session on its own before its long argument', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok }, codex: { bin: ctx.codex } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // A screen read waits for the daemon's parse, so once it shows the
+  // banner, the paste mode the composer turned on just before it is in
+  // force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await client.sendRequest('session.submit', {
+    session: id,
+    text: `/goal ${'a'.repeat(1994)}`,
+  });
+
+  // The composer echoes every byte it has read after each read, so its
+  // first echo holds its first read and its last echo the whole input.
+  const submitted = await waitFor(() => {
+    const output = events
+      .filter((e) => e.ev === 'SessionOutput')
+      .map((e) => String(e['d']))
+      .join('');
+
+    expect(output).toMatch(/SUBMIT:.*\r/);
+
+    return output;
+  });
+
+  expect(submitted.match(/RECEIVED:.*/g)?.at(0)).toBe(
+    `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}/goal ${KEYS.pasteClose}`)}`,
+  );
+
+  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+    `RECEIVED:${JSON.stringify(
+      `${KEYS.pasteOpen}/goal ${KEYS.pasteClose}${KEYS.pasteOpen}${'a'.repeat(1994)}${KEYS.pasteClose}${KEYS.enter}`,
+    )}`,
+  );
+
+  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"/goal ${'a'.repeat(1994)}"`]);
+});
+
+test('it holds input sent while a codex slash command line pauses until the line is submitted', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok }, codex: { bin: ctx.codex } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // A screen read waits for the daemon's parse, so once it shows the
+  // banner, the paste mode the composer turned on just before it is in
+  // force.
+  await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  const line = client.sendRequest('session.submit', { session: id, text: '/goal finish it' });
+
+  await client.sendRequest('session.input', { session: id, d: 'x' });
+
+  const lineWhenInputAnswered = Bun.peek.status(line);
+
+  await line;
+
+  // The composer echoes every byte it has read after each read, so its
+  // last echo holds the whole input as it arrived.
+  const received = await waitFor(() => {
+    const output = events
+      .filter((e) => e.ev === 'SessionOutput')
+      .map((e) => String(e['d']))
+      .join('');
+
+    expect(output).toInclude(String.raw`\rx"`);
+
+    return output;
+  });
+
+  expect(lineWhenInputAnswered).toBe('pending');
+
+  expect(received.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+    `RECEIVED:${JSON.stringify(
+      `${KEYS.pasteOpen}/goal ${KEYS.pasteClose}${KEYS.pasteOpen}finish it${KEYS.pasteClose}${KEYS.enter}x`,
+    )}`,
+  );
+});
 
 test('it pastes a long line to a busy claude session as it does to an idle one', async () => {
   const ctx = setupTest();
