@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { spawn } from 'bun-pty';
 import { DaemonError } from '../protocol/daemon-error';
 import { collectCleanEnv } from '../shared/collect-clean-env';
+import { buildHarnessArgv } from './build-harness-argv';
 import type {
   CommandResult,
   CommandSpec,
@@ -58,7 +59,7 @@ export class LocalPTYProvider implements ExecutionProvider {
 
     const pty = spawn(
       ENV_BIN,
-      buildEnvArgs(unset, buildDYLDEntries(env, process.platform), bin, spec.args),
+      buildHarnessArgv({ unset, env, platform: process.platform, bin, args: spec.args }),
       {
         name: 'xterm-256color',
         cols: spec.cols,
@@ -237,38 +238,6 @@ function buildUnsetNames(
   return [...new Set(inherited)].filter(
     (name) => name !== '' && !name.includes('=') && !Object.hasOwn(env, name),
   );
-}
-
-// macOS clears every `DYLD_` variable on the way into `env`, a protected
-// system program, so the map's own ones are set again after the unsets, the
-// one place the argv holds a value.
-function buildDYLDEntries(
-  env: Readonly<Record<string, string>>,
-  platform: NodeJS.Platform,
-): string[] {
-  if (platform !== 'darwin') {
-    return [];
-  }
-
-  return Object.entries(env)
-    .filter(([name]) => name.startsWith('DYLD_'))
-    .map(([name, value]) => `${name}=${value}`);
-}
-
-// `env` reads a word holding `=` as an assignment even after `--`, so a
-// program path holding one starts through a shell that runs it by its first
-// argument.
-const SHELL_EXEC = 'exec "$0" "$@"';
-
-function buildEnvArgs(
-  unset: readonly string[],
-  entries: readonly string[],
-  bin: string,
-  args: readonly string[],
-): string[] {
-  const program = bin.includes('=') ? ['/bin/sh', '-c', SHELL_EXEC, bin] : [bin];
-
-  return [...unset.flatMap((name) => ['-u', name]), '--', ...entries, ...program, ...args];
 }
 
 // A process another user owns still runs, so only a missing process counts
