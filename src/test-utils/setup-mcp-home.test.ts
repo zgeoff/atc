@@ -97,8 +97,10 @@ test("it kills every process in a recorded stand-in's process group", async () =
 
   invariant(group !== undefined, 'the stand-in did not start');
 
+  // The append creates the file before it writes the pid, so the wait is on
+  // the pid itself.
   await waitFor(() => {
-    expect(existsSync(join(mcpHome.home, 'stub-pids'))).toBeTrue();
+    expect(readFileSync(join(mcpHome.home, 'stub-pids'), 'utf8')).toBe(`${group}\n`);
   });
 
   await mcpHome.teardown();
@@ -148,8 +150,10 @@ test("it kills a recorded stand-in's process group and removes the home once the
 
   invariant(group !== undefined, 'the stand-in did not start');
 
+  // The append creates the file before it writes the pid, so the wait is on
+  // the pid itself.
   await waitFor(() => {
-    expect(existsSync(join(mcpHome.home, 'stub-pids'))).toBeTrue();
+    expect(readFileSync(join(mcpHome.home, 'stub-pids'), 'utf8')).toBe(`${group}\n`);
   });
 
   onTestFinished(() => {
