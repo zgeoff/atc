@@ -182,3 +182,47 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
     expect(result.stderr).toInclude(join(ctx.home, 'from-process-env', 'atc-daemon.sock'));
   },
 );
+
+// Claude kills a hook that runs past its 5 s limit. A hook starts at the
+// same moment as the session's other atc processes on a guest of two vCPUs,
+// so the CPU a start costs, not its wall time on an idle runner, decides
+// whether it finishes in time. Five sequential starts give a median that one
+// noisy start cannot move. Without an event socket the reporter exits as
+// soon as it starts, so the median is the start alone, and a start that
+// fails before its work counts as a failure, not as a cheap start.
+test.skipIf(process.env['ATC_BIN'] === undefined)(
+  'it starts the hook reporter of the compiled binary within 75 ms of CPU time',
+  async () => {
+    const ctx = setupTest();
+    const exitCodes: number[] = [];
+    const cpuMs: number[] = [];
+
+    for (let run = 0; run < 5; run += 1) {
+      const proc = Bun.spawn([...ctx.atc, 'hook-report', '--agent', 'claude'], {
+        cwd: ctx.home,
+        env: { PATH: process.env['PATH'], HOME: ctx.home },
+        stdin: 'ignore',
+        stdout: 'ignore',
+        stderr: 'ignore',
+      });
+
+      const exitCode = await proc.exited;
+
+      exitCodes.push(exitCode);
+
+      const usage = proc.resourceUsage();
+
+      invariant(usage);
+
+      // The types declare a number, while Bun returns the microseconds as a
+      // bigint, which division by a number throws on.
+      // oxlint-disable-next-line no-unnecessary-type-conversion
+      cpuMs.push(Number(usage.cpuTime.total) / 1000);
+    }
+
+    const median = cpuMs.toSorted((a, b) => a - b).at(2);
+
+    expect(exitCodes).toStrictEqual([0, 0, 0, 0, 0]);
+    expect(median).toBeLessThan(75);
+  },
+);
