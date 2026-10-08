@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
@@ -591,6 +592,7 @@ test('it keeps a headless run going when the forget of its session fails to dest
           'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
         resume: 'agent-1',
         sessionID: id,
+        recordPath: join(daemon.dir, 'records', `${String(id)}.json`),
       },
       stopped: false,
     },

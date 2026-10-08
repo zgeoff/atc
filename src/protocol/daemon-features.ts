@@ -90,6 +90,11 @@ export const DAEMON_FEATURES = [
   // `session.auth.revoke` and `session.auth.rebind` exist, open to the
   // daemon's owner only.
   'session.auth',
+
+  // Every session has a published record: `session.spawn` takes `scope`,
+  // `session.scope.add` exists, `session.get` returns `sessionRecord`, and
+  // `daemon.hello` takes `session`, the session the client runs inside.
+  'session.record',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

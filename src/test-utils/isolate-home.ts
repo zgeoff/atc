@@ -42,9 +42,12 @@ function requireTestHome(root: string): void {
     .filter(([name, path]) => normalize(process.env[name] ?? '') !== path)
     .map(([name]) => name);
 
-  const leftover = ['ATC_SESSION_ID', 'ATC_SOCKET', 'CLAUDE_CONFIG_DIR'].filter(
-    (name) => name in process.env,
-  );
+  const leftover = [
+    'ATC_SESSION_ID',
+    'ATC_SOCKET',
+    'ATC_SESSION_RECORD',
+    'CLAUDE_CONFIG_DIR',
+  ].filter((name) => name in process.env);
 
   if (mismatched.length > 0 || leftover.length > 0) {
     stopRun(

@@ -6,7 +6,8 @@
  * `keep` passes a value that looks like an id but is none of atc's, such as
  * an agent's own session id, while still rewriting ruled fields below it.
  * `opaque` passes a whole value unread: text an agent or a terminal wrote,
- * or a cursor only the same daemon reads back.
+ * a cursor only the same daemon reads back, or the daemon id a session
+ * record holds as written.
  */
 export type IDRule = 'id' | 'locator' | 'cursor' | 'keep' | 'opaque';
 
@@ -41,7 +42,15 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
   'session.forget': new Map([['confirmToken', 'opaque']]),
   'session.list': buildPrefixedRules('sessions[].', DESCRIPTOR_RULES),
   'session.spawn': buildPrefixedRules('session.', DESCRIPTOR_RULES),
-  'session.get': buildPrefixedRules('session.', DESCRIPTOR_RULES),
+  'session.get': new Map([
+    ...buildPrefixedRules('session.', DESCRIPTOR_RULES),
+    ['sessionRecord.session', 'id'],
+    ['sessionRecord.daemonID', 'opaque'],
+  ]),
+  'session.scope.add': new Map([
+    ['record.session', 'id'],
+    ['record.daemonID', 'opaque'],
+  ]),
   'session.message': new Map([['message', 'id']]),
   'message.get': new Map([
     ['message', 'id'],

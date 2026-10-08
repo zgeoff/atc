@@ -112,6 +112,13 @@ export const REQUEST_PARAM_SCHEMAS = {
       .string({ error: 'daemon.hello principal must be a non-empty string' })
       .min(1, 'daemon.hello principal must be a non-empty string')
       .optional(),
+
+    // The atc session the client runs inside, which a client started in a
+    // session's environment sends; absent for a client outside any session.
+    session: z.preprocess(
+      (v) => (typeof v === 'string' && v !== '' ? v : undefined),
+      z.string().transform(toSessionID).optional(),
+    ),
   }),
   'daemon.ping': z.object({}),
   'daemon.quit': z.object({}),
@@ -196,6 +203,11 @@ export const REQUEST_PARAM_SCHEMAS = {
       .boolean({ error: 'session.spawn trustClonedWorkspace must be a boolean' })
       .optional(),
 
+    // The worktrees, branches, and pull requests the session may touch
+    // beyond its own workspace, which the daemon checks entry by entry and
+    // refuses as scope_invalid.
+    scope: z.unknown().optional(),
+
     // The session the new one is a sub-session of; absent or empty spawns a
     // top-level session.
     parent: z.preprocess(
@@ -225,6 +237,10 @@ export const REQUEST_PARAM_SCHEMAS = {
   // session's host, or bind that host to its agent's current selection.
   'session.auth.revoke': SESSION_DEFAULTED,
   'session.auth.rebind': SESSION_DEFAULTED,
+
+  // Adds checked entries to a session's published record, refused for the
+  // session itself and for any session it is a sub-session of.
+  'session.scope.add': SESSION_DEFAULTED.extend({ scope: z.unknown() }),
   'session.update': SESSION_DEFAULTED.extend({
     name: buildOptionalString(),
     pinned: buildOptionalBoolean(),

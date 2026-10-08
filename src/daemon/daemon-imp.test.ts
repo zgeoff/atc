@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
@@ -7,8 +8,10 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubEchoClaude } from '../test-utils/create-stub-echo-claude';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { readJSONRecord } from '../test-utils/read-json-record';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
@@ -229,6 +232,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
     rows: 24,
   });
 
+  const spawnedID = String(getRecord(spawned, 'session')['id']);
   const [request] = ctx.port.sessionRequests;
 
   invariant(request?.kind === 'start', 'the spawn sent no start request');
@@ -237,6 +241,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
     ATC_BRIDGE: '1',
     ATC_OUTBOX: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.outbox$`)),
     ATC_SESSION_ID: getRecord(spawned, 'session')['id'],
+    ATC_SESSION_RECORD: join(ctx.dir, 'g', 'records', `${spawnedID}.json`),
     ATC_SOCKET: expect.stringMatching(new RegExp(`^${ctx.dir}/g/run/[0-9a-f]{16}\\.sock$`)),
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
@@ -276,6 +281,7 @@ test('it revives a remote harness with only the variables atc sets, never the da
     ATC_BRIDGE: '1',
     ATC_OUTBOX: join(ctx.dir, 'g', 'run', '0f1e2d3c4b5a6978.outbox'),
     ATC_SESSION_ID: '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
+    ATC_SESSION_RECORD: join(ctx.dir, 'g', 'records', '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.json'),
     ATC_SOCKET: join(ctx.dir, 'g', 'run', '0f1e2d3c4b5a6978.sock'),
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
@@ -569,4 +575,69 @@ test('it revives a session that woke its imp even when a sibling on that imp can
       { id: childID, state: 'exited', lastMsg: 'asleep' },
     ],
   });
+});
+
+test('it places a read-only copy of the session record inside the imp before the harness starts', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const path = join(ctx.dir, 'g', 'records', `${id}.json`);
+  const [request] = ctx.port.sessionRequests;
+
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
+
+  expect(request.env['ATC_SESSION_RECORD']).toBe(path);
+  expect(statSync(path).mode & 0o777).toBe(0o444);
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  expect(copy).toStrictEqual({
+    format: 'atc.session-record',
+    version: 1,
+    session: id,
+    daemonID: expect.any(String),
+    target: 'box',
+    revision: 1,
+    updatedAt: expect.any(String),
+    scope: {
+      workspace: { path: ctx.dir, branch: null, repoURL: null, sha: null },
+      worktrees: [],
+      branches: [],
+      pullRequests: [],
+    },
+  });
+});
+
+test('it rewrites the copy inside the imp when a caller adds to the scope', async () => {
+  const ctx = await setupTest();
+  const fixture = await createGitFixture({ prefix: 'atc-daemon-imp-record-' });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: fixture.work,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const added = await ctx.client.sendRequest('session.scope.add', {
+    session: id,
+    scope: { branches: [{ name: 'main' }] },
+  });
+
+  const record = getRecord(added, 'record');
+  const path = join(ctx.dir, 'g', 'records', `${id}.json`);
+
+  expect(record['revision']).toBe(2);
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  expect(copy).toStrictEqual(record);
+  expect(statSync(path).mode & 0o777).toBe(0o444);
 });

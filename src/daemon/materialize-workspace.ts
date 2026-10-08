@@ -76,6 +76,9 @@ type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
 interface ReadyWorkspace {
   readonly kind: 'ready';
   readonly workspace: SessionWorkspace;
+
+  // The branch the checkout is on, null for a detached checkout.
+  readonly branch: string | null;
   readonly warnings: readonly string[];
 
   // The variables every harness the session starts goes without.
@@ -298,6 +301,7 @@ async function runMaterialization(
       ...(ref === null ? {} : { ref }),
       materializedAt,
     },
+    branch: clone.branch,
     warnings: pinned.warnings,
   };
 }
@@ -532,6 +536,7 @@ async function recordPhase(
 
 interface CleanClone {
   readonly sha: string;
+  readonly branch: string | null;
   readonly archive: Uint8Array;
 }
 
@@ -580,7 +585,7 @@ async function createCleanClone(
     throw new DaemonError(outcome.code, outcome.message, { phase: 'cloning' });
   }
 
-  return { sha: clone.sha, archive };
+  return { sha: clone.sha, branch: clone.branch, archive };
 }
 
 function toDaemonError(error: unknown, code: ErrorCode, phase: MaterializationPhase): DaemonError {

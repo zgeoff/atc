@@ -10,6 +10,7 @@ import { toMessageID } from '../shared/to-message-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
+import { buildMockPublishedRecord } from '../test-utils/build-mock-published-record';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { readQueryPlan } from '../test-utils/read-query-plan';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
@@ -873,6 +874,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '024_rebuild_spawn_history_keyed_by_target',
     '025_create_runtime_auth',
     '026_add_fleet_resume_interrupted_turns',
+    '027_create_published_record',
   ]);
 });
 
@@ -922,7 +924,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 26 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 27 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -3320,7 +3322,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-2);
+    .slice(-3);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();
@@ -3337,6 +3339,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
   expect(ledger).toStrictEqual([
     '025_create_runtime_auth',
     '026_add_fleet_resume_interrupted_turns',
+    '027_create_published_record',
   ]);
 });
 
@@ -3789,4 +3792,48 @@ test('it stays closed when disposed after a stop', async () => {
   await expect(disposed).toResolve();
 
   expect(ctx.store.loadFleet()).rejects.toThrow();
+});
+
+test('it round-trips a published record', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockPublishedRecord({ session: 's-record' });
+
+  await ctx.store.writePublishedRecord(record);
+
+  const stored = await ctx.store.findPublishedRecord(toSessionID('s-record'));
+
+  expect(stored).toStrictEqual(record);
+});
+
+test('it replaces the published record of a session on a second write', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.writePublishedRecord(buildMockPublishedRecord({ session: 's-record' }));
+
+  const later = buildMockPublishedRecord({ session: 's-record', revision: 2 });
+
+  await ctx.store.writePublishedRecord(later);
+
+  const stored = await ctx.store.findPublishedRecord(toSessionID('s-record'));
+
+  expect(stored).toStrictEqual(later);
+});
+
+test("it removes one session's published record and keeps another's", async () => {
+  const ctx = await setupTest();
+
+  const kept = buildMockPublishedRecord({ session: 's-kept' });
+
+  await ctx.store.writePublishedRecord(buildMockPublishedRecord({ session: 's-gone' }));
+  await ctx.store.writePublishedRecord(kept);
+  await ctx.store.removePublishedRecord(toSessionID('s-gone'));
+
+  const gone = await ctx.store.findPublishedRecord(toSessionID('s-gone'));
+
+  expect(gone).toBeNull();
+
+  const stored = await ctx.store.findPublishedRecord(toSessionID('s-kept'));
+
+  expect(stored).toStrictEqual(kept);
 });

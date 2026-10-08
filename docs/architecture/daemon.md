@@ -62,10 +62,10 @@ follows the log line by line, and exits with the code in the log's final result 
 worker ends without a result record, the command exits 1 and names the log. Each run removes logs
 older than 7 days.
 
-The worker starts through the same exec logic the daemon boot uses, and it drops `ATC_SESSION_ID`
-and `ATC_SOCKET` from every environment it passes on, so a replacement daemon never mistakes itself
-for a hosted session. The command passes its own session id to the worker, which marks that session
-in the report.
+The worker starts through the same exec logic the daemon boot uses, and it drops `ATC_SESSION_ID`,
+`ATC_SESSION_RECORD`, and `ATC_SOCKET` from every environment it passes on, so a replacement daemon
+never mistakes itself for a hosted session. The command passes its own session id to the worker,
+which marks that session in the report.
 
 ### The preflight
 
@@ -318,11 +318,12 @@ Claude session there reports through an atc inside the imp: the one the target's
 or a copy of the daemon's own binary at `bin/atc`, which a compiled daemon on Linux installs when
 the imp lacks it. A daemon run from source has no binary to copy, so without `guestATC` it refuses a
 remote Claude spawn with `unsupported_operation`. The session's settings and its copy of the
-`atc-bridge` mod unpack into `sessions/<id>/`. Their statusline shows the session's own state alone,
-never the rest of the fleet. A gateway with a credential helper never runs remotely, since the
-helper runs on the daemon's machine. A gateway with `auth`, and stock Claude with `auth`, run on an
-imp with a Claude config folder of their own under `sessions/<id>/` and a placeholder in place of
-the credential, which impd's broker swaps for the secret; the
+`atc-bridge` mod unpack into `sessions/<id>/`, and the session's [record](./session-record.md) lands
+read-only at `records/<id>.json`. Their statusline shows the session's own state alone, never the
+rest of the fleet. A gateway with a credential helper never runs remotely, since the helper runs on
+the daemon's machine. A gateway with `auth`, and stock Claude with `auth`, run on an imp with a
+Claude config folder of their own under `sessions/<id>/` and a placeholder in place of the
+credential, which impd's broker swaps for the secret; the
 [brokered credentials](../guides/configuration.md#brokered-credentials) guide covers the config. A
 stock Claude session with `auth` also takes the
 [Claude config bundle](../guides/configuration.md#claude-config-bundle) into its config folder at

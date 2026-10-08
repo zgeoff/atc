@@ -221,3 +221,43 @@ test('it answers forbidden and closes for a hook line of another session', async
   expect(ctx.applyHookEvent).not.toHaveBeenCalled();
   expect(ctx.stub.written).toStrictEqual([{ id: null, ok: false, code: 'forbidden' }]);
 });
+
+test("it answers forbidden and closes for a request to add to its own session's scope", async () => {
+  const ctx = setupTest();
+
+  ctx.sessions.set(toSessionID('s1'), {
+    id: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:a',
+    hostKey: toSessionID('s1'),
+    bridgeEpoch: 3,
+    state: 'running',
+    lastMsg: 'started',
+  });
+
+  startSessionBridge(
+    ctx.stub.relay,
+    {
+      sessionID: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:a',
+      hostKey: toSessionID('s1'),
+      epoch: 3,
+    },
+    ctx.daemon,
+  );
+
+  ctx.stub.sendLine({
+    v: 1,
+    id: 'r1',
+    op: 'session.scope.add',
+    session: 's1',
+    scope: { worktrees: [{ path: '/' }] },
+  });
+
+  await waitFor(() => {
+    expect(ctx.stub.isClosed()).toBeTrue();
+  });
+
+  expect(ctx.stub.written).toStrictEqual([{ id: 'r1', ok: false, code: 'forbidden' }]);
+});

@@ -46,6 +46,7 @@ const ERROR_CODES = [
   'workspace_overlap',
   'transfer_failed',
   'workspace_mismatch',
+  'scope_invalid',
   'github_unavailable',
   'host_unavailable',
   'auth_not_configured',

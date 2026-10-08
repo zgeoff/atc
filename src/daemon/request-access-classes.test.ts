@@ -51,6 +51,7 @@ test('it opens every other method to a principal', () => {
     'session.forget',
     'session.resumeCommand',
     'session.update',
+    'session.scope.add',
     'session.attach',
     'session.input',
     'session.submit',

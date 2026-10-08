@@ -82,6 +82,7 @@ import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
 import { parseReport } from './parse-report';
 import { PermissionRegistry } from './permission-registry';
+import { PublishedRecords } from './published-records';
 import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
@@ -227,6 +228,10 @@ export interface DaemonOptions {
   // The sources the spawn picker offers, in order, each built with the
   // services it uses; none when unset.
   readonly sources?: readonly SourceProvider[];
+
+  // The gh executable that checks a pull request a session's scope
+  // declares; `gh` on PATH when unset.
+  readonly ghBin?: string;
 
   // The transports a git workspace source may use and git may fetch over,
   // or the invalid list the config holds, which refuses every git
@@ -421,6 +426,16 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   if (opts.log !== undefined) {
     mgr.log = opts.log;
   }
+
+  const records = new PublishedRecords({
+    store,
+    daemonID: store.daemonID,
+    localDir: join(stateDir, 'records'),
+    ghBin: opts.ghBin ?? 'gh',
+    now: () => Date.now(),
+  });
+
+  mgr.records = records;
 
   const authBinder = new RuntimeAuthBinder(store);
 
@@ -1159,6 +1174,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           targetIdentity: string,
         ) => Promise<Readonly<{
           workspace: SessionWorkspace;
+          branch: string | null;
           withheldEnv: readonly string[];
         }> | null>)
       | null,
@@ -1180,6 +1196,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       materialize,
       requireInReach,
       p.autoDir,
+      p.scope,
     );
 
     const runtime = runtimes.get(s.id);
@@ -1623,6 +1640,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       });
     },
     updateSession: (id, name, pinned) => mgr.updateSession(id, name, pinned),
+    updateSessionScope: (id, scope) => mgr.updateScope(id, scope),
+    isCallerTree: (id, caller) => mgr.isCallerTree(id, caller),
     quitDaemon: () => {
       // The ok response for the quit request must flush before the sockets
       // close under it.
@@ -1960,6 +1979,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const linked = access !== null || shared ? undefined : s.agentSessionID;
 
       const lastEventAt = await store.loadLastActivityAt(s.id, linked);
+      const sessionRecord = await records.findRecord(s.id);
 
       return {
         session,
@@ -1967,6 +1987,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         lastActivityAt: lastEventAt ?? createdAt,
         pending,
         result,
+        sessionRecord,
       };
     },
     loadSessionTranscript: async (id, from, limit) => {

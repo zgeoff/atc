@@ -143,6 +143,12 @@ test('it gives each tool its scope and safety hints as the tool table lists them
       destructiveHint: false,
       openWorldHint: false,
     },
+    atc_session_scope_add: {
+      scope: 'spawn',
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
     atc_session_update: {
       scope: 'message',
       readOnlyHint: false,

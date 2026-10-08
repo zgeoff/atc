@@ -68,11 +68,16 @@ export class DaemonClient implements DaemonChannel {
   }
 
   // A handshake with a token presents it as a bearer token, which a TCP
-  // listener requires.
+  // listener requires. A client started inside an atc session gives that
+  // session, so the daemon never takes a change to the session's own record
+  // from it.
   sendHello(build: string, token?: string): Promise<Readonly<Record<string, unknown>>> {
+    const session = process.env['ATC_SESSION_ID'];
+
     return this.sendRequest('daemon.hello', {
       client: build,
       auth: token === undefined ? { scheme: 'none' } : { scheme: 'bearer', token },
+      ...(session === undefined || session === '' ? {} : { session }),
     });
   }
 

@@ -58,6 +58,7 @@ test('it answers session.get whose session leaves the view during the read as fo
     lastActivityAt: 0,
     pending: null,
     result: null,
+    sessionRecord: null,
   });
 
   const answered = await held;
