@@ -20,7 +20,7 @@ jobs:
       contents: read
     uses: zgeoff/tools/.github/workflows/repo-sync.yml@main
     with:
-      include: skill-testing, skill-docs-writing
+      include: skill-testing, skill-docs-writing, hook-skill-gate
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
       REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
