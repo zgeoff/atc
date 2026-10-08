@@ -253,8 +253,12 @@ test('it exits 1 on a registry that is not JSON', async () => {
     },
   );
 
+  const prefix = RegExp.escape(
+    `atc-gateway: cannot read the registry at ${join(ctx.dir, 'bad.json')}: `,
+  );
+
   expect(exits).toStrictEqual([1]);
-  expect(errors.join('\n')).toMatch(/^atc-gateway: cannot read the registry at .*bad\.json: .+$/u);
+  expect(errors.join('\n')).toMatch(new RegExp(`^${prefix}.+$`, 'u'));
 });
 
 test('it stops serving and exits 0 on SIGTERM', async () => {

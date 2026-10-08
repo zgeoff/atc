@@ -16,8 +16,7 @@ import { buildToolList } from './build-tool-list';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 // A real daemon whose one agent is a `claude` that is not installed and
-// whose sessions run `sleep`, one session running on it, and `atc mcp`'s
-// caller in front of it.
+// whose sessions run `sleep`, and `atc mcp`'s caller in front of it.
 async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-answer-rpc-',
@@ -30,25 +29,27 @@ async function setupTest() {
 
   registerTestCleanup(() => caller.stop());
 
-  const spawned = await caller.sendRequest('session.spawn', {
-    cwd: daemon.dir,
+  return { caller, dir: daemon.dir };
+}
+
+test('it refuses a tool call whose scope the caller lacks and leaves the session running', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
     agent: 'claude',
     cols: 80,
     rows: 24,
   });
 
-  return { caller, sessionID: String(getRecord(spawned, 'session')['id']) };
-}
-
-test('it refuses a tool call whose scope the caller lacks and leaves the session running', async () => {
-  const ctx = await setupTest();
+  const sessionID = String(getRecord(spawned, 'session')['id']);
 
   const outcome = await answerRPCRequest(
     {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_kill', arguments: { session: ctx.sessionID } },
+      params: { name: 'atc_session_kill', arguments: { session: sessionID } },
     },
     {
       caller: ctx.caller,
@@ -61,19 +62,28 @@ test('it refuses a tool call whose scope the caller lacks and leaves the session
   expect(outcome).toStrictEqual({ kind: 'forbidden', scope: 'kill' });
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
-    sessions: [expect.objectContaining({ id: ctx.sessionID, alive: true })],
+    sessions: [expect.objectContaining({ id: sessionID, alive: true })],
   });
 });
 
 test('it refuses a forget whose scope the caller lacks and leaves the session listed', async () => {
   const ctx = await setupTest();
 
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'claude',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = String(getRecord(spawned, 'session')['id']);
+
   const outcome = await answerRPCRequest(
     {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_forget', arguments: { session: ctx.sessionID, stop: true } },
+      params: { name: 'atc_session_forget', arguments: { session: sessionID, stop: true } },
     },
     {
       caller: ctx.caller,
@@ -86,12 +96,21 @@ test('it refuses a forget whose scope the caller lacks and leaves the session li
   expect(outcome).toStrictEqual({ kind: 'forbidden', scope: 'kill' });
 
   expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
-    sessions: [expect.objectContaining({ id: ctx.sessionID, alive: true })],
+    sessions: [expect.objectContaining({ id: sessionID, alive: true })],
   });
 });
 
 test('it runs a tool call whose scope the caller holds', async () => {
   const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'claude',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = String(getRecord(spawned, 'session')['id']);
 
   const outcome = await answerRPCRequest(
     {
@@ -130,7 +149,7 @@ test('it runs a tool call whose scope the caller holds', async () => {
       result: {
         content: [{ type: 'text', text: expect.toBeString() }],
         structuredContent: {
-          sessions: [expect.objectContaining({ id: ctx.sessionID, alive: true })],
+          sessions: [expect.objectContaining({ id: sessionID, alive: true })],
         },
       },
     },

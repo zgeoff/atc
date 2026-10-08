@@ -35,9 +35,29 @@ test('it lists every client with its redirect URIs, oldest first', async () => {
     },
   });
 
+  // The client added last is the older one, so insertion order cannot
+  // pass for creation order.
+  await ctx.store.db
+    .updateTable('oauthClient')
+    .set({ createdAt: '2026-01-02T00:00:00.000Z' })
+    .where('clientId', '=', claude.clientID)
+    .execute();
+
+  await ctx.store.db
+    .updateTable('oauthClient')
+    .set({ createdAt: '2026-01-01T00:00:00.000Z' })
+    .where('clientId', '=', chatGPT.clientID)
+    .execute();
+
   const clients = await collectClients(ctx.store.db);
 
   expect(clients).toStrictEqual([
+    {
+      clientID: chatGPT.clientID,
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
     {
       clientID: claude.clientID,
       name: 'Claude',
@@ -45,13 +65,7 @@ test('it lists every client with its redirect URIs, oldest first', async () => {
         'https://claude.ai/api/mcp/auth_callback',
         'https://claude.com/api/mcp/auth_callback',
       ],
-      createdAt: expect.toBeString(),
-    },
-    {
-      clientID: chatGPT.clientID,
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-      createdAt: expect.toBeString(),
+      createdAt: '2026-01-02T00:00:00.000Z',
     },
   ]);
 });

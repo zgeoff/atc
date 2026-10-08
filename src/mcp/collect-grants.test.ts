@@ -189,3 +189,89 @@ test('it leaves out a grant whose refresh token was revoked', async () => {
 
   expect(grants).toStrictEqual([]);
 });
+
+test('it lists the grants oldest first', async () => {
+  const ctx = await setupTest();
+
+  const claude = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const chatGPT = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const claudeAuthorized = await runMCPAuthorization(ctx, {
+    clientID: claude.clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: claudeAuthorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: claude.clientID,
+      code_verifier: claudeAuthorized.verifier,
+    }),
+  });
+
+  const chatGPTAuthorized = await runMCPAuthorization(ctx, {
+    clientID: chatGPT.clientID,
+    redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: chatGPTAuthorized.code,
+      redirect_uri: 'https://chatgpt.com/connector_platform_oauth_redirect',
+      client_id: chatGPT.clientID,
+      code_verifier: chatGPTAuthorized.verifier,
+    }),
+  });
+
+  // The grant made last is the older one, so insertion order cannot pass
+  // for creation order.
+  await ctx.store.db
+    .updateTable('oauthRefreshToken')
+    .set({ createdAt: '2026-01-02T00:00:00.000Z' })
+    .where('clientId', '=', claude.clientID)
+    .execute();
+
+  await ctx.store.db
+    .updateTable('oauthRefreshToken')
+    .set({ createdAt: '2026-01-01T00:00:00.000Z' })
+    .where('clientId', '=', chatGPT.clientID)
+    .execute();
+
+  const grants = await collectGrants(ctx.store.db);
+
+  expect(grants).toStrictEqual([
+    {
+      grantID: expect.toBeString(),
+      clientID: chatGPT.clientID,
+      clientName: 'ChatGPT',
+      scopes: ['read'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      lastUsedAt: null,
+    },
+    {
+      grantID: expect.toBeString(),
+      clientID: claude.clientID,
+      clientName: 'Claude',
+      scopes: ['read'],
+      createdAt: '2026-01-02T00:00:00.000Z',
+      lastUsedAt: null,
+    },
+  ]);
+});

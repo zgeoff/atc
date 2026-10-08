@@ -1063,6 +1063,7 @@ test('it rotates a refresh token into a new one with the same scope', async () =
   const second = await readJSONRecord(rotated);
 
   expect(rotated.status).toBe(200);
+  expect(second['refresh_token']).toBeString();
   expect(second['refresh_token']).not.toBe(first['refresh_token']);
   expect(second['scope']).toBe('read offline_access');
 });
@@ -1761,7 +1762,7 @@ test.each([['/oauth2/get-clients'], ['/list-sessions']])(
   },
 );
 
-test('it keeps serving an access token after the session that approved it expires', async () => {
+test('it keeps serving an access token once the exchange deletes the session that approved it', async () => {
   const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
@@ -1789,11 +1790,6 @@ test('it keeps serving an access token after the session that approved it expire
   });
 
   const tokens = await readJSONRecord(exchanged);
-
-  await ctx.store.db
-    .updateTable('session')
-    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
-    .execute();
 
   const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -1804,7 +1800,7 @@ test('it keeps serving an access token after the session that approved it expire
   expect(pinged.status).toBe(200);
 });
 
-test('it refreshes a token after the session that approved it expires', async () => {
+test('it refreshes a token once the exchange deletes the session that approved it', async () => {
   const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
@@ -1832,11 +1828,6 @@ test('it refreshes a token after the session that approved it expires', async ()
   });
 
   const tokens = await readJSONRecord(exchanged);
-
-  await ctx.store.db
-    .updateTable('session')
-    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
-    .execute();
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
@@ -1850,7 +1841,7 @@ test('it refreshes a token after the session that approved it expires', async ()
   expect(refreshed.status).toBe(200);
 });
 
-test('it serves a token refreshed after the session that approved it expires', async () => {
+test('it serves a token refreshed once the exchange deletes the session that approved it', async () => {
   const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
@@ -1878,11 +1869,6 @@ test('it serves a token refreshed after the session that approved it expires', a
   });
 
   const tokens = await readJSONRecord(exchanged);
-
-  await ctx.store.db
-    .updateTable('session')
-    .set({ expiresAt: '2000-01-01T00:00:00.000Z' })
-    .execute();
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
