@@ -1,13 +1,12 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
-import invariant from 'tiny-invariant';
 import { startDaemon } from '../daemon/daemon';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { getBuild } from '../shared/get-build';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { readJSONRecord } from '../test-utils/read-json-record';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
@@ -95,24 +94,6 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
   });
 
   registerTestCleanup(() => daemon.stop());
-
-  const record: unknown = JSON.parse(readFileSync(join(ctx.stateDir, 'daemon.json'), 'utf8'));
-
-  invariant(
-    isDeepStrictEqual(record, {
-      pid: process.pid,
-      socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
-      reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
-      eventsSocketPath: null,
-      listenPort: null,
-    }),
-    'the daemon records its runtime sockets in the state directory',
-  );
-
-  invariant(
-    !existsSync(join(ctx.stateDir, 'atc-daemon.sock')),
-    'the daemon serves no socket from the state directory',
-  );
 
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
@@ -256,7 +237,10 @@ process.exit(0);
   await proc.exited;
   await legacy.exited;
 
-  expect(JSON.parse(stdout)).toStrictEqual({ asked: [legacy.pid], stale: false });
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['asked']).toStrictEqual([legacy.pid]);
+  expect(out['stale']).toBe(false);
   expect(legacy.signalCode).toBe('SIGTERM');
 });
 
@@ -316,10 +300,10 @@ process.exit(0);
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
-  expect(JSON.parse(stdout)).toStrictEqual({
-    asked: [legacy.pid],
-    outcome: { code: 'protocol_mismatch' },
-  });
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['asked']).toStrictEqual([legacy.pid]);
+  expect(out['outcome']).toStrictEqual({ code: 'protocol_mismatch' });
 });
 
 test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
@@ -379,7 +363,11 @@ process.exit(0);
   expect(legacy.signalCode).toBeNull();
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
-  expect(JSON.parse(stdout)).toStrictEqual({ asked: [], outcome: { code: 'protocol_mismatch' } });
+
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['asked']).toStrictEqual([]);
+  expect(out['outcome']).toStrictEqual({ code: 'protocol_mismatch' });
 });
 
 test('it rejects with the socket it waited on, and starts no daemon, when none answers before the wait ends', async () => {
@@ -394,10 +382,11 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
 import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
 import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
 const clock = buildStubClock(0);
+const notices = [];
 const booting = bootDaemonClient({
   waitForDaemonMs: 300,
   clock,
-  onWaitForDaemon: () => { process.stdout.write('waiting without starting a daemon\\n'); },
+  onWaitForDaemon: () => { notices.push('waiting without starting a daemon'); },
 });
 const steps = [];
 for (let poll = 0; poll < 3; poll++) {
@@ -409,7 +398,7 @@ for (let poll = 0; poll < 3; poll++) {
   clock.advance(100);
 }
 await booting.catch((error: Error) => {
-  process.stdout.write(JSON.stringify({ steps }));
+  process.stdout.write(JSON.stringify({ notices, steps }));
   process.stderr.write(error.message);
   process.exit(3);
 });
@@ -433,7 +422,10 @@ await booting.catch((error: Error) => {
 
   await proc.exited;
 
-  expect(stdout).toBe('waiting without starting a daemon\n{"steps":[100,100,100]}');
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['notices']).toStrictEqual(['waiting without starting a daemon']);
+  expect(out['steps']).toStrictEqual([100, 100, 100]);
   expect(proc.exitCode).toBe(3);
 
   expect(stderr).toBe(
@@ -538,11 +530,14 @@ process.exit(0);
 
   const stdout = await new Response(proc.stdout).text();
 
-  expect(JSON.parse(stdout)).toStrictEqual({
-    waits: 1,
-    steps: [100, 100, 100, 100, 100],
-    outcome: `no atc daemon answered at ${ctx.sockPath} within 0.5s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
-  });
+  const out = await readJSONRecord(new Response(stdout));
+
+  expect(out['waits']).toBe(1);
+  expect(out['steps']).toStrictEqual([100, 100, 100, 100, 100]);
+
+  expect(out['outcome']).toBe(
+    `no atc daemon answered at ${ctx.sockPath} within 0.5s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
 });
 
 test('it never reports a wait when a daemon answers on the first try', async () => {

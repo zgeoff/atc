@@ -102,5 +102,69 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     ],
   });
 
-  expect(settings).toMatchObject({ statusLine: { padding: 3 } });
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'zai'`,
+      padding: 3,
+    },
+    env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
+  });
 });

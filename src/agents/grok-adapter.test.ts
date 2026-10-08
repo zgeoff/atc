@@ -239,7 +239,7 @@ test('it captures SessionStart without a transcript path', () => {
   expect(ev).toStrictEqual({
     kind: 'started',
     agentSessionID: toAgentSessionID('g1'),
-    nameSource: join(ctx.dir, 'sessions', encodeURIComponent('/tmp/proj'), 'g1', 'summary.json'),
+    nameSource: join(ctx.dir, 'sessions', '%2Ftmp%2Fproj', 'g1', 'summary.json'),
   });
 });
 
@@ -366,7 +366,7 @@ test('it carries the whole last assistant message of a finished turn as its resu
   expect(ev).toStrictEqual({
     kind: 'turn-done',
     agentSessionID: toAgentSessionID('g1'),
-    nameSource: join(ctx.dir, 'sessions', encodeURIComponent('/tmp'), 'g1', 'summary.json'),
+    nameSource: join(ctx.dir, 'sessions', '%2Ftmp', 'g1', 'summary.json'),
     detail: `${'x'.repeat(599)}…`,
     result: 'x'.repeat(700),
   });
