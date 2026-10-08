@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.9.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.3...@zgeoff/atc@3.9.4) (2026-10-08)
+
+### Bug Fixes
+
+- **geo-28:** bound the wait for git's output after git exits
+  ([#473](https://github.com/zgeoff/atc/issues/473))
+  ([03237d5](https://github.com/zgeoff/atc/commit/03237d55d57e929621b3eb28c36cb34c1ce27d62))
+
 ## [3.9.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.2...@zgeoff/atc@3.9.3) (2026-10-08)
 
 ### Bug Fixes
