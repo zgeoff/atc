@@ -6,6 +6,7 @@ import { getRecord } from '../src/shared/get-record';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { createStubClaude } from '../src/test-utils/create-stub-claude';
 import { createStubComposer } from '../src/test-utils/create-stub-composer';
+import { createStubNativeClaude } from '../src/test-utils/create-stub-native-claude';
 import { getString } from '../src/test-utils/get-string';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
@@ -107,6 +108,43 @@ test('it starts a session without a parent-session variable the daemon started w
   });
 
   expect(screen['text']).toInclude('FAKE_CLAUDE_PARENT:[unset]');
+});
+
+test('it starts a native program whose path holds an equals sign with the DYLD_ variable the daemon started with', async () => {
+  const ctx = setupTest();
+
+  const agent = await createStubNativeClaude(join(ctx.home, 'agent=dir'), 'claude');
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: agent } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { DYLD_ATC_TEST: 'synthetic' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  const screen = await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toMatch(/FAKE_NATIVE_DYLD:\[.*\]/);
+
+    return read;
+  });
+
+  expect(screen['text']).toInclude('FAKE_NATIVE_DYLD:[synthetic]');
 });
 
 test('it unpacks every tracked file of a local workspace when the daemon env asks tar to exclude some', async () => {
