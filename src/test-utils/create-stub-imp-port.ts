@@ -270,6 +270,10 @@ class StubImpPort implements ImpPort {
   // Set once the stand-in stops, so a command a hold released never runs.
   private stopped = false;
 
+  // Settles once a stop has killed every guest command, so a run still
+  // waiting on a killed command's output stops waiting.
+  private readonly killed = Promise.withResolvers<null>();
+
   // Commands whose argv holds this text exit 1 without running, or null.
   private commandFailure: string | null = null;
 
@@ -752,19 +756,31 @@ class StubImpPort implements ImpPort {
 
     this.commands.set(proc, { line, pending });
 
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(proc.stdout).bytes().finally(() => {
-        pending.delete('stdout');
-      }),
-      new Response(proc.stderr).bytes().finally(() => {
-        pending.delete('stderr');
-      }),
-      proc.exited.finally(() => {
-        pending.delete('exit');
-      }),
+    const settled = await Promise.race([
+      Promise.all([
+        new Response(proc.stdout).bytes().finally(() => {
+          pending.delete('stdout');
+        }),
+        new Response(proc.stderr).bytes().finally(() => {
+          pending.delete('stderr');
+        }),
+        proc.exited.finally(() => {
+          pending.delete('exit');
+        }),
+      ]),
+      this.killed.promise,
     ]);
 
     this.commands.delete(proc);
+
+    // A run the stop cut short ends as a killed one does, without waiting
+    // for output: the runtime can miss the close of a pipe whose last
+    // holder a kill ended, and then that output never ends.
+    if (settled === null) {
+      return { code: KILLED_CODE, stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
+    }
+
+    const [stdout, stderr, code] = settled;
 
     return { code, stdout, stderr };
   }
@@ -1318,8 +1334,9 @@ class StubImpPort implements ImpPort {
   // Kills every process and stops every forward the stand-in holds, and
   // resolves once every guest command it killed exits. The kill takes each
   // command's whole process group, so a child the command left holding its
-  // output ends too and the command's run settles. A command a hold
-  // still holds then exits as a killed one does, without running. It runs
+  // output ends too, and each run the stop cut short settles as killed. A
+  // command a hold still holds then exits as a killed one does, without
+  // running. It runs
   // once the current test finishes; calling it sooner runs it then, and a
   // second call does nothing.
   readonly stop: () => Promise<void> = registerTestCleanup(async () => {
@@ -1345,6 +1362,8 @@ class StubImpPort implements ImpPort {
     for (const command of commands) {
       tryKillGroup(command.pid);
     }
+
+    this.killed.resolve(null);
 
     for (const imp of this.imps.values()) {
       for (const proc of imp.sessions.values()) {
