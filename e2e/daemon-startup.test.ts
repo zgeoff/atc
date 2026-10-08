@@ -188,11 +188,13 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
 // so the CPU a start costs, not its wall time on an idle runner, decides
 // whether it finishes in time. Five sequential starts give a median that one
 // noisy start cannot move. Without an event socket the reporter exits as
-// soon as it starts, so the median is the start alone.
+// soon as it starts, so the median is the start alone, and a start that
+// fails before its work counts as a failure, not as a cheap start.
 test.skipIf(process.env['ATC_BIN'] === undefined)(
   'it starts the hook reporter of the compiled binary within 75 ms of CPU time',
   async () => {
     const ctx = setupTest();
+    const exitCodes: number[] = [];
     const cpuMs: number[] = [];
 
     for (let run = 0; run < 5; run += 1) {
@@ -204,7 +206,9 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
         stderr: 'ignore',
       });
 
-      await proc.exited;
+      const exitCode = await proc.exited;
+
+      exitCodes.push(exitCode);
 
       const usage = proc.resourceUsage();
 
@@ -218,6 +222,7 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
 
     const median = cpuMs.toSorted((a, b) => a - b).at(2);
 
+    expect(exitCodes).toStrictEqual([0, 0, 0, 0, 0]);
     expect(median).toBeLessThan(75);
   },
 );
