@@ -17,6 +17,17 @@ interface GitRunOptions {
   // Called with the pid of the started git right after it starts; with a
   // time limit, that pid is also its process group's id.
   readonly onSpawn?: ((pid: number) => void) | undefined;
+
+  // Reports a git whose output stays open after it exits; a line on stderr
+  // 5 s after the exit when unset.
+  readonly openOutputWatch?: OpenOutputWatch;
+}
+
+interface OpenOutputWatch {
+  // Arms the report to run after the delay, and returns the function that
+  // disarms it.
+  readonly schedule: (report: () => void, afterMs: number) => () => void;
+  readonly report: (line: string) => void;
 }
 
 interface GitRun {
@@ -89,12 +100,20 @@ export async function runGit(
   });
 
   options.onSpawn?.(proc.pid);
+  const output = Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
 
-  const finished = Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
+  const closed = waitForOutputClose(
     proc.exited,
-  ]);
+    output,
+    findSubcommand(args) ?? 'command',
+    options.openOutputWatch ?? DEFAULT_OPEN_OUTPUT_WATCH,
+  );
+
+  const finished = (async () => {
+    const [[stdout, stderr], exitCode] = await Promise.all([output, proc.exited, closed]);
+
+    return [stdout, stderr, exitCode] as const;
+  })();
 
   if (options.timeoutMs === undefined) {
     const [stdout, stderr, exitCode] = await finished;
@@ -127,6 +146,64 @@ export async function runGit(
   const [stdout, stderr, exitCode] = settled;
 
   return { exitCode, stdout, stderr, timedOut: false };
+}
+
+const OPEN_OUTPUT_REPORT_MS = 5000;
+
+const DEFAULT_OPEN_OUTPUT_WATCH: OpenOutputWatch = {
+  schedule: (report, afterMs) => {
+    const timer = setTimeout(report, afterMs);
+
+    timer.unref();
+
+    return () => {
+      clearTimeout(timer);
+    };
+  },
+  report: (line) => {
+    console.error(line);
+  },
+};
+
+// A run waits for git's output to close as well as for its exit, so output
+// that stays open after the exit holds the run; the report says which git
+// it waits on. It resolves once the output closes.
+async function waitForOutputClose(
+  exited: Readonly<Promise<number>>,
+  output: Readonly<Promise<unknown>>,
+  subcommand: string,
+  watch: OpenOutputWatch,
+): Promise<void> {
+  const exitCode = await exited;
+
+  const disarm = watch.schedule(() => {
+    watch.report(
+      `atc: git ${subcommand} exited ${exitCode}, but its output was still open ${OPEN_OUTPUT_REPORT_MS} ms later`,
+    );
+  }, OPEN_OUTPUT_REPORT_MS);
+
+  try {
+    await output;
+  } finally {
+    disarm();
+  }
+}
+
+// The git subcommand among the arguments: the first that is neither an
+// option nor the value of a `-c` or `-C`. The report holds only it, since
+// another argument, such as a URL, can hold a credential.
+function findSubcommand(args: readonly string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === '-c' || arg === '-C') {
+      i++;
+    } else if (arg !== undefined && !arg.startsWith('-')) {
+      return arg;
+    }
+  }
+
+  return undefined;
 }
 
 function collectHostEnv(): Record<string, string | undefined> {

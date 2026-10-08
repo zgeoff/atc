@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import invariant from 'tiny-invariant';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
@@ -54,6 +55,74 @@ test('it stops a command that runs past its time limit and reports it timed out'
   await waitFor(() => {
     expect(() => process.kill(-(groups[0] ?? 0), 0)).toThrow('ESRCH');
   });
+});
+
+test('it reports a git that exits while a child it left holds its output open, by subcommand only', async () => {
+  const ctx = setupTest();
+  const groups: number[] = [];
+  const armed: (() => void)[] = [];
+  const reported: string[] = [];
+
+  const run = runGit(
+    ['-c', 'alias.hold=!sleep 30 & :', 'hold', 'https://user:secret@example.test'],
+    {
+      cwd: ctx.dir,
+      timeoutMs: 20_000,
+      onSpawn: (pid) => {
+        groups.push(pid);
+      },
+      openOutputWatch: {
+        schedule: (report) => {
+          armed.push(report);
+
+          return () => {};
+        },
+        report: (line) => {
+          reported.push(line);
+        },
+      },
+    },
+  );
+
+  // The watch arms once git exits; the sleep it left still holds the output.
+  const report = await waitFor(() => {
+    invariant(armed[0]);
+
+    return armed[0];
+  });
+
+  report();
+
+  process.kill(-(groups[0] ?? 0), 'SIGKILL');
+
+  await run;
+
+  expect(reported).toStrictEqual([
+    'atc: git hold exited 0, but its output was still open 5000 ms later',
+  ]);
+});
+
+test('it disarms the open-output report once the output of the git closes', async () => {
+  const ctx = setupTest();
+  const watched: { disarmed: boolean }[] = [];
+
+  await runGit(['--version'], {
+    cwd: ctx.dir,
+    openOutputWatch: {
+      schedule: () => {
+        const entry = { disarmed: false };
+
+        watched.push(entry);
+
+        return () => {
+          entry.disarmed = true;
+        };
+      },
+      report: () => {},
+    },
+  });
+
+  expect(watched).toStrictEqual([{ disarmed: true }]);
 });
 
 test('it reports the pid of the git it starts', async () => {
