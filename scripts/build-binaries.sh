@@ -19,8 +19,12 @@ mkdir -p dist
 
 # A compiled binary otherwise loads a .env file from whatever directory it
 # starts in, so a stray ~/.env would reach the daemon's environment and every
-# process it starts.
-compile=(bun build --compile --no-compile-autoload-dotenv)
+# process it starts. Bytecode moves parsing the bundle from each start to the
+# build: a hook or statusline command starts once per event inside a session,
+# often beside the agent's own startup on a small guest, and a parse of the
+# whole bundle there can outlast the agent's hook time limit. Bytecode takes
+# the ESM format, which the entry's top-level await needs anyway.
+compile=(bun build --compile --bytecode --format=esm --no-compile-autoload-dotenv)
 
 for target in "${targets[@]}"; do
   "${compile[@]}" --target="bun-$target" src/cli.ts --outfile "dist/atc-$target"
