@@ -270,10 +270,13 @@ program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude
 ## Function naming — project verbs
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
-`.oxlintrc.json`): `ack`, `acquire`, `adopt`, `answer`, `attach`, `boot`, `copy`, `destroy`,
-`detach`, `dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`, `open`,
-`quit`, `reconcile`, `record`, `refresh`, `release`, `renew`, `restart`, `restore`, `revoke`,
-`sanitize`, `schedule`, `spawn`, `suspend`, `transfer`, `truncate`, `yank`.
+`.oxlintrc.json`): `ack`, `acquire`, `adopt`, `advance`, `answer`, `attach`, `boot`, `copy`,
+`destroy`, `detach`, `dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`,
+`open`, `quit`, `reconcile`, `record`, `refresh`, `release`, `renew`, `restart`, `restore`,
+`revoke`, `sanitize`, `schedule`, `spawn`, `suspend`, `transfer`, `truncate`, `yank`.
+
+`advance` moves an injected clock forward by a duration and runs what falls due on the way
+(`advanceClock`), as opposed to `update`, which makes no promise about what runs.
 
 `acquire`, `renew`, and `release` take, extend, and give back a lease that keeps a remote host awake
 (`acquireLease`), as opposed to `claim`, which takes exclusive ownership.

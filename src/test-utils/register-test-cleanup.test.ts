@@ -44,8 +44,12 @@ test('it returns what the first call returned to every later call', () => {
 test('it waits for an asynchronous release before the next hook runs', () => {
   const runs: string[] = [];
 
+  // A macrotask yield, so the next hook runs first unless the release is
+  // awaited.
   registerTestCleanup(async () => {
-    await Promise.resolve();
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
 
     runs.push('released');
   });
