@@ -1,17 +1,18 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { getBuild } from './get-build';
 
 function setupTest() {
   const tmp = setupTempDir('atc-get-build-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it changes the build string when a .ts file in a sibling directory changes', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'daemon'));
   mkdirSync(join(ctx.dir, 'shared'));
@@ -28,7 +29,7 @@ test('it changes the build string when a .ts file in a sibling directory changes
 });
 
 test('it keeps the build string when a file that is not .ts changes', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'daemon'));
   writeFileSync(join(ctx.dir, 'daemon', 'sessions.ts'), '');
@@ -44,5 +45,7 @@ test('it keeps the build string when a file that is not .ts changes', () => {
 });
 
 test('it walks the src tree of its own checkout when no root is passed', () => {
-  expect(getBuild()).toBe(getBuild(join(import.meta.dir, '..')));
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+
+  expect(getBuild()).toBe(getBuild(join(repoRoot, 'src')));
 });

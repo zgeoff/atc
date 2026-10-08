@@ -1,18 +1,17 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { BunSqliteDriver } from './bun-sqlite-driver';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-driver-'));
+  const tmp = setupTempDir('atc-driver-');
 
   const sqlite = new Database(join(tmp.dir, 'state.db'), { create: true });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     sqlite.close();
   });
 
@@ -21,13 +20,11 @@ async function setupTest() {
   // Every test acquires after a first caller already holds the connection.
   await driver.acquireConnection();
 
-  const owned = stack.move();
-
-  return { driver, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { driver };
 }
 
 test('it keeps a second acquire waiting while the first caller holds the connection', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const second = ctx.driver.acquireConnection();
 
@@ -39,7 +36,7 @@ test('it keeps a second acquire waiting while the first caller holds the connect
 });
 
 test('it hands the connection to a waiting acquire once the first caller releases it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const second = ctx.driver.acquireConnection();
 

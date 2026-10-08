@@ -18,9 +18,11 @@ test('it shares one run between calls that overlap', async () => {
 
   gate.resolve();
 
-  const results = await Promise.all([first, second]);
+  const firstResult = await first;
+  const secondResult = await second;
 
-  expect(results).toStrictEqual([1, 1]);
+  expect(firstResult).toBe(1);
+  expect(secondResult).toBe(1);
 });
 
 test('it starts a fresh run once the previous one has settled', async () => {
@@ -51,10 +53,12 @@ test('it starts a fresh run after the previous one rejected', async () => {
     .mockResolvedValueOnce('second run');
 
   const once = makeSingleFlight(run);
+  const first = once();
 
-  await once().catch(() => null);
+  await first.catch(() => null);
 
   const second = await once();
 
+  expect(first).rejects.toThrowWithMessage(Error, 'first run fails');
   expect(second).toBe('second run');
 });

@@ -1,26 +1,26 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { buildStubClock } from '../test-utils/build-stub-clock';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { claimDaemonLock } from './claim-daemon-lock';
 
 function setupTest() {
   const tmp = setupTempDir('atc-daemon-lock-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it refuses the lock while another holder keeps it past the wait', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const lockPath = join(ctx.dir, 'daemon.lock');
   const clock = buildStubClock(0);
 
   const first = await claimDaemonLock(lockPath, 0, clock);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first?.dispose();
   });
 
@@ -36,13 +36,12 @@ test('it refuses the lock while another holder keeps it past the wait', async ()
 });
 
 test('it grants the lock once the previous holder lets go', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const lockPath = join(ctx.dir, 'daemon.lock');
 
   const first = await claimDaemonLock(lockPath, 0);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first?.dispose();
   });
 
@@ -52,7 +51,7 @@ test('it grants the lock once the previous holder lets go', async () => {
 
   const second = await claimDaemonLock(lockPath, 0);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second?.dispose();
   });
 
@@ -60,14 +59,13 @@ test('it grants the lock once the previous holder lets go', async () => {
 });
 
 test('it waits for a holder that lets go within the wait', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const lockPath = join(ctx.dir, 'daemon.lock');
   const clock = buildStubClock(0);
 
   const first = await claimDaemonLock(lockPath, 0, clock);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first?.dispose();
   });
 
@@ -80,7 +78,7 @@ test('it waits for a holder that lets go within the wait', async () => {
 
   const second = await claim;
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second?.dispose();
   });
 
@@ -88,8 +86,7 @@ test('it waits for a holder that lets go within the wait', async () => {
 });
 
 test('it throws when the lock file cannot be opened for reading and writing', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const lockPath = join(ctx.dir, 'daemon.lock');
 
   writeFileSync(lockPath, '');

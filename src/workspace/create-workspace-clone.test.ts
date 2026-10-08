@@ -12,42 +12,20 @@ import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { updateEnv } from '../test-utils/update-env';
 import { createWorkspaceClone } from './create-workspace-clone';
 
-// The fixture upstream served over smart HTTP behind basic auth. While a
-// request is held, every process this test run started is recorded, so a
-// test can check what git and its helpers were started with.
+// A bare upstream holding one pushed commit and a work clone of it.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const fixture = await createGitFixture({ prefix: 'atc-clone-' });
-
-  stack.use(fixture);
-
-  const processes: TreeProcess[] = [];
-
-  const server = startGitHTTPServer(fixture.dir, fixture.env, {
-    onRequest: async () => {
-      processes.push(...(await collectProcessTree(process.pid)));
-    },
-  });
-
-  stack.defer(() => server.stop());
-
-  const owned = stack.move();
 
   return {
     dir: fixture.dir,
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    httpURL: `${server.url}upstream.git`,
-    authorizations: server.authorizations,
-    processes,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it checks out the commit a branch points at, on that branch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -74,7 +52,7 @@ test('it checks out the commit a branch points at, on that branch', async () => 
 });
 
 test('it checks out the commit an annotated tag points at, detached', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -102,7 +80,7 @@ test('it checks out the commit an annotated tag points at, detached', async () =
 });
 
 test('it checks out a full commit id detached', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -128,7 +106,7 @@ test('it checks out a full commit id detached', async () => {
 });
 
 test('it copies objects instead of hard-linking them from a local upstream', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -147,7 +125,7 @@ test('it copies objects instead of hard-linking them from a local upstream', asy
 });
 
 test('it refuses a ref the upstream does not have', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -163,7 +141,7 @@ test('it refuses a ref the upstream does not have', async () => {
 });
 
 test('it refuses a full commit id the upstream does not have and leaves no directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, 'README.md'), 'unpushed\n');
 
@@ -191,7 +169,7 @@ test('it refuses a full commit id the upstream does not have and leaves no direc
 });
 
 test('it refuses an upstream it cannot reach', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -207,11 +185,13 @@ test('it refuses an upstream it cannot reach', async () => {
 });
 
 test('it refuses an env credential whose variable is unset', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  const server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const clone = await createWorkspaceClone({
     transports: ['https', 'ssh', 'http', 'file'],
-    source: { kind: 'git', url: ctx.httpURL, ref: 'main' },
+    source: { kind: 'git', url: `${server.url}upstream.git`, ref: 'main' },
     dir: join(ctx.dir, 'clone'),
     credential: { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
   });
@@ -227,7 +207,18 @@ test('it refuses an env credential whose variable is unset', async () => {
 test.skipIf(process.platform !== 'linux')(
   'it authenticates with an env credential that never reaches argv or outlives the clone',
   async () => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
+
+    // While a request is held, every process this test run started is
+    // recorded, so the test can check what git and its helpers were started
+    // with.
+    const processes: TreeProcess[] = [];
+
+    const server = startGitHTTPServer(ctx.dir, ctx.env, {
+      onRequest: async () => {
+        processes.push(...(await collectProcessTree(process.pid)));
+      },
+    });
 
     const pushed = await $`git rev-parse HEAD`
       .env(ctx.env)
@@ -239,28 +230,28 @@ test.skipIf(process.platform !== 'linux')(
 
     const clone = await createWorkspaceClone({
       transports: ['https', 'ssh', 'http', 'file'],
-      source: { kind: 'git', url: ctx.httpURL, ref: 'main' },
+      source: { kind: 'git', url: `${server.url}upstream.git`, ref: 'main' },
       dir: join(ctx.dir, 'clone'),
       credential: { kind: 'env', name: 'ATC_TEST_GIT_TOKEN' },
     });
 
     const config = await readFile(join(ctx.dir, 'clone', '.git', 'config'), 'utf8');
 
-    const helpers = ctx.processes
+    const helpers = processes
       .map((entry) => entry.env['GIT_ASKPASS'])
       .filter((helper) => helper !== undefined);
 
     expect(clone).toStrictEqual({ ok: true, sha: pushed, branch: 'main' });
-    expect(ctx.authorizations).not.toBeEmpty();
+    expect(server.authorizations).not.toBeEmpty();
 
-    expect(ctx.authorizations).toSatisfyAll(
+    expect(server.authorizations).toSatisfyAll(
       (header: string) =>
         header === `Basic ${Buffer.from('x-access-token:tok-4f9c2e').toString('base64')}`,
     );
 
-    expect(ctx.processes).not.toBeEmpty();
+    expect(processes).not.toBeEmpty();
 
-    expect(ctx.processes).toSatisfyAll(
+    expect(processes).toSatisfyAll(
       (entry: TreeProcess) =>
         !entry.argv.join(' ').includes('tok-4f9c2e') &&
         !entry.argv.join(' ').includes('ATC_TEST_GIT_TOKEN'),
@@ -273,7 +264,7 @@ test.skipIf(process.platform !== 'linux')(
 );
 
 test('it refuses a git source whose commit holds a gitlink and leaves no directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -311,7 +302,7 @@ test('it refuses a git source whose commit holds a gitlink and leaves no directo
 });
 
 test('it refuses a git source that tracks LFS paths without running the host LFS filter', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(join(ctx.work, '.gitattributes'), '*.bin filter=lfs diff=lfs merge=lfs -text\n');
 
@@ -360,7 +351,7 @@ test('it refuses a git source that tracks LFS paths without running the host LFS
 });
 
 test('it checks out without running a filter from the host global git config', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)

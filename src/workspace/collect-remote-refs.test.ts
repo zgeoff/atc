@@ -13,12 +13,11 @@ async function setupTest() {
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    [Symbol.asyncDispose]: () => fixture[Symbol.asyncDispose](),
   };
 }
 
 test('it lists the branches, the peeled tags, and the default branch of an upstream', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -60,7 +59,7 @@ test('it lists the branches, the peeled tags, and the default branch of an upstr
 });
 
 test('it lists an empty upstream as no refs and no default branch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await $`git init --quiet --bare --template= ${join(ctx.dir, 'empty.git')}`.env(ctx.env).quiet();
 
@@ -74,7 +73,7 @@ test('it lists an empty upstream as no refs and no default branch', async () => 
 });
 
 test("it refuses an upstream git cannot read with git's own message", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const listing = await collectRemoteRefs(join(ctx.dir, 'missing.git'), undefined, [
     'https',
@@ -90,7 +89,7 @@ test("it refuses an upstream git cannot read with git's own message", async () =
 });
 
 test('it refuses an env credential whose variable is unset', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const listing = await collectRemoteRefs(
     ctx.upstream,

@@ -12,36 +12,20 @@ import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
 import { checkRepositoryAccess } from './check-repository-access';
 
-// The fixture upstream served over smart HTTP behind basic auth, and a
-// server that holds every request without ever answering it.
+// A bare upstream holding one pushed commit and a work clone of it.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const fixture = await createGitFixture({ prefix: 'atc-repo-access-test-' });
-
-  stack.use(fixture);
-
-  const server = startGitHTTPServer(fixture.dir, fixture.env);
-
-  stack.defer(() => server.stop());
-
-  const silent = stack.use(startStubSilentServer());
-  const owned = stack.move();
 
   return {
     dir: fixture.dir,
     env: fixture.env,
     upstream: fixture.upstream,
     work: fixture.work,
-    httpURL: `${server.url}upstream.git`,
-    authorizations: server.authorizations,
-    silentURL: `${silent.url}silent.git`,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it resolves a branch to the commit it points at and lists the upstream refs', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -65,7 +49,7 @@ test('it resolves a branch to the commit it points at and lists the upstream ref
 });
 
 test('it resolves an annotated tag to the commit it points at', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -95,7 +79,7 @@ test('it resolves an annotated tag to the commit it points at', async () => {
 });
 
 test('it answers a probe without a ref with the refs alone', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -118,7 +102,7 @@ test('it answers a probe without a ref with the refs alone', async () => {
 });
 
 test('it takes a full commit id as it is', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -144,7 +128,7 @@ test('it takes a full commit id as it is', async () => {
 });
 
 test('it refuses a ref the upstream does not have', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
@@ -186,11 +170,13 @@ test('it refuses a URL that carries a credential', async () => {
 });
 
 test("it refuses an upstream that asks for a sign-in the host cannot give, with git's own message", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  const server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
-    url: ctx.httpURL,
+    url: `${server.url}upstream.git`,
   });
 
   expect(access).toStrictEqual({
@@ -201,7 +187,9 @@ test("it refuses an upstream that asks for a sign-in the host cannot give, with 
 });
 
 test('it authenticates through a credential helper in the host git config', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  const server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -218,27 +206,29 @@ test('it authenticates through a credential helper in the host git config', asyn
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
-    url: ctx.httpURL,
+    url: `${server.url}upstream.git`,
     ref: 'main',
   });
 
   expect(access).toStrictEqual({
     ok: true,
-    url: ctx.httpURL,
+    url: `${server.url}upstream.git`,
     head: 'main',
     refs: [{ name: 'main', kind: 'branch', sha: pushed }],
     resolved: { sha: pushed, branch: 'main' },
   });
 
-  expect(ctx.authorizations).not.toBeEmpty();
+  expect(server.authorizations).not.toBeEmpty();
 
-  expect(ctx.authorizations).toSatisfyAll(
+  expect(server.authorizations).toSatisfyAll(
     (header: string) => header === `Basic ${Buffer.from('atc:host-tok').toString('base64')}`,
   );
 });
 
 test('it authenticates with an env credential through the askpass helper', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  const server = startGitHTTPServer(ctx.dir, ctx.env);
 
   const pushed = await $`git rev-parse HEAD`
     .env(ctx.env)
@@ -249,7 +239,7 @@ test('it authenticates with an env credential through the askpass helper', async
   updateEnv('ATC_TEST_PROBE_TOKEN', 'tok-77a1');
 
   const access = await checkRepositoryAccess({
-    url: ctx.httpURL,
+    url: `${server.url}upstream.git`,
     transports: ['https', 'ssh', 'http', 'file'],
     ref: 'main',
     credential: { kind: 'env', name: 'ATC_TEST_PROBE_TOKEN' },
@@ -257,27 +247,26 @@ test('it authenticates with an env credential through the askpass helper', async
 
   expect(access).toStrictEqual({
     ok: true,
-    url: ctx.httpURL,
+    url: `${server.url}upstream.git`,
     head: 'main',
     refs: [{ name: 'main', kind: 'branch', sha: pushed }],
     resolved: { sha: pushed, branch: 'main' },
   });
 
-  expect(ctx.authorizations).not.toBeEmpty();
+  expect(server.authorizations).not.toBeEmpty();
 
-  expect(ctx.authorizations).toSatisfyAll(
+  expect(server.authorizations).toSatisfyAll(
     (header: string) =>
       header === `Basic ${Buffer.from('x-access-token:tok-77a1').toString('base64')}`,
   );
 });
 
 test('it refuses an upstream that does not answer within its time limit and leaves no git process behind', async () => {
-  await using ctx = await setupTest();
-
+  const silent = startStubSilentServer();
   const groups: number[] = [];
 
   const access = await checkRepositoryAccess({
-    url: ctx.silentURL,
+    url: `${silent.url}silent.git`,
     timeoutMs: 300,
     transports: ['https', 'ssh', 'http', 'file'],
     onSpawn: (pid) => {
@@ -313,7 +302,7 @@ test.each([
   ],
   ['-uhttps://example.com/app.git', 'a git URL must not start with -'],
 ])('it refuses the URL %s before any git runs', async (url, message) => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
@@ -328,7 +317,7 @@ test.each([
 });
 
 test('it refuses an https URL the host git config rewrites to a local repository, in git', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await writeFile(
     join(ctx.dir, 'gitconfig'),

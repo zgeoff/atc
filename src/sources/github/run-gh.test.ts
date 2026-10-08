@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { getEventListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -6,18 +6,20 @@ import invariant from 'tiny-invariant';
 import { buildStubForkingGH } from '../../test-utils/build-stub-forking-gh';
 import { buildStubGH } from '../../test-utils/build-stub-gh';
 import { createStubBin } from '../../test-utils/create-stub-bin';
+import { registerTestCleanup } from '../../test-utils/register-test-cleanup';
 import { setupTempDir } from '../../test-utils/setup-temp-dir';
 import { waitFor } from '../../test-utils/wait-for';
 import { runGH } from './run-gh';
 
 // A directory for a stand-in gh and the files it records.
 function setupTest() {
-  return setupTempDir('atc-run-gh-');
+  const tmp = setupTempDir('atc-run-gh-');
+
+  return { dir: tmp.dir };
 }
 
 test('it returns what gh printed and its exit code, and stops listening for an abort', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const argvFile = join(ctx.dir, 'argv');
 
   const gh = createStubBin(
@@ -29,21 +31,15 @@ test('it returns what gh printed and its exit code, and stops listening for an a
   const controller = new AbortController();
 
   const run = await runGH(gh, controller.signal, ['repo', 'list']);
+  const argv = await readFile(argvFile, 'utf8');
 
-  expect({
-    run,
-    argv: await readFile(argvFile, 'utf8'),
-    listeners: getEventListeners(controller.signal, 'abort'),
-  }).toStrictEqual({
-    run: { exitCode: 3, stdout: 'out\n', stderr: 'err\n', timedOut: false },
-    argv: 'repo list\n',
-    listeners: [],
-  });
+  expect(run).toStrictEqual({ exitCode: 3, stdout: 'out\n', stderr: 'err\n', timedOut: false });
+  expect(argv).toBe('repo list\n');
+  expect(getEventListeners(controller.signal, 'abort')).toStrictEqual([]);
 });
 
 test('it reports the pid of the gh it starts', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const gh = createStubBin(ctx.dir, 'gh', '#!/bin/sh\necho $$\n');
   const spawned: number[] = [];
 
@@ -57,8 +53,7 @@ test('it reports the pid of the gh it starts', async () => {
 });
 
 test('it stops a gh at once when the signal aborted before the call', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: { repo: 'hang' } }));
   const spawned: number[] = [];
 
@@ -82,8 +77,7 @@ test('it stops a gh at once when the signal aborted before the call', async () =
 });
 
 test('it stops every process a gh that is still running at abort started', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const pidsFile = join(ctx.dir, 'pids');
   const gh = createStubBin(ctx.dir, 'gh', buildStubForkingGH(pidsFile));
 
@@ -91,7 +85,7 @@ test('it stops every process a gh that is still running at abort started', async
 
   const running = runGH(gh, controller.signal, ['repo', 'list']);
 
-  onTestFinished(async () => {
+  registerTestCleanup(async () => {
     controller.abort();
 
     await running;
