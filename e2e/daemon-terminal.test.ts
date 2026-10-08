@@ -556,6 +556,152 @@ test('it submits a long line to a claude session as one submission', async () =>
   expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"${'a'.repeat(1600)}"`]);
 });
 
+test('it types a slash command name to a claude session and pastes its long argument', async () => {
+  await using ctx = await setupTest();
+
+  writeFileSync(join(ctx.home, 'fake-claude-composer'), '');
+
+  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // A screen read waits for the daemon's parse, so once it shows the
+  // banner, the paste mode the composer turned on just before it is in
+  // force.
+  await waitFor(async () => {
+    const read = await ctx.client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await ctx.client.sendRequest('session.submit', {
+    session: id,
+    text: `/goal ${'a'.repeat(1994)}`,
+  });
+
+  // The composer echoes every byte it has read after each read, so its
+  // last echo holds the whole input as it arrived.
+  const submitted = await waitFor(() => {
+    const output = ctx.events
+      .filter((e) => e.ev === 'SessionOutput')
+      .map((e) => String(e['d']))
+      .join('');
+
+    expect(output).toMatch(/SUBMIT:.*\r/);
+
+    return output;
+  });
+
+  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+    `RECEIVED:${JSON.stringify(`/goal ${KEYS.pasteOpen}${'a'.repeat(1994)}${KEYS.pasteClose}${KEYS.enter}`)}`,
+  );
+
+  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"/goal ${'a'.repeat(1994)}"`]);
+});
+
+test.each([['codex'], ['grok']])(
+  'it types a slash command name to a %s session and pastes its argument',
+  async (agent) => {
+    await using ctx = await setupTest();
+
+    const ok = await ctx.client.sendRequest('session.spawn', {
+      cwd: ctx.home,
+      agent,
+      cols: 80,
+      rows: 24,
+    });
+
+    const id = getString(getRecord(ok, 'session'), 'id');
+
+    await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+    // A screen read waits for the daemon's parse, so once it shows the
+    // banner, the paste mode the composer turned on just before it is in
+    // force.
+    await waitFor(async () => {
+      const read = await ctx.client.sendRequest('session.screen', { session: id });
+
+      expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+    });
+
+    await ctx.client.sendRequest('session.submit', { session: id, text: '/goal finish it' });
+
+    // The composer echoes every byte it has read after each read, so its
+    // last echo holds the whole input as it arrived.
+    const submitted = await waitFor(() => {
+      const output = ctx.events
+        .filter((e) => e.ev === 'SessionOutput')
+        .map((e) => String(e['d']))
+        .join('');
+
+      expect(output).toMatch(/SUBMIT:.*\r/);
+
+      return output;
+    });
+
+    expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+      `RECEIVED:${JSON.stringify(`/goal ${KEYS.pasteOpen}finish it${KEYS.pasteClose}${KEYS.enter}`)}`,
+    );
+
+    expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual(['SUBMIT:"/goal finish it"']);
+  },
+);
+
+test('it pastes a long line to a busy claude session as it does to an idle one', async () => {
+  await using ctx = await setupTest();
+
+  writeFileSync(join(ctx.home, 'fake-claude-composer-last'), '');
+
+  writeFileSync(
+    join(ctx.home, 'fake-claude-events.jsonl'),
+    '{"hook_event_name":"UserPromptSubmit","session_id":"fake-1","prompt":"work"}\n',
+  );
+
+  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  // The stub reports the prompt before its composer starts, so once the
+  // screen shows the composer's banner the session is busy and the paste
+  // mode the composer turned on is in force.
+  await waitFor(async () => {
+    const read = await ctx.client.sendRequest('session.screen', { session: id });
+
+    expect(read['text']).toInclude('FAKE_COMPOSER_READY');
+  });
+
+  await waitFor(async () => {
+    const listed = await ctx.client.sendRequest('session.list');
+
+    expect(listed).toMatchObject({ sessions: [{ id, state: 'running' }] });
+  });
+
+  await ctx.client.sendRequest('session.submit', { session: id, text: 'a'.repeat(1600) });
+
+  // The composer echoes every byte it has read after each read, so its
+  // last echo holds the whole input as it arrived.
+  const submitted = await waitFor(() => {
+    const output = ctx.events
+      .filter((e) => e.ev === 'SessionOutput')
+      .map((e) => String(e['d']))
+      .join('');
+
+    expect(output).toMatch(/SUBMIT:.*\r/);
+
+    return output;
+  });
+
+  expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
+    `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}${'a'.repeat(1600)}${KEYS.pasteClose}${KEYS.enter}`)}`,
+  );
+
+  expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual([`SUBMIT:"${'a'.repeat(1600)}"`]);
+});
+
 test('it submits a claude composer draft on an empty line without adding a line to it', async () => {
   const ctx = setupTest();
 

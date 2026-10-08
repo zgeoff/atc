@@ -234,6 +234,14 @@ two writes arrive. Paste markers inside the text are dropped, so the text cannot
 Empty text is the carriage return alone: it submits the text the composer holds and adds no line to
 it.
 
+A line that opens with a slash command and an argument, such as `/goal finish the release`, goes out
+in three writes: the command name and the spaces after it as typed keys, the argument between paste
+markers, then the carriage return. Claude takes a long paste as pasted text, so a long slash command
+pasted whole would reach the model as a message and the command would never run; typed, the name
+stays a command at any argument length. A command name is a slash, then letters, digits, `_`, `-`,
+and `:`, followed by a space, so a line that opens with a path such as `/tmp/out` is pasted whole. A
+bare command with no argument is pasted whole too.
+
 The daemon reads from the session's screen model whether the TUI has turned bracketed paste on (DEC
 mode 2004); until it has, the text goes unmarked. In that case the text and the carriage return go
 out in the same tick and can arrive as one burst, so the daemon cannot promise that the line is

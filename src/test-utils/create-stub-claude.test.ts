@@ -174,6 +174,41 @@ test('it exits after its reports without reading input when the home asks it to'
   ]);
 });
 
+test('it runs the composer after its reports when the home asks for one last', () => {
+  using ctx = setupTest();
+
+  writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");
+
+  const stub = createStubClaude(ctx.dir, {
+    atc: ['false'],
+    composer: join(ctx.dir, 'composer.js'),
+  });
+
+  writeFileSync(join(ctx.dir, 'fake-claude-composer-last'), '');
+
+  const run = Bun.spawnSync([stub, '--settings', ctx.settings], {
+    env: { ...process.env, HOME: ctx.dir },
+    stdin: Buffer.from('hello\n'),
+  });
+
+  const hooks = readFileSync(join(ctx.dir, 'hooks.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line): unknown => JSON.parse(line));
+
+  expect(run.stdout.toString()).toEndWith('COMPOSER_RAN\n');
+  expect(run.stdout.toString()).not.toInclude('GOT:hello');
+
+  expect(hooks).toStrictEqual([
+    {
+      hook_event_name: 'SessionStart',
+      session_id: 'fake-1',
+      transcript_path: join(ctx.dir, 'fake-transcript.jsonl'),
+    },
+    { hook_event_name: 'Notification', session_id: 'fake-1', message: 'needs permission' },
+  ]);
+});
+
 test('it reports its atc session id as the agent session when the home asks it to', () => {
   const ctx = setupTest();
 
