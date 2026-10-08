@@ -19,30 +19,15 @@ import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**
- * A stub imp port whose impd an operator prepared, and the targets a
- * daemon runs with over it: `local`, and an imp target `box` whose guest
- * folders live under `g`. The guest has an atc stand-in, so a Claude
+ * A stub imp port, which each test gives its token identity and broker
+ * secrets, and the targets a daemon runs with over it: `local`, and an
+ * imp target `box` whose guest folders live under `g`. The guest has an atc stand-in, so a Claude
  * gateway plans a real guest spawn. `fakeClaude` is a fake claude that
  * records each start in `claude-starts.log` under the directory.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-guest-auth-');
   const port = createStubImpPort();
-
-  // Every brokered spawn checks that the token may manage atc imps and
-  // grant glm, and that impd holds glm for api.z.ai as a bearer secret.
-  port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
-
-  port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
-
   const fakeClaude = createStubRecordingClaude(tmp.dir);
 
   // The imp provider hands the guest this atc binary.
@@ -77,6 +62,18 @@ function setupTest() {
 
 test('it starts a brokered gateway on an imp under the settings file of its binding revision', async () => {
   const ctx = setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -143,6 +140,18 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
 test('it revives a rebound session under the settings file of the next revision', async () => {
   const ctx = setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
@@ -198,6 +207,18 @@ test('it revives a rebound session under the settings file of the next revision'
 test('it refuses to revive a revoked session and starts no harness under its old settings', async () => {
   const ctx = setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
@@ -245,6 +266,18 @@ test('it refuses to revive a revoked session and starts no harness under its old
 
 test('it starts a brokered gateway with the placeholder and its own Claude config in the harness env and no credential anywhere', async () => {
   const ctx = setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -314,6 +347,18 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
 test('it refuses a brokered gateway whose env sets a proxy variable before any imp call', async () => {
   const ctx = setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => {
       const config = parseConfig({
@@ -372,6 +417,18 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
 
 test('it lists a brokered gateway with the bearer placeholder as spawnable and one with another placeholder as not', async () => {
   const ctx = setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => {
@@ -435,6 +492,18 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
 test('it refuses a brokered gateway with an unsupported placeholder before materializing its workspace or touching impd', async () => {
   const ctx = setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
@@ -486,6 +555,18 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
 
 test('it refuses a brokered gateway on the local target before materializing its workspace or touching impd', async () => {
   const ctx = setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => ({

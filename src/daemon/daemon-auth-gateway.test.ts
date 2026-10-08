@@ -18,8 +18,8 @@ import type { RestoreSettled } from './restore-fleet';
 
 /**
  * A temp directory holding a fake Claude that records each start in
- * `marker`, and the two targets a daemon runs on: `local`, and the imp
- * target `box` over a stub imp port. `settles` collects the fleet restores
+ * `marker`, and the providers of the two targets a daemon runs on: a local
+ * provider, and an imp provider `box` over a stub imp port. `settles` collects the fleet restores
  * a daemon reports to the `onRestoreSettled` recorder.
  */
 function setupTest() {
@@ -39,16 +39,8 @@ function setupTest() {
     settles,
     fakeClaude: createStubRecordingClaude(tmp.dir),
     marker: join(tmp.dir, 'claude-starts.log'),
-    targets: [
-      {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
-        identity: 'local-pty:test',
-        provider: new LocalPTYProvider(),
-      },
-      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: box },
-    ],
+    local: new LocalPTYProvider(),
+    box,
     onRestoreSettled: (settled: RestoreSettled) => {
       settles.push(settled);
     },
@@ -80,7 +72,16 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
           },
         }),
       ),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: ctx.local,
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+      ],
       defaultTarget: 'local',
       onRestoreSettled: ctx.onRestoreSettled,
     }),
@@ -126,7 +127,16 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
           },
         }),
       ),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: ctx.local,
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+      ],
       defaultTarget: 'local',
       onRestoreSettled: ctx.onRestoreSettled,
     }),
@@ -171,7 +181,16 @@ test('it starts the harness of a gateway without auth on a local spawn', async (
           },
         }),
       ),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: ctx.local,
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+      ],
       defaultTarget: 'local',
       onRestoreSettled: ctx.onRestoreSettled,
     }),
@@ -209,7 +228,16 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
           },
         }),
       ),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: ctx.local,
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+      ],
       defaultTarget: 'local',
       onRestoreSettled: ctx.onRestoreSettled,
     }),
@@ -366,7 +394,16 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
           },
         }),
       ),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: ctx.local,
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+      ],
       defaultTarget: 'local',
       onRestoreSettled: ctx.onRestoreSettled,
     }),
@@ -413,7 +450,16 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
           },
         }),
       ),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: ctx.local,
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+      ],
       defaultTarget: 'local',
       onRestoreSettled: ctx.onRestoreSettled,
     }),
@@ -480,7 +526,16 @@ test('it restores a local session of a gateway with auth without starting its ha
           },
         }),
       ),
-      targets: ctx.targets,
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: ctx.local,
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.box },
+      ],
       defaultTarget: 'local',
       onRestoreSettled: ctx.onRestoreSettled,
     }),
