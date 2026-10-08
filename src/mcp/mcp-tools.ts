@@ -428,7 +428,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: AGENT_FACING_DESTRUCTIVE,
     scope: 'spawn',
     description:
-      "Type a line of text into a running session and submit it, as if the operator typed it and pressed enter. atc submits the line the way the session's agent accepts one. Use it to answer a session that is waiting on input. atc pastes the line, so its newlines stay in it, and Claude takes a line of about 800 characters or more as pasted text, not as typed words. A line that starts with a slash command and an argument, such as /goal finish the release, has the command name typed and only the argument pasted, so the command runs at any length. A result of sent means atc wrote the line and its submit key to the session; it does not confirm that the agent took the line or answered it. Read the session's screen or events for that. The tool sends no raw keystrokes.",
+      "Type a line of text into a running session and submit it, as if the operator typed it and pressed enter. atc submits the line the way the session's agent accepts one. Use it to answer a session that is waiting on input. atc pastes the line, so its newlines stay in it, and Claude takes a line of about 800 characters or more as pasted text, not as typed words. On a Claude session, a line that starts with a slash command and an argument, such as /goal finish the release, has the command name typed and only the argument pasted, so the command runs at any length. A result of sent means atc wrote the line and its submit key to the session; it does not confirm that the agent took the line or answered it. Read the session's screen or events for that. The tool sends no raw keystrokes.",
     inputSchema: {
       type: 'object',
       properties: {

@@ -602,7 +602,7 @@ test('it types a slash command name to a claude session and pastes its long argu
 });
 
 test.each([['codex'], ['grok']])(
-  'it types a slash command name to a %s session and pastes its argument',
+  'it pastes a slash command line to a %s session whole',
   async (agent) => {
     await using ctx = await setupTest();
 
@@ -642,7 +642,7 @@ test.each([['codex'], ['grok']])(
     });
 
     expect(submitted.match(/RECEIVED:.*/g)?.at(-1)).toBe(
-      `RECEIVED:${JSON.stringify(`/goal ${KEYS.pasteOpen}finish it${KEYS.pasteClose}${KEYS.enter}`)}`,
+      `RECEIVED:${JSON.stringify(`${KEYS.pasteOpen}/goal finish it${KEYS.pasteClose}${KEYS.enter}`)}`,
     );
 
     expect(submitted.match(/SUBMIT:.*/g)).toStrictEqual(['SUBMIT:"/goal finish it"']);

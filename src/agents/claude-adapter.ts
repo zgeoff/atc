@@ -48,7 +48,7 @@ import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
-import { planPastedLineInput } from './plan-pasted-line-input';
+import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
 import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
@@ -88,8 +88,9 @@ export class ClaudeAdapter implements AgentAdapter {
   readonly parseTranscriptLine = parseClaudeTranscriptLine;
 
   // Claude's TUI takes a long burst of input as a paste and keeps its
-  // newline in the composer, so a line is pasted and then submitted.
-  readonly planLineInput = planPastedLineInput;
+  // newline in the composer, so a line is pasted and then submitted, with a
+  // leading slash command's name typed so the command still runs.
+  readonly planLineInput = planClaudeLineInput;
 
   readonly profile: AgentProfile;
 
