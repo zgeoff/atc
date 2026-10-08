@@ -1416,6 +1416,11 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
 
   ctx.port.startLeaseHold();
 
+  // A held lease acquisition would keep the daemon's stop waiting.
+  const stopLeaseHold = registerTestCleanup(() => {
+    ctx.port.stopLeaseHold();
+  });
+
   ctx.port.calls.length = 0;
 
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
@@ -1430,7 +1435,7 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
 
   await revoke.catch(() => null);
 
-  ctx.port.stopLeaseHold();
+  stopLeaseHold();
 
   await adopt.catch(() => null);
 
@@ -1503,6 +1508,11 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
 
   ctx.port.startLeaseHold();
 
+  // A held lease acquisition would keep the daemon's stop waiting.
+  const stopLeaseHold = registerTestCleanup(() => {
+    ctx.port.stopLeaseHold();
+  });
+
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
@@ -1522,7 +1532,7 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
 
   await revoke.catch(() => null);
 
-  ctx.port.stopLeaseHold();
+  stopLeaseHold();
 
   await child.catch(() => null);
 
@@ -1595,6 +1605,11 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 
   ctx.port.startLeaseHold();
 
+  // A held lease acquisition would keep the daemon's stop waiting.
+  const stopLeaseHold = registerTestCleanup(() => {
+    ctx.port.stopLeaseHold();
+  });
+
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
@@ -1610,9 +1625,11 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: parentID });
 
-  ctx.port.stopLeaseHold();
+  await revoke.catch(() => null);
+
+  stopLeaseHold();
 
   await child.catch(() => null);
 
@@ -1622,6 +1639,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 
   const grants = await ctx.port.readGrants(imp);
 
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
   expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
   expect(ctx.port.calls.filter((call) => call.startsWith('imps.destroy'))).toStrictEqual([]);
   expect(grants).toStrictEqual(['glm']);
@@ -1679,6 +1697,11 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
 
   ctx.port.startLeaseHold();
 
+  // A held lease acquisition would keep the daemon's stop waiting.
+  const stopLeaseHold = registerTestCleanup(() => {
+    ctx.port.stopLeaseHold();
+  });
+
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
@@ -1694,12 +1717,15 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: parentID });
 
-  ctx.port.stopLeaseHold();
+  await revoke.catch(() => null);
+
+  stopLeaseHold();
 
   await child.catch(() => null);
 
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
   expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
   expect(ctx.port.findState(imp)).toBe('running');
   expect(ctx.port.calls.filter((call) => call.startsWith('imps.sleep'))).toStrictEqual([]);
@@ -1761,6 +1787,11 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
   ctx.port.startBrokerFailure();
   ctx.port.startReleaseHold();
 
+  // A held lease release would keep the daemon's stop waiting.
+  const stopReleaseHold = registerTestCleanup(() => {
+    ctx.port.stopReleaseHold();
+  });
+
   ctx.port.calls.length = 0;
 
   const revive = daemon.client.sendRequest('session.adopt', {
@@ -1786,7 +1817,7 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
     expect(ctx.port.calls.filter((call) => call.startsWith(`grants.list ${imp}`))).toHaveLength(2);
   });
 
-  ctx.port.stopReleaseHold();
+  stopReleaseHold();
 
   await revive.catch(() => null);
 
@@ -1858,6 +1889,11 @@ test('it puts a host to sleep after a refused revive when no other launch readie
   ctx.port.startBrokerFailure();
   ctx.port.startReleaseHold();
 
+  // A held lease release would keep the daemon's stop waiting.
+  const stopReleaseHold = registerTestCleanup(() => {
+    ctx.port.stopReleaseHold();
+  });
+
   ctx.port.calls.length = 0;
 
   const revive = daemon.client.sendRequest('session.adopt', {
@@ -1870,7 +1906,7 @@ test('it puts a host to sleep after a refused revive when no other launch readie
     expect(ctx.port.calls.filter((call) => call.startsWith('leases.release'))).toHaveLength(1);
   });
 
-  ctx.port.stopReleaseHold();
+  stopReleaseHold();
 
   await revive.catch(() => null);
 
@@ -1934,6 +1970,11 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
 
   ctx.port.startLeaseHold();
 
+  // A held lease acquisition would keep the daemon's stop waiting.
+  const stopLeaseHold = registerTestCleanup(() => {
+    ctx.port.stopLeaseHold();
+  });
+
   ctx.port.calls.length = 0;
 
   const child = daemon.client.sendRequest('session.spawn', {
@@ -1947,7 +1988,7 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
     expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  ctx.port.stopLeaseHold();
+  stopLeaseHold();
 
   await child;
 
@@ -2009,6 +2050,11 @@ test('it sends no start for a revive that a revoke blocks while its connection t
 
   ctx.port.startUpgradeHold();
 
+  // A held connection upgrade would keep the daemon's stop waiting.
+  const stopUpgradeHold = registerTestCleanup(() => {
+    ctx.port.stopUpgradeHold();
+  });
+
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
@@ -2021,7 +2067,7 @@ test('it sends no start for a revive that a revoke blocks while its connection t
 
   await revoke.catch(() => null);
 
-  ctx.port.stopUpgradeHold();
+  stopUpgradeHold();
 
   await adopt.catch(() => null);
 
@@ -2092,13 +2138,18 @@ test('it sends the start of a revive whose connection to impd opens late when no
 
   ctx.port.startUpgradeHold();
 
+  // A held connection upgrade would keep the daemon's stop waiting.
+  const stopUpgradeHold = registerTestCleanup(() => {
+    ctx.port.stopUpgradeHold();
+  });
+
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.port.countHeldUpgrades()).toBe(1);
   });
 
-  ctx.port.stopUpgradeHold();
+  stopUpgradeHold();
 
   await adopt;
 
@@ -2160,13 +2211,18 @@ test('it revives a session while its host wakes when no revoke comes between', a
 
   ctx.port.startLeaseHold();
 
+  // A held lease acquisition would keep the daemon's stop waiting.
+  const stopLeaseHold = registerTestCleanup(() => {
+    ctx.port.stopLeaseHold();
+  });
+
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.port.calls).toContainEqual(expect.toStartWith(`leases.acquire ${imp} `));
   });
 
-  ctx.port.stopLeaseHold();
+  stopLeaseHold();
 
   await adopt;
 

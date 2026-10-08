@@ -10,11 +10,7 @@ import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
  * the message methods reach their own checks.
  */
 function setupTest() {
-  const adapter = buildMockAgentAdapter({
-    takesMessages: true,
-    normalizeHook: () => ({ kind: 'prompt-submitted' }),
-    buildResumeCommand: () => 'claude --resume',
-  });
+  const adapter = buildMockAgentAdapter({ takesMessages: true });
 
   return { adapter };
 }
@@ -146,9 +142,16 @@ test('it keeps answering the owner after it refuses an owner-only method to a pr
 
   const client = await daemon.openClient({ principal: 'gw' });
 
-  await client.sendRequest('fleet.restore', {}).catch(() => null);
+  const refused = client.sendRequest('fleet.restore', {});
+
+  await Promise.allSettled([refused]);
 
   const pinged = await daemon.client.sendRequest('daemon.ping', {});
+
+  expect(refused).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "fleet.restore is open to the daemon's owner only",
+  });
 
   expect(pinged).toStrictEqual({});
 });

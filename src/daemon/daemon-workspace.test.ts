@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, mock, onTestFinished, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import {
   existsSync,
   mkdirSync,
@@ -1326,11 +1326,6 @@ test("it logs the failure of an interrupted materialization that resumes into th
   const ctx = await setupTest();
 
   const held = Promise.withResolvers<undefined>();
-
-  onTestFinished(() => {
-    held.resolve(undefined);
-  });
-
   const box = buildStubDirProvider({ afterTransfer: () => held.promise });
 
   const daemon = await startTestDaemon({
@@ -1353,6 +1348,12 @@ test("it logs the failure of an interrupted materialization that resumes into th
         }),
       ],
     }),
+  });
+
+  // The held transfer is released before the daemon stops and its
+  // directories go.
+  const releaseTransfer = registerTestCleanup(() => {
+    held.resolve(undefined);
   });
 
   // The restart ends the spawn's connection, so its answer never comes.
@@ -1389,7 +1390,7 @@ test("it logs the failure of an interrupted materialization that resumes into th
 
   await spawn;
 
-  held.resolve(undefined);
+  releaseTransfer();
 
   await waitFor(() => {
     expect(daemon.logs).toSatisfyAny((line: string) => line.includes('failed while transferring'));
@@ -1589,6 +1590,12 @@ test.each([
       }),
     });
 
+    // The held transfer is released before the daemon stops and its
+    // directories go.
+    const releaseTransfer = registerTestCleanup(() => {
+      released.resolve();
+    });
+
     const dest = join(ctx.dir, 'box', 'ws');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
@@ -1607,7 +1614,7 @@ test.each([
       target: insideTarget,
     });
 
-    released.resolve();
+    releaseTransfer();
 
     await spawn.catch(() => null);
 

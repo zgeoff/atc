@@ -11,7 +11,6 @@ import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
-import { buildTargetIdentity } from './build-target-identity';
 
 /**
  * The daemon's stand-ins. `providers` builds, for a target id, the
@@ -85,7 +84,9 @@ test('it spawns a session on the target the spawn names and records it in the fl
       {
         sessionID: session['id'],
         target: 'box',
-        targetIdentity: buildTargetIdentity('local-pty', { size: 2 }),
+
+        // The kind, then the first 16 hex digits of sha256('{"size":2}').
+        targetIdentity: 'local-pty:7028e13f78f6f7ad',
       },
     ],
   });
@@ -329,7 +330,9 @@ test('it lists each target and each config error', async () => {
       {
         id: 'local',
         provider: 'local-pty',
-        identity: buildTargetIdentity('local-pty', {}),
+
+        // The kind, then the first 16 hex digits of sha256('{}').
+        identity: 'local-pty:44136fa355b3678a',
         available: true,
         default: false,
         capabilities: {
@@ -349,7 +352,7 @@ test('it lists each target and each config error', async () => {
       {
         id: 'box',
         provider: 'imp',
-        identity: buildTargetIdentity('imp', {}),
+        identity: 'imp:44136fa355b3678a',
         available: false,
         default: true,
         capabilities: {
@@ -378,23 +381,30 @@ test('it lists each target and each config error', async () => {
   });
 });
 
+// Each bound identity is the kind, then the first 16 hex digits of
+// sha256('{}').
 test.each([
-  ['removed from the config', 'local-pty', { local: { provider: 'local-pty' } }, 'unknown_target'],
+  [
+    'removed from the config',
+    'local-pty:44136fa355b3678a',
+    { local: { provider: 'local-pty' } },
+    'unknown_target',
+  ],
   [
     'left without a provider',
-    'imp',
+    'imp:44136fa355b3678a',
     { local: { provider: 'local-pty' }, box: { provider: 'imp' } },
     'target_unavailable',
   ],
   [
     'malformed in the config',
-    'local-pty',
+    'local-pty:44136fa355b3678a',
     { local: { provider: 'local-pty' }, box: { image: 'dev' } },
     'target_config_invalid',
   ],
 ])(
   'it refuses input to a restored headless session whose target was %s, without running it',
-  async (_label, boundKind, targets, code) => {
+  async (_label, boundIdentity, targets, code) => {
     const ctx = setupTest();
 
     const daemon = await startTestDaemon({
@@ -410,7 +420,7 @@ test.each([
             cwd: paths.dir,
             agentSessionID: toAgentSessionID('a-box'),
             target: 'box',
-            targetIdentity: buildTargetIdentity(boundKind, {}),
+            targetIdentity: boundIdentity,
           }),
         ]);
 
@@ -506,7 +516,9 @@ test('it refuses input to a restored headless session whose provider runs no hea
           cwd: paths.dir,
           agentSessionID: toAgentSessionID('a-box'),
           target: 'box',
-          targetIdentity: buildTargetIdentity('no-headless', {}),
+
+          // The kind, then the first 16 hex digits of sha256('{}').
+          targetIdentity: 'no-headless:44136fa355b3678a',
         }),
       ]);
 

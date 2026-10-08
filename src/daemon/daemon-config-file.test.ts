@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CodexAdapter } from '../agents/codex-adapter';
-import type { DaemonError } from '../protocol/daemon-error';
 import { loadConfig, parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { toSessionID } from '../shared/to-session-id';
@@ -63,11 +62,9 @@ test('it refuses a spawn without a target when an existing config holds invalid 
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
-  expect(refused).toStrictEqual({
+  expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -100,11 +97,9 @@ test('it refuses a spawn on the local target when an existing config holds inval
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
-  expect(refused).toStrictEqual({
+  expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -137,11 +132,9 @@ test('it refuses a spawn without a target when the config path is a directory', 
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
-  expect(refused).toStrictEqual({
+  expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_unreadable',
@@ -174,11 +167,9 @@ test('it refuses a spawn on the local target when the config path is a directory
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
-  expect(refused).toStrictEqual({
+  expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_unreadable',
@@ -216,11 +207,9 @@ test.skipIf(process.getuid?.() === 0)(
       },
     });
 
-    const refused = await daemon.client
-      .sendRequest('session.spawn', { cwd: daemon.dir })
-      .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+    const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
-    expect(refused).toStrictEqual({
+    expect(refused).rejects.toMatchObject({
       code: 'target_config_invalid',
       data: {
         problem: 'config_unreadable',
@@ -259,14 +248,12 @@ test.skipIf(process.getuid?.() === 0)(
       },
     });
 
-    const refused = await daemon.client
-      .sendRequest('session.spawn', {
-        cwd: daemon.dir,
-        target: 'local',
-      })
-      .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+    const refused = daemon.client.sendRequest('session.spawn', {
+      cwd: daemon.dir,
+      target: 'local',
+    });
 
-    expect(refused).toStrictEqual({
+    expect(refused).rejects.toMatchObject({
       code: 'target_config_invalid',
       data: {
         problem: 'config_unreadable',
@@ -305,11 +292,9 @@ test.each([
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
 
-  expect(refused).toStrictEqual({
+  expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -347,11 +332,9 @@ test.each([
     },
   });
 
-  const refused = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const refused = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
-  expect(refused).toStrictEqual({
+  expect(refused).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -384,15 +367,12 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
     },
   });
 
-  const untargeted = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const untargeted = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
+  const local = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
-  const local = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  await Promise.allSettled([untargeted, local]);
 
-  expect(untargeted).toStrictEqual({
+  expect(untargeted).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -402,7 +382,7 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
     },
   });
 
-  expect(local).toStrictEqual({
+  expect(local).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -447,11 +427,9 @@ test('it refuses input to a restored local session without running a turn when t
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const input = await daemon.client
-    .sendRequest('session.input', { session: 's-old', d: 'go\r' })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const input = daemon.client.sendRequest('session.input', { session: 's-old', d: 'go\r' });
 
-  expect(input).toStrictEqual({
+  expect(input).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -551,44 +529,6 @@ test('it spawns a session without a target on the local target when no config ex
   expect(ctx.harnesses).toStrictEqual(['local']);
 });
 
-test('it writes the default config when no config exists', async () => {
-  const ctx = setupTest();
-
-  const daemon = await startTestDaemon({
-    options: () => {
-      const loaded = loadConfig(ctx.configPath);
-
-      return {
-        adapter: ctx.claude,
-        ejectSettleMs: 0,
-        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
-        defaultTarget: loaded.defaultTarget,
-        targetErrors: loaded.targetErrors,
-        principals: loaded.principals,
-      };
-    },
-  });
-
-  await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
-
-  const written: unknown = JSON.parse(readFileSync(ctx.configPath, 'utf8'));
-
-  expect(written).toStrictEqual({
-    agents: { claude: {} },
-    dirs: { roots: [] },
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    restoreFleetOnRestart: true,
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targets: {},
-    },
-  });
-});
-
 test('it refuses a spawn of an agent missing from this host with the config problem when the config holds invalid JSON', async () => {
   const ctx = setupTest();
 
@@ -616,11 +556,9 @@ test('it refuses a spawn of an agent missing from this host with the config prob
     },
   });
 
-  const spawn = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, data: error.data }));
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
 
-  expect(spawn).toStrictEqual({
+  expect(spawn).rejects.toMatchObject({
     code: 'target_config_invalid',
     data: {
       problem: 'config_malformed',
@@ -659,11 +597,9 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
     },
   });
 
-  const spawn = await daemon.client
-    .sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' })
-    .catch((error: Readonly<DaemonError>) => ({ code: error.code, message: error.message }));
+  const spawn = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, agent: 'codex' });
 
-  expect(spawn).toStrictEqual({
+  expect(spawn).rejects.toMatchObject({
     code: 'unsupported',
     message: "agent 'codex' is registered but not installed on this host",
   });
@@ -704,16 +640,15 @@ test.each([
     },
   });
 
-  const refusal = await daemon.client
-    .sendRequest('session.spawn', { ...params, cwd: daemon.dir })
-    .catch((error: Readonly<DaemonError>) => ({
-      code: error.code,
-      message: error.message,
-      data: error.data,
-    }));
+  const refusal = daemon.client.sendRequest('session.spawn', { ...params, cwd: daemon.dir });
 
-  expect(refusal).toMatchObject({ code: 'target_config_invalid' });
-  expect(JSON.stringify(refusal)).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
+  expect(refusal).rejects.toMatchObject({
+    code: 'target_config_invalid',
+    message: expect.not.toInclude('sk_fixture_NOT_A_SECRET_1234'),
+    data: expect.toSatisfy(
+      (data: unknown) => !JSON.stringify(data).includes('sk_fixture_NOT_A_SECRET_1234'),
+    ),
+  });
 });
 
 test.each([

@@ -598,8 +598,9 @@ test('it closes a session connection whose gate shuts as it opens, sending impd 
     },
   );
 
-  await connection.outcome;
+  const outcome = await connection.outcome;
 
+  expect(outcome).toStrictEqual({ kind: 'closed', reason: 'closed before sending' });
   expect(gates).toStrictEqual(['checked']);
   expect(ctx.impd.execOpens).toStrictEqual([]);
 });

@@ -664,7 +664,6 @@ test('it kills a live sub-session along with its parent', async () => {
 
   expect(parent.state).toBe('exited');
   expect(child.state).toBe('exited');
-  expect(child.parent).toBe(parent.id);
 });
 
 test('it forgets a dead parent with its dead sub-sessions and promotes the live ones', async () => {

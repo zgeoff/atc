@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
@@ -293,22 +293,19 @@ test('it returns when the file shrinks while it is being read', async () => {
   // shrink.
   writeFileSync(path, line.repeat(30_000));
 
-  let truncated = false;
+  // The first line parsed empties the file; every later line parses as is.
+  const parseLine = mock(parseClaudeTranscriptLine).mockImplementationOnce((text) => {
+    writeFileSync(path, '');
+
+    return parseClaudeTranscriptLine(text);
+  });
 
   const page = await loadTranscriptPage({
     path,
     from: null,
     limit: 100_000,
     maxBytes: 100_000_000,
-    parseLine: (text) => {
-      if (!truncated) {
-        truncated = true;
-
-        writeFileSync(path, '');
-      }
-
-      return parseClaudeTranscriptLine(text);
-    },
+    parseLine,
   });
 
   // The page holds the rows of the first window: the whole lines that fit

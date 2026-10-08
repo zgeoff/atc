@@ -151,10 +151,13 @@ test('it answers an unknown method with unknown_method', async () => {
 test('it stays connected after answering an unknown method', async () => {
   const ctx = await setupTest();
 
-  await ctx.client.sendRequest('session.levitate').catch(() => null);
+  const refused = ctx.client.sendRequest('session.levitate');
+
+  await Promise.allSettled([refused]);
 
   const pong = await ctx.client.sendRequest('daemon.ping');
 
+  expect(refused).rejects.toMatchObject({ code: 'unknown_method' });
   expect(pong).toStrictEqual({});
 });
 
@@ -424,6 +427,8 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
   await ctx.client.sendRequest('session.kill', { session: id });
 
+  const killed = await ctx.client.sendRequest('session.list');
+
   const adopted = await ctx.client.sendRequest('session.adopt', {
     session: id,
     cols: 80,
@@ -432,6 +437,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
   const listed = await ctx.client.sendRequest('session.list');
 
+  expect(killed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: false })] });
   expect(adopted).toStrictEqual({});
   expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: true })] });
 });

@@ -5,7 +5,6 @@ import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { parseConfig } from '../shared/config';
 import { getRecords } from '../test-utils/get-records';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { buildTargetIdentity } from './build-target-identity';
 
 test('it lists each registered agent with what it can do and the host it runs on', async () => {
   const daemon = await startTestDaemon({
@@ -200,7 +199,7 @@ test('it lists each registered agent with what it can do and the host it runs on
       {
         id: 'local',
         provider: 'local-pty',
-        identity: buildTargetIdentity('local-pty', {}),
+        identity: 'local-pty:44136fa355b3678a',
         available: true,
         default: true,
         capabilities: {

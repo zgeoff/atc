@@ -1,15 +1,17 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
+import { buildStubPregrantedBrokerHost } from '../test-utils/build-stub-pregranted-broker-host';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { EffectRemainsError } from './effect-remains-error';
+import type { LaunchTicket } from './execution-provider';
 import { ImpHarness } from './imp-harness';
 import { ImpProvider } from './imp-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
@@ -43,7 +45,7 @@ async function setupTest() {
   };
 }
 
-test('it provisions a host through the gate, the record, a new imp and each grant, in that order', async () => {
+test('it provisions a host through the gate, a new imp and each grant, in that order, and records the imp and its grants', async () => {
   const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
@@ -1169,6 +1171,8 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
     { host: 'zeta.example', header: 'authorization', scheme: 'bearer' },
   ]);
 
+  ctx.port.calls.length = 0;
+
   const rebound = ctx.binder.updateBinding(
     ctx.host,
     toSessionID('s1'),
@@ -1197,11 +1201,27 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
 
   expect(rebound).rejects.toMatchObject({ code: 'host_unavailable' });
 
+  const calls = [...ctx.port.calls];
+
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   const imps = ctx.port.collectImpNames();
 
   const grants = await ctx.port.readGrants('atc-s1');
+
+  expect(calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    'tokens.whoami',
+    'imps.get atc-s1',
+    'grants.list atc-s1',
+    'grants.add atc-s1 judge',
+    'grants.add atc-s1 zeta',
+    'grants.delete atc-s1 judge',
+    'grants.delete atc-s1 zeta',
+    'grants.list atc-s1',
+  ]);
 
   expect(imps).toStrictEqual(['atc-s1']);
   expect(grants).toStrictEqual(['glm']);
@@ -1920,6 +1940,8 @@ test('it retries the removal of the grants a failed rebind added on a later star
     () => {},
   );
 
+  const grantsWhileUnreachable = await ctx.port.readGrants('atc-s1');
+
   await ctx.binder.reconcileBindings(
     () => ctx.host,
     new Set([toSessionID('s1')]),
@@ -1929,6 +1951,7 @@ test('it retries the removal of the grants a failed rebind added on a later star
   const grants = await ctx.port.readGrants('atc-s1');
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
+  expect(grantsWhileUnreachable).toStrictEqual(['glm', 'judge']);
   expect(grants).toStrictEqual(['glm']);
   expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1 });
 });
@@ -2265,7 +2288,10 @@ test('it returns the launch admission of each connection that fails before it op
 
   ctx.port.setUpgradeFailures(6);
 
-  const pending: number[] = [];
+  // Three connections in turn, each failing before it opens; an admission
+  // only ever adds to the host's pending count, so a count of none after
+  // the last shows every one of them returned its own.
+  const starts: PromiseSettledResult<void>[] = [];
 
   for (const session of ['s2', 's3', 's4']) {
     const harness = new ImpHarness(
@@ -2300,12 +2326,34 @@ test('it returns the launch admission of each connection that fails before it op
       harness.detach();
     });
 
-    await Promise.allSettled([harness.waitForStart()]);
-
-    pending.push(ctx.binder.countPendingAdmissions(toSessionID('s1')));
+    starts.push(...(await Promise.allSettled([harness.waitForStart()])));
   }
 
-  expect(pending).toStrictEqual([0, 0, 0]);
+  expect(starts).toStrictEqual([
+    {
+      status: 'rejected',
+      reason: expect.toContainEntries([
+        ['code', 'host_unavailable'],
+        ['data', { provider: 'imp', problem: 'not_started' }],
+      ]),
+    },
+    {
+      status: 'rejected',
+      reason: expect.toContainEntries([
+        ['code', 'host_unavailable'],
+        ['data', { provider: 'imp', problem: 'not_started' }],
+      ]),
+    },
+    {
+      status: 'rejected',
+      reason: expect.toContainEntries([
+        ['code', 'host_unavailable'],
+        ['data', { provider: 'imp', problem: 'not_started' }],
+      ]),
+    },
+  ]);
+
+  expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
   expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
@@ -2390,4 +2438,261 @@ test('it returns the launch admission of a connection whose opening throws befor
   expect(started).rejects.toMatchObject({ code: 'internal' });
   expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
   expect(ctx.port.sessionRequests).toStrictEqual([]);
+});
+
+test('it refuses to verify a host with no binding as blocked', async () => {
+  const ctx = await setupTest();
+
+  const verified = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
+
+  expect(verified).rejects.toMatchObject({
+    code: 'auth_blocked',
+    data: { host: 's1', state: null },
+  });
+});
+
+test('it refuses a launch on a host with no binding as blocked, handing nothing over', async () => {
+  const ctx = await setupTest();
+
+  const send = mock<(ticket: LaunchTicket) => void>();
+
+  const admitted = ctx.binder.withLaunchAdmission(
+    toSessionID('s1'),
+    { revision: 1, hash: 'h1', attemptID: null },
+    'start',
+    send,
+  );
+
+  expect(admitted).rejects.toMatchObject({
+    code: 'auth_blocked',
+    data: { host: 's1', state: null },
+  });
+
+  expect(send).not.toHaveBeenCalled();
+});
+
+test('it refuses to rebind a host with no binding', async () => {
+  const ctx = await setupTest();
+
+  const rebound = ctx.binder.updateBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
+
+  expect(rebound).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { host: 's1', problem: 'no_auth_binding' },
+  });
+});
+
+test('it refuses to rebind a host revoked before its spawn recorded the imp', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `glm`, and impd holds `glm` for api.z.ai, a custom
+  // bearer secret.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await ctx.store.createAuthBinding(
+    {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:test',
+      impName: 'atc-s1',
+      bindingHash: 'h1',
+      bindingJSON: '{"secrets":[]}',
+      attemptID: 'attempt-1',
+    },
+    1000,
+  );
+
+  await ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
+
+  const rebound = ctx.binder.updateBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  );
+
+  expect(rebound).rejects.toMatchObject({
+    code: 'auth_runtime_mismatch',
+    data: { host: 's1', imp: 'atc-s1', recordedID: null, actualID: null },
+  });
+});
+
+test('it refuses a new imp that already holds a grant, grants it nothing and takes it back', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
+  // and `judge` for judge.example, both custom bearer secrets.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const created = ctx.binder.createBinding(buildStubPregrantedBrokerHost(ctx.host, 'judge'), {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  expect(created).rejects.toMatchObject({
+    code: 'auth_grants_mismatch',
+    data: { host: 's1', extra: ['judge'] },
+  });
+
+  const calls = [...ctx.port.calls];
+
+  // The stand-in's own grant of judge is the only one; the binder never
+  // asks for glm.
+  expect(calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    'imps.get atc-s1',
+    'imps.create atc-s1',
+    'grants.add atc-s1 judge',
+    'grants.list atc-s1',
+    'tokens.whoami',
+    'imps.get atc-s1',
+    'imps.destroy atc-s1',
+    'imps.get atc-s1',
+  ]);
+});
+
+test('it fails a rebind that cannot revoke a secret the new binding drops as revocation pending', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
+  // and `judge` for judge.example, both custom bearer secrets.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  ctx.port.setGrantRemovalFailure('INTERNAL');
+
+  const rebound = ctx.binder.updateBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['judge'],
+      secrets: [
+        {
+          secret: 'judge',
+          kind: 'custom',
+          rules: [{ host: 'judge.example', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h2',
+    }),
+  );
+
+  expect(rebound).rejects.toMatchObject({
+    code: 'auth_revocation_pending',
+    data: { host: 's1', pending: ['glm'] },
+  });
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1, bindingHash: 'h1' });
 });

@@ -35,20 +35,6 @@ async function setupTest() {
   const tmp = setupTempDir('atc-workspace-trust-');
   const port = createStubImpPort();
 
-  // A gateway launch on an imp needs a grantable broker secret for its
-  // auth profile.
-  port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
-
-  port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
-
   const git = await createGitFixture({ prefix: 'atc-workspace-trust-git-' });
 
   // Each agent run records its start, so a test sees whether a launch went
@@ -82,6 +68,18 @@ async function setupTest() {
 
 test('it trusts only the resolved cloned root after an opted-in brokered launch', async () => {
   const ctx = await setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => {
@@ -171,6 +169,18 @@ test.each([
 ])('it leaves cloned workspaces untrusted with opt-in %s', async (_label, launch) => {
   const ctx = await setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
@@ -234,6 +244,18 @@ test.each([
 test('it refuses trust for an existing folder before touching the imp', async () => {
   const ctx = await setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
@@ -291,6 +313,18 @@ test.each([
   'it seeds no trust before the clone is verified with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
+
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
+
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
 
     const daemon = await startTestDaemon({
       options: () => {
@@ -377,6 +411,18 @@ test.each([
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
 
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
+
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
+
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
@@ -459,6 +505,18 @@ test.each([
 test('it refuses clone trust for stock Claude on an imp target before preparing a host', async () => {
   const ctx = await setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
@@ -516,6 +574,18 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
 
 test('it refuses clone trust for a gateway on the local target before cloning', async () => {
   const ctx = await setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => {
@@ -578,6 +648,18 @@ test.each([
   'it preserves an existing guest config byte for byte during an opted-in clone launch with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
+
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
+
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
 
     const daemon = await startTestDaemon({
       options: () => {
@@ -671,6 +753,18 @@ test.each([
   'it removes a child clone after the trust-seed transfer fails with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
+
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
+
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
 
     const daemon = await startTestDaemon({
       options: () => {
@@ -772,6 +866,18 @@ test.each([
   'it permits a keyed retry of a child launch whose trust-seed transfer failed with target %s and launch %s',
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
+
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
+
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
 
     const daemon = await startTestDaemon({
       options: () => {
@@ -892,6 +998,18 @@ test.each([
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
 
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
+
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
+
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
@@ -969,6 +1087,18 @@ test.each([
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
 
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['glm'],
+    });
+
+    ctx.port.createSecret('glm', 'custom', [
+      { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    ]);
+
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
@@ -1044,6 +1174,18 @@ test.each([
 test('it refuses an inherited trust default without a clone before touching the imp', async () => {
   const ctx = await setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
@@ -1101,6 +1243,18 @@ test('it refuses an inherited trust default without a clone before touching the 
 
 test('it refuses inherited clone trust for stock Claude on an imp target', async () => {
   const ctx = await setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => {
@@ -1160,6 +1314,18 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
 
 test('it permits an ordinary folder launch when false overrides inherited trust', async () => {
   const ctx = await setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const daemon = await startTestDaemon({
     options: () => {

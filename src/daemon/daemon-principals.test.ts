@@ -2149,6 +2149,11 @@ test('it kills only the sub-sessions a principal could see when the kill began',
 
   host.arm();
 
+  // A held host operation would keep the daemon's stop waiting.
+  const releaseHost = registerTestCleanup(() => {
+    host.release();
+  });
+
   const killed = daemon.client.sendRequest('session.kill', { session: parent }, 'narrow');
 
   await host.entered;
@@ -2162,7 +2167,7 @@ test('it kills only the sub-sessions a principal could see when the kill began',
 
   const child = String(getRecord(childSpawned, 'session')['id']);
 
-  host.release();
+  releaseHost();
 
   await killed;
 
@@ -3838,6 +3843,11 @@ test('it refuses a principal an adopt of a session whose tree leaves its reach w
 
   host.arm();
 
+  // A held host operation would keep the daemon's stop waiting.
+  const releaseHost = registerTestCleanup(() => {
+    host.release();
+  });
+
   const adopted = trySendRequest(
     () =>
       daemon.client.sendRequest('session.adopt', { session: parent, cols: 80, rows: 24 }, 'narrow'),
@@ -3855,7 +3865,7 @@ test('it refuses a principal an adopt of a session whose tree leaves its reach w
 
   const child = String(getRecord(childSpawned, 'session')['id']);
 
-  host.release();
+  releaseHost();
 
   const answered = await adopted;
 
@@ -3924,6 +3934,11 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
 
   host.arm();
 
+  // A held host operation would keep the daemon's stop waiting.
+  const releaseHost = registerTestCleanup(() => {
+    host.release();
+  });
+
   const spawned = trySendRequest(
     () =>
       daemon.client.sendRequest(
@@ -3943,7 +3958,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
     parent,
   });
 
-  host.release();
+  releaseHost();
 
   const answered = await spawned;
 

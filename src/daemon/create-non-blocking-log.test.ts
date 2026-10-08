@@ -34,6 +34,10 @@ async function setupTest() {
 
   const writeEnd = openSync(fifoPath, constants.O_WRONLY);
 
+  const closeWriteEnd = registerTestCleanup(() => {
+    closeSync(writeEnd);
+  });
+
   const proc = Bun.spawn(
     [process.execPath, join(import.meta.dir, '..', 'test-utils', 'run-listener-daemon.ts')],
     {
@@ -49,7 +53,9 @@ async function setupTest() {
     await proc.exited;
   });
 
-  closeSync(writeEnd);
+  // The daemon holds its own copy of the write end, and the pipe reports
+  // its end only once every writer has closed.
+  closeWriteEnd();
 
   const first = await proc.stdout.getReader().read();
 
