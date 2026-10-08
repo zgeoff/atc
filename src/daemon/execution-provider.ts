@@ -78,6 +78,10 @@ export interface HostRequest {
   // provider that ships its own binary installs when missing.
   readonly installATC?: boolean;
 
+  // Where the provider reports how it readied the host, one line at a
+  // time, such as which atc the host's hooks run.
+  readonly log?: (line: string) => void;
+
   // Whether the daemon has nothing running or starting on the host, which
   // the provider checks before it gives the host's lease back on its own.
   readonly isIdle?: () => boolean;

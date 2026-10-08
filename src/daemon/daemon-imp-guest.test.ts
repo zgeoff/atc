@@ -105,16 +105,17 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
 
   const dir = join(ctx.guestDir, 'sessions', String(getRecord(spawned, 'session')['id']));
   const settings: unknown = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
+  const guestATC = join(ctx.guestDir, 'bin', 'atc');
 
   expect(settings).toMatchObject({
     hooks: {
-      SessionStart: [{ hooks: [{ command: `"${ctx.clis.atc}" hook-report --agent 'claude'` }] }],
+      SessionStart: [{ hooks: [{ command: `"${guestATC}" hook-report --agent 'claude'` }] }],
     },
-    statusLine: { command: `"${ctx.clis.atc}" statusline --agent 'claude'` },
+    statusLine: { command: `"${guestATC}" statusline --agent 'claude'` },
   });
 
   expect(readFileSync(join(dir, 'atc-bridge', 'hooks', 'atc-cli.ts'), 'utf8')).toInclude(
-    JSON.stringify([ctx.clis.atc]),
+    JSON.stringify([guestATC]),
   );
 
   expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([

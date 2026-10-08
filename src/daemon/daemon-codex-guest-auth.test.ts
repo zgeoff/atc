@@ -23,11 +23,16 @@ function setupTest() {
   const tmp = setupTempDir('atc-codex-guest-auth-');
   const guestDir = join(tmp.dir, 'g');
 
-  // The imp provider hands the guest this atc binary.
-  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
+  // The imp provider hands the guest this atc binary, which prints the
+  // daemon's version, so the guest's hooks run it.
+  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(port, { guestDir, guestATC }, { atcBinary: null });
+  const provider = new ImpProvider(
+    port,
+    { guestDir, guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -144,7 +149,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
           hooks: [
             {
               type: 'command',
-              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              command: `"${join(ctx.guestDir, 'bin', 'atc')}" hook-report --agent codex`,
               timeout: 5,
             },
           ],
@@ -155,7 +160,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
           hooks: [
             {
               type: 'command',
-              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              command: `"${join(ctx.guestDir, 'bin', 'atc')}" hook-report --agent codex`,
               timeout: 5,
             },
           ],
@@ -166,7 +171,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
           hooks: [
             {
               type: 'command',
-              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              command: `"${join(ctx.guestDir, 'bin', 'atc')}" hook-report --agent codex`,
               timeout: 5,
             },
           ],
@@ -177,7 +182,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
           hooks: [
             {
               type: 'command',
-              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              command: `"${join(ctx.guestDir, 'bin', 'atc')}" hook-report --agent codex`,
               timeout: 5,
             },
           ],
@@ -188,7 +193,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
           hooks: [
             {
               type: 'command',
-              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              command: `"${join(ctx.guestDir, 'bin', 'atc')}" hook-report --agent codex`,
               timeout: 3,
             },
           ],

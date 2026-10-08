@@ -224,7 +224,7 @@ covers the lifecycle. Its options:
 | `image`                | impd's     | The image a new imp boots.                                                                           |
 | `memoryMib`            | impd's     | The memory a new imp gets.                                                                           |
 | `guestDir`             | `/tmp/atc` | The folder inside each imp that atc's files go under.                                                |
-| `guestATC`             | unset      | An atc binary already installed in the image, for hooks to report through.                           |
+| `guestATC`             | unset      | An atc binary installed in the image, which hooks run when it prints the daemon's version.           |
 | `trustClonedWorkspace` | `false`    | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust). |
 
 Set at most one of `tokenEnv` and `tokenFile`. A target that sets both is a config error, and each
@@ -267,8 +267,12 @@ letter followed by up to 10 lowercase letters, digits or hyphens, so every name 
 impd accepts. Any other value is a config error the daemon handles like an unset `tokenEnv`
 variable.
 
-A Claude session on an imp target reports through an atc inside the imp. A compiled atc daemon on
-Linux copies itself in; a daemon run from source needs `guestATC`, and refuses the spawn without it.
+A Claude session on an imp target reports through an atc inside the imp. With `guestATC` set, the
+daemon uses the image's atc when it prints the daemon's version, and otherwise a compiled atc daemon
+on Linux copies itself in, so a new atc release works on imps before you rebuild the image. A daemon
+run from source has no binary to copy: it refuses the spawn when `guestATC` is unset, missing, or
+prints another version. The [imp provider](../architecture/daemon.md#the-imp-provider) covers how
+the daemon readies that atc.
 
 A target config that is set but wrong fails closed. atc keeps running, the targets it can read keep
 working, and every spawn that resolves through the problem fails with `target_config_invalid`, whose
