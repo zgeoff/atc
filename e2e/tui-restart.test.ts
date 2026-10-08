@@ -1,12 +1,12 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { readFileSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '../src/protocol/protocol';
+import { toAgentSessionID } from '../src/shared/to-agent-session-id';
+import { StateStore } from '../src/store/state-store';
+import { buildMockFleetEntry } from '../src/test-utils/build-mock-fleet-entry';
 import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
-import { waitFor } from '../src/test-utils/wait-for';
 
 function setupTest() {
   return startTUIHarness();
@@ -16,41 +16,27 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
   const socketPath = join(ctx.home, 'atc-daemon.sock');
-  const pty = ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  // The fleet a daemon that already ran here left behind: one resumable
+  // Claude session in the home.
+  mkdirSync(stateDir, { recursive: true });
 
-  await spawnClaudeSession(ctx, 'fleettest');
+  const seed = await StateStore.open(join(stateDir, 'atc.db'));
 
-  const db = new Database(join(stateDir, 'atc.db'), { readonly: true });
+  registerTestCleanup(() => seed.stop());
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  await seed.writeFleet([
+    buildMockFleetEntry({
+      name: 'fleettest',
+      cwd: ctx.home,
+      agentSessionID: toAgentSessionID('fake-1'),
+    }),
+  ]);
 
-  // The row lands at spawn, before the agent reports its session id, so
-  // the wait runs until the row holds that id.
-  await waitFor(() => {
-    expect(db.query('SELECT agent_session_id AS agentSessionID FROM fleet').all()).toStrictEqual([
-      { agentSessionID: 'fake-1' },
-    ]);
-  });
-
-  const daemonPID = Number(readFileSync(join(ctx.home, 'atc-daemon.pid'), 'utf8'));
-
-  pty.kill();
-  process.kill(daemonPID, 'SIGKILL');
-
-  await ctx.waitForExit();
-
-  await waitFor(() => {
-    expect(() => process.kill(daemonPID, 0)).toThrow();
-  });
+  await seed.stop();
 
   // A daemon on another protocol takes the socket and records its pid, as
   // a daemon from another release would.
-  rmSync(socketPath, { force: true });
-
   const legacy = Bun.spawn(
     [
       process.execPath,
