@@ -16,7 +16,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it answers both probes for the host of its public URL', async () => {
+test('it answers the liveness probe for the host of its public URL', async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -69,11 +69,62 @@ test('it answers both probes for the host of its public URL', async () => {
     headers: { host: 'atc.geoff.cloud' },
   });
 
+  expect(health.status).toBe(200);
+});
+
+test('it answers the readiness probe for the host of its public URL', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.geoff.cloud',
+      registryPath: join(ctx.dir, 'registry.json'),
+      stateDir: join(ctx.dir, 'state'),
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the gateway registered no SIGTERM handler');
+  registerTestCleanup(() => stop());
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
+    ?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
   const ready = await fetch(`http://127.0.0.1:${port}/readyz`, {
     headers: { host: 'atc.geoff.cloud' },
   });
 
-  expect(health.status).toBe(200);
   expect(ready.status).toBe(200);
 });
 

@@ -2465,7 +2465,10 @@ test('it shows an error page instead of the consent page for a query with a brok
   const html = await page.text();
 
   expect(page.status).toBe(400);
-  expect(html).not.toInclude('Kill sessions');
+
+  expect(html).toMatchInlineSnapshot(
+    `"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>atc</title></head><body><p>This approval expired or was already used. Start again from the client.</p></body></html>"`,
+  );
 });
 
 test('it shows an error page instead of the consent page to a browser with no owner session', async () => {

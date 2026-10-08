@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import invariant from 'tiny-invariant';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -454,6 +455,7 @@ test('it quotes a configured binary path with spaces in the resume command', () 
 });
 
 test('it carries the settings file in the resume command of an entry with its own settings', () => {
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -483,7 +485,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -494,7 +496,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -505,7 +507,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -516,7 +518,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -527,7 +529,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -536,7 +538,7 @@ test('it carries the settings file in the resume command of an entry with its ow
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
+      command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'claude'`,
       padding: 0,
     },
   });
@@ -1546,6 +1548,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
 });
 
 test("it leaves a profile's variables out of the local plan of an entry with a profile env", () => {
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1601,7 +1604,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1612,7 +1615,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1623,7 +1626,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1634,7 +1637,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1645,7 +1648,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'claude'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1654,7 +1657,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'claude'`,
+      command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'claude'`,
       padding: 0,
     },
   });

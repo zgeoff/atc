@@ -121,7 +121,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
   expect(collectAgentPicks(config)).toStrictEqual([{ agent: 'claude', label: 'Claude' }]);
 });
 
-test('it lists a gateway with auth, which starts on a target with broker auth', () => {
+test('it lists a gateway whose entry carries auth profiles', () => {
   const ctx = setupTest();
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');

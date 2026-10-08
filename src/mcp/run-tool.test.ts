@@ -225,6 +225,8 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
 
+      const stopSeed = registerTestCleanup(() => seed.stop());
+
       await seed.claimIdempotencyKey({
         principal: 'local',
         operation: 'session.spawn',
@@ -252,7 +254,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
         },
       ]);
 
-      await seed.stop();
+      await stopSeed();
 
       return { adapter: buildMockAgentAdapter() };
     },

@@ -103,15 +103,13 @@ test('it gives each registry daemon its own caller that reaches only that daemon
     rows: 24,
   });
 
-  const listed = await Promise.all([
+  const [onCloud, onPC] = await Promise.all([
     pool.getCaller('cloud').sendRequest('session.list', {}, 'gw'),
     pool.getCaller('pc').sendRequest('session.list', {}, 'gw'),
   ]);
 
-  expect(listed).toStrictEqual([
-    { sessions: [expect.objectContaining({ name: 'on-cloud' })] },
-    { sessions: [] },
-  ]);
+  expect(onCloud).toStrictEqual({ sessions: [expect.objectContaining({ name: 'on-cloud' })] });
+  expect(onPC).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a caller for a name the registry does not hold', () => {

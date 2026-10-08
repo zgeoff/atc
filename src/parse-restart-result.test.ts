@@ -23,6 +23,9 @@ test('it reads null for a log line that is not a result record', () => {
   expect(parseRestartResult('worker pid 12')).toBeNull();
 });
 
-test('it reads null for JSON that lacks the record fields', () => {
-  expect(parseRestartResult('{"runID":"r1"}')).toBeNull();
+test('it reads null for a record that lacks its restored count', () => {
+  const line =
+    '{"runID":"r1","code":0,"pid":9,"build":"atc/x","listenPort":null,"total":1,"failed":[],"interrupted":[],"error":null}';
+
+  expect(parseRestartResult(line)).toBeNull();
 });

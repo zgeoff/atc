@@ -857,6 +857,28 @@ test('it refuses an entry with a non-string env value and reports it alone', () 
   });
 });
 
+test('it refuses an entry with an array for settings and reports it alone', () => {
+  const result = collectAgents({
+    claude: { settings: ['model'] },
+    'claude-ok': { kind: 'claude' },
+  });
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude-ok',
+        kind: 'claude',
+        label: 'claude-ok',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+    ],
+    errors: ['agents.claude: settings must be an object'],
+  });
+});
+
 test('it refuses an entry with a baseURL on codex and reports it alone', () => {
   const result = collectAgents({
     codex: { baseURL: 'https://x.example.com' },

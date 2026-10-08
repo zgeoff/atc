@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import invariant from 'tiny-invariant';
 import { parseConfig } from '../shared/config';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
@@ -283,6 +284,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
 });
 
 test("it runs a headless turn with the gateway's settings file, its permission hook and mode included", () => {
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
@@ -333,7 +335,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -344,7 +346,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -355,7 +357,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -366,7 +368,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -377,7 +379,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -387,7 +389,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" statusline --agent 'manual-hook'`,
+      command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'manual-hook'`,
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic' },

@@ -10,12 +10,7 @@ import { sanitizeWorkspaceClone } from './sanitize-workspace-clone';
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-sanitize-' });
 
-  return {
-    dir: fixture.dir,
-    env: fixture.env,
-    upstream: fixture.upstream,
-    work: fixture.work,
-  };
+  return { env: fixture.env, work: fixture.work };
 }
 
 test('it removes every credential setting from the clone config', async () => {
@@ -198,11 +193,13 @@ test('it never removes an ordinary work-tree file', async () => {
   expect(index).toBe('export {};\n');
 });
 
-test('it removes the reflogs that record the clone URL', async () => {
+test('it removes the reflogs the clone holds', async () => {
   const ctx = await setupTest();
+  const before = await readFile(join(ctx.work, '.git', 'logs', 'HEAD'), 'utf8');
 
   await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
 
+  expect(before).toInclude('commit (initial): initial');
   expect(existsSync(join(ctx.work, '.git', 'logs'))).toBeFalse();
 });
 

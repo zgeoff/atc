@@ -6,17 +6,16 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubTelemetryCollector } from '../test-utils/start-stub-telemetry-collector';
 import { openMCPAuth } from './open-mcp-auth';
 
-// A temp directory for the store and a telemetry collector a store process
-// could report to.
+// A temp directory for the store.
 function setupTest() {
   const tmp = setupTempDir('atc-mcp-auth-');
-  const collector = startStubTelemetryCollector();
 
-  return { dir: tmp.dir, dbPath: join(tmp.dir, 'mcp-auth.db'), collector };
+  return { dir: tmp.dir, dbPath: join(tmp.dir, 'mcp-auth.db') };
 }
 
 test('it sends no telemetry when the environment turns it on', async () => {
   const ctx = setupTest();
+  const collector = startStubTelemetryCollector();
 
   // better-auth never sends telemetry under NODE_ENV=test, so the store
   // opens in a production-mode process of its own. A request the store
@@ -37,7 +36,7 @@ await store.close();`,
         HOME: ctx.dir,
         NODE_ENV: 'production',
         BETTER_AUTH_TELEMETRY: '1',
-        BETTER_AUTH_TELEMETRY_ENDPOINT: ctx.collector.url,
+        BETTER_AUTH_TELEMETRY_ENDPOINT: collector.url,
       },
       stderr: 'pipe',
     },
@@ -52,7 +51,7 @@ await store.close();`,
   const exitCode = await opened.exited;
 
   expect(exitCode).toBe(0);
-  expect(ctx.collector.received).toStrictEqual([]);
+  expect(collector.received).toStrictEqual([]);
 });
 
 test('it refuses a resource an earlier public URL served', async () => {

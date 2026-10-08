@@ -12,7 +12,6 @@ async function setupTest() {
   return {
     dir: fixture.dir,
     env: fixture.env,
-    upstream: fixture.upstream,
     work: fixture.work,
   };
 }

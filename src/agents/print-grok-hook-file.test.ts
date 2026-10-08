@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { printGrokHookFile } from './print-grok-hook-file';
 
 test('it prints the Grok hook file that reports under the grok agent', () => {
-  const command = `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent grok`;
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+  const command = `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent grok`;
   const printed: string[] = [];
 
   printGrokHookFile((text) => {

@@ -172,8 +172,12 @@ process.exit(0);
 
   await proc.exited;
 
-  expect(legacy.exitCode).toBeNull();
-  expect(legacy.signalCode).toBeNull();
+  const listening = await Bun.connect({ unix: ctx.sockPath, socket: { data: () => {} } });
+
+  registerTestCleanup(() => {
+    listening.end();
+  });
+
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
@@ -298,7 +302,12 @@ process.exit(0);
 
   await proc.exited;
 
-  expect(legacy.signalCode).toBeNull();
+  const listening = await Bun.connect({ unix: ctx.sockPath, socket: { data: () => {} } });
+
+  registerTestCleanup(() => {
+    listening.end();
+  });
+
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
@@ -362,7 +371,12 @@ process.exit(0);
 
   await proc.exited;
 
-  expect(legacy.signalCode).toBeNull();
+  const listening = await Bun.connect({ unix: ctx.sockPath, socket: { data: () => {} } });
+
+  registerTestCleanup(() => {
+    listening.end();
+  });
+
   expect(() => process.kill(legacy.pid, 0)).not.toThrow();
   expect(() => process.kill(sessionPID, 0)).not.toThrow();
 
@@ -631,7 +645,7 @@ test('it rejects with the socket path it is given when a wait finds no daemon th
   );
 });
 
-test('it rejects at once and starts no daemon when none answers at the paths it is given', () => {
+test('it rejects at once, saying a boot given its own paths starts no daemon, when none answers there', () => {
   const ctx = setupTest();
 
   expect(
