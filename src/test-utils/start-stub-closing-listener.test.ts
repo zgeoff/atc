@@ -1,4 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubClosingListener } from './start-stub-closing-listener';
@@ -52,4 +55,16 @@ test('it stops listening once disposed', () => {
   listener[Symbol.dispose]();
 
   expect(Bun.connect({ unix: ctx.path, socket: { data() {} } })).rejects.toThrow();
+});
+
+test('it stops listening once the test finishes without a dispose', () => {
+  // The socket sits outside any directory the test removes, so only the
+  // listener's own stop takes it away.
+  const path = join(tmpdir(), `atc-stub-closing-${randomUUID()}.sock`);
+
+  startStubClosingListener(path);
+
+  onTestFinished(() => {
+    expect(existsSync(path)).toBeFalse();
+  });
 });

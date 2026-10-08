@@ -4,8 +4,8 @@ import invariant from 'tiny-invariant';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { EffectRemainsError } from './effect-remains-error';
@@ -27,7 +27,7 @@ async function setupTest() {
 
   stack.defer(() => store.stop());
 
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 

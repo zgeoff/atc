@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubSystemd {
   // The directory that holds the stand-in `systemctl` and `systemd-run`, to put
@@ -34,10 +35,17 @@ interface StubSystemd {
  * `atcCommand daemon` in the background. `systemd-run` runs the command after
  * `--` in the background with only the `--setenv` variables, as a transient
  * unit sees them, and appends its output to the `StandardOutput=append:`
- * file. Every call is logged.
+ * file. Every call is logged. The stand-ins' directory is removed once the
+ * current test finishes, so it must run inside a test; disposal removes it
+ * sooner, and a second removal does nothing.
  */
 export function createStubSystemd(atcCommand: readonly string[]): StubSystemd {
   const root = mkdtempSync(join(tmpdir(), 'atc-stub-systemd-'));
+
+  const remove = registerTestCleanup(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
   const binDir = join(root, 'bin');
   const procRoot = join(root, 'proc');
   const atcLine = atcCommand.map((part) => `"${part}"`).join(' ');
@@ -118,8 +126,6 @@ exit 0
         `0::/user.slice/user-${process.getuid?.() ?? 0}.slice/user@${process.getuid?.() ?? 0}.service/app.slice/${unit}\n`,
       );
     },
-    [Symbol.dispose]: () => {
-      rmSync(root, { recursive: true, force: true });
-    },
+    [Symbol.dispose]: remove,
   };
 }

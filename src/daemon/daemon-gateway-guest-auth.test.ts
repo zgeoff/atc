@@ -6,8 +6,8 @@ import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -28,7 +28,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-gateway-guest-auth-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   // Every brokered spawn checks that the token may manage atc imps and
   // grant glm, and that impd holds glm for api.z.ai as a bearer secret.

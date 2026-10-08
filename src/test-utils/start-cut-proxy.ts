@@ -1,4 +1,5 @@
 import type { Socket } from 'bun';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface CutProxyOptions {
   // The address the proxy forwards to.
@@ -47,6 +48,9 @@ interface ProxyLink {
  * connection byte for byte, except that for the first `cuts` requests of
  * the method it loses the target's next answer after the request reached
  * the target: the request runs, and the client never sees its response.
+ * It stops, ending every link, once the current test finishes, so it must
+ * run inside a test; `stop` or disposal stops it sooner, and a second stop
+ * does nothing.
  */
 export function startCutProxy(options: CutProxyOptions): CutProxy {
   let cutsLeft = options.cuts;
@@ -121,14 +125,14 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
     },
   });
 
-  const stop = () => {
+  const stop = registerTestCleanup(() => {
     for (const client of links) {
       client.end();
       client.data.upstream?.end();
     }
 
     server.stop(true);
-  };
+  });
 
   return {
     port: server.port,

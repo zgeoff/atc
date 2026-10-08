@@ -29,6 +29,7 @@ import type {
 import { ImpPortError } from '../daemon/imp-port-error';
 import { isImpNameAllowed } from '../daemon/is-imp-name-allowed';
 import { isBrokerVariable } from '../shared/is-broker-variable';
+import { registerTestCleanup } from './register-test-cleanup';
 
 // impd keeps exactly this many bytes of each generation's output.
 const RING_BYTES = 262_144;
@@ -51,7 +52,7 @@ interface StubCommandHold {
 }
 
 /**
- * The impd stand-in the factory below builds, one per call.
+ * The impd stand-in the factory below creates, one per call.
  */
 class StubImpPort implements ImpPort {
   // Every port call, in order, as `<call> <imp> [<detail>]`.
@@ -1620,7 +1621,7 @@ class StubImpPort implements ImpPort {
 }
 
 /**
- * Builds an in-process stand-in for impd behind the imp port, calling impd
+ * Creates an in-process stand-in for impd behind the imp port, calling impd
  * as the principal, `token:atc` when absent. Each imp is a set of
  * real `bun-pty` processes on this machine; a sleeping imp stops them with
  * SIGSTOP and a wake continues them, so a memory wake keeps each process
@@ -1638,10 +1639,18 @@ class StubImpPort implements ImpPort {
  * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
  * while the broker fails or the imp holds no grant, when the start sets a
  * broker variable, and when it would join a process that started without
- * the broker required.
+ * the broker required. Once the current test finishes, the stand-in kills
+ * every process and stops every forward it holds, so it must be created inside
+ * a test; disposal does so sooner, and a second disposal does nothing.
  */
-export function buildStubImpPort(principal = 'token:atc'): StubImpPort {
-  return new StubImpPort(principal);
+export function createStubImpPort(principal = 'token:atc'): StubImpPort {
+  const port = new StubImpPort(principal);
+
+  registerTestCleanup(() => {
+    port[Symbol.dispose]();
+  });
+
+  return port;
 }
 
 interface StubLease {

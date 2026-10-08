@@ -23,7 +23,7 @@ function main() {
     throw new Error('usage: run-legacy-daemon.ts <socket path> <state dir>');
   }
 
-  startStubLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1 });
+  startStubLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1, owner: 'caller' });
 
   const session = Bun.spawn(['sleep', '60']);
 

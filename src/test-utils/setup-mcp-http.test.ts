@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectClients } from '../mcp/collect-clients';
@@ -114,4 +114,22 @@ test('it serves the caller from the restarted daemon on the same socket', async 
     listed: { sessions: [] },
     connections: 1,
   });
+});
+
+test('it stops the server and removes its home once the test finishes without a dispose', async () => {
+  const setup = await setupMCPHTTP();
+
+  onTestFinished(() => {
+    expect(fetch(setup.url)).rejects.toThrow();
+    expect(existsSync(setup.home)).toBeFalse();
+  });
+});
+
+test('it stops the server and removes its home once disposed', async () => {
+  const setup = await setupMCPHTTP();
+
+  await setup[Symbol.asyncDispose]();
+
+  expect(fetch(setup.url)).rejects.toThrow();
+  expect(existsSync(setup.home)).toBeFalse();
 });

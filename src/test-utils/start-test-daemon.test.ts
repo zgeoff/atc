@@ -469,3 +469,29 @@ test('it removes its directory when the daemon fails to boot', () => {
   expect(dirs).toSatisfyAll((dir: string) => !existsSync(dir));
   expect(dirs).toHaveLength(1);
 });
+
+test('it stops the daemon and removes its directory once the test finishes without a dispose', async () => {
+  const harness = await startTestDaemon();
+
+  // A client the harness does not track, so only the daemon's stop closes
+  // it.
+  const outside = await DaemonClient.open(harness.socketPath);
+
+  const closes: string[] = [];
+
+  outside.onClose = () => {
+    closes.push('closed');
+  };
+
+  onTestFinished(async () => {
+    await waitFor(() => {
+      expect(closes).toStrictEqual(['closed']);
+    });
+
+    expect(existsSync(harness.dir)).toBeFalse();
+  });
+
+  onTestFinished(() => {
+    outside.stop();
+  });
+});

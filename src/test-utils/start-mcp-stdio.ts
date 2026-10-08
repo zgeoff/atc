@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { isRecord } from '../shared/report';
+import { registerTestCleanup } from './register-test-cleanup';
 
 const CLI_PATH = join(import.meta.dir, '..', 'cli.ts');
 
@@ -37,9 +38,10 @@ interface MCPToolResult {
  * an object. `spawnSession` spawns through `atc_session_spawn` and resolves
  * with the new session's id. A request still unanswered when the server's
  * stdout ends rejects. When `initialize` fails, the server is stopped
- * before the start rejects. Disposal stops the server and waits for it to exit,
- * and a second disposal waits for the same exit; the daemon stays up for
- * the home to stop.
+ * before the start rejects. The server stops once the current test
+ * finishes, so it must run inside a test; disposal stops it sooner and waits
+ * for it to exit, and a second disposal waits for the same exit. The daemon
+ * stays up for the home to stop.
  */
 export async function startMCPStdio(options: MCPStdioOptions) {
   const proc = Bun.spawn([...(options.command ?? [process.execPath, CLI_PATH, 'mcp'])], {
@@ -54,6 +56,13 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'ignore',
+  });
+
+  const stopServer = registerTestCleanup(async (): Promise<void> => {
+    void proc.stdin.end();
+    proc.kill();
+
+    await proc.exited;
   });
 
   const pending = new Map<number, PromiseWithResolvers<Readonly<Record<string, unknown>>>>();
@@ -90,23 +99,6 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     return toToolResult(response);
   };
 
-  let stopped = false;
-
-  const stopServer = async (): Promise<void> => {
-    if (!stopped) {
-      stopped = true;
-      void proc.stdin.end();
-      proc.kill();
-    }
-
-    await proc.exited;
-  };
-
-  // A failed initialize stops the server here, before the caller holds it.
-  await using stack = new AsyncDisposableStack();
-
-  stack.defer(stopServer);
-
   const server = {
     sendRequest,
     sendToolCall,
@@ -124,13 +116,16 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     [Symbol.asyncDispose]: stopServer,
   };
 
+  // A failed initialize stops the server here, before the start rejects.
   await sendRequest('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},
     clientInfo: { name: 'atc-test' },
-  });
+  }).catch(async (error: unknown) => {
+    await stopServer();
 
-  stack.move();
+    throw error;
+  });
 
   return server;
 }

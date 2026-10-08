@@ -1,4 +1,5 @@
 import { OutboundQueue } from '../protocol/outbound-queue';
+import { registerTestCleanup } from './register-test-cleanup';
 import { waitFor } from './wait-for';
 
 interface SocketLines {
@@ -33,7 +34,9 @@ interface SocketLinesOptions {
  * `waitForLine` polls until the collected count reaches `count` and returns
  * the lines, throwing when `timeoutMs` passes first or the connection
  * closes short of the count; a stub clock passed as `now` and `wait` steps
- * that timeout without waiting it out. Disposal ends the connection.
+ * that timeout without waiting it out. The connection ends once the current
+ * test finishes, so it must run inside a test; disposal ends it sooner, and
+ * a second end does nothing.
  */
 export async function subscribeToSocketLines(
   path: string,
@@ -67,6 +70,10 @@ export async function subscribeToSocketLines(
       },
       error() {},
     },
+  });
+
+  const stop = registerTestCleanup(() => {
+    socket.end();
   });
 
   // The default leaves room for the largest payload a test sends in one
@@ -112,7 +119,7 @@ export async function subscribeToSocketLines(
       return requireLines(count);
     },
     [Symbol.asyncDispose]: () => {
-      socket.end();
+      stop();
 
       return Promise.resolve();
     },

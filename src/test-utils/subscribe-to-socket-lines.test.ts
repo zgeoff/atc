@@ -1,4 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubWaitClock } from './build-stub-wait-clock';
 import { setupTempDir } from './setup-temp-dir';
@@ -146,4 +148,41 @@ test('it throws listing the collected lines once the connection closes short of 
     Error,
     'timed out waiting for 2 lines; got ["only"]',
   );
+});
+
+test('it ends its connection once the test finishes without a dispose', async () => {
+  const path = join(tmpdir(), `atc-sock-lines-${randomUUID()}.sock`);
+  const closes: string[] = [];
+
+  const server = Bun.listen({
+    unix: path,
+    socket: {
+      data() {},
+      close() {
+        closes.push('closed');
+      },
+    },
+  });
+
+  await subscribeToSocketLines(path);
+
+  // The server stops only after this check, so a close it sees comes from
+  // the subscriber.
+  onTestFinished(async () => {
+    await waitFor(() => {
+      expect(closes).toStrictEqual(['closed']);
+    });
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+});
+
+test('it ends its connection once disposed', async () => {
+  await using ctx = await setupTest();
+
+  await ctx.subscriber[Symbol.asyncDispose]();
+
+  expect(ctx.subscriber.closed).resolves.toBeUndefined();
 });

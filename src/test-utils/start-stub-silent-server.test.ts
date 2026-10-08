@@ -57,3 +57,12 @@ test('it stops listening once disposed', async () => {
 
   expect(fetch(`${server.url}silent.git`)).rejects.toThrow();
 });
+
+test('it stops listening once the test finishes without a dispose', () => {
+  const server = startStubSilentServer();
+  const port = Number(new URL(server.url).port);
+
+  onTestFinished(() => {
+    expect(Bun.connect({ hostname: '127.0.0.1', port, socket: { data() {} } })).rejects.toThrow();
+  });
+});

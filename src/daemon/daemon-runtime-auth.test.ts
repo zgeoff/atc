@@ -7,8 +7,8 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredAgentAdapter } from '../test-utils/build-stub-brokered-agent-adapter';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { buildStubProxiedAgentAdapter } from '../test-utils/build-stub-proxied-agent-adapter';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { getOnlyImpName } from '../test-utils/get-only-imp-name';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -26,7 +26,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-runtime-auth-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 

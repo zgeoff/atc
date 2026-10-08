@@ -7,6 +7,7 @@ import {
   decodeMessage,
   encodeMessage,
 } from '../protocol/protocol';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface ReceivedRequest {
   readonly m: string;
@@ -28,6 +29,11 @@ interface StubLegacyDaemonOptions {
   readonly protocol?: number;
 
   readonly replies?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+
+  // Who stops the daemon: the current test, once it finishes, or the
+  // caller alone, for a process that runs it outside any test; the test
+  // unless set.
+  readonly owner?: 'test' | 'caller';
 }
 
 /**
@@ -39,8 +45,10 @@ interface StubLegacyDaemonOptions {
  * `replies` with that method's reply, and refuses every other method with
  * `unknown_method`. Every request it receives is recorded in `requests`, and
  * `connections` counts the connections it accepted and those still open.
- * `port` holds the TCP port it bound, `null` on a unix socket. Stop
- * it with `stop`, or hold it with `using`.
+ * `port` holds the TCP port it bound, `null` on a unix socket. It stops
+ * once the current test finishes, so it must run inside a test, unless the
+ * options make the caller its owner; `stop` or disposal stops it sooner, and
+ * a second stop does nothing.
  */
 export function startStubLegacyDaemon(
   address: string | StubLegacyDaemonTCPAddress,
@@ -120,17 +128,14 @@ export function startStubLegacyDaemon(
   };
 
   const server = startListener(address, handlers);
+  const stop = options.owner === 'caller' ? server.stop : registerTestCleanup(server.stop);
 
   return {
     requests,
     connections,
     port: server.port,
-    stop() {
-      server.stop();
-    },
-    [Symbol.dispose]() {
-      server.stop();
-    },
+    stop,
+    [Symbol.dispose]: stop,
   };
 }
 

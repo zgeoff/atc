@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { registerTestCleanup } from './register-test-cleanup';
 
 /**
  * Starts a daemon composed with a fixture source, in a process of its own
@@ -8,7 +9,8 @@ import { join } from 'node:path';
  * `ATC_TEST_SOURCES` picks its sources, the fixture one unless it holds
  * `none`; `ATC_TEST_FIXTURE_URL` holds the repository the fixture source
  * lists, and `ATC_TEST_SOURCE_LOG` a file it appends each listing to.
- * Disposal stops the process; hold the result with `await using`.
+ * The process stops once the current test finishes, so it must run inside
+ * a test; disposal stops it sooner, and a second stop does nothing.
  */
 export async function startStubSourceDaemon(env: Readonly<Record<string, string | undefined>>) {
   const daemon = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
@@ -17,11 +19,11 @@ export async function startStubSourceDaemon(env: Readonly<Record<string, string 
     stderr: 'ignore',
   });
 
-  const stop = async () => {
+  const stop = registerTestCleanup(async () => {
     daemon.kill();
 
     await daemon.exited;
-  };
+  });
 
   const reader = daemon.stdout.getReader();
 

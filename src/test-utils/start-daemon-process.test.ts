@@ -1,8 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
+import { isProcessAlive } from '../shared/is-process-alive';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 import { createStubBin } from './create-stub-bin';
 import { resolveATCCommand } from './resolve-atc-command';
@@ -231,4 +232,54 @@ test('it kills the daemon the state directory records on disposal', async () => 
   await recorded.exited;
 
   expect(recorded.signalCode).toBe('SIGKILL');
+});
+
+test('it kills the daemon once the test finishes without a dispose', () => {
+  const ctx = setupTest();
+
+  // A stand-in that runs until killed and ignores the arguments after it.
+  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
+  const pid = daemon.proc.pid;
+
+  onTestFinished(() => {
+    expect(isProcessAlive(pid)).toBeFalse();
+  });
+});
+
+test('it kills the daemon its home records before the home is removed once the test finishes', () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
+
+  // A replacement daemon a restart would leave, recorded in the home.
+  const replacement = Bun.spawn(['sleep', '30']);
+
+  mkdirSync(daemon.stateDir, { recursive: true });
+
+  writeFileSync(
+    join(daemon.stateDir, 'daemon.json'),
+    JSON.stringify({
+      pid: replacement.pid,
+      socketPath: daemon.socketPath,
+      reporterSocketPath: daemon.reporterSocketPath,
+      eventsSocketPath: null,
+      listenPort: null,
+    }),
+  );
+
+  const pid = daemon.proc.pid;
+
+  // The helper signals the recorded daemon without waiting for it to exit.
+  onTestFinished(async () => {
+    expect(isProcessAlive(pid)).toBe(false);
+
+    await waitFor(() => {
+      expect(isProcessAlive(replacement.pid)).toBe(false);
+    });
+
+    expect(existsSync(ctx.dir)).toBe(false);
+  });
+
+  onTestFinished(() => {
+    replacement.kill('SIGKILL');
+  });
 });

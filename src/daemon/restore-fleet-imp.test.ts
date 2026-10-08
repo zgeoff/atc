@@ -5,9 +5,9 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { buildStubLog } from '../test-utils/build-stub-log';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { restoreFleet } from './restore-fleet';
@@ -28,7 +28,7 @@ async function setupTest() {
 
   stack.defer(() => store.stop());
 
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') });
 

@@ -1,3 +1,4 @@
+import { registerTestCleanup } from './register-test-cleanup';
 import { waitFor } from './wait-for';
 
 interface StubReporterSocket {
@@ -19,8 +20,9 @@ interface StubReporterSocket {
  * hook and report commands send. It never writes back, and leaves each
  * connection for the sender to close. `waitForLine` resolves with the first
  * line once one has arrived, and rejects naming the socket when none arrives
- * within `timeoutMs`, 5 seconds by default. Disposal stops the listener; hold the
- * result with `using` or `await using`.
+ * within `timeoutMs`, 5 seconds by default. The listener stops once the
+ * current test finishes, so it must run inside a test; disposal stops it
+ * sooner, and a second stop does nothing.
  */
 export function startStubReporterSocket(path: string): StubReporterSocket {
   const lines: string[] = [];
@@ -45,9 +47,9 @@ export function startStubReporterSocket(path: string): StubReporterSocket {
     },
   });
 
-  const stop = () => {
+  const stop = registerTestCleanup(() => {
     server.stop(true);
-  };
+  });
 
   return {
     lines,

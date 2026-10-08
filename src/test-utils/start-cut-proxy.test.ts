@@ -161,3 +161,33 @@ test('it closes the connection in place of forwarding a cut request in drop mode
   expect(ctx.seen).toStrictEqual(['daemon.ping']);
   expect(proxy.countRequests()).toBe(1);
 });
+
+test('it stops listening once the test finishes without a dispose', () => {
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: 1 },
+    method: 'session.list',
+    cuts: 0,
+    mode: 'close',
+  });
+
+  onTestFinished(() => {
+    expect(
+      Bun.connect({ hostname: '127.0.0.1', port: proxy.port, socket: { data() {} } }),
+    ).rejects.toThrow();
+  });
+});
+
+test('it stops listening once disposed', () => {
+  const proxy = startCutProxy({
+    target: { hostname: '127.0.0.1', port: 1 },
+    method: 'session.list',
+    cuts: 0,
+    mode: 'close',
+  });
+
+  proxy[Symbol.dispose]();
+
+  expect(
+    Bun.connect({ hostname: '127.0.0.1', port: proxy.port, socket: { data() {} } }),
+  ).rejects.toThrow();
+});

@@ -14,9 +14,9 @@ import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
@@ -35,7 +35,7 @@ async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-workspace-trust-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   // A gateway launch on an imp needs a grantable broker secret for its
   // auth profile.

@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { expect, onTestFinished, test } from 'bun:test';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { basename } from 'node:path';
 import { setupTempDir } from './setup-temp-dir';
 
@@ -31,4 +31,28 @@ test('it removes the directory on synchronous dispose', () => {
   tmp[Symbol.dispose]();
 
   expect(existsSync(tmp.dir)).toBeFalse();
+});
+
+test('it removes the directory once the test finishes without a dispose', () => {
+  const tmp = setupTempDir('atc-setup-temp-');
+
+  onTestFinished(() => {
+    expect(existsSync(tmp.dir)).toBeFalse();
+  });
+});
+
+test('it removes nothing once the test finishes after a dispose', () => {
+  const tmp = setupTempDir('atc-setup-temp-');
+
+  tmp[Symbol.dispose]();
+
+  mkdirSync(tmp.dir);
+
+  onTestFinished(() => {
+    expect(existsSync(tmp.dir)).toBeTrue();
+  });
+
+  onTestFinished(() => {
+    rmSync(tmp.dir, { recursive: true, force: true });
+  });
 });

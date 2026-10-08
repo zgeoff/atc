@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { startStubImpdInfo } from './start-stub-impd-info';
 
 test('it answers a call with the features the test sets, in the RPC body shape', async () => {
@@ -29,4 +29,12 @@ test('it stops serving once disposed', async () => {
   await impd[Symbol.asyncDispose]();
 
   expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
+});
+
+test('it stops serving once the test finishes without a dispose', () => {
+  const impd = startStubImpdInfo();
+
+  onTestFinished(() => {
+    expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
+  });
 });

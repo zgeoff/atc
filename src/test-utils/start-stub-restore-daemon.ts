@@ -1,5 +1,6 @@
 import { LineDecoder } from '../protocol/line-decoder';
 import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
+import { registerTestCleanup } from './register-test-cleanup';
 
 /**
  * A daemon stand-in on a unix socket path that speaks the real wire format
@@ -7,8 +8,8 @@ import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
  * result, answers each other request with the next reply the test pushes
  * onto `lists`, and withholds the answer to any request that finds `lists`
  * empty. `methods` holds the method of each request it took, in order.
- * Disposal stops the listener; hold the result with `using` or
- * `await using`.
+ * The listener stops once the current test finishes, so it must run inside
+ * a test; disposal stops it sooner, and a second stop does nothing.
  */
 export function startStubRestoreDaemon(socketPath: string) {
   const lists: Readonly<Record<string, unknown>>[] = [];
@@ -41,9 +42,9 @@ export function startStubRestoreDaemon(socketPath: string) {
     },
   });
 
-  const stop = () => {
+  const stop = registerTestCleanup(() => {
     server.stop(true);
-  };
+  });
 
   return {
     lists,

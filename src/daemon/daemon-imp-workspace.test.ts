@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import { $ } from 'bun';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createGitFixture } from '../test-utils/create-git-fixture';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
@@ -41,7 +41,7 @@ async function setupTest() {
 
   const git = stack.use(gitFixture);
   const tmp = stack.use(setupTempDir('atc-imp-workspace-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 

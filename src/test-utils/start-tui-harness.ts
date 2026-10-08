@@ -6,6 +6,7 @@ import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
 import { createStubBin } from './create-stub-bin';
 import { mergeDeep } from './merge-deep';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -37,15 +38,24 @@ interface TUIHarnessOptions {
  * transports the fixture repositories need, with the fields given laid over
  * them. `env` is the environment the client runs with, so a daemon started
  * with it serves the client. A wait made before the client draws anything
- * gets `bootMs` for that first byte. Disposal stops the client and the daemon in
- * the home and removes it; hold the result with `await using`.
+ * gets `bootMs` for that first byte. Disposal stops the client and the
+ * daemon in the home and removes it. That disposal runs once the current
+ * test finishes, so it must run inside a test; disposing sooner runs it
+ * then, and a second disposal does nothing.
  */
 export function startTUIHarness(options: TUIHarnessOptions = {}) {
-  using setup = new DisposableStack();
+  const tmp = setupTempDir('atc-tui-');
+
+  // Registered after the home, so it releases first: the client and its
+  // daemon stop before their home is removed.
+  const owned = new AsyncDisposableStack();
+
+  const dispose = registerTestCleanup(() => owned.disposeAsync());
+
+  owned.use(tmp);
 
   // The client boots with this home as its cwd and lists it first in the
   // picker, so the path is resolved the way the client reports it.
-  const tmp = setup.use(setupTempDir('atc-tui-'));
   const home = realpathSync(tmp.dir);
   const configPath = join(home, '.config', 'atc', 'config.json');
   const clientLogPath = join(home, 'client.log');
@@ -97,9 +107,6 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   // the interaction budget.
   let firstOutputAt: number | null = null;
 
-  const owned = new AsyncDisposableStack();
-
-  owned.use(setup.move());
   owned.defer(() => stopClientAndDaemon(home, pty, firstOutputAt === null));
 
   return {
@@ -218,7 +225,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
       );
     },
 
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    [Symbol.asyncDispose]: dispose,
   };
 }
 

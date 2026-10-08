@@ -6,8 +6,8 @@ import { openBridgeSocket } from '../protocol/open-bridge-socket';
 import { sendBridgeRequest } from '../protocol/send-bridge-request';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -24,7 +24,7 @@ async function setupTest() {
   const tmp = stack.use(setupTempDir('atc-imp-bridge-'));
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
   const guestDir = join(tmp.dir, 'g');
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
   const config = parseConfig({ claudeBin: clis.claude });
 
   const daemon = await startTestDaemon({

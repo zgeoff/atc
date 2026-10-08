@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { loadOAuthStates } from './load-oauth-states';
@@ -12,7 +12,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-oauth-states-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 

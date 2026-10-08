@@ -95,3 +95,13 @@ test('it stops listening once disposed', () => {
 
   expect(connecting).rejects.toMatchObject({ code: 'ECONNREFUSED' });
 });
+
+test('it stops listening once the test finishes without a dispose', () => {
+  const daemon = startStubTCPDaemon();
+
+  onTestFinished(() => {
+    expect(
+      Bun.connect({ hostname: '127.0.0.1', port: daemon.port, socket: { data() {} } }),
+    ).rejects.toThrow();
+  });
+});

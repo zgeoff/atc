@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubEchoClaude } from '../test-utils/create-stub-echo-claude';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
@@ -17,7 +17,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 async function setupTest() {
   await using stack = new AsyncDisposableStack();
 
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
 
   const daemon = await startTestDaemon({
     options: (paths) => {

@@ -1,4 +1,4 @@
-import type { buildStubImpPort } from './build-stub-imp-port';
+import type { createStubImpPort } from './create-stub-imp-port';
 
 /**
  * Returns the name of the one imp a stub imp port holds, and throws when
@@ -6,7 +6,7 @@ import type { buildStubImpPort } from './build-stub-imp-port';
  * reads another's.
  */
 export function getOnlyImpName(
-  port: Readonly<Pick<ReturnType<typeof buildStubImpPort>, 'collectImpNames'>>,
+  port: Readonly<Pick<ReturnType<typeof createStubImpPort>, 'collectImpNames'>>,
 ): string {
   const names = port.collectImpNames();
   const [name] = names;

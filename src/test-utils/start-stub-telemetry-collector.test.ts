@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubTelemetryCollector } from './start-stub-telemetry-collector';
@@ -71,4 +71,12 @@ test('it stops serving once disposed', async () => {
   await collector[Symbol.asyncDispose]();
 
   expect(fetch(collector.url)).rejects.toThrow();
+});
+
+test('it stops serving once the test finishes without a dispose', () => {
+  const collector = startStubTelemetryCollector();
+
+  onTestFinished(() => {
+    expect(fetch(collector.url)).rejects.toThrow();
+  });
 });

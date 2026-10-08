@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
-import { buildStubImpPort } from '../test-utils/build-stub-imp-port';
 import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit } from './execution-provider';
@@ -15,7 +15,7 @@ function setupTest() {
   using stack = new DisposableStack();
 
   const tmp = stack.use(setupTempDir('atc-imp-harness-'));
-  const port = stack.use(buildStubImpPort());
+  const port = stack.use(createStubImpPort());
   const owned = stack.move();
 
   return {
