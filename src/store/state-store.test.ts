@@ -104,12 +104,12 @@ test('it relinks a stored sub-session to the session that replaced its parent', 
   expect(fleet).toStrictEqual([{ ...child, parent: resumed.sessionID }, resumed]);
 });
 
-test('it never lets two overlapping writes leave a mixed or half-written fleet', async () => {
+test('it answers a read issued between two unawaited writes, and one after them, with whole fleets', async () => {
   const ctx = await setupTest();
 
-  // A seeded fleet is what makes the between-read meaningful: with rows
-  // already stored, an empty result can only mean a read landed between a
-  // write's delete and its inserts.
+  // With rows already stored, an empty or mixed result would mean a read saw
+  // a write half done. The calls only overlap in when they are issued: the
+  // test does not hold a write open while the read runs.
   const seed = buildMockFleetEntry();
   const first = buildMockFleetEntry({ sessionID: seed.sessionID });
   const second = buildMockFleetEntry({ sessionID: seed.sessionID });
@@ -274,7 +274,7 @@ test('it reports recency for a Grok session id', async () => {
 
   const recency = await ctx.store.collectFleetRecency();
 
-  expect([...recency.keys()]).toStrictEqual([toAgentSessionID('g1')]);
+  expect(recency).toStrictEqual(new Map([[toAgentSessionID('g1'), expect.toBeDateString()]]));
 });
 
 test('it reports the latest event timestamp per agent session', async () => {
@@ -1350,7 +1350,7 @@ test('it updates one fleet row without touching its siblings', async () => {
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toIncludeSameMembers([
+  expect(fleet).toStrictEqual([
     { ...updated, result: 'done', transcriptPath: '/a.jsonl' },
     sibling,
   ]);
@@ -2261,7 +2261,27 @@ test('it links a legacy fleet.json sub-session to its parent by the minted sessi
 
   invariant(parent !== undefined && child !== undefined, 'expected both seeded entries');
 
-  expect(child.parent).toBe(parent.sessionID);
+  expect(fleet).toStrictEqual([
+    {
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
+      name: 'wrangler',
+      cwd: '/z',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    },
+    {
+      sessionID: expect.toSatisfy((id: string) =>
+        /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),
+      ),
+      name: 'worker',
+      cwd: '/z',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: parent.sessionID,
+    },
+  ]);
 });
 
 test('it rebuilds a fleet at the model-and-effort shape keyed by a minted session id', async () => {
@@ -2377,7 +2397,7 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 
   invariant(parent !== undefined, 'expected the parent row');
 
-  expect(fleet).toIncludeSameMembers([
+  expect(fleet).toStrictEqual([
     {
       sessionID: expect.toSatisfy((id: string) =>
         /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(id),

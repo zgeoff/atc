@@ -187,85 +187,8 @@ test.each([
   ['daemon.ping', {}],
   ['session.list', { sessions: [] }],
   ['dirs.list', { dirs: [] }],
-  [
-    'agents.list',
-    {
-      daemon: {
-        hostname: hostname(),
-        platform: process.platform,
-        arch: process.arch,
-        build: 'atc/test-build',
-      },
-      agents: [
-        {
-          id: 'claude',
-          label: 'claude',
-          kind: 'claude',
-          installed: false,
-          brokerAuth: false,
-          brokerRequired: false,
-          capabilities: {
-            spawn: false,
-            readTranscript: false,
-            message: true,
-            attach: true,
-            screen: true,
-            input: true,
-          },
-          models: null,
-          spawnOptions: {
-            model: {
-              supported: false,
-              available: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-            effort: {
-              supported: false,
-              available: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-          },
-        },
-      ],
-      targets: [
-        {
-          id: 'local',
-          provider: 'local-pty',
-          identity: expect.toStartWith('local-pty:'),
-          available: true,
-          default: true,
-          capabilities: {
-            spawn: true,
-            attach: true,
-            input: true,
-            resize: true,
-            kill: true,
-            transfer: true,
-            run: true,
-            headless: true,
-            suspend: false,
-            destroy: false,
-          },
-          brokerAuth: false,
-        },
-      ],
-      spawnDefaults: { agent: 'claude', target: 'local' },
-      configRevision: expect.toBeString(),
-      targetErrors: [],
-      sources: [],
-    },
-  ],
   ['fleet.list', { fleet: [] }],
   ['session.detach', {}],
-  ['events.read', { events: [], cursor: expect.toBeString(), more: false }],
 ] as const)('it admits %s from a principal connection', async (method, reply) => {
   const ctx = setupTest();
 
@@ -276,6 +199,106 @@ test.each([
   const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).resolves.toStrictEqual(reply);
+});
+
+test('it admits agents.list from a principal connection', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
+
+  expect(client.sendRequest('agents.list', {})).resolves.toStrictEqual({
+    daemon: {
+      hostname: hostname(),
+      platform: process.platform,
+      arch: process.arch,
+      build: 'atc/test-build',
+    },
+    agents: [
+      {
+        id: 'claude',
+        label: 'claude',
+        kind: 'claude',
+        installed: false,
+        brokerAuth: false,
+        brokerRequired: false,
+        capabilities: {
+          spawn: false,
+          readTranscript: false,
+          message: true,
+          attach: true,
+          screen: true,
+          input: true,
+        },
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+          effort: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+      },
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        identity: expect.toStartWith('local-pty:'),
+        available: true,
+        default: true,
+        capabilities: {
+          spawn: true,
+          attach: true,
+          input: true,
+          resize: true,
+          kill: true,
+          transfer: true,
+          run: true,
+          headless: true,
+          suspend: false,
+          destroy: false,
+        },
+        brokerAuth: false,
+      },
+    ],
+    spawnDefaults: { agent: 'claude', target: 'local' },
+    configRevision: expect.toBeString(),
+    targetErrors: [],
+    sources: [],
+  });
+});
+
+test('it admits events.read from a principal connection', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
+
+  expect(client.sendRequest('events.read', {})).resolves.toStrictEqual({
+    events: [],
+    cursor: expect.toBeString(),
+    more: false,
+  });
 });
 
 test.each([
@@ -319,85 +342,8 @@ test.each([
   ['daemon.ping', {}],
   ['session.list', { sessions: [] }],
   ['dirs.list', { dirs: [] }],
-  [
-    'agents.list',
-    {
-      daemon: {
-        hostname: hostname(),
-        platform: process.platform,
-        arch: process.arch,
-        build: 'atc/test-build',
-      },
-      agents: [
-        {
-          id: 'claude',
-          label: 'claude',
-          kind: 'claude',
-          installed: false,
-          brokerAuth: false,
-          brokerRequired: false,
-          capabilities: {
-            spawn: false,
-            readTranscript: false,
-            message: true,
-            attach: true,
-            screen: true,
-            input: true,
-          },
-          models: null,
-          spawnOptions: {
-            model: {
-              supported: false,
-              available: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-            effort: {
-              supported: false,
-              available: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-          },
-        },
-      ],
-      targets: [
-        {
-          id: 'local',
-          provider: 'local-pty',
-          identity: expect.toStartWith('local-pty:'),
-          available: true,
-          default: true,
-          capabilities: {
-            spawn: true,
-            attach: true,
-            input: true,
-            resize: true,
-            kill: true,
-            transfer: true,
-            run: true,
-            headless: true,
-            suspend: false,
-            destroy: false,
-          },
-          brokerAuth: false,
-        },
-      ],
-      spawnDefaults: { agent: 'claude', target: 'local' },
-      configRevision: expect.toBeString(),
-      targetErrors: [],
-      sources: [],
-    },
-  ],
   ['fleet.list', { fleet: [] }],
   ['session.detach', {}],
-  ['events.read', { events: [], cursor: expect.toBeString(), more: false }],
 ] as const)('it admits %s over TCP from a principal', async (method, reply) => {
   const ctx = setupTest();
 
@@ -420,6 +366,130 @@ test.each([
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
   expect(client.sendRequest(method, {}, 'gw')).resolves.toStrictEqual(reply);
+});
+
+test('it admits agents.list over TCP from a principal', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      const tokenFile = join(paths.dir, 'gateway-token');
+
+      writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: ctx.adapter,
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile },
+      };
+    },
+  });
+
+  const client = await daemon.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  expect(client.sendRequest('agents.list', {}, 'gw')).resolves.toStrictEqual({
+    daemon: {
+      hostname: hostname(),
+      platform: process.platform,
+      arch: process.arch,
+      build: 'atc/test-build',
+    },
+    agents: [
+      {
+        id: 'claude',
+        label: 'claude',
+        kind: 'claude',
+        installed: false,
+        brokerAuth: false,
+        brokerRequired: false,
+        capabilities: {
+          spawn: false,
+          readTranscript: false,
+          message: true,
+          attach: true,
+          screen: true,
+          input: true,
+        },
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+          effort: {
+            supported: false,
+            available: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+      },
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        identity: expect.toStartWith('local-pty:'),
+        available: true,
+        default: true,
+        capabilities: {
+          spawn: true,
+          attach: true,
+          input: true,
+          resize: true,
+          kill: true,
+          transfer: true,
+          run: true,
+          headless: true,
+          suspend: false,
+          destroy: false,
+        },
+        brokerAuth: false,
+      },
+    ],
+    spawnDefaults: { agent: 'claude', target: 'local' },
+    configRevision: expect.toBeString(),
+    targetErrors: [],
+    sources: [],
+  });
+});
+
+test('it admits events.read over TCP from a principal', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      const tokenFile = join(paths.dir, 'gateway-token');
+
+      writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: ctx.adapter,
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile },
+      };
+    },
+  });
+
+  const client = await daemon.openTCPClient();
+
+  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  expect(client.sendRequest('events.read', {}, 'gw')).resolves.toStrictEqual({
+    events: [],
+    cursor: expect.toBeString(),
+    more: false,
+  });
 });
 
 test.each([

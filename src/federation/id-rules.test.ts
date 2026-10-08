@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
@@ -17,29 +16,19 @@ import { waitFor } from '../test-utils/wait-for';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
 import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
 
-interface SetupConfig {
-  // The adapter members a test's case depends on, built from the daemon's
-  // directory.
-  readonly adapter?: (dir: string) => Partial<AgentAdapter>;
-}
-
 /**
- * A real daemon whose sessions run `sleep`, with the adapter members the
- * test gives on top of the wiring every test shares. Every answer these
- * tests check comes from it, so a field the daemon starts sending with an
- * id in it fails the check until a rule covers it.
+ * A real daemon whose sessions run `sleep`. Every answer these tests check
+ * comes from it, so a field the daemon starts sending with an id in it fails
+ * the check until a rule covers it.
  */
-function setupTest(config: SetupConfig = {}) {
-  const adapter = config.adapter ?? (() => ({}));
-
+function setupTest() {
   return startTestDaemon({
     prefix: 'atc-id-rules-',
-    options: (paths) => ({
+    options: () => ({
       adapter: buildMockAgentAdapter({
         // Session messages need an adapter that takes them.
         takesMessages: true,
         parseTranscriptLine: parseClaudeTranscriptLine,
-        ...adapter(paths.dir),
       }),
     }),
   });
@@ -204,16 +193,27 @@ test('it has a rule for every id in the data of an uncertain keyed spawn', async
 
   const spawned = ctx.client.sendRequest('session.spawn', params);
 
-  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown' });
-  expect(spawned).rejects.toHaveProperty('data', { effectRef });
+  expect(spawned).rejects.toThrow(
+    expect.objectContaining({ code: 'outcome_unknown', data: { effectRef } }),
+  );
+
   expect(collectUnruledIDPaths({ effectRef }, ERROR_DATA_RULES)).toStrictEqual([]);
 });
 
 test('it has a rule for every id in a session.read answer, transcript text included', async () => {
-  const ctx = await setupTest({
-    adapter: (dir) => ({
-      // Every hook starts the session on the transcript in the directory.
-      normalizeHook: () => ({ kind: 'started', transcriptSource: join(dir, 'transcript.jsonl') }),
+  const ctx = await startTestDaemon({
+    prefix: 'atc-id-rules-',
+    options: (paths) => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        parseTranscriptLine: parseClaudeTranscriptLine,
+
+        // Every hook starts the session on the transcript in the directory.
+        normalizeHook: () => ({
+          kind: 'started',
+          transcriptSource: join(paths.dir, 'transcript.jsonl'),
+        }),
+      }),
     }),
   });
 
@@ -246,10 +246,16 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
 });
 
 test('it has a rule for every id in a session.resumeCommand answer', async () => {
-  const ctx = await setupTest({
-    adapter: () => ({
-      // A resume command that holds the agent's session id.
-      buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
+  const ctx = await startTestDaemon({
+    prefix: 'atc-id-rules-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        parseTranscriptLine: parseClaudeTranscriptLine,
+
+        // A resume command that holds the agent's session id.
+        buildResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
+      }),
     }),
   });
 

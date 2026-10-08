@@ -262,7 +262,21 @@ test('it records a fresh record when a revive finds a session without one', asyn
 
   const copy = await readJSONRecord(Bun.file(delivered));
 
-  expect(copy['revision']).toBe(1);
+  expect(copy).toStrictEqual({
+    format: 'atc.session-record',
+    version: 1,
+    session: 's-old',
+    daemonID: ctx.store.daemonID,
+    target: 'local',
+    revision: 1,
+    updatedAt: '2026-10-08T09:30:00.000Z',
+    scope: {
+      workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
+      worktrees: [],
+      branches: [],
+      pullRequests: [],
+    },
+  });
 });
 
 test('it adds a checked scope, raises the revision, and rewrites the copy', async () => {

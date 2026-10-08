@@ -5,6 +5,7 @@ import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
+import { buildStubClock } from './build-stub-clock';
 import { createStubImpPort } from './create-stub-imp-port';
 import { KEYS } from './keys';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -70,6 +71,63 @@ test('it refuses a renewal of a lease a forced sleep ended', async () => {
 
   expect(ctx.port.renewLease('imp-a', 'atc-d1', 60)).rejects.toMatchObject({
     code: 'LEASE_NOT_HELD',
+  });
+});
+
+test('it refuses a renewal of a lease that has expired', async () => {
+  const clock = buildStubClock(Date.parse('2026-10-09T00:00:00.000Z'));
+  const port = createStubImpPort('token:atc', clock.now);
+
+  await port.createImp({ name: 'imp-a' });
+  await port.acquireLease('imp-a', 'atc-d1', 60);
+
+  clock.advance(60_000);
+
+  expect(port.renewLease('imp-a', 'atc-d1', 60)).rejects.toMatchObject({
+    code: 'LEASE_NOT_HELD',
+  });
+});
+
+test('it sleeps an imp whose leases have all expired', async () => {
+  const clock = buildStubClock(Date.parse('2026-10-09T00:00:00.000Z'));
+  const port = createStubImpPort('token:atc', clock.now);
+
+  await port.createImp({ name: 'imp-a' });
+  await port.acquireLease('imp-a', 'atc-d1', 60);
+
+  port.acquireOtherLease('imp-a', 'token:other', 'build', 30);
+  clock.advance(60_000);
+
+  await port.suspendImp('imp-a');
+
+  expect(port.findState('imp-a')).toBe('sleeping');
+});
+
+test('it leaves expired leases out of the view of an imp', async () => {
+  const clock = buildStubClock(Date.parse('2026-10-09T00:00:00.000Z'));
+  const port = createStubImpPort('token:atc', clock.now);
+
+  await port.createImp({ name: 'imp-a' });
+  await port.acquireLease('imp-a', 'atc-d1', 60);
+  await port.acquireLease('imp-a', 'atc-d2', 120);
+
+  port.acquireOtherLease('imp-a', 'token:other', 'build', 30);
+  clock.advance(60_000);
+
+  const view = await port.readImp('imp-a');
+
+  expect(view).toStrictEqual({
+    id: expect.toBeString(),
+    name: 'imp-a',
+    state: 'running',
+    leases: [
+      {
+        name: 'imp-a',
+        owner: { principal: 'token:atc', display: 'token:atc', label: 'atc-d2' },
+        until: Date.parse('2026-10-09T00:02:00.000Z'),
+      },
+    ],
+    otherLeaseCount: 0,
   });
 });
 
@@ -1582,9 +1640,9 @@ test('it lets the token grant a rebound secret again once its identity is set an
 test('it refuses to rebind a secret impd does not hold', () => {
   const ctx = setupTest();
 
-  expect(() =>
-    ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]),
-  ).toThrowWithMessage(Error, 'no secret glm');
+  expect(() => {
+    ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]);
+  }).toThrowWithMessage(Error, 'no secret glm');
 });
 
 test('it drops every grant of a removed secret', async () => {
@@ -1888,6 +1946,24 @@ test('it lets an attach that requires the broker join a session that started wit
   await waitFor(() => {
     expect(joined).toHaveLength(1);
   });
+
+  expect(joined).toStrictEqual([
+    {
+      created: false,
+      output: {
+        continuity: 'offsets',
+        bootId: ctx.port.getBootID('atc-s1'),
+        executionGeneration: ctx.port.getGeneration('atc-s1', 's1'),
+        bufferStart: 0,
+        end: 0,
+        offset: 0,
+        prelude: 0,
+        coldBoots: [
+          { bootId: ctx.port.getBootID('atc-s1'), cause: 'start', at: expect.toBeString() },
+        ],
+      },
+    },
+  ]);
 });
 
 test('it refuses an attach that requires the broker to a session that started without it required', async () => {
@@ -3454,7 +3530,24 @@ test('it continues a stopped process under the same generation when the imp wake
     expect(ps.stdout).toStartWith('S');
   });
 
-  expect(started[0]?.output).toMatchObject({ executionGeneration: generation });
+  expect(started).toStrictEqual([
+    {
+      created: false,
+      output: {
+        continuity: 'offsets',
+        bootId: ctx.port.getBootID('imp-a'),
+        executionGeneration: generation,
+        bufferStart: 0,
+        end: Buffer.concat(chunks).length,
+        offset: 0,
+        prelude: 0,
+        coldBoots: [
+          { bootId: ctx.port.getBootID('imp-a'), cause: 'start', at: expect.toBeString() },
+        ],
+      },
+    },
+  ]);
+
   expect(ctx.port.getGeneration('imp-a', 's1')).toBe(generation);
 });
 

@@ -53,10 +53,14 @@ import { registerTestCleanup } from './register-test-cleanup';
  * broker variable, and when it would join a process that started without
  * the broker required. Once the current test finishes, the stand-in kills
  * every process and stops every forward it holds, so it must be created inside
- * a test; `stop` does so sooner, and a second stop does nothing.
+ * a test; `stop` does so sooner, and a second stop does nothing. Leases
+ * expire, and cold boots are stamped, by `now`, the wall clock when absent.
  */
-export function createStubImpPort(principal = 'token:atc'): StubImpPort {
-  return new StubImpPort(principal);
+export function createStubImpPort(
+  principal = 'token:atc',
+  now: () => number = Date.now,
+): StubImpPort {
+  return new StubImpPort(principal, now);
 }
 
 interface StubConnection {
@@ -278,12 +282,16 @@ class StubImpPort implements ImpPort {
 
   private readonly principal: string;
 
+  // The time in epoch milliseconds that leases expire against.
+  private readonly now: () => number;
+
   private readonly imps = new Map<string, StubImp>();
 
   private readonly forwards = new Set<{ stop: () => void; stopRelays: () => void }>();
 
-  constructor(principal = 'token:atc') {
+  constructor(principal: string, now: () => number) {
     this.principal = principal;
+    this.now = now;
   }
 
   readFeatures(): Promise<ImpFeatures> {
@@ -466,7 +474,7 @@ class StubImpPort implements ImpPort {
 
     this.updateAwake(imp);
 
-    const until = Date.now() + ttlSeconds * 1000;
+    const until = this.now() + ttlSeconds * 1000;
 
     imp.leases.set(`${this.principal}\u0000${label}`, { principal: this.principal, label, until });
 
@@ -480,11 +488,11 @@ class StubImpPort implements ImpPort {
     const key = `${this.principal}\u0000${label}`;
     const lease = imp?.leases.get(key);
 
-    if (imp === undefined || lease === undefined || lease.until <= Date.now()) {
+    if (imp === undefined || lease === undefined || lease.until <= this.now()) {
       return Promise.reject(new ImpPortError('LEASE_NOT_HELD', 'the caller holds no such lease'));
     }
 
-    const until = Date.now() + ttlSeconds * 1000;
+    const until = this.now() + ttlSeconds * 1000;
 
     imp.leases.set(key, { ...lease, until });
 
@@ -528,7 +536,7 @@ class StubImpPort implements ImpPort {
       return Promise.reject(buildNotFound(name));
     }
 
-    const live = [...imp.leases.values()].filter((lease) => lease.until > Date.now());
+    const live = [...imp.leases.values()].filter((lease) => lease.until > this.now());
 
     if (imp.state === 'running' && live.length > 0) {
       const own = live.filter((lease) => lease.principal === this.principal);
@@ -922,7 +930,7 @@ class StubImpPort implements ImpPort {
     imp.leases.set(`${principal}\u0000${label}`, {
       principal,
       label,
-      until: Date.now() + ttlSeconds * 1000,
+      until: this.now() + ttlSeconds * 1000,
     });
   }
 
@@ -1357,7 +1365,7 @@ class StubImpPort implements ImpPort {
   }
 
   private buildView(imp: StubImp): ImpView {
-    const live = [...imp.leases.values()].filter((lease) => lease.until > Date.now());
+    const live = [...imp.leases.values()].filter((lease) => lease.until > this.now());
     const own = live.filter((lease) => lease.principal === this.principal);
     const others = live.filter((lease) => lease.principal !== this.principal);
 
@@ -1413,7 +1421,7 @@ class StubImpPort implements ImpPort {
     imp.bootId = randomUUID();
 
     imp.coldBoots = [
-      { bootId: imp.bootId, cause, at: new Date().toISOString() },
+      { bootId: imp.bootId, cause, at: new Date(this.now()).toISOString() },
       ...imp.coldBoots,
     ].slice(0, 4);
   }

@@ -504,7 +504,9 @@ test('it reports the second test ran', () => {
   expect({ exitCode: nested.exitCode, stdout: nested.stdout, stderr: nested.stderr }).toStrictEqual(
     {
       exitCode: 0,
-      stdout: expect.stringMatching(/fixture test ran\n[\s\S]*fixture test ran\n/),
+      stdout: expect.toSatisfy((stdout: string) =>
+        /fixture test ran\n[\s\S]*fixture test ran\n/.test(stdout),
+      ),
       stderr: expect.toInclude(' 2 pass\n 0 fail\n'),
     },
   );

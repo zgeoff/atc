@@ -640,7 +640,15 @@ test('it names the registered agents in the spawn tool to a caller holding the r
 
   invariant(isRecord(spawn), 'atc_session_spawn is not listed');
 
-  expect(spawn['description']).toInclude('the host registered: claude (not installed).');
+  const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
+
+  expect(spawn['description']).toBe(
+    "Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value. When this tool list was built, the host registered: claude (not installed). atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.",
+  );
+
+  expect(getRecord(properties, 'agent')['description']).toBe(
+    'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude (not installed). atc_agents_list returns the current list.',
+  );
 });
 
 test('it names no agent in the spawn tool to a caller without the read scope', async () => {
