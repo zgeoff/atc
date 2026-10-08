@@ -25,6 +25,9 @@ subprocesses.
 
 - Derive a home path from `resolveHomeDir()`, never `os.homedir()`: Bun reads `HOME` for
   `os.homedir()` once at startup, so a home set after startup never moves it.
+- Change an environment variable through `updateEnv()` from `src/test-utils/update-env.ts`, never by
+  assigning or deleting `process.env` keys. It records the value from before the test's first
+  change, and the `isolate-home` preload puts that value back after the test.
 - `bun run test:isolation` runs a gate inside a synthetic home of canary files and fails when the
   gate reads, changes, or adds to them. Run it after adding anything that writes generated state. It
   runs on Linux with GNU coreutils only, and stops with a message anywhere else; no canary check
