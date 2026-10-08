@@ -16,6 +16,7 @@
           "ack",
           "acquire",
           "adopt",
+          "advance",
           "answer",
           "attach",
           "boot",
