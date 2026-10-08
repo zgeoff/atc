@@ -1,3 +1,5 @@
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 import { DaemonError } from '../protocol/daemon-error';
 import { LineDecoder } from '../protocol/line-decoder';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
@@ -65,6 +67,19 @@ const RECONNECT_DELAYS_MS: readonly number[] = [250, 1000, 2000, 4000, 8000];
 // The PATH a guest harness runs with: the guest's standard one, never the
 // daemon's.
 const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+const gzipAsync = promisify(gzip);
+
+// Level 2 keeps nearly all of level 6's ratio on a workspace tar at about
+// two thirds of its CPU time.
+const GZIP_LEVEL = 2;
+
+// The exit an imp without gzip answers a transfer with: EX_UNAVAILABLE,
+// which neither mkdir nor tar uses.
+const NO_GZIP_CODE = 69;
+
+// Checks for gzip before the archive is read, then creates the directory
+// and unpacks into it.
+const UNPACK_SCRIPT = `command -v gzip >/dev/null 2>&1 || exit ${NO_GZIP_CODE}; mkdir -p "$1" && tar -x -z --no-same-owner -f - -C "$1"`;
 
 /**
  * The `imp` provider: one imp, a VM that impd hosts, per top-level session,
@@ -302,13 +317,25 @@ export class ImpProvider implements ExecutionProvider {
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive = async (archive: Uint8Array, dir: string, host?: string) => {
+    // The archive crosses the network to impd, so it goes over gzipped:
+    // imp-base ships gzip and no faster decompressor. An imp without gzip
+    // refuses the transfer before it reads any input, and nothing falls back
+    // to an uncompressed upload.
+    const compressed = await gzipAsync(archive, { level: GZIP_LEVEL });
+
     // The archive records the daemon host's owners. Commands in an imp run as
     // root, and root's tar keeps those owners, which git there then refuses
     // as dubious ownership, so the unpacked files take the guest user's owner.
     const result = await this.runOnHost(host, {
-      argv: ['sh', '-c', 'mkdir -p "$1" && tar -x --no-same-owner -f - -C "$1"', 'sh', dir],
-      stdin: archive,
+      argv: ['sh', '-c', UNPACK_SCRIPT, 'sh', dir],
+      stdin: compressed,
     });
+
+    if (result.code === NO_GZIP_CODE) {
+      throw new Error(
+        `imp ${this.getImpName(host ?? '')} has no gzip, which unpacking the archive into ${dir} needs; install gzip in its image`,
+      );
+    }
 
     if (result.code !== 0) {
       throw new Error(`tar exited ${result.code ?? 'by a signal'} unpacking into ${dir}`);

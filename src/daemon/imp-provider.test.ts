@@ -1,9 +1,13 @@
 import { expect, test } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import invariant from 'tiny-invariant';
+import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { buildTarArchive } from './build-tar-archive';
 import { ImpProvider } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
@@ -410,4 +414,71 @@ test("it creates a host's imp for the broker with the target's image and memory"
 
   expect(ctx.port.calls).toStrictEqual(['imps.create atc-s1']);
   expect(ctx.port.createSpecs).toStrictEqual([{ name: 'atc-s1', image: 'base', memoryMib: 512 }]);
+});
+
+test('it sends an archive to an imp gzipped and unpacks it there', async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  // A gzip ahead of the guest's own on its PATH keeps a copy of what tar
+  // hands it to unpack, which is what crossed the wire.
+  const realGzip = Bun.which('gzip');
+
+  invariant(realGzip !== null);
+
+  const wire = join(ctx.dir, 'wire.bin');
+  const bin = join(ctx.dir, 'bin');
+
+  createStubBin(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
+
+  ctx.port.setGuestPath(`${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`);
+
+  const archive = buildTarArchive([{ path: 'src/a.txt', content: 'hello from the daemon' }]);
+
+  await provider.transferArchive(archive, join(ctx.dir, 'w'), 's1');
+
+  expect(readFileSync(join(ctx.dir, 'w', 'src', 'a.txt'), 'utf8')).toBe('hello from the daemon');
+  expect(gunzipSync(readFileSync(wire))).toStrictEqual(Buffer.from(archive));
+});
+
+test('it refuses a transfer to an imp without gzip and leaves the directory uncreated', async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  // The guest's PATH holds every tool the unpack runs except gzip.
+  const bin = join(ctx.dir, 'bin');
+
+  mkdirSync(bin);
+
+  for (const tool of ['sh', 'mkdir', 'tar']) {
+    const path = Bun.which(tool);
+
+    invariant(path !== null);
+    symlinkSync(path, join(bin, tool));
+  }
+
+  ctx.port.setGuestPath(bin);
+
+  const archive = buildTarArchive([{ path: 'a.txt', content: 'never unpacked' }]);
+
+  expect(provider.transferArchive(archive, join(ctx.dir, 'w'), 's1')).rejects.toThrowWithMessage(
+    Error,
+    `imp atc-s1 has no gzip, which unpacking the archive into ${join(ctx.dir, 'w')} needs; install gzip in its image`,
+  );
+
+  expect(existsSync(join(ctx.dir, 'w'))).toBe(false);
 });

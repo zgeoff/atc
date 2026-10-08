@@ -416,7 +416,7 @@ the daemon records each phase in it before the phase starts:
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `resolving`    | resolves the source to a URL and commit, checks the URL, readies the host, and creates `cwd` with `mkdir`                              |
 | `cloning`      | clones the commit into a staging directory on its own host, sanitizes it, and tars it                                                  |
-| `transferring` | unpacks the archive into `cwd` through `transfer`                                                                                      |
+| `transferring` | unpacks the archive into `cwd` through `transfer`; an imp target sends it gzipped and refuses the phase when the imp has no gzip       |
 | `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it |
 | `ready`        | starts the session in `cwd`                                                                                                            |
 | `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                             |

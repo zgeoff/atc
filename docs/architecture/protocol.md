@@ -752,7 +752,7 @@ Every workspace refusal holds the phase it failed in as `data.phase`, and its me
 | `clone_failed`           | cloning                   | git cannot clone the repository or check the commit out                                                                                                                                                             |
 | `sanitize_failed`        | cloning                   | the clone still holds a credential, or its history no longer reads                                                                                                                                                  |
 | `tar_failed`             | cloning                   | tar cannot archive the clone                                                                                                                                                                                        |
-| `transfer_failed`        | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive                                                                                                                                                     |
+| `transfer_failed`        | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive, or an imp has no gzip to unpack it                                                                                                                 |
 | `workspace_mismatch`     | verifying                 | the target's HEAD is not the pinned commit, in `data.actual`, or a tracked file differs from it                                                                                                                     |
 
 ## Sources

@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
+import invariant from 'tiny-invariant';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredGatewayAdapter } from '../test-utils/build-stub-brokered-gateway-adapter';
@@ -138,7 +139,7 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
   expect(
     ctx.port.calls.filter((call) => call.includes(dest) && call.includes('tar -x')),
   ).toStrictEqual([
-    `exec.run ${imp} sh -c mkdir -p "$1" && tar -x --no-same-owner -f - -C "$1" sh ${dest}`,
+    `exec.run ${imp} sh -c command -v gzip >/dev/null 2>&1 || exit 69; mkdir -p "$1" && tar -x -z --no-same-owner -f - -C "$1" sh ${dest}`,
   ]);
 
   expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
@@ -4546,4 +4547,54 @@ test('it leaves its directory and reports it when the directory it created no lo
 
   expect(readFileSync(join(busy, 'new', 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
   expect(existsSync(join(ctx.dir, 'safe-old', 'new'))).toBe(true);
+});
+
+test('it refuses a workspace spawn on an imp without gzip with a transfer error that names gzip', async () => {
+  const ctx = await setupTest();
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  // The guest's PATH holds every tool the spawn runs there except gzip.
+  const bin = join(ctx.dir, 'bin');
+
+  mkdirSync(bin);
+
+  for (const tool of ['sh', 'mkdir', 'tar', 'rm', 'git', 'env']) {
+    const path = Bun.which(tool);
+
+    invariant(path !== null);
+    symlinkSync(path, join(bin, tool));
+  }
+
+  ctx.port.setGuestPath(bin);
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'transfer_failed' });
+
+  expect(spawn).rejects.toThrow(
+    new RegExp(
+      `^imp atc-\\w+ has no gzip, which unpacking the archive into ${dest} needs; install gzip in its image$`,
+      'u',
+    ),
+  );
 });
