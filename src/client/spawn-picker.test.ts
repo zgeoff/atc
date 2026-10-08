@@ -1,11 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
 import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-requests';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
 import { buildStubTerminal } from '../test-utils/build-stub-terminal';
 import { KEYS } from '../test-utils/keys';
 import { SpawnPicker } from './spawn-picker';
+import { toMirrorSession } from './to-mirror-session';
 
 /**
  * What a spawn picker needs besides its scenario: a config at `configPath`
@@ -38,7 +40,7 @@ function setupTest() {
     scheduleStatus: host.scheduleStatus,
     toBase: host.toBase,
     attach: host.attach,
-    toMirrorSession: () => ({ id: 's-1' }),
+    toMirrorSession,
     upsertMirror: () => {},
     write: terminal.write,
     cwd,
@@ -370,7 +372,7 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 
   const renders = ctx.counts.renders;
 
-  await ctx.daemon.answer('session.spawn', { session: { id: 's-1' } });
+  await ctx.daemon.answer('session.spawn', { session: buildMockSessionDescriptor() });
 
   expect(ctx.counts.exits).toBe(1);
   expect(ctx.counts.renders).toBe(renders);
@@ -761,7 +763,7 @@ test('it holds a session whose workspace left changes behind instead of attachin
   picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', {
-    session: { id: 's-1' },
+    session: buildMockSessionDescriptor(),
     warnings: [
       'cloned commit 0123456789ab; left 2 uncommitted or untracked paths behind in /src/app',
     ],
@@ -808,7 +810,7 @@ test('it attaches a held session whose workspace left changes behind on enter', 
   picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', {
-    session: { id: 's-1' },
+    session: buildMockSessionDescriptor(),
     warnings: [
       'cloned commit 0123456789ab; left 2 uncommitted or untracked paths behind in /src/app',
     ],
@@ -859,7 +861,7 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
   const mark = ctx.terminal.mark();
 
   await ctx.daemon.answer('session.spawn', {
-    session: { id: 's-1' },
+    session: buildMockSessionDescriptor(),
     warnings: [
       'cloned commit 0123456789ab; left 12 uncommitted or untracked paths behind in /home/me/src/a-project-with-a-long-name',
     ],
@@ -909,7 +911,7 @@ test('it leaves a session whose workspace left changes behind running when esc r
   picker.applyKey(Buffer.from(KEYS.enter));
 
   await ctx.daemon.answer('session.spawn', {
-    session: { id: 's-1' },
+    session: buildMockSessionDescriptor(),
     warnings: [
       'cloned commit 0123456789ab; left 1 uncommitted or untracked path behind in /src/app',
     ],
@@ -971,7 +973,7 @@ test('it attaches a session spawned without warnings at once', async () => {
   picker.applyKey(Buffer.from(KEYS.enter));
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  await ctx.daemon.answer('session.spawn', { session: { id: 's-1' } });
+  await ctx.daemon.answer('session.spawn', { session: buildMockSessionDescriptor() });
 
   expect(ctx.counts.attached).toBe(1);
 });
@@ -1360,7 +1362,7 @@ test('it starts a new flow on the default target, not the one the last flow chos
   picker.applyKey(Buffer.from(KEYS.enter));
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  await ctx.daemon.answer('session.spawn', { session: { id: 's-1' } });
+  await ctx.daemon.answer('session.spawn', { session: buildMockSessionDescriptor() });
 
   picker.open();
 

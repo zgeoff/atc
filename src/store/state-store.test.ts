@@ -149,7 +149,7 @@ test('it resolves stop only after an unawaited fleet write lands', async () => {
   expect(rows).toStrictEqual([{ name: entry.name }]);
 });
 
-test('it seeds the fleet from a legacy fleet.json once', async () => {
+test('it seeds an empty fleet from a legacy fleet.json', async () => {
   const tmp = setupTempDir('atc-store-');
   const legacy = join(tmp.dir, 'fleet.json');
 

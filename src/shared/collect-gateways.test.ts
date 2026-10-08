@@ -3,7 +3,7 @@ import { buildMockAuthProfile } from '../test-utils/build-mock-auth-profile';
 import type { AuthProfile } from './collect-auth-profiles';
 import { collectGateways } from './collect-gateways';
 
-test('it reads an entry into a gateway that names its own binary and menu row', () => {
+test('it reads an entry into a gateway with its own menu row on the Claude binary', () => {
   expect(
     collectGateways(
       {

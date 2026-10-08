@@ -1,11 +1,16 @@
 import { expect, test } from 'bun:test';
-import { socketPath } from '../shared/config';
+import { join } from 'node:path';
+import invariant from 'tiny-invariant';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { updateEnv } from '../test-utils/update-env';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 
 test('it runs a session turn in its directory, resumed, under the auto permission mode, with its model, effort, and mod', () => {
+  const testHome = process.env['ATC_TEST_HOME'];
+
+  invariant(testHome !== undefined, 'the test home sets ATC_TEST_HOME');
+
   const options = buildClaudeQueryOptions(
     {
       claudeBin: 'claude',
@@ -34,7 +39,7 @@ test('it runs a session turn in its directory, resumed, under the auto permissio
   expect(env).toMatchObject({
     CLAUDE_CODE_PLUGIN_DIRS: '/state/atc-bridge',
     ATC_SESSION_ID: 's-1',
-    ATC_SOCKET: socketPath,
+    ATC_SOCKET: join(testHome, 'runtime', 'atc.sock'),
   });
 });
 

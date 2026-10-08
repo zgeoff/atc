@@ -3,7 +3,6 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
-import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
@@ -12,7 +11,6 @@ import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { answerRPCRequest } from './answer-rpc-request';
-import { buildToolList } from './build-tool-list';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 // A real daemon whose one agent is a `claude` that is not installed and
@@ -211,7 +209,25 @@ test('it lists every tool to a caller with one scope', async () => {
       jsonrpc: '2.0',
       id: 2,
       result: {
-        tools: buildToolList(new Set(DAEMON_FEATURES), [{ id: 'claude', installed: false }]),
+        tools: [
+          expect.objectContaining({ name: 'atc_session_list' }),
+          expect.objectContaining({ name: 'atc_session_spawn' }),
+          expect.objectContaining({ name: 'atc_session_input' }),
+          expect.objectContaining({ name: 'atc_session_screen' }),
+          expect.objectContaining({ name: 'atc_session_update' }),
+          expect.objectContaining({ name: 'atc_session_kill' }),
+          expect.objectContaining({ name: 'atc_session_forget' }),
+          expect.objectContaining({ name: 'atc_session_ack' }),
+          expect.objectContaining({ name: 'atc_resume_command' }),
+          expect.objectContaining({ name: 'atc_dirs_list' }),
+          expect.objectContaining({ name: 'atc_agents_list' }),
+          expect.objectContaining({ name: 'atc_session_get' }),
+          expect.objectContaining({ name: 'atc_session_read' }),
+          expect.objectContaining({ name: 'atc_events_read' }),
+          expect.objectContaining({ name: 'atc_report_get' }),
+          expect.objectContaining({ name: 'atc_session_message' }),
+          expect.objectContaining({ name: 'atc_message_get' }),
+        ],
       },
     },
   });
@@ -663,7 +679,7 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
   });
 });
 
-test('it lists the agents tool without an output schema to match the agents a daemon without spawn options returns', async () => {
+test('it lists the agents tool without an output schema when the daemon takes no spawn options', async () => {
   const tmp = setupTempDir('atc-answer-rpc-');
 
   startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
@@ -703,31 +719,16 @@ test('it lists the agents tool without an output schema to match the agents a da
 
   registerTestCleanup(() => caller.stop());
 
-  const [listed, called] = await Promise.all([
-    answerRPCRequest(
-      { jsonrpc: '2.0', id: 1, method: 'tools/list' },
-      {
-        caller,
-        build: 'atc/test-build',
-        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
-      },
-    ),
-    answerRPCRequest(
-      {
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/call',
-        params: { name: 'atc_agents_list', arguments: {} },
-      },
-      {
-        caller,
-        build: 'atc/test-build',
-        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
-      },
-    ),
-  ]);
+  const listed = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    {
+      caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+    },
+  );
 
-  invariant(listed.kind === 'reply' && called.kind === 'reply', 'no reply');
+  invariant(listed.kind === 'reply', 'no reply');
 
   const tools: unknown = getRecord(listed.body, 'result')['tools'];
 
@@ -740,6 +741,63 @@ test('it lists the agents tool without an output schema to match the agents a da
   invariant(isRecord(agentsTool), 'atc_agents_list is not listed');
 
   expect(agentsTool).not.toContainKey('outputSchema');
+});
+
+test('it returns the agents a daemon without spawn options lists', async () => {
+  const tmp = setupTempDir('atc-answer-rpc-');
+
+  startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
+    replies: {
+      'agents.list': {
+        daemon: {
+          hostname: 'legacy-host',
+          platform: 'linux',
+          arch: 'x64',
+          build: 'atc/legacy-build',
+        },
+        agents: [
+          {
+            id: 'claude',
+            label: 'Claude',
+            kind: 'claude',
+            installed: true,
+            capabilities: {
+              spawn: true,
+              readTranscript: true,
+              message: true,
+              attach: true,
+              screen: true,
+              input: true,
+            },
+            models: null,
+          },
+        ],
+      },
+    },
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const called = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'atc_agents_list', arguments: {} },
+    },
+    {
+      caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+    },
+  );
+
+  invariant(called.kind === 'reply', 'no reply');
 
   expect(getRecord(getRecord(called.body, 'result'), 'structuredContent')['agents']).toStrictEqual([
     {

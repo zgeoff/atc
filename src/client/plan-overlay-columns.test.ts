@@ -22,7 +22,7 @@ test('it gives a wide flat row every column at its content width', () => {
   });
 });
 
-test('it drops the directory column first under width pressure', () => {
+test('it narrows the directory column first once the last-event column gives up its slack', () => {
   expect(
     planOverlayColumns({
       innerWidth: 72,

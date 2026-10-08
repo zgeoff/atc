@@ -25,12 +25,16 @@ async function setupTest() {
 
 test('it answers a read-only request sent right after the daemon restarts', async () => {
   const ctx = await setupTest();
+  const before = await ctx.caller.sendRequest('session.list');
 
-  await ctx.caller.sendRequest('session.list');
+  const first = ctx.daemon.daemon;
+
   await ctx.daemon.restart();
 
   const after = await ctx.caller.sendRequest('session.list');
 
+  expect(before).toStrictEqual({ sessions: [] });
+  expect(ctx.daemon.daemon).not.toBe(first);
   expect(after).toStrictEqual({ sessions: [] });
 });
 

@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { printCodexHookFile } from './print-codex-hook-file';
 
 test('it prints Codex hook entries that report under the codex agent', () => {
-  const command = `"${process.execPath}" "${join(import.meta.dir, '..', 'cli.ts')}" hook-report --agent codex`;
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+  const command = `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent codex`;
   const printed: string[] = [];
 
   printCodexHookFile((text) => {
