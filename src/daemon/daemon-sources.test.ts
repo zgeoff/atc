@@ -6,6 +6,7 @@ import { buildGitSource } from '../sources/git/build-git-source';
 import { buildGitHubSource } from '../sources/github/build-github-source';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
+import { buildStubGH } from '../test-utils/build-stub-gh';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -216,13 +217,16 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
   createStubBin(
     daemon.dir,
     'gh',
-    `#!/bin/sh
-printf '%s\\n' "$*" >> '${join(daemon.dir, 'gh-argv')}'
-case "$1" in
-  config) echo ssh ;;
-  repo) echo '[{"nameWithOwner":"acme/app","description":"the app","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"},{"nameWithOwner":"acme/web","description":null,"isPrivate":false,"url":"https://github.com/acme/web","sshUrl":"git@github.com:acme/web.git"}]' ;;
-esac
-`,
+    buildStubGH({
+      replies: {
+        config: { stdout: 'ssh\n' },
+        repo: {
+          stdout:
+            '[{"nameWithOwner":"acme/app","description":"the app","isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git"},{"nameWithOwner":"acme/web","description":null,"isPrivate":false,"url":"https://github.com/acme/web","sshUrl":"git@github.com:acme/web.git"}]\n',
+        },
+      },
+      argvFile: join(daemon.dir, 'gh-argv'),
+    }),
   );
 
   const listed = await daemon.client.sendRequest('sources.list', { source: 'github' });
@@ -259,13 +263,16 @@ test('it lists the scope a request holds over the configured owner, at https URL
   createStubBin(
     daemon.dir,
     'gh',
-    `#!/bin/sh
-printf '%s\\n' "$*" >> '${join(daemon.dir, 'gh-argv')}'
-case "$1" in
-  config) exit 1 ;;
-  repo) echo '[{"nameWithOwner":"other-org/app","description":"","isPrivate":false,"url":"https://github.com/other-org/app","sshUrl":"git@github.com:other-org/app.git"}]' ;;
-esac
-`,
+    buildStubGH({
+      replies: {
+        config: { exitCode: 1 },
+        repo: {
+          stdout:
+            '[{"nameWithOwner":"other-org/app","description":"","isPrivate":false,"url":"https://github.com/other-org/app","sshUrl":"git@github.com:other-org/app.git"}]\n',
+        },
+      },
+      argvFile: join(daemon.dir, 'gh-argv'),
+    }),
   );
 
   const listed = await daemon.client.sendRequest('sources.list', {
@@ -304,7 +311,10 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
   createStubBin(
     daemon.dir,
     'gh',
-    `#!/bin/sh\nprintf '%s\\n' "$*" >> '${join(daemon.dir, 'gh-argv')}'\necho '[]'\n`,
+    buildStubGH({
+      replies: { repo: { stdout: '[]\n' } },
+      argvFile: join(daemon.dir, 'gh-argv'),
+    }),
   );
 
   const listed = daemon.client.sendRequest('sources.list', {

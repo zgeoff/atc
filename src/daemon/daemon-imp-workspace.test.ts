@@ -3132,6 +3132,9 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
     });
   });
 
+  const stateBeforeSpawn = ctx.port.findState(String(imp));
+  const callsBeforeSpawn = ctx.port.calls.length;
+
   ctx.port.startBrokerFailure();
 
   const spawn = daemon.client.sendRequest('session.spawn', {
@@ -3147,6 +3150,14 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
   expect(existsSync(dest)).toBe(false);
+  expect(stateBeforeSpawn).toBe('sleeping');
+
+  expect(
+    ctx.port.calls
+      .slice(callsBeforeSpawn)
+      .filter((call) => call.startsWith(`leases.acquire ${imp} `) || call === `imps.sleep ${imp}`),
+  ).toStrictEqual([expect.toStartWith(`leases.acquire ${imp} `), `imps.sleep ${imp}`]);
+
   expect(ctx.port.findState(String(imp))).toBe('sleeping');
 });
 
@@ -3987,6 +3998,11 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'host_unavailable' });
+
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.create '))).toStrictEqual([
+    expect.toStartWith('imps.create atc-'),
+  ]);
+
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
 });
 

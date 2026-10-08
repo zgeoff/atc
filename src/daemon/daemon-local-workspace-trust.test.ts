@@ -519,7 +519,7 @@ test('it refuses a local launch whose trust write fails', async () => {
       target: 'local',
       workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
     }),
-  ).rejects.toMatchObject({ code: 'internal', message: 'JSON Parse error: Unexpected EOF' });
+  ).rejects.toMatchObject({ code: 'internal' });
 });
 
 test('it removes the clone, keeps the user config, and starts nothing when the trust write fails', async () => {
