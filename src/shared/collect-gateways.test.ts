@@ -304,6 +304,48 @@ test('it keeps a gateway whose auth selects profiles that cover its base URL hos
   });
 });
 
+test('it keeps a gateway that holds a credential helper beside its auth', () => {
+  const authProfiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
+  ]);
+
+  expect(
+    collectGateways(
+      {
+        glm: {
+          baseURL: 'https://api.z.ai/api/anthropic',
+          apiKeyHelper: '~/.local/bin/glm-key',
+          auth: {
+            profiles: ['glm'],
+            placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          },
+        },
+      },
+      'claude',
+      [],
+      authProfiles,
+    ),
+  ).toStrictEqual({
+    gateways: [
+      {
+        id: 'glm',
+        label: 'glm',
+        mark: 'g',
+        bin: 'claude',
+        args: [],
+        baseURL: 'https://api.z.ai/api/anthropic',
+        apiKeyHelper: '~/.local/bin/glm-key',
+        env: {},
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        },
+      },
+    ],
+    errors: [],
+  });
+});
+
 test('it keeps a gateway whose auth selects a github profile beside the profile for its base URL host', () => {
   const authProfiles = new Map<string, AuthProfile>([
     ['glm', buildMockAuthProfile({ name: 'glm', host: 'api.z.ai' })],
@@ -375,10 +417,6 @@ test('it keeps a proxy variable in the env of a gateway without auth', () => {
 
 test.each([
   [
-    { apiKeyHelper: '~/.local/bin/glm-key' },
-    'gateways.glm: apiKeyHelper cannot be set together with auth, which supplies the credential through the broker',
-  ],
-  [
     { baseURL: 'http://api.z.ai/api/anthropic' },
     'gateways.glm: baseURL must be an https URL with no port or user info',
   ],
@@ -424,7 +462,7 @@ test.each([
   ],
   [
     { settings: { apiKeyHelper: '~/.local/bin/glm-key' } },
-    'gateways.glm: settings.apiKeyHelper cannot be set together with auth, which supplies the credential through the broker',
+    'gateways.glm: settings.apiKeyHelper cannot be set together with auth; apiKeyHelper holds the credential helper of a launch without the broker',
   ],
 ])('it refuses a gateway with auth and %p', (override, error) => {
   const authProfiles = new Map<string, AuthProfile>([

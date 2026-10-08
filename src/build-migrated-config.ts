@@ -142,6 +142,7 @@ function renderAgentEntry(entry: AgentEntry): Record<string, unknown> {
       ...(Object.keys(entry.auth.placeholderEnv).length > 0
         ? { placeholderEnv: entry.auth.placeholderEnv }
         : {}),
+      ...(entry.auth.args === undefined ? {} : { args: entry.auth.args }),
       ...(entry.mcpServers === undefined
         ? {}
         : {

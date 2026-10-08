@@ -119,9 +119,11 @@ test('it parses the migrated config into the entries the old keys gave', () => {
       },
       glm: {
         baseURL: 'https://api.z.ai/api/anthropic',
+        apiKeyHelper: 'op read glm',
         auth: {
           profiles: ['glm'],
           placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
         },
       },
     },
