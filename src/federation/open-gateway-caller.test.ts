@@ -53,25 +53,27 @@ async function setupTest() {
   writeFileSync(join(tmp.dir, 'cloud-token'), `${token}\n`);
   writeFileSync(join(tmp.dir, 'pc-token'), `${token}\n`);
 
-  const cloud = await startTestDaemon({
-    prefix: 'atc-gateway-cloud-',
-    options: () => ({
-      // Session messages need an adapter that takes them.
-      adapter: buildMockAgentAdapter({ takesMessages: true }),
-      principals: new Map([[claude.clientID, ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'cloud-token') },
+  // The two daemons boot at once, since neither waits on the other.
+  const [cloud, pc] = await Promise.all([
+    startTestDaemon({
+      prefix: 'atc-gateway-cloud-',
+      options: () => ({
+        // Session messages need an adapter that takes them.
+        adapter: buildMockAgentAdapter({ takesMessages: true }),
+        principals: new Map([[claude.clientID, ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'cloud-token') },
+      }),
     }),
-  });
-
-  const pc = await startTestDaemon({
-    prefix: 'atc-gateway-pc-',
-    options: () => ({
-      // Session messages need an adapter that takes them.
-      adapter: buildMockAgentAdapter({ takesMessages: true }),
-      principals: new Map([[claude.clientID, ['local']]]),
-      listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'pc-token') },
+    startTestDaemon({
+      prefix: 'atc-gateway-pc-',
+      options: () => ({
+        // Session messages need an adapter that takes them.
+        adapter: buildMockAgentAdapter({ takesMessages: true }),
+        principals: new Map([[claude.clientID, ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(tmp.dir, 'pc-token') },
+      }),
     }),
-  });
+  ]);
 
   const cloudProber = await DaemonClient.open(cloud.socketPath);
 
@@ -85,8 +87,10 @@ async function setupTest() {
     pcProber.stop();
   });
 
-  const cloudHello = await cloudProber.sendHello(cloud.build);
-  const pcHello = await pcProber.sendHello(pc.build);
+  const [cloudHello, pcHello] = await Promise.all([
+    cloudProber.sendHello(cloud.build),
+    pcProber.sendHello(pc.build),
+  ]);
 
   const cloudID = String(cloudHello['daemonID']);
   const pcID = String(pcHello['daemonID']);

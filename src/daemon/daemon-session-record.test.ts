@@ -158,7 +158,7 @@ test("it refuses the session's own write to its record", async () => {
 
   expect(() => {
     writeFileSync(path, '{"scope":"everything"}');
-  }).toThrow(/EACCES/u);
+  }).toThrow(expect.objectContaining({ code: 'EACCES' }));
 });
 
 test('it adds scope from a client outside the session and rewrites the record', async () => {
@@ -180,9 +180,23 @@ test('it adds scope from a client outside the session and rewrites the record', 
 
   const record = getRecord(added, 'record');
 
-  expect(record['revision']).toBe(2);
-
   const copy = await readJSONRecord(Bun.file(join(ctx.records, `${id}.json`)));
+
+  expect(record).toStrictEqual({
+    format: 'atc.session-record',
+    version: 1,
+    session: id,
+    daemonID: expect.any(String),
+    target: 'box',
+    revision: 2,
+    updatedAt: expect.any(String),
+    scope: {
+      workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
+      worktrees: [],
+      branches: [{ name: 'later', repo: ctx.fixture.work }],
+      pullRequests: [],
+    },
+  });
 
   expect(copy).toStrictEqual(record);
 });
@@ -263,8 +277,11 @@ test("it adds to a sub-session's record from a client inside its parent", async 
     scope: { branches: [{ name: 'main' }] },
   });
 
-  expect(getRecord(added, 'record')['scope']).toMatchObject({
+  expect(getRecord(added, 'record')['scope']).toStrictEqual({
+    workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
+    worktrees: [],
     branches: [{ name: 'main', repo: ctx.fixture.work }],
+    pullRequests: [],
   });
 });
 

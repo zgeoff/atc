@@ -501,10 +501,13 @@ test('it reports the second test ran', () => {
     env: { ...process.env, TMPDIR: `${ctx.dir}/` },
   });
 
-  expect({ exitCode: nested.exitCode, stderr: nested.stderr }).toStrictEqual({
-    exitCode: 0,
-    stderr: expect.toInclude(' 2 pass\n 0 fail\n'),
-  });
-
-  expect(nested.stdout).toMatch(/fixture test ran\n[\s\S]*fixture test ran\n/);
+  expect({ exitCode: nested.exitCode, stdout: nested.stdout, stderr: nested.stderr }).toStrictEqual(
+    {
+      exitCode: 0,
+      stdout: expect.toSatisfy((stdout: string) =>
+        /fixture test ran\n[\s\S]*fixture test ran\n/.test(stdout),
+      ),
+      stderr: expect.toInclude(' 2 pass\n 0 fail\n'),
+    },
+  );
 });

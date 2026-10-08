@@ -20,18 +20,15 @@ test('it runs git on the daemon machine for a local provider, past a GIT_DIR the
 });
 
 test('it runs git through a remote provider without the repository variables', async () => {
-  const runCommand = mock<ExecutionProvider['runCommand']>(() =>
-    Promise.resolve({ exitCode: 0, stdout: 'main\n', stderr: '' }),
-  );
+  const fixture = await createGitFixture({ prefix: 'atc-host-git-' });
 
-  const provider: ExecutionProvider = {
-    ...buildStubExecutionProvider({ remote: true }),
-    runCommand,
-  };
+  const remote = buildStubExecutionProvider({ remote: true });
+  const runCommand = mock(remote.runCommand);
+  const provider: ExecutionProvider = { ...remote, runCommand };
 
-  const result = await runHostGit(provider, 's-1', '/work', ['symbolic-ref', 'HEAD']);
+  const result = await runHostGit(provider, 's-1', fixture.work, ['symbolic-ref', 'HEAD']);
 
-  expect(result.stdout).toBe('main\n');
+  expect(result).toStrictEqual({ exitCode: 0, stdout: 'refs/heads/main\n', stderr: '' });
 
   expect(runCommand).toHaveBeenCalledExactlyOnceWith({
     argv: [
@@ -72,7 +69,7 @@ test('it runs git through a remote provider without the repository variables', a
       '-c',
       'core.fsmonitor=false',
       '-C',
-      '/work',
+      fixture.work,
       'symbolic-ref',
       'HEAD',
     ],

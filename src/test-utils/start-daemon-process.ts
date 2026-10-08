@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../client/daemon-client';
@@ -39,13 +39,16 @@ interface DaemonBoot {
  * sending no handshake, and fails at once with the daemon's stderr when the
  * daemon exits before it listens. `restart` stops the daemon with the given
  * signal, waits for it to exit, and starts another on the same home with the
- * same config. `readStderr` reads what the current boot printed, from a file no other
- * daemon on the home writes. `stop`
- * closes every client it opened, kills the daemon and waits for it to exit,
- * then kills the daemon the home's state directory records, which a restart
- * the test asked atc for may have started. That stop runs once the current
- * test finishes, so it must run inside a test; calling `stop` sooner runs it
- * then, and a second stop does nothing.
+ * same config, and throws once the daemon is stopped. `readStderr` reads
+ * what the current boot printed, from a file in `stderrDir`, a directory
+ * under the home that no other daemon on the home writes. `stop` closes
+ * every client it opened, kills the daemon and waits for it to exit, then
+ * kills the daemon the home's state directory records, which a restart the
+ * test asked atc for may have started. That stop runs once the current test
+ * finishes, so it must run inside a test; calling `stop` sooner runs it
+ * then, and a second stop does nothing. `stderrDir` is removed once the
+ * current test finishes, after the stop, so a test can still read the
+ * stderr after an early stop.
  */
 export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const socketPath = join(config.home, 'atc-daemon.sock');
@@ -54,6 +57,11 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   // A directory of this helper's own under the home, so two daemons started
   // on one home never write into one stderr file.
   const stderrDir = mkdtempSync(join(config.home, 'daemon-stderr-'));
+
+  // Registered before the stop, so it runs after the daemon is gone.
+  registerTestCleanup(() => {
+    rmSync(stderrDir, { recursive: true, force: true });
+  });
 
   const clients = new Set<DaemonClient>();
 
@@ -205,12 +213,17 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     socketPath,
     reporterSocketPath: join(config.home, 'atc.sock'),
     stateDir,
+    stderrDir,
     get proc(): Subprocess {
       return current.proc;
     },
     readStderr,
     openClient,
     async restart(signal: NodeJS.Signals): Promise<void> {
+      if (stopped) {
+        throw new Error('a stopped daemon process cannot restart');
+      }
+
       current.proc.kill(signal);
 
       await current.proc.exited;

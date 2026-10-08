@@ -56,10 +56,12 @@ test('it hands the daemon the arguments and keeps its stderr readable', async ()
     args: ['--listen', '127.0.0.1:0'],
   });
 
-  const code = await daemon.proc.exited;
+  const exitCode = await daemon.proc.exited;
 
-  expect(code).toBe(1);
-  expect(daemon.readStderr()).toInclude('--listen and --token-file go together');
+  expect({ exitCode, stderr: daemon.readStderr() }).toStrictEqual({
+    exitCode: 1,
+    stderr: expect.toInclude('--listen and --token-file go together'),
+  });
 });
 
 test('it rejects a client with the daemon stderr when the daemon exits before it listens', async () => {
@@ -275,10 +277,21 @@ test('it kills the daemon once the test finishes without a stop', () => {
   });
 });
 
-test('it kills the daemon its home records and removes the home once the test finishes', () => {
+test('it kills the daemon its home records and removes its stderr directory once the test finishes', () => {
   const ctx = setupTest();
+  let stderrLeft: boolean | null = null;
+  let stderrDir = '';
+
+  // Runs after the helper's releases, which register later, and before the
+  // home goes; it records whether those releases left the stderr directory.
+  registerTestCleanup(() => {
+    stderrLeft = existsSync(stderrDir);
+  });
+
   const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
   const pid = daemon.proc.pid;
+
+  stderrDir = daemon.stderrDir;
 
   // Registered before the replacement starts, so it runs after the helper's
   // release and before the fallback kill below. The helper signals the
@@ -290,6 +303,7 @@ test('it kills the daemon its home records and removes the home once the test fi
       expect(isProcessAlive(replacement.pid)).toBe(false);
     });
 
+    expect(stderrLeft).toBe(false);
     expect(existsSync(ctx.dir)).toBe(false);
   });
 
@@ -311,5 +325,35 @@ test('it kills the daemon its home records and removes the home once the test fi
       eventsSocketPath: null,
       listenPort: null,
     }),
+  );
+});
+
+test('it keeps the daemon stderr readable after a stop', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.dir,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  await daemon.proc.exited;
+
+  await daemon.stop();
+
+  expect(daemon.readStderr()).toInclude('--listen and --token-file go together');
+});
+
+test('it refuses to restart a stopped daemon', async () => {
+  const ctx = setupTest();
+
+  // A stand-in that runs until killed and ignores the arguments after it.
+  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
+
+  await daemon.stop();
+
+  expect(daemon.restart('SIGTERM')).rejects.toThrowWithMessage(
+    Error,
+    'a stopped daemon process cannot restart',
   );
 });

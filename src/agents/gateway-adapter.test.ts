@@ -89,10 +89,9 @@ test("it runs a headless turn through the gateway's binary and settings file und
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  adapter.headlessRunner?.(
-    { cwd: '/tmp', prompt: 'go' },
-    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
-  );
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
@@ -103,7 +102,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
       pluginDir: join(ctx.dir, 'atc-bridge'),
       settings: join(ctx.dir, 'state', 'hook-settings-zai.json'),
     },
-    expect.anything(),
+    events,
   );
 });
 
@@ -177,10 +176,9 @@ test("it runs a headless turn under the permission mode the gateway's settings d
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  adapter.headlessRunner?.(
-    { cwd: '/tmp', prompt: 'go' },
-    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
-  );
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
@@ -191,7 +189,7 @@ test("it runs a headless turn under the permission mode the gateway's settings d
       pluginDir: join(ctx.dir, 'atc-bridge'),
       settings: join(ctx.dir, 'state', 'hook-settings-manual-settings.json'),
     },
-    expect.anything(),
+    events,
   );
 });
 
@@ -212,10 +210,9 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  adapter.headlessRunner?.(
-    { cwd: '/tmp', prompt: 'go' },
-    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
-  );
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
@@ -226,7 +223,7 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
       pluginDir: join(ctx.dir, 'atc-bridge'),
       settings: join(ctx.dir, 'state', 'hook-settings-manual-flag.json'),
     },
-    expect.anything(),
+    events,
   );
 });
 
@@ -307,10 +304,9 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  adapter.headlessRunner?.(
-    { cwd: '/tmp', prompt: 'go' },
-    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
-  );
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
 
   const settings: unknown = JSON.parse(
     readFileSync(join(ctx.dir, 'state', 'hook-settings-manual-hook.json'), 'utf8'),
@@ -325,7 +321,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
       pluginDir: join(ctx.dir, 'atc-bridge'),
       settings: join(ctx.dir, 'state', 'hook-settings-manual-hook.json'),
     },
-    expect.anything(),
+    events,
   );
 
   expect(settings).toStrictEqual({
@@ -727,10 +723,9 @@ test("it runs a headless turn of a gateway with auth and a credential helper thr
     { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
   );
 
-  adapter.headlessRunner?.(
-    { cwd: '/tmp', prompt: 'go' },
-    { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
-  );
+  const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
+
+  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
@@ -741,7 +736,7 @@ test("it runs a headless turn of a gateway with auth and a credential helper thr
       pluginDir: join(ctx.dir, 'atc-bridge'),
       settings: join(ctx.dir, 'state', 'hook-settings-glm.json'),
     },
-    expect.anything(),
+    events,
   );
 });
 

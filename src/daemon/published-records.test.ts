@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -8,6 +8,7 @@ import { parsePublishedRecord } from '../store/parse-published-record';
 import { StateStore } from '../store/state-store';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { readJSONRecord } from '../test-utils/read-json-record';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { LocalPTYProvider } from './local-pty-provider';
 import { PublishedRecords } from './published-records';
@@ -19,7 +20,7 @@ async function setupTest() {
 
   const store = await StateStore.open(join(tmp.dir, 'atc.db'));
 
-  onTestFinished(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
   const localDir = join(tmp.dir, 'records');
 
@@ -261,7 +262,21 @@ test('it records a fresh record when a revive finds a session without one', asyn
 
   const copy = await readJSONRecord(Bun.file(delivered));
 
-  expect(copy['revision']).toBe(1);
+  expect(copy).toStrictEqual({
+    format: 'atc.session-record',
+    version: 1,
+    session: 's-old',
+    daemonID: ctx.store.daemonID,
+    target: 'local',
+    revision: 1,
+    updatedAt: '2026-10-08T09:30:00.000Z',
+    scope: {
+      workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
+      worktrees: [],
+      branches: [],
+      pullRequests: [],
+    },
+  });
 });
 
 test('it adds a checked scope, raises the revision, and rewrites the copy', async () => {
