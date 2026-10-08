@@ -391,6 +391,11 @@ test('it streams a message accepted while the tap is connected', async () => {
 });
 
 test('it drains two hundred pending messages to a tap with zero loss', async () => {
+  // The drain's wait ends half a second before the runner's 5 s test
+  // timeout, so a drain that stalls fails with the messages the tap got
+  // against the ones sent, where the runner's timeout would report none.
+  const deadline = Date.now() + 4500;
+
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -413,9 +418,12 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
 
   const inbox = await startStubTap(tap, id);
 
-  await waitFor(() => {
-    expect(inbox.messages.map((event) => event['message'])).toStrictEqual(sent);
-  });
+  await waitFor(
+    () => {
+      expect(inbox.messages.map((event) => event['message'])).toStrictEqual(sent);
+    },
+    { timeoutMs: Math.max(0, deadline - Date.now()) },
+  );
 });
 
 test('it drains a backlog larger than the outbound queue without dropping the tap', async () => {
