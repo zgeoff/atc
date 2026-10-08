@@ -41,13 +41,14 @@ async function setupTest() {
   // ahead.
   const fakeClaude = createStubRecordingClaude(tmp.dir);
 
-  // The imp provider installs this as the guest's atc.
-  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
+  // The imp provider installs this as the guest's atc. It prints the
+  // daemon's version, so the guest's hooks run it.
+  const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const box = new ImpProvider(
     port,
     { guestDir: join(tmp.dir, 'guest'), guestATC },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {

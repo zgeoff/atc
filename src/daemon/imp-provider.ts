@@ -1,5 +1,6 @@
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
+import pkg from '../../package.json';
 import { DaemonError } from '../protocol/daemon-error';
 import { LineDecoder } from '../protocol/line-decoder';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
@@ -49,6 +50,10 @@ interface ImpProviderOptions {
   // into an imp without one, or null for none. A compiled daemon on Linux
   // copies itself; one run from source has no binary to copy.
   readonly atcBinary?: string | null;
+
+  // The atc version the daemon runs, which the image's atc must print for
+  // hooks to run it.
+  readonly version?: string;
 }
 
 // The folder inside an imp that atc's files go under when the target sets
@@ -80,6 +85,24 @@ const NO_GZIP_CODE = 69;
 // Checks for gzip before the archive is read, then creates the directory
 // and unpacks into it.
 const UNPACK_SCRIPT = `command -v gzip >/dev/null 2>&1 || exit ${NO_GZIP_CODE}; mkdir -p "$1" && tar -x -z --no-same-owner -f - -C "$1"`;
+
+// Readies the guest folder, prints the version of the image's atc and of
+// the atc at `bin/atc`, one per line and empty for one that is missing,
+// and links `bin/atc` to the image's atc when that one prints the
+// daemon's version and lives elsewhere.
+const READ_GUEST_ATC_SCRIPT = [
+  'mkdir -p "$1/run" "$1/bin" || exit 1',
+  'image=$("$2" --version 2>/dev/null) || image=',
+  'copied=$("$1/bin/atc" --version 2>/dev/null) || copied=',
+  String.raw`printf '%s\n%s\n' "$image" "$copied"`,
+  '[ -n "$image" ] && [ "$image" = "$3" ] || exit 0',
+  '[ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc"',
+].join('\n');
+
+// Readies the guest folder and links `bin/atc` to the image's atc again,
+// as a cold boot of an imp leaves it without the link.
+const LINK_GUEST_ATC_SCRIPT =
+  'mkdir -p "$1/run" "$1/bin" && { [ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc"; }';
 
 /**
  * The `imp` provider: one imp, a VM that impd hosts, per top-level session,
@@ -135,6 +158,13 @@ export class ImpProvider implements ExecutionProvider {
 
   private readonly atcBinary: string | null;
 
+  private readonly version: string;
+
+  // The version the image's atc printed on each imp, or null for an imp
+  // without one, kept once a readying of the imp succeeds: an imp's image
+  // never changes, and `bin/atc` there then runs the daemon's version.
+  private readonly imageATCVersions = new Map<string, string | null>();
+
   // Whether impd carries output offsets, once a prepare has read its
   // features; an impd without the flag carries none.
   private offsets = false;
@@ -149,15 +179,16 @@ export class ImpProvider implements ExecutionProvider {
     this.impPrefix = target.impPrefix ?? IMP_PREFIX;
     this.leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
-
-    this.atcBinary =
-      target.guestATC === undefined ? (options.atcBinary ?? findOwnLinuxBinary()) : null;
+    this.atcBinary = options.atcBinary === undefined ? findOwnLinuxBinary() : options.atcBinary;
+    this.version = options.version ?? pkg.version;
 
     const dir = target.guestDir ?? GUEST_DIR;
 
+    // Hooks always run `bin/atc`, since a session's hooks are planned before
+    // its imp is readied and the readying decides what that path holds.
     this.guest = {
       dir,
-      atc: target.guestATC ?? (this.atcBinary === null ? null : `${dir}/bin/atc`),
+      atc: target.guestATC === undefined && this.atcBinary === null ? null : `${dir}/bin/atc`,
     };
 
     this.brokerAuth = {
@@ -220,6 +251,8 @@ export class ImpProvider implements ExecutionProvider {
       const existing = await this.port.readImp(name);
 
       if (existing === null) {
+        this.imageATCVersions.delete(name);
+
         await this.port.createImp({
           name,
           ...(this.target.image === undefined ? {} : { image: this.target.image }),
@@ -233,7 +266,7 @@ export class ImpProvider implements ExecutionProvider {
 
       leased = !holdsLease;
 
-      await this.setupGuest(name, request.installATC === true);
+      await this.setupGuest(name, request.installATC === true, request.log ?? (() => {}));
     } catch (error) {
       const undone = await this.tryUndoPrepare(name, label, created, leased);
 
@@ -434,6 +467,7 @@ export class ImpProvider implements ExecutionProvider {
     }
 
     this.hosts.delete(hostKey);
+    this.imageATCVersions.delete(name);
   };
 
   readonly dispose = (): void => {
@@ -457,6 +491,8 @@ export class ImpProvider implements ExecutionProvider {
       try {
         await this.port.destroyImp(name);
 
+        this.imageATCVersions.delete(name);
+
         return true;
       } catch (error) {
         return error instanceof ImpPortError && error.code === 'NOT_FOUND';
@@ -470,10 +506,22 @@ export class ImpProvider implements ExecutionProvider {
     return true;
   }
 
-  // Readies the folder the harnesses' report sockets live in, and copies
-  // the provider's atc binary in when a harness needs atc and the imp has
-  // none, as a cold boot of an imp leaves it.
-  private async setupGuest(name: string, installATC: boolean): Promise<void> {
+  // Readies the folder the harnesses' report sockets live in, and readies
+  // `bin/atc` when a harness needs atc: the image's atc when the target
+  // sets one that runs the daemon's version, else the provider's atc
+  // binary, copied in when the imp lacks it, as a cold boot of an imp
+  // leaves it.
+  private async setupGuest(
+    name: string,
+    installATC: boolean,
+    log: (line: string) => void,
+  ): Promise<void> {
+    if (installATC && this.target.guestATC !== undefined) {
+      await this.setupGuestATC(name, this.target.guestATC, log);
+
+      return;
+    }
+
     const ready = await this.port.runCommand(name, {
       argv: [
         'sh',
@@ -497,10 +545,106 @@ export class ImpProvider implements ExecutionProvider {
       );
     }
 
-    const binary = await Bun.file(this.atcBinary).bytes();
+    await this.copyATCBinary(name, this.atcBinary);
+  }
+
+  // Points `bin/atc` at the image's atc when it runs the daemon's version,
+  // and at a copy of the provider's atc binary otherwise, logging which.
+  // The first readying of an imp reads the image's version in the same
+  // command that links it; a later one links again or checks the copy.
+  private async setupGuestATC(
+    name: string,
+    image: string,
+    log: (line: string) => void,
+  ): Promise<void> {
+    const dir = this.guest.dir;
+    const known = this.imageATCVersions.has(name);
+    let imageVersion = this.imageATCVersions.get(name) ?? null;
+    let copiedVersion: string | null = null;
+
+    if (known && imageVersion === this.version) {
+      const linked = await this.port.runCommand(name, {
+        argv: ['sh', '-c', LINK_GUEST_ATC_SCRIPT, 'sh', dir, image],
+      });
+
+      if (linked.code !== 0) {
+        throw new Error(
+          `linking ${dir}/bin/atc to ${image} in ${name} exited ${linked.code ?? 'by a signal'}`,
+        );
+      }
+    } else if (known) {
+      const ready = await this.port.runCommand(name, {
+        argv: ['sh', '-c', 'mkdir -p "$1/run" && [ -x "$1/bin/atc" ]', 'sh', dir],
+      });
+
+      copiedVersion = ready.code === 0 ? this.version : null;
+    } else {
+      const read = await this.port.runCommand(name, {
+        argv: ['sh', '-c', READ_GUEST_ATC_SCRIPT, 'sh', dir, image, this.version],
+      });
+
+      if (read.code !== 0) {
+        throw new Error(`reading the atc versions in ${name} exited ${read.code ?? 'by a signal'}`);
+      }
+
+      const [readImage, readCopied] = new TextDecoder().decode(read.stdout).split('\n');
+
+      imageVersion = readImage === undefined || readImage === '' ? null : readImage;
+      copiedVersion = readCopied === undefined || readCopied === '' ? null : readCopied;
+    }
+
+    const found =
+      imageVersion === null
+        ? `the image has no executable atc at ${image}`
+        : `the image's atc at ${image} is ${imageVersion}`;
+
+    if (imageVersion === this.version) {
+      this.imageATCVersions.set(name, imageVersion);
+
+      log(`imp ${name} runs hooks through the image's atc ${this.version} at ${image}`);
+
+      return;
+    }
+
+    if (copiedVersion === this.version) {
+      this.imageATCVersions.set(name, imageVersion);
+
+      log(
+        `imp ${name} runs hooks through the daemon's atc ${this.version}, already at ${dir}/bin/atc: ${found}`,
+      );
+
+      return;
+    }
+
+    if (this.atcBinary === null) {
+      throw new DaemonError(
+        'unsupported_operation',
+        `imp ${name} cannot run hooks through atc ${this.version}: ${found}, and a daemon run from source has no binary to copy in; install atc ${this.version} there, or run a compiled atc daemon on Linux`,
+        { provider: 'imp', problem: 'no_guest_atc' },
+      );
+    }
+
+    await this.copyATCBinary(name, this.atcBinary);
+
+    this.imageATCVersions.set(name, imageVersion);
+
+    log(
+      `imp ${name} runs hooks through the daemon's atc ${this.version}, copied to ${dir}/bin/atc: ${found}`,
+    );
+  }
+
+  // Copies the binary to `bin/atc`, replacing a link to the image's atc.
+  private async copyATCBinary(name: string, atcBinary: string): Promise<void> {
+    const binary = await Bun.file(atcBinary).bytes();
 
     const unpacked = await this.port.runCommand(name, {
-      argv: ['sh', '-c', 'mkdir -p "$1" && tar -x -f - -C "$1"', 'sh', this.guest.dir],
+      argv: [
+        'sh',
+        '-c',
+        'mkdir -p "$1" && rm -f "$1/bin/atc" && tar -x -f - -C "$1"',
+        'sh',
+        this.guest.dir,
+      ],
       stdin: buildTarArchive([{ path: 'bin/atc', content: binary, mode: 0o755 }]),
     });
 

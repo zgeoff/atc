@@ -35,7 +35,7 @@ test("it builds an imp provider that takes the target's guest options", () => {
 
   expect(built.problem).toBeNull();
   expect(built.provider).toBeInstanceOf(ImpProvider);
-  expect(built.provider.guest).toStrictEqual({ dir: '/srv/atc', atc: '/usr/local/bin/atc' });
+  expect(built.provider.guest).toStrictEqual({ dir: '/srv/atc', atc: '/srv/atc/bin/atc' });
 });
 
 test('it builds an imp provider with no token for a target that sets no tokenEnv', () => {

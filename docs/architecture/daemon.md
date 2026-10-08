@@ -314,18 +314,31 @@ leaves every imp session running, and gives its leases back, so an idle imp slee
 timeout. The next daemon's revive wakes the imp from memory and attaches to the session again.
 
 Each session's files live under the target's `guestDir` inside the imp, `/tmp/atc` by default. A
-Claude session there reports through an atc inside the imp: the one the target's `guestATC` names,
-or a copy of the daemon's own binary at `bin/atc`, which a compiled daemon on Linux installs when
-the imp lacks it. A daemon run from source has no binary to copy, so without `guestATC` it refuses a
-remote Claude spawn with `unsupported_operation`. The session's settings and its copy of the
-`atc-bridge` mod unpack into `sessions/<id>/`, and the session's [record](./session-record.md) lands
-read-only at `records/<id>.json`. Their statusline shows the session's own state alone, never the
-rest of the fleet. A gateway with a credential helper and no `auth` never runs remotely, since the
-helper runs on the daemon's machine. A gateway with `auth`, and stock Claude with `auth`, run on an
-imp with a Claude config folder of their own under `sessions/<id>/` and a placeholder in place of
-the credential, which impd's broker swaps for the secret; the
-[brokered credentials](../guides/configuration.md#brokered-credentials) guide covers the config. A
-stock Claude session with `auth` also takes the
+Claude session there reports through the atc at `bin/atc` in that folder, which the daemon readies
+before the session starts:
+
+- With `guestATC` set, the first readying of each imp runs one command that prints the version of
+  the image's atc at that path. When it matches the daemon's own version, `bin/atc` becomes a link
+  to the image's atc and nothing uploads.
+- When the image's atc prints another version or is missing, a compiled daemon on Linux copies its
+  own binary to `bin/atc`. It keeps a `bin/atc` that prints its own version and copies nothing.
+- Without `guestATC`, a compiled daemon on Linux copies its own binary to `bin/atc` when the imp
+  lacks one.
+
+The daemon reads the image's version once per imp. A later readying restores the link or the copy,
+which a cold boot of the imp removes, and reads no version. Each readying logs which atc the hooks
+run and both versions. A daemon run from source has no binary to copy, so it refuses a remote Claude
+spawn with `unsupported_operation` when the target sets no `guestATC`, or when the image's atc is
+missing or prints another version. Its refusal holds both versions.
+
+The session's settings and its copy of the `atc-bridge` mod unpack into `sessions/<id>/`, and the
+session's [record](./session-record.md) lands read-only at `records/<id>.json`. Their statusline
+shows the session's own state alone, never the rest of the fleet. A gateway with a credential helper
+and no `auth` never runs remotely, since the helper runs on the daemon's machine. A gateway with
+`auth`, and stock Claude with `auth`, run on an imp with a Claude config folder of their own under
+`sessions/<id>/` and a placeholder in place of the credential, which impd's broker swaps for the
+secret; the [brokered credentials](../guides/configuration.md#brokered-credentials) guide covers the
+config. A stock Claude session with `auth` also takes the
 [Claude config bundle](../guides/configuration.md#claude-config-bundle) into its config folder at
 each launch, staged beside it in `claude-config-bundle/`.
 

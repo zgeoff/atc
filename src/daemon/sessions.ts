@@ -2306,6 +2306,7 @@ export class SessionManager {
       host: hostKey,
       daemonID: this.store.daemonID,
       installATC: adapter.planGuestSpawn !== undefined,
+      log: this.log,
       isIdle: () => this.isHostIdle(hostKey, target),
     });
 

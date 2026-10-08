@@ -1,5 +1,13 @@
-import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
+import { expect, mock, test } from 'bun:test';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import invariant from 'tiny-invariant';
@@ -27,7 +35,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
   const provider = new ImpProvider(
     ctx.port,
     { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -43,20 +51,25 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     'imps.get atc-s1',
     'imps.create atc-s1',
     'leases.acquire atc-s1 atc-d1',
-    `exec.run atc-s1 sh -c mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; } sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')}`,
+    `exec.run atc-s1 sh -c mkdir -p "$1/run" "$1/bin" || exit 1
+image=$("$2" --version 2>/dev/null) || image=
+copied=$("$1/bin/atc" --version 2>/dev/null) || copied=
+printf '%s\\n%s\\n' "$image" "$copied"
+[ -n "$image" ] && [ "$image" = "$3" ] || exit 0
+[ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc" sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
     'imps.destroy atc-s1',
   ]);
 
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
 });
 
-test('it refuses a prepare that installs atc when the guest atc is missing', () => {
+test('it refuses a prepare that installs atc when the guest atc is missing and the daemon has no binary to copy', () => {
   const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
     { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -67,8 +80,281 @@ test('it refuses a prepare that installs atc when the guest atc is missing', () 
     provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
   ).rejects.toMatchObject({
     code: 'unsupported_operation',
+    message: `imp atc-s1 cannot run hooks through atc 1.0.0: the image has no executable atc at ${join(ctx.dir, 'missing-atc')}, and a daemon run from source has no binary to copy in; install atc 1.0.0 there, or run a compiled atc daemon on Linux`,
     data: { problem: 'no_guest_atc' },
   });
+});
+
+test("it refuses a prepare that installs atc when the image's atc runs another version and the daemon has no binary to copy", () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  expect(
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    message: `imp atc-s1 cannot run hooks through atc 1.0.0: the image's atc at ${guestATC} is 0.9.0, and a daemon run from source has no binary to copy in; install atc 1.0.0 there, or run a compiled atc daemon on Linux`,
+    data: { problem: 'no_guest_atc' },
+  });
+});
+
+test("it links the guest's atc to the image's atc and copies nothing when the image's atc runs the daemon's version", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const log = mock(() => {});
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
+
+  expect(readlinkSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(guestATC);
+  expect(ctx.port.calls).toSatisfyAll((call: string) => !call.includes('tar -x'));
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    `imp atc-s1 runs hooks through the image's atc 1.0.0 at ${guestATC}`,
+  );
+});
+
+test("it copies the daemon's atc in when the image's atc runs another version", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const log = mock(() => {});
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
+
+  expect(lstatSync(join(ctx.dir, 'g', 'bin', 'atc')).isSymbolicLink()).toBeFalse();
+  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, copied to ${join(ctx.dir, 'g')}/bin/atc: the image's atc at ${guestATC} is 0.9.0`,
+  );
+});
+
+test("it copies the daemon's atc in when the image has no atc at the target's path", async () => {
+  const ctx = setupTest();
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const log = mock(() => {});
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
+
+  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, copied to ${join(ctx.dir, 'g')}/bin/atc: the image has no executable atc at ${join(ctx.dir, 'missing-atc')}`,
+  );
+});
+
+test("it replaces a link to the image's atc with the daemon's atc when the image's atc runs another version", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  mkdirSync(join(ctx.dir, 'g', 'bin'), { recursive: true });
+  symlinkSync(guestATC, join(ctx.dir, 'g', 'bin', 'atc'));
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  expect(lstatSync(join(ctx.dir, 'g', 'bin', 'atc')).isSymbolicLink()).toBeFalse();
+  expect(readFileSync(guestATC, 'utf8')).toBe('#!/bin/sh\necho 0.9.0\n');
+});
+
+test("it keeps a copy of the daemon's atc an imp already holds and copies nothing", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const log = mock(() => {});
+
+  createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
+
+  expect(ctx.port.calls).toSatisfyAll((call: string) => !call.includes('tar -x'));
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    `imp atc-s1 runs hooks through the daemon's atc 1.0.0, already at ${join(ctx.dir, 'g')}/bin/atc: the image's atc at ${guestATC} is 0.9.0`,
+  );
+});
+
+test("it links the guest's atc again on a later readying without reading the image's version again", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  rmSync(join(ctx.dir, 'g', 'bin'), { recursive: true });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  expect(ctx.port.calls.filter((call) => call.includes('--version'))).toBeArrayOfSize(1);
+  expect(readlinkSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(guestATC);
+});
+
+test("it copies the daemon's atc again on a later readying of an imp that lost it, without reading the image's version again", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  rmSync(join(ctx.dir, 'g', 'bin'), { recursive: true });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  expect(ctx.port.calls.filter((call) => call.includes('--version'))).toBeArrayOfSize(1);
+  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+});
+
+test("it reads the image's version again for an imp created after the one it read was destroyed", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+  await provider.destroyHost('s1');
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  expect(ctx.port.calls.filter((call) => call.includes('--version'))).toBeArrayOfSize(2);
+});
+
+test('it refuses a retried prepare on an imp whose atc runs another version when the daemon has no binary to copy', async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+
+  createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.8.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await ctx.port.createImp({ name: 'atc-s1' });
+
+  await Promise.allSettled([
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ]);
+
+  expect(
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { problem: 'no_guest_atc' },
+  });
+});
+
+test("it uses an image's atc at the guest's own atc path when it runs the daemon's version", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const log = mock(() => {});
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    `imp atc-s1 runs hooks through the image's atc 1.0.0 at ${guestATC}`,
+  );
 });
 
 test('it keeps an imp that existed before a failed prepare and gives back only its own lease', async () => {
