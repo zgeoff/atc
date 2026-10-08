@@ -1,5 +1,6 @@
 import { createServer } from 'node:net';
 import type { Socket } from 'node:net';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubAnsweringListener {
   // The server's side of each connection it accepted, in order.
@@ -15,8 +16,10 @@ interface StubAnsweringListener {
  * the unix socket path, records each connection it accepts and the first
  * read each one sends, answers that read with the line `answer`, and
  * leaves every later byte unread on the connection. Resolves once it
- * listens. Disposal destroys every connection it accepted and resolves
- * once the server has closed; hold the result with `await using`.
+ * listens. Once the current test finishes, it destroys every connection it
+ * accepted and closes, so it must run inside a test; disposal does so
+ * sooner and resolves once the server has closed, and a second stop does
+ * nothing.
  */
 export async function startStubAnsweringListener(path: string): Promise<StubAnsweringListener> {
   const peers: Socket[] = [];
@@ -40,21 +43,23 @@ export async function startStubAnsweringListener(path: string): Promise<StubAnsw
 
   await listening.promise;
 
+  const stop = registerTestCleanup(async () => {
+    for (const peer of peers) {
+      peer.destroy();
+    }
+
+    const closed = Promise.withResolvers<void>();
+
+    server.close(() => {
+      closed.resolve();
+    });
+
+    await closed.promise;
+  });
+
   return {
     peers,
     lines,
-    [Symbol.asyncDispose]: async () => {
-      for (const peer of peers) {
-        peer.destroy();
-      }
-
-      const closed = Promise.withResolvers<void>();
-
-      server.close(() => {
-        closed.resolve();
-      });
-
-      await closed.promise;
-    },
+    [Symbol.asyncDispose]: stop,
   };
 }

@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { startStubMCPServer } from './start-stub-mcp-server';
 
 test('it answers a request with the body it was given', async () => {
@@ -36,4 +36,20 @@ test('it stops serving once disposed', () => {
   server[Symbol.dispose]();
 
   expect(fetch(`${server.url}/mcp`, { method: 'POST', body: '{}' })).rejects.toThrow();
+});
+
+test('it stops serving once the test finishes without a dispose', () => {
+  const server = startStubMCPServer({});
+
+  onTestFinished(() => {
+    expect(fetch(`${server.url}/mcp`)).rejects.toThrow();
+  });
+});
+
+test('it stops once when disposed before the test finishes', () => {
+  const server = startStubMCPServer({});
+
+  server[Symbol.dispose]();
+
+  expect(fetch(`${server.url}/mcp`)).rejects.toThrow();
 });

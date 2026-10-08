@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PROTOCOL_V } from '../protocol/protocol';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubTCPDaemon {
   readonly port: number;
@@ -23,7 +24,9 @@ const REQUEST = z.object({ id: z.number(), m: z.string() });
  * newline-delimited protocol requests and answers each with an ok that holds
  * the request's method, recording every method in `seen`. It sends no
  * handshake of its own and checks no token. `reads` counts the reads it has
- * taken from every connection. Disposal stops it.
+ * taken from every connection. It stops once the current test finishes, so
+ * it must run inside a test; disposal stops it sooner, and a second stop
+ * does nothing.
  */
 export function startStubTCPDaemon(): StubTCPDaemon {
   const seen: string[] = [];
@@ -57,14 +60,16 @@ export function startStubTCPDaemon(): StubTCPDaemon {
     },
   });
 
+  const stop = registerTestCleanup(() => {
+    server.stop(true);
+  });
+
   return {
     port: server.port,
     seen,
     get reads() {
       return reads;
     },
-    [Symbol.dispose]: () => {
-      server.stop(true);
-    },
+    [Symbol.dispose]: stop,
   };
 }

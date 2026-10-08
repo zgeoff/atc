@@ -1,4 +1,5 @@
 import { isRecord } from '../shared/report';
+import { registerTestCleanup } from './register-test-cleanup';
 
 type BridgeRequest = Readonly<Record<string, unknown>>;
 
@@ -26,8 +27,9 @@ interface StubSessionBridge {
  * `tap.open` request with `ok` under the request's id as the real bridge
  * does once it attaches the tap, and hands every other request to the
  * responder, writing back each line it returns. A line that is not a JSON
- * object reaches the responder as an empty request. Disposal stops the
- * listener; hold the result with `using` or `await using`.
+ * object reaches the responder as an empty request. The listener stops once
+ * the current test finishes, so it must run inside a test; disposal stops it
+ * sooner, and a second stop does nothing.
  */
 export function startStubSessionBridge(path: string, respond: BridgeResponder): StubSessionBridge {
   const requests: BridgeRequest[] = [];
@@ -69,9 +71,9 @@ export function startStubSessionBridge(path: string, respond: BridgeResponder): 
     },
   });
 
-  const stop = () => {
+  const stop = registerTestCleanup(() => {
     server.stop(true);
-  };
+  });
 
   return {
     requests,

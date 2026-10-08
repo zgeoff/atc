@@ -114,3 +114,19 @@ test('it refuses to build its template outside the test home', () => {
     'a git fixture needs the test home; run `bun run test`',
   );
 });
+
+test('it removes its directory once the test finishes without a dispose', async () => {
+  const fixture = await createGitFixture();
+
+  onTestFinished(() => {
+    expect(existsSync(fixture.dir)).toBeFalse();
+  });
+});
+
+test('it removes its directory once when disposed before the test finishes', async () => {
+  const fixture = await createGitFixture();
+
+  await fixture[Symbol.asyncDispose]();
+
+  expect(existsSync(fixture.dir)).toBeFalse();
+});

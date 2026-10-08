@@ -1,4 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { setupTempDir } from './setup-temp-dir';
@@ -88,4 +90,54 @@ test('it closes its connection once disposed', async () => {
   client[Symbol.dispose]();
 
   expect(closed.promise).resolves.toBeUndefined();
+});
+
+test('it closes its connection once the test finishes without a dispose', async () => {
+  const path = join(tmpdir(), `atc-stub-stalled-client-${randomUUID()}.sock`);
+  const closes: string[] = [];
+
+  const server = Bun.listen({
+    unix: path,
+    socket: {
+      open(socket) {
+        socket.write('answer\n');
+      },
+      data() {},
+      close() {
+        closes.push('closed');
+      },
+    },
+  });
+
+  await startStubStalledClient(path, 'atc/stub');
+
+  // The server stops only after this check, so a close it sees comes from
+  // the client.
+  onTestFinished(async () => {
+    await waitFor(() => {
+      expect(closes).toStrictEqual(['closed']);
+    });
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+});
+
+test('it closes once when disposed before the test finishes', async () => {
+  await using ctx = await setupTest();
+
+  const client = await startStubStalledClient(ctx.path, 'atc/stub');
+
+  client[Symbol.dispose]();
+
+  const [peer] = ctx.peers;
+
+  invariant(peer);
+
+  peer.resume();
+
+  await waitFor(() => {
+    expect(peer.readableEnded).toBeTrue();
+  });
 });

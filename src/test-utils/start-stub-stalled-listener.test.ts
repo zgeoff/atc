@@ -1,4 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubStalledListener } from './start-stub-stalled-listener';
@@ -38,4 +41,26 @@ test('it stops listening once disposed', async () => {
   listener[Symbol.dispose]();
 
   expect(Bun.connect({ unix: ctx.path, socket: { data() {} } })).rejects.toThrow();
+});
+
+test('it stops listening once the test finishes without a dispose', async () => {
+  // The socket sits outside any directory the test removes, so only the
+  // listener's own stop takes it away.
+  const path = join(tmpdir(), `atc-stub-stalled-${randomUUID()}.sock`);
+
+  await startStubStalledListener(path);
+
+  onTestFinished(() => {
+    expect(existsSync(path)).toBeFalse();
+  });
+});
+
+test('it stops once when disposed before the test finishes', async () => {
+  const path = join(tmpdir(), `atc-stub-stalled-${randomUUID()}.sock`);
+
+  const listener = await startStubStalledListener(path);
+
+  listener[Symbol.dispose]();
+
+  expect(existsSync(path)).toBeFalse();
 });

@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KEYS } from './keys';
 import { startTUIHarness } from './start-tui-harness';
@@ -160,4 +160,35 @@ test('it removes its home on dispose', async () => {
   await ctx.tui[Symbol.asyncDispose]();
 
   expect(existsSync(ctx.tui.home)).toBe(false);
+});
+
+test('it stops the daemon its pid file holds and removes the home once the test finishes', () => {
+  const tui = startTUIHarness();
+
+  // A stand-in for the daemon the client would start; the harness stops it
+  // with SIGTERM, which a later kill of the stand-in never sends.
+  const daemon = Bun.spawn(['sleep', '30']);
+
+  onTestFinished(() => {
+    daemon.kill('SIGKILL');
+  });
+
+  writeFileSync(join(tui.home, 'atc-daemon.pid'), String(daemon.pid));
+
+  onTestFinished(async () => {
+    await daemon.exited;
+
+    expect({ signal: daemon.signalCode, home: existsSync(tui.home) }).toStrictEqual({
+      signal: 'SIGTERM',
+      home: false,
+    });
+  });
+});
+
+test('it removes its home once when disposed before the test finishes', async () => {
+  const tui = startTUIHarness();
+
+  await tui[Symbol.asyncDispose]();
+
+  expect(existsSync(tui.home)).toBeFalse();
 });

@@ -1,4 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
@@ -211,4 +214,25 @@ test('it reads a request split across two writes as one request', async () => {
   await closed.promise;
 
   expect(daemon.keys).toStrictEqual(['k-split']);
+});
+
+test('it stops listening once the test finishes without a dispose', () => {
+  // The socket sits outside any directory the test removes, so only the
+  // listener's own stop takes it away.
+  const path = join(tmpdir(), `atc-stub-dropping-${randomUUID()}.sock`);
+
+  startStubDroppingDaemon(path, { features: [] });
+
+  onTestFinished(() => {
+    expect(existsSync(path)).toBeFalse();
+  });
+});
+
+test('it stops once when disposed before the test finishes', () => {
+  const path = join(tmpdir(), `atc-stub-dropping-${randomUUID()}.sock`);
+  const daemon = startStubDroppingDaemon(path, { features: [] });
+
+  daemon[Symbol.dispose]();
+
+  expect(existsSync(path)).toBeFalse();
 });

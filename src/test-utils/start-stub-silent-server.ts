@@ -1,9 +1,12 @@
+import { registerTestCleanup } from './register-test-cleanup';
+
 /**
  * An HTTP stand-in for an upstream that hangs: it listens on a real port of
  * the loopback address, takes every request, and never answers one. `paths`
- * holds the request path of each request it took, in order. Disposal stops
- * the server and drops the connections it holds; the asynchronous form
- * resolves once it has stopped.
+ * holds the request path of each request it took, in order. The server
+ * stops, dropping the connections it holds, once the current test finishes,
+ * so it must run inside a test; disposal stops it sooner, the asynchronous
+ * form resolving once it has stopped, and a second stop does nothing.
  */
 export function startStubSilentServer() {
   const paths: string[] = [];
@@ -22,12 +25,14 @@ export function startStubSilentServer() {
     },
   });
 
+  const stop = registerTestCleanup(() => server.stop(true));
+
   return {
     url: `http://127.0.0.1:${String(server.port)}/`,
     paths,
     [Symbol.dispose]: () => {
-      void server.stop(true);
+      void stop();
     },
-    [Symbol.asyncDispose]: () => server.stop(true),
+    [Symbol.asyncDispose]: stop,
   };
 }

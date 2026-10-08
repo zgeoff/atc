@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createStubBin } from './create-stub-bin';
 import { createStubSystemd } from './create-stub-systemd';
 import { setupTempDir } from './setup-temp-dir';
@@ -162,4 +162,20 @@ test('it writes a cgroup file that places a pid in a user service', () => {
   expect(readFileSync(join(fake.procRoot, '77', 'cgroup'), 'utf8')).toBe(
     `0::/user.slice/user-${userInfo().uid}.slice/user@${userInfo().uid}.service/app.slice/atc-daemon.service\n`,
   );
+});
+
+test('it removes its directory once the test finishes without a dispose', () => {
+  const fake = createStubSystemd(['/bin/true']);
+
+  onTestFinished(() => {
+    expect(existsSync(dirname(fake.binDir))).toBeFalse();
+  });
+});
+
+test('it removes its directory once when disposed before the test finishes', () => {
+  const fake = createStubSystemd(['/bin/true']);
+
+  fake[Symbol.dispose]();
+
+  expect(existsSync(dirname(fake.binDir))).toBeFalse();
 });

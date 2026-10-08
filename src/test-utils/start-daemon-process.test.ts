@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
+import { isProcessAlive } from '../shared/is-process-alive';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 import { createStubBin } from './create-stub-bin';
 import { resolveATCCommand } from './resolve-atc-command';
@@ -231,4 +232,25 @@ test('it kills the daemon the state directory records on disposal', async () => 
   await recorded.exited;
 
   expect(recorded.signalCode).toBe('SIGKILL');
+});
+
+test('it kills the daemon once the test finishes without a dispose', () => {
+  const ctx = setupTest();
+
+  // A stand-in that runs until killed and ignores the arguments after it.
+  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
+  const pid = daemon.proc.pid;
+
+  onTestFinished(() => {
+    expect(isProcessAlive(pid)).toBeFalse();
+  });
+});
+
+test('it kills the daemon once when disposed before the test finishes', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
+
+  await daemon[Symbol.asyncDispose]();
+
+  expect(daemon.proc.signalCode).toBe('SIGKILL');
 });

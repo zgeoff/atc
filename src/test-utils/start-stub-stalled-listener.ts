@@ -1,5 +1,6 @@
 import { createServer } from 'node:net';
 import type { Socket } from 'node:net';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubStalledListener {
   readonly [Symbol.dispose]: () => void;
@@ -9,8 +10,9 @@ interface StubStalledListener {
  * A stand-in for a peer that stops reading: it listens on the unix socket
  * path and accepts every connection but never reads from it, so what the
  * kernel does not buffer stays queued on the sender's side. Resolves once
- * it listens. Disposal destroys every connection it accepted and stops it;
- * hold the result with `using`.
+ * it listens. Once the current test finishes, it destroys every connection
+ * it accepted and stops, so it must run inside a test; disposal does so
+ * sooner, and a second stop does nothing.
  */
 export async function startStubStalledListener(path: string): Promise<StubStalledListener> {
   const peers = new Set<Socket>();
@@ -28,13 +30,15 @@ export async function startStubStalledListener(path: string): Promise<StubStalle
 
   await listening.promise;
 
-  return {
-    [Symbol.dispose]: () => {
-      for (const peer of peers) {
-        peer.destroy();
-      }
+  const stop = registerTestCleanup(() => {
+    for (const peer of peers) {
+      peer.destroy();
+    }
 
-      server.close();
-    },
+    server.close();
+  });
+
+  return {
+    [Symbol.dispose]: stop,
   };
 }

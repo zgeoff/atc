@@ -5,6 +5,7 @@ import { stopDaemonProcess } from '../stop-daemon-process';
 import { buildStubMCPClaude } from './build-stub-mcp-claude';
 import { buildStubMCPGrok } from './build-stub-mcp-grok';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -17,12 +18,28 @@ import { waitFor } from './wait-for';
  * home. Disposal stops the daemon, when one wrote its pid file here, and
  * waits for it to exit; then it kills the daemon's process group and every
  * group `stub-pids` records, such as a reporter a stopped session left
- * behind, waits until each group is empty, and removes the home. Hold the
- * result with `await using`.
+ * behind, waits until each group is empty, and removes the home. That
+ * disposal runs once the current test finishes, so it must run inside a
+ * test; disposing sooner runs it then, and a second disposal does nothing.
  */
 export function setupMCPHome() {
-  const tmp = setupTempDir('atc-mcp-');
+  // The daemon and the stand-ins stop before the home that records them is
+  // removed.
+  const stack = new AsyncDisposableStack();
+
+  const dispose = registerTestCleanup(() => stack.disposeAsync());
+  const tmp = stack.use(setupTempDir('atc-mcp-'));
   const home = tmp.dir;
+
+  stack.defer(async () => {
+    const pid = findPidFilePID(join(home, 'atc-daemon.pid'));
+
+    if (pid !== null) {
+      await stopDaemonProcess(pid);
+    }
+
+    await killProcessGroups([...(pid === null ? [] : [pid]), ...readStubPIDs(home)]);
+  });
 
   mkdirSync(join(home, '.config', 'atc'), { recursive: true });
   mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
@@ -39,17 +56,7 @@ export function setupMCPHome() {
     home,
     claudeBin,
     grokBin,
-    async [Symbol.asyncDispose]() {
-      const pid = findPidFilePID(join(home, 'atc-daemon.pid'));
-
-      if (pid !== null) {
-        await stopDaemonProcess(pid);
-      }
-
-      await killProcessGroups([...(pid === null ? [] : [pid]), ...readStubPIDs(home)]);
-
-      tmp[Symbol.dispose]();
-    },
+    [Symbol.asyncDispose]: dispose,
   };
 }
 

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
+import { registerTestCleanup } from './register-test-cleanup';
 import { waitFor } from './wait-for';
 
 interface DaemonProcessConfig {
@@ -41,7 +42,9 @@ interface DaemonBoot {
  * same config. `readStderr` reads what the current boot printed. Disposal
  * closes every client it opened, kills the daemon and waits for it to exit,
  * then kills the daemon the home's state directory records, which a restart
- * the test asked atc for may have started; a second disposal does nothing.
+ * the test asked atc for may have started. That disposal runs once the
+ * current test finishes, so it must run inside a test; disposing sooner
+ * runs it then, and a second disposal does nothing.
  */
 export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const socketPath = join(config.home, 'atc-daemon.sock');
@@ -75,6 +78,26 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   };
 
   let current = boot();
+
+  const dispose = registerTestCleanup(async () => {
+    disposed = true;
+
+    for (const client of clients) {
+      client.stop();
+    }
+
+    current.proc.kill('SIGKILL');
+
+    await current.proc.exited;
+
+    const recorded = findDaemonRecord(join(stateDir, 'daemon.json'));
+
+    if (recorded !== null && recorded.pid !== current.proc.pid) {
+      try {
+        process.kill(recorded.pid, 'SIGKILL');
+      } catch {}
+    }
+  });
 
   const readStderr = () => {
     try {
@@ -165,28 +188,6 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
       current = boot();
     },
-    async [Symbol.asyncDispose](): Promise<void> {
-      if (disposed) {
-        return;
-      }
-
-      disposed = true;
-
-      for (const client of clients) {
-        client.stop();
-      }
-
-      current.proc.kill('SIGKILL');
-
-      await current.proc.exited;
-
-      const recorded = findDaemonRecord(join(stateDir, 'daemon.json'));
-
-      if (recorded !== null && recorded.pid !== current.proc.pid) {
-        try {
-          process.kill(recorded.pid, 'SIGKILL');
-        } catch {}
-      }
-    },
+    [Symbol.asyncDispose]: dispose,
   };
 }

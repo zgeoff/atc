@@ -247,3 +247,19 @@ test('it drops an open WebSocket on disposal', async () => {
   // Disposal drops the connection at once, without a close frame.
   expect(code).toBe(1006);
 });
+
+test('it stops serving once the test finishes without a dispose', () => {
+  const impd = startStubImpd();
+
+  onTestFinished(() => {
+    expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
+  });
+});
+
+test('it stops once when disposed before the test finishes', () => {
+  const impd = startStubImpd();
+
+  impd[Symbol.dispose]();
+
+  expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
+});

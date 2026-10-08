@@ -1,3 +1,5 @@
+import { registerTestCleanup } from './register-test-cleanup';
+
 interface StubUnansweringListener {
   readonly port: number;
 
@@ -10,8 +12,9 @@ interface StubUnansweringListener {
 /**
  * A stand-in for a daemon that accepts a connection and never answers it:
  * on a loopback port, it records what each read takes from a connection,
- * sends nothing back, and keeps the connection open. Disposal stops it and
- * drops every connection it holds; hold the result with `using`.
+ * sends nothing back, and keeps the connection open. It stops, dropping
+ * every connection it holds, once the current test finishes, so it must run
+ * inside a test; disposal stops it sooner, and a second stop does nothing.
  */
 export function startStubUnansweringListener(): StubUnansweringListener {
   const received: string[] = [];
@@ -26,11 +29,13 @@ export function startStubUnansweringListener(): StubUnansweringListener {
     },
   });
 
+  const stop = registerTestCleanup(() => {
+    server.stop(true);
+  });
+
   return {
     port: server.port,
     received,
-    [Symbol.dispose]: () => {
-      server.stop(true);
-    },
+    [Symbol.dispose]: stop,
   };
 }

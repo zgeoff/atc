@@ -1,5 +1,6 @@
 import type { ServerWebSocket } from 'bun';
 import { isRecord } from '../shared/report';
+import { registerTestCleanup } from './register-test-cleanup';
 
 // What the stand-in does with an exec open: refuse it as a start whose
 // broker is not ready, start it and count its stdin bytes as `wc -c` does,
@@ -15,8 +16,10 @@ type StubExecReply = 'refuse' | 'count' | 'exit-early';
  * announce a guest connection on it. It records each exec open message in
  * `execOpens` and answers it as `exec.reply` says, a refusal as a start
  * whose broker is not ready by default. It takes no WebSocket message over
- * 2 MiB, as impd refuses one over its own limit. Disposal stops the server
- * and drops every open connection at once.
+ * 2 MiB, as impd refuses one over its own limit. The server stops, dropping
+ * every open connection at once, when the current test finishes, so it must
+ * run inside a test; disposal stops it sooner, and a second stop does
+ * nothing.
  */
 export function startStubImpd() {
   const authorizations: (string | null)[] = [];
@@ -123,6 +126,8 @@ export function startStubImpd() {
     },
   });
 
+  const stop = registerTestCleanup(() => server.stop(true));
+
   return {
     url: `http://127.0.0.1:${String(server.port)}`,
     authorizations,
@@ -132,7 +137,7 @@ export function startStubImpd() {
     execOpens,
     exec,
     [Symbol.dispose]: () => {
-      void server.stop(true);
+      void stop();
     },
   };
 }

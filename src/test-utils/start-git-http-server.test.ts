@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { createGitFixture } from './create-git-fixture';
@@ -220,4 +220,21 @@ test('it answers a held request once the callback resolves', async () => {
   const answer = await response;
 
   expect(answer.status).toBe(200);
+});
+
+test('it stops serving once the test finishes without a stop', () => {
+  const server = startGitHTTPServer(import.meta.dir, {});
+
+  onTestFinished(() => {
+    expect(fetch(server.url)).rejects.toThrow();
+  });
+});
+
+test('it stops once when stopped and disposed before the test finishes', async () => {
+  const server = startGitHTTPServer(import.meta.dir, {});
+
+  await server.stop();
+  await server[Symbol.asyncDispose]();
+
+  expect(fetch(server.url)).rejects.toThrow();
 });

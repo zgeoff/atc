@@ -1,4 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
@@ -237,4 +240,39 @@ test('it holds no port when it listens on a unix socket', () => {
   using daemon = startStubLegacyDaemon(ctx.socketPath);
 
   expect(daemon.port).toBeNull();
+});
+
+test('it stops listening once the test finishes without a stop', () => {
+  // The socket sits outside any directory the test removes, so only the
+  // daemon's own stop takes it away.
+  const path = join(tmpdir(), `atc-stub-legacy-${randomUUID()}.sock`);
+
+  startStubLegacyDaemon(path);
+
+  onTestFinished(() => {
+    expect(existsSync(path)).toBeFalse();
+  });
+});
+
+test('it stops once when stopped and disposed before the test finishes', () => {
+  const path = join(tmpdir(), `atc-stub-legacy-${randomUUID()}.sock`);
+  const daemon = startStubLegacyDaemon(path);
+
+  daemon.stop();
+  daemon[Symbol.dispose]();
+
+  expect(existsSync(path)).toBeFalse();
+});
+
+test('it leaves a daemon its caller owns listening once the test finishes', () => {
+  const path = join(tmpdir(), `atc-stub-legacy-${randomUUID()}.sock`);
+  const daemon = startStubLegacyDaemon(path, { owner: 'caller' });
+
+  onTestFinished(() => {
+    expect(existsSync(path)).toBeTrue();
+  });
+
+  onTestFinished(() => {
+    daemon.stop();
+  });
 });

@@ -1,3 +1,5 @@
+import { registerTestCleanup } from './register-test-cleanup';
+
 interface GitHTTPServer {
   // The base URL a repository under the root is served at, ending in `/`.
   readonly url: string;
@@ -27,7 +29,9 @@ interface GitHTTPServerOptions {
  * authenticated request waits that long before it is served, which makes a
  * clone through it slow. An `onRequest` callback runs, and is awaited, while
  * each authenticated request is held, so it sees the client that sent the
- * request still running. Stop it with `stop`, or hold it with `await using`.
+ * request still running. It stops once the current test finishes, so it
+ * must run inside a test; `stop` or disposal stops it sooner, and a second
+ * stop does nothing.
  */
 export function startGitHTTPServer(
   root: string,
@@ -87,11 +91,13 @@ export function startGitHTTPServer(
     },
   });
 
+  const stop = registerTestCleanup(() => server.stop(true));
+
   return {
     url: `http://127.0.0.1:${server.port}/`,
     authorizations,
-    stop: () => server.stop(true),
-    [Symbol.asyncDispose]: () => server.stop(true),
+    stop,
+    [Symbol.asyncDispose]: stop,
   };
 }
 

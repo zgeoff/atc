@@ -7,6 +7,7 @@ import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 interface MCPHTTPSetupOptions {
@@ -24,12 +25,17 @@ interface MCPHTTPSetupOptions {
  * through it and returns the client id. `restartDaemon` stops the daemon and
  * starts a fresh one on the same socket and database, the way an operator
  * restarts it, with the principals it is given; `countDaemonClients` reads
- * how many connections the current daemon holds open. Hold the result with
- * `await using`.
+ * how many connections the current daemon holds open. Everything it starts
+ * stops, and the directory is removed, once the current test finishes, so it
+ * must run inside a test; disposal does so sooner, and a second disposal
+ * does nothing.
  */
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
-  await using stack = new AsyncDisposableStack();
+  // Each part stops before the one it depends on, and the directory goes
+  // last.
+  const stack = new AsyncDisposableStack();
 
+  const dispose = registerTestCleanup(() => stack.disposeAsync());
   const tmp = stack.use(setupTempDir('atc-mcp-http-'));
   const socketPath = join(tmp.dir, 'daemon.sock');
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');
@@ -83,8 +89,6 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   stack.defer(() => store.close());
 
-  const owned = stack.move();
-
   return {
     home: tmp.dir,
     url: server.url,
@@ -109,6 +113,6 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
       daemon = await startTestDaemon(principals);
     },
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    [Symbol.asyncDispose]: dispose,
   };
 }

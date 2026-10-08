@@ -29,6 +29,7 @@ import type {
 import { ImpPortError } from '../daemon/imp-port-error';
 import { isImpNameAllowed } from '../daemon/is-imp-name-allowed';
 import { isBrokerVariable } from '../shared/is-broker-variable';
+import { registerTestCleanup } from './register-test-cleanup';
 
 // impd keeps exactly this many bytes of each generation's output.
 const RING_BYTES = 262_144;
@@ -1638,10 +1639,18 @@ class StubImpPort implements ImpPort {
  * `PRECONDITION_FAILED` and reason `broker_not_ready`, and runs nothing,
  * while the broker fails or the imp holds no grant, when the start sets a
  * broker variable, and when it would join a process that started without
- * the broker required.
+ * the broker required. Once the current test finishes, the stand-in kills
+ * every process and stops every forward it holds, so it must be built inside
+ * a test; disposal does so sooner, and a second disposal does nothing.
  */
 export function buildStubImpPort(principal = 'token:atc'): StubImpPort {
-  return new StubImpPort(principal);
+  const port = new StubImpPort(principal);
+
+  registerTestCleanup(() => {
+    port[Symbol.dispose]();
+  });
+
+  return port;
 }
 
 interface StubLease {

@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
+import { isProcessAlive } from '../shared/is-process-alive';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubSourceDaemon } from './start-stub-source-daemon';
 
@@ -96,4 +97,34 @@ test('it rejects when the daemon exits before it listens', async () => {
   await expect(starting).toReject();
 
   expect(starting).rejects.toThrow('the source daemon exited before it listened');
+});
+
+test('it stops the daemon once the test finishes without a dispose', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startStubSourceDaemon({
+    ...process.env,
+    HOME: ctx.dir,
+    XDG_RUNTIME_DIR: ctx.dir,
+    ATC_TEST_SOURCES: 'none',
+  });
+
+  onTestFinished(() => {
+    expect(isProcessAlive(daemon.pid)).toBeFalse();
+  });
+});
+
+test('it stops once when disposed before the test finishes', async () => {
+  const ctx = setupTest();
+
+  const daemon = await startStubSourceDaemon({
+    ...process.env,
+    HOME: ctx.dir,
+    XDG_RUNTIME_DIR: ctx.dir,
+    ATC_TEST_SOURCES: 'none',
+  });
+
+  await daemon[Symbol.asyncDispose]();
+
+  expect(isProcessAlive(daemon.pid)).toBeFalse();
 });

@@ -22,17 +22,16 @@ interface GitFixtureConfig {
  *
  * The first call in a process builds a template pair under the test home,
  * and each call copies it, so a fixture costs a copy instead of a run of
- * git commands. Disposal removes the directory; hold the result with
- * `await using`.
+ * git commands. The directory is removed once the current test finishes,
+ * so it must run inside a test; disposal removes it sooner, and a second
+ * removal does nothing.
  */
 export async function createGitFixture(config: GitFixtureConfig = {}) {
   const env = buildGitEnv(process.env);
 
   const template = await resolveTemplate();
 
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir(config.prefix ?? 'atc-git-fixture-'));
+  const tmp = setupTempDir(config.prefix ?? 'atc-git-fixture-');
   const upstream = join(tmp.dir, 'upstream.git');
   const work = join(tmp.dir, 'work');
 
@@ -51,15 +50,13 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
     ),
   );
 
-  const owned = stack.move();
-
   return {
     dir: tmp.dir,
     env,
     upstream,
     work,
     sha: template.sha,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
   };
 }
 

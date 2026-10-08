@@ -4,6 +4,7 @@ import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle, DaemonOptions } from '../daemon/daemon';
 import type { EventMsg } from '../protocol/protocol';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 /**
@@ -60,11 +61,16 @@ const BUILD = 'atc/test-build';
  * connection. `stop` closes every client and stops the daemon; `restart`
  * does the same, then boots on the same paths and state with the options
  * given or the last ones, and opens a new main client. Disposal stops what
- * is running and removes the directory; hold the result with `await using`.
+ * is running and removes the directory. That disposal runs once the current
+ * test finishes, so it must run inside a test; disposing sooner runs it
+ * then, and a second disposal does nothing. A first boot that fails runs it
+ * before the start rejects.
  */
 export async function startTestDaemon(config: TestDaemonConfig = {}) {
-  await using stack = new AsyncDisposableStack();
+  // The daemon stops before its directory is removed.
+  const stack = new AsyncDisposableStack();
 
+  const dispose = registerTestCleanup(() => stack.disposeAsync());
   const tmp = stack.use(setupTempDir(config.prefix ?? 'atc-test-daemon-'));
 
   const paths: TestDaemonPaths = {
@@ -141,9 +147,13 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
     return { daemon, client };
   };
 
-  let current = await boot();
+  // A boot that fails stops what it started and removes the directory
+  // before the start rejects.
+  let current = await boot().catch(async (error: unknown) => {
+    await dispose();
 
-  const owned = stack.move();
+    throw error;
+  });
 
   return {
     ...paths,
@@ -210,6 +220,6 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
 
       current = await boot();
     },
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    [Symbol.asyncDispose]: dispose,
   };
 }

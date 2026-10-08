@@ -1,4 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { setupTempDir } from './setup-temp-dir';
@@ -99,4 +102,25 @@ test('it stops listening once disposed', async () => {
   ctx.daemon[Symbol.dispose]();
 
   expect(DaemonClient.open(join(ctx.dir, 'daemon.sock'))).rejects.toThrow();
+});
+
+test('it stops listening once the test finishes without a dispose', () => {
+  // The socket sits outside any directory the test removes, so only the
+  // listener's own stop takes it away.
+  const path = join(tmpdir(), `atc-stub-restore-${randomUUID()}.sock`);
+
+  startStubRestoreDaemon(path);
+
+  onTestFinished(() => {
+    expect(existsSync(path)).toBeFalse();
+  });
+});
+
+test('it stops once when disposed before the test finishes', () => {
+  const path = join(tmpdir(), `atc-stub-restore-${randomUUID()}.sock`);
+  const daemon = startStubRestoreDaemon(path);
+
+  daemon[Symbol.dispose]();
+
+  expect(existsSync(path)).toBeFalse();
 });

@@ -1,5 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
@@ -3187,4 +3189,27 @@ test('it records the spec of each imp it is asked to create, in order', async ()
     { name: 'imp-a', image: 'base', memoryMib: 512 },
     { name: 'imp-b' },
   ]);
+});
+
+test('it stops every forward once the test finishes without a dispose', () => {
+  // The socket sits outside any directory the test removes, so only the
+  // forward's own stop takes it away.
+  const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
+  const port = buildStubImpPort();
+
+  port.openReverseForward('imp-a', guestPath, () => {});
+
+  onTestFinished(() => {
+    expect(existsSync(guestPath)).toBeFalse();
+  });
+});
+
+test('it stops every forward once when disposed before the test finishes', () => {
+  const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
+  const port = buildStubImpPort();
+
+  port.openReverseForward('imp-a', guestPath, () => {});
+  port[Symbol.dispose]();
+
+  expect(existsSync(guestPath)).toBeFalse();
 });

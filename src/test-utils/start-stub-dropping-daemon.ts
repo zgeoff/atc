@@ -6,6 +6,7 @@ import {
   decodeMessage,
   encodeMessage,
 } from '../protocol/protocol';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface DroppingDaemonOptions {
   // The features the first handshake announces.
@@ -23,8 +24,9 @@ interface DroppingDaemonOptions {
  * and answers every later one with a session `s-1`. `keys` records the
  * idempotency key each of those requests carried, `undefined` for one that
  * carried none. `reads` counts the reads it has taken from every connection,
- * so a test can wait until one piece of a split write has arrived. Stop it
- * with `stop`, or hold it with `using`.
+ * so a test can wait until one piece of a split write has arrived. It stops
+ * once the current test finishes, so it must run inside a test; `stop` or
+ * disposal stops it sooner, and a second stop does nothing.
  */
 export function startStubDroppingDaemon(socketPath: string, options: DroppingDaemonOptions) {
   const keys: unknown[] = [];
@@ -88,16 +90,16 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
     },
   });
 
+  const stop = registerTestCleanup(() => {
+    server.stop(true);
+  });
+
   return {
     keys,
     get reads() {
       return reads;
     },
-    stop() {
-      server.stop(true);
-    },
-    [Symbol.dispose]() {
-      server.stop(true);
-    },
+    stop,
+    [Symbol.dispose]: stop,
   };
 }

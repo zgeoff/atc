@@ -1,11 +1,14 @@
+import { registerTestCleanup } from './register-test-cleanup';
+
 interface StubClosingListener {
   readonly [Symbol.dispose]: () => void;
 }
 
 /**
  * A stand-in for a daemon that hangs up: it listens on the unix socket path
- * and ends every connection as soon as it opens, reading nothing. Disposal
- * stops it; hold the result with `using`.
+ * and ends every connection as soon as it opens, reading nothing. It stops
+ * once the current test finishes, so it must run inside a test; disposal
+ * stops it sooner, and a second stop does nothing.
  */
 export function startStubClosingListener(path: string): StubClosingListener {
   const server = Bun.listen({
@@ -18,9 +21,11 @@ export function startStubClosingListener(path: string): StubClosingListener {
     },
   });
 
+  const stop = registerTestCleanup(() => {
+    server.stop(true);
+  });
+
   return {
-    [Symbol.dispose]: () => {
-      server.stop(true);
-    },
+    [Symbol.dispose]: stop,
   };
 }

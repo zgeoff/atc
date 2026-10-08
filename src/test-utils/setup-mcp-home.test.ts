@@ -112,3 +112,40 @@ test('it removes a home that holds no daemon pid', async () => {
 
   expect(existsSync(mcpHome.home)).toBeFalse();
 });
+
+test("it kills a recorded stand-in's process group and removes the home once the test finishes", async () => {
+  const mcpHome = setupMCPHome();
+
+  // The group's leader records itself and leaves a child in its group, so
+  // only a kill of the whole group ends that child.
+  const stub = spawn('bash', ['-c', 'echo $$ >> "$HOME/stub-pids"; sleep 30 & exec sleep 30'], {
+    detached: true,
+    env: { HOME: mcpHome.home, PATH: '/usr/bin:/bin' },
+    stdio: 'ignore',
+  });
+
+  onTestFinished(() => {
+    stub.kill();
+  });
+
+  const group = stub.pid;
+
+  invariant(group !== undefined, 'the stand-in did not start');
+
+  await waitFor(() => {
+    expect(existsSync(join(mcpHome.home, 'stub-pids'))).toBeTrue();
+  });
+
+  onTestFinished(() => {
+    expect(() => process.kill(-group, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
+    expect(existsSync(mcpHome.home)).toBeFalse();
+  });
+});
+
+test('it removes the home once when disposed before the test finishes', async () => {
+  const mcpHome = setupMCPHome();
+
+  await mcpHome[Symbol.asyncDispose]();
+
+  expect(existsSync(mcpHome.home)).toBeFalse();
+});

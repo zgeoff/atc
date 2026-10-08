@@ -37,3 +37,23 @@ test('it stops listening once disposed', () => {
     Bun.connect({ hostname: '127.0.0.1', port: listener.port, socket: { data() {} } }),
   ).rejects.toThrow();
 });
+
+test('it stops listening once the test finishes without a dispose', () => {
+  const listener = startStubRefusingListener();
+
+  onTestFinished(() => {
+    expect(
+      Bun.connect({ hostname: '127.0.0.1', port: listener.port, socket: { data() {} } }),
+    ).rejects.toThrow();
+  });
+});
+
+test('it stops once when disposed before the test finishes', () => {
+  const listener = startStubRefusingListener();
+
+  listener[Symbol.dispose]();
+
+  expect(
+    Bun.connect({ hostname: '127.0.0.1', port: listener.port, socket: { data() {} } }),
+  ).rejects.toThrow();
+});
