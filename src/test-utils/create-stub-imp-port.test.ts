@@ -1282,7 +1282,14 @@ test('it ends a command whose child holds its output open once the port stops', 
 
   await expect(result).toResolve();
 
-  expect(isProcessAlive(child)).toBeFalse();
+  // A killed process closes its output before it finishes exiting, so the
+  // run can settle a moment before the child is gone.
+  await waitFor(
+    () => {
+      expect(isProcessAlive(child)).toBeFalse();
+    },
+    { timeoutMs: 2000 },
+  );
 });
 
 test('it reports nothing for a running command the port stop cuts short', async () => {
