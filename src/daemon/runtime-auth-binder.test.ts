@@ -2291,6 +2291,8 @@ test('it returns the launch admission of each connection that fails before it op
   // Three connections in turn, each failing before it opens; an admission
   // only ever adds to the host's pending count, so a count of none after
   // the last shows every one of them returned its own.
+  const starts: PromiseSettledResult<void>[] = [];
+
   for (const session of ['s2', 's3', 's4']) {
     const harness = new ImpHarness(
       ctx.port,
@@ -2324,8 +2326,32 @@ test('it returns the launch admission of each connection that fails before it op
       harness.detach();
     });
 
-    await Promise.allSettled([harness.waitForStart()]);
+    starts.push(...(await Promise.allSettled([harness.waitForStart()])));
   }
+
+  expect(starts).toStrictEqual([
+    {
+      status: 'rejected',
+      reason: expect.toContainEntries([
+        ['code', 'host_unavailable'],
+        ['data', { provider: 'imp', problem: 'not_started' }],
+      ]),
+    },
+    {
+      status: 'rejected',
+      reason: expect.toContainEntries([
+        ['code', 'host_unavailable'],
+        ['data', { provider: 'imp', problem: 'not_started' }],
+      ]),
+    },
+    {
+      status: 'rejected',
+      reason: expect.toContainEntries([
+        ['code', 'host_unavailable'],
+        ['data', { provider: 'imp', problem: 'not_started' }],
+      ]),
+    },
+  ]);
 
   expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
   expect(ctx.port.sessionRequests).toStrictEqual([]);

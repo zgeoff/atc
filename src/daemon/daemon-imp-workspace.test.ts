@@ -961,15 +961,15 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
 
   ctx.port.setDestroyFailure('INTERNAL');
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
-      agent: 'unsigned',
-      target: 'box',
-      workspace: { kind: 'path', path: ctx.work },
-      idempotencyKey: 'k-1',
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'unsigned',
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+    idempotencyKey: 'k-1',
+  });
+
+  await Promise.allSettled([failed]);
 
   const retried = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -981,6 +981,7 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
 
   await retried.catch(() => null);
 
+  expect(failed).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
@@ -2036,6 +2037,7 @@ test('it keeps the files of a plain sub-session still starting through a symlink
 
   await plain.catch(() => null);
 
+  expect(outerSpawn).rejects.toMatchObject({ code: 'transfer_failed' });
   expect(plain).resolves.toContainKey('session');
   expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
 });
@@ -2248,6 +2250,7 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
     parent: parentID,
   });
 
+  expect(outerSpawn).rejects.toMatchObject({ code: 'transfer_failed' });
   expect(refused).rejects.toMatchObject({ code: 'workspace_overlap' });
   expect(getRecord(after, 'session')['alive']).toBe(true);
   expect(existsSync(outer)).toBe(false);
@@ -2365,6 +2368,7 @@ test('it keeps the files of a relative plain sub-session still starting when a w
 
   await plain.catch(() => null);
 
+  expect(outerSpawn).rejects.toMatchObject({ code: 'transfer_failed' });
   expect(plain).resolves.toContainKey('session');
   expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
 });
@@ -2842,15 +2846,15 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
 
   ctx.port.setCommandFailure('tar -x');
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'a'),
-      agent: 'glm',
-      target: 'box',
-      parent: getRecord(parent, 'session')['id'],
-      workspace: { kind: 'path', path: ctx.work },
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'a'),
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await Promise.allSettled([failed]);
 
   ctx.port.setCommandFailure(null);
 
@@ -2864,6 +2868,7 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
     workspace: { kind: 'path', path: ctx.work },
   });
 
+  expect(failed).rejects.toMatchObject({ code: 'transfer_failed' });
   expect(getRecord(retried, 'session')['alive']).toBeTrue();
 });
 
@@ -3024,15 +3029,15 @@ test('it spawns a sub-session again on the shared host after its failed start re
 
   ctx.port.startBrokerFailure();
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'child'),
-      agent: 'glm',
-      target: 'box',
-      parent: getRecord(parent, 'session')['id'],
-      workspace: { kind: 'path', path: ctx.work },
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'child'),
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await Promise.allSettled([failed]);
 
   ctx.port.stopBrokerFailure();
 
@@ -3050,6 +3055,7 @@ test('it spawns a sub-session again on the shared host after its failed start re
 
   const after = await daemon.client.sendRequest('session.list');
 
+  expect(failed).rejects.toMatchObject({ code: 'broker_not_ready' });
   expect(readFileSync(join(ctx.dir, 'box', 'beside.txt'), 'utf8')).toBe('kept\n');
   expect(readFileSync(join(ctx.work, 'README.md'), 'utf8')).toBe(committed);
   expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([imp]);
@@ -3305,16 +3311,16 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
   ctx.port.startBrokerFailure();
   ctx.port.setCommandFailure('-mindepth');
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'child'),
-      agent: 'glm',
-      target: 'box',
-      parent: getRecord(parent, 'session')['id'],
-      workspace: { kind: 'path', path: ctx.work },
-      idempotencyKey: 'k-1',
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'child'),
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: ctx.work },
+    idempotencyKey: 'k-1',
+  });
+
+  await Promise.allSettled([failed]);
 
   const parentID = getRecord(parent, 'session')['id'];
   const dest = join(ctx.dir, 'box', 'child');
@@ -3330,6 +3336,7 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
 
   await retried.catch(() => null);
 
+  expect(failed).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
   expect(daemon.logs.filter((line) => line.startsWith(`atc: left ${dest} `))).toStrictEqual([
@@ -3394,16 +3401,16 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
   ctx.port.startBrokerFailure();
   ctx.port.setCommandFailure('-mindepth');
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'child'),
-      agent: 'glm',
-      target: 'box',
-      parent: getRecord(parent, 'session')['id'],
-      workspace: { kind: 'path', path: ctx.work },
-      idempotencyKey: 'k-1',
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'child'),
+    agent: 'glm',
+    target: 'box',
+    parent: getRecord(parent, 'session')['id'],
+    workspace: { kind: 'path', path: ctx.work },
+    idempotencyKey: 'k-1',
+  });
+
+  await Promise.allSettled([failed]);
 
   const parentID = getRecord(parent, 'session')['id'];
   const dest = join(ctx.dir, 'box', 'child');
@@ -3419,6 +3426,7 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
 
   const listed = await daemon.client.sendRequest('session.list');
 
+  expect(failed).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(inside).rejects.toMatchObject({ code: 'workspace_overlap' });
   expect(existsSync(join(dest, 'README.md'))).toBe(true);
 
@@ -3770,15 +3778,15 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
 
   ctx.port.setDestroyFailure('INTERNAL');
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
-      agent: 'plain',
-      target: 'box',
-      workspace: { kind: 'path', path: ctx.work },
-      idempotencyKey: 'k-1',
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+    idempotencyKey: 'k-1',
+  });
+
+  await Promise.allSettled([failed]);
 
   const retried = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -3790,6 +3798,7 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
 
   await retried.catch(() => null);
 
+  expect(failed).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
@@ -3910,15 +3919,15 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
   ctx.port.setAcquireFailure(0, 'INTERNAL');
   ctx.port.setDestroyFailure('INTERNAL');
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
-      agent: 'plain',
-      target: 'box',
-      workspace: { kind: 'path', path: ctx.work },
-      idempotencyKey: 'k-1',
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+    idempotencyKey: 'k-1',
+  });
+
+  await Promise.allSettled([failed]);
 
   const retried = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -3930,6 +3939,7 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
 
   await retried.catch(() => null);
 
+  expect(failed).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([

@@ -937,12 +937,19 @@ test('it answers the handshake at once before an address has failed five times',
 
   const failing = await Promise.all(Array.from({ length: 4 }, () => daemon.openTCPClient()));
 
-  await Promise.allSettled(
+  const failed = await Promise.allSettled(
     failing.map((client) => client.sendHello('atc/test-gateway', 'b'.repeat(40))),
   );
 
   const client = await daemon.openTCPClient();
   const hello = await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  expect(failed).toMatchObject([
+    { status: 'rejected', reason: { code: 'unauthorized' } },
+    { status: 'rejected', reason: { code: 'unauthorized' } },
+    { status: 'rejected', reason: { code: 'unauthorized' } },
+    { status: 'rejected', reason: { code: 'unauthorized' } },
+  ]);
 
   expect(hello).toMatchObject({ daemonID: expect.toBeString() });
   expect(clock.collectPending()).toStrictEqual([]);
@@ -1072,7 +1079,11 @@ test('it logs no part of the token a refused handshake presents', async () => {
 
   const client = await daemon.openTCPClient();
 
-  await Promise.allSettled([client.sendHello('atc/test-gateway', presented)]);
+  const refused = client.sendHello('atc/test-gateway', presented);
+
+  await Promise.allSettled([refused]);
+
+  expect(refused).rejects.toMatchObject({ code: 'unauthorized' });
 
   expect(
     Array.from({ length: presented.length - 7 }, (_, at) => presented.slice(at, at + 8)),
@@ -1177,13 +1188,15 @@ test('it logs no part of a token sent in pieces as a refused principal', async (
 
   const client = await daemon.openTCPClient();
 
-  await Promise.allSettled([
-    client.sendRequest('daemon.hello', {
-      client: 'atc/test-gateway',
-      principal: Array.from({ length: 7 }, (_, at) => token.slice(at * 7, at * 7 + 7)).join('.'),
-      auth: { scheme: 'bearer', token },
-    }),
-  ]);
+  const refused = client.sendRequest('daemon.hello', {
+    client: 'atc/test-gateway',
+    principal: Array.from({ length: 7 }, (_, at) => token.slice(at * 7, at * 7 + 7)).join('.'),
+    auth: { scheme: 'bearer', token },
+  });
+
+  await Promise.allSettled([refused]);
+
+  expect(refused).rejects.toMatchObject({ code: 'unauthorized' });
 
   expect(Array.from({ length: token.length - 3 }, (_, at) => token.slice(at, at + 4))).toSatisfyAll(
     (part: string) => !daemon.logs.slice(1).join('\n').includes(part),
@@ -1473,17 +1486,17 @@ test('it releases the daemon lock and leaves no socket or record behind when the
 
   writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
-  await Promise.allSettled([
-    startDaemon({
-      socketPath: ctx.socketPath,
-      reporterSocketPath: ctx.reporterSocketPath,
-      build: 'atc/test-build',
-      adapter: buildMockAgentAdapter(),
-      dbPath: ctx.dbPath,
-      statusPath: ctx.statusPath,
-      listen: { host: '127.0.0.1', port: held.port, tokenFile: ctx.tokenFile },
-    }),
-  ]);
+  const started = startDaemon({
+    socketPath: ctx.socketPath,
+    reporterSocketPath: ctx.reporterSocketPath,
+    build: 'atc/test-build',
+    adapter: buildMockAgentAdapter(),
+    dbPath: ctx.dbPath,
+    statusPath: ctx.statusPath,
+    listen: { host: '127.0.0.1', port: held.port, tokenFile: ctx.tokenFile },
+  });
+
+  await Promise.allSettled([started]);
 
   const lock = await claimDaemonLock(join(ctx.dir, 'daemon.lock'), 0);
 
@@ -1491,6 +1504,7 @@ test('it releases the daemon lock and leaves no socket or record behind when the
     lock?.dispose();
   });
 
+  expect(started).rejects.toMatchObject({ code: 'listen_refused' });
   expect(lock).not.toBeNil();
   expect(existsSync(ctx.socketPath)).toBe(false);
   expect(existsSync(join(ctx.dir, 'daemon.json'))).toBe(false);
@@ -1800,11 +1814,15 @@ test('it answers the held handshakes once the delay passes after the cap refused
 
   const over = await daemon.openTCPClient();
 
-  await Promise.allSettled([over.sendHello('atc/test-gateway', 'a'.repeat(32))]);
+  const refused = over.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+  await Promise.allSettled([refused]);
 
   clock.advance(1500);
 
   const answers = await held;
+
+  expect(refused).rejects.toMatchObject({ code: 'unauthorized' });
 
   expect<readonly unknown[]>(answers).toStrictEqual([
     expect.objectContaining({ daemonID: expect.toBeString() }),

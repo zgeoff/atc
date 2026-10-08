@@ -1625,7 +1625,9 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: parentID });
+
+  await revoke.catch(() => null);
 
   stopLeaseHold();
 
@@ -1637,6 +1639,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
 
   const grants = await ctx.port.readGrants(imp);
 
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
   expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
   expect(ctx.port.calls.filter((call) => call.startsWith('imps.destroy'))).toStrictEqual([]);
   expect(grants).toStrictEqual(['glm']);
@@ -1714,12 +1717,15 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
 
   ctx.port.setGrantRemovalFailure('UNREACHABLE');
 
-  await daemon.client.sendRequest('session.auth.revoke', { session: parentID }).catch(() => null);
+  const revoke = daemon.client.sendRequest('session.auth.revoke', { session: parentID });
+
+  await revoke.catch(() => null);
 
   stopLeaseHold();
 
   await child.catch(() => null);
 
+  expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
   expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
   expect(ctx.port.findState(imp)).toBe('running');
   expect(ctx.port.calls.filter((call) => call.startsWith('imps.sleep'))).toStrictEqual([]);
