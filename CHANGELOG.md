@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.9.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.2...@zgeoff/atc@3.9.3) (2026-10-08)
+
+### Bug Fixes
+
+- **geo-28:** end an overflowing answer's connection and name a stalled git
+  ([#465](https://github.com/zgeoff/atc/issues/465))
+  ([dba2fc4](https://github.com/zgeoff/atc/commit/dba2fc413beb536850008215b3ff8b5a9ba2b5a4))
+
 ## [3.9.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.1...@zgeoff/atc@3.9.2) (2026-10-08)
 
 ### Bug Fixes
