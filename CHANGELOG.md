@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.6.2...@zgeoff/atc@3.7.0) (2026-10-08)
+
+
+### Features
+
+* **geo-192:** gzip the workspace upload to imps ([#452](https://github.com/zgeoff/atc/issues/452)) ([5c5a638](https://github.com/zgeoff/atc/commit/5c5a638872334a2d8b9b09c2667ea0da9d851163))
+
 ## [3.6.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.6.1...@zgeoff/atc@3.6.2) (2026-10-08)
 
 ### Bug Fixes
