@@ -235,7 +235,10 @@ Each kind of state has one cleanup tool.
 
 `try`/`finally` never appears in a test. `onTestFinished` runs on failure as well, keeps teardown
 beside the acquisition, and needs no `?.` guard for a resource the test never reached. A shared test
-util may register `onTestFinished` for its callers. These helpers must run inside a test.
+util may register `onTestFinished` for its callers. These helpers must run inside a test. A test of
+such a helper proves its cleanup ran by registering an `onTestFinished` hook after the helper's
+call, so the hook runs after the helper's release, and asserting in that hook. This is the only
+place an assertion leaves the test body.
 
 When resources have cleanup dependencies, register one callback that closes them in the required
 order. Every cleanup must run even if another cleanup throws. Use a disposable stack when reverse
