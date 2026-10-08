@@ -472,7 +472,7 @@ test("it shows the daemon's pick for the destination of a repository on a remote
     resolved: null,
   });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
@@ -668,7 +668,7 @@ test('it shows the refusal of a remote target without a workspace root when the 
     resolved: null,
   });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
@@ -858,7 +858,7 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
   picker.applyKey(Buffer.from(KEYS.enter));
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('session.spawn', {
     session: buildMockSessionDescriptor(),
@@ -1591,7 +1591,7 @@ test('it returns esc from the directory step to the agent step when more than on
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.esc));
 
@@ -1668,7 +1668,7 @@ test('it opens the name step after the directory when one agent and one target l
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
@@ -1712,7 +1712,7 @@ test('it returns esc from the name step to the directory step when one target le
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.esc));
 
@@ -1915,7 +1915,7 @@ test('it offers both targets for a directory when only one takes a workspace', a
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
@@ -1954,7 +1954,7 @@ test('it shows why no target can run a directory when the one target is unavaila
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
@@ -2025,7 +2025,7 @@ test('it shows why no target can run an agent whose broker no target reaches', a
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
@@ -2068,7 +2068,7 @@ test('it shows why no target can adopt when none runs on the daemon host', async
 
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
@@ -2110,7 +2110,7 @@ test('it returns esc from a target step with no usable target to the directory s
 
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.esc));
 
@@ -2198,7 +2198,7 @@ test('it returns esc from a git source to the agent step when one target left no
 
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
-  const mark = ctx.terminal.mark();
+  const mark = ctx.terminal.countChunks();
 
   picker.applyKey(Buffer.from(KEYS.esc));
 

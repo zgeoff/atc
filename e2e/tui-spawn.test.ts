@@ -117,7 +117,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   await ctx.waitFor('\u001B[7malt  local-pty');
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   ctx.write('x');
 

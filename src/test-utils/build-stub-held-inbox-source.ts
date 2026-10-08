@@ -9,7 +9,7 @@ import type { MessageRecord } from '../store/message-record';
  * An inbox source over a real, empty tap registry, standing in for the
  * daemon's store. It holds every session under the given agent session id,
  * and its pending-message read waits until the test answers it: `reading`
- * settles once a read starts, `read` answers the read with the given
+ * settles once a read starts, `answer` answers the read with the given
  * messages whatever owner it asked for.
  */
 export function buildStubHeldInboxSource(agentSessionID: AgentSessionID) {
@@ -29,7 +29,7 @@ export function buildStubHeldInboxSource(agentSessionID: AgentSessionID) {
   return {
     source,
     reading: reading.promise,
-    read: (records: readonly MessageRecord[]) => {
+    answer: (records: readonly MessageRecord[]) => {
       pending.resolve([...records]);
     },
   };

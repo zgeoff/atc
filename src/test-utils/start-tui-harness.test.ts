@@ -149,13 +149,13 @@ test('it moves the mark past a line the client logs after it', async () => {
 
   await ctx.tui.waitFor('┌ sessions ─');
 
-  const mark = ctx.tui.markClientLog();
+  const mark = ctx.tui.countClientLogLines();
 
   ctx.tui.write('H');
 
   await ctx.tui.waitForClientLog('ignored H on a session that cannot eject', mark);
 
-  expect(ctx.tui.markClientLog()).toBe(mark + 1);
+  expect(ctx.tui.countClientLogLines()).toBe(mark + 1);
 });
 
 test('it rejects a wait for a log line written only before the mark', async () => {
@@ -166,13 +166,13 @@ test('it rejects a wait for a log line written only before the mark', async () =
 
   await ctx.tui.waitFor('┌ sessions ─');
 
-  const before = ctx.tui.markClientLog();
+  const before = ctx.tui.countClientLogLines();
 
   ctx.tui.write('H');
 
   await ctx.tui.waitForClientLog('ignored H on a session that cannot eject', before);
 
-  const after = ctx.tui.markClientLog();
+  const after = ctx.tui.countClientLogLines();
 
   expect(
     ctx.tui.waitForClientLog('ignored H on a session that cannot eject', after, 200),

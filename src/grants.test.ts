@@ -21,7 +21,7 @@ async function setupTest() {
 test('it lists a grant whose id starts with a dash', async () => {
   const ctx = await setupTest();
 
-  const clientID = await ctx.server.addClient('Claude', [
+  const clientID = await ctx.server.createClient('Claude', [
     'https://claude.ai/api/mcp/auth_callback',
   ]);
 
@@ -73,7 +73,7 @@ test('it lists a grant whose id starts with a dash', async () => {
 test('it revokes a grant so its access token stops working and it lists no grants', async () => {
   const ctx = await setupTest();
 
-  const clientID = await ctx.server.addClient('Claude', [
+  const clientID = await ctx.server.createClient('Claude', [
     'https://claude.ai/api/mcp/auth_callback',
   ]);
 

@@ -454,7 +454,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   const oldPID = daemon.proc.pid;
 
   ctx.fake.writeMainPID(oldPID);
-  ctx.fake.placeInUnit(oldPID, 'atc-daemon.service');
+  ctx.fake.writeUnitCgroup(oldPID, 'atc-daemon.service');
 
   const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
 

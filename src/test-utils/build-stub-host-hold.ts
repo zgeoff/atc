@@ -1,9 +1,10 @@
 /**
  * A host operation a test can hold open, for a host preparation or sleep
- * that must stay in flight while the test changes something. Unarmed, the
- * operation resolves at once, so the arrange steps before the hold pass
- * through. Once armed, the next call resolves `entered` and every call
- * waits until `release`; after the release, calls resolve at once again.
+ * that must stay in flight while the test changes something: a test passes
+ * `waitForRelease` as the operation. Before `startHold`, the operation
+ * resolves at once, so the arrange steps before the hold pass through.
+ * After it, the next call resolves `entered` and every call waits until
+ * `release`; after the release, calls resolve at once again.
  */
 export function buildStubHostHold() {
   const entered = Promise.withResolvers<void>();
@@ -11,7 +12,7 @@ export function buildStubHostHold() {
   let armed = false;
 
   return {
-    hold: (): Promise<void> => {
+    waitForRelease: (): Promise<void> => {
       if (!armed) {
         return Promise.resolve();
       }
@@ -20,7 +21,7 @@ export function buildStubHostHold() {
 
       return released.promise;
     },
-    arm: () => {
+    startHold: () => {
       armed = true;
     },
     entered: entered.promise,

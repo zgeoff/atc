@@ -33,7 +33,7 @@ test('it answers a held read with the messages the test gives', async () => {
   const read = inbox.source.collectPendingMessages({ atcID: toSessionID('s1') });
   const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
 
-  inbox.read([record]);
+  inbox.answer([record]);
 
   const records = await read;
 

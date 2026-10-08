@@ -222,7 +222,7 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
 
   ctx.reset();
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   ctx.write('H');
 

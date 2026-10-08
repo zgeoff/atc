@@ -156,7 +156,7 @@ test('it records every systemd-run call', () => {
 test('it writes a cgroup file that places a pid in a user service', () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  fake.placeInUnit(77, 'atc-daemon.service');
+  fake.writeUnitCgroup(77, 'atc-daemon.service');
 
   expect(readFileSync(join(fake.procRoot, '77', 'cgroup'), 'utf8')).toBe(
     `0::/user.slice/user-${userInfo().uid}.slice/user@${userInfo().uid}.service/app.slice/atc-daemon.service\n`,

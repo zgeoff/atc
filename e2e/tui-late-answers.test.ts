@@ -44,7 +44,7 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 
   await ctx.waitFor('listing stopped');
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   rmSync(join(ctx.home, 'gh-hold'));
 
@@ -95,7 +95,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await ctx.waitFor('cancelled');
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   gate.resolve();
 
@@ -144,7 +144,7 @@ test('it keeps the ref the user moved to when a repository listing answers late'
 
   await ctx.waitFor('\u001B[7mfeat');
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   rmSync(join(ctx.home, 'gh-hold'));
 
@@ -217,7 +217,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   await ctx.waitFor('atc — control tower');
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   gate.resolve();
   ctx.reset();
@@ -289,7 +289,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   ctx.reset();
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   rmSync(join(ctx.home, 'zoxide-hold'));
 
@@ -368,7 +368,7 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
     expect(server.authorizations).not.toBeEmpty();
   });
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   rmSync(join(ctx.home, 'zoxide-hold'));
 
