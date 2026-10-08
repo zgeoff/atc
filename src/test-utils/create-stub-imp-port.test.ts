@@ -5,8 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
+import { isProcessAlive } from '../shared/is-process-alive';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubImpPort } from './create-stub-imp-port';
+import { KEYS } from './keys';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -624,7 +627,7 @@ test('it relays each guest connection on a reverse forward to the daemon', async
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -659,7 +662,7 @@ test('it writes every byte the daemon sends to the guest end of a relayed connec
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -691,7 +694,7 @@ test('it closes every guest connection on its forwards', async () => {
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -727,7 +730,7 @@ test('it keeps listening for the next guest connection after it closes every one
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.end();
   });
 
@@ -741,7 +744,7 @@ test('it keeps listening for the next guest connection after it closes every one
 
   const second = await Bun.connect({ unix: guestPath, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.end();
   });
 
@@ -775,7 +778,7 @@ test('it closes each new guest connection without relaying it while relays are r
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -810,7 +813,7 @@ test('it relays guest connections again once the refusal stops', async () => {
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     refused.end();
   });
 
@@ -822,7 +825,7 @@ test('it relays guest connections again once the refusal stops', async () => {
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -852,7 +855,7 @@ test('it drops what a guest writes while guest bytes are dropped', async () => {
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -883,7 +886,7 @@ test('it relays what a guest writes once the drop stops', async () => {
 
   const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -930,7 +933,7 @@ test('it still writes what the daemon sends to the guest while guest bytes are d
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     socket.end();
   });
 
@@ -1461,15 +1464,17 @@ test('it removes grants again once the removal failure is cleared', async () => 
 
   ctx.port.setGrantRemovalFailure('UNAVAILABLE');
 
-  const [failed] = await Promise.allSettled([ctx.port.removeGrant('atc-s1', 'glm')]);
+  const failedRemoval = ctx.port.removeGrant('atc-s1', 'glm');
+
+  await Promise.allSettled([failedRemoval]);
 
   ctx.port.setGrantRemovalFailure(null);
 
   const removed = await ctx.port.removeGrant('atc-s1', 'glm');
 
-  expect(failed).toMatchObject({
-    status: 'rejected',
-    reason: { code: 'UNAVAILABLE', message: 'impd did not remove the grant' },
+  expect(failedRemoval).rejects.toMatchObject({
+    code: 'UNAVAILABLE',
+    message: 'impd did not remove the grant',
   });
 
   expect(removed).toBeTrue();
@@ -1998,12 +2003,15 @@ test('it lets lease acquisitions through again after the one failure', async () 
 
   ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
 
-  const [failed] = await Promise.allSettled([ctx.port.acquireLease('imp-a', 'atc-d1', 60)]);
+  const failedAcquire = ctx.port.acquireLease('imp-a', 'atc-d1', 60);
+
+  await Promise.allSettled([failedAcquire]);
+
   const lease = await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
 
-  expect(failed).toMatchObject({
-    status: 'rejected',
-    reason: { code: 'UNAVAILABLE', message: 'impd refused the lease (UNAVAILABLE)' },
+  expect(failedAcquire).rejects.toMatchObject({
+    code: 'UNAVAILABLE',
+    message: 'impd refused the lease (UNAVAILABLE)',
   });
 
   expect(lease.owner.label).toBe('atc-d1');
@@ -2121,15 +2129,17 @@ test('it destroys imps again once the destroy failure is cleared', async () => {
 
   ctx.port.setDestroyFailure('UNAVAILABLE');
 
-  const [failed] = await Promise.allSettled([ctx.port.destroyImp('imp-a')]);
+  const failedDestroy = ctx.port.destroyImp('imp-a');
+
+  await Promise.allSettled([failedDestroy]);
 
   ctx.port.setDestroyFailure(null);
 
   await ctx.port.destroyImp('imp-a');
 
-  expect(failed).toMatchObject({
-    status: 'rejected',
-    reason: { code: 'UNAVAILABLE', message: 'impd could not destroy imp-a' },
+  expect(failedDestroy).rejects.toMatchObject({
+    code: 'UNAVAILABLE',
+    message: 'impd could not destroy imp-a',
   });
 
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
@@ -2151,12 +2161,15 @@ test('it answers a feature read once the failures are spent', async () => {
 
   ctx.port.setFeatureFailures(1);
 
-  const [failed] = await Promise.allSettled([ctx.port.readFeatures()]);
+  const failedRead = ctx.port.readFeatures();
+
+  await Promise.allSettled([failedRead]);
+
   const features = await ctx.port.readFeatures();
 
-  expect(failed).toMatchObject({
-    status: 'rejected',
-    reason: { code: 'UNREACHABLE', message: 'impd did not answer' },
+  expect(failedRead).rejects.toMatchObject({
+    code: 'UNREACHABLE',
+    message: 'impd did not answer',
   });
 
   expect(features).toStrictEqual({
@@ -2715,7 +2728,7 @@ test('it writes what a connection sends to the session process', async () => {
 
   await started.promise;
 
-  connection.write(new TextEncoder().encode('typed\r'));
+  connection.write(new TextEncoder().encode(`typed${KEYS.enter}`));
 
   await waitFor(() => {
     expect(Buffer.concat(chunks).toString()).toInclude('typed');
@@ -3282,21 +3295,191 @@ test('it records the spec of each imp it is asked to create, in order', async ()
   ]);
 });
 
+test('it detaches a live connection as lost and stops its process when the imp sleeps', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const chunks: Uint8Array[] = [];
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['bash', '-c', 'echo $$; exec sleep 30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {},
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await waitFor(() => {
+    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/);
+  });
+
+  const pid = Buffer.concat(chunks).toString().trim();
+  const end = ctx.port.getEnd('imp-a', 's1');
+
+  await ctx.port.suspendImp('imp-a');
+
+  const outcome = await connection.outcome;
+
+  await waitFor(() => {
+    expect(Bun.spawnSync(['ps', '-o', 'state=', '-p', pid]).stdout.toString()).toStartWith('T');
+  });
+
+  expect(outcome).toStrictEqual({ kind: 'detached', reason: 'lost', offset: end });
+});
+
+test('it continues a stopped process under the same generation when the imp wakes from memory', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const chunks: Uint8Array[] = [];
+
+  const opened = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['bash', '-c', 'echo $$; exec sleep 30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {},
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await waitFor(() => {
+    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/);
+  });
+
+  const pid = Buffer.concat(chunks).toString().trim();
+  const generation = ctx.port.getGeneration('imp-a', 's1');
+
+  await ctx.port.suspendImp('imp-a');
+
+  await opened.outcome;
+
+  await waitFor(() => {
+    expect(Bun.spawnSync(['ps', '-o', 'state=', '-p', pid]).stdout.toString()).toStartWith('T');
+  });
+
+  const started: ImpSessionStarted[] = [];
+
+  ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 80, rows: 24, wake: true },
+    {
+      onStarted: (s) => {
+        started.push(s);
+      },
+      onOutput: () => {},
+    },
+  );
+
+  await waitFor(() => {
+    expect(started).toHaveLength(1);
+  });
+
+  await waitFor(() => {
+    expect(Bun.spawnSync(['ps', '-o', 'state=', '-p', pid]).stdout.toString()).toStartWith('S');
+  });
+
+  expect(started[0]?.output).toMatchObject({ executionGeneration: generation });
+  expect(ctx.port.getGeneration('imp-a', 's1')).toBe(generation);
+});
+
+test('it closes a live connection and kills its process when the imp is destroyed', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const chunks: Uint8Array[] = [];
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['bash', '-c', 'echo $$; exec sleep 30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {},
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await waitFor(() => {
+    expect(Buffer.concat(chunks).toString()).toMatch(/^\d+\r\n$/);
+  });
+
+  const pid = Buffer.concat(chunks).toString().trim();
+
+  await ctx.port.destroyImp('imp-a');
+
+  const outcome = await connection.outcome;
+
+  await waitFor(() => {
+    expect(isProcessAlive(Number(pid))).toBeFalse();
+  });
+
+  expect(outcome).toStrictEqual({ kind: 'closed', reason: 'imp destroyed', closeCode: 1000 });
+});
+
+test('it owns a lease under the principal it was created with', async () => {
+  const port = createStubImpPort('token:ci');
+
+  await port.createImp({ name: 'imp-a' });
+
+  const lease = await port.acquireLease('imp-a', 'atc-d1', 60);
+
+  expect(lease.owner).toStrictEqual({
+    principal: 'token:ci',
+    display: 'token:ci',
+    label: 'atc-d1',
+  });
+});
+
 test('it stops every forward once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // forward's own stop takes it away.
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
+  let left: boolean | null = null;
+
+  // Runs after the port's own release, which registers later; it records
+  // whether that release left the socket, then removes it.
+  registerTestCleanup(() => {
+    left = existsSync(guestPath);
+
+    rmSync(guestPath, { force: true });
+  });
+
   const port = createStubImpPort();
 
   port.openReverseForward('imp-a', guestPath, () => {});
 
-  // Runs after the port's own release; it removes a socket the stop left
-  // before it checks, so a failing stop leaks nothing.
   onTestFinished(() => {
-    const left = existsSync(guestPath);
-
-    rmSync(guestPath, { force: true });
-
     expect(left).toBeFalse();
   });
 });
@@ -3304,7 +3487,7 @@ test('it stops every forward once the test finishes without a stop', () => {
 test('it stops every forward once stopped', () => {
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     rmSync(guestPath, { force: true });
   });
 

@@ -1,11 +1,14 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { resolveGatewayCommand } from './resolve-gateway-command';
 
 test('it runs the source entry under the running bun without a binary', () => {
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+
   expect(resolveGatewayCommand(undefined)).toStrictEqual([
     process.execPath,
-    join(import.meta.dir, '..', 'gateway.ts'),
+    join(repoRoot, 'src/gateway.ts'),
   ]);
 });
 

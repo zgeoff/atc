@@ -1,11 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { spawn } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupMCPHome } from './setup-mcp-home';
+import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 test('it writes a config that registers the stand-in agents', async () => {
@@ -47,16 +48,34 @@ test('it writes the stand-in claude as an executable', async () => {
 
 test('it stops the daemon its pid file holds before removing the home', async () => {
   const mcpHome = setupMCPHome();
-  const daemon = Bun.spawn(['sleep', '30']);
+  const records = setupTempDir('atc-mcp-home-records-');
+  const seen = join(records.dir, 'seen');
+
+  // A daemon that writes the status of a test for its home when the stop
+  // signals it, 0 while the home exists, and prints a line once it can.
+  const daemon = Bun.spawn(
+    [
+      'bash',
+      '-c',
+      'trap \'test -d "$1"; echo $? > "$2"; kill $!; exit 0\' TERM; echo ready; sleep 30 & wait',
+      'daemon',
+      mcpHome.home,
+      seen,
+    ],
+    { stdout: 'pipe' },
+  );
 
   onTestFinished(() => {
-    daemon.kill();
+    daemon.kill('SIGKILL');
   });
+
+  await daemon.stdout.getReader().read();
 
   writeFileSync(join(mcpHome.home, 'atc-daemon.pid'), String(daemon.pid));
 
   await mcpHome.teardown();
 
+  expect(readFileSync(seen, 'utf8')).toBe('0\n');
   expect(isProcessAlive(daemon.pid)).toBe(false);
   expect(existsSync(mcpHome.home)).toBe(false);
 });

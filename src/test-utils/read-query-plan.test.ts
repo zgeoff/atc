@@ -12,10 +12,15 @@ function setupTest() {
 
   const db = new Database(dbPath);
 
+  const closeDB = registerTestCleanup(() => {
+    db.close();
+  });
+
   // Every test reads a plan over this table and its one index.
   db.run('CREATE TABLE notes (id INTEGER PRIMARY KEY, owner TEXT NOT NULL, body TEXT)');
   db.run('CREATE INDEX notes_owner ON notes (owner)');
-  db.close();
+
+  closeDB();
 
   return { dbPath };
 }

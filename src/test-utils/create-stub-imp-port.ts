@@ -473,7 +473,7 @@ class StubImpPort implements ImpPort {
     }
 
     for (const proc of imp.sessions.values()) {
-      proc.connection?.finish({ kind: 'closed', reason: 'imp destroyed', closeCode: 1000 });
+      proc.connection?.stop({ kind: 'closed', reason: 'imp destroyed', closeCode: 1000 });
       proc.connection = null;
       proc.exited ??= { code: null };
 
@@ -502,7 +502,7 @@ class StubImpPort implements ImpPort {
       sent: 0,
       finished: false,
       process: null,
-      finish: (result) => {
+      stop: (result) => {
         if (connection.finished) {
           return;
         }
@@ -521,7 +521,7 @@ class StubImpPort implements ImpPort {
     // lets it go; a closed gate sends nothing.
     const sendToImpd = () => {
       if (gate !== undefined && !tryPassGate(gate)) {
-        connection.finish({ kind: 'closed', reason: 'closed before sending', closeCode: 1000 });
+        connection.stop({ kind: 'closed', reason: 'closed before sending', closeCode: 1000 });
 
         return;
       }
@@ -546,7 +546,7 @@ class StubImpPort implements ImpPort {
       this.upgradeFailures -= 1;
 
       setTimeout(() => {
-        connection.finish({ kind: 'unreachable', detail: 'the upgrade failed' });
+        connection.stop({ kind: 'unreachable', detail: 'the upgrade failed' });
       }, 0);
     } else if (this.upgrades === null) {
       sendToImpd();
@@ -573,7 +573,7 @@ class StubImpPort implements ImpPort {
         }
       },
       close: () => {
-        connection.finish({ kind: 'closed', reason: 'closed by the client', closeCode: 1000 });
+        connection.stop({ kind: 'closed', reason: 'closed by the client', closeCode: 1000 });
       },
     };
   }
@@ -850,7 +850,7 @@ class StubImpPort implements ImpPort {
   stopConnection(name: string, session: string, closeCode: number): void {
     const proc = this.getImp(name).sessions.get(session);
 
-    proc?.connection?.finish({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
+    proc?.connection?.stop({ kind: 'closed', reason: `code ${closeCode}`, closeCode });
   }
 
   /**
@@ -1279,13 +1279,13 @@ class StubImpPort implements ImpPort {
 
     for (const proc of imp.sessions.values()) {
       tryKill(proc.pty, 'SIGSTOP');
-      proc.connection?.finish({ kind: 'detached', reason: 'lost', offset: proc.end });
+      proc.connection?.stop({ kind: 'detached', reason: 'lost', offset: proc.end });
     }
   }
 
   private bootCold(imp: StubImp, cause: ColdBootCause): void {
     for (const proc of imp.sessions.values()) {
-      proc.connection?.finish({ kind: 'detached', reason: 'lost', offset: proc.end });
+      proc.connection?.stop({ kind: 'detached', reason: 'lost', offset: proc.end });
       proc.ended = true;
 
       tryKill(proc.pty, 'SIGCONT');
@@ -1312,7 +1312,7 @@ class StubImpPort implements ImpPort {
     if (this.drops.count > 0) {
       this.drops.count -= 1;
 
-      connection.finish({
+      connection.stop({
         kind: 'closed',
         reason: `code ${this.drops.closeCode}`,
         closeCode: this.drops.closeCode,
@@ -1326,7 +1326,7 @@ class StubImpPort implements ImpPort {
     if (failure !== null) {
       this.nextFailure = null;
 
-      connection.finish({
+      connection.stop({
         kind: 'failed',
         code: failure.code,
         message: failure.message ?? `impd refused the session (${failure.code})`,
@@ -1339,7 +1339,7 @@ class StubImpPort implements ImpPort {
     const imp = this.imps.get(request.name);
 
     if (imp === undefined) {
-      connection.finish({
+      connection.stop({
         kind: 'failed',
         code: 'NOT_FOUND',
         message: `no imp ${request.name}`,
@@ -1350,7 +1350,7 @@ class StubImpPort implements ImpPort {
     }
 
     if (imp.state !== 'running' && request.kind === 'attach' && !request.wake) {
-      connection.finish({
+      connection.stop({
         kind: 'failed',
         code: 'INVALID_STATE',
         message: `imp ${imp.name} is ${imp.state}`,
@@ -1370,7 +1370,7 @@ class StubImpPort implements ImpPort {
     const brokerProblem = this.findBrokerProblem(imp, request, running);
 
     if (brokerProblem !== null) {
-      connection.finish({
+      connection.stop({
         kind: 'failed',
         code: 'PRECONDITION_FAILED',
         message: `the broker is not ready in imp ${imp.name}`,
@@ -1383,7 +1383,7 @@ class StubImpPort implements ImpPort {
     if (running === undefined && request.kind === 'attach') {
       const previous = imp.previous.get(request.session);
 
-      connection.finish({
+      connection.stop({
         kind: 'failed',
         code: 'NO_SESSION',
         message: `no session ${request.session}`,
@@ -1515,7 +1515,7 @@ class StubImpPort implements ImpPort {
       // delivers it.
       if (connection !== null) {
         imp.sessions.delete(request.session);
-        connection.finish({ kind: 'exit', code: exitCode, signal: null, offset: proc.end });
+        connection.stop({ kind: 'exit', code: exitCode, signal: null, offset: proc.end });
       }
     });
 
@@ -1544,7 +1544,7 @@ class StubImpPort implements ImpPort {
           firstOffset: bufferStart,
         };
       } else if (resumeFrom.offset > proc.end) {
-        connection.finish({
+        connection.stop({
           kind: 'failed',
           code: 'INVALID_RESUME',
           message: 'the resume offset is past the end',
@@ -1567,7 +1567,7 @@ class StubImpPort implements ImpPort {
       prelude = PRELUDE;
     }
 
-    proc.connection?.finish({
+    proc.connection?.stop({
       kind: 'detached',
       reason: 'taken_over',
       offset: proc.connection.sent,
@@ -1620,8 +1620,13 @@ class StubImpPort implements ImpPort {
     }
 
     if (proc.exited !== null) {
-      imp.sessions.delete(findSessionName(imp, proc));
-      connection.finish({ kind: 'exit', code: proc.exited.code, signal: null, offset: proc.end });
+      const name = findSessionName(imp, proc);
+
+      if (name !== undefined) {
+        imp.sessions.delete(name);
+      }
+
+      connection.stop({ kind: 'exit', code: proc.exited.code, signal: null, offset: proc.end });
 
       return;
     }
@@ -1698,7 +1703,7 @@ interface StubConnection {
   sent: number;
   finished: boolean;
   process: StubProcess | null;
-  readonly finish: (outcome: ImpSessionOutcome) => void;
+  readonly stop: (outcome: ImpSessionOutcome) => void;
 }
 
 interface StubRelay {
@@ -1738,7 +1743,7 @@ function tryEmit(connection: StubConnection, emit: () => void): boolean {
 
     return true;
   } catch (error) {
-    connection.finish({
+    connection.stop({
       kind: 'local_error',
       detail: error instanceof Error ? error.message : String(error),
     });
@@ -1747,14 +1752,14 @@ function tryEmit(connection: StubConnection, emit: () => void): boolean {
   }
 }
 
-function findSessionName(imp: StubImp, proc: StubProcess): string {
+function findSessionName(imp: StubImp, proc: StubProcess): string | undefined {
   for (const [name, held] of imp.sessions) {
     if (held === proc) {
       return name;
     }
   }
 
-  return '';
+  return undefined;
 }
 
 function toSignal(name: string): NodeJS.Signals {

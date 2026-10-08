@@ -114,3 +114,31 @@ test('releases', () => {
   expect(result.stderr.toString()).toInclude('error: fourth release failed');
   expect(result.stderr.toString()).toInclude('error: second release failed');
 });
+
+test('it rethrows the one failure itself when a single release throws', () => {
+  const tmp = setupTempDir('atc-register-test-cleanup-');
+  const log = join(tmp.dir, 'releases.log');
+  const fixture = join(tmp.dir, 'releases.test.ts');
+
+  writeFileSync(
+    fixture,
+    `import { test } from 'bun:test';
+import { appendFileSync } from 'node:fs';
+import { registerTestCleanup } from ${JSON.stringify(join(import.meta.dir, 'register-test-cleanup.ts'))};
+
+test('releases', () => {
+  registerTestCleanup(() => appendFileSync(${JSON.stringify(log)}, 'first\\n'));
+  registerTestCleanup(() => {
+    throw new Error('second release failed');
+  });
+});
+`,
+  );
+
+  const result = Bun.spawnSync([process.execPath, 'test', fixture], { cwd: tmp.dir });
+
+  expect(result.exitCode).toBe(1);
+  expect(readFileSync(log, 'utf8')).toBe('first\n');
+  expect(result.stderr.toString()).toInclude('error: second release failed');
+  expect(result.stderr.toString()).not.toInclude('more than one test cleanup failed');
+});

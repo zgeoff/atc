@@ -1,5 +1,4 @@
 import { expect, mock, test } from 'bun:test';
-import { buildTargetIdentity } from '../daemon/build-target-identity';
 import type { ExecutionProvider } from '../daemon/execution-provider';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 import { buildTargetOptionsFromConfig } from './build-target-options-from-config';
@@ -23,14 +22,14 @@ test('it gives each parsed target the provider its kind builds for its id', () =
         id: 'local',
         kind: 'local-pty',
         options: {},
-        identity: buildTargetIdentity('local-pty', {}),
+        identity: 'local-pty:44136fa355b3678a',
         provider: local,
       },
       {
         id: 'box',
         kind: 'local-pty',
         options: {},
-        identity: buildTargetIdentity('local-pty', {}),
+        identity: 'local-pty:44136fa355b3678a',
         provider: box,
       },
     ],
@@ -58,14 +57,14 @@ test('it leaves a target whose kind no factory serves without a provider', () =>
         id: 'local',
         kind: 'local-pty',
         options: {},
-        identity: buildTargetIdentity('local-pty', {}),
+        identity: 'local-pty:44136fa355b3678a',
         provider: null,
       },
       {
         id: 'box',
         kind: 'imp',
         options: {},
-        identity: buildTargetIdentity('imp', {}),
+        identity: 'imp:44136fa355b3678a',
         provider: null,
       },
     ],

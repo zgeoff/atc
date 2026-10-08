@@ -38,8 +38,8 @@ interface TUIHarnessOptions {
  * transports the fixture repositories need, with the fields given laid over
  * them. `env` is the environment the client runs with, so a daemon started
  * with it serves the client. A wait made before the client draws anything
- * gets `bootMs` for that first byte. `stop` stops the client and the
- * daemon in the home and removes it. That stop runs once the current test
+ * gets `bootMs` for that first byte. `stop` kills every client a boot
+ * started, stops the daemon in the home, and removes the home. That stop runs once the current test
  * finishes, so it must run inside a test; calling `stop` sooner runs it
  * then, and a second stop does nothing.
  */
@@ -127,6 +127,12 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
         // that takes the first entry lands in the home.
         cwd: home,
         env,
+      });
+
+      // Every client a boot starts is killed before the daemon stops, so a
+      // client a later boot replaced never outlives the test.
+      owned.defer(() => {
+        booted.kill();
       });
 
       const exit = Promise.withResolvers<number>();

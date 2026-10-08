@@ -1,8 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isProcessAlive } from '../shared/is-process-alive';
 import { KEYS } from './keys';
 import { startTUIHarness } from './start-tui-harness';
+import { waitFor } from './wait-for';
 
 // A harness whose client has booted and drawn its home screen.
 async function setupTest() {
@@ -23,6 +25,63 @@ test('it boots the client in its home, where the client starts its daemon', asyn
   await tui.waitFor('atc — control tower');
 
   expect(readFileSync(join(tui.home, 'atc-daemon.pid'), 'utf8')).toMatch(/^\d+$/u);
+});
+
+test('it captures a later client that a second boot starts on the same home', async () => {
+  const tui = startTUIHarness();
+  const first = tui.boot();
+
+  await tui.waitFor('atc — control tower');
+
+  tui.reset();
+
+  const second = tui.boot();
+
+  await tui.waitFor('atc — control tower');
+
+  expect(second.pid).not.toBe(first.pid);
+  expect(tui.read()).toInclude('atc — control tower');
+});
+
+test('it stops capturing a client that a second boot replaced', async () => {
+  const tui = startTUIHarness();
+  const first = tui.boot();
+  const firstOutput: string[] = [];
+
+  first.onData((data) => {
+    firstOutput.push(data);
+  });
+
+  await tui.waitFor('atc — control tower');
+
+  tui.boot();
+
+  await tui.waitFor('atc — control tower');
+
+  tui.reset();
+  first.write('n');
+
+  await waitFor(() => {
+    expect(firstOutput.join('')).toInclude('spawn: agent');
+  });
+
+  expect(tui.read()).not.toInclude('spawn: agent');
+});
+
+test('it kills a client a later boot replaced on stop', async () => {
+  const tui = startTUIHarness();
+  const first = tui.boot();
+
+  await tui.waitFor('atc — control tower');
+
+  tui.boot();
+
+  await tui.waitFor('atc — control tower');
+  await tui.stop();
+
+  await waitFor(() => {
+    expect(isProcessAlive(first.pid)).toBeFalse();
+  });
 });
 
 test('it rejects a wait for text the client never draws with the tail of the capture', async () => {

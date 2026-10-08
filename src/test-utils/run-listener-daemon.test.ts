@@ -7,9 +7,8 @@ import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
 // The listener daemon running on state in a temp directory, with what it
-// printed once it listened, everything it writes to stderr, and a client
-// connected to its daemon socket that has sent nothing. Cleanup closes the
-// client, kills the daemon, then removes the directory.
+// printed once it listened and everything it writes to stderr. Cleanup kills
+// the daemon, then removes the directory.
 async function setupTest() {
   const tmp = setupTempDir('atc-run-listener-');
 
@@ -40,13 +39,7 @@ async function setupTest() {
 
   const printed = new TextDecoder().decode(read.value);
 
-  const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
-
-  registerTestCleanup(() => {
-    client.stop();
-  });
-
-  return { proc, printed, stderr, client };
+  return { proc, printed, stderr, dir: tmp.dir };
 }
 
 test('it prints the loopback port its TCP listener bound', async () => {
@@ -66,7 +59,13 @@ test('it prints the loopback port its TCP listener bound', async () => {
 
 test('it answers a hello on the daemon socket in its test directory', async () => {
   const ctx = await setupTest();
-  const hello = await ctx.client.sendHello('atc/test-build');
+  const client = await DaemonClient.open(join(ctx.dir, 'daemon.sock'));
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  const hello = await client.sendHello('atc/test-build');
 
   expect(hello).toStrictEqual({
     daemon: 'atc/test-build',

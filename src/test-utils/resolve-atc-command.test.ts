@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import invariant from 'tiny-invariant';
 import { resolveATCCommand } from './resolve-atc-command';
 import { updateEnv } from './update-env';
 
 test('it runs the source entry under the test bun when no binary is set', () => {
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+
   updateEnv('ATC_BIN', undefined);
 
-  expect(resolveATCCommand()).toStrictEqual([
-    process.execPath,
-    join(import.meta.dir, '..', 'cli.ts'),
-  ]);
+  expect(resolveATCCommand()).toStrictEqual([process.execPath, join(repoRoot, 'src/cli.ts')]);
 });
 
 test('it runs the compiled binary the environment points at', () => {
