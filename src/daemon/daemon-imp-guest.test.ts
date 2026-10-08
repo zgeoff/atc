@@ -16,31 +16,20 @@ import { ImpProvider } from './imp-provider';
 // The fixed parts every imp guest test shares: the stub guest tools and the
 // guest folder under a temp directory, and a stub imp port.
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-imp-guest-'));
+  const tmp = setupTempDir('atc-imp-guest-');
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
-  const port = stack.use(createStubImpPort());
-  const owned = stack.move();
+  const port = createStubImpPort();
 
-  return {
-    port,
-    guestDir: join(tmp.dir, 'g'),
-    clis,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { port, guestDir: join(tmp.dir, 'g'), clis };
 }
 
 test('it refuses a remote Claude spawn when the host has no atc and the daemon has none to copy', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
@@ -79,13 +68,12 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
 });
 
 test('it gives a remote Claude session settings, a statusline, and a mod that report through the atc in its host', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
@@ -143,13 +131,12 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
 });
 
 test("it takes a remote session's hook reports from a socket that serves that session alone", async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
@@ -208,13 +195,12 @@ test("it takes a remote session's hook reports from a socket that serves that se
 });
 
 test('it keeps a nested harness inside a remote session from rebinding that session', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
@@ -274,13 +260,12 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
 });
 
 test('it copies its own atc binary into an imp that has none', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
@@ -313,11 +298,11 @@ test('it copies its own atc binary into an imp that has none', async () => {
 });
 
 test('it refuses a remote spawn whose agent is not signed in on the host, before any harness starts', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -359,11 +344,11 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
 });
 
 test('it destroys the host of its own that a remote spawn readied when its agent is not signed in there', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -402,23 +387,20 @@ test('it destroys the host of its own that a remote spawn readied when its agent
 
   expect(spawned).rejects.toMatchObject({ code: 'auth_not_configured' });
 
-  expect<Record<string, unknown>>({
-    created: ctx.port.calls.filter((call) => call.startsWith('imps.create')),
-    imps: ctx.port.collectImpNames(),
-    listed,
-  }).toStrictEqual({
-    created: [expect.toStartWith('imps.create ')],
-    imps: [],
-    listed: { sessions: [] },
-  });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toStartWith('imps.create '),
+  ]);
+
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it answers outcome_unknown for a spawn whose agent is not signed in on a host it cannot destroy', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -458,11 +440,11 @@ test('it answers outcome_unknown for a spawn whose agent is not signed in on a h
 });
 
 test('it keeps the key of a spawn whose agent is not signed in on a host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -499,23 +481,20 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
-  expect<Record<string, unknown>>({
-    created: ctx.port.calls.filter((call) => call.startsWith('imps.create')),
-    imps: ctx.port.collectImpNames(),
-  }).toStrictEqual({
-    created: [expect.toStartWith('imps.create ')],
-    imps: [expect.toStartWith('atc-')],
-  });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.create'))).toStrictEqual([
+    expect.toStartWith('imps.create '),
+  ]);
+
+  expect(ctx.port.collectImpNames()).toStrictEqual([expect.toStartWith('atc-')]);
 });
 
 test('it revives a slept remote session whose transcript only its imp holds', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
@@ -567,13 +546,12 @@ test('it revives a slept remote session whose transcript only its imp holds', as
 });
 
 test('it refuses a remote Claude spawn when the atc the target names is missing from the host', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const config = parseConfig({ claudeBin: ctx.clis.claude });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
@@ -614,11 +592,11 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
 });
 
 test('it refuses a remote spawn of an agent that never runs remotely, without blaming a missing atc', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter({

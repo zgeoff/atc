@@ -14,6 +14,7 @@ import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubClock } from '../test-utils/build-stub-clock';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
 import { startStubTap } from '../test-utils/start-stub-tap';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -26,7 +27,7 @@ test('it accepts a message for a session that has not reported SessionStart', as
     authProfiles: new Map(),
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
@@ -53,7 +54,7 @@ test('it queues a message to a started session within the start-up grace window'
     authProfiles: new Map(),
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
@@ -92,7 +93,7 @@ test('it refuses a message once the grace window passes with no tap ever attache
     authProfiles: new Map(),
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
@@ -129,7 +130,7 @@ test('it accepts a message to a started session once a tap is connected', async 
     authProfiles: new Map(),
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
@@ -163,7 +164,7 @@ test('it accepts a message to a started session once a tap is connected', async 
 });
 
 test('it refuses a message to a session whose agent cannot take messages', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const adapter = buildMockAgentAdapter({ takesMessages: true });
 
@@ -188,7 +189,7 @@ test('it refuses a message to a session whose agent cannot take messages', async
 });
 
 test('it answers a message for an unknown session with no_such_session', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -200,7 +201,7 @@ test('it answers a message for an unknown session with no_such_session', async (
 });
 
 test('it answers a message for a killed session with session_dead', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -216,7 +217,7 @@ test('it answers a message for a killed session with session_dead', async () => 
 });
 
 test('it rejects a message without text as bad_args', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -230,14 +231,18 @@ test('it rejects a message without text as bad_args', async () => {
 });
 
 test('it lists a session the fleet restore has not reached yet as waiting to restore', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      const stopSeed = registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), name: 'b', cwd: paths.dir }),
       ]);
+
+      await stopSeed();
 
       return { adapter: buildMockAgentAdapter({ takesMessages: true }) };
     },
@@ -255,14 +260,18 @@ test('it lists a session the fleet restore has not reached yet as waiting to res
 });
 
 test('it queues a message for a session waiting to restore', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      const stopSeed = registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
       ]);
+
+      await stopSeed();
 
       return { adapter: buildMockAgentAdapter({ takesMessages: true }) };
     },
@@ -279,7 +288,7 @@ test('it queues a message for a session waiting to restore', async () => {
 });
 
 test('it drains pending messages to a tap in the order they were sent', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -342,7 +351,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
 });
 
 test('it streams a message accepted while the tap is connected', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -382,7 +391,7 @@ test('it streams a message accepted while the tap is connected', async () => {
 });
 
 test('it drains two hundred pending messages to a tap with zero loss', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -410,7 +419,7 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
 });
 
 test('it drains a backlog larger than the outbound queue without dropping the tap', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), queueBytes: 4096 }),
   });
 
@@ -436,7 +445,7 @@ test('it drains a backlog larger than the outbound queue without dropping the ta
 });
 
 test('it refuses a tap on a session whose agent cannot take messages', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const adapter = buildMockAgentAdapter({ takesMessages: true });
 
@@ -458,7 +467,7 @@ test('it refuses a tap on a session whose agent cannot take messages', async () 
 });
 
 test('it refuses a tap on an unknown session', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -472,7 +481,7 @@ test('it refuses a tap on an unknown session', async () => {
 });
 
 test('it moves an acked message to delivered', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -498,7 +507,7 @@ test('it moves an acked message to delivered', async () => {
 });
 
 test('it broadcasts SessionMessage for an acked message', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -532,7 +541,7 @@ test('it broadcasts SessionMessage for an acked message', async () => {
 });
 
 test('it refuses an ack from a connection that is not the session tap', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -557,7 +566,7 @@ test('it refuses an ack from a connection that is not the session tap', async ()
 });
 
 test('it answers a repeat ack with the current status', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -583,7 +592,7 @@ test('it answers a repeat ack with the current status', async () => {
 });
 
 test('it broadcasts delivered once for a repeat ack', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -623,7 +632,7 @@ test('it broadcasts delivered once for a repeat ack', async () => {
 });
 
 test('it rejects an ack of an unknown message as bad_args', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -640,7 +649,7 @@ test('it rejects an ack of an unknown message as bad_args', async () => {
 });
 
 test('it moves a message to answered from a Report line on the reporter socket', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -679,7 +688,7 @@ test('it moves a message to answered from a Report line on the reporter socket',
 test('it ignores an answered report from another session', async () => {
   const ignored: [string, string][] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       onReportIgnored: (sessionID, kind) => {
@@ -721,7 +730,7 @@ test('it keeps queueing messages after the tap connection drops', async () => {
     authProfiles: new Map(),
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
@@ -763,7 +772,7 @@ test('it keeps queueing messages after the tap connection drops', async () => {
 });
 
 test('it refuses a message to a session whose process died even after a tap attached', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), tapGraceMs: 0 }),
   });
 
@@ -779,14 +788,13 @@ test('it refuses a message to a session whose process died even after a tap atta
 });
 
 test('it broadcasts SessionMessage on the events socket', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
   });
 
-  await using subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
-
+  const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
   const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
   const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
@@ -816,7 +824,7 @@ test('it broadcasts SessionMessage on the events socket', async () => {
 });
 
 test('it runs SessionMessage hooks with the event on stdin', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       hooks: {
@@ -855,7 +863,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
 });
 
 test('it broadcasts a note from the reporter socket as SessionReport', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -884,7 +892,7 @@ test('it broadcasts a note from the reporter socket as SessionReport', async () 
 test('it ignores a note from an unknown session', async () => {
   const ignored: [string, string][] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       onReportIgnored: (sessionID, kind) => {
@@ -909,14 +917,13 @@ test('it ignores a note from an unknown session', async () => {
 });
 
 test('it broadcasts SessionReport on the events socket', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
   });
 
-  await using subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
-
+  const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
   const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
   await daemon.sendHookLines({
@@ -949,7 +956,7 @@ test('it broadcasts SessionReport on the events socket', async () => {
 });
 
 test('it runs SessionReport hooks with the event on stdin', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       hooks: {
@@ -991,7 +998,7 @@ test('it runs SessionReport hooks with the event on stdin', async () => {
 });
 
 test('it keeps InboxMessage off every connection but the tap', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1005,8 +1012,7 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
     tapEvents.push(event);
   };
 
-  await using subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
-
+  const subscriber = await subscribeToSocketLines(daemon.eventsSocketPath);
   const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
 
   await tap.sendRequest('session.tap', { session: id });
@@ -1019,17 +1025,12 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
 
   await daemon.client.sendRequest('daemon.ping');
 
-  expect<Record<string, unknown>>({
-    client: daemon.events.map((e) => e.ev),
-    socket: subscriber.lines.join('\n'),
-  }).toStrictEqual({
-    client: expect.not.arrayContaining(['InboxMessage']),
-    socket: expect.not.stringContaining('InboxMessage'),
-  });
+  expect(daemon.events.map((e) => e.ev)).not.toContain('InboxMessage');
+  expect(subscriber.lines.join('\n')).not.toInclude('InboxMessage');
 });
 
 test('it delivers pending messages to a new tap before a message accepted at the same time', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1062,7 +1063,7 @@ test('it delivers pending messages to a new tap before a message accepted at the
 });
 
 test('it orders concurrently accepted messages by their sent time', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1092,7 +1093,7 @@ test('it orders concurrently accepted messages by their sent time', async () => 
 });
 
 test('it reads an accepted message back through message.get', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1123,7 +1124,7 @@ test('it reads an accepted message back through message.get', async () => {
 });
 
 test('it reads a delivered message back through message.get', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1159,7 +1160,7 @@ test('it reads a delivered message back through message.get', async () => {
 });
 
 test('it reads an answered message back through message.get', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1205,7 +1206,7 @@ test('it reads an answered message back through message.get', async () => {
 });
 
 test('it returns the full text and answer through message.get while the event carries previews', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1238,7 +1239,7 @@ test('it returns the full text and answer through message.get while the event ca
 });
 
 test('it caps a stored answer at the byte limit without splitting a character', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1272,7 +1273,7 @@ test('it caps a stored answer at the byte limit without splitting a character', 
 });
 
 test('it gives two messages one turn answered the same turn and lists each beside the other', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1329,7 +1330,7 @@ test('it gives two messages one turn answered the same turn and lists each besid
 });
 
 test("it wakes a held read of one turn's message with the whole group already answered", async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1382,7 +1383,7 @@ test("it wakes a held read of one turn's message with the whole group already an
 });
 
 test('it lists no other messages for a message its own turn answered', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1432,7 +1433,7 @@ test('it lists no other messages for a message its own turn answered', async () 
 });
 
 test('it stores no turn for an answer reported without one', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1484,7 +1485,7 @@ test('it stores no turn for an answer reported without one', async () => {
 test('it holds message.get open until the message status changes', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
@@ -1524,7 +1525,7 @@ test('it holds message.get open until the message status changes', async () => {
 test('it answers a held message.get with the unchanged status once the wait ends', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
@@ -1559,7 +1560,7 @@ test('it answers a held message.get with the unchanged status once the wait ends
 test('it answers message.get for an answered message at once whatever the wait', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
@@ -1599,7 +1600,7 @@ test('it answers message.get for an answered message at once whatever the wait',
 });
 
 test('it rejects message.get for an unknown message as bad_args', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1611,7 +1612,7 @@ test('it rejects message.get for an unknown message as bad_args', async () => {
 });
 
 test('it rejects message.get without a message as bad_args', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1623,7 +1624,7 @@ test('it rejects message.get without a message as bad_args', async () => {
 });
 
 test('it ends the earlier tap subscription when a second tap attaches', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1651,7 +1652,7 @@ test('it ends the earlier tap subscription when a second tap attaches', async ()
 });
 
 test('it keeps the tap subscription when the same connection taps again', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1678,7 +1679,7 @@ test('it keeps the tap subscription when the same connection taps again', async 
 });
 
 test('it ends the tap subscription when its session is removed', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1708,7 +1709,7 @@ test('it ends the tap subscription when its session is removed', async () => {
 });
 
 test('it records each message status change in events.read in order', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1776,7 +1777,7 @@ test('it records each message status change in events.read in order', async () =
 });
 
 test('it records a repeated ack in the trail once', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1821,7 +1822,7 @@ test('it records a repeated ack in the trail once', async () => {
 test('it wakes a waiting events.read when a message is accepted', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
@@ -1855,7 +1856,7 @@ test('it wakes a waiting events.read when a message is accepted', async () => {
 });
 
 test("it limits events.read to one session's events", async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1887,7 +1888,7 @@ test("it limits events.read to one session's events", async () => {
 });
 
 test("it wakes a held events.read only for the filtered session's event", async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1926,7 +1927,7 @@ test("it wakes a held events.read only for the filtered session's event", async 
 });
 
 test('it marks an events.read page that stopped before the end of the trail', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -1971,7 +1972,7 @@ test('it marks an events.read page that stopped before the end of the trail', as
 });
 
 test('it marks the events.read page that reaches the end of the trail as the last', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -2013,7 +2014,7 @@ test('it marks the events.read page that reaches the end of the trail as the las
 });
 
 test('it records a note in events.read with its label', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -2053,7 +2054,7 @@ test('it records a note in events.read with its label', async () => {
 });
 
 test("it returns a report's whole text by the cursor of its event", async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -2077,22 +2078,21 @@ test("it returns a report's whole text by the cursor of its event", async () => 
 
   const report = await daemon.client.sendRequest('report.get', { report: event['cursor'] });
 
-  expect({ preview: event['detail'], report }).toStrictEqual({
-    preview: `${'y'.repeat(599)}…`,
-    report: {
-      report: event['cursor'],
-      at: event['at'],
-      session: id,
-      name: 'one',
-      label: 'decision',
-      text: 'y'.repeat(700),
-      complete: true,
-    },
+  expect(event['detail']).toBe(`${'y'.repeat(599)}…`);
+
+  expect(report).toStrictEqual({
+    report: event['cursor'],
+    at: event['at'],
+    session: id,
+    name: 'one',
+    label: 'decision',
+    text: 'y'.repeat(700),
+    complete: true,
   });
 });
 
 test("it returns a report's text cut at 64 KiB", async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -2116,14 +2116,12 @@ test("it returns a report's text cut at 64 KiB", async () => {
 
   const report = await daemon.client.sendRequest('report.get', { report: event['cursor'] });
 
-  expect({ preview: event['detail'], text: report['text'] }).toStrictEqual({
-    preview: `${'z'.repeat(599)}…`,
-    text: `${'z'.repeat(65_533)}…`,
-  });
+  expect(event['detail']).toBe(`${'z'.repeat(599)}…`);
+  expect(report['text']).toBe(`${'z'.repeat(65_533)}…`);
 });
 
 test('it refuses a cursor at no trail row as an unknown report', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -2143,7 +2141,7 @@ test('it refuses the cursor of an event that is not a report as an unknown repor
     authProfiles: new Map(),
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
@@ -2175,7 +2173,7 @@ test('it refuses the cursor of an event that is not a report as an unknown repor
 });
 
 test('it leaves a note from an unknown session out of the trail', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
     }),
@@ -2226,7 +2224,7 @@ test("it counts a note toward the session's last activity time", async () => {
   // makes the note the session's latest activity.
   const clock = buildStubClock(Date.parse('2100-01-01T00:00:00Z'));
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
   });
 
@@ -2259,7 +2257,7 @@ test('it gates a revived session on its own tap, not the tap its previous proces
     args: ['-n', '1'],
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
@@ -2326,7 +2324,7 @@ test('it queues a message to a revived session before it reports SessionStart ag
     args: ['-n', '1'],
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,

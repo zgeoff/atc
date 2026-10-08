@@ -16,17 +16,12 @@ import { LocalPTYProvider } from './local-pty-provider';
 /**
  * What a local clone launch needs before its daemon starts: a git fixture
  * whose upstream a spawn clones, a user home of its own for the Claude
- * config, a stock Claude adapter whose CLI is a script that appends its
- * arguments to its `starts` log and then sleeps, and a gateway adapter named
- * `plain`. Each test starts its own daemon with the adapters and the target
- * options it needs.
+ * config, and a Claude CLI script that appends its arguments to its
+ * `starts` log and then sleeps. Each test starts its own daemon with the
+ * adapters and the target options it needs.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const git = await createGitFixture({ prefix: 'atc-local-workspace-trust-' });
-
-  stack.use(git);
 
   const homeDir = join(git.dir, 'home');
   const fakeClaude = createStubRecordingClaude(join(git.dir, 'bin'));
@@ -34,33 +29,33 @@ async function setupTest() {
   // The adapter reads and writes the user's Claude config under this home.
   mkdirSync(homeDir);
 
-  const config = parseConfig({
-    claudeBin: fakeClaude,
-    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
-  });
-
-  const owned = stack.move();
-
   return {
     dir: git.dir,
     upstream: git.upstream,
     work: git.work,
+    homeDir,
+    fakeClaude,
     starts: join(git.dir, 'bin', 'claude-starts.log'),
     claudeConfig: join(homeDir, '.claude.json'),
-    adapters: [
-      new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, { homeDir }),
-      new GatewayAdapter(getGatewayConfig(config, 'plain'), config),
-    ],
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it trusts only the resolved clone root in the user config after an opted-in local launch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -112,28 +107,36 @@ test('it trusts only the resolved clone root in the user config after an opted-i
 
   const config: unknown = JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'));
 
-  expect({
-    config,
-    readme: readFileSync(join(parent, 'clone', 'README.md'), 'utf8'),
-  }).toStrictEqual({
-    config: {
-      numStartups: 4,
-      projects: {
-        '/home/me/projects': { hasTrustDialogAccepted: true, allowedTools: [] },
-        '/home/me/scratch': { hasTrustDialogAccepted: false },
-        [join(parent, 'clone')]: { hasTrustDialogAccepted: true },
-      },
+  expect(config).toStrictEqual({
+    numStartups: 4,
+    projects: {
+      '/home/me/projects': { hasTrustDialogAccepted: true, allowedTools: [] },
+      '/home/me/scratch': { hasTrustDialogAccepted: false },
+      [join(parent, 'clone')]: { hasTrustDialogAccepted: true },
     },
-    readme: readFileSync(join(ctx.work, 'README.md'), 'utf8'),
   });
+
+  expect(readFileSync(join(parent, 'clone', 'README.md'), 'utf8')).toBe(
+    readFileSync(join(ctx.work, 'README.md'), 'utf8'),
+  );
 });
 
 test('it leaves the user config byte for byte after a local clone launch with no opt-in', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -170,11 +173,21 @@ test('it leaves the user config byte for byte after a local clone launch with no
 });
 
 test('it leaves the user config byte for byte after a local clone launch that opts out', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -212,11 +225,21 @@ test('it leaves the user config byte for byte after a local clone launch that op
 });
 
 test('it trusts a local clone when the target defaults trust on', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -250,11 +273,21 @@ test('it trusts a local clone when the target defaults trust on', async () => {
 });
 
 test('it refuses local trust for an existing folder', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -283,11 +316,21 @@ test('it refuses local trust for an existing folder', async () => {
 });
 
 test('it leaves the user config and starts nothing when it refuses local trust for an existing folder', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -314,18 +357,26 @@ test('it leaves the user config and starts nothing when it refuses local trust f
     }),
   ]);
 
-  expect({
-    config: readFileSync(ctx.claudeConfig, 'utf8'),
-    started: existsSync(ctx.starts),
-  }).toStrictEqual({ config: '{"projects":{}}', started: false });
+  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe('{"projects":{}}');
+  expect(existsSync(ctx.starts)).toBe(false);
 });
 
 test('it refuses a local launch whose harness fails to start after the trust write', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -361,13 +412,23 @@ test('it refuses a local launch whose harness fails to start after the trust wri
 });
 
 test('it takes the local trust back and removes the clone when the harness fails to start', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
 
   const atSpawn: unknown[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -405,30 +466,35 @@ test('it takes the local trust back and removes the clone when the harness fails
     }),
   ]);
 
-  expect({
-    atSpawn,
-    config: readFileSync(ctx.claudeConfig, 'utf8'),
-    cloned: existsSync(join(ctx.dir, 'clone')),
-  }).toStrictEqual({
-    atSpawn: [
-      {
-        projects: {
-          '/home/me': { hasTrustDialogAccepted: true },
-          [join(ctx.dir, 'clone')]: { hasTrustDialogAccepted: true },
-        },
+  expect(atSpawn).toStrictEqual([
+    {
+      projects: {
+        '/home/me': { hasTrustDialogAccepted: true },
+        [join(ctx.dir, 'clone')]: { hasTrustDialogAccepted: true },
       },
-    ],
-    config: original,
-    cloned: false,
-  });
+    },
+  ]);
+
+  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(original);
+  expect(existsSync(join(ctx.dir, 'clone'))).toBe(false);
 });
 
 test('it refuses a local launch whose trust write fails', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -457,11 +523,21 @@ test('it refuses a local launch whose trust write fails', async () => {
 });
 
 test('it removes the clone, keeps the user config, and starts nothing when the trust write fails', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -488,19 +564,27 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
     }),
   ]);
 
-  expect({
-    config: readFileSync(ctx.claudeConfig, 'utf8'),
-    cloned: existsSync(join(ctx.dir, 'clone')),
-    started: existsSync(ctx.starts),
-  }).toStrictEqual({ config: '{"projects":', cloned: false, started: false });
+  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe('{"projects":');
+  expect(existsSync(join(ctx.dir, 'clone'))).toBe(false);
+  expect(existsSync(ctx.starts)).toBe(false);
 });
 
 test('it refuses local trust for a gateway', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -533,11 +617,21 @@ test('it refuses local trust for a gateway', async () => {
 });
 
 test('it refuses local trust for a gateway before cloning or touching the user config', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const atcConfig = parseConfig({
+    claudeBin: ctx.fakeClaude,
+    gateways: { plain: { baseURL: 'https://gateway.example.com' } },
+  });
+
+  const daemon = await startTestDaemon({
     options: () => ({
-      adapters: ctx.adapters,
+      adapters: [
+        new ClaudeAdapter(getAgentEntry(atcConfig, 'claude'), atcConfig, null, undefined, {
+          homeDir: ctx.homeDir,
+        }),
+        new GatewayAdapter(getGatewayConfig(atcConfig, 'plain'), atcConfig),
+      ],
       gitTransports: ['file'],
       targets: [
         {
@@ -564,9 +658,7 @@ test('it refuses local trust for a gateway before cloning or touching the user c
     }),
   ]);
 
-  expect({
-    config: readFileSync(ctx.claudeConfig, 'utf8'),
-    cloned: existsSync(join(ctx.dir, 'clone')),
-    started: existsSync(ctx.starts),
-  }).toStrictEqual({ config: '{"projects":{}}', cloned: false, started: false });
+  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe('{"projects":{}}');
+  expect(existsSync(join(ctx.dir, 'clone'))).toBe(false);
+  expect(existsSync(ctx.starts)).toBe(false);
 });

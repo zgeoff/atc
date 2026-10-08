@@ -9,6 +9,7 @@ import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { createStubEchoClaude } from '../test-utils/create-stub-echo-claude';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
@@ -17,9 +18,7 @@ import { ImpProvider } from './imp-provider';
 // A real daemon whose one target `box` runs on the imp provider over a
 // stub imp port, with the daemon id its lease labels carry.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-imp-',
@@ -49,31 +48,19 @@ async function setupTest() {
     },
   });
 
-  stack.use(daemon);
-
-  const probe = await DaemonClient.open(daemon.socketPath);
-
-  stack.defer(() => {
-    probe.stop();
-  });
-
-  const hello = await probe.sendHello(daemon.build);
-
-  const owned = stack.move();
-
   return {
     client: daemon.client,
     events: daemon.events,
     dir: daemon.dir,
     dbPath: daemon.dbPath,
+    socketPath: daemon.socketPath,
+    build: daemon.build,
     port,
-    daemonID: String(hello['daemonID']),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it starts each top-level session in an imp of its own', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
@@ -82,7 +69,7 @@ test('it starts each top-level session in an imp of its own', async () => {
 });
 
 test("it runs a sub-session in its parent's imp", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -107,7 +94,14 @@ test("it runs a sub-session in its parent's imp", async () => {
 });
 
 test('it releases its own lease before it puts the imp of a killed session to sleep', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+  const probe = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    probe.stop();
+  });
+
+  const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -123,8 +117,8 @@ test('it releases its own lease before it puts the imp of a killed session to sl
   expect(
     ctx.port.calls.filter((call) => call.startsWith('leases.') || call.startsWith('imps.sleep')),
   ).toStrictEqual([
-    `leases.acquire ${imp} atc-${ctx.daemonID}`,
-    `leases.release ${imp} atc-${ctx.daemonID}`,
+    `leases.acquire ${imp} atc-${String(hello['daemonID'])}`,
+    `leases.release ${imp} atc-${String(hello['daemonID'])}`,
     `imps.sleep ${imp}`,
   ]);
 
@@ -143,7 +137,14 @@ test('it releases its own lease before it puts the imp of a killed session to sl
 });
 
 test('it keeps a session running and takes its lease back when another owner leases the imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+  const probe = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    probe.stop();
+  });
+
+  const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -164,9 +165,9 @@ test('it keeps a session running and takes its lease back when another owner lea
   });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('leases.'))).toStrictEqual([
-    `leases.acquire ${imp} atc-${ctx.daemonID}`,
-    `leases.release ${imp} atc-${ctx.daemonID}`,
-    `leases.acquire ${imp} atc-${ctx.daemonID}`,
+    `leases.acquire ${imp} atc-${String(hello['daemonID'])}`,
+    `leases.release ${imp} atc-${String(hello['daemonID'])}`,
+    `leases.acquire ${imp} atc-${String(hello['daemonID'])}`,
   ]);
 
   expect(ctx.port.findState(String(imp))).toBe('running');
@@ -177,7 +178,7 @@ test('it keeps a session running and takes its lease back when another owner lea
 });
 
 test('it keeps the imp of a session when a forget carries no confirm token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -194,7 +195,7 @@ test('it keeps the imp of a session when a forget carries no confirm token', asy
 });
 
 test('it destroys the imp of a session once a forget carries its confirm token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -217,7 +218,7 @@ test('it destroys the imp of a session once a forget carries its confirm token',
 });
 
 test('it starts a remote harness with only the variables atc sets, never the daemon environment', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   updateEnv('ATC_TEST_DAEMON_CANARY', 'daemon-only');
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'fixture-not-a-secret');
@@ -244,8 +245,10 @@ test('it starts a remote harness with only the variables atc sets, never the dae
 });
 
 test('it revives a remote harness with only the variables atc sets, never the daemon environment', async () => {
-  await using ctx = await setupTest();
-  await using store = await StateStore.open(ctx.dbPath);
+  const ctx = await setupTest();
+  const store = await StateStore.open(ctx.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await store.writeFleet([
     buildMockFleetEntry({
@@ -281,7 +284,7 @@ test('it revives a remote harness with only the variables atc sets, never the da
 });
 
 test('it revives a slept session inside the same process by waking its imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -333,7 +336,14 @@ test('it revives a slept session inside the same process by waking its imp', asy
 });
 
 test('it leaves a session whose harness exited by itself restorable and gives its lease back', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+  const probe = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    probe.stop();
+  });
+
+  const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -347,7 +357,7 @@ test('it leaves a session whose harness exited by itself restorable and gives it
   await ctx.client.sendRequest('session.input', { session: id, d: 'quit\r' });
 
   await waitFor(() => {
-    expect(ctx.port.calls).toContain(`leases.release ${imp} atc-${ctx.daemonID}`);
+    expect(ctx.port.calls).toContain(`leases.release ${imp} atc-${String(hello['daemonID'])}`);
   });
 
   expect(ctx.client.sendRequest('session.list')).resolves.toMatchObject({
@@ -365,7 +375,7 @@ test('it leaves a session whose harness exited by itself restorable and gives it
 });
 
 test('it lists a session as reattaching while its connection is lost and as attached once it resumes', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -377,11 +387,13 @@ test('it lists a session as reattaching while its connection is lost and as atta
   const [imp] = ctx.port.collectImpNames();
   const [request] = ctx.port.sessionRequests;
 
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
+
   await waitFor(() => {
-    expect(ctx.port.getEnd(String(imp), String(request?.session))).toBeGreaterThan(0);
+    expect(ctx.port.getEnd(String(imp), request.session)).toBeGreaterThan(0);
   });
 
-  ctx.port.stopConnection(String(imp), String(request?.session), 1011);
+  ctx.port.stopConnection(String(imp), request.session, 1011);
 
   await waitFor(() => {
     expect(
@@ -397,7 +409,7 @@ test('it lists a session as reattaching while its connection is lost and as atta
 });
 
 test('it lists a session whose imp another owner put to sleep as asleep', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -439,7 +451,7 @@ test('it lists a session whose imp another owner put to sleep as asleep', async 
 });
 
 test('it revives a session whose imp another owner put to sleep in the same process', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -489,7 +501,14 @@ test('it revives a session whose imp another owner put to sleep in the same proc
 });
 
 test('it gives its lease back when a session it revived from sleep exits', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+  const probe = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    probe.stop();
+  });
+
+  const hello = await probe.sendHello(ctx.build);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -509,13 +528,15 @@ test('it gives its lease back when a session it revived from sleep exits', async
 
   await waitFor(() => {
     expect(
-      ctx.port.calls.filter((call) => call === `leases.release ${imp} atc-${ctx.daemonID}`),
+      ctx.port.calls.filter(
+        (call) => call === `leases.release ${imp} atc-${String(hello['daemonID'])}`,
+      ),
     ).toHaveLength(2);
   });
 });
 
 test('it revives a session that woke its imp even when a sibling on that imp cannot revive', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const parent = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,

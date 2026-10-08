@@ -6,6 +6,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 
@@ -13,13 +14,17 @@ test('it keeps the last-used agent when a restored session reports its start', a
   const sessionID = toSessionID(faker.string.uuid());
   const unchanged: SessionID[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-last-used-',
     options: async (paths) => {
-      await using store = await StateStore.open(paths.dbPath);
+      const store = await StateStore.open(paths.dbPath);
+
+      const stopStore = registerTestCleanup(() => store.stop());
 
       await store.writeFleet([buildMockFleetEntry({ sessionID, cwd: paths.dir, agent: 'grok' })]);
       await store.writeLastUsedAgent('claude');
+
+      await stopStore();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -47,12 +52,16 @@ test('it keeps the last-used agent when a restored session reports its start', a
 });
 
 test('it writes the last-used agent when a spawned session reports its start', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-last-used-',
     options: async (paths) => {
-      await using store = await StateStore.open(paths.dbPath);
+      const store = await StateStore.open(paths.dbPath);
+
+      const stopStore = registerTestCleanup(() => store.stop());
 
       await store.writeLastUsedAgent('claude');
+
+      await stopStore();
 
       return {
         adapter: buildMockAgentAdapter(),
