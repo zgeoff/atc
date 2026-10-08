@@ -17,15 +17,15 @@ test('it creates a distinct directory per call', () => {
   expect(second.dir).not.toBe(first.dir);
 });
 
-test('it removes the directory once removed', () => {
+test('it removes the directory once torn down', () => {
   const tmp = setupTempDir('atc-setup-temp-');
 
-  tmp.remove();
+  tmp.teardown();
 
   expect(existsSync(tmp.dir)).toBeFalse();
 });
 
-test('it removes the directory once the test finishes without a remove', () => {
+test('it removes the directory once the test finishes without a teardown', () => {
   const tmp = setupTempDir('atc-setup-temp-');
 
   onTestFinished(() => {
@@ -33,10 +33,10 @@ test('it removes the directory once the test finishes without a remove', () => {
   });
 });
 
-test('it removes nothing once the test finishes after a remove', () => {
+test('it removes nothing once the test finishes after a teardown', () => {
   const tmp = setupTempDir('atc-setup-temp-');
 
-  tmp.remove();
+  tmp.teardown();
 
   mkdirSync(tmp.dir);
 

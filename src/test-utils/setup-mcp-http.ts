@@ -39,7 +39,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(tmp.remove);
+  stack.defer(tmp.teardown);
 
   const socketPath = join(tmp.dir, 'daemon.sock');
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');

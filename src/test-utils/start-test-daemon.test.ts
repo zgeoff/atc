@@ -335,6 +335,17 @@ test('it opens no main client when the config turns it off', async () => {
   expect(harness.daemon.countClients()).toBe(0);
 });
 
+test('it throws on a read of the main client when a widened config turns it off', async () => {
+  const config: NonNullable<Parameters<typeof startTestDaemon>[0]> = { mainClient: false };
+
+  const harness = await startTestDaemon(config);
+
+  expect(() => harness.client).toThrowWithMessage(
+    Error,
+    'the test daemon started without a main client',
+  );
+});
+
 test('it opens no main client on restart when the config turns it off', async () => {
   const harness = await startTestDaemon({ mainClient: false });
 

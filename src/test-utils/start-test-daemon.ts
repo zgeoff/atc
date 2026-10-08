@@ -111,7 +111,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(tmp.remove);
+  stack.defer(tmp.teardown);
 
   const paths: TestDaemonPaths = {
     dir: tmp.dir,

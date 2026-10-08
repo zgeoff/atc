@@ -32,7 +32,7 @@ export function setupMCPHome() {
 
   const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(tmp.remove);
+  stack.defer(tmp.teardown);
 
   const home = tmp.dir;
 

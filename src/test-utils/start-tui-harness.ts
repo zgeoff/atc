@@ -52,7 +52,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
 
   const stop = registerTestCleanup(() => owned.disposeAsync());
 
-  owned.defer(tmp.remove);
+  owned.defer(tmp.teardown);
 
   // The client boots with this home as its cwd and lists it first in the
   // picker, so the path is resolved the way the client reports it.

@@ -56,7 +56,7 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
     upstream,
     work,
     sha: template.sha,
-    remove: tmp.remove,
+    remove: tmp.teardown,
   };
 }
 
