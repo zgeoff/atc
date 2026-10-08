@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KEYS } from '../src/test-utils/keys';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { spawnGrokSession } from '../src/test-utils/spawn-grok-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 import { waitFor } from '../src/test-utils/wait-for';
@@ -12,7 +13,7 @@ function setupTest() {
 }
 
 test('it spawns a grok session without resume or -p and marks it resumable', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   // The agent reports its session only once the test removes this file,
   // while its fleet row already exists without the id.
@@ -34,11 +35,15 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 
   rmSync(join(ctx.home, 'fake-grok-defer-start'));
 
+  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
   await waitFor(() => {
-    using db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
-
     expect(
       db.query('SELECT name, cwd, agent_session_id AS agentSessionID, agent FROM fleet').all(),
     ).toStrictEqual([
@@ -54,7 +59,7 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 }, 15_000);
 
 test('it marks a grok session done on end-turn Stop', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
@@ -76,7 +81,7 @@ test('it marks a grok session done on end-turn Stop', async () => {
 }, 15_000);
 
 test('it marks a grok session done on StopCancelled', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
@@ -102,7 +107,7 @@ test('it marks a grok session done on StopCancelled', async () => {
 }, 15_000);
 
 test('it keeps a grok session running when a hook names a subagent', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),
@@ -122,11 +127,15 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
+  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The daemon writes each hook it takes to the trail with the kind it read
   // the hook as, after it has applied the hook to the session.
   await waitFor(() => {
-    using db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
-
     expect(db.query("SELECT kind FROM events WHERE event = 'Stop'").all()).toStrictEqual([
       { kind: 'heartbeat' },
     ]);
@@ -143,7 +152,7 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 }, 15_000);
 
 test('it yanks a grok resume command once the id is captured', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -170,7 +179,7 @@ test('it yanks a grok resume command once the id is captured', async () => {
 }, 15_000);
 
 test('it yanks a grok command without --resume before SessionStart', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.home, 'fake-grok-hold-start'), '');
 
@@ -197,7 +206,7 @@ test('it yanks a grok command without --resume before SessionStart', async () =>
 }, 15_000);
 
 test('it ignores H on a grok row instead of opening the eject picker', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -229,7 +238,7 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
 }, 15_000);
 
 test('it keeps needs-you when grok emits idle_prompt after permission_prompt', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.home, 'fake-grok-events.jsonl'),

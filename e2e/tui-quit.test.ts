@@ -7,7 +7,7 @@ function setupTest() {
 }
 
 test('it quits the client on q from the overlay', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 

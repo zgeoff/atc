@@ -8,15 +8,16 @@ import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
  * A temp directory for the config file under migration, which is also the
- * home the CLI runs with. Disposal removes the directory.
+ * home the CLI runs with, removed once the test finishes.
  */
 function setupTest() {
-  return setupTempDir('atc-e2e-config-migrate-');
+  const tmp = setupTempDir('atc-e2e-config-migrate-');
+
+  return { dir: tmp.dir };
 }
 
 test('it backs the file up, rewrites it, and prints both paths with --write', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'config.json');
   const original = JSON.stringify({ codexBin: '/opt/codex' });
 
@@ -40,15 +41,16 @@ test('it backs the file up, rewrites it, and prints both paths with --write', as
     stdout: migrated.stdout,
     stderr: migrated.stderr,
     code: migrated.exitCode,
-    others,
-    backedUp: readFileSync(backup, 'utf8'),
-    rewritten: JSON.parse(readFileSync(file, 'utf8')) as unknown,
   }).toStrictEqual({
     stdout: `backup: ${backup}\nwrote: ${file}\n`,
     stderr: '',
     code: 0,
-    others: [],
-    backedUp: original,
-    rewritten: { agents: { claude: {}, grok: {}, codex: { bin: '/opt/codex' } } },
+  });
+
+  expect(others).toStrictEqual([]);
+  expect(readFileSync(backup, 'utf8')).toBe(original);
+
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toStrictEqual({
+    agents: { claude: {}, grok: {}, codex: { bin: '/opt/codex' } },
   });
 });

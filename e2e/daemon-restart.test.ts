@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -13,6 +13,7 @@ import { createStubComposer } from '../src/test-utils/create-stub-composer';
 import { createStubSystemd } from '../src/test-utils/create-stub-systemd';
 import { getRecords } from '../src/test-utils/get-records';
 import { getString } from '../src/test-utils/get-string';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { runATC } from '../src/test-utils/run-atc';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
@@ -20,79 +21,71 @@ import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
 import { waitFor } from '../src/test-utils/wait-for';
 
 /**
- * A home with a stub Claude CLI and a config that offers it, served by an
- * `atc daemon` process whose PATH, and the PATH every atc command the test
- * runs gets, finds a fake systemd first, with a client that has sent its
- * handshake. The daemon leaves the stored fleet alone at start, so each
- * test restores it itself.
+ * A home with a stub Claude CLI and an empty config directory, and a fake
+ * systemd that `path` finds first, for the `atc daemon` that each test
+ * starts with that PATH once it has written its config. Every atc command
+ * the test runs gets the same PATH.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-restart-'));
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-restart-');
   const atc = resolveATCCommand();
-  const fake = stack.use(createStubSystemd(atc));
-  const path = `${fake.binDir}:/usr/sbin:/usr/bin:/bin`;
-  const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
+  const fake = createStubSystemd(atc);
+  const configDir = join(tmp.dir, '.config', 'atc');
 
-  // The daemon spawns its sessions from the agents the config offers, and a
-  // restarted daemon restores only when a test asks it to.
-  mkdirSync(join(tmp.dir, '.config', 'atc'), { recursive: true });
-
-  writeFileSync(
-    join(tmp.dir, '.config', 'atc', 'config.json'),
-    JSON.stringify({
-      agents: {
-        claude: { bin: claude },
-      },
-      restoreFleetOnRestart: false,
-    }),
-  );
-
-  // Each stub reports its own atc session as its agent session, so every
-  // session a restart restores comes back under its own row.
-  writeFileSync(join(tmp.dir, 'fake-claude-own-id'), '');
-
-  const daemon = stack.use(
-    startDaemonProcess({ command: atc, home: tmp.dir, env: { PATH: path } }),
-  );
-
-  const client = await daemon.openClient();
-  const hello = await client.sendHello('atc/test');
-
-  const owned = stack.move();
+  mkdirSync(configDir, { recursive: true });
 
   return {
     home: tmp.dir,
     atc,
+    configPath: join(configDir, 'config.json'),
+    claude: createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
     fake,
-    path,
-    daemon,
-    client,
-    hello,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
+    path: `${fake.binDir}:/usr/sbin:/usr/bin:/bin`,
   };
 }
 
 test('it restarts the daemon in place and restores a saved fleet of two live sessions', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const oldPID = ctx.daemon.proc.pid;
+  // Each stub reports its own atc session as its agent session, so every
+  // session a restart restores comes back under its own row.
+  writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
 
-  onTestFinished(() => seed.stop());
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+  const hello = await client.sendHello('atc/test');
+
+  const oldPID = daemon.proc.pid;
+
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-one'), cwd: ctx.home }),
     buildMockFleetEntry({ sessionID: toSessionID('s-two'), cwd: ctx.home }),
   ]);
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   await waitFor(
     async () => {
-      const listed = await ctx.client.sendRequest('session.list');
+      const listed = await client.sendRequest('session.list');
 
       expect(listed).toMatchObject({ sessions: [{ alive: true }, { alive: true }] });
     },
@@ -106,7 +99,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
     env: { PATH: ctx.path },
   });
 
-  const replacement = await ctx.daemon.openClient();
+  const replacement = await daemon.openClient();
 
   await replacement.sendHello('atc/test');
 
@@ -121,8 +114,8 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
     { timeoutMs: 20_000 },
   );
 
-  const build = getString(ctx.hello, 'daemon');
-  const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
+  const build = getString(hello, 'daemon');
+  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -146,11 +139,35 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
 }, 60_000);
 
 test('it exits 1 and names a row whose agent is gone while the good row comes back alive', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  // Each stub reports its own atc session as its agent session, so every
+  // session a restart restores comes back under its own row.
+  writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
-  onTestFinished(() => seed.stop());
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-good'), name: 'good', cwd: ctx.home }),
@@ -169,7 +186,7 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
     env: { PATH: ctx.path },
   });
 
-  const replacement = await ctx.daemon.openClient();
+  const replacement = await daemon.openClient();
 
   await replacement.sendHello('atc/test');
 
@@ -191,9 +208,29 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
 }, 60_000);
 
 test('it leaves the daemon running when the token file for the replacement cannot be read', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const oldPID = ctx.daemon.proc.pid;
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = daemon.proc.pid;
 
   const restart = await runATC({
     command: ctx.atc,
@@ -211,27 +248,51 @@ test('it leaves the daemon running when the token file for the replacement canno
 
   expect(restart.exitCode).toBe(1);
   expect(restart.stdout).toInclude('the daemon was left running');
-  expect(findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
   expect(() => process.kill(oldPID, 0)).not.toThrow();
 }, 60_000);
 
 test('it joins a restart already in flight and reports its result without a second restore', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  // Each stub reports its own atc session as its agent session, so every
+  // session a restart restores comes back under its own row.
+  writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
-  onTestFinished(() => seed.stop());
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-one'), cwd: ctx.home }),
     buildMockFleetEntry({ sessionID: toSessionID('s-two'), cwd: ctx.home }),
   ]);
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   await waitFor(
     async () => {
-      const listed = await ctx.client.sendRequest('session.list');
+      const listed = await client.sendRequest('session.list');
 
       expect(listed).toMatchObject({ sessions: [{ alive: true }, { alive: true }] });
     },
@@ -253,9 +314,9 @@ test('it joins a restart already in flight and reports its result without a seco
     }),
   ]);
 
-  const finalPID = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))?.pid;
+  const finalPID = findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid;
 
-  const replacement = await ctx.daemon.openClient();
+  const replacement = await daemon.openClient();
 
   await replacement.sendHello('atc/test');
 
@@ -285,13 +346,37 @@ test('it joins a restart already in flight and reports its result without a seco
 }, 90_000);
 
 test('it completes a restart run from inside a hosted session after the session dies with the old daemon', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const oldPID = ctx.daemon.proc.pid;
+  // Each stub reports its own atc session as its agent session, so every
+  // session a restart restores comes back under its own row.
+  writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
 
-  onTestFinished(() => seed.stop());
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = daemon.proc.pid;
+
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-host'), name: 'host', cwd: ctx.home }),
@@ -299,12 +384,12 @@ test('it completes a restart run from inside a hosted session after the session 
 
   writeFileSync(join(ctx.home, 'fake-claude-restart'), '');
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   const last = await waitFor(
     () => {
       const parsed: unknown = JSON.parse(
-        readFileSync(join(ctx.daemon.stateDir, 'restarts', 'last.json'), 'utf8'),
+        readFileSync(join(daemon.stateDir, 'restarts', 'last.json'), 'utf8'),
       );
 
       invariant(isRecord(parsed), 'last.json holds no record');
@@ -314,7 +399,7 @@ test('it completes a restart run from inside a hosted session after the session 
     { timeoutMs: 40_000, intervalMs: 100 },
   );
 
-  const replacement = await ctx.daemon.openClient();
+  const replacement = await daemon.openClient();
 
   await replacement.sendHello('atc/test');
 
@@ -329,7 +414,7 @@ test('it completes a restart run from inside a hosted session after the session 
     { timeoutMs: 20_000 },
   );
 
-  const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
+  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -340,27 +425,51 @@ test('it completes a restart run from inside a hosted session after the session 
 }, 90_000);
 
 test('it restarts through the unit when the daemon is the unit main process, handing off through systemd-run', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const oldPID = ctx.daemon.proc.pid;
+  // Each stub reports its own atc session as its agent session, so every
+  // session a restart restores comes back under its own row.
+  writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = daemon.proc.pid;
 
   ctx.fake.writeMainPID(oldPID);
   ctx.fake.placeInUnit(oldPID, 'atc-daemon.service');
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-one'), cwd: ctx.home }),
     buildMockFleetEntry({ sessionID: toSessionID('s-two'), cwd: ctx.home }),
   ]);
 
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   await waitFor(
     async () => {
-      const listed = await ctx.client.sendRequest('session.list');
+      const listed = await client.sendRequest('session.list');
 
       expect(listed).toMatchObject({ sessions: [{ alive: true }, { alive: true }] });
     },
@@ -374,7 +483,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
     env: { PATH: ctx.path, ATC_PROC_ROOT: ctx.fake.procRoot },
   });
 
-  const replacement = await ctx.daemon.openClient();
+  const replacement = await daemon.openClient();
 
   await replacement.sendHello('atc/test');
 
@@ -390,7 +499,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   );
 
   const runs = ctx.fake.readSystemdRunCalls();
-  const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
+  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -414,20 +523,40 @@ test('it restarts through the unit when the daemon is the unit main process, han
 }, 90_000);
 
 test('it replaces a daemon on another protocol version and prints its refusal', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  ctx.daemon.proc.kill();
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
 
-  await ctx.daemon.proc.exited;
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
 
-  rmSync(ctx.daemon.socketPath, { force: true });
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  daemon.proc.kill();
+
+  await daemon.proc.exited;
+
+  rmSync(daemon.socketPath, { force: true });
 
   const legacy = Bun.spawn(
     [
       process.execPath,
       join(import.meta.dir, '..', 'src', 'test-utils', 'run-legacy-daemon.ts'),
-      ctx.daemon.socketPath,
-      ctx.daemon.stateDir,
+      daemon.socketPath,
+      daemon.stateDir,
     ],
     {
       env: { ...process.env, HOME: ctx.home, XDG_RUNTIME_DIR: ctx.home, PATH: ctx.path },
@@ -436,12 +565,12 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     legacy.kill();
   });
 
   await waitFor(() => {
-    expect(findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))?.pid).toBe(legacy.pid);
+    expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(legacy.pid);
   });
 
   const restart = await runATC({
@@ -451,10 +580,10 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
     env: { PATH: ctx.path },
   });
 
-  const replacement = await ctx.daemon.openClient();
+  const replacement = await daemon.openClient();
   const hello = await replacement.sendHello('atc/test');
 
-  const record = findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'));
+  const record = findDaemonRecord(join(daemon.stateDir, 'daemon.json'));
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -467,9 +596,29 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
 }, 60_000);
 
 test('it prints the preflight and stops the daemon nowhere on a dry run', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const oldPID = ctx.daemon.proc.pid;
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = daemon.proc.pid;
 
   const restart = await runATC({
     command: ctx.atc,
@@ -481,14 +630,34 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
   expect(restart.exitCode).toBe(0);
   expect(restart.stdout).toInclude(`daemon: pid ${oldPID}`);
   expect(restart.stdout).toInclude('the interrupted turn does not continue');
-  expect(findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
-  expect(ctx.daemon.proc.exitCode).toBeNull();
+  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(daemon.proc.exitCode).toBeNull();
 });
 
 test('it refuses a --listen without a token file before it stops the daemon', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const oldPID = ctx.daemon.proc.pid;
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+    env: { PATH: ctx.path },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const oldPID = daemon.proc.pid;
 
   const restart = await runATC({
     command: ctx.atc,
@@ -503,6 +672,6 @@ test('it refuses a --listen without a token file before it stops the daemon', as
     '--listen and --token-file go together; the daemon was left running',
   );
 
-  expect(findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
-  expect(ctx.daemon.proc.exitCode).toBeNull();
+  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(daemon.proc.exitCode).toBeNull();
 });

@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../src/client/daemon-client';
 import { KEYS } from '../src/test-utils/keys';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
 import { spawnNamedSession } from '../src/test-utils/spawn-named-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
@@ -12,7 +13,7 @@ function setupTest() {
 }
 
 test('it narrows the overlay to sessions matching the slash filter', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -59,7 +60,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 });
 
 test('it opens the overlay with a configured leader key', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.writeConfig({ leader: 'ctrl-]' });
   ctx.boot();
@@ -80,7 +81,7 @@ test('it opens the overlay with a configured leader key', async () => {
 });
 
 test('it pins a session from the overlay and marks its row', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -101,8 +102,7 @@ test('it pins a session from the overlay and marks its row', async () => {
 }, 15_000);
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
-  await using ctx = setupTest();
-
+  const ctx = setupTest();
   const otherProject = join(ctx.home, 'otherproj');
 
   mkdirSync(otherProject, { recursive: true });
@@ -161,7 +161,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 }, 15_000);
 
 test('it lists a sub-session indented under its parent', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -169,7 +169,7 @@ test('it lists a sub-session indented under its parent', async () => {
 
   const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     daemon.stop();
   });
 
@@ -198,7 +198,7 @@ test('it lists a sub-session indented under its parent', async () => {
 }, 15_000);
 
 test('it preselects the focused session when the overlay opens', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -223,7 +223,7 @@ test('it preselects the focused session when the overlay opens', async () => {
 }, 15_000);
 
 test('it opens the key reference from the overlay and returns on esc', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 

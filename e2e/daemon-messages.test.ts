@@ -16,33 +16,36 @@ import { waitFor } from '../src/test-utils/wait-for';
 import { waitForEvent } from '../src/test-utils/wait-for-event';
 
 /**
- * A home with a stub Claude CLI and a config that offers it, served by an
- * `atc daemon` process, with a client that has sent its handshake and
- * collects every event the daemon sends it. The daemon leaves the stored
- * fleet alone at start, so each test restores it itself.
+ * A home with a stub Claude CLI and an empty config directory, for the
+ * `atc daemon` that each test starts once it has written the config
+ * offering the stub.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-messages-'));
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-messages-');
   const atc = resolveATCCommand();
-  const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
+  const configDir = join(tmp.dir, '.config', 'atc');
 
-  // The daemon spawns its sessions from the agents the config offers, and a
-  // restarted daemon restores only when a test asks it to.
-  mkdirSync(join(tmp.dir, '.config', 'atc'), { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+
+  return {
+    home: tmp.dir,
+    atc,
+    configPath: join(configDir, 'config.json'),
+    claude: createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
+  };
+}
+
+test('it carries a message from accepted through delivered to answered', async () => {
+  const ctx = setupTest();
 
   writeFileSync(
-    join(tmp.dir, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
-      agents: {
-        claude: { bin: claude },
-      },
-      restoreFleetOnRestart: false,
+      agents: { claude: { bin: ctx.claude } },
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -54,24 +57,9 @@ async function setupTest() {
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
-  return {
-    home: tmp.dir,
-    atc,
-    daemon,
-    client,
-    events,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
-}
-
-test('it carries a message from accepted through delivered to answered', async () => {
-  await using ctx = await setupTest();
-
   writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -81,7 +69,7 @@ test('it carries a message from accepted through delivered to answered', async (
 
   // The session may have started without its tap connected yet, so the
   // message queues for the tap to drain.
-  const sent = await ctx.client.sendRequest('session.message', {
+  const sent = await client.sendRequest('session.message', {
     session: id,
     text: 'ping from test',
     from: 'e2e',
@@ -97,18 +85,18 @@ test('it carries a message from accepted through delivered to answered', async (
     return read;
   });
 
-  const delivered = await waitForEvent(ctx.events, { ev: 'SessionMessage', status: 'delivered' });
+  const delivered = await waitForEvent(events, { ev: 'SessionMessage', status: 'delivered' });
 
   const reporter = await runATC({
     command: ctx.atc,
     args: ['report', 'answered', '--message', messageID],
     home: ctx.home,
-    env: { ATC_SOCKET: ctx.daemon.reporterSocketPath, ATC_SESSION_ID: id },
+    env: { ATC_SOCKET: daemon.reporterSocketPath, ATC_SESSION_ID: id },
     stdin: 'final text',
   });
 
-  const answered = await waitForEvent(ctx.events, { ev: 'SessionMessage', status: 'answered' });
-  const screen = await ctx.client.sendRequest('session.screen', { session: id });
+  const answered = await waitForEvent(events, { ev: 'SessionMessage', status: 'answered' });
+  const screen = await client.sendRequest('session.screen', { session: id });
 
   expect(tapped).toInclude('ping from test');
   expect(delivered).toMatchObject({ s: id, message: messageID, from: 'e2e' });
@@ -118,11 +106,27 @@ test('it carries a message from accepted through delivered to answered', async (
 });
 
 test('it delivers a message accepted before a daemon crash to the restored session', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     resume: 'fake-1',
     cols: 80,
@@ -131,7 +135,7 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
 
   const originalID = getString(getRecord(spawned, 'session'), 'id');
 
-  const sent = await ctx.client.sendRequest('session.message', {
+  const sent = await client.sendRequest('session.message', {
     session: originalID,
     text: 'survive the crash',
     from: 'e2e',
@@ -139,12 +143,14 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
 
   const messageID = getString(sent, 'message');
 
-  await ctx.daemon.restart('SIGKILL');
+  const before = await client.sendRequest('message.get', { message: messageID });
+
+  await daemon.restart('SIGKILL');
 
   rmSync(join(ctx.home, 'fake-claude-hold-start'));
   writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   const events: EventMsg[] = [];
 
@@ -167,6 +173,7 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
   const delivered = await waitForEvent(events, { ev: 'SessionMessage', status: 'delivered' });
   const listed = await revived.sendRequest('session.list');
 
+  expect(before).toMatchObject({ status: 'accepted' });
   expect(restored).toStrictEqual({ restored: 1 });
   expect(tapped).toInclude('survive the crash');
   expect(listed).toMatchObject({ sessions: [{ id: originalID }] });
@@ -174,11 +181,27 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
 });
 
 test('it names a message event from before a daemon crash by the restored session', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     resume: 'fake-1',
     cols: 80,
@@ -187,7 +210,7 @@ test('it names a message event from before a daemon crash by the restored sessio
 
   const originalID = getString(getRecord(spawned, 'session'), 'id');
 
-  const sent = await ctx.client.sendRequest('session.message', {
+  const sent = await client.sendRequest('session.message', {
     session: originalID,
     text: 'survive the crash',
     from: 'e2e',
@@ -195,12 +218,14 @@ test('it names a message event from before a daemon crash by the restored sessio
 
   const messageID = getString(sent, 'message');
 
-  await ctx.daemon.restart('SIGKILL');
+  const before = await client.sendRequest('message.get', { message: messageID });
+
+  await daemon.restart('SIGKILL');
 
   rmSync(join(ctx.home, 'fake-claude-hold-start'));
   writeFileSync(join(ctx.home, 'fake-claude-tap'), '');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   const events: EventMsg[] = [];
 
@@ -222,6 +247,8 @@ test('it names a message event from before a daemon crash by the restored sessio
 
     return ours;
   });
+
+  expect(before).toMatchObject({ status: 'accepted' });
 
   expect(read).toStrictEqual([
     {
@@ -246,11 +273,33 @@ test('it names a message event from before a daemon crash by the restored sessio
 });
 
 test('it names a message event sent before SessionStart by the restored session', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
-  const spawned = await ctx.client.sendRequest('session.spawn', {
+  const spawned = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     cols: 80,
     rows: 24,
@@ -258,7 +307,7 @@ test('it names a message event sent before SessionStart by the restored session'
 
   const originalID = getString(getRecord(spawned, 'session'), 'id');
 
-  const sent = await ctx.client.sendRequest('session.message', {
+  const sent = await client.sendRequest('session.message', {
     session: originalID,
     text: 'sent before start',
     from: 'e2e',
@@ -270,17 +319,17 @@ test('it names a message event sent before SessionStart by the restored session'
     command: ctx.atc,
     args: ['hook-report', '--agent', 'claude'],
     home: ctx.home,
-    env: { ATC_SOCKET: ctx.daemon.reporterSocketPath, ATC_SESSION_ID: originalID },
+    env: { ATC_SOCKET: daemon.reporterSocketPath, ATC_SESSION_ID: originalID },
     stdin: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'fake-1' }),
   });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { agentSessionID: 'fake-1' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { agentSessionID: 'fake-1' } });
 
-  await ctx.daemon.restart('SIGKILL');
+  await daemon.restart('SIGKILL');
 
   rmSync(join(ctx.home, 'fake-claude-hold-start'));
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
   await revived.sendRequest('fleet.restore', { cols: 80, rows: 24 });

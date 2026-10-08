@@ -6,36 +6,31 @@ import { isRecord } from '../src/shared/report';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
 
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
+function setupTest() {
+  const mcpHome = setupMCPHome();
 
-  const mcpHome = stack.use(setupMCPHome());
+  return { home: mcpHome.home, claudeBin: mcpHome.claudeBin, grokBin: mcpHome.grokBin };
+}
 
-  // A codex binary on the host would change the served tool descriptions.
+test('it answers initialize with the requested protocol version and its server name', async () => {
+  const ctx = setupTest();
+
   writeFileSync(
-    join(mcpHome.home, '.config', 'atc', 'config.json'),
+    join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: mcpHome.claudeBin,
+      claudeBin: ctx.claudeBin,
       claudeArgs: [],
-      grokBin: mcpHome.grokBin,
+      grokBin: ctx.grokBin,
       grokArgs: [],
+
+      // A codex binary on the host would change the served tool descriptions.
       codexBin: '/nonexistent/codex',
     }),
   );
 
-  const mcp = await startMCPStdio({ home: mcpHome.home });
+  const mcp = await startMCPStdio({ home: ctx.home });
 
-  stack.use(mcp);
-
-  const owned = stack.move();
-
-  return { mcp, [Symbol.asyncDispose]: () => owned.disposeAsync() };
-}
-
-test('it answers initialize with the requested protocol version and its server name', async () => {
-  await using ctx = await setupTest();
-
-  const response = await ctx.mcp.sendRequest('initialize', {
+  const response = await mcp.sendRequest('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},
     clientInfo: { name: 'test' },
@@ -53,9 +48,24 @@ test('it answers initialize with the requested protocol version and its server n
 });
 
 test('it answers an unsupported protocol version with the latest supported one', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const response = await ctx.mcp.sendRequest('initialize', {
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: ctx.claudeBin,
+      claudeArgs: [],
+      grokBin: ctx.grokBin,
+      grokArgs: [],
+
+      // A codex binary on the host would change the served tool descriptions.
+      codexBin: '/nonexistent/codex',
+    }),
+  );
+
+  const mcp = await startMCPStdio({ home: ctx.home });
+
+  const response = await mcp.sendRequest('initialize', {
     protocolVersion: '2099-01-01',
     capabilities: {},
     clientInfo: { name: 'test' },
@@ -73,9 +83,23 @@ test('it answers an unsupported protocol version with the latest supported one',
 });
 
 test('it answers an unknown rpc method with a json-rpc error', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const response = await ctx.mcp.sendRequest('bogus/method');
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: ctx.claudeBin,
+      claudeArgs: [],
+      grokBin: ctx.grokBin,
+      grokArgs: [],
+
+      // A codex binary on the host would change the served tool descriptions.
+      codexBin: '/nonexistent/codex',
+    }),
+  );
+
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const response = await mcp.sendRequest('bogus/method');
 
   expect(response).toStrictEqual({
     jsonrpc: '2.0',
@@ -85,9 +109,23 @@ test('it answers an unknown rpc method with a json-rpc error', async () => {
 });
 
 test('it lists the fleet tools', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const response = await ctx.mcp.sendRequest('tools/list');
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: ctx.claudeBin,
+      claudeArgs: [],
+      grokBin: ctx.grokBin,
+      grokArgs: [],
+
+      // A codex binary on the host would change the served tool descriptions.
+      codexBin: '/nonexistent/codex',
+    }),
+  );
+
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const response = await mcp.sendRequest('tools/list');
 
   expect(response).toMatchInlineSnapshot(`
     {
@@ -1197,9 +1235,23 @@ test('it lists the fleet tools', async () => {
 });
 
 test('it lists every tool with its three safety hints', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const response = await ctx.mcp.sendRequest('tools/list');
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: ctx.claudeBin,
+      claudeArgs: [],
+      grokBin: ctx.grokBin,
+      grokArgs: [],
+
+      // A codex binary on the host would change the served tool descriptions.
+      codexBin: '/nonexistent/codex',
+    }),
+  );
+
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const response = await mcp.sendRequest('tools/list');
 
   expect(response).toStrictEqual({
     jsonrpc: '2.0',
@@ -1348,9 +1400,23 @@ test('it lists every tool with its three safety hints', async () => {
 });
 
 test('it marks the kill tool destructive and not read-only', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const response = await ctx.mcp.sendRequest('tools/list');
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: ctx.claudeBin,
+      claudeArgs: [],
+      grokBin: ctx.grokBin,
+      grokArgs: [],
+
+      // A codex binary on the host would change the served tool descriptions.
+      codexBin: '/nonexistent/codex',
+    }),
+  );
+
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const response = await mcp.sendRequest('tools/list');
 
   const result = response['result'];
 
@@ -1370,9 +1436,23 @@ test('it marks the kill tool destructive and not read-only', async () => {
 });
 
 test('it keeps answering after a failed tool call', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const failed = await ctx.mcp.sendToolCall('atc_session_kill', { session: 'nope' });
+  writeFileSync(
+    join(ctx.home, '.config', 'atc', 'config.json'),
+    JSON.stringify({
+      claudeBin: ctx.claudeBin,
+      claudeArgs: [],
+      grokBin: ctx.grokBin,
+      grokArgs: [],
+
+      // A codex binary on the host would change the served tool descriptions.
+      codexBin: '/nonexistent/codex',
+    }),
+  );
+
+  const mcp = await startMCPStdio({ home: ctx.home });
+  const failed = await mcp.sendToolCall('atc_session_kill', { session: 'nope' });
 
   expect(failed).toStrictEqual({
     isError: true,
@@ -1380,7 +1460,7 @@ test('it keeps answering after a failed tool call', async () => {
     structured: undefined,
   });
 
-  const pong = await ctx.mcp.sendRequest('ping');
+  const pong = await mcp.sendRequest('ping');
 
   expect(pong).toStrictEqual({ jsonrpc: '2.0', id: 3, result: {} });
 });

@@ -1,10 +1,11 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { DaemonClient } from '../src/client/daemon-client';
 import { createGitFixture } from '../src/test-utils/create-git-fixture';
 import { KEYS } from '../src/test-utils/keys';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 
@@ -13,7 +14,7 @@ function setupTest() {
 }
 
 test('it leaves an agent with no installed binary out of the picker', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -32,7 +33,7 @@ test('it leaves an agent with no installed binary out of the picker', async () =
 }, 15_000);
 
 test('it shows a refused spawn in the picker and keeps the entered prompt', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   // A config that is not JSON drops the configured binaries, so the default
   // claude resolves on PATH to the fake one, the only agent installed, and
@@ -78,7 +79,7 @@ test('it shows a refused spawn in the picker and keeps the entered prompt', asyn
 }, 15_000);
 
 test('it spawns on the target chosen in the target step, keeping the choice across esc', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.writeConfig({
     targets: {
@@ -149,7 +150,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     daemon.stop();
   });
 
@@ -163,7 +164,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 }, 20_000);
 
 test('it keeps the target step open on a target the directory cannot run on', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.writeConfig({
     targets: {
@@ -214,8 +215,9 @@ test('it keeps the target step open on a target the directory cannot run on', as
 }, 15_000);
 
 test('it sends a dirty local directory to a target off the daemon machine as a path workspace past its uncommitted file', async () => {
-  await using ctx = setupTest();
-  await using fixture = await createGitFixture();
+  const ctx = setupTest();
+
+  const fixture = await createGitFixture();
 
   writeFileSync(join(fixture.work, 'scratch.txt'), 'uncommitted\n');
 
@@ -278,7 +280,7 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
 }, 20_000);
 
 test('it starts claude with the settings file atc generates', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 

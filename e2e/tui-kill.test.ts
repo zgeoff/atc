@@ -10,7 +10,7 @@ function setupTest() {
 }
 
 test('it kills a needs-you session from the overlay on confirm', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -35,7 +35,7 @@ test('it kills a needs-you session from the overlay on confirm', async () => {
 }, 15_000);
 
 test('it revives a killed session in place with a fresh terminal', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.home, 'fake-transcript.jsonl'), '{"type":"user"}\n');
 
@@ -77,7 +77,7 @@ test('it revives a killed session in place with a fresh terminal', async () => {
 }, 15_000);
 
 test('it explains a revive that has no saved transcript instead of failing silently', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 

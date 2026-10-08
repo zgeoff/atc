@@ -7,29 +7,18 @@ import { startStubReporterSocket } from '../src/test-utils/start-stub-reporter-s
 
 /**
  * A home with a stub of the daemon's reporter socket in it, for the report
- * subcommand to send its line to. Disposal stops the stub and removes the
- * home.
+ * subcommand to send its line to.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-report-'));
+  const tmp = setupTempDir('atc-e2e-report-');
   const sock = join(tmp.dir, 'reporter.sock');
-  const reporter = stack.use(startStubReporterSocket(sock));
-  const owned = stack.move();
+  const reporter = startStubReporterSocket(sock);
 
-  return {
-    home: tmp.dir,
-    sock,
-    reporter,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { home: tmp.dir, sock, reporter };
 }
 
 test('it forwards one answered report for every message a turn answered, with the turn, through atc report', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const reported = await runATC({
     command: resolveATCCommand(),
@@ -41,12 +30,11 @@ test('it forwards one answered report for every message a turn answered, with th
 
   const line = await ctx.reporter.waitForLine();
 
-  expect({ code: reported.exitCode, line: JSON.parse(line) as unknown }).toStrictEqual({
-    code: 0,
-    line: {
-      atcId: 's1',
-      event: 'Report',
-      payload: { kind: 'answered', messages: ['m-1', 'm-2'], answer: 'both done', turn: 't-7' },
-    },
+  expect(reported.exitCode).toBe(0);
+
+  expect(JSON.parse(line)).toStrictEqual({
+    atcId: 's1',
+    event: 'Report',
+    payload: { kind: 'answered', messages: ['m-1', 'm-2'], answer: 'both done', turn: 't-7' },
   });
 });

@@ -1,8 +1,9 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '../src/protocol/protocol';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 import { waitFor } from '../src/test-utils/wait-for';
@@ -12,8 +13,7 @@ function setupTest() {
 }
 
 test('it restarts a daemon on another protocol after the user confirms and restores the fleet', async () => {
-  await using ctx = setupTest();
-
+  const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
   const socketPath = join(ctx.home, 'atc-daemon.sock');
   const pty = ctx.boot();
@@ -22,11 +22,15 @@ test('it restarts a daemon on another protocol after the user confirms and resto
 
   await spawnClaudeSession(ctx, 'fleettest');
 
+  const db = new Database(join(stateDir, 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
   await waitFor(() => {
-    using db = new Database(join(stateDir, 'atc.db'), { readonly: true });
-
     expect(db.query('SELECT agent_session_id AS agentSessionID FROM fleet').all()).toStrictEqual([
       { agentSessionID: 'fake-1' },
     ]);
@@ -57,7 +61,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
     { stdout: 'pipe', stderr: 'inherit' },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     legacy.kill('SIGKILL');
   });
 

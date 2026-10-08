@@ -7,27 +7,16 @@ import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
 import { startStubLegacyDaemon } from '../src/test-utils/start-stub-legacy-daemon';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const mcpHome = stack.use(setupMCPHome());
+  const mcpHome = setupMCPHome();
   const legacy = startStubLegacyDaemon(join(mcpHome.home, 'atc-daemon.sock'));
-
-  stack.defer(() => {
-    legacy.stop();
-  });
 
   const mcp = await startMCPStdio({ home: mcpHome.home });
 
-  stack.use(mcp);
-
-  const owned = stack.move();
-
-  return { legacy, mcp, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { legacy, mcp };
 }
 
 test('it leaves the agent list out of the tools for an older daemon', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const response = await ctx.mcp.sendRequest('tools/list');
 
   const result = response['result'];
@@ -38,7 +27,7 @@ test('it leaves the agent list out of the tools for an older daemon', async () =
 });
 
 test('it refuses a call an older daemon cannot serve without sending it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const refused = await ctx.mcp.sendToolCall('atc_message_get', {
     message: 'm-legacy',

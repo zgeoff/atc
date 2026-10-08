@@ -12,43 +12,42 @@ import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
 import { waitFor } from '../src/test-utils/wait-for';
 
 /**
- * A home with a stub Claude CLI and a config that offers it, served by an
- * `atc daemon` process, with a client that has sent its handshake.
+ * A home with a stub Claude CLI and an empty config directory, for the
+ * `atc daemon` that each test starts once it has written the config
+ * offering the stub.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-events-'));
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-events-');
   const atc = resolveATCCommand();
-  const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
+  const configDir = join(tmp.dir, '.config', 'atc');
 
-  // The daemon spawns its sessions from the agents the config offers.
-  mkdirSync(join(tmp.dir, '.config', 'atc'), { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+
+  return {
+    home: tmp.dir,
+    atc,
+    configPath: join(configDir, 'config.json'),
+    claude: createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
+  };
+}
+
+test('it reads hook events from the start through events.read', async () => {
+  const ctx = setupTest();
 
   writeFileSync(
-    join(tmp.dir, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
-      agents: {
-        claude: { bin: claude },
-      },
+      agents: { claude: { bin: ctx.claude } },
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
-  return { home: tmp.dir, client, [Symbol.asyncDispose]: () => owned.disposeAsync() };
-}
-
-test('it reads hook events from the start through events.read', async () => {
-  await using ctx = await setupTest();
-
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     name: 'watched',
     cols: 80,
@@ -58,7 +57,7 @@ test('it reads hook events from the start through events.read', async () => {
   const id = getString(getRecord(ok, 'session'), 'id');
 
   const answer = await waitFor(async () => {
-    const read = await ctx.client.sendRequest('events.read', {});
+    const read = await client.sendRequest('events.read', {});
 
     expect(getRecords(read, 'events')).toHaveLength(2);
 
@@ -90,12 +89,24 @@ test('it reads hook events from the start through events.read', async () => {
 });
 
 test('it reads nothing past the cursor of the last event through events.read', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+  await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const first = await waitFor(async () => {
-    const read = await ctx.client.sendRequest('events.read', {});
+    const read = await client.sendRequest('events.read', {});
 
     expect(getRecords(read, 'events')).toHaveLength(2);
 
@@ -104,24 +115,37 @@ test('it reads nothing past the cursor of the last event through events.read', a
 
   const cursor = getString(first, 'cursor');
 
-  const next = await ctx.client.sendRequest('events.read', { cursor });
+  const next = await client.sendRequest('events.read', { cursor });
 
   expect(next).toStrictEqual({ events: [], cursor, more: false });
 });
 
 test('it holds events.read open until the next event arrives', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const first = await ctx.client.sendRequest('events.read', {});
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const first = await client.sendRequest('events.read', {});
 
   // The longest hold the daemon allows outlasts the test's own deadline, so
   // only an answer the next event releases lets the test finish.
-  const pending = ctx.client.sendRequest('events.read', {
+  const pending = client.sendRequest('events.read', {
     cursor: first['cursor'],
     waitMs: 30_000,
   });
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     name: 'late',
     cols: 80,
@@ -136,7 +160,20 @@ test('it holds events.read open until the next event arrives', async () => {
 });
 
 test("it reads the first page of a claude session's transcript through session.read", async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),
@@ -175,13 +212,13 @@ test("it reads the first page of a claude session's transcript through session.r
       .join(''),
   );
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
   // The transcript reads once the session's start has bound its path.
   const page = await waitFor(async () => {
-    const read = await ctx.client.sendRequest('session.read', { session: id, limit: 2 });
+    const read = await client.sendRequest('session.read', { session: id, limit: 2 });
 
     expect(getRecords(read, 'rows')).toHaveLength(2);
 
@@ -209,7 +246,20 @@ test("it reads the first page of a claude session's transcript through session.r
 });
 
 test("it reads the rest of a claude session's transcript from a page cursor", async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),
@@ -242,19 +292,19 @@ test("it reads the rest of a claude session's transcript from a page cursor", as
       .join(''),
   );
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
   const first = await waitFor(async () => {
-    const read = await ctx.client.sendRequest('session.read', { session: id, limit: 2 });
+    const read = await client.sendRequest('session.read', { session: id, limit: 2 });
 
     expect(getRecords(read, 'rows')).toHaveLength(2);
 
     return read;
   });
 
-  const second = await ctx.client.sendRequest('session.read', {
+  const second = await client.sendRequest('session.read', {
     session: id,
     cursor: first['cursor'],
     limit: 2,
@@ -275,7 +325,20 @@ test("it reads the rest of a claude session's transcript from a page cursor", as
 });
 
 test("it reads a line appended to a claude session's transcript from the last cursor", async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-transcript.jsonl'),
@@ -286,12 +349,12 @@ test("it reads a line appended to a claude session's transcript from the last cu
     })}\n`,
   );
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
   const first = await waitFor(async () => {
-    const read = await ctx.client.sendRequest('session.read', { session: id, limit: 2 });
+    const read = await client.sendRequest('session.read', { session: id, limit: 2 });
 
     expect(getRecords(read, 'rows')).toHaveLength(1);
 
@@ -307,7 +370,7 @@ test("it reads a line appended to a claude session's transcript from the last cu
     })}\n`,
   );
 
-  const next = await ctx.client.sendRequest('session.read', {
+  const next = await client.sendRequest('session.read', {
     session: id,
     cursor: first['cursor'],
     limit: 2,

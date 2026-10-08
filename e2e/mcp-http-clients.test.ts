@@ -5,7 +5,8 @@ import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
  * A fresh home for the CLI, where its authorization database lands, and the
- * environment that points a spawned CLI at it. Disposal removes the home.
+ * environment that points a spawned CLI at it. The home is removed once the
+ * test finishes.
  */
 function setupTest() {
   const home = setupTempDir('atc-e2e-clients-');
@@ -13,12 +14,11 @@ function setupTest() {
   return {
     atc: resolveATCCommand(),
     env: { PATH: process.env['PATH'] ?? '', HOME: home.dir },
-    [Symbol.dispose]: home[Symbol.dispose],
   };
 }
 
 test('it adds, lists, and removes a client through atc clients', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const added = Bun.spawnSync(
     [

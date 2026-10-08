@@ -13,30 +13,36 @@ import { waitFor } from '../src/test-utils/wait-for';
 import { waitForEvent } from '../src/test-utils/wait-for-event';
 
 /**
- * A home with a stub Claude CLI and a config that offers it, served by an
- * `atc daemon` process, with a client that has sent its handshake and
- * collects every event the daemon sends it.
+ * A home with a stub Claude CLI and an empty config directory, for the
+ * `atc daemon` that each test starts once it has written the config
+ * offering the stub.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-sessions-'));
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-sessions-');
   const atc = resolveATCCommand();
-  const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
+  const configDir = join(tmp.dir, '.config', 'atc');
 
-  // The daemon spawns its sessions from the agents the config offers.
-  mkdirSync(join(tmp.dir, '.config', 'atc'), { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+
+  return {
+    home: tmp.dir,
+    atc,
+    configPath: join(configDir, 'config.json'),
+    claude: createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
+  };
+}
+
+test('it spawns a session and broadcasts SessionAdded to every client', async () => {
+  const ctx = setupTest();
 
   writeFileSync(
-    join(tmp.dir, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
-      agents: {
-        claude: { bin: claude },
-      },
+      agents: { claude: { bin: ctx.claude } },
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home: tmp.dir }));
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
@@ -48,22 +54,7 @@ async function setupTest() {
 
   await client.sendHello('atc/test');
 
-  const owned = stack.move();
-
-  return {
-    home: tmp.dir,
-    claude,
-    daemon,
-    client,
-    events,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
-}
-
-test('it spawns a session and broadcasts SessionAdded to every client', async () => {
-  await using ctx = await setupTest();
-
-  const actor = await ctx.daemon.openClient();
+  const actor = await daemon.openClient();
 
   const actorEvents: EventMsg[] = [];
 
@@ -74,7 +65,7 @@ test('it spawns a session and broadcasts SessionAdded to every client', async ()
   await actor.sendHello('atc/test');
 
   const ok = await actor.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
-  const added = await waitForEvent(ctx.events, { ev: 'SessionAdded' });
+  const added = await waitForEvent(events, { ev: 'SessionAdded' });
   const actorAdded = await waitForEvent(actorEvents, { ev: 'SessionAdded' });
 
   expect(ok).toStrictEqual({
@@ -91,16 +82,34 @@ test('it spawns a session and broadcasts SessionAdded to every client', async ()
 });
 
 test('it turns hook notifications into SessionState broadcasts', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
 
-  const changed = await waitForEvent(ctx.events, {
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+  await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const changed = await waitForEvent(events, {
     ev: 'SessionState',
     session: { state: 'needs_you' },
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await client.sendRequest('session.list');
 
   expect(changed).toMatchObject({ session: { lastMsg: 'needs permission' } });
 
@@ -110,94 +119,196 @@ test('it turns hook notifications into SessionState broadcasts', async () => {
 });
 
 test('it renames and pins a session through session.update', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await ctx.client.sendRequest('session.update', { session: id, name: 'auth-bug', pinned: true });
+  await client.sendRequest('session.update', { session: id, name: 'auth-bug', pinned: true });
 
-  const renamed = await waitForEvent(ctx.events, { ev: 'SessionRenamed', name: 'auth-bug' });
-  const listed = await ctx.client.sendRequest('session.list');
+  const renamed = await waitForEvent(events, { ev: 'SessionRenamed', name: 'auth-bug' });
+  const listed = await client.sendRequest('session.list');
 
   expect(renamed).toMatchObject({ s: id, namedBy: 'user' });
   expect(listed).toMatchObject({ sessions: [{ name: 'auth-bug', pinned: true, namedBy: 'user' }] });
 });
 
 test('it unpins a pinned session through session.update', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await ctx.client.sendRequest('session.update', { session: id, pinned: true });
-  await ctx.client.sendRequest('session.update', { session: id, pinned: false });
+  await client.sendRequest('session.update', { session: id, pinned: true });
+  await client.sendRequest('session.update', { session: id, pinned: false });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await client.sendRequest('session.list');
 
   expect(listed).toMatchObject({ sessions: [{ id, pinned: false }] });
 });
 
 test('it rejects session.update on an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
 
   expect(
-    ctx.client.sendRequest('session.update', { session: 'nope', name: 'x' }),
+    client.sendRequest('session.update', { session: 'nope', name: 'x' }),
   ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it kills a live session to exited', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await client.sendRequest('session.kill', { session: id });
 
-  const killed = await waitForEvent(ctx.events, {
+  const killed = await waitForEvent(events, {
     ev: 'SessionState',
     session: { lastMsg: 'killed' },
   });
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await client.sendRequest('session.list');
 
   expect(killed).toMatchObject({ session: { id, state: 'exited', alive: false } });
   expect(listed).toMatchObject({ sessions: [{ id, state: 'exited', alive: false }] });
 });
 
 test('it removes a killed session on a second kill', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await client.sendRequest('session.kill', { session: id });
 
-  const removed = await waitForEvent(ctx.events, { ev: 'SessionRemoved' });
-  const listed = await ctx.client.sendRequest('session.list');
+  const removed = await waitForEvent(events, { ev: 'SessionRemoved' });
+  const listed = await client.sendRequest('session.list');
 
   expect(removed).toMatchObject({ s: id });
   expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it builds a resume command once the claude id is captured', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { agentSessionID: 'fake-1' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { agentSessionID: 'fake-1' } });
 
-  const answer = await ctx.client.sendRequest('session.resumeCommand', { session: id });
+  const answer = await client.sendRequest('session.resumeCommand', { session: id });
 
   expect(answer).toStrictEqual({
     command: `cd '${ctx.home}' && ${ctx.claude} --resume fake-1`,
@@ -205,10 +316,29 @@ test('it builds a resume command once the claude id is captured', async () => {
 });
 
 test('it broadcasts PermissionRequested when a session needs input', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
-  const requested = await waitForEvent(ctx.events, { ev: 'PermissionRequested' });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const requested = await waitForEvent(events, { ev: 'PermissionRequested' });
 
   expect(requested).toMatchObject({
     s: getRecord(ok, 'session')['id'],
@@ -219,14 +349,32 @@ test('it broadcasts PermissionRequested when a session needs input', async () =>
 });
 
 test('it answers permission.respond on a keystroke-only request with unsupported', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
 
-  const requested = await waitForEvent(ctx.events, { ev: 'PermissionRequested' });
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+  await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const requested = await waitForEvent(events, { ev: 'PermissionRequested' });
 
   expect(
-    ctx.client.sendRequest('permission.respond', {
+    client.sendRequest('permission.respond', {
       request: getString(requested, 'request'),
       decision: 'allow',
     }),
@@ -234,41 +382,79 @@ test('it answers permission.respond on a keystroke-only request with unsupported
 });
 
 test('it resolves a pending permission request as dismissed when the session dies', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  const requested = await waitForEvent(ctx.events, { ev: 'PermissionRequested' });
+  const requested = await waitForEvent(events, { ev: 'PermissionRequested' });
 
   const request = getString(requested, 'request');
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await client.sendRequest('session.kill', { session: id });
 
-  const resolved = await waitForEvent(ctx.events, { ev: 'PermissionResolved', request });
+  const resolved = await waitForEvent(events, { ev: 'PermissionResolved', request });
 
   expect(resolved).toMatchObject({ decision: 'dismissed' });
 });
 
 test('it keeps the last screen of a killed session readable', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
   await waitFor(async () => {
-    const read = await ctx.client.sendRequest('session.screen', { session: id });
+    const read = await client.sendRequest('session.screen', { session: id });
 
     expect(read['text']).toInclude('FAKE_CLAUDE_UP');
   });
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
 
-  const screen = await ctx.client.sendRequest('session.screen', { session: id });
+  const screen = await client.sendRequest('session.screen', { session: id });
 
   expect(screen['text']).toInclude('FAKE_CLAUDE_UP');
 });
@@ -278,27 +464,65 @@ test.each([
   ['session.submit', { text: 'x' }],
   ['session.attach', { cols: 80, rows: 24 }],
 ])('it answers %s on a dead session with session_dead', async (method, params) => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
 
-  expect(ctx.client.sendRequest(method, { session: id, ...params })).rejects.toMatchObject({
+  expect(client.sendRequest(method, { session: id, ...params })).rejects.toMatchObject({
     code: 'session_dead',
   });
 });
 
 test("it reports a session's pending prompt through session.get while it needs you", async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   const start = Date.now();
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     name: 'pending-check',
     prompt: 'fix the auth bug',
@@ -308,9 +532,9 @@ test("it reports a session's pending prompt through session.get while it needs y
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  const record = await ctx.client.sendRequest('session.get', { session: id });
+  const record = await client.sendRequest('session.get', { session: id });
 
   expect(record).toMatchObject({
     prompt: 'fix the auth bug',
@@ -323,7 +547,26 @@ test("it reports a session's pending prompt through session.get while it needs y
 });
 
 test("it reports a finished turn's last message through session.get", async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-claude-events.jsonl'),
@@ -334,13 +577,13 @@ test("it reports a finished turn's last message through session.get", async () =
     })}\n`,
   );
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'done' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'done' } });
 
-  const record = await ctx.client.sendRequest('session.get', { session: id });
+  const record = await client.sendRequest('session.get', { session: id });
 
   expect(record).toMatchObject({ result: 'All tests pass.', pending: null });
 });

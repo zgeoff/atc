@@ -8,7 +8,7 @@ function setupTest() {
 }
 
 test('it adopts a session with --resume and yanks its resume command', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -49,7 +49,7 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 }, 15_000);
 
 test('it adopts grok with --no-leader and without --resume', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -86,7 +86,7 @@ test('it adopts grok with --no-leader and without --resume', async () => {
 }, 15_000);
 
 test('it offers an adopt only the targets that run on this host', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.writeConfig({
     targets: {

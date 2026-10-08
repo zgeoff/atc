@@ -4,11 +4,13 @@ import { join } from 'node:path';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 function setupTest() {
-  return setupTempDir('atc-statusline-');
+  const tmp = setupTempDir('atc-statusline-');
+
+  return { dir: tmp.dir };
 }
 
 test('it chains the user statusline and appends the fleet segment', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.claude'), { recursive: true });
 
@@ -39,7 +41,7 @@ test('it chains the user statusline and appends the fleet segment', () => {
 });
 
 test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.claude'), { recursive: true });
   mkdirSync(join(ctx.dir, 'claude-config'), { recursive: true });

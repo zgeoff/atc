@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -16,6 +16,7 @@ import { createStubGrok } from '../src/test-utils/create-stub-grok';
 import { getRecords } from '../src/test-utils/get-records';
 import { getString } from '../src/test-utils/get-string';
 import { KEYS } from '../src/test-utils/keys';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
@@ -23,43 +24,47 @@ import { waitFor } from '../src/test-utils/wait-for';
 import { waitForEvent } from '../src/test-utils/wait-for-event';
 
 /**
- * A home with stub Claude and Grok CLIs and a config that offers them,
- * served by an `atc daemon` process, with a client that has sent its
- * handshake and collects every event the daemon sends it. The daemon leaves
- * the stored fleet alone at start, so each test restores it itself.
+ * A home with stub Claude and Grok CLIs for the `atc daemon` that each test
+ * starts once it has written the config offering them.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-e2e-restore-'));
+function setupTest() {
+  const tmp = setupTempDir('atc-e2e-restore-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(tmp.dir);
+  const configDir = join(tmp.dir, '.config', 'atc');
 
-  // The daemon spawns its sessions from the agents the config offers, and a
-  // restarted daemon restores only when a test asks it to.
-  mkdirSync(join(tmp.dir, '.config', 'atc'), { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+
+  return {
+    home: tmp.dir,
+    atc,
+    configPath: join(configDir, 'config.json'),
+    claude: createStubClaude(tmp.dir, { atc, composer }),
+    grok: createStubGrok(tmp.dir, { atc, composer }),
+  };
+}
+
+test('it restores the fleet cold after a daemon crash', async () => {
+  const ctx = setupTest();
 
   writeFileSync(
-    join(tmp.dir, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
-      agents: {
-        claude: { bin: createStubClaude(tmp.dir, { atc, composer }) },
-        grok: { bin: createStubGrok(tmp.dir, { atc, composer }) },
-      },
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
 
-  const daemon = stack.use(
-    startDaemonProcess({
-      command: atc,
-      home: tmp.dir,
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
 
-      // A boot wait far longer than any test, so a revive that boots shows
-      // that the start or death of the one before it released the wait.
-      env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
-    }),
-  );
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
 
   const client = await daemon.openClient();
 
@@ -70,28 +75,13 @@ async function setupTest() {
   };
 
   await client.sendHello('atc/test');
+  await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
-  const owned = stack.move();
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  return {
-    home: tmp.dir,
-    daemon,
-    client,
-    events,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
-}
+  await daemon.restart('SIGKILL');
 
-test('it restores the fleet cold after a daemon crash', async () => {
-  await using ctx = await setupTest();
-
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
-
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
-
-  await ctx.daemon.restart('SIGKILL');
-
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
 
@@ -103,41 +93,92 @@ test('it restores the fleet cold after a daemon crash', async () => {
 });
 
 test('it starts a daemon on the state directory of one killed with SIGKILL', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.daemon.restart('SIGKILL');
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-  const revived = await ctx.daemon.openClient();
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+  await daemon.restart('SIGKILL');
+
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
 
-  expect(ctx.daemon.proc.exitCode).toBeNull();
+  expect(daemon.proc.exitCode).toBeNull();
 
-  expect(findDaemonRecord(join(ctx.daemon.stateDir, 'daemon.json'))).toStrictEqual({
-    pid: ctx.daemon.proc.pid,
-    socketPath: ctx.daemon.socketPath,
-    reporterSocketPath: ctx.daemon.reporterSocketPath,
+  expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))).toStrictEqual({
+    pid: daemon.proc.pid,
+    socketPath: daemon.socketPath,
+    reporterSocketPath: daemon.reporterSocketPath,
     eventsSocketPath: join(ctx.home, 'atc-events.sock'),
     listenPort: null,
   });
 });
 
 test('it restores a killed session as exited across a daemon restart', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  await ctx.client.sendRequest('session.kill', { session: id });
+  await client.sendRequest('session.kill', { session: id });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { lastMsg: 'killed' } });
 
-  await ctx.daemon.restart('SIGKILL');
+  await daemon.restart('SIGKILL');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
 
@@ -160,30 +201,83 @@ test('it restores a killed session as exited across a daemon restart', async () 
 });
 
 test('it restores a stored exited row once and nothing on a second restore', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-  onTestFinished(() => seed.stop());
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
+
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([buildMockFleetEntry({ cwd: ctx.home, exited: true })]);
   await seed.stop();
 
-  const first = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-  const second = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const first = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const second = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  expect([first, second]).toStrictEqual([{ restored: 1 }, { restored: 0 }]);
+  expect(first).toStrictEqual({ restored: 1 });
+  expect(second).toStrictEqual({ restored: 0 });
 });
 
 test('it revives the fleet one boot at a time, gated on SessionStart', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   writeFileSync(join(ctx.home, 'fake-claude-gate'), '');
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet(
     ['one', 'two', 'three'].map((name) =>
@@ -191,8 +285,8 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
     ),
   );
 
-  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
-  const immediate = await ctx.client.sendRequest('session.list');
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const immediate = await client.sendRequest('session.list');
 
   // The first revive holds its start until a line arrives, so the rest stay
   // queued behind it until the test lets it go.
@@ -200,14 +294,14 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 
   invariant(booting !== undefined, 'no restored session has a terminal');
 
-  await ctx.client.sendRequest('session.input', { session: booting['id'], d: KEYS.enter });
+  await client.sendRequest('session.input', { session: booting['id'], d: KEYS.enter });
 
-  await waitForEvent(ctx.events, {
+  await waitForEvent(events, {
     ev: 'SessionState',
     session: { id: 's-three', kind: 'pty', agentSessionID: 's-three' },
   });
 
-  const settled = await ctx.client.sendRequest('session.list');
+  const settled = await client.sendRequest('session.list');
 
   expect(restored).toStrictEqual({ restored: 3 });
 
@@ -226,14 +320,43 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 });
 
 test('it moves on to the next revive when one dies before announcing itself', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   writeFileSync(join(ctx.home, 'fake-claude-dies-agent-dying'), '');
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   // A restore keeps the stored order for sessions with no recency, so the
   // dying revive boots first and the survivor waits behind it.
@@ -246,9 +369,9 @@ test('it moves on to the next revive when one dies before announcing itself', as
     buildMockFleetEntry({ sessionID: toSessionID('s-survivor'), cwd: ctx.home }),
   ]);
 
-  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const survivor = await waitForEvent(ctx.events, {
+  const survivor = await waitForEvent(events, {
     ev: 'SessionState',
     session: { id: 's-survivor', kind: 'pty' },
   });
@@ -258,13 +381,42 @@ test('it moves on to the next revive when one dies before announcing itself', as
 });
 
 test('it revives the fleet most recently active first', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
-  const seed = await StateStore.open(join(ctx.daemon.stateDir, 'atc.db'));
+  const seed = await StateStore.open(join(daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => seed.stop());
+  registerTestCleanup(() => seed.stop());
 
   await seed.writeFleet([
     buildMockFleetEntry({ name: 'one', cwd: ctx.home, agentSessionID: toAgentSessionID('fake-a') }),
@@ -276,9 +428,9 @@ test('it revives the fleet most recently active first', async () => {
     }),
   ]);
 
-  const db = new Database(join(ctx.daemon.stateDir, 'atc.db'));
+  const db = new Database(join(daemon.stateDir, 'atc.db'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -291,13 +443,13 @@ test('it revives the fleet most recently active first', async () => {
       "('2026-08-14T00:00:02.000Z', 's3', 'Stop', NULL, 'fake-b')",
   );
 
-  const restored = await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  await waitForEvent(ctx.events, { ev: 'SessionAdded', session: { name: 'one' } });
+  await waitForEvent(events, { ev: 'SessionAdded', session: { name: 'one' } });
 
   expect(restored).toStrictEqual({ restored: 3 });
 
-  expect(ctx.events.filter((e) => e.ev === 'SessionAdded')).toMatchObject([
+  expect(events.filter((e) => e.ev === 'SessionAdded')).toMatchObject([
     { session: { name: 'three' } },
     { session: { name: 'two' } },
     { session: { name: 'one' } },
@@ -305,20 +457,49 @@ test('it revives the fleet most recently active first', async () => {
 });
 
 test('it restores a grok session via grok --resume, not claude --resume', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', {
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     agent: 'grok',
     cols: 80,
     rows: 24,
   });
 
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  await ctx.daemon.restart('SIGKILL');
+  await daemon.restart('SIGKILL');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   const replay: EventMsg[] = [];
 
@@ -354,7 +535,36 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 });
 
 test('it keeps the spawn prompt and latest result across a daemon restart', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  const events: EventMsg[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
 
   writeFileSync(
     join(ctx.home, 'fake-claude-events.jsonl'),
@@ -365,7 +575,7 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
     })}\n`,
   );
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     prompt: 'fix the auth bug',
     cols: 80,
@@ -376,10 +586,10 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
 
   // The turn's end reaching the daemon is waited for on its own, so a slow
   // hook delivery and a lost fleet write fail at different lines.
-  await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'done' } });
+  await waitForEvent(events, { ev: 'SessionState', session: { state: 'done' } });
 
   await waitFor(async () => {
-    const listed = await ctx.client.sendRequest('fleet.list');
+    const listed = await client.sendRequest('fleet.list');
 
     expect(listed).toMatchObject({
       fleet: [
@@ -392,9 +602,9 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
     });
   });
 
-  await ctx.daemon.restart('SIGKILL');
+  await daemon.restart('SIGKILL');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
   await revived.sendRequest('fleet.restore', { cols: 80, rows: 24 });
@@ -405,9 +615,32 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
 });
 
 test("it revives a restored session with the spawn's model and effort", async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', {
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     model: 'opus[1m]',
     effort: 'xhigh',
@@ -418,16 +651,16 @@ test("it revives a restored session with the spawn's model and effort", async ()
   const id = getString(getRecord(ok, 'session'), 'id');
 
   await waitFor(async () => {
-    const listed = await ctx.client.sendRequest('fleet.list');
+    const listed = await client.sendRequest('fleet.list');
 
     expect(listed).toMatchObject({
       fleet: [{ agentSessionID: 'fake-1', model: 'opus[1m]', effort: 'xhigh' }],
     });
   });
 
-  await ctx.daemon.restart('SIGKILL');
+  await daemon.restart('SIGKILL');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
   await revived.sendRequest('fleet.restore', { cols: 400, rows: 24 });
@@ -445,21 +678,44 @@ test("it revives a restored session with the spawn's model and effort", async ()
 });
 
 test('it revives a restored session that has no model or effort without either flag', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.home, cols: 400, rows: 24 });
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
+
+      // A restarted daemon restores only when the test asks it to.
+      restoreFleetOnRestart: false,
+    }),
+  );
+
+  const daemon = startDaemonProcess({
+    command: ctx.atc,
+    home: ctx.home,
+
+    // A boot wait far longer than any test, so a revive that boots shows
+    // that the start or death of the one before it released the wait.
+    env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 400, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
   await waitFor(async () => {
-    const listed = await ctx.client.sendRequest('fleet.list');
+    const listed = await client.sendRequest('fleet.list');
 
     expect(listed).toMatchObject({ fleet: [{ agentSessionID: 'fake-1' }] });
   });
 
-  await ctx.daemon.restart('SIGKILL');
+  await daemon.restart('SIGKILL');
 
-  const revived = await ctx.daemon.openClient();
+  const revived = await daemon.openClient();
 
   await revived.sendHello('atc/test');
 

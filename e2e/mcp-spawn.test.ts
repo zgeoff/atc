@@ -4,21 +4,15 @@ import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
 import { waitFor } from '../src/test-utils/wait-for';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const mcpHome = stack.use(setupMCPHome());
+  const mcpHome = setupMCPHome();
 
   const mcp = await startMCPStdio({ home: mcpHome.home });
 
-  stack.use(mcp);
-
-  const owned = stack.move();
-
-  return { home: mcpHome.home, mcp, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { home: mcpHome.home, mcp };
 }
 
 test('it spawns a session and lists it through tool calls', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.mcp.sendToolCall('atc_session_spawn', {
     cwd: ctx.home,
@@ -35,8 +29,7 @@ test('it spawns a session and lists it through tool calls', async () => {
 });
 
 test('it reads a session screen through a tool call', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
   const screen = await waitFor(async () => {
@@ -52,8 +45,7 @@ test('it reads a session screen through a tool call', async () => {
 });
 
 test('it passes the model and effort of a spawn to the agent CLI', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home, model: 'opus', effort: 'high' });
 
   const screen = await waitFor(async () => {
@@ -68,7 +60,7 @@ test('it passes the model and effort of a spawn to the agent CLI', async () => {
 });
 
 test('it reports an unregistered agent id as a failed tool call', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const failed = await ctx.mcp.sendToolCall('atc_session_spawn', {
     cwd: ctx.home,
@@ -83,8 +75,7 @@ test('it reports an unregistered agent id as a failed tool call', async () => {
 });
 
 test('it rejects an empty agent id as a failed tool call', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const failed = await ctx.mcp.sendToolCall('atc_session_spawn', { cwd: ctx.home, agent: '' });
 
   expect(failed).toStrictEqual({

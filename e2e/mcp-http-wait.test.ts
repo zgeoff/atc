@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 import { waitFor } from '../src/test-utils/wait-for';
@@ -8,12 +9,11 @@ import { waitFor } from '../src/test-utils/wait-for';
 /**
  * A fresh home whose computed daemon socket sits in it, a free loopback port
  * for the HTTP server, and the command atc runs as with an environment that
- * makes that home its home and runtime directory. Disposal removes the home.
+ * makes that home its home and runtime directory. The home is removed once
+ * the test finishes.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-mcp-http-wait-'));
+  const tmp = setupTempDir('atc-mcp-http-wait-');
 
   // The CLI refuses port 0, so the server takes a port the kernel handed
   // out and released just before.
@@ -22,26 +22,27 @@ function setupTest() {
 
   probe.stop(true);
 
-  const owned = stack.move();
-
   return {
     dir: tmp.dir,
     port,
     atc: resolveATCCommand(),
     env: { ...process.env, HOME: tmp.dir, XDG_RUNTIME_DIR: tmp.dir },
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
 test('it waits for a daemon started after it, starting none of its own, and serves through that daemon', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using mcp = Bun.spawn(
+  const mcp = Bun.spawn(
     [...ctx.atc, 'mcp', '--http', '--wait-for-daemon', '--port', String(ctx.port)],
     { env: ctx.env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
   );
+
+  registerTestCleanup(async () => {
+    mcp.kill();
+
+    await mcp.exited;
+  });
 
   let stderr = '';
 
@@ -57,11 +58,17 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     expect(stderr).toEndWith('\n');
   });
 
-  await using daemon = Bun.spawn([...ctx.atc, 'daemon'], {
+  const daemon = Bun.spawn([...ctx.atc, 'daemon'], {
     env: ctx.env,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
+  });
+
+  registerTestCleanup(async () => {
+    daemon.kill();
+
+    await daemon.exited;
   });
 
   const served = await waitFor(async () => {
@@ -83,15 +90,15 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     /^atc mcp --http: no daemon answers yet; waiting up to 30s for one, without starting it\nPOST \/mcp 401 \d+ms\n$/u,
   );
 
-  expect({ served, record, daemonExitCode: daemon.exitCode }).toStrictEqual({
-    served: 401,
-    record: {
-      pid: daemon.pid,
-      socketPath: join(ctx.dir, 'atc-daemon.sock'),
-      reporterSocketPath: join(ctx.dir, 'atc.sock'),
-      eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
-      listenPort: null,
-    },
-    daemonExitCode: null,
+  expect(served).toBe(401);
+
+  expect(record).toStrictEqual({
+    pid: daemon.pid,
+    socketPath: join(ctx.dir, 'atc-daemon.sock'),
+    reporterSocketPath: join(ctx.dir, 'atc.sock'),
+    eventsSocketPath: join(ctx.dir, 'atc-events.sock'),
+    listenPort: null,
   });
+
+  expect(daemon.exitCode).toBeNull();
 });

@@ -11,7 +11,7 @@ function setupTest() {
 }
 
 test('it clears the need state when attaching a needy session', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.boot();
 
@@ -38,8 +38,7 @@ test('it clears the need state when attaching a needy session', async () => {
 });
 
 test('it attaches and acks the session that needs you on tab', async () => {
-  await using ctx = setupTest();
-
+  const ctx = setupTest();
   const statusPath = join(ctx.home, '.local', 'state', 'atc', 'status.json');
 
   ctx.boot();
@@ -91,7 +90,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
 }, 15_000);
 
 test('it tab-jumps to a finished session when none need you', async () => {
-  await using ctx = setupTest();
+  const ctx = setupTest();
 
   // The fake reports a finished turn instead of a notification, so its
   // session lands done with nothing needing you.
