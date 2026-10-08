@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.5.0...@zgeoff/atc@3.6.0) (2026-10-08)
+
+### Features
+
+- **geo-113:** let one gateway entry start locally and on imps
+  ([#438](https://github.com/zgeoff/atc/issues/438))
+  ([cee4eb5](https://github.com/zgeoff/atc/commit/cee4eb51cf67823708701cd4df8d243cc3a13377))
+
 ## [3.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.4.2...@zgeoff/atc@3.5.0) (2026-10-08)
 
 ### Features
