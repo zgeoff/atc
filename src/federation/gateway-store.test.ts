@@ -1,6 +1,7 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildMockKeyBindingClaim } from '../test-utils/build-mock-key-binding-claim';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { GatewayStore } from './gateway-store';
@@ -10,29 +11,19 @@ import { GatewayStore } from './gateway-store';
  * test can open it again the way a restarted gateway does.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-gateway-store-'));
+  const tmp = setupTempDir('atc-gateway-store-');
   const path = join(tmp.dir, 'gateway.db');
   const store = GatewayStore.open(path);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     store.stop();
   });
 
-  const owned = stack.move();
-
-  return {
-    path,
-    store,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { path, store };
 }
 
 test('#claimBinding keeps the first binding of a key and returns it to a later claim for another daemon', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const first = buildMockKeyBindingClaim({
     principal: 'c1',
@@ -65,7 +56,7 @@ test('#claimBinding keeps the first binding of a key and returns it to a later c
 });
 
 test('#claimBinding refuses a key reused with another payload as idempotency_conflict before any daemon call', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -96,7 +87,7 @@ test('#claimBinding refuses a key reused with another payload as idempotency_con
 });
 
 test('#claimBinding accepts a retry whose payload holds two keys a locale comparison ties in the other order', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -124,8 +115,7 @@ test('#claimBinding accepts a retry whose payload holds two keys a locale compar
 });
 
 test('#open keeps a binding across a gateway restart', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const claim = buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' });
 
   ctx.store.claimBinding(claim, 10);
@@ -133,7 +123,7 @@ test('#open keeps a binding across a gateway restart', () => {
 
   const restarted = GatewayStore.open(ctx.path);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     restarted.stop();
   });
 
@@ -147,7 +137,7 @@ test('#open keeps a binding across a gateway restart', () => {
 });
 
 test("#findBinding holds a key apart from another principal's key", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' }),
@@ -158,7 +148,7 @@ test("#findBinding holds a key apart from another principal's key", () => {
 });
 
 test("#findBinding holds a key apart from another operation's key", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' }),
@@ -169,7 +159,7 @@ test("#findBinding holds a key apart from another operation's key", () => {
 });
 
 test('#removeExpiredBindings keeps a completed binding until twice the daemon retention has passed', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -187,7 +177,7 @@ test('#removeExpiredBindings keeps a completed binding until twice the daemon re
 });
 
 test('#removeExpiredBindings removes a completed binding once twice the daemon retention has passed', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -210,7 +200,7 @@ test('#removeExpiredBindings removes a completed binding once twice the daemon r
 test.each([['pending'], ['uncertain']] as const)(
   '#removeExpiredBindings keeps a %s binding however old it is',
   (outcome) => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
     ctx.store.claimBinding(
       buildMockKeyBindingClaim({
@@ -229,7 +219,7 @@ test.each([['pending'], ['uncertain']] as const)(
 );
 
 test('#removeExpiredBindings keeps a completed binding to a daemon that announced no retention', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -247,7 +237,7 @@ test('#removeExpiredBindings keeps a completed binding to a daemon that announce
 });
 
 test('#claimFirstSend marks a binding sent for its first send', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' }),
@@ -258,7 +248,7 @@ test('#claimFirstSend marks a binding sent for its first send', () => {
 });
 
 test('#claimFirstSend refuses a second send of a binding already sent', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' }),
@@ -271,7 +261,7 @@ test('#claimFirstSend refuses a second send of a binding already sent', () => {
 });
 
 test('#claimFirstSend refuses the first send of a binding sent before a gateway restart', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' }),
@@ -283,7 +273,7 @@ test('#claimFirstSend refuses the first send of a binding sent before a gateway 
 
   const restarted = GatewayStore.open(ctx.path);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     restarted.stop();
   });
 
@@ -291,7 +281,7 @@ test('#claimFirstSend refuses the first send of a binding sent before a gateway 
 });
 
 test('#claimFirstSend keeps the time of the first send when a later send is refused', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' }),
@@ -307,7 +297,7 @@ test('#claimFirstSend keeps the time of the first send when a later send is refu
 });
 
 test('#removeBinding keeps a sent binding when its claim is withdrawn', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const claim = buildMockKeyBindingClaim({
     principal: 'c1',
@@ -332,7 +322,7 @@ test('#removeBinding keeps a sent binding when its claim is withdrawn', () => {
 });
 
 test('#removeBinding removes an unsent binding when its claim is withdrawn', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.store.claimBinding(
     buildMockKeyBindingClaim({
@@ -350,8 +340,7 @@ test('#removeBinding removes an unsent binding when its claim is withdrawn', () 
 });
 
 test('#updateOutcome keeps a completed outcome when a later request under the key goes unanswered', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const claim = buildMockKeyBindingClaim({ principal: 'c1', operation: 'session.spawn', key: 'k' });
 
   ctx.store.claimBinding(claim, 10);

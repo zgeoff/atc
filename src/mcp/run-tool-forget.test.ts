@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
@@ -11,6 +11,7 @@ import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildPrincipalCaller } from './build-principal-caller';
@@ -22,8 +23,6 @@ import { runTool } from './run-tool';
 // target whose provider can destroy hosts and records each host it
 // destroys in `provider.destroyed`.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const provider = buildStubExecutionProvider({
     kind: 'imp-like',
     capabilities: { suspend: true, destroy: true },
@@ -46,26 +45,17 @@ async function setupTest() {
     }),
   });
 
-  stack.use(daemon);
-
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
-  const owned = stack.move();
-
-  return {
-    caller,
-    provider,
-    cwd: daemon.dir,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { caller, provider, cwd: daemon.dir };
 }
 
 test('it hands out a token and changes nothing for a live session on a host-destroying target', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -96,7 +86,7 @@ test('it hands out a token and changes nothing for a live session on a host-dest
 });
 
 test('it destroys the host and drops the live session when the second call carries the token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -135,7 +125,7 @@ test('it destroys the host and drops the live session when the second call carri
 });
 
 test('it hands out a token for a dead session on a host-destroying target and changes nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -168,7 +158,7 @@ test('it hands out a token for a dead session on a host-destroying target and ch
 });
 
 test('it forgets a dead session on a local target in one call', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -200,7 +190,7 @@ test('it forgets a dead session on a local target in one call', async () => {
 });
 
 test('it stops and forgets a live session on a local target in one call when stop is true', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -230,7 +220,7 @@ test('it stops and forgets a live session on a local target in one call when sto
 });
 
 test('it refuses a live session without stop and leaves it running', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -256,7 +246,7 @@ test('it refuses a live session without stop and leaves it running', async () =>
 });
 
 test('it refuses a pinned session and leaves it listed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -283,7 +273,7 @@ test('it refuses a pinned session and leaves it listed', async () => {
 });
 
 test('it refuses a sub-session of a pinned session and leaves both listed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawnedParent = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -319,7 +309,7 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
 });
 
 test('it refuses a session a pin reaches just before the forget does', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -354,7 +344,7 @@ test('it refuses a session a pin reaches just before the forget does', async () 
 });
 
 test('it checks the session itself and sends a plain forget to a daemon without the forget checks', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.caller.sendRequest('session.spawn', {
     cwd: ctx.cwd,
@@ -389,7 +379,7 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
   // A current daemon behind the gateway announces the forget checks, so the
   // gateway offers them, while the session the forget names lives on an
   // older daemon that lacks them and holds it pinned.
-  await using current = await startTestDaemon({
+  const current = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
     options: (paths) => {
       writeFileSync(join(paths.dir, 'token'), `${'t'.repeat(32)}\n`);
@@ -418,10 +408,6 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
       },
       'session.get': { session: { id: 's-1', pinned: true, alive: true } },
     },
-  });
-
-  onTestFinished(() => {
-    old.stop();
   });
 
   const registry = {
@@ -460,11 +446,11 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
         : DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   const store = GatewayStore.open(join(current.dir, 'gateway.db'));
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     store.stop();
   });
 
@@ -480,7 +466,7 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
 });
 
 test('it refuses an unknown session as no_such_session before any token exists', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const refused = runTool(
     ctx.caller,
@@ -498,7 +484,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -513,7 +499,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = await caller.sendRequest('session.spawn', {
     cwd: daemon.dir,

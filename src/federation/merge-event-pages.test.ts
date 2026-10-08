@@ -11,11 +11,9 @@ import { mergeEventPages } from './merge-event-pages';
 /**
  * Two real daemons, `cloud` and `pc`, each with one session,
  * `cloudSession` and `pcSession`, that a message writes an event for. The
- * merge tests that need a daemon's own cursor semantics read through them.
+ * merge tests that need two daemons' own cursor semantics read through them.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const cloud = await startTestDaemon({
     prefix: 'atc-merge-events-cloud-',
 
@@ -23,16 +21,12 @@ async function setupTest() {
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  stack.use(cloud);
-
   const pc = await startTestDaemon({
     prefix: 'atc-merge-events-pc-',
 
     // Session messages need an adapter that takes them.
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
-
-  stack.use(pc);
 
   const cloudSpawned = await cloud.client.sendRequest('session.spawn', {
     cwd: cloud.dir,
@@ -44,14 +38,11 @@ async function setupTest() {
     resume: `a-${randomUUID()}`,
   });
 
-  const owned = stack.move();
-
   return {
     cloud,
     pc,
     cloudSession: String(getRecord(cloudSpawned, 'session')['id']),
     pcSession: String(getRecord(pcSpawned, 'session')['id']),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
@@ -437,7 +428,7 @@ test('it rewrites the session and message of each event for its daemon', () => {
 });
 
 test('it reads an event cut from a page exactly once though the daemon appends another before the next page', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const registry = {
     daemons: new Map([
@@ -544,7 +535,7 @@ test('it reads an event cut from a page exactly once though the daemon appends a
 });
 
 test('it resumes a daemon right after its event a later page read again', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const registry = {
     daemons: new Map([
@@ -641,20 +632,32 @@ test('it resumes a daemon right after its event a later page read again', async 
 });
 
 test('it pins a daemon the cursor leaves out at its newest event and reads only what follows', async () => {
-  await using ctx = await setupTest();
+  const pc = await startTestDaemon({
+    prefix: 'atc-merge-events-pc-',
+
+    // Session messages need an adapter that takes them.
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const spawned = await pc.client.sendRequest('session.spawn', {
+    cwd: pc.dir,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const pcSession = String(getRecord(spawned, 'session')['id']);
 
   const registry = {
     daemons: new Map([['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })]]),
     defaultDaemon: 'pc',
   };
 
-  await ctx.pc.client.sendRequest('session.message', {
-    session: ctx.pcSession,
+  await pc.client.sendRequest('session.message', {
+    session: pcSession,
     from: 'tester',
     text: 'old',
   });
 
-  const newest = await ctx.pc.client.sendRequest('events.read', { limit: 1 });
+  const newest = await pc.client.sendRequest('events.read', { limit: 1 });
 
   const merged = mergeEventPages(
     [
@@ -668,13 +671,13 @@ test('it pins a daemon the cursor leaves out at its newest event and reads only 
     10,
   );
 
-  await ctx.pc.client.sendRequest('session.message', {
-    session: ctx.pcSession,
+  await pc.client.sendRequest('session.message', {
+    session: pcSession,
     from: 'tester',
     text: 'new',
   });
 
-  const after = await ctx.pc.client.sendRequest('events.read', {
+  const after = await pc.client.sendRequest('events.read', {
     cursor: decodeGatewayCursor(merged.cursor, 'f', registry).get('pc'),
   });
 
@@ -687,15 +690,27 @@ test('it pins a daemon the cursor leaves out at its newest event and reads only 
 });
 
 test('it reads the events a daemon queued while it was down once it answers at its latest events', async () => {
-  await using ctx = await setupTest();
+  const pc = await startTestDaemon({
+    prefix: 'atc-merge-events-pc-',
 
-  await ctx.pc.client.sendRequest('session.message', {
-    session: ctx.pcSession,
+    // Session messages need an adapter that takes them.
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const spawned = await pc.client.sendRequest('session.spawn', {
+    cwd: pc.dir,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const pcSession = String(getRecord(spawned, 'session')['id']);
+
+  await pc.client.sendRequest('session.message', {
+    session: pcSession,
     from: 'tester',
     text: 'queued',
   });
 
-  const latest = await ctx.pc.client.sendRequest('events.read', {});
+  const latest = await pc.client.sendRequest('events.read', {});
 
   const merged = mergeEventPages(
     [

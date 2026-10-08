@@ -2,27 +2,22 @@ import { expect, test } from 'bun:test';
 import { DaemonClient } from '../client/daemon-client';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { readReportTexts } from './read-report-texts';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 // A daemon that holds no report and a caller connected to it.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const daemon = await startTestDaemon({ prefix: 'atc-read-report-texts-' });
-
-  stack.use(daemon);
 
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
-  const owned = stack.move();
-
-  return { caller, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { caller };
 }
 
 test('it adds the whole text of each report to its event and passes the rest of the page through', async () => {
@@ -166,7 +161,7 @@ test('it stops the page before the first report whose text would carry it past 6
 });
 
 test('it keeps a report whose text read fails with its preview and the refusal', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const page = await readReportTexts(ctx.caller, {
     events: [

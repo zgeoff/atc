@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -7,6 +7,7 @@ import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -18,20 +19,16 @@ import { ReconnectingCaller } from './reconnecting-caller';
 // whose sessions run `sleep`, one session running on it, and `atc mcp`'s
 // caller in front of it.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const daemon = await startTestDaemon({
     prefix: 'atc-answer-rpc-',
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  stack.use(daemon);
-
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawned = await caller.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -40,17 +37,11 @@ async function setupTest() {
     rows: 24,
   });
 
-  const owned = stack.move();
-
-  return {
-    caller,
-    sessionID: String(getRecord(spawned, 'session')['id']),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { caller, sessionID: String(getRecord(spawned, 'session')['id']) };
 }
 
 test('it refuses a tool call whose scope the caller lacks and leaves the session running', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     {
@@ -75,7 +66,7 @@ test('it refuses a tool call whose scope the caller lacks and leaves the session
 });
 
 test('it refuses a forget whose scope the caller lacks and leaves the session listed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     {
@@ -100,7 +91,7 @@ test('it refuses a forget whose scope the caller lacks and leaves the session li
 });
 
 test('it runs a tool call whose scope the caller holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     {
@@ -147,7 +138,7 @@ test('it runs a tool call whose scope the caller holds', async () => {
 });
 
 test('it returns a tool result object as structured content beside its JSON text', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     {
@@ -183,7 +174,7 @@ test('it returns a tool result object as structured content beside its JSON text
 });
 
 test('it lists every tool to a caller with one scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 2, method: 'tools/list' },
@@ -208,7 +199,7 @@ test('it lists every tool to a caller with one scope', async () => {
 });
 
 test('it refuses a call to an unknown tool as needing kill when the caller is scoped', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     {
@@ -229,7 +220,7 @@ test('it refuses a call to an unknown tool as needing kill when the caller is sc
 });
 
 test('it lists the agents to a caller holding only the read scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     {
@@ -344,19 +335,15 @@ test('it lists the agents to a caller holding only the read scope', async () => 
 });
 
 test('it leaves the agents tool out of the list when the connected daemon does not announce it', async () => {
-  using tmp = setupTempDir('atc-answer-rpc-');
+  const tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
-
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 1, method: 'tools/list' },
@@ -377,19 +364,15 @@ test('it leaves the agents tool out of the list when the connected daemon does n
 });
 
 test('it lists the message tool in its older form when the connected daemon announces no features', async () => {
-  using tmp = setupTempDir('atc-answer-rpc-');
+  const tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
-
-  onTestFinished(() => {
-    legacy.stop();
-  });
+  startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 1, method: 'tools/list' },
@@ -436,14 +419,14 @@ test.each([
 ])(
   'it refuses %p called with %p with a restart hint when the connected daemon predates it, sending nothing',
   async (name, args) => {
-    using tmp = setupTempDir('atc-answer-rpc-');
-    using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+    const tmp = setupTempDir('atc-answer-rpc-');
+    const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
     const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
       DaemonClient.open(path),
     );
 
-    onTestFinished(() => caller.stop());
+    registerTestCleanup(() => caller.stop());
 
     const outcome = await answerRPCRequest(
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
@@ -481,14 +464,14 @@ test.each([
 ])(
   'it refuses a spawn with the %p option %p with a restart hint when the connected daemon predates it, sending nothing',
   async (option, value) => {
-    using tmp = setupTempDir('atc-answer-rpc-');
-    using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
+    const tmp = setupTempDir('atc-answer-rpc-');
+    const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
     const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
       DaemonClient.open(path),
     );
 
-    onTestFinished(() => caller.stop());
+    registerTestCleanup(() => caller.stop());
 
     const outcome = await answerRPCRequest(
       {
@@ -529,9 +512,9 @@ test.each([
 );
 
 test('it reads a message from an older daemon when the call asks for no wait', async () => {
-  using tmp = setupTempDir('atc-answer-rpc-');
+  const tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     replies: {
       'message.get': {
         message: 'm-legacy',
@@ -544,15 +527,11 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     },
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
-
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const outcome = await answerRPCRequest(
     {
@@ -601,7 +580,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
 });
 
 test('it names the registered agents in the spawn tool to a caller holding the read scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 2, method: 'tools/list' },
@@ -629,7 +608,7 @@ test('it names the registered agents in the spawn tool to a caller holding the r
 });
 
 test('it names no agent in the spawn tool to a caller without the read scope', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
     { jsonrpc: '2.0', id: 2, method: 'tools/list' },
@@ -666,9 +645,9 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
 });
 
 test('it lists the agents tool without an output schema to match the agents a daemon without spawn options returns', async () => {
-  using tmp = setupTempDir('atc-answer-rpc-');
+  const tmp = setupTempDir('atc-answer-rpc-');
 
-  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
     replies: {
       'agents.list': {
@@ -699,15 +678,11 @@ test('it lists the agents tool without an output schema to match the agents a da
     },
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
-
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const [listed, called] = await Promise.all([
     answerRPCRequest(

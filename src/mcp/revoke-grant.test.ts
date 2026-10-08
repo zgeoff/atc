@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectGrants } from './collect-grants';
@@ -15,9 +16,7 @@ import { startMCPHTTPServer } from './start-mcp-http-server';
 // the way `atc grants` opens it. No test reaches the daemon, so the caller
 // points at a socket nothing listens on.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-revoke-grant-'));
+  const tmp = setupTempDir('atc-revoke-grant-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
@@ -25,7 +24,7 @@ async function setupTest() {
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const server = await startMCPHTTPServer({
     caller,
@@ -41,25 +40,17 @@ async function setupTest() {
     printRequest: () => {},
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
   const store = await openMCPAuth({ dbPath, origin: null });
 
-  stack.defer(() => store.close());
+  registerTestCleanup(() => store.close());
 
-  const owned = stack.move();
-
-  return {
-    url: server.url,
-    origin: server.origin,
-    approvals,
-    store,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { url: server.url, origin: server.origin, approvals, store };
 }
 
 test("it forgets the consent its client held along with the grant's tokens", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -99,15 +90,14 @@ test("it forgets the consent its client held along with the grant's tokens", asy
 });
 
 test('it reports an unknown grant id as not revoked', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const revoked = await revokeGrant(ctx.store.db, 'unknown-grant');
 
   expect(revoked).toBeFalse();
 });
 
 test("it never removes another grant's tokens or another client's consent", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const revoked = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -148,21 +138,19 @@ test("it never removes another grant's tokens or another client's consent", asyn
 
   await revokeGrant(ctx.store.db, revokedGrant.grantID);
 
-  const left = {
-    accessTokens: await ctx.store.db
-      .selectFrom('oauthAccessToken')
-      .select('authorizationCodeId')
-      .execute(),
-    refreshTokens: await ctx.store.db
-      .selectFrom('oauthRefreshToken')
-      .select('authorizationCodeId')
-      .execute(),
-    consents: await ctx.store.db.selectFrom('oauthConsent').select('clientId').execute(),
-  };
+  const accessTokens = await ctx.store.db
+    .selectFrom('oauthAccessToken')
+    .select('authorizationCodeId')
+    .execute();
 
-  expect(left).toStrictEqual({
-    accessTokens: [{ authorizationCodeId: keptGrant.grantID }],
-    refreshTokens: [{ authorizationCodeId: keptGrant.grantID }],
-    consents: [{ clientId: kept.clientID }],
-  });
+  const refreshTokens = await ctx.store.db
+    .selectFrom('oauthRefreshToken')
+    .select('authorizationCodeId')
+    .execute();
+
+  const consents = await ctx.store.db.selectFrom('oauthConsent').select('clientId').execute();
+
+  expect(accessTokens).toStrictEqual([{ authorizationCodeId: keptGrant.grantID }]);
+  expect(refreshTokens).toStrictEqual([{ authorizationCodeId: keptGrant.grantID }]);
+  expect(consents).toStrictEqual([{ clientId: kept.clientID }]);
 });

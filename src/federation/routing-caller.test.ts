@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockKeyBindingClaim } from '../test-utils/build-mock-key-binding-claim';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startCutProxy } from '../test-utils/start-cut-proxy';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
@@ -29,9 +30,7 @@ import type { RegistryDaemon } from './types';
  * file a test needs.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-routing-caller-'));
+  const tmp = setupTempDir('atc-routing-caller-');
 
   // The token both listeners take, which every pool here presents.
   writeFileSync(join(tmp.dir, 'token'), `${'a'.repeat(32)}\n`);
@@ -47,8 +46,6 @@ async function setupTest() {
     }),
   });
 
-  stack.use(cloud);
-
   const pc = await startTestDaemon({
     prefix: 'atc-routing-pc-',
     options: () => ({
@@ -60,17 +57,15 @@ async function setupTest() {
     }),
   });
 
-  stack.use(pc);
-
   const cloudProber = await DaemonClient.open(cloud.socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     cloudProber.stop();
   });
 
   const pcProber = await DaemonClient.open(pc.socketPath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     pcProber.stop();
   });
 
@@ -107,7 +102,7 @@ async function setupTest() {
   const storePath = join(tmp.dir, 'gateway.db');
   const store = GatewayStore.open(storePath);
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     store.stop();
   });
 
@@ -117,9 +112,7 @@ async function setupTest() {
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  stack.defer(() => pool.stop());
-
-  const owned = stack.move();
+  registerTestCleanup(() => pool.stop());
 
   return {
     dir: tmp.dir,
@@ -130,22 +123,17 @@ async function setupTest() {
     storePath,
     store,
     router: new RoutingCaller({ registry, pool, store }),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it sends no read to a replacement connection whose handshake lacks the principal feature', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
     method: 'dirs.list',
     cuts: 1,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
@@ -157,10 +145,6 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
       },
       'dirs.list': { dirs: ['/owner-only'] },
     },
-  });
-
-  onTestFinished(() => {
-    legacy.stop();
   });
 
   const registry = {
@@ -186,7 +170,7 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
 
   const pool = new DaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
@@ -197,7 +181,7 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
 });
 
 test('it runs only one of two concurrent keyed spawns with one key on two daemons', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-both' };
 
@@ -225,7 +209,7 @@ test('it runs only one of two concurrent keyed spawns with one key on two daemon
 });
 
 test('it refuses the other of two concurrent keyed spawns with one key on two daemons as idempotency_conflict', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-both' };
 
@@ -250,7 +234,7 @@ test('it refuses the other of two concurrent keyed spawns with one key on two da
 });
 
 test('it answers two concurrent keyed spawns with one key on one daemon with the one session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-twice' };
 
@@ -269,11 +253,11 @@ test('it answers two concurrent keyed spawns with one key on one daemon with the
 });
 
 test('it runs only one keyed spawn when another gateway binds its key to another daemon at once', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const otherStore = GatewayStore.open(ctx.storePath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     otherStore.stop();
   });
 
@@ -283,7 +267,7 @@ test('it runs only one keyed spawn when another gateway binds its key to another
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => otherPool.stop());
+  registerTestCleanup(() => otherPool.stop());
 
   const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
@@ -308,11 +292,11 @@ test('it runs only one keyed spawn when another gateway binds its key to another
 });
 
 test('it refuses a keyed spawn whose key another gateway bound to another daemon first as idempotency_conflict', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const otherStore = GatewayStore.open(ctx.storePath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     otherStore.stop();
   });
 
@@ -322,7 +306,7 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => otherPool.stop());
+  registerTestCleanup(() => otherPool.stop());
 
   const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
@@ -344,7 +328,7 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
 });
 
 test('it refuses a keyed spawn on a daemon without keyed spawns as daemon_outdated and sends it nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
@@ -356,17 +340,13 @@ test('it refuses a keyed spawn on a daemon without keyed spawns as daemon_outdat
     },
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
-
   const pool = new DaemonPool({
     registry: ctx.registry,
     build: 'atc-gateway/test',
     openChannel: () => DaemonClient.open(join(ctx.dir, 'legacy.sock')),
   });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   const router = new RoutingCaller({ registry: ctx.registry, pool, store: ctx.store });
 
@@ -386,9 +366,9 @@ test('it refuses a keyed spawn on a daemon without keyed spawns as daemon_outdat
 });
 
 test('it refuses a keyed spawn as daemon_outdated when it found no binding and its daemon turns out outdated', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
@@ -399,10 +379,6 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
     },
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
-
   const heldOpener = buildStubChannelOpener(
     [() => DaemonClient.open(join(ctx.dir, 'legacy.sock'))],
     { holdDial: 1 },
@@ -410,7 +386,7 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
 
   const heldStore = GatewayStore.open(ctx.storePath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     heldStore.stop();
   });
 
@@ -420,7 +396,7 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
     openChannel: heldOpener.open,
   });
 
-  onTestFinished(() => heldPool.stop());
+  registerTestCleanup(() => heldPool.stop());
 
   const heldRouter = new RoutingCaller({
     registry: ctx.registry,
@@ -440,9 +416,9 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
 });
 
 test("it keeps another call's completed binding when a call that found none is refused before sending", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
+  startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
     replies: {
       'daemon.hello': {
         daemon: 'atc/legacy-build',
@@ -453,10 +429,6 @@ test("it keeps another call's completed binding when a call that found none is r
     },
   });
 
-  onTestFinished(() => {
-    legacy.stop();
-  });
-
   const heldOpener = buildStubChannelOpener(
     [() => DaemonClient.open(join(ctx.dir, 'legacy.sock'))],
     { holdDial: 1 },
@@ -464,7 +436,7 @@ test("it keeps another call's completed binding when a call that found none is r
 
   const heldStore = GatewayStore.open(ctx.storePath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     heldStore.stop();
   });
 
@@ -474,7 +446,7 @@ test("it keeps another call's completed binding when a call that found none is r
     openChannel: heldOpener.open,
   });
 
-  onTestFinished(() => heldPool.stop());
+  registerTestCleanup(() => heldPool.stop());
 
   const heldRouter = new RoutingCaller({
     registry: ctx.registry,
@@ -506,17 +478,13 @@ test("it keeps another call's completed binding when a call that found none is r
 });
 
 test('it resends an uncertain keyed spawn replay-only, so a retry after the daemon swept the key spawns nothing and answers outcome_unknown', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
     method: 'session.spawn',
     cuts: 2,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const registry = {
@@ -540,7 +508,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
@@ -554,7 +522,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
 
   const ledger = new Database(ctx.cloud.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     ledger.close();
   });
 
@@ -572,17 +540,13 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
 });
 
 test('it spawns nothing for a queued keyed resend that reaches the daemon after its sweep', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
     method: 'session.spawn',
     cuts: 2,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const registry = {
@@ -610,7 +574,7 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   const pool = new DaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
@@ -628,7 +592,7 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   const ledger = new Database(ctx.cloud.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     ledger.close();
   });
 
@@ -645,17 +609,13 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 });
 
 test('it spawns nothing for a keyed spawn whose first send never reached the daemon, and keeps its binding uncertain', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
     method: 'session.spawn',
     cuts: 1,
     mode: 'drop',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const registry = {
@@ -679,7 +639,7 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
@@ -714,11 +674,11 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 });
 
 test('it runs one of two concurrent keyed spawns with one key from two gateways on one binding store', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const otherStore = GatewayStore.open(ctx.storePath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     otherStore.stop();
   });
 
@@ -728,7 +688,7 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => otherPool.stop());
+  registerTestCleanup(() => otherPool.stop());
 
   const other = new RoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
 
@@ -747,7 +707,7 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
 });
 
 test('it makes the first send of a binding a gateway restart left claimed but unsent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-unsent' };
 
@@ -784,7 +744,7 @@ test('it makes the first send of a binding a gateway restart left claimed but un
 });
 
 test('it replays the first send of a binding a gateway restart left claimed but unsent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-unsent' };
 
@@ -823,7 +783,7 @@ test('it replays the first send of a binding a gateway restart left claimed but 
 });
 
 test('it spawns nothing for a binding a gateway restart left sent but unanswered when the daemon holds no key, and returns its effectRef', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-sent' };
 
@@ -854,17 +814,13 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
 });
 
 test('it replays a keyed spawn sent before a gateway restart from the key the daemon holds, with no idempotency_conflict', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
     method: 'session.spawn',
     cuts: 2,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const registry = {
@@ -884,7 +840,7 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
 
   const beforeStore = GatewayStore.open(ctx.storePath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     beforeStore.stop();
   });
 
@@ -894,7 +850,7 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => beforePool.stop());
+  registerTestCleanup(() => beforePool.stop());
 
   const before = new RoutingCaller({ registry, pool: beforePool, store: beforeStore });
 
@@ -926,17 +882,13 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
 });
 
 test('it answers outcome_unknown for a keyed spawn sent before a gateway restart once the daemon swept its key', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
     method: 'session.spawn',
     cuts: 2,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const registry = {
@@ -956,7 +908,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 
   const beforeStore = GatewayStore.open(ctx.storePath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     beforeStore.stop();
   });
 
@@ -966,7 +918,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
   });
 
-  onTestFinished(() => beforePool.stop());
+  registerTestCleanup(() => beforePool.stop());
 
   const before = new RoutingCaller({ registry, pool: beforePool, store: beforeStore });
 
@@ -980,7 +932,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 
   const ledger = new Database(ctx.cloud.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     ledger.close();
   });
 
@@ -997,17 +949,13 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 });
 
 test('it sends no resend of a keyed spawn to a daemon that does not announce replay-only requests', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: Number(ctx.cloud.daemon.listenPort) },
     method: 'session.spawn',
     cuts: 1,
     mode: 'close',
-  });
-
-  onTestFinished(() => {
-    proxy.stop();
   });
 
   const legacy = startStubLegacyDaemon(join(ctx.dir, 'legacy.sock'), {
@@ -1019,10 +967,6 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
         idempotency: { completedRetentionMs: 86_400_000 },
       },
     },
-  });
-
-  onTestFinished(() => {
-    legacy.stop();
   });
 
   const registry = {
@@ -1048,7 +992,7 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
 
   const pool = new DaemonPool({ registry, build: 'atc-gateway/test', openChannel: opener.open });
 
-  onTestFinished(() => pool.stop());
+  registerTestCleanup(() => pool.stop());
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
@@ -1071,8 +1015,7 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
 });
 
 test("it passes each daemon's agent and target broker fields through agents.list unchanged", async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const direct = await ctx.cloud.client.sendRequest('agents.list');
   const fanned = await ctx.router.sendRequest('agents.list', {}, ['agents.list'], 'gw');
 
@@ -1093,7 +1036,7 @@ test("it passes each daemon's agent and target broker fields through agents.list
 });
 
 test('it refuses a daemon param the registry does not hold as bad_args', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(() =>
     ctx.router.sendRequest('dirs.list', { daemon: 'nope' }, ['request.principal'], 'gw'),
@@ -1103,7 +1046,7 @@ test('it refuses a daemon param the registry does not hold as bad_args', async (
 });
 
 test('it refuses a call whose ids belong to another daemon than its daemon param as bad_args', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(() =>
     ctx.router.sendRequest(

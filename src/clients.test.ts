@@ -6,20 +6,16 @@ import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
  * A temp directory that holds the authorization database the command opens.
- * Disposal removes the directory.
+ * The directory goes once the test finishes.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-clients-');
 
-  return {
-    dbPath: join(tmp.dir, 'state', 'mcp-auth.db'),
-    [Symbol.dispose]: tmp[Symbol.dispose],
-  };
+  return { dbPath: join(tmp.dir, 'state', 'mcp-auth.db') };
 }
 
 test('it adds a client and prints its client ID', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const printed: string[] = [];
   const errors: string[] = [];
   const codes: number[] = [];
@@ -49,8 +45,7 @@ test('it adds a client and prints its client ID', async () => {
 });
 
 test('it lists an added client with every redirect URI it was given', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const added: string[] = [];
 
   await runClients(
@@ -98,8 +93,7 @@ test('it lists an added client with every redirect URI it was given', async () =
 });
 
 test('it removes a client and says it revoked every grant the client held', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const added: string[] = [];
 
   await runClients(
@@ -138,8 +132,7 @@ test('it removes a client and says it revoked every grant the client held', asyn
 });
 
 test('it lists no clients and how to add one once the last client is removed', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const added: string[] = [];
 
   await runClients(
@@ -186,8 +179,7 @@ test('it lists no clients and how to add one once the last client is removed', a
 });
 
 test('it exits 1 when an add gives no redirect URI', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const errors: string[] = [];
   const codes: number[] = [];
   const exits: number[] = [];
@@ -217,8 +209,7 @@ test('it exits 1 when an add gives no redirect URI', async () => {
 });
 
 test('it exits 1 for a redirect URI that is not https or loopback http', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const errors: string[] = [];
   const codes: number[] = [];
   const exits: number[] = [];
@@ -250,8 +241,7 @@ test('it exits 1 for a redirect URI that is not https or loopback http', async (
 });
 
 test('it refuses to remove an unknown client', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const errors: string[] = [];
   const codes: number[] = [];
   const exits: number[] = [];
@@ -281,7 +271,7 @@ test('it refuses to remove an unknown client', async () => {
 });
 
 test('it sets the process exit code to 1 when it refuses a remove by default', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // Bun ignores an assignment of undefined, so an unset exit code goes back
   // as 0, the code an unset one exits with.

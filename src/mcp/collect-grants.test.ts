@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { readJSONRecord } from '../test-utils/read-json-record';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectGrants } from './collect-grants';
@@ -15,9 +16,7 @@ import { startMCPHTTPServer } from './start-mcp-http-server';
 // the way `atc grants` opens it. No test reaches the daemon, so the caller
 // points at a socket nothing listens on.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-collect-grants-'));
+  const tmp = setupTempDir('atc-collect-grants-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
@@ -25,7 +24,7 @@ async function setupTest() {
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const server = await startMCPHTTPServer({
     caller,
@@ -41,25 +40,17 @@ async function setupTest() {
     printRequest: () => {},
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
   const store = await openMCPAuth({ dbPath, origin: null });
 
-  stack.defer(() => store.close());
+  registerTestCleanup(() => store.close());
 
-  const owned = stack.move();
-
-  return {
-    url: server.url,
-    origin: server.origin,
-    approvals,
-    store,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { url: server.url, origin: server.origin, approvals, store };
 }
 
 test('it lists a grant with its client and scopes and no last use before the grant is used', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -100,7 +91,7 @@ test('it lists a grant with its client and scopes and no last use before the gra
 });
 
 test('it lists when a grant was last used', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -157,7 +148,7 @@ test('it lists when a grant was last used', async () => {
 });
 
 test('it leaves out a grant whose refresh token was revoked', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },

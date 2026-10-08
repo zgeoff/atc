@@ -1,17 +1,23 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { runGateway } from './run-gateway';
+import { registerTestCleanup } from './test-utils/register-test-cleanup';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
-// A temp directory for the registry and the state directory.
+/**
+ * A temp directory for the registry and the state directory. The directory
+ * goes once the test finishes.
+ */
 function setupTest() {
-  return setupTempDir('atc-run-gateway-');
+  const tmp = setupTempDir('atc-run-gateway-');
+
+  return { dir: tmp.dir };
 }
 
 test('it answers both probes for the host of its public URL', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -52,7 +58,7 @@ test('it answers both probes for the host of its public URL', async () => {
   const stop = signals.get('SIGTERM');
 
   invariant(stop, 'the gateway registered no SIGTERM handler');
-  onTestFinished(() => stop());
+  registerTestCleanup(() => stop());
 
   const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
     ?.groups?.['port'];
@@ -67,11 +73,12 @@ test('it answers both probes for the host of its public URL', async () => {
     headers: { host: 'atc.geoff.cloud' },
   });
 
-  expect([health.status, ready.status]).toStrictEqual([200, 200]);
+  expect(health.status).toBe(200);
+  expect(ready.status).toBe(200);
 });
 
 test('it refuses a probe from a foreign host', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -112,7 +119,7 @@ test('it refuses a probe from a foreign host', async () => {
   const stop = signals.get('SIGTERM');
 
   invariant(stop, 'the gateway registered no SIGTERM handler');
-  onTestFinished(() => stop());
+  registerTestCleanup(() => stop());
 
   const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
     ?.groups?.['port'];
@@ -127,7 +134,7 @@ test('it refuses a probe from a foreign host', async () => {
 });
 
 test('it keeps both databases in the state directory and writes nowhere else', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -164,19 +171,14 @@ test('it keeps both databases in the state directory and writes nowhere else', a
   const stop = signals.get('SIGTERM');
 
   invariant(stop, 'the gateway registered no SIGTERM handler');
-  onTestFinished(() => stop());
+  registerTestCleanup(() => stop());
 
-  expect({
-    state: readdirSync(join(ctx.dir, 'state')),
-    entries: readdirSync(ctx.dir).toSorted(),
-  }).toStrictEqual({
-    state: expect.toIncludeAllMembers(['gateway.db', 'mcp-auth.db']),
-    entries: ['registry.json', 'state'],
-  });
+  expect(readdirSync(join(ctx.dir, 'state'))).toIncludeAllMembers(['gateway.db', 'mcp-auth.db']);
+  expect(readdirSync(ctx.dir).toSorted()).toStrictEqual(['registry.json', 'state']);
 });
 
 test('it exits 1 naming the token variable a daemon lacks', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -213,15 +215,16 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
     },
   );
 
-  expect({ errors, exits, entries: readdirSync(ctx.dir) }).toStrictEqual({
+  expect({ errors, exits }).toStrictEqual({
     errors: ["atc-gateway: daemon 'cloud' has no token: set ATC_GATEWAY_TOKEN_CLOUD"],
     exits: [1],
-    entries: ['registry.json'],
   });
+
+  expect(readdirSync(ctx.dir)).toStrictEqual(['registry.json']);
 });
 
 test('it exits 1 on a registry that is not JSON', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'bad.json'), 'not json');
 
@@ -255,7 +258,7 @@ test('it exits 1 on a registry that is not JSON', async () => {
 });
 
 test('it stops serving and exits 0 on SIGTERM', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -296,9 +299,11 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
     },
   );
 
-  const stop = signals.get('SIGTERM');
+  const handler = signals.get('SIGTERM');
 
-  invariant(stop, 'the gateway registered no SIGTERM handler');
+  invariant(handler, 'the gateway registered no SIGTERM handler');
+
+  const stop = registerTestCleanup(handler);
 
   const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
     ?.groups?.['port'];

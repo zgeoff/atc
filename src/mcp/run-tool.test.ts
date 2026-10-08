@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
@@ -10,6 +10,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -19,28 +20,18 @@ import { runTool } from './run-tool';
 // A real daemon whose sessions run `sleep`, and `atc mcp`'s caller in front
 // of it, which connects on its first request.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-',
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  stack.use(daemon);
-
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
-  const owned = stack.move();
-
-  return {
-    caller,
-    dir: daemon.dir,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { caller, dir: daemon.dir };
 }
 
 test('it sends a message from a fixed sender whatever sender the call gives', async () => {
@@ -191,7 +182,7 @@ test('it sends a message under the key the call gives and needs a daemon that ta
 });
 
 test('it spawns top-level under a key of its own when the calling session is gone', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
     answer: (request) =>
@@ -229,7 +220,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
   // The key's spawn ran before a restart and created a session the fleet
   // holds but has not restored, so the daemon refuses the retried spawn with
   // that session's id and starts nothing.
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-',
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
@@ -271,7 +262,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const relay = buildStubFleetCaller({
     answer: (request) =>
@@ -300,7 +291,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
 });
 
 test('it derives a top-level fallback key within the daemon cap from the longest key a call may pass', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
     answer: (request) =>
@@ -321,7 +312,7 @@ test('it derives a top-level fallback key within the daemon cap from the longest
 });
 
 test('it derives the same top-level fallback key when the call is retried', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const relay = buildStubFleetCaller({
     answer: (request) =>
@@ -400,9 +391,9 @@ test('it spawns on the target the call gives and needs a daemon that takes targe
 });
 
 test('it refuses a spawn on a target unsent when the daemon predates targets', () => {
-  using tmp = setupTempDir('atc-run-tool-');
+  const tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
@@ -410,7 +401,7 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', (
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawn = runTool(
     caller,
@@ -444,7 +435,7 @@ test('it spawns with the workspace the call gives and needs a daemon that takes 
 });
 
 test('it spawns a git workspace without a cwd and returns the directory the daemon picked under the home', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
@@ -457,7 +448,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const home = join(daemon.dir, 'home');
   const upstream = join(daemon.dir, 'upstream.git');
@@ -495,9 +486,9 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
 });
 
 test('it refuses a git workspace without a cwd unsent when the daemon predates picking its directory', () => {
-  using tmp = setupTempDir('atc-run-tool-');
+  const tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
   });
 
@@ -505,7 +496,7 @@ test('it refuses a git workspace without a cwd unsent when the daemon predates p
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawn = runTool(
     caller,
@@ -537,9 +528,9 @@ test('it returns the warnings a workspace spawn left with the session', async ()
 });
 
 test('it refuses a spawn with a workspace unsent when the daemon predates workspaces', () => {
-  using tmp = setupTempDir('atc-run-tool-');
+  const tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
@@ -547,7 +538,7 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawn = runTool(
     caller,
@@ -576,9 +567,9 @@ test('it submits a session input line and needs a daemon that submits lines', as
 });
 
 test('it refuses a session input line unsent when the daemon predates line submission', () => {
-  using tmp = setupTempDir('atc-run-tool-');
+  const tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.submit'),
   });
 
@@ -586,7 +577,7 @@ test('it refuses a session input line unsent when the daemon predates line submi
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const input = runTool(
     caller,
@@ -615,9 +606,9 @@ test('it reads a report through a daemon that serves report reads', async () => 
 });
 
 test('it refuses a report read unsent when the daemon predates report reads', () => {
-  using tmp = setupTempDir('atc-run-tool-');
+  const tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'report.get'),
   });
 
@@ -625,7 +616,7 @@ test('it refuses a report read unsent when the daemon predates report reads', ()
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const read = runTool(
     caller,
@@ -659,9 +650,9 @@ test('it forwards an explicit clone trust decision and requires daemon support',
 });
 
 test('it refuses an explicit trust decision unsent when the daemon predates clone trust', () => {
-  using tmp = setupTempDir('atc-run-tool-');
+  const tmp = setupTempDir('atc-run-tool-');
 
-  using legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
     features: [
       'agents.list',
       'events.more',
@@ -676,7 +667,7 @@ test('it refuses an explicit trust decision unsent when the daemon predates clon
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const spawn = runTool(
     caller,

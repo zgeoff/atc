@@ -5,30 +5,27 @@ import { toSessionID } from './shared/to-session-id';
 import { buildMockSessionDescriptor } from './test-utils/build-mock-session-descriptor';
 import { buildMockStoredRow } from './test-utils/build-mock-stored-row';
 import { buildStubClock } from './test-utils/build-stub-clock';
+import { registerTestCleanup } from './test-utils/register-test-cleanup';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { startStubRestoreDaemon } from './test-utils/start-stub-restore-daemon';
 import { waitFor } from './test-utils/wait-for';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-verify-restored-fleet-'));
-  const daemon = stack.use(startStubRestoreDaemon(join(tmp.dir, 'daemon.sock')));
+  const tmp = setupTempDir('atc-verify-restored-fleet-');
+  const daemon = startStubRestoreDaemon(join(tmp.dir, 'daemon.sock'));
 
   const client = await DaemonClient.open(join(tmp.dir, 'daemon.sock'));
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
-  const owned = stack.move();
-
-  return { daemon, client, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { daemon, client };
 }
 
 test('it reports the last answered list when the deadline overtakes a later list', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const clock = buildStubClock(0);
 
@@ -86,7 +83,7 @@ test('it reports the last answered list when the deadline overtakes a later list
 });
 
 test('it rejects when the first list gets no answer before the deadline', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const clock = buildStubClock(0);
 

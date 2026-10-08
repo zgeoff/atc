@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectClients } from './collect-clients';
@@ -16,9 +17,7 @@ import { startMCPHTTPServer } from './start-mcp-http-server';
 // the way `atc clients` opens it. No test reaches the daemon, so the caller
 // points at a socket nothing listens on.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-remove-client-'));
+  const tmp = setupTempDir('atc-remove-client-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
@@ -26,7 +25,7 @@ async function setupTest() {
     DaemonClient.open(path),
   );
 
-  stack.defer(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const server = await startMCPHTTPServer({
     caller,
@@ -42,25 +41,17 @@ async function setupTest() {
     printRequest: () => {},
   });
 
-  stack.defer(() => server.stop());
+  registerTestCleanup(() => server.stop());
 
   const store = await openMCPAuth({ dbPath, origin: null });
 
-  stack.defer(() => store.close());
+  registerTestCleanup(() => store.close());
 
-  const owned = stack.move();
-
-  return {
-    url: server.url,
-    origin: server.origin,
-    approvals,
-    store,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { url: server.url, origin: server.origin, approvals, store };
 }
 
 test('it removes a client and reports it removed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -73,15 +64,14 @@ test('it removes a client and reports it removed', async () => {
 });
 
 test('it reports an unknown client id as not removed', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const removed = await removeClient(ctx.store.db, 'unknown-client');
 
   expect(removed).toBeFalse();
 });
 
 test("it never removes another client's tokens, consent or grant use", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const removed = await ctx.store.auth.api.createFixedClient({
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
@@ -131,17 +121,21 @@ test("it never removes another client's tokens, consent or grant use", async () 
 
   await removeClient(ctx.store.db, removed.clientID);
 
-  const left = {
-    accessTokens: await ctx.store.db.selectFrom('oauthAccessToken').select('clientId').execute(),
-    refreshTokens: await ctx.store.db.selectFrom('oauthRefreshToken').select('clientId').execute(),
-    consents: await ctx.store.db.selectFrom('oauthConsent').select('clientId').execute(),
-    grantUses: await ctx.store.db.selectFrom('atc_grant_use').select('grant_id').execute(),
-  };
+  const accessTokens = await ctx.store.db
+    .selectFrom('oauthAccessToken')
+    .select('clientId')
+    .execute();
 
-  expect(left).toStrictEqual({
-    accessTokens: [{ clientId: kept.clientID }],
-    refreshTokens: [{ clientId: kept.clientID }],
-    consents: [{ clientId: kept.clientID }],
-    grantUses: [{ grant_id: keptGrant.grantID }],
-  });
+  const refreshTokens = await ctx.store.db
+    .selectFrom('oauthRefreshToken')
+    .select('clientId')
+    .execute();
+
+  const consents = await ctx.store.db.selectFrom('oauthConsent').select('clientId').execute();
+  const grantUses = await ctx.store.db.selectFrom('atc_grant_use').select('grant_id').execute();
+
+  expect(accessTokens).toStrictEqual([{ clientId: kept.clientID }]);
+  expect(refreshTokens).toStrictEqual([{ clientId: kept.clientID }]);
+  expect(consents).toStrictEqual([{ clientId: kept.clientID }]);
+  expect(grantUses).toStrictEqual([{ grant_id: keptGrant.grantID }]);
 });

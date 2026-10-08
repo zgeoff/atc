@@ -1,13 +1,16 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDaemonProcess } from './is-daemon-process';
+import { registerTestCleanup } from './test-utils/register-test-cleanup';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 
+/**
+ * A temp directory holding a checkout entry that a process started as
+ * `cli.ts daemon` runs. The directory goes once the test finishes.
+ */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const dir = stack.use(setupTempDir('is-daemon-process-')).dir;
+  const dir = setupTempDir('is-daemon-process-').dir;
   const cli = join(dir, 'checkout', 'src', 'cli.ts');
 
   // A checkout entry that a process started as `cli.ts daemon` runs, so its
@@ -15,19 +18,11 @@ function setupTest() {
   mkdirSync(join(dir, 'checkout', 'src'), { recursive: true });
   writeFileSync(cli, "process.stdout.write('ready\\n');\nsetInterval(() => {}, 1000);\n");
 
-  const owned = stack.move();
-
-  return {
-    dir,
-    cli,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir, cli };
 }
 
 test('it accepts a daemon process whose home holds this state directory', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const daemon = Bun.spawn([process.execPath, ctx.cli, 'daemon'], {
     env: { HOME: join(ctx.dir, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
@@ -35,7 +30,7 @@ test('it accepts a daemon process whose home holds this state directory', async 
     stderr: 'ignore',
   });
 
-  onTestFinished(async () => {
+  registerTestCleanup(async () => {
     daemon.kill();
 
     await daemon.exited;
@@ -51,7 +46,7 @@ test('it accepts a daemon process whose home holds this state directory', async 
 });
 
 test('it rejects a daemon process of another home', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const daemon = Bun.spawn([process.execPath, ctx.cli, 'daemon'], {
     env: { HOME: join(ctx.dir, 'home'), PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
@@ -59,7 +54,7 @@ test('it rejects a daemon process of another home', async () => {
     stderr: 'ignore',
   });
 
-  onTestFinished(async () => {
+  registerTestCleanup(async () => {
     daemon.kill();
 
     await daemon.exited;
@@ -75,7 +70,7 @@ test('it rejects a daemon process of another home', async () => {
 });
 
 test('it rejects a live process that is not an atc daemon', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(isDaemonProcess(process.pid, join(ctx.dir, 'home', '.local', 'state', 'atc'))).toBeFalse();
 });

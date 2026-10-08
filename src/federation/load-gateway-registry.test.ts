@@ -11,11 +11,11 @@ import { loadGatewayRegistry } from './load-gateway-registry';
 function setupTest() {
   const tmp = setupTempDir('atc-gateway-registry-');
 
-  return { path: join(tmp.dir, 'registry.json'), [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { path: join(tmp.dir, 'registry.json') };
 }
 
 test('it loads a registry file with its tokens from the environment', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     ctx.path,
@@ -50,7 +50,7 @@ test('it loads a registry file with its tokens from the environment', () => {
 });
 
 test('it refuses a registry file that is not JSON', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(ctx.path, '{ daemons');
 
@@ -61,7 +61,7 @@ test('it refuses a registry file that is not JSON', () => {
 });
 
 test('it refuses a registry file that does not exist', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(loadGatewayRegistry(ctx.path, {})).toStrictEqual({
     ok: false,
