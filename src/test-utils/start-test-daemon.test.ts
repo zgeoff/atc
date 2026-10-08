@@ -329,6 +329,20 @@ test('it closes every client the daemon holds when it stops', async () => {
   expect(closed.promise).resolves.toBeUndefined();
 });
 
+test('it opens no main client when the config turns it off', async () => {
+  const harness = await startTestDaemon({ mainClient: false });
+
+  expect(harness.daemon.countClients()).toBe(0);
+});
+
+test('it opens no main client on restart when the config turns it off', async () => {
+  const harness = await startTestDaemon({ mainClient: false });
+
+  await harness.restart();
+
+  expect(harness.daemon.countClients()).toBe(0);
+});
+
 test('it boots a new daemon with a new main client on restart', async () => {
   const harness = await startTestDaemon();
 
