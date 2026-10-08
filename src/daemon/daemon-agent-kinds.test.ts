@@ -31,7 +31,7 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
     },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: acme, adapters: [acme] }),
   });
 
@@ -81,7 +81,7 @@ test('it lists an agent atc has no code for with the kind and label its adapter 
 test('it lists an adapter without a profile under its own id as its kind', async () => {
   const bare = buildMockAgentAdapter({ id: 'bare' });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: bare, adapters: [bare] }),
   });
 
@@ -157,7 +157,7 @@ test('it spawns a session under an agent atc has no code for', async () => {
     },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapter: acme, adapters: [acme] }),
   });
 

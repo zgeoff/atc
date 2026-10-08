@@ -8,7 +8,7 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 
 test('it spawns two claude entries each with its own args and settings file', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: (paths) => {
       const parsed = parseConfig({
@@ -79,7 +79,7 @@ test('it spawns two claude entries each with its own args and settings file', as
 });
 
 test('it lists no agent and defaults spawns to claude for an empty registry', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: () => {
       const parsed = parseConfig({ agents: {} });
@@ -97,7 +97,7 @@ test('it lists no agent and defaults spawns to claude for an empty registry', as
 });
 
 test('it refuses a spawn for an empty registry', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: () => {
       const parsed = parseConfig({ agents: {} });
@@ -115,7 +115,7 @@ test('it refuses a spawn for an empty registry', async () => {
 });
 
 test('it defaults spawns to the first entry when the registry holds no claude', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: (paths) => {
       const parsed = parseConfig({
@@ -134,7 +134,7 @@ test('it defaults spawns to the first entry when the registry holds no claude', 
 });
 
 test('it spawns the first entry when the registry holds no claude and the spawn names none', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: (paths) => {
       const parsed = parseConfig({

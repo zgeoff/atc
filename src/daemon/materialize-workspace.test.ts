@@ -4,13 +4,12 @@ import { join } from 'node:path';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { materializeWorkspace } from './materialize-workspace';
 
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-materialize-'));
+  const tmp = setupTempDir('atc-materialize-');
   const scratch = join(tmp.dir, 'scratch');
   const dbPath = join(tmp.dir, 'state.db');
 
@@ -21,15 +20,13 @@ async function setupTest() {
 
   const store = await StateStore.open(dbPath);
 
-  stack.defer(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
-  const owned = stack.move();
-
-  return { scratch, store, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { scratch, store };
 }
 
 test('it leaves no staging directory behind when the materialization row cannot be written', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.createMaterialization(
     {

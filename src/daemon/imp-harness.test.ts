@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
 import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit } from './execution-provider';
@@ -12,24 +13,14 @@ import { ImpHarness } from './imp-harness';
  * A stub imp port and a temp directory of the test's own.
  */
 function setupTest() {
-  using stack = new DisposableStack();
+  const tmp = setupTempDir('atc-imp-harness-');
+  const port = createStubImpPort();
 
-  const tmp = stack.use(setupTempDir('atc-imp-harness-'));
-  const port = stack.use(createStubImpPort());
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    port,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir: tmp.dir, port };
 }
 
 test('it reconnects after impd drops a send and resumes after the last byte it has', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -53,7 +44,7 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -126,8 +117,7 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
 });
 
 test('it drops the bytes a resume repeats below its high-water offset', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -148,7 +138,7 @@ test('it drops the bytes a resume repeats below its high-water offset', async ()
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -193,8 +183,7 @@ test('it drops the bytes a resume repeats below its high-water offset', async ()
 });
 
 test('it does a fresh attach that clears the screen when the resume finds a gap', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -218,7 +207,7 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -274,8 +263,7 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
 });
 
 test('it does a fresh attach when impd refuses its resume offset', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -299,7 +287,7 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -344,8 +332,7 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
 });
 
 test('it takes the session back from another connection that takes it over', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -369,7 +356,7 @@ test('it takes the session back from another connection that takes it over', asy
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -426,8 +413,7 @@ test('it takes the session back from another connection that takes it over', asy
 });
 
 test('it carries input once it takes the session back from another connection', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -448,7 +434,7 @@ test('it carries input once it takes the session back from another connection', 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -477,8 +463,7 @@ test('it carries input once it takes the session back from another connection', 
 });
 
 test('it ends a harness whose imp booted cold with the cause of the first boot after its own', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -499,7 +484,7 @@ test('it ends a harness whose imp booted cold with the cause of the first boot a
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -530,9 +515,7 @@ test('it ends a harness whose imp booted cold with the cause of the first boot a
 
 test('it ends a harness without a boot id as ended with the cause unknown', async () => {
   const ready = Promise.withResolvers<void>();
-
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -554,7 +537,7 @@ test('it ends a harness without a boot id as ended with the cause unknown', asyn
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -586,8 +569,7 @@ test('it ends a harness without a boot id as ended with the cause unknown', asyn
 });
 
 test('it ends with the kept exit code of its own generation when impd no longer holds it', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -608,7 +590,7 @@ test('it ends with the kept exit code of its own generation when impd no longer 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -646,8 +628,7 @@ test('it ends with the kept exit code of its own generation when impd no longer 
 });
 
 test('it ends with the refusal message in the detail when impd refuses without a code', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -668,7 +649,7 @@ test('it ends with the refusal message in the detail when impd refuses without a
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -703,8 +684,7 @@ test('it ends with the refusal message in the detail when impd refuses without a
 });
 
 test('it redacts credential-shaped runs from a refusal message it shows', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -725,7 +705,7 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -766,8 +746,7 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
 });
 
 test('it redacts short credentials in URL, header, and authorization shapes it shows', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -788,7 +767,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -830,9 +809,7 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
 
 test('it never sends a resume offset to a session whose agent carries none', async () => {
   const ready = Promise.withResolvers<void>();
-
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -857,7 +834,7 @@ test('it never sends a resume offset to a session whose agent carries none', asy
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -901,8 +878,7 @@ test('it never sends a resume offset to a session whose agent carries none', asy
 });
 
 test('it never sends a resume offset when impd carries no offsets', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-b' });
@@ -929,7 +905,7 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -963,8 +939,7 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
 });
 
 test('it reports a harness whose imp another owner put to sleep as suspended, without waking it', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -988,7 +963,7 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1044,8 +1019,7 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
 });
 
 test('it confirms the exit of a killed harness once impd reports its process exited', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1066,7 +1040,7 @@ test('it confirms the exit of a killed harness once impd reports its process exi
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1088,8 +1062,7 @@ test('it confirms the exit of a killed harness once impd reports its process exi
 });
 
 test('it reports no exit for a running harness whose wait runs out', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1110,7 +1083,7 @@ test('it reports no exit for a running harness whose wait runs out', async () =>
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1130,8 +1103,7 @@ test('it reports no exit for a running harness whose wait runs out', async () =>
 });
 
 test('it reports no exit for a harness whose imp went to sleep with the process inside', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1152,7 +1124,7 @@ test('it reports no exit for a harness whose imp went to sleep with the process 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1176,8 +1148,7 @@ test('it reports no exit for a harness whose imp went to sleep with the process 
 });
 
 test('it counts connections impd drops before they start, and ends once its reconnects run out', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1201,7 +1172,7 @@ test('it counts connections impd drops before they start, and ends once its reco
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1234,8 +1205,7 @@ test('it counts connections impd drops before they start, and ends once its reco
 });
 
 test('it ends once its reconnects run out when a listener throws on every connection that starts', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1259,7 +1229,7 @@ test('it ends once its reconnects run out when a listener throws on every connec
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1302,9 +1272,7 @@ test('it ends once its reconnects run out when a listener throws on every connec
 
 test('it starts at the size a resize asked for while its host was still readying', async () => {
   const ready = Promise.withResolvers<void>();
-
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1329,7 +1297,7 @@ test('it starts at the size a resize asked for while its host was still readying
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1362,9 +1330,7 @@ test('it starts at the size a resize asked for while its host was still readying
 
 test('it applies a resize that arrived before impd answered the start', async () => {
   const ready = Promise.withResolvers<void>();
-
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1389,7 +1355,7 @@ test('it applies a resize that arrived before impd answered the start', async ()
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1416,8 +1382,7 @@ test('it applies a resize that arrived before impd answered the start', async ()
 });
 
 test('it settles its start once impd starts the process', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const guest = createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
@@ -1438,7 +1403,7 @@ test('it settles its start once impd starts the process', async () => {
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -1464,7 +1429,7 @@ test('it settles its start once impd starts the process', async () => {
 });
 
 test('it rejects its start as broker_not_ready and ends without running when impd finds the broker not ready', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1485,7 +1450,7 @@ test('it rejects its start as broker_not_ready and ends without running when imp
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1508,7 +1473,7 @@ test('it rejects its start as broker_not_ready and ends without running when imp
 });
 
 test('it requires the broker again on the attach that reconnects a harness whose start required it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -1547,7 +1512,7 @@ test('it requires the broker again on the attach that reconnects a harness whose
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1589,7 +1554,7 @@ test('it requires the broker again on the attach that reconnects a harness whose
 });
 
 test('it refuses a start that requires the broker on an impd without exec requirements and sends no exec', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1617,7 +1582,7 @@ test('it refuses a start that requires the broker on an impd without exec requir
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1632,17 +1597,15 @@ test('it refuses a start that requires the broker on an impd without exec requir
     data: { imp: 'imp-b', execRequire: false },
   });
 
-  expect<Record<string, unknown>>({
-    requests: ctx.port.sessionRequests.filter((request) => request.name === 'imp-b'),
-    exits,
-  }).toStrictEqual({
-    requests: [],
-    exits: [{ exitCode: 1, reason: 'ended', detail: 'impd too old to require the broker' }],
-  });
+  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toStrictEqual([]);
+
+  expect(exits).toStrictEqual([
+    { exitCode: 1, reason: 'ended', detail: 'impd too old to require the broker' },
+  ]);
 });
 
 test('it rejects its start as auth_impd_too_old when impd refuses it as outdated', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1665,7 +1628,7 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1673,7 +1636,7 @@ test('it rejects its start as auth_impd_too_old when impd refuses it as outdated
 });
 
 test('it starts a harness that requires the broker after one failed feature read, sending the start again rather than an attach', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -1712,22 +1675,23 @@ test('it starts a harness that requires the broker after one failed feature read
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
   await harness.waitForStart();
 
-  expect<Record<string, unknown>>({
-    requests: ctx.port.sessionRequests
+  expect(
+    ctx.port.sessionRequests
       .filter((request) => request.name === 'imp-b')
       .map((request) => request.kind),
-    state: ctx.port.findState('imp-b'),
-  }).toStrictEqual({ requests: ['start'], state: 'running' });
+  ).toStrictEqual(['start']);
+
+  expect(ctx.port.findState('imp-b')).toBe('running');
 });
 
 test('it refuses a harness that requires the broker once its feature reads keep failing, sending no exec', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1755,7 +1719,7 @@ test('it refuses a harness that requires the broker once its feature reads keep 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1766,18 +1730,12 @@ test('it refuses a harness that requires the broker once its feature reads keep 
   const started = harness.waitForStart();
 
   expect(started).rejects.toMatchObject({ code: 'host_unavailable' });
-
-  expect<Record<string, unknown>>({
-    requests: ctx.port.sessionRequests.filter((request) => request.name === 'imp-b'),
-    exits,
-  }).toStrictEqual({
-    requests: [],
-    exits: [{ exitCode: 1, reason: 'ended', detail: 'imp unreachable' }],
-  });
+  expect(ctx.port.sessionRequests.filter((request) => request.name === 'imp-b')).toStrictEqual([]);
+  expect(exits).toStrictEqual([{ exitCode: 1, reason: 'ended', detail: 'imp unreachable' }]);
 });
 
 test('it refuses a harness whose admission check throws as its connection opens, sending no exec', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1811,7 +1769,7 @@ test('it refuses a harness whose admission check throws as its connection opens,
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1822,7 +1780,7 @@ test('it refuses a harness whose admission check throws as its connection opens,
 });
 
 test('it sends the start of a harness whose admission check passes as its connection opens', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -1864,7 +1822,7 @@ test('it sends the start of a harness whose admission check passes as its connec
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1886,7 +1844,7 @@ test('it sends the start of a harness whose admission check passes as its connec
 });
 
 test('it tells its host the harness is done only after every exit listener has run', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1910,7 +1868,7 @@ test('it tells its host the harness is done only after every exit listener has r
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -1924,7 +1882,7 @@ test('it tells its host the harness is done only after every exit listener has r
 });
 
 test('it tells its host the harness is done once when the daemon lets go of it, with no exit', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -1948,7 +1906,7 @@ test('it tells its host the harness is done once when the daemon lets go of it, 
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 

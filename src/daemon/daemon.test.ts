@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
@@ -12,6 +12,7 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
@@ -31,11 +32,10 @@ function setupTest() {
 }
 
 test('it answers daemon.hello with the build, limits, and features', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -77,13 +77,13 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
 });
 
 test('it counts a client connection while it is open', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.daemon.countClients()).toBe(1);
 });
 
 test('it stops counting a client connection once it closes', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   ctx.client.stop();
 
@@ -93,8 +93,8 @@ test('it stops counting a client connection once it closes', async () => {
 });
 
 test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
-  await using ctx = await setupTest();
-  await using raw = await subscribeToSocketLines(ctx.socketPath);
+  const ctx = await setupTest();
+  const raw = await subscribeToSocketLines(ctx.socketPath);
 
   raw.write('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}\n');
 
@@ -113,19 +113,17 @@ test('it rejects a protocol version mismatch naming both builds and closes the c
 });
 
 test('it answers daemon.ping after the handshake', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const pong = await ctx.client.sendRequest('daemon.ping');
 
   expect(pong).toStrictEqual({});
 });
 
 test('it refuses any request before daemon.hello', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const client = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 
@@ -133,7 +131,7 @@ test('it refuses any request before daemon.hello', async () => {
 });
 
 test('it answers an unknown method with unknown_method', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.client.sendRequest('session.levitate')).rejects.toMatchObject({
     code: 'unknown_method',
@@ -141,7 +139,7 @@ test('it answers an unknown method with unknown_method', async () => {
 });
 
 test('it stays connected after answering an unknown method', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.levitate').catch(() => null);
 
@@ -151,8 +149,8 @@ test('it stays connected after answering an unknown method', async () => {
 });
 
 test('it closes the connection on a malformed line', async () => {
-  await using ctx = await setupTest();
-  await using raw = await subscribeToSocketLines(ctx.socketPath);
+  const ctx = await setupTest();
+  const raw = await subscribeToSocketLines(ctx.socketPath);
 
   raw.write('this is not json\n');
 
@@ -164,8 +162,8 @@ test('it closes the connection on a malformed line', async () => {
 });
 
 test('it closes the connection on an oversized line', async () => {
-  await using ctx = await setupTest();
-  await using raw = await subscribeToSocketLines(ctx.socketPath);
+  const ctx = await setupTest();
+  const raw = await subscribeToSocketLines(ctx.socketPath);
 
   raw.write(`{"v":1,"id":1,"m":"daemon.hello","p":{"pad":"${'x'.repeat(1_100_000)}"}}\n`);
 
@@ -177,15 +175,14 @@ test('it closes the connection on an oversized line', async () => {
 });
 
 test('it lists no sessions on a fresh daemon', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const list = await ctx.client.sendRequest('session.list');
 
   expect(list).toStrictEqual({ sessions: [] });
 });
 
 test('it answers session.kill for an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.client.sendRequest('session.kill', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
@@ -193,7 +190,7 @@ test('it answers session.kill for an unknown session with no_such_session', asyn
 });
 
 test('it answers session.ack for an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.client.sendRequest('session.ack', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
@@ -201,7 +198,7 @@ test('it answers session.ack for an unknown session with no_such_session', async
 });
 
 test('it answers session.screen for an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.client.sendRequest('session.screen', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
@@ -209,7 +206,7 @@ test('it answers session.screen for an unknown session with no_such_session', as
 });
 
 test('it answers session.resumeCommand for an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(
     ctx.client.sendRequest('session.resumeCommand', { session: 'nope' }),
@@ -217,21 +214,20 @@ test('it answers session.resumeCommand for an unknown session with no_such_sessi
 });
 
 test('it rejects session.spawn without a cwd as bad_args', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.client.sendRequest('session.spawn', {})).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it reports agent claude when session.spawn omits agent', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const ok = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
   expect(ok['session']).toMatchObject({ agent: 'claude' });
 });
 
 test('it answers session.spawn with an unknown parent as no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(
     ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, parent: 'ghost', cols: 80, rows: 24 }),
@@ -239,8 +235,7 @@ test('it answers session.spawn with an unknown parent as no_such_session', async
 });
 
 test('it nests a spawn under its parent', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
   const topID = getRecord(top, 'session')['id'];
@@ -256,8 +251,7 @@ test('it nests a spawn under its parent', async () => {
 });
 
 test('it lands a spawn under a sub-session beside that sub-session, under its parent', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
   const topID = getRecord(top, 'session')['id'];
@@ -280,8 +274,7 @@ test('it lands a spawn under a sub-session beside that sub-session, under its pa
 });
 
 test('it refuses to pin a sub-session as bad_args', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
   const child = await ctx.client.sendRequest('session.spawn', {
@@ -300,7 +293,7 @@ test('it refuses to pin a sub-session as bad_args', async () => {
 });
 
 test('it refuses session.spawn with agent grok as unsupported and records no session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'grok' });
 
@@ -310,11 +303,12 @@ test('it refuses session.spawn with agent grok as unsupported and records no ses
   const fleet = await ctx.client.sendRequest('fleet.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'unsupported' });
-  expect({ list, fleet }).toStrictEqual({ list: { sessions: [] }, fleet: { fleet: [] } });
+  expect(list).toStrictEqual({ sessions: [] });
+  expect(fleet).toStrictEqual({ fleet: [] });
 });
 
 test('it spawns a grok session when a grok adapter is registered', async () => {
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
@@ -338,7 +332,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
 });
 
 test('it yanks a grok session spawned with an id as a resume of that id', async () => {
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
@@ -367,7 +361,7 @@ test('it yanks a grok session spawned with an id as a resume of that id', async 
 });
 
 test('it yanks a grok session spawned without an id as a plain start', async () => {
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
@@ -395,7 +389,7 @@ test('it yanks a grok session spawned without an id as a plain start', async () 
 });
 
 test('it revives a grok session from a captured id when summary.json is missing', async () => {
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
@@ -428,14 +422,12 @@ test('it revives a grok session from a captured id when summary.json is missing'
 
   const listed = await ctx.client.sendRequest('session.list');
 
-  expect({ adopted, listed }).toStrictEqual({
-    adopted: {},
-    listed: { sessions: [expect.objectContaining({ id, alive: true })] },
-  });
+  expect(adopted).toStrictEqual({});
+  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: true })] });
 });
 
 test('it keeps last-used on a spawn that has not reported SessionStart', async () => {
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
@@ -466,7 +458,7 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
 
   const probe = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     probe.stop();
   });
 
@@ -476,12 +468,15 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
 });
 
 test('it spawns claude when a spawn omits agent after another agent was last used', async () => {
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: async (paths) => {
-      await using store = await StateStore.open(paths.dbPath);
+      const store = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => store.stop());
 
       await store.writeLastUsedAgent('grok');
+      await store.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -505,7 +500,7 @@ test('it spawns claude when a spawn omits agent after another agent was last use
 });
 
 test('it rejects session.spawn with an unregistered agent id as unsupported', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(
     ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'gemini' }),
@@ -513,7 +508,7 @@ test('it rejects session.spawn with an unregistered agent id as unsupported', as
 });
 
 test('it rejects session.spawn with an empty agent id as bad_args', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(
     ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: '' }),
@@ -521,8 +516,7 @@ test('it rejects session.spawn with an empty agent id as bad_args', async () => 
 });
 
 test('it broadcasts SessionAttached with the session descriptor when a client attaches', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const actor = await ctx.openClient();
   const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
@@ -552,8 +546,7 @@ test('it broadcasts SessionAttached with the session descriptor when a client at
 });
 
 test('it broadcasts SessionDetached when an attached client detaches', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const actor = await ctx.openClient();
   const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
@@ -572,8 +565,7 @@ test('it broadcasts SessionDetached when an attached client detaches', async () 
 });
 
 test('it broadcasts SessionDetached when an attached client disconnects', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const actor = await ctx.openClient();
   const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
@@ -597,8 +589,7 @@ test('it broadcasts SessionDetached when an attached client disconnects', async 
 });
 
 test('it broadcasts no SessionDetached for a detach without an attach', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const actor = await ctx.openClient();
   const sessionID = await spawnNamedSession((m, p) => actor.sendRequest(m, p), 'focus-me', ctx.dir);
 
@@ -615,7 +606,7 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
 });
 
 test('it runs a configured hook with the same event JSON a watching client receives', async () => {
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter(),
@@ -661,7 +652,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
 });
 
 test('it answers session.get for an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.client.sendRequest('session.get', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
@@ -669,7 +660,7 @@ test('it answers session.get for an unknown session with no_such_session', async
 });
 
 test("it reads a spawned session's prompt through session.get", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -692,7 +683,7 @@ test("it reads a spawned session's prompt through session.get", async () => {
 });
 
 test('it answers session.read for an unknown session with no_such_session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(ctx.client.sendRequest('session.read', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
@@ -700,8 +691,7 @@ test('it answers session.read for an unknown session with no_such_session', asyn
 });
 
 test('it answers session.read with unsupported for an agent atc cannot read the transcript of', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'worker', ctx.dir);
 
   expect(ctx.client.sendRequest('session.read', { session: id })).rejects.toMatchObject({
@@ -710,7 +700,7 @@ test('it answers session.read with unsupported for an agent atc cannot read the 
 });
 
 test('it rejects a session.read cursor the daemon never issued with bad_args', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   expect(
     ctx.client.sendRequest('session.read', { session: 'nope', cursor: 'garbage' }),
@@ -718,8 +708,7 @@ test('it rejects a session.read cursor the daemon never issued with bad_args', a
 });
 
 test('it rejects an events cursor passed to session.read with bad_args', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const events = await ctx.client.sendRequest('events.read', {});
 
   expect(
@@ -728,7 +717,7 @@ test('it rejects an events cursor passed to session.read with bad_args', async (
 });
 
 test('it rejects a transcript cursor passed to events.read with bad_args', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const cursor = encodeCursor({ kind: 'transcript', path: join(ctx.dir, 'x'), offset: 0 });
 
@@ -738,15 +727,14 @@ test('it rejects a transcript cursor passed to events.read with bad_args', async
 });
 
 test('it answers events.read on an empty trail at once with no events and a cursor', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const answer = await ctx.client.sendRequest('events.read', {});
 
   expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
 });
 
 test('it holds events.read open while no event arrives within waitMs', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const read = ctx.client.sendRequest('events.read', { waitMs: 600_000 });
 
@@ -764,7 +752,7 @@ test('it holds events.read open while no event arrives within waitMs', async () 
 test('it answers events.read with no events once waitMs passes without one', async () => {
   const clock = buildStubClock(0);
 
-  await using ctx = await startTestDaemon({
+  const ctx = await startTestDaemon({
     prefix: 'atc-daemon-',
     options: () => ({ adapter: buildMockAgentAdapter(), clock }),
   });
@@ -783,15 +771,14 @@ test('it answers events.read with no events once waitMs passes without one', asy
 });
 
 test('it answers daemon.hello with the same daemon id after a restart', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const firstHello = await ctx.client.sendHello(ctx.build);
 
   await ctx.restart();
 
   const second = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     second.stop();
   });
 
@@ -801,11 +788,10 @@ test('it answers daemon.hello with the same daemon id after a restart', async ()
 });
 
 test('it locates a spawned session on this daemon at the local target', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const probe = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     probe.stop();
   });
 
@@ -818,7 +804,7 @@ test('it locates a spawned session on this daemon at the local target', async ()
 });
 
 test('it answers a kill whose fleet write meets a moved ownership epoch with stale_epoch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -830,7 +816,7 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
 
   const db = new Database(ctx.dbPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     db.close();
   });
 
@@ -848,7 +834,7 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
 });
 
 test('it stops the daemon when its handle is disposed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.daemon[Symbol.asyncDispose]();
 
@@ -856,7 +842,7 @@ test('it stops the daemon when its handle is disposed', async () => {
 });
 
 test('it releases nothing again when a stopped handle is disposed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const stopped = ctx.daemon;
 

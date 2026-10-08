@@ -8,7 +8,7 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
 
 test('it lists each registered agent with what it can do and the host it runs on', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -226,7 +226,7 @@ test('it lists each registered agent with what it can do and the host it runs on
 });
 
 test("it keeps a gateway's env values, helper, and base URL out of the agent list", async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -260,7 +260,7 @@ test("it keeps a gateway's env values, helper, and base URL out of the agent lis
 });
 
 test('it refuses a registered agent whose binary is missing before spawning anything', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => ({
       adapters: buildAgentAdapters(
         parseConfig({ claudeBin: 'sh', codexBin: join(paths.dir, 'missing', 'codex') }),
@@ -283,7 +283,7 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
 });
 
 test('it lists only the agents the daemon registered', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(parseConfig({ agents: { claude: { bin: 'sh' } } })),
     }),
@@ -295,7 +295,7 @@ test('it lists only the agents the daemon registered', async () => {
 });
 
 test('it refuses to spawn an agent id the daemon never registered', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
@@ -310,7 +310,7 @@ test('it refuses to spawn an agent id the daemon never registered', async () => 
 });
 
 test('it refuses a model shaped like a flag before spawning anything', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
@@ -328,7 +328,7 @@ test('it refuses a model shaped like a flag before spawning anything', async () 
 });
 
 test('it refuses a gateway effort outside the levels the CLI accepts', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -361,7 +361,7 @@ test('it refuses a gateway effort outside the levels the CLI accepts', async () 
 });
 
 test('it refuses an option the agent takes no value for', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh', grokBin: 'sh' })),
     }),
@@ -386,7 +386,7 @@ test('it refuses an option the agent takes no value for', async () => {
 });
 
 test('it refuses a model that is not a string', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 
@@ -399,7 +399,7 @@ test('it refuses a model that is not a string', async () => {
 });
 
 test('it answers a spawn with the model it was spawned with', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -429,7 +429,7 @@ test('it answers a spawn with the model it was spawned with', async () => {
 });
 
 test('it lists a spawned session with the model it was spawned with', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -461,7 +461,7 @@ test('it lists a spawned session with the model it was spawned with', async () =
 });
 
 test('it lists a spawned session without a model key when it runs the default', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({ adapters: buildAgentAdapters(parseConfig({ claudeBin: 'sh' })) }),
   });
 

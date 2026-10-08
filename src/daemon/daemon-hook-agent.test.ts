@@ -6,7 +6,7 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 
 test('it accepts a hook line carrying the kind for a second codex entry', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
@@ -50,7 +50,7 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
 });
 
 test('it drops a hook line carrying the entry id for a codex entry', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
@@ -102,7 +102,7 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
 });
 
 test('it drops a hook line from another agent at a claude session', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(

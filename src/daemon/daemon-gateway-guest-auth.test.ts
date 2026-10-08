@@ -10,6 +10,7 @@ import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
@@ -25,10 +26,8 @@ import { LocalPTYProvider } from './local-pty-provider';
  * records each start in `claude-starts.log` under the directory.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-gateway-guest-auth-'));
-  const port = stack.use(createStubImpPort());
+  const tmp = setupTempDir('atc-gateway-guest-auth-');
+  const port = createStubImpPort();
 
   // Every brokered spawn checks that the token may manage atc imps and
   // grant glm, and that impd holds glm for api.z.ai as a bearer secret.
@@ -55,11 +54,9 @@ function setupTest() {
     { atcBinary: null },
   );
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
-
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
@@ -75,16 +72,13 @@ function setupTest() {
       },
       { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
     ],
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
 test('it starts a brokered gateway on an imp under the settings file of its binding revision', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -147,9 +141,9 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
 });
 
 test('it revives a rebound session under the settings file of the next revision', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -202,9 +196,9 @@ test('it revives a rebound session under the settings file of the next revision'
 });
 
 test('it refuses to revive a revoked session and starts no harness under its old settings', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -250,9 +244,9 @@ test('it refuses to revive a revoked session and starts no harness under its old
 });
 
 test('it starts a brokered gateway with the placeholder and its own Claude config in the harness env and no credential anywhere', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -318,9 +312,9 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
 });
 
 test('it refuses a brokered gateway whose env sets a proxy variable before any imp call', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const config = parseConfig({
         authProfiles: {
@@ -372,16 +366,14 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
     data: { agent: 'proxied', problem: 'guest_env_conflict', variable: 'HTTPS_PROXY' },
   });
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls,
-    listed,
-  }).toStrictEqual({ calls: [], listed: { sessions: [] } });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it lists a brokered gateway with the bearer placeholder as spawnable and one with another placeholder as not', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const config = parseConfig({
         authProfiles: {
@@ -441,9 +433,9 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
 });
 
 test('it refuses a brokered gateway with an unsupported placeholder before materializing its workspace or touching impd', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -486,18 +478,16 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
     data: { agent: 'keyed' },
   });
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls,
-    created: existsSync(cwd),
-    hosts: existsSync(join(ctx.dir, 'g')),
-    listed,
-  }).toStrictEqual({ calls: [], created: false, hosts: false, listed: { sessions: [] } });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(existsSync(cwd)).toBeFalse();
+  expect(existsSync(join(ctx.dir, 'g'))).toBeFalse();
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a brokered gateway on the local target before materializing its workspace or touching impd', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({
@@ -540,10 +530,8 @@ test('it refuses a brokered gateway on the local target before materializing its
     data: { agent: 'glm', target: 'local' },
   });
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls,
-    created: existsSync(cwd),
-    started: existsSync(join(ctx.dir, 'claude-starts.log')),
-    listed,
-  }).toStrictEqual({ calls: [], created: false, started: false, listed: { sessions: [] } });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(existsSync(cwd)).toBeFalse();
+  expect(existsSync(join(ctx.dir, 'claude-starts.log'))).toBeFalse();
+  expect(listed).toStrictEqual({ sessions: [] });
 });

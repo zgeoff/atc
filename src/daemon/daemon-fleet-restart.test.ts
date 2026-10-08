@@ -1,6 +1,5 @@
-import { expect, mock, onTestFinished, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { expect, mock, test } from 'bun:test';
+import { chmod, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -8,6 +7,8 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubClock } from '../test-utils/build-stub-clock';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import type { RestoreSettled } from './restore-fleet';
@@ -16,9 +17,11 @@ test('it restores the stored sessions by itself after a restart', async () => {
   const clock = buildStubClock(0);
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
@@ -27,6 +30,8 @@ test('it restores the stored sessions by itself after a restart', async () => {
 
       // The fake agent never reports it booted, so the second session starts
       // once the first one's boot cap runs out on the stub clock.
+      await seed.stop();
+
       return {
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         restoreFleetOnRestart: true,
@@ -51,22 +56,23 @@ test('it restores the stored sessions by itself after a restart', async () => {
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect({ settles, sessions: listed['sessions'] }).toMatchObject({
-    settles: [{ restored: 2, outcome: 'finished' }],
-    sessions: [
-      { id: 's-a', alive: true },
-      { id: 's-b', alive: true },
-    ],
-  });
+  expect(settles).toMatchObject([{ restored: 2, outcome: 'finished' }]);
+
+  expect(listed['sessions']).toMatchObject([
+    { id: 's-a', alive: true },
+    { id: 's-b', alive: true },
+  ]);
 });
 
 test('it sends no message to the sessions it restores after a restart', async () => {
   const clock = buildStubClock(0);
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({
@@ -81,6 +87,8 @@ test('it sends no message to the sessions it restores after a restart', async ()
         { atcId: toSessionID('s-a'), event: 'UserPromptSubmit', payload: { session_id: 'a-a' } },
         { kind: 'prompt-submitted' },
       );
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -104,27 +112,32 @@ test('it sends no message to the sessions it restores after a restart', async ()
     expect(settles).toStrictEqual([{ restored: 2, outcome: 'finished' }]);
   });
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
 
-  const pending = {
-    a: await store.collectPendingMessages({ atcID: toSessionID('s-a') }),
-    b: await store.collectPendingMessages({ atcID: toSessionID('s-b') }),
-  };
+  registerTestCleanup(() => store.stop());
 
-  expect(pending).toStrictEqual({ a: [], b: [] });
+  const pendingA = await store.collectPendingMessages({ atcID: toSessionID('s-a') });
+  const pendingB = await store.collectPendingMessages({ atcID: toSessionID('s-b') });
+
+  expect(pendingA).toStrictEqual([]);
+  expect(pendingB).toStrictEqual([]);
 });
 
 test('it starts none of the stored sessions when the option is unset', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
   const skips: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
       ]);
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
@@ -137,21 +150,23 @@ test('it starts none of the stored sessions when the option is unset', async () 
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect({ skips, sessions: listed['sessions'], spawns: planSpawn.mock.calls }).toStrictEqual({
-    skips: ['disabled'],
-    sessions: [],
-    spawns: [],
-  });
+  expect(skips).toStrictEqual(['disabled']);
+  expect(listed['sessions']).toStrictEqual([]);
+  expect(planSpawn.mock.calls).toStrictEqual([]);
 });
 
 test('it restores the stored sessions on fleet.restore when the option is unset', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
       ]);
+
+      await seed.stop();
 
       return { adapter: buildMockAgentAdapter() };
     },
@@ -168,13 +183,17 @@ test('it starts none of the stored sessions when the option is false', async () 
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
   const skips: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
       ]);
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
@@ -188,17 +207,15 @@ test('it starts none of the stored sessions when the option is false', async () 
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect({ skips, sessions: listed['sessions'], spawns: planSpawn.mock.calls }).toStrictEqual({
-    skips: ['disabled'],
-    sessions: [],
-    spawns: [],
-  });
+  expect(skips).toStrictEqual(['disabled']);
+  expect(listed['sessions']).toStrictEqual([]);
+  expect(planSpawn.mock.calls).toStrictEqual([]);
 });
 
 test('it declines to restore an empty stored fleet by itself', async () => {
   const skips: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter(),
       restoreFleetOnRestart: true,
@@ -210,13 +227,14 @@ test('it declines to restore an empty stored fleet by itself', async () => {
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  expect({ skips, sessions: listed['sessions'] }).toStrictEqual({ skips: ['empty'], sessions: [] });
+  expect(skips).toStrictEqual(['empty']);
+  expect(listed['sessions']).toStrictEqual([]);
 });
 
 test('it reports each fleet.restore that restores nothing once it settles', async () => {
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter(),
       onRestoreSettled: (settled) => {
@@ -235,9 +253,11 @@ test('it reports each fleet.restore that restores nothing once it settles', asyn
 test('it joins a fleet.restore to the automatic restore while its stagger runs', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet(
         ['s-a', 's-b', 's-c'].map((id) =>
@@ -247,6 +267,8 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
 
       // The fake agent never reports it booted, and no cap ends the wait, so
       // the stagger holds on the first session.
+      await seed.stop();
+
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
         restoreFleetOnRestart: true,
@@ -263,20 +285,19 @@ test('it joins a fleet.restore to the automatic restore while its stagger runs',
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(planSpawn).toHaveBeenCalledOnce();
-
-  expect({ joined, listed: listed['sessions'] }).toMatchObject({
-    joined: { restored: 3 },
-    listed: [{ id: 's-a' }, { id: 's-b' }, { id: 's-c' }],
-  });
+  expect(joined).toMatchObject({ restored: 3 });
+  expect(listed['sessions']).toMatchObject([{ id: 's-a' }, { id: 's-b' }, { id: 's-c' }]);
 });
 
 test('it starts no queued session once the daemon stops while the stagger runs', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet(
         ['s-a', 's-b'].map((id) =>
@@ -286,6 +307,8 @@ test('it starts no queued session once the daemon stops while the stagger runs',
 
       // The fake agent never reports it booted, and no cap ends the wait, so
       // the stagger holds on the first session until the daemon stops.
+      await seed.stop();
+
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
         restoreFleetOnRestart: true,
@@ -316,15 +339,19 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
   const clock = buildStubClock(0);
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet(
         ['s-a', 's-b'].map((id) =>
           buildMockFleetEntry({ sessionID: toSessionID(id), cwd: paths.dir }),
         ),
       );
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter({ planSpawn }),
@@ -355,22 +382,20 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
 });
 
 test('it restores the rest of the fleet past rows whose repository cannot be resolved', async () => {
-  const locked = await mkdtemp(join(tmpdir(), 'atc-daemon-fleet-locked-'));
-
-  onTestFinished(async () => {
-    await chmod(locked, 0o700);
-    await rm(locked, { recursive: true, force: true });
-  });
-
+  const locked = setupTempDir('atc-daemon-fleet-locked-').dir;
   const clock = buildStubClock(0);
   const settles: RestoreSettled[] = [];
 
   await mkdir(join(locked, 'work'));
   await chmod(locked, 0o000);
 
-  await using daemon = await startTestDaemon({
+  registerTestCleanup(() => chmod(locked, 0o700));
+
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-local'), cwd: paths.dir }),
@@ -388,6 +413,8 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
         }),
         buildMockFleetEntry({ sessionID: toSessionID('s-after'), cwd: paths.dir }),
       ]);
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -433,9 +460,11 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
 test('it forgets an exited session on a target the daemon cannot use', async () => {
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({
@@ -445,6 +474,8 @@ test('it forgets an exited session on a target the daemon cannot use', async () 
           exited: true,
         }),
       ]);
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -470,7 +501,7 @@ test('it forgets an exited session on a target the daemon cannot use', async () 
 test('it lists a restored exited worktree session under the worktree itself', async () => {
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
       const worktree = join(paths.dir, 'wt');
 
@@ -478,11 +509,15 @@ test('it lists a restored exited worktree session under the worktree itself', as
 
       await Bun.write(join(worktree, '.git'), `gitdir: ${paths.dir}/main/.git/worktrees/wt\n`);
 
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-wt'), cwd: worktree, exited: true }),
       ]);
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -506,7 +541,7 @@ test('it lists a restored exited worktree session under the worktree itself', as
 test('it regroups a revived exited worktree session under its repository', async () => {
   const settles: RestoreSettled[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: async (paths) => {
       const worktree = join(paths.dir, 'wt');
 
@@ -514,11 +549,15 @@ test('it regroups a revived exited worktree session under its repository', async
 
       await Bun.write(join(worktree, '.git'), `gitdir: ${paths.dir}/main/.git/worktrees/wt\n`);
 
-      await using seed = await StateStore.open(paths.dbPath);
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
 
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-wt'), cwd: worktree, exited: true }),
       ]);
+
+      await seed.stop();
 
       return {
         adapter: buildMockAgentAdapter(),

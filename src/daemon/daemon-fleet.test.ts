@@ -4,13 +4,16 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it keeps every stored fleet row restorable when a spawn writes the fleet before the restore', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-fleet-',
     options: async (paths) => {
-      await using store = await StateStore.open(paths.dbPath);
+      const store = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
@@ -28,6 +31,8 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
           exited: true,
         }),
       ]);
+
+      await store.stop();
 
       return { adapter: buildMockAgentAdapter() };
     },
@@ -56,10 +61,12 @@ test('it keeps every stored fleet row restorable when a spawn writes the fleet b
 });
 
 test('it keeps every stored fleet row when a rename and a deliberate kill write the fleet before the restore', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-fleet-',
     options: async (paths) => {
-      await using store = await StateStore.open(paths.dbPath);
+      const store = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-live-a'), name: 'live-a', cwd: paths.dir }),
@@ -70,6 +77,8 @@ test('it keeps every stored fleet row when a rename and a deliberate kill write 
           exited: true,
         }),
       ]);
+
+      await store.stop();
 
       return { adapter: buildMockAgentAdapter() };
     },

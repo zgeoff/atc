@@ -8,6 +8,7 @@ import { StateStore } from '../store/state-store';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
@@ -22,9 +23,7 @@ import type { RestoreSettled } from './restore-fleet';
  * its terminal adoption ends.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
   const settles: RestoreSettled[] = [];
 
   const daemon = await startTestDaemon({
@@ -83,20 +82,15 @@ async function setupTest() {
     },
   });
 
-  stack.use(daemon);
-
-  const owned = stack.move();
-
   return Object.assign(daemon, {
     port,
     settles,
     marker: join(daemon.dir, 'claude-starts.log'),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   });
 }
 
 test('it refuses a local spawn of a gateway with auth and starts no harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -109,15 +103,12 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
   const listed = await ctx.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  expect({ listed, started: existsSync(ctx.marker) }).toStrictEqual({
-    listed: { sessions: [] },
-    started: false,
-  });
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it refuses an imp spawn of a gateway with auth before touching impd', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -128,16 +119,13 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
   await Promise.allSettled([spawn]);
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  expect({
-    calls: ctx.port.calls,
-    sessions: ctx.port.sessionRequests,
-    started: existsSync(ctx.marker),
-  }).toStrictEqual({ calls: [], sessions: [], started: false });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it starts the harness of a gateway without auth on a local spawn', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'zai', target: 'local' });
 
@@ -147,8 +135,7 @@ test('it starts the harness of a gateway without auth on a local spawn', async (
 });
 
 test('it lists a gateway with auth as able to spawn, since a target with a broker binding can start it', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const answer = await ctx.client.sendRequest('agents.list');
 
   expect(answer['agents']).toStrictEqual([
@@ -276,7 +263,7 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
 });
 
 test('it refuses a local spawn that resumes a session of a gateway with auth and starts no harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawn = ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -290,15 +277,12 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
   const listed = await ctx.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  expect({ listed, started: existsSync(ctx.marker) }).toStrictEqual({
-    listed: { sessions: [] },
-    started: false,
-  });
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it refuses to adopt a restored local session of a gateway with auth and starts no harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A transcript that exists makes the session resumable.
   const transcriptPath = join(ctx.dir, 'transcript.jsonl');
@@ -309,7 +293,9 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
   // the daemon is stopped.
   await ctx.stop();
 
-  await using store = await StateStore.open(ctx.dbPath);
+  const store = await StateStore.open(ctx.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await store.writeFleet([
     buildMockFleetEntry({
@@ -335,7 +321,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
 });
 
 test('it restores a local session of a gateway with auth without starting its harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A transcript that exists makes the session resumable.
   const transcriptPath = join(ctx.dir, 'transcript.jsonl');
@@ -346,7 +332,9 @@ test('it restores a local session of a gateway with auth without starting its ha
   // the daemon is stopped.
   await ctx.stop();
 
-  await using store = await StateStore.open(ctx.dbPath);
+  const store = await StateStore.open(ctx.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await store.writeFleet([
     buildMockFleetEntry({
@@ -365,8 +353,6 @@ test('it restores a local session of a gateway with auth without starting its ha
     expect(ctx.settles).toHaveLength(1);
   });
 
-  expect({ settles: ctx.settles, started: existsSync(ctx.marker) }).toStrictEqual({
-    settles: [{ restored: 1, outcome: 'finished' }],
-    started: false,
-  });
+  expect(ctx.settles).toStrictEqual([{ restored: 1, outcome: 'finished' }]);
+  expect(existsSync(ctx.marker)).toBeFalse();
 });

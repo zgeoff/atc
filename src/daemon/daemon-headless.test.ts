@@ -42,7 +42,7 @@ async function setupTest() {
 }
 
 test('it answers the eject of a terminal session with an empty reply', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -61,7 +61,7 @@ test('it answers the eject of a terminal session with an empty reply', async () 
 });
 
 test('it ejects a terminal session into a headless run with its agent id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -85,7 +85,7 @@ test('it ejects a terminal session into a headless run with its agent id', async
 });
 
 test('it lists an ejected session as a running headless session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -112,8 +112,8 @@ test('it lists an ejected session as a running headless session', async () => {
 });
 
 test('it starts the headless run of an ejected workspace session without its workspace credential', async () => {
-  await using ctx = await setupTest();
-  await using git = await createGitFixture({ prefix: 'atc-headless-workspace-' });
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-headless-workspace-' });
 
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
@@ -148,7 +148,7 @@ test('it starts the headless run of an ejected workspace session without its wor
 });
 
 test('it reports a finished headless turn as done', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -180,7 +180,7 @@ test('it reports a finished headless turn as done', async () => {
 });
 
 test('it reports a stuck headless turn as needs_you', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -212,7 +212,7 @@ test('it reports a stuck headless turn as needs_you', async () => {
 });
 
 test("it keeps a finished headless turn's whole final message as the latest result", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const result = `Fixed the auth bug.\n\n${'The token refresh now retries once. '.repeat(10)}`;
 
@@ -246,7 +246,7 @@ test("it keeps a finished headless turn's whole final message as the latest resu
 });
 
 test("it shows a finished headless turn's result as the session's latest detail", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -278,7 +278,7 @@ test("it shows a finished headless turn's result as the session's latest detail"
 });
 
 test("it records a headless turn's prompt in the event trail", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -307,7 +307,7 @@ test("it records a headless turn's prompt in the event trail", async () => {
 });
 
 test("it records a headless turn's finish in the event trail", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -345,7 +345,7 @@ test("it records a headless turn's finish in the event trail", async () => {
 });
 
 test('it records a stuck headless turn as needs-input in the event trail', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -387,7 +387,7 @@ test('it records a stuck headless turn as needs-input in the event trail', async
 });
 
 test('it starts the next headless turn from session input once idle', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -418,23 +418,22 @@ test('it starts the next headless turn from session input once idle', async () =
     d: 'next task\n',
   });
 
-  expect({ answered, requests: ctx.runs.map((started) => started.request) }).toStrictEqual({
-    answered: {},
-    requests: [
-      {
-        cwd: ctx.dir,
-        prompt:
-          'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
-        resume: toAgentSessionID('sess-123'),
-        sessionID,
-      },
-      { cwd: ctx.dir, prompt: 'next task', resume: toAgentSessionID('sess-123'), sessionID },
-    ],
-  });
+  expect(answered).toStrictEqual({});
+
+  expect(ctx.runs.map((started) => started.request)).toStrictEqual([
+    {
+      cwd: ctx.dir,
+      prompt:
+        'Continue the task autonomously. Verify your work as you go and stop when it is complete.',
+      resume: toAgentSessionID('sess-123'),
+      sessionID,
+    },
+    { cwd: ctx.dir, prompt: 'next task', resume: toAgentSessionID('sess-123'), sessionID },
+  ]);
 });
 
 test('it refuses input to a headless session mid-run', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -460,7 +459,7 @@ test('it refuses input to a headless session mid-run', async () => {
 });
 
 test('it adopts a headless session back into a terminal', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -502,7 +501,7 @@ test('it adopts a headless session back into a terminal', async () => {
 });
 
 test('it refuses to eject a session that never reported an agent session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -517,7 +516,7 @@ test('it refuses to eject a session that never reported an agent session id', as
 });
 
 test('it reports eject as unsupported without a headless runner', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
@@ -538,7 +537,7 @@ test('it reports eject as unsupported without a headless runner', async () => {
 test('it refuses to eject a grok session', async () => {
   const headless = buildStubHeadlessRunner();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
@@ -575,7 +574,7 @@ test('it starts no headless run for a refused grok eject', async () => {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
@@ -622,14 +621,12 @@ test('it starts no headless run for a refused grok eject', async () => {
     expect(headless.runs).toHaveLength(1);
   });
 
-  expect({
-    delays,
-    sessions: headless.runs.map((run) => run.request.sessionID),
-  }).toStrictEqual({ delays: [4000], sessions: [claudeID] });
+  expect(delays).toStrictEqual([4000]);
+  expect(headless.runs.map((run) => run.request.sessionID)).toStrictEqual([claudeID]);
 });
 
 test("it stops a killed session's headless run", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
@@ -653,14 +650,12 @@ test("it stops a killed session's headless run", async () => {
 
   const listed = await ctx.client.sendRequest('session.list');
 
-  expect({
-    stopped: ctx.runs.map((run) => run.stopped),
-    sessions: listed['sessions'],
-  }).toStrictEqual({ stopped: [true], sessions: [] });
+  expect(ctx.runs.map((run) => run.stopped)).toStrictEqual([true]);
+  expect(listed['sessions']).toStrictEqual([]);
 });
 
 test('it refuses input for a killed headless session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.dir,

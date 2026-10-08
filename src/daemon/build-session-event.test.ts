@@ -4,6 +4,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockSession } from '../test-utils/build-mock-session';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildSessionEvent } from './build-session-event';
 import { SessionManager } from './sessions';
@@ -13,25 +14,23 @@ import { SessionManager } from './sessions';
  * no sessions.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-daemon-events-'));
+  const tmp = setupTempDir('atc-daemon-events-');
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'));
 
-  stack.use(store);
+  registerTestCleanup(() => store.stop());
 
-  const mgr = stack.use(
-    new SessionManager(buildMockAgentAdapter(), store, join(tmp.dir, 'status.json'), []),
-  );
+  const mgr = new SessionManager(buildMockAgentAdapter(), store, join(tmp.dir, 'status.json'), []);
 
-  const owned = stack.move();
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
-  return { mgr, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { mgr };
 }
 
 test('it builds nothing for a SessionState notification whose id has no descriptor', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const event = buildSessionEvent(
     ctx.mgr,
@@ -43,7 +42,7 @@ test('it builds nothing for a SessionState notification whose id has no descript
 });
 
 test('it builds nothing for a SessionAdded notification whose id has no descriptor', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const event = buildSessionEvent(
     ctx.mgr,

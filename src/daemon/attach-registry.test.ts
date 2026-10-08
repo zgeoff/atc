@@ -24,10 +24,8 @@ test('it updates the dims of an attached client', () => {
 
   const updated = registry.updateDims(toSessionID('s1'), 'a', { cols: 90, rows: 20 });
 
-  expect({ updated, dims: registry.findEffectiveDims(toSessionID('s1')) }).toStrictEqual({
-    updated: true,
-    dims: { cols: 90, rows: 20 },
-  });
+  expect(updated).toBeTrue();
+  expect(registry.findEffectiveDims(toSessionID('s1'))).toStrictEqual({ cols: 90, rows: 20 });
 });
 
 test('it refuses a dims update from a client that is not attached', () => {
@@ -37,10 +35,8 @@ test('it refuses a dims update from a client that is not attached', () => {
 
   const updated = registry.updateDims(toSessionID('s1'), 'stranger', { cols: 10, rows: 10 });
 
-  expect({ updated, dims: registry.findEffectiveDims(toSessionID('s1')) }).toStrictEqual({
-    updated: false,
-    dims: { cols: 100, rows: 24 },
-  });
+  expect(updated).toBeFalse();
+  expect(registry.findEffectiveDims(toSessionID('s1'))).toStrictEqual({ cols: 100, rows: 24 });
 });
 
 test('it reports true for a detach that removes an attachment', () => {
@@ -75,11 +71,9 @@ test('it detaches one client from every session it watched', () => {
 
   const affected = registry.detachAll('a');
 
-  expect({
-    affected,
-    s1: registry.collectClients(toSessionID('s1')),
-    s2: registry.collectClients(toSessionID('s2')),
-  }).toStrictEqual({ affected: [toSessionID('s1'), toSessionID('s2')], s1: [], s2: ['b'] });
+  expect(affected).toStrictEqual([toSessionID('s1'), toSessionID('s2')]);
+  expect(registry.collectClients(toSessionID('s1'))).toStrictEqual([]);
+  expect(registry.collectClients(toSessionID('s2'))).toStrictEqual(['b']);
 });
 
 test('it keeps other sessions when one is removed', () => {
@@ -91,8 +85,6 @@ test('it keeps other sessions when one is removed', () => {
   // The client watches both sessions, so only its attachment to s1 may go.
   registry.removeSession(toSessionID('s1'));
 
-  expect({
-    s1: registry.hasClient(toSessionID('s1'), 'a'),
-    s2: registry.hasClient(toSessionID('s2'), 'a'),
-  }).toStrictEqual({ s1: false, s2: true });
+  expect(registry.hasClient(toSessionID('s1'), 'a')).toBeFalse();
+  expect(registry.hasClient(toSessionID('s2'), 'a')).toBeTrue();
 });

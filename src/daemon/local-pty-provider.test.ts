@@ -1,7 +1,8 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
 import { waitFor } from '../test-utils/wait-for';
@@ -12,28 +13,19 @@ import { LocalPTYProvider } from './local-pty-provider';
  * it runs.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-local-pty-'));
+  const tmp = setupTempDir('atc-local-pty-');
 
   const provider = new LocalPTYProvider();
 
-  stack.defer(provider.dispose);
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
 
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    provider,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir: tmp.dir, provider };
 }
 
 test('it runs a harness in a pseudo-terminal that echoes typed input back', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const output: string[] = [];
 
   const harness = ctx.provider.spawnHarness({
@@ -47,7 +39,7 @@ test('it runs a harness in a pseudo-terminal that echoes typed input back', asyn
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -67,7 +59,7 @@ test('it runs a harness in a pseudo-terminal that echoes typed input back', asyn
 });
 
 test('it starts a harness with TERM xterm-256color when the daemon has no TERM', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('TERM', undefined);
 
@@ -84,7 +76,7 @@ test('it starts a harness with TERM xterm-256color when the daemon has no TERM',
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -103,7 +95,7 @@ test.each([
   { daemonTERM: 'screen-256color', childTERM: 'screen-256color' },
   { daemonTERM: 'xterm-kitty', childTERM: 'xterm-kitty' },
 ])('it starts a harness with TERM $childTERM when the daemon has TERM $daemonTERM', async (row) => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('TERM', row.daemonTERM);
 
@@ -120,7 +112,7 @@ test.each([
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -134,7 +126,7 @@ test.each([
 });
 
 test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('TERM', 'dumb');
 
@@ -151,7 +143,7 @@ test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', 
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -165,7 +157,7 @@ test('it keeps a TERM the caller sets for the harness over a dumb daemon TERM', 
 });
 
 test('it keeps a withheld variable out of a harness it gives a TERM', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('TERM', undefined);
   updateEnv('ATC_TEST_WITHHELD', 'fixture-not-a-secret');
@@ -184,7 +176,7 @@ test('it keeps a withheld variable out of a harness it gives a TERM', async () =
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -198,8 +190,7 @@ test('it keeps a withheld variable out of a harness it gives a TERM', async () =
 });
 
 test('it reports the exit of a killed harness', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const exited = Promise.withResolvers<number>();
 
   const harness = ctx.provider.spawnHarness({
@@ -213,7 +204,7 @@ test('it reports the exit of a killed harness', async () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -227,7 +218,7 @@ test('it reports the exit of a killed harness', async () => {
 });
 
 test('it confirms the exit of a killed harness once its process is gone', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const harness = ctx.provider.spawnHarness({
     session: 's1',
@@ -240,7 +231,7 @@ test('it confirms the exit of a killed harness once its process is gone', async 
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -252,8 +243,7 @@ test('it confirms the exit of a killed harness once its process is gone', async 
 });
 
 test('it reports no exit for a killed harness whose process ignores the kill', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const output: string[] = [];
 
   // The harness writes the file once it has caught the hang-up, and runs on.
@@ -272,7 +262,7 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.killForced?.();
   });
 
@@ -298,11 +288,12 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
 
   const exited = await harness.waitForExit(0);
 
-  expect({ exited, alive: process.kill(pid, 0) }).toStrictEqual({ exited: false, alive: true });
+  expect(exited).toBeFalse();
+  expect(process.kill(pid, 0)).toBeTrue();
 });
 
 test('it ends a harness that ignores its kill with a forced kill', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The harness writes the file once it has caught the hang-up, and runs on.
   const harness = ctx.provider.spawnHarness({
@@ -320,7 +311,7 @@ test('it ends a harness that ignores its kill with a forced kill', async () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.killForced?.();
   });
 
@@ -348,8 +339,7 @@ test('it ends a harness that ignores its kill with a forced kill', async () => {
 });
 
 test('it resizes the terminal a running harness reads its size from', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const output: string[] = [];
 
   const harness = ctx.provider.spawnHarness({
@@ -363,7 +353,7 @@ test('it resizes the terminal a running harness reads its size from', async () =
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -384,8 +374,7 @@ test('it resizes the terminal a running harness reads its size from', async () =
 });
 
 test('it unpacks a tar archive into a directory it creates', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const source = join(ctx.dir, 'source');
 
   mkdirSync(join(source, 'nested'), { recursive: true });
@@ -401,7 +390,7 @@ test('it unpacks a tar archive into a directory it creates', async () => {
 });
 
 test('it rejects an archive tar cannot read', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const transfer = ctx.provider.transferArchive(
     new TextEncoder().encode('not a tar archive'),
@@ -412,7 +401,7 @@ test('it rejects an archive tar cannot read', () => {
 });
 
 test('it runs a command in a directory and returns its exit code and output', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const result = await ctx.provider.runCommand({
     argv: ['bash', '-c', 'pwd; echo oops >&2; exit 3'],
@@ -423,7 +412,7 @@ test('it runs a command in a directory and returns its exit code and output', as
 });
 
 test('it refuses to start a harness that requires a credential broker, which it has none of', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(() =>
     ctx.provider.spawnHarness({
@@ -441,7 +430,7 @@ test('it refuses to start a harness that requires a credential broker, which it 
 });
 
 test('it keeps a variable the daemon started with out of a harness whose map leaves it out', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const inner = `
 import { LocalPTYProvider } from ${JSON.stringify(join(import.meta.dir, 'local-pty-provider.ts'))};
@@ -482,7 +471,7 @@ console.log(output);
     stderr: 'inherit',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 
@@ -493,7 +482,7 @@ console.log(output);
 });
 
 test('it fails the spawn of a program the harness PATH does not hold', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   expect(() =>
     ctx.provider.spawnHarness({
@@ -510,7 +499,7 @@ test('it fails the spawn of a program the harness PATH does not hold', () => {
 });
 
 test('it runs a harness whose program path holds an equals sign', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'agent=dir'));
 
@@ -531,7 +520,7 @@ test('it runs a harness whose program path holds an equals sign', async () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 

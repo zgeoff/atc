@@ -48,10 +48,8 @@ test('it holds a wait with no event on a timer of its timeout', () => {
 
   const waiting = signal.waitForNext(signal.generation, 100);
 
-  expect({ timers: clock.collectPending(), wait: Bun.peek.status(waiting) }).toStrictEqual({
-    timers: [100],
-    wait: 'pending',
-  });
+  expect(clock.collectPending()).toStrictEqual([100]);
+  expect(Bun.peek.status(waiting)).toBe('pending');
 });
 
 test('it resolves a wait with no event once the timeout passes', async () => {
@@ -96,10 +94,8 @@ test('it counts each wait still pending', () => {
     signal.waitForNext(signal.generation, 10_000),
   ];
 
-  expect({
-    waiters: signal.countWaiters(),
-    waits: waits.map((wait) => Bun.peek.status(wait)),
-  }).toStrictEqual({ waiters: 2, waits: ['pending', 'pending'] });
+  expect(signal.countWaiters()).toBe(2);
+  expect(waits.map((wait) => Bun.peek.status(wait))).toStrictEqual(['pending', 'pending']);
 });
 
 test('it counts no wait once an event wakes every pending one', () => {
@@ -112,10 +108,8 @@ test('it counts no wait once an event wakes every pending one', () => {
 
   signal.emit();
 
-  expect({
-    waiters: signal.countWaiters(),
-    waits: waits.map((wait) => Bun.peek.status(wait)),
-  }).toStrictEqual({ waiters: 0, waits: ['fulfilled', 'fulfilled'] });
+  expect(signal.countWaiters()).toBe(0);
+  expect(waits.map((wait) => Bun.peek.status(wait))).toStrictEqual(['fulfilled', 'fulfilled']);
 });
 
 test('it counts no wait that resolved at once', () => {
@@ -127,8 +121,6 @@ test('it counts no wait that resolved at once', () => {
 
   const wait = signal.waitForNext(generation, 10_000);
 
-  expect({ waiters: signal.countWaiters(), wait: Bun.peek.status(wait) }).toStrictEqual({
-    waiters: 0,
-    wait: 'fulfilled',
-  });
+  expect(signal.countWaiters()).toBe(0);
+  expect(Bun.peek.status(wait)).toBe('fulfilled');
 });
