@@ -136,13 +136,14 @@ never appear in a test file.
 - `setupTest()` builds the runtime the test needs: temp directories, servers, clients, database
   handles, recorders. It takes a typed config object, returns named properties, and has no `if`. Its
   config chooses which dependencies to wire, and it never carries scenario data.
-- The scenario belongs to the test body: every row, every override, and every value an assertion
-  depends on. `setupTest()` may write boot data, meaning data without which the unit cannot run at
-  all. Two questions sort a value. Does any test in the file assert on it, or need a different value
-  of it? Does `setupTest()` return it, or take a config field for it? A yes to either question makes
-  the value scenario data, and it moves into the test body. Boot data carries a one-line comment
-  that names what needs it. A value that an assertion depends on stays in the test body even when
-  every test uses the same value.
+- The scenario belongs to the test body: every row, override, and value that selects the case, such
+  as agent entries or authentication tokens. A scenario value stays there even when every test uses
+  the same value. `setupTest()` may write boot data without which the unit cannot run; each value
+  carries a one-line comment that states why boot needs it.
+- Return runtime handles and generated infrastructure paths from `setupTest()` as named properties,
+  such as a database handle, a temporary directory, or a VM's system path. They remain runtime
+  wiring when a test compares them. Keep the scenario's choice of resource or generation visible in
+  the test body.
 - An earlier act that the test's one act depends on, such as starting the session that the test
   attaches to, is arrangement. No assertion checks it, because a separate test covers that act.
   `setupTest()` runs it and returns the handles it produced. An earlier act that carries scenario

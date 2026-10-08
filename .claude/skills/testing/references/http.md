@@ -33,9 +33,13 @@ server.listen({
 
 ## Stateful handlers
 
-The default handlers implement the remote service's behaviour over an `@msw/data` store: they read
-and write collections, validate input, and return the real response shape. A test seeds the
-collections and calls the client.
+Rich API mocks use `@msw/data` by default. The default handlers implement the remote service's
+behaviour over schema-backed collections: they read and write records, validate input, and return
+the real response shape. A test seeds the collections and calls the client.
+
+A small lookup, such as an HTTP status per probe URL, or a list of recorded side effects can use a
+`Map` or array that the preload clears. Keep this exception narrow: structured entity records, CRUD
+operations, and relationships use `@msw/data` collections.
 
 - The default handlers return the not-found response for a missing record and the refusal for a
   permission failure. Shape the store to reach those outcomes; never add a per-test handler for
