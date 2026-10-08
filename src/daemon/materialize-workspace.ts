@@ -463,10 +463,23 @@ async function claimLanding(
   }
 }
 
+// Creates the parent, then the directory itself. A parent it cannot create
+// exits with the parent status; a directory it cannot create because
+// anything, a dangling symlink included, stands at its path exits with the
+// present status; any other failure exits 5.
+const PARENT_FAILED_EXIT = 3;
+const DIR_PRESENT_EXIT = 4;
+
+const CLAIM_DIR_SCRIPT = `mkdir -p -- "$1" || exit ${PARENT_FAILED_EXIT}
+mkdir -- "$2" && exit 0
+if [ -e "$2" ] || [ -L "$2" ]; then exit ${DIR_PRESENT_EXIT}; fi
+exit 5`;
+
 /**
  * Creates the target directory as the claim on it: `mkdir` without `-p`
  * fails when the directory exists, so a materialization never unpacks over
- * files it did not put there. The parent is created first.
+ * files it did not put there. The parent is created first, in the same
+ * command.
  */
 async function claimTargetDir(
   request: MaterializeRequest,
@@ -477,35 +490,21 @@ async function claimTargetDir(
   // A directory the daemon picked is reported as it landed.
   const shown = request.autoDir === true ? landing.dir : request.dir;
 
-  const parent = await deps.requireProvider('run').runCommand({
-    argv: ['mkdir', '-p', '--', dirname(landing.dir)],
+  const claim = await deps.requireProvider('run').runCommand({
+    argv: ['sh', '-c', CLAIM_DIR_SCRIPT, 'sh', dirname(landing.dir), landing.dir],
     cwd: '/',
     host: landing.host,
   });
 
-  if (parent.exitCode !== 0) {
+  if (claim.exitCode === PARENT_FAILED_EXIT) {
     throw new DaemonError(
       'transfer_failed',
-      `cannot create ${dirname(shown)} on target '${request.target}': ${parent.stderr.trim()}`,
+      `cannot create ${dirname(shown)} on target '${request.target}': ${claim.stderr.trim()}`,
       { phase: 'resolving', dir: shown },
     );
   }
 
-  const claim = await deps
-    .requireProvider('run')
-    .runCommand({ argv: ['mkdir', '--', landing.dir], cwd: '/', host: landing.host });
-
-  // A directory that is not there failed for another reason, such as a
-  // parent the command cannot write, which no other attempt would fix.
-  if (claim.exitCode !== 0 && !(await isTargetPathPresent(deps, landing))) {
-    throw new DaemonError(
-      'transfer_failed',
-      `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
-      { phase: 'resolving', dir: shown },
-    );
-  }
-
-  if (claim.exitCode !== 0) {
+  if (claim.exitCode === DIR_PRESENT_EXIT) {
     throw new DaemonError(
       'workspace_exists',
       `${shown} already exists on target '${request.target}'; a workspace is materialized only into a directory that does not exist`,
@@ -513,19 +512,17 @@ async function claimTargetDir(
     );
   }
 
+  // A directory that is not there failed for another reason, such as a
+  // parent the command cannot write, which no other attempt would fix.
+  if (claim.exitCode !== 0) {
+    throw new DaemonError(
+      'transfer_failed',
+      `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
+      { phase: 'resolving', dir: shown },
+    );
+  }
+
   updateProgress({ claimed: true });
-}
-
-// Whether anything, a dangling symlink included, stands at the landing
-// directory's path on its host.
-async function isTargetPathPresent(deps: MaterializeDeps, landing: Landing): Promise<boolean> {
-  const probe = await deps.requireProvider('run').runCommand({
-    argv: ['sh', '-c', '[ -e "$1" ] || [ -L "$1" ]', 'sh', landing.dir],
-    cwd: '/',
-    host: landing.host,
-  });
-
-  return probe.exitCode === 0;
 }
 
 async function recordPhase(
@@ -621,18 +618,12 @@ function toDaemonError(error: unknown, code: ErrorCode, phase: MaterializationPh
 // The provider runs commands in its own environment, so the verify unsets
 // every variable that could point git at another repository first.
 const VERIFY_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
-const VERIFY_ARGV = ['git', 'rev-parse', '--verify', 'HEAD^{commit}'];
 
-// Lists every tracked file whose content differs from HEAD, so a file the
-// unpack left out or changed refuses the checkout whatever tar did there.
-const STATUS_ARGV = [
-  'git',
-  '-c',
-  'core.fsmonitor=false',
-  'status',
-  '--porcelain',
-  '--untracked-files=no',
-];
+// Prints the commit HEAD resolves to and a NUL, then lists every tracked
+// file whose content differs from HEAD, so a file the unpack left out or
+// changed refuses the checkout whatever tar did there. A HEAD that resolves
+// to no commit exits at once, before the NUL.
+const VERIFY_SCRIPT = String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`;
 
 async function verifyTargetHead(
   request: MaterializeRequest,
@@ -640,11 +631,14 @@ async function verifyTargetHead(
   landing: Landing,
   sha: string,
 ): Promise<void> {
-  const head = await deps
-    .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...VERIFY_ARGV], cwd: landing.dir, host: landing.host });
+  const verified = await deps.requireProvider('run').runCommand({
+    argv: [...VERIFY_ENV, 'sh', '-c', VERIFY_SCRIPT],
+    cwd: landing.dir,
+    host: landing.host,
+  });
 
-  const actual = head.exitCode === 0 ? head.stdout.trim() : null;
+  const split = verified.stdout.indexOf('\0');
+  const actual = split === -1 ? null : verified.stdout.slice(0, split).trim();
 
   if (actual !== sha) {
     throw new DaemonError(
@@ -654,16 +648,15 @@ async function verifyTargetHead(
     );
   }
 
-  const status = await deps
-    .requireProvider('run')
-    .runCommand({ argv: [...VERIFY_ENV, ...STATUS_ARGV], cwd: landing.dir, host: landing.host });
+  const changed = verified.stdout
+    .slice(split + 1)
+    .split('\n')
+    .filter((line) => line !== '');
 
-  const changed = status.stdout.split('\n').filter((line) => line !== '');
-
-  if (status.exitCode !== 0 || changed.length > 0) {
+  if (verified.exitCode !== 0 || changed.length > 0) {
     throw new DaemonError(
       'workspace_mismatch',
-      `the checkout on target '${request.target}' does not match ${sha} in its tracked files: ${changed.slice(0, 5).join('; ') || status.stderr.trim()}`,
+      `the checkout on target '${request.target}' does not match ${sha} in its tracked files: ${changed.slice(0, 5).join('; ') || verified.stderr.trim()}`,
       { phase: 'verifying', expected: sha, actual },
     );
   }

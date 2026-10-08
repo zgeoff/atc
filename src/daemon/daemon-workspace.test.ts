@@ -5,11 +5,12 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  readlinkSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
@@ -100,12 +101,16 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
   expect(spawned).not.toContainKey('warnings');
 
-  // The verify unsets every variable that could point git at another
-  // repository before it reads the checkout's HEAD and status.
+  // The claim creates the parent and the directory in one command, and the
+  // verify unsets every variable that could point git at another
+  // repository before it reads the checkout's HEAD and status in one more.
   expect(box.calls).toStrictEqual([
     { op: 'run', argv: ['sh', '-c', expect.any(String), 'sh', dest], cwd: '/' },
-    { op: 'run', argv: ['mkdir', '-p', '--', join(ctx.dir, 'box')], cwd: '/' },
-    { op: 'run', argv: ['mkdir', '--', dest], cwd: '/' },
+    {
+      op: 'run',
+      argv: ['sh', '-c', expect.toStartWith('mkdir -p'), 'sh', join(ctx.dir, 'box'), dest],
+      cwd: '/',
+    },
     { op: 'transfer', dir: dest, bytes: expect.toBeNumber() },
     {
       op: 'run',
@@ -141,53 +146,9 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
         'GIT_SHALLOW_FILE',
         '-u',
         'GIT_WORK_TREE',
-        'git',
-        'rev-parse',
-        '--verify',
-        'HEAD^{commit}',
-      ],
-      cwd: dest,
-    },
-    {
-      op: 'run',
-      argv: [
-        'env',
-        '-u',
-        'GIT_ALTERNATE_OBJECT_DIRECTORIES',
-        '-u',
-        'GIT_COMMON_DIR',
-        '-u',
-        'GIT_CONFIG',
-        '-u',
-        'GIT_CONFIG_COUNT',
-        '-u',
-        'GIT_CONFIG_PARAMETERS',
-        '-u',
-        'GIT_DIR',
-        '-u',
-        'GIT_GRAFT_FILE',
-        '-u',
-        'GIT_IMPLICIT_WORK_TREE',
-        '-u',
-        'GIT_INDEX_FILE',
-        '-u',
-        'GIT_NO_REPLACE_OBJECTS',
-        '-u',
-        'GIT_OBJECT_DIRECTORY',
-        '-u',
-        'GIT_PREFIX',
-        '-u',
-        'GIT_REPLACE_REF_BASE',
-        '-u',
-        'GIT_SHALLOW_FILE',
-        '-u',
-        'GIT_WORK_TREE',
-        'git',
+        'sh',
         '-c',
-        'core.fsmonitor=false',
-        'status',
-        '--porcelain',
-        '--untracked-files=no',
+        String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`,
       ],
       cwd: dest,
     },
@@ -244,6 +205,59 @@ test('it verifies the target checkout itself when the daemon env points git at a
     ref: 'main',
     materializedAt: expect.toBeNumber(),
   });
+});
+
+test('it fails the spawn when the target checkout has no commit at HEAD, and removes it', async () => {
+  const ctx = await setupTest();
+
+  // The unpack on the host leaves HEAD on a branch that holds no commit.
+  const box = buildStubDirProvider({
+    afterTransfer: async (dir) => {
+      await writeFile(join(dir, '.git', 'HEAD'), 'ref: refs/heads/missing\n');
+    },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await spawn.catch(() => null);
+
+  expect(spawn).rejects.toStrictEqual(
+    new DaemonError(
+      'workspace_mismatch',
+      `the checkout on target 'box' is at no commit, not ${ctx.sha}`,
+      { phase: 'verifying', expected: ctx.sha, actual: null },
+    ),
+  );
+
+  expect(existsSync(dest)).toBeFalse();
 });
 
 test('it fails the spawn when the target checkout lacks a tracked file, and removes it', async () => {
@@ -1397,6 +1411,100 @@ test("it logs the failure of an interrupted materialization that resumes into th
   });
 });
 
+test('it refuses to materialize under a parent it cannot create, with the cause', async () => {
+  const ctx = await setupTest();
+
+  const box = buildStubDirProvider();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  // A file stands where the parent's own parent would be.
+  writeFileSync(join(ctx.dir, 'blocked'), 'a file\n');
+
+  const parent = join(ctx.dir, 'blocked', 'box');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(parent, 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await spawn.catch(() => null);
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'transfer_failed',
+    message: expect.toStartWith(`cannot create ${parent} on target 'box': `),
+    data: { phase: 'resolving', dir: join(parent, 'ws') },
+  });
+
+  expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
+});
+
+test('it refuses to materialize where a dangling symlink stands and leaves it as it was', async () => {
+  const ctx = await setupTest();
+
+  const box = buildStubDirProvider();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  mkdirSync(join(ctx.dir, 'box'));
+  symlinkSync(join(ctx.dir, 'missing'), dest);
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await spawn.catch(() => null);
+
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: dest } });
+  expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
+  expect(readlinkSync(dest)).toBe(join(ctx.dir, 'missing'));
+});
+
 test('it refuses to materialize into a directory that already exists and leaves it as it was', async () => {
   const ctx = await setupTest();
 
@@ -2144,10 +2252,14 @@ test('it refuses a git source without a cwd whose root it cannot write after one
   });
 
   expect(
-    box.calls.filter(
-      (call) => call.op === 'run' && call.argv[0] === 'mkdir' && call.argv[1] === '--',
-    ),
-  ).toStrictEqual([{ op: 'run', argv: ['mkdir', '--', join(root, 'upstream-main')], cwd: '/' }]);
+    box.calls.filter((call) => call.op === 'run' && call.argv[0] === 'sh' && call.argv[4] === root),
+  ).toStrictEqual([
+    {
+      op: 'run',
+      argv: ['sh', '-c', expect.toStartWith('mkdir -p'), 'sh', root, join(root, 'upstream-main')],
+      cwd: '/',
+    },
+  ]);
 });
 
 test('it refuses a spawn without a cwd or a workspace as bad_args', async () => {

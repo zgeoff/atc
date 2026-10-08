@@ -248,24 +248,26 @@ const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=
 const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
-// Enters a directory as the host resolves it and prints, each followed by
-// a NUL, every path where something, even a dangling symlink, stands: each
-// start file in that directory, then each root file in that directory,
-// every directory above it, and the main checkout of the git worktree it
-// lies in. A `--` argument ends the start files. A directory that does not
-// exist exits with the absent status.
-const FIND_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
-emit() { if [ -e "$1" ] || [ -L "$1" ]; then printf '%s\\0' "$1"; fi; }
+// Enters a directory as the host resolves it and prints two fields, each
+// followed by a NUL, for every path where something, even a dangling
+// symlink, stands: each start file in that directory, then each root file
+// in that directory, every directory above it, and the main checkout of the
+// git worktree it lies in. The first field is the path. The second is `F`
+// and the file's content in base64 for a regular file, following a symlink,
+// that it reads and that is no larger than any settings file atc reads, and
+// `U` for anything else, such as a FIFO, a device that would never end, or
+// a file it cannot read. A `--` argument ends the start files. A directory
+// that does not exist exits with the absent status.
+const READ_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
+emit() {
+  [ -e "$1" ] || [ -L "$1" ] || return 0
+  if [ -f "$1" ] && n=$(wc -c < "$1" 2>/dev/null) && [ "$n" -le 1048576 ] && b=$(base64 -w0 -- "$1" 2>/dev/null); then printf '%s\\0F%s\\0' "$1" "$b"; else printf '%s\\0U\\0' "$1"; fi
+}
 while [ "$#" -gt 0 ] && [ "$1" != -- ]; do emit "\${d%/}/$1"; shift; done; [ "$#" -gt 0 ] && shift
 m=$(git -c safe.directory='*' -c core.fsmonitor=false rev-parse --path-format=absolute --git-common-dir 2>/dev/null) && m=\${m%/.git} || m=
 for n in "$@"; do p=$d; while :; do emit "\${p%/}/$n"; [ "$p" = / ] && break; p=\${p%/*}; [ -n "$p" ] || p=/; done; [ -z "$m" ] || emit "\${m%/}/$n"; done
 exit 0`;
 
-// Prints at most one byte more than the largest project settings file atc
-// reads, following a symlink, and fails with the special-file status for
-// anything but a regular file there, such as a FIFO or a device that would
-// never end.
-const READ_SETTINGS_FILE = '[ -f "$1" ] || exit 4; exec head -c 1048577 -- "$1"';
 const ABSENT_DIR_EXIT = 3;
 
 // Runs git on the directory it starts in, whatever repository the daemon's
@@ -2419,7 +2421,7 @@ export class SessionManager {
         ...GIT_ENV_ARGV,
         'sh',
         '-c',
-        FIND_PROJECT_SETTINGS_SCRIPT,
+        READ_PROJECT_SETTINGS_SCRIPT,
         'sh',
         dir,
         ...check.files,
@@ -2438,20 +2440,14 @@ export class SessionManager {
       throw this.buildUnreadableSettingsRefusal(adapter.id, target, dir);
     }
 
-    const paths = new Set(found.stdout.split('\0').filter((path) => path !== ''));
+    for (const [path, read] of collectSettingsReads(found.stdout)) {
+      const content = read === null ? null : Buffer.from(read, 'base64');
 
-    for (const path of paths) {
-      const read = await provider.runCommand({
-        argv: ['sh', '-c', READ_SETTINGS_FILE, 'sh', path],
-        cwd: '/',
-        host: hostKey,
-      });
-
-      if (read.exitCode !== 0 || Buffer.byteLength(read.stdout) > MAX_SETTINGS_BYTES) {
+      if (content === null || content.byteLength > MAX_SETTINGS_BYTES) {
         throw this.buildUnreadableSettingsRefusal(adapter.id, target, path);
       }
 
-      const refusal = check.findRefusal(path, read.stdout);
+      const refusal = check.findRefusal(path, new TextDecoder().decode(content));
 
       if (refusal !== null) {
         throw new DaemonError(refusal.code, refusal.message, { ...refusal.data, target });
@@ -3436,4 +3432,25 @@ function isPathWithin(child: string, parent: string): boolean {
   const relative = posix.relative(parent, child);
 
   return relative !== '..' && !relative.startsWith('../') && !posix.isAbsolute(relative);
+}
+
+// Each path the settings read printed, once and in the order it first
+// printed it, with the file's content in base64, or null for a path it
+// could not read as a settings file.
+function collectSettingsReads(stdout: string): Map<string, string | null> {
+  const fields = stdout.split('\0');
+
+  const reads = new Map<string, string | null>();
+
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    const path = fields[i] ?? '';
+    const read = fields[i + 1] ?? '';
+    const content = read.startsWith('F') ? read.slice(1) : null;
+
+    if (path !== '' && !reads.has(path)) {
+      reads.set(path, content);
+    }
+  }
+
+  return reads;
 }

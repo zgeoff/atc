@@ -9,7 +9,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { getRecord } from '../shared/get-record';
@@ -131,9 +131,10 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
     expect.stringMatching(/^atc-[0-9a-f]{20}$/),
   ]);
 
-  expect(ctx.port.calls.filter((call) => call.startsWith(`exec.run ${imp} mkdir`))).toStrictEqual([
-    `exec.run ${imp} mkdir -p -- ${join(ctx.dir, 'box')}`,
-    `exec.run ${imp} mkdir -- ${dest}`,
+  expect(
+    ctx.port.calls.filter((call) => call.endsWith(` sh ${join(ctx.dir, 'box')} ${dest}`)),
+  ).toStrictEqual([
+    `exec.run ${imp} sh -c mkdir -p -- "$1" || exit 3\nmkdir -- "$2" && exit 0\nif [ -e "$2" ] || [ -L "$2" ]; then exit 4; fi\nexit 5 sh ${join(ctx.dir, 'box')} ${dest}`,
   ]);
 
   expect(
@@ -1437,7 +1438,7 @@ test('it claims the directory of a workspace sub-session on the shared host befo
   const held = await tarHold.entered;
 
   expect(held).toEndWith(` sh ${outer}`);
-  expect(ctx.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  expect(ctx.port.calls).toContainEqual(expect.toEndWith(` sh ${dirname(outer)} ${outer}`));
   expect(existsSync(outer)).toBeTrue();
 });
 
@@ -1525,7 +1526,7 @@ test('it claims the directory of a workspace sub-session under the home of the s
   const held = await tarHold.entered;
 
   expect(held).toEndWith(` sh ${outer}`);
-  expect(ctx.port.calls).toContainEqual(expect.toEndWith(`mkdir -- ${outer}`));
+  expect(ctx.port.calls).toContainEqual(expect.toEndWith(` sh ${dirname(outer)} ${outer}`));
   expect(existsSync(outer)).toBeTrue();
 });
 
@@ -1620,7 +1621,7 @@ test('it refuses a workspace spawn inside another one still materializing on the
   await waitFor(() => {
     expect([
       Bun.peek.status(innerSpawn),
-      ...ctx.port.calls.filter((call) => call.endsWith(`mkdir -- ${inner}`)),
+      ...ctx.port.calls.filter((call) => call.endsWith(` sh ${dirname(inner)} ${inner}`)),
     ]).not.toStrictEqual(['pending']);
   });
 
@@ -1630,7 +1631,10 @@ test('it refuses a workspace spawn inside another one still materializing on the
 
   expect(innerSpawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: inner } });
   expect(outerSpawn).resolves.toContainKey('session');
-  expect(ctx.port.calls.filter((call) => call.endsWith(`mkdir -- ${inner}`))).toStrictEqual([]);
+
+  expect(
+    ctx.port.calls.filter((call) => call.endsWith(` sh ${dirname(inner)} ${inner}`)),
+  ).toStrictEqual([]);
 });
 
 test('it materializes concurrent workspace spawns into sibling directories on the shared host', async () => {
@@ -3546,7 +3550,9 @@ test("it refuses a workspace destination that a symlink places inside its parent
   expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: dest } });
 
   expect(
-    ctx.port.calls.filter((call) => call.endsWith(`mkdir -- ${dest}`) || call.includes('tar -x')),
+    ctx.port.calls.filter(
+      (call) => call.endsWith(` sh ${dirname(dest)} ${dest}`) || call.includes('tar -x'),
+    ),
   ).toStrictEqual([]);
 });
 
@@ -3625,7 +3631,9 @@ test("it refuses a workspace destination inside its parent's relative directory 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: dest } });
 
   expect(
-    ctx.port.calls.filter((call) => call.endsWith(`mkdir -- ${dest}`) || call.includes('tar -x')),
+    ctx.port.calls.filter(
+      (call) => call.endsWith(` sh ${dirname(dest)} ${dest}`) || call.includes('tar -x'),
+    ),
   ).toStrictEqual([]);
 });
 
