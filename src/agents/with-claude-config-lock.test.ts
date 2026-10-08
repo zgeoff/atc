@@ -7,12 +7,13 @@ import { waitFor } from '../test-utils/wait-for';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 
 function setupTest() {
-  return setupTempDir('atc-claude-lock-');
+  const tmp = setupTempDir('atc-claude-lock-');
+
+  return { dir: tmp.dir };
 }
 
 test('it holds the lock directory while the callback runs and removes it after', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
 
   const held = await withClaudeConfigLock(configPath, () =>
@@ -24,8 +25,7 @@ test('it holds the lock directory while the callback runs and removes it after',
 });
 
 test('it removes the lock directory when the callback throws', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
   const locked = withClaudeConfigLock(configPath, () => Promise.reject(new Error('boom')));
 
@@ -34,8 +34,7 @@ test('it removes the lock directory when the callback throws', () => {
 });
 
 test('it takes over a lock its holder left stale', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
 
@@ -51,8 +50,7 @@ test('it takes over a lock its holder left stale', async () => {
 });
 
 test('it refreshes the lock age to the clock time a second into a slow callback', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
   const clock = buildStubClock(1_800_000_000_000);
@@ -77,8 +75,7 @@ test('it refreshes the lock age to the clock time a second into a slow callback'
 });
 
 test('it leaves a lock another holder took over in place on release', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, '.claude.json');
   const lockPath = `${configPath}.lock`;
 
@@ -93,8 +90,7 @@ test('it leaves a lock another holder took over in place on release', async () =
 });
 
 test('it creates a config folder that does not exist yet', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const configPath = join(ctx.dir, 'fresh', '.claude.json');
 
   const ran = await withClaudeConfigLock(configPath, () => Promise.resolve(true));

@@ -6,12 +6,13 @@ import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
 // The folder the host's Claude config folder and its symlink targets sit in.
 function setupTest() {
-  return setupTempDir('atc-claude-bundle-');
+  const tmp = setupTempDir('atc-claude-bundle-');
+
+  return { dir: tmp.dir };
 }
 
 test('it ships the allow-listed files and folders of the host config folder', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, '.claude');
 
   mkdirSync(join(host, 'agents'), { recursive: true });
@@ -47,8 +48,7 @@ test('it ships the allow-listed files and folders of the host config folder', ()
 });
 
 test('it never ships credentials, account state, or a secret the host env block holds', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, '.claude');
 
   mkdirSync(join(host, 'skills', 'delegate'), { recursive: true });
@@ -85,8 +85,7 @@ test('it never ships credentials, account state, or a secret the host env block 
 });
 
 test('it copies a symlinked skill and leaves out a skills folder without a SKILL.md', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, '.claude');
   const shared = join(ctx.dir, 'shared-skills', 'gh-stack');
 
@@ -108,8 +107,7 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
 });
 
 test('it never ships a symlink that resolves to credentials, account state, or the unfiltered settings', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, '.claude');
   const skill = join(host, 'skills', 'leaky');
 
@@ -136,8 +134,7 @@ test('it never ships a symlink that resolves to credentials, account state, or t
 });
 
 test('it ends a symlink that loops back up a skill folder', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, '.claude');
   const skill = join(host, 'skills', 'looped');
 
@@ -154,8 +151,7 @@ test('it ends a symlink that loops back up a skill folder', () => {
 });
 
 test('it ships an executable file with an executable mode and any other file as bytes', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, '.claude');
 
   mkdirSync(join(host, 'skills', 'tool', 'scripts'), { recursive: true });
@@ -176,8 +172,7 @@ test('it ships an executable file with an executable mode and any other file as 
 });
 
 test("it points a home-relative statusline at the guest when the host folder is the home's own", () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, '.claude');
 
   mkdirSync(host, { recursive: true });
@@ -202,7 +197,7 @@ test("it points a home-relative statusline at the guest when the host folder is 
 });
 
 test('it ships auto mode alone when the host has no Claude config folder', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const bundle = loadClaudeConfigBundle(
     join(ctx.dir, 'missing'),

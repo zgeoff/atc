@@ -16,7 +16,9 @@ import { GatewayAdapter } from './gateway-adapter';
 // A folder for the files a test writes: transcripts, the atc-bridge mod, or a
 // guest folder a launch runs in.
 function setupTest() {
-  return setupTempDir('atc-gateway-adapter-');
+  const tmp = setupTempDir('atc-gateway-adapter-');
+
+  return { dir: tmp.dir };
 }
 
 test('it answers to the id its backend was configured under', () => {
@@ -49,8 +51,7 @@ test('it reads a session id and transcript out of a Claude hook payload', () => 
 });
 
 test('it resumes while the reported transcript is still on disk', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const transcript = join(ctx.dir, 'transcript.jsonl');
 
   writeFileSync(transcript, '');
@@ -61,7 +62,7 @@ test('it resumes while the reported transcript is still on disk', () => {
 });
 
 test('it does not resume once the reported transcript is gone', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GatewayAdapter(buildMockGatewayConfig(), parseConfig({}));
 
@@ -75,8 +76,7 @@ test('it takes inbox messages', () => {
 });
 
 test("it runs a headless turn through the gateway's binary and settings file under the auto permission mode with the atc-bridge mod", () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
@@ -160,8 +160,7 @@ test('it profiles a gateway whose env sets no model with no models', () => {
 });
 
 test("it runs a headless turn under the permission mode the gateway's settings default to", () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
@@ -195,8 +194,7 @@ test("it runs a headless turn under the permission mode the gateway's settings d
 });
 
 test("it runs a headless turn under a gateway's explicit permission-mode argument over its settings default", () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
@@ -231,7 +229,7 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
 });
 
 test("it starts a gateway's terminal run under its explicit permission-mode argument over its settings default", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -262,7 +260,7 @@ test("it starts a gateway's terminal run under its explicit permission-mode argu
 });
 
 test("it keeps the gateway's arguments, its permission mode included, in the command that resumes it outside atc", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -285,8 +283,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
 });
 
 test("it runs a headless turn with the gateway's settings file, its permission hook and mode included", () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new GatewayAdapter(
@@ -398,7 +395,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
 });
 
 test("it restores a session in the permission mode the gateway's settings default to", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -430,7 +427,7 @@ test("it restores a session in the permission mode the gateway's settings defaul
 });
 
 test("it keeps the gateway's settings default mode in the command that resumes it outside atc", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -453,7 +450,7 @@ test("it keeps the gateway's settings default mode in the command that resumes i
 });
 
 test('it restores a gateway in its explicit permission-mode argument over its settings default', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -486,7 +483,7 @@ test('it restores a gateway in its explicit permission-mode argument over its se
 });
 
 test('it resumes a gateway outside atc in its explicit permission-mode argument over its settings default', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
@@ -971,99 +968,99 @@ test('it carries an extra placeholder variable and the gateway args into a broke
   // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
-  expect({ args, env: plan.env, settings }).toStrictEqual({
-    args: [
-      '-c',
-      expect.any(String),
-      'sh',
-      '/tmp/atc/sessions/s1/claude-config',
-      '/tmp/atc/sessions/s1/claude-config-seed.json',
-      '/tmp/atc/sessions/s1/claude-config-bundle',
-      '/tmp/atc/sessions/s1/claude-config-bundle/none',
-      'claude',
-      '--plugin-dir',
-      '/opt/auto-mode/mods/auto-mode',
-      '--permission-mode',
-      'default',
-      '--settings',
-      '/tmp/atc/sessions/s1/auth-r1/settings.json',
-      '--plugin-dir',
-      '/tmp/atc/sessions/s1/atc-bridge',
-    ],
+  expect(args).toStrictEqual([
+    '-c',
+    expect.any(String),
+    'sh',
+    '/tmp/atc/sessions/s1/claude-config',
+    '/tmp/atc/sessions/s1/claude-config-seed.json',
+    '/tmp/atc/sessions/s1/claude-config-bundle',
+    '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    'claude',
+    '--plugin-dir',
+    '/opt/auto-mode/mods/auto-mode',
+    '--permission-mode',
+    'default',
+    '--settings',
+    '/tmp/atc/sessions/s1/auth-r1/settings.json',
+    '--plugin-dir',
+    '/tmp/atc/sessions/s1/atc-bridge',
+  ]);
+
+  expect(plan.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+    TYPESAFE_API_KEY: 'imp-broker-placeholder',
+  });
+
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
+      padding: 0,
+    },
     env: {
-      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
       ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
       TYPESAFE_API_KEY: 'imp-broker-placeholder',
-    },
-    settings: {
-      hooks: {
-        SessionStart: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Notification: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Stop: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        UserPromptSubmit: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        SessionEnd: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-      },
-      statusLine: {
-        type: 'command',
-        command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
-        padding: 0,
-      },
-      env: {
-        ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
-        ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-        TYPESAFE_API_KEY: 'imp-broker-placeholder',
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-      },
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
 });
@@ -1232,7 +1229,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
 });
 
 test("it seeds a brokered guest's Claude config with the onboarding state when the folder holds none", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     authProfiles: {
@@ -1281,7 +1278,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
 });
 
 test("it keeps the state an earlier run left in a brokered guest's Claude config, an accepted folder trust included", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const config = parseConfig({
     authProfiles: {
@@ -1664,83 +1661,82 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
 
   const settings: unknown = JSON.parse(settingsFile);
 
-  expect({ env: plan.env, settings }).toStrictEqual({
+  expect(plan.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
+    OP_CONNECT_TOKEN: 'imp-broker-placeholder',
+    ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
+  });
+
+  expect(settings).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
+      padding: 0,
+    },
     env: {
-      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
       OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
       OP_CONNECT_TOKEN: 'imp-broker-placeholder',
       ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-    },
-    settings: {
-      hooks: {
-        SessionStart: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Notification: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Stop: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        UserPromptSubmit: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        SessionEnd: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: '"/opt/atc/bin/atc" hook-report --agent \'glm\'',
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-      },
-      statusLine: {
-        type: 'command',
-        command: '"/opt/atc/bin/atc" statusline --agent \'glm\'',
-        padding: 0,
-      },
-      env: {
-        ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
-        OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
-        OP_CONNECT_TOKEN: 'imp-broker-placeholder',
-        ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
-        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-      },
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
 });

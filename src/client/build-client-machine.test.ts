@@ -4,26 +4,11 @@ import { buildStubClientScreens } from '../test-utils/build-stub-client-screens'
 import { buildClientMachine } from './build-client-machine';
 
 /**
- * A started client machine whose screens each record their name, and the
- * session or mode they were given, in `calls` in the order they open.
- * Disposal stops the machine.
+ * A client machine, not yet started, whose screens each record their name,
+ * and the session or mode they were given, in `calls` in the order they
+ * open.
  */
 function setupTest() {
-  const screens = buildStubClientScreens();
-  const actor = createActor(buildClientMachine(screens.deps));
-
-  actor.start();
-
-  return {
-    actor,
-    calls: screens.calls,
-    [Symbol.dispose]: () => {
-      actor.stop();
-    },
-  };
-}
-
-test('it starts on the home screen and draws it', () => {
   const screens = buildStubClientScreens();
   const actor = createActor(buildClientMachine(screens.deps));
 
@@ -31,15 +16,22 @@ test('it starts on the home screen and draws it', () => {
     actor.stop();
   });
 
-  actor.start();
+  return { actor, calls: screens.calls };
+}
 
-  expect(actor.getSnapshot().value).toBe('home');
-  expect(screens.calls).toStrictEqual(['openHome']);
+test('it starts on the home screen and draws it', () => {
+  const ctx = setupTest();
+
+  ctx.actor.start();
+
+  expect(ctx.actor.getSnapshot().value).toBe('home');
+  expect(ctx.calls).toStrictEqual(['openHome']);
 });
 
 test('it opens the overlay from the home screen', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
+  ctx.actor.start();
   ctx.actor.send({ type: 'OVERLAY' });
 
   expect(ctx.actor.getSnapshot().value).toBe('overlay');
@@ -47,8 +39,9 @@ test('it opens the overlay from the home screen', () => {
 });
 
 test('it attaches a session from the home screen', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
+  ctx.actor.start();
   ctx.actor.send({ type: 'ATTACH', sessionID: 's1' });
 
   expect(ctx.actor.getSnapshot().value).toBe('attached');
@@ -56,8 +49,9 @@ test('it attaches a session from the home screen', () => {
 });
 
 test('it opens the spawn picker in resume mode from the home screen', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
+  ctx.actor.start();
   ctx.actor.send({ type: 'SPAWN', resume: true });
 
   expect(ctx.actor.getSnapshot().value).toBe('picker');
@@ -65,7 +59,9 @@ test('it opens the spawn picker in resume mode from the home screen', () => {
 });
 
 test('it opens the overlay from an attached session', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'ATTACH', sessionID: 's1' }] as const) {
     ctx.actor.send(event);
@@ -78,7 +74,9 @@ test('it opens the overlay from an attached session', () => {
 });
 
 test('it repaints the overlay when the overlay is opened again', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }] as const) {
     ctx.actor.send(event);
@@ -91,7 +89,9 @@ test('it repaints the overlay when the overlay is opened again', () => {
 });
 
 test('it shows the help screen from the overlay', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }] as const) {
     ctx.actor.send(event);
@@ -104,7 +104,9 @@ test('it shows the help screen from the overlay', () => {
 });
 
 test('it opens the eject prompt for the selected session from the overlay', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }] as const) {
     ctx.actor.send(event);
@@ -117,7 +119,9 @@ test('it opens the eject prompt for the selected session from the overlay', () =
 });
 
 test('it returns to the overlay from the eject prompt', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }, { type: 'EJECT', sessionID: 's7' }] as const) {
     ctx.actor.send(event);
@@ -130,7 +134,9 @@ test('it returns to the overlay from the eject prompt', () => {
 });
 
 test('it returns to the home screen from the spawn picker', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'SPAWN', resume: false }] as const) {
     ctx.actor.send(event);
@@ -143,7 +149,9 @@ test('it returns to the home screen from the spawn picker', () => {
 });
 
 test('it attaches a session from the spawn picker', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'SPAWN', resume: false }] as const) {
     ctx.actor.send(event);
@@ -156,8 +164,9 @@ test('it attaches a session from the spawn picker', () => {
 });
 
 test('it ignores the help key on the home screen', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
+  ctx.actor.start();
   ctx.actor.send({ type: 'HELP' });
 
   expect(ctx.actor.getSnapshot().value).toBe('home');
@@ -165,8 +174,9 @@ test('it ignores the help key on the home screen', () => {
 });
 
 test('it ignores an eject request on the home screen', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
+  ctx.actor.start();
   ctx.actor.send({ type: 'EJECT', sessionID: 's1' });
 
   expect(ctx.actor.getSnapshot().value).toBe('home');
@@ -174,7 +184,9 @@ test('it ignores an eject request on the home screen', () => {
 });
 
 test('it ignores a return-home request while attached', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'ATTACH', sessionID: 's1' }] as const) {
     ctx.actor.send(event);
@@ -187,7 +199,9 @@ test('it ignores a return-home request while attached', () => {
 });
 
 test('it ignores a spawn request while attached', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'ATTACH', sessionID: 's1' }] as const) {
     ctx.actor.send(event);
@@ -200,7 +214,9 @@ test('it ignores a spawn request while attached', () => {
 });
 
 test('it ignores an eject request in the spawn picker', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'SPAWN', resume: false }] as const) {
     ctx.actor.send(event);
@@ -213,7 +229,9 @@ test('it ignores an eject request in the spawn picker', () => {
 });
 
 test('it returns to the overlay from the help screen', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }, { type: 'HELP' }] as const) {
     ctx.actor.send(event);
@@ -226,7 +244,9 @@ test('it returns to the overlay from the help screen', () => {
 });
 
 test('it attaches a session from the overlay', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }] as const) {
     ctx.actor.send(event);
@@ -239,7 +259,9 @@ test('it attaches a session from the overlay', () => {
 });
 
 test('it returns to the home screen from the overlay', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }] as const) {
     ctx.actor.send(event);
@@ -252,7 +274,9 @@ test('it returns to the home screen from the overlay', () => {
 });
 
 test('it opens the spawn picker from the overlay', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }] as const) {
     ctx.actor.send(event);
@@ -265,7 +289,9 @@ test('it opens the spawn picker from the overlay', () => {
 });
 
 test('it attaches a session from the eject prompt', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }, { type: 'EJECT', sessionID: 's7' }] as const) {
     ctx.actor.send(event);
@@ -278,7 +304,9 @@ test('it attaches a session from the eject prompt', () => {
 });
 
 test('it returns to the home screen from the eject prompt', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'OVERLAY' }, { type: 'EJECT', sessionID: 's7' }] as const) {
     ctx.actor.send(event);
@@ -291,7 +319,9 @@ test('it returns to the home screen from the eject prompt', () => {
 });
 
 test('it opens the overlay from the spawn picker, as a finished daemon restart does', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'SPAWN', resume: false }] as const) {
     ctx.actor.send(event);
@@ -304,7 +334,9 @@ test('it opens the overlay from the spawn picker, as a finished daemon restart d
 });
 
 test('it redraws the home screen when a late spawn lands after the user is already home', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
+
+  ctx.actor.start();
 
   for (const event of [{ type: 'SPAWN', resume: false }, { type: 'HOME' }] as const) {
     ctx.actor.send(event);

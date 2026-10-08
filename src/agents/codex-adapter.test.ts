@@ -13,7 +13,9 @@ import { CodexAdapter } from './codex-adapter';
 // A folder for the files a test writes: a Codex home with its session index,
 // or a rollout.
 function setupTest() {
-  return setupTempDir('atc-codex-');
+  const tmp = setupTempDir('atc-codex-');
+
+  return { dir: tmp.dir };
 }
 
 test('it spawns a fresh codex command with the prompt', () => {
@@ -197,7 +199,7 @@ test('it maps a codex session end to ended', () => {
 });
 
 test('it loads the latest indexed thread name', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'session_index.jsonl'),
@@ -216,7 +218,7 @@ test('it loads the latest indexed thread name', async () => {
 });
 
 test('it loads the indexed thread name from CODEX_HOME when built without a Codex home', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   updateEnv('CODEX_HOME', ctx.dir);
 
@@ -235,7 +237,7 @@ test('it loads the indexed thread name from CODEX_HOME when built without a Code
 });
 
 test('it never loads an indexed thread name over a user-typed name', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'session_index.jsonl'),
@@ -254,7 +256,7 @@ test('it never loads an indexed thread name over a user-typed name', async () =>
 });
 
 test('it loads no name for a session the index lacks', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'session_index.jsonl'),
@@ -279,8 +281,7 @@ test('it resumes when no transcript was reported', () => {
 });
 
 test('it resumes when the reported rollout exists', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const rollout = join(ctx.dir, 'rollout.jsonl');
 
   writeFileSync(rollout, '');
@@ -291,7 +292,7 @@ test('it resumes when the reported rollout exists', () => {
 });
 
 test('it does not resume when the reported rollout is gone', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 

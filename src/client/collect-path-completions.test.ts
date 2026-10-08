@@ -7,11 +7,11 @@ import { collectPathCompletions } from './collect-path-completions';
 function setupTest() {
   const tmp = setupTempDir('atc-complete-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it lists every child directory after a trailing slash, the parent first', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'beta'));
   mkdirSync(join(ctx.dir, 'alpha'));
@@ -25,7 +25,7 @@ test('it lists every child directory after a trailing slash, the parent first', 
 });
 
 test('it narrows to children whose names start with the last segment, case-insensitively', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'Projects'));
   mkdirSync(join(ctx.dir, 'prose'));
@@ -38,7 +38,7 @@ test('it narrows to children whose names start with the last segment, case-insen
 });
 
 test('it puts an exact directory match ahead of the longer names it prefixes', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'atc-docs'));
   mkdirSync(join(ctx.dir, 'atc'));
@@ -50,7 +50,7 @@ test('it puts an exact directory match ahead of the longer names it prefixes', (
 });
 
 test('it leaves hidden directories out when the segment does not start with a dot', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.worktrees'));
   mkdirSync(join(ctx.dir, 'src'));
@@ -62,7 +62,7 @@ test('it leaves hidden directories out when the segment does not start with a do
 });
 
 test('it shows hidden directories when the segment starts with a dot', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.worktrees'));
   mkdirSync(join(ctx.dir, 'src'));
@@ -73,7 +73,7 @@ test('it shows hidden directories when the segment starts with a dot', () => {
 });
 
 test('it completes a tilde path under the given home', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'home', 'projects'), { recursive: true });
   mkdirSync(join(ctx.dir, 'cwd', 'projects'), { recursive: true });
@@ -84,7 +84,7 @@ test('it completes a tilde path under the given home', () => {
 });
 
 test('it completes a relative path under the given working directory', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'home', 'api'), { recursive: true });
   mkdirSync(join(ctx.dir, 'cwd', 'api'), { recursive: true });

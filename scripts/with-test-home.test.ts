@@ -6,12 +6,13 @@ import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 // A temp directory that holds the host config a test hands the script, and
 // the directory outside any repository that the script's command runs in.
 function setupTest() {
-  return setupTempDir('atc-with-test-home-');
+  const tmp = setupTempDir('atc-with-test-home-');
+
+  return { dir: tmp.dir };
 }
 
 test('it keeps a host XDG git config away from a command it runs', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const host = join(ctx.dir, 'host-xdg');
 
   mkdirSync(join(host, 'git'), { recursive: true });

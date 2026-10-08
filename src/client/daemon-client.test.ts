@@ -1,5 +1,6 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubClosingListener } from '../test-utils/start-stub-closing-listener';
 import { DaemonClient } from './daemon-client';
@@ -9,29 +10,20 @@ import { DaemonClient } from './daemon-client';
  * connection as soon as it opens.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-daemon-client-'));
+  const tmp = setupTempDir('atc-daemon-client-');
   const socketPath = join(tmp.dir, 'daemon.sock');
 
-  stack.use(startStubClosingListener(socketPath));
+  startStubClosingListener(socketPath);
 
-  const owned = stack.move();
-
-  return {
-    socketPath,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { socketPath };
 }
 
 test('it rejects a request sent after the daemon closed the connection', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const client = await DaemonClient.open(ctx.socketPath);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     client.stop();
   });
 

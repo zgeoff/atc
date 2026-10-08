@@ -10,7 +10,9 @@ import { GrokAdapter } from './grok-adapter';
 
 // A Grok home of the test's own, where the adapter looks for session summaries.
 function setupTest() {
-  return setupTempDir('atc-grok-home-');
+  const tmp = setupTempDir('atc-grok-home-');
+
+  return { dir: tmp.dir };
 }
 
 test('it plans a new spawn without resume or -p and appends --no-leader', () => {
@@ -226,7 +228,7 @@ test('it treats idle_prompt after a submitted prompt as turn-done', () => {
 });
 
 test('it captures SessionStart without a transcript path', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const ev = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'), ctx.dir).normalizeHook({
     atcId: toSessionID('s1'),
@@ -242,8 +244,7 @@ test('it captures SessionStart without a transcript path', () => {
 });
 
 test('it loads a manual title over a user-typed name', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'summary.json');
 
   writeFileSync(
@@ -264,8 +265,7 @@ test('it loads a manual title over a user-typed name', async () => {
 });
 
 test('it loads an auto title when the session was not user-named', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'summary.json');
 
   writeFileSync(
@@ -282,8 +282,7 @@ test('it loads an auto title when the session was not user-named', async () => {
 });
 
 test('it keeps a user-typed name over an auto title', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const file = join(ctx.dir, 'summary.json');
 
   writeFileSync(
@@ -349,7 +348,7 @@ test('it does not resume a session with no captured id', () => {
 });
 
 test('it carries the whole last assistant message of a finished turn as its result', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const adapter = new GrokAdapter(getAgentEntry(parseConfig({}), 'grok'), ctx.dir);
 
