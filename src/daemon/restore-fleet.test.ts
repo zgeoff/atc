@@ -78,6 +78,8 @@ test('it revives a listed dead session in place instead of listing its id twice'
     expect(s.state).toBe('exited');
   });
 
+  const exitedPTY = s.pty;
+
   await restoreFleet({
     mgr: ctx.mgr,
     store: ctx.store,
@@ -88,6 +90,7 @@ test('it revives a listed dead session in place instead of listing its id twice'
   });
 
   expect(ctx.mgr.sessions.map((x) => x.id)).toStrictEqual([s.id]);
+  expect(exitedPTY).toBeNull();
   expect(s.pty).not.toBeNull();
 });
 

@@ -1279,10 +1279,8 @@ test('it restores an entry with no agent session id as exited', async () => {
     agent: 'claude',
   });
 
-  expect({ state: session.state, lastMsg: session.lastMsg }).toStrictEqual({
-    state: 'exited',
-    lastMsg: 'nothing to resume',
-  });
+  expect(session.state).toBe('exited');
+  expect(session.lastMsg).toBe('nothing to resume');
 });
 
 test('it persists a session the agent has not yet given a session id', async () => {

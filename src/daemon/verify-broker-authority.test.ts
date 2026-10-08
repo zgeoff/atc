@@ -6,14 +6,12 @@ import { ImpClientPort } from './imp-client-port';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 /**
- * The stub imp port, and an impd stand-in on a real HTTP port that answers
- * every call with system info, for the real client to read.
+ * The stub imp port.
  */
 function setupTest() {
   const port = createStubImpPort();
-  const impd = startStubImpdInfo();
 
-  return { port, impd };
+  return { port };
 }
 
 test('it lets a scoped token that may grant every bound secret activate the broker', async () => {
@@ -102,11 +100,13 @@ test.each([
 ])(
   'it refuses an impd whose grant flags are %s after one system info call',
   async (_kind, sent) => {
-    const ctx = setupTest();
+    // An impd stand-in on a real HTTP port that answers every call with
+    // system info, for the real client to read.
+    const impd = startStubImpdInfo();
 
-    ctx.impd.info.features = sent;
+    impd.info.features = sent;
 
-    const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+    const port = new ImpClientPort({ url: impd.url, readToken: () => 'token' });
 
     const refusal = verifyBrokerAuthority(
       port,
@@ -120,7 +120,7 @@ test.each([
     await Promise.allSettled([refusal]);
 
     expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
-    expect(ctx.impd.paths).toStrictEqual(['/rpc/system/info']);
+    expect(impd.paths).toStrictEqual(['/rpc/system/info']);
   },
 );
 
