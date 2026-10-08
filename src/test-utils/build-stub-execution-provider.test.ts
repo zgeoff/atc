@@ -1,4 +1,6 @@
 import { expect, mock, test } from 'bun:test';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -44,6 +46,25 @@ test('it applies the kind and capability overrides on top of the defaults', () =
     destroy: true,
     input: false,
   });
+});
+
+test('it reports the host as remote once the config marks it so', () => {
+  expect(buildStubExecutionProvider({ remote: true }).remote).toBeTrue();
+});
+
+test('it rejects every command with the configured failure without running it', async () => {
+  const ctx = setupTest();
+  const marker = join(ctx.dir, 'ran');
+
+  const failure = new Error('the host runs no commands');
+
+  const provider = buildStubExecutionProvider({ commandFailure: failure });
+  const run = provider.runCommand({ argv: ['touch', marker], cwd: ctx.dir });
+
+  await Promise.allSettled([run]);
+
+  expect(run).rejects.toBe(failure);
+  expect(existsSync(marker)).toBeFalse();
 });
 
 test('it runs a command on this machine', () => {

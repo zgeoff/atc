@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { posix } from 'node:path';
+import type { Subprocess } from 'bun';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
 import type {
@@ -125,6 +126,9 @@ interface StubCommandHold {
   readonly stop: () => void;
 }
 
+// The exit code of a guest command killed by SIGKILL.
+const KILLED_CODE = 137;
+
 // impd keeps exactly this many bytes of each generation's output.
 const RING_BYTES = 262_144;
 
@@ -242,6 +246,12 @@ class StubImpPort implements ImpPort {
 
   // How many commands wait on a command hold.
   private heldCommands = 0;
+
+  // The guest commands running now, which a stop kills.
+  private readonly commands = new Set<Subprocess>();
+
+  // Set once the stand-in stops, so a command a hold released never runs.
+  private stopped = false;
 
   // Commands whose argv holds this text exit 1 without running, or null.
   private commandFailure: string | null = null;
@@ -688,6 +698,12 @@ class StubImpPort implements ImpPort {
       await hold.done.promise;
 
       this.heldCommands -= 1;
+
+      // A stop kills every running command, so a held one it released
+      // ends the same way, without running.
+      if (this.stopped) {
+        return { code: KILLED_CODE, stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
+      }
     }
 
     if (this.commandFailure !== null && line.includes(this.commandFailure)) {
@@ -706,11 +722,15 @@ class StubImpPort implements ImpPort {
       stderr: 'pipe',
     });
 
+    this.commands.add(proc);
+
     const [stdout, stderr, code] = await Promise.all([
       new Response(proc.stdout).bytes(),
       new Response(proc.stderr).bytes(),
       proc.exited,
     ]);
+
+    this.commands.delete(proc);
 
     return { code, stdout, stderr };
   }
@@ -1252,11 +1272,21 @@ class StubImpPort implements ImpPort {
     return proc.end;
   }
 
-  // Kills every process and stops every forward the stand-in holds. It runs
+  // Kills every process and stops every forward the stand-in holds, and
+  // resolves once every guest command it killed exits. A command a hold
+  // still holds then exits as a killed one does, without running. It runs
   // once the current test finishes; calling it sooner runs it then, and a
   // second call does nothing.
-  readonly stop: () => void = registerTestCleanup(() => {
+  readonly stop: () => Promise<void> = registerTestCleanup(async () => {
+    this.stopped = true;
+
     this.stopCommandHold();
+
+    const commands = [...this.commands];
+
+    for (const command of commands) {
+      command.kill('SIGKILL');
+    }
 
     for (const imp of this.imps.values()) {
       for (const proc of imp.sessions.values()) {
@@ -1270,6 +1300,8 @@ class StubImpPort implements ImpPort {
     }
 
     this.imps.clear();
+
+    await Promise.all(commands.map((command) => command.exited));
   });
 
   // impd's refusal of a grant or revoke: the scope and pattern checks run

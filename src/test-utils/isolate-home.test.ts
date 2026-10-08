@@ -4,24 +4,13 @@ import { join } from 'node:path';
 import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
-// Each test writes a two-test fixture file into its own temp directory and
-// runs `bun test` on it in a subprocess from the repository root, where the
-// bunfig preload applies, so every check runs in a test home of its own and
-// a write or an override never lands in this run's. One runner goes through
-// the package script's test-home wrapper, the other runs a bare `bun test`;
-// each resolves once the nested run exits.
+// A temp directory for each test's two-test fixture file, and the
+// repository root, where the bunfig preload applies to a nested `bun test`.
 function setupTest() {
   const tmp = setupTempDir('atc-isolate-home-');
   const repo = join(import.meta.dir, '..', '..');
 
-  return {
-    dir: tmp.dir,
-    repo,
-    runFixture: (fixture: string, env: Readonly<Record<string, string | undefined>>) =>
-      runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], { cwd: repo, env }),
-    runBareFixture: (fixture: string, env: Readonly<Record<string, string | undefined>>) =>
-      runCommand(['bun', 'test', fixture], { cwd: repo, env }),
-  };
+  return { dir: tmp.dir, repo };
 }
 
 test("it resolves every atc config and state path inside the run's own home", async () => {
@@ -46,7 +35,10 @@ test('it resolves the databases and the legacy fleet file under the home', () =>
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, process.env);
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: process.env,
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -76,7 +68,10 @@ test('it resolves the events socket and the daemon record under the runtime dire
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, process.env);
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: process.env,
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -106,7 +101,10 @@ test('it resolves the codex home under the home', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, process.env);
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: process.env,
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -136,9 +134,12 @@ test('it runs without an inherited Claude config folder', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, {
-    ...process.env,
-    CLAUDE_CONFIG_DIR: join(ctx.dir, 'claude'),
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: {
+      ...process.env,
+      CLAUDE_CONFIG_DIR: join(ctx.dir, 'claude'),
+    },
   });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
@@ -165,10 +166,13 @@ test('it runs without the session socket', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, {
-    ...process.env,
-    ATC_SESSION_ID: 's1-enclosing',
-    ATC_SOCKET: join(ctx.dir, 'atc.sock'),
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: {
+      ...process.env,
+      ATC_SESSION_ID: 's1-enclosing',
+      ATC_SOCKET: join(ctx.dir, 'atc.sock'),
+    },
   });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
@@ -204,7 +208,10 @@ test('it sets the XDG state and cache homes under the home', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, process.env);
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: process.env,
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -240,7 +247,10 @@ test('it finds no host canary key at all', async () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, { ...process.env, XDG_CONFIG_HOME: host });
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: { ...process.env, XDG_CONFIG_HOME: host },
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -279,7 +289,10 @@ test('it holds the state directory under the home', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, process.env);
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: process.env,
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -312,7 +325,10 @@ test('it writes the mod again to the same directory', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, process.env);
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: process.env,
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -341,7 +357,10 @@ test('it starts without the override', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, process.env);
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: process.env,
+  });
 
   expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
@@ -369,7 +388,10 @@ test('it reports the second test ran', () => {
 
   const { ATC_TEST_HOME: _marker, ...outer } = process.env;
 
-  const nested = await ctx.runBareFixture(fixture, outer);
+  const nested = await runCommand(['bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: outer,
+  });
 
   expect({
     exitCode: nested.exitCode,
@@ -400,9 +422,12 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = await ctx.runBareFixture(fixture, {
-    ...process.env,
-    ATC_TEST_HOME: join(ctx.dir, 'stale-marker'),
+  const nested = await runCommand(['bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: {
+      ...process.env,
+      ATC_TEST_HOME: join(ctx.dir, 'stale-marker'),
+    },
   });
 
   expect({
@@ -434,9 +459,12 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = await ctx.runBareFixture(fixture, {
-    ...process.env,
-    ATC_SESSION_ID: 's1-enclosing',
+  const nested = await runCommand(['bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: {
+      ...process.env,
+      ATC_SESSION_ID: 's1-enclosing',
+    },
   });
 
   expect({
@@ -468,7 +496,10 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = await ctx.runFixture(fixture, { ...process.env, TMPDIR: `${ctx.dir}/` });
+  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+    cwd: ctx.repo,
+    env: { ...process.env, TMPDIR: `${ctx.dir}/` },
+  });
 
   expect({ exitCode: nested.exitCode, stderr: nested.stderr }).toStrictEqual({
     exitCode: 0,
