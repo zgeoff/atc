@@ -4,6 +4,7 @@ import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { buildStubPeerSocket } from '../test-utils/build-stub-peer-socket';
+import { waitFor } from '../test-utils/wait-for';
 import { DaemonConnection } from './daemon-connection';
 
 test('it drops an overflowing session backlog and reports the dropped bytes on drain', () => {
@@ -218,4 +219,48 @@ test('it sends a principal no output of a session whose tree left its view, a re
   expect(frames.at(-1)).toStrictEqual({ v: PROTOCOL_V, ev: 'SessionRemoved', s: 's1' });
   expect(JSON.stringify(frames)).not.toInclude('secret');
   expect(resyncs).toStrictEqual([]);
+});
+
+test('it ends the connection when an answer overflows the outbound queue', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n`,
+  );
+
+  await peer.waitForAnswer(1);
+
+  peer.setAccepting(false);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'daemon.ping' })}\n${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'daemon.ping' })}\n`,
+  );
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+});
+
+test('it ends the connection when an error answer overflows the outbound queue', async () => {
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test' } })}\n`,
+  );
+
+  await peer.waitForAnswer(1);
+
+  peer.setAccepting(false);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'no.such.method' })}\n${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'no.such.method' })}\n`,
+  );
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
 });

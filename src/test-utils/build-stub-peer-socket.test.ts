@@ -71,6 +71,20 @@ test('it leaves a wait pending while only other frames are written', async () =>
   expect(raced).toBe('pending');
 });
 
+test('it records that the daemon ended the connection', () => {
+  const stub = buildStubPeerSocket();
+
+  stub.socket.end();
+
+  expect(stub.hasEnded()).toBeTrue();
+});
+
+test('it reports a connection the daemon never ended as open', () => {
+  const stub = buildStubPeerSocket();
+
+  expect(stub.hasEnded()).toBeFalse();
+});
+
 test('it takes no byte of a write while not accepting', () => {
   const stub = buildStubPeerSocket();
 
