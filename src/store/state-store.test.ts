@@ -2731,10 +2731,17 @@ test('it reconciles an interrupted spawn key by whether its session reached the 
   await ctx.store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 's-landed' });
   await ctx.store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 's-lost' });
   await ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-landed') })]);
+
+  const landedBefore = await ctx.store.findIdempotencyKey({ ...claim, key: 'landed' });
+  const lostBefore = await ctx.store.findIdempotencyKey({ ...claim, key: 'lost' });
+
   await ctx.store.reconcileIdempotencyKeys(5000);
 
   const landed = await ctx.store.claimIdempotencyKey({ ...claim, key: 'landed', effectRef: 'x' });
   const lost = await ctx.store.claimIdempotencyKey({ ...claim, key: 'lost', effectRef: 'x' });
+
+  expect(landedBefore?.state).toBe('in_progress');
+  expect(lostBefore?.state).toBe('in_progress');
 
   expect(landed).toStrictEqual({
     principal: 'local',
@@ -3081,6 +3088,11 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
     1000,
   );
 
+  const resolvingBefore = await ctx.store.findMaterialization(toSessionID('s-resolving'));
+  const cloningBefore = await ctx.store.findMaterialization(toSessionID('s-cloning'));
+  const transferringBefore = await ctx.store.findMaterialization(toSessionID('s-transferring'));
+  const verifyingBefore = await ctx.store.findMaterialization(toSessionID('s-verifying'));
+
   await ctx.store.stop();
 
   const second = await StateStore.open(ctx.dbPath);
@@ -3089,104 +3101,113 @@ test('it fails every materialization a stopped daemon left short of ready', asyn
 
   await second.reconcileMaterializations(5000);
 
-  const rows = await Promise.all(
-    ['s-resolving', 's-cloning', 's-transferring', 's-verifying', 's-ready', 's-failed'].map((id) =>
-      second.findMaterialization(toSessionID(id)),
-    ),
-  );
+  const resolving = await second.findMaterialization(toSessionID('s-resolving'));
+  const cloning = await second.findMaterialization(toSessionID('s-cloning'));
+  const transferring = await second.findMaterialization(toSessionID('s-transferring'));
+  const verifying = await second.findMaterialization(toSessionID('s-verifying'));
+  const ready = await second.findMaterialization(toSessionID('s-ready'));
+  const failed = await second.findMaterialization(toSessionID('s-failed'));
 
-  expect(rows).toStrictEqual([
-    {
-      sessionID: toSessionID('s-resolving'),
-      target: 'box',
-      dir: '/w/s-resolving',
-      sourceKind: 'path',
-      phase: 'failed',
-      repoURL: null,
-      sha: null,
-      ref: null,
-      errorCode: 'workspace_interrupted',
-      startedAt: 1000,
-      updatedAt: 5000,
-      materializedAt: null,
-      withheldEnv: [],
-    },
-    {
-      sessionID: toSessionID('s-cloning'),
-      target: 'box',
-      dir: '/w/s-cloning',
-      sourceKind: 'path',
-      phase: 'failed',
-      repoURL: null,
-      sha: null,
-      ref: null,
-      errorCode: 'workspace_interrupted',
-      startedAt: 1000,
-      updatedAt: 5000,
-      materializedAt: null,
-      withheldEnv: [],
-    },
-    {
-      sessionID: toSessionID('s-transferring'),
-      target: 'box',
-      dir: '/w/s-transferring',
-      sourceKind: 'path',
-      phase: 'failed',
-      repoURL: null,
-      sha: null,
-      ref: null,
-      errorCode: 'workspace_interrupted',
-      startedAt: 1000,
-      updatedAt: 5000,
-      materializedAt: null,
-      withheldEnv: [],
-    },
-    {
-      sessionID: toSessionID('s-verifying'),
-      target: 'box',
-      dir: '/w/s-verifying',
-      sourceKind: 'path',
-      phase: 'failed',
-      repoURL: null,
-      sha: null,
-      ref: null,
-      errorCode: 'workspace_interrupted',
-      startedAt: 1000,
-      updatedAt: 5000,
-      materializedAt: null,
-      withheldEnv: [],
-    },
-    {
-      sessionID: toSessionID('s-ready'),
-      target: 'box',
-      dir: '/w/s-ready',
-      sourceKind: 'path',
-      phase: 'ready',
-      repoURL: null,
-      sha: null,
-      ref: null,
-      errorCode: null,
-      startedAt: 1000,
-      updatedAt: 1000,
-      materializedAt: null,
-      withheldEnv: [],
-    },
-    {
-      sessionID: toSessionID('s-failed'),
-      target: 'box',
-      dir: '/w/s-failed',
-      sourceKind: 'path',
-      phase: 'failed',
-      repoURL: null,
-      sha: null,
-      ref: null,
-      errorCode: 'clone_failed',
-      startedAt: 1000,
-      updatedAt: 1000,
-      materializedAt: null,
-      withheldEnv: [],
-    },
-  ]);
+  expect(resolvingBefore?.phase).toBe('resolving');
+  expect(cloningBefore?.phase).toBe('cloning');
+  expect(transferringBefore?.phase).toBe('transferring');
+  expect(verifyingBefore?.phase).toBe('verifying');
+
+  expect(resolving).toStrictEqual({
+    sessionID: toSessionID('s-resolving'),
+    target: 'box',
+    dir: '/w/s-resolving',
+    sourceKind: 'path',
+    phase: 'failed',
+    repoURL: null,
+    sha: null,
+    ref: null,
+    errorCode: 'workspace_interrupted',
+    startedAt: 1000,
+    updatedAt: 5000,
+    materializedAt: null,
+    withheldEnv: [],
+  });
+
+  expect(cloning).toStrictEqual({
+    sessionID: toSessionID('s-cloning'),
+    target: 'box',
+    dir: '/w/s-cloning',
+    sourceKind: 'path',
+    phase: 'failed',
+    repoURL: null,
+    sha: null,
+    ref: null,
+    errorCode: 'workspace_interrupted',
+    startedAt: 1000,
+    updatedAt: 5000,
+    materializedAt: null,
+    withheldEnv: [],
+  });
+
+  expect(transferring).toStrictEqual({
+    sessionID: toSessionID('s-transferring'),
+    target: 'box',
+    dir: '/w/s-transferring',
+    sourceKind: 'path',
+    phase: 'failed',
+    repoURL: null,
+    sha: null,
+    ref: null,
+    errorCode: 'workspace_interrupted',
+    startedAt: 1000,
+    updatedAt: 5000,
+    materializedAt: null,
+    withheldEnv: [],
+  });
+
+  expect(verifying).toStrictEqual({
+    sessionID: toSessionID('s-verifying'),
+    target: 'box',
+    dir: '/w/s-verifying',
+    sourceKind: 'path',
+    phase: 'failed',
+    repoURL: null,
+    sha: null,
+    ref: null,
+    errorCode: 'workspace_interrupted',
+    startedAt: 1000,
+    updatedAt: 5000,
+    materializedAt: null,
+    withheldEnv: [],
+  });
+
+  expect(ready).toStrictEqual({
+    sessionID: toSessionID('s-ready'),
+    target: 'box',
+    dir: '/w/s-ready',
+    sourceKind: 'path',
+    phase: 'ready',
+    repoURL: null,
+    sha: null,
+    ref: null,
+    errorCode: null,
+    startedAt: 1000,
+    updatedAt: 1000,
+    materializedAt: null,
+    withheldEnv: [],
+  });
+
+  expect(failed).toStrictEqual({
+    sessionID: toSessionID('s-failed'),
+    target: 'box',
+    dir: '/w/s-failed',
+    sourceKind: 'path',
+    phase: 'failed',
+    repoURL: null,
+    sha: null,
+    ref: null,
+    errorCode: 'clone_failed',
+    startedAt: 1000,
+    updatedAt: 1000,
+    materializedAt: null,
+    withheldEnv: [],
+  });
 });
 
 test('it loads a fleet row with its ready workspace and withheld variables, and none short of ready', async () => {
@@ -3645,6 +3666,8 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
     1000,
   );
 
+  const grantsBefore = await ctx.store.collectAuthGrants(toSessionID('s1'));
+
   await ctx.store.stop();
 
   const second = await StateStore.open(ctx.dbPath);
@@ -3654,6 +3677,8 @@ test('it reconciles a grant a stopped daemon left granting as uncertain and leav
   await second.reconcileAuthBindings(5000);
 
   const grants = await second.collectAuthGrants(toSessionID('s1'));
+
+  expect(grantsBefore.find((grant) => grant.secret === 'glm')?.phase).toBe('granting');
 
   expect(grants).toStrictEqual([
     {

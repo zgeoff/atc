@@ -167,15 +167,19 @@ test('it removes credential files from the work tree and the git directory', asy
   await writeFile(join(ctx.work, '.git', '.git-credentials'), 'https://bob:tok@github.com\n');
   await sanitizeWorkspaceClone(ctx.work, 'https://github.com/zgeoff/atc.git');
 
-  expect([
-    join(ctx.work, '.git-credentials'),
-    join(ctx.work, '.netrc'),
-    join(ctx.work, '.git', '.git-credentials'),
-  ]).toSatisfyAll((file: string) => !existsSync(file));
+  expect(existsSync(join(ctx.work, '.git-credentials'))).toBeFalse();
+  expect(existsSync(join(ctx.work, '.netrc'))).toBeFalse();
+  expect(existsSync(join(ctx.work, '.git', '.git-credentials'))).toBeFalse();
 });
 
 test('it never removes an ordinary work-tree file', async () => {
   const ctx = await setupTest();
+
+  const pushed = await $`git rev-parse HEAD`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .text()
+    .then((text) => text.trim());
 
   await mkdir(join(ctx.work, 'src'), { recursive: true });
   await writeFile(join(ctx.work, 'notes.md'), 'remember the milk\n');
@@ -187,7 +191,7 @@ test('it never removes an ordinary work-tree file', async () => {
 
   expect(sanitized).toStrictEqual({
     ok: true,
-    provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: expect.toBeString() },
+    provenance: { repoURL: 'https://github.com/zgeoff/atc.git', sha: pushed },
   });
 
   expect(notes).toBe('remember the milk\n');

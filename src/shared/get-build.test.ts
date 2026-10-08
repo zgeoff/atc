@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { getBuild } from './get-build';
 
@@ -44,5 +45,7 @@ test('it keeps the build string when a file that is not .ts changes', () => {
 });
 
 test('it walks the src tree of its own checkout when no root is passed', () => {
-  expect(getBuild()).toBe(getBuild(join(import.meta.dir, '..')));
+  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+
+  expect(getBuild()).toBe(getBuild(join(repoRoot, 'src')));
 });
