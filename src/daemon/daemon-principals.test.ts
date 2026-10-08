@@ -1667,8 +1667,12 @@ test.each([
     expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id: shown })] });
     expect(fleet).toStrictEqual({ fleet: [expect.objectContaining({ sessionID: shown })] });
     expect(JSON.stringify(read)).toInclude(shown);
-    expect(JSON.stringify([listed, fleet, read])).not.toInclude(root);
-    expect(JSON.stringify([listed, fleet, read])).not.toInclude(child);
+    expect(JSON.stringify(listed)).not.toInclude(root);
+    expect(JSON.stringify(fleet)).not.toInclude(root);
+    expect(JSON.stringify(read)).not.toInclude(root);
+    expect(JSON.stringify(listed)).not.toInclude(child);
+    expect(JSON.stringify(fleet)).not.toInclude(child);
+    expect(JSON.stringify(read)).not.toInclude(child);
   },
 );
 

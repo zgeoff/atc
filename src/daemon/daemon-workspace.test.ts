@@ -1244,11 +1244,6 @@ test('it fails a materialization that a restart interrupts and lists no session 
   const ctx = await setupTest();
 
   const held = Promise.withResolvers<undefined>();
-
-  onTestFinished(() => {
-    held.resolve(undefined);
-  });
-
   const box = buildStubDirProvider({ afterTransfer: () => held.promise });
 
   const daemon = await startTestDaemon({
@@ -1271,6 +1266,12 @@ test('it fails a materialization that a restart interrupts and lists no session 
         }),
       ],
     }),
+  });
+
+  // The held transfer is released before the daemon stops and its
+  // directories go.
+  registerTestCleanup(() => {
+    held.resolve(undefined);
   });
 
   // The restart ends the spawn's connection, so its answer never comes.
@@ -1438,6 +1439,7 @@ test('it refuses to materialize into a directory that already exists and leaves 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists', data: { dir: dest } });
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
   expect(readdirSync(dest)).toStrictEqual(['mine.txt']);
+  expect(readFileSync(join(dest, 'mine.txt'), 'utf8')).toBe('keep\n');
 });
 
 test('it removes the checkout it created and keeps the files beside it when its harness fails to start', async () => {
@@ -1525,13 +1527,13 @@ test('it spawns a retry into the directory a harness that failed to start left',
     }),
   });
 
-  await daemon.client
-    .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
-      target: 'box',
-      workspace: { kind: 'path', path: ctx.work },
-    })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await Promise.allSettled([failed]);
 
   const retried = await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.dir, 'box', 'ws'),
@@ -1539,6 +1541,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
     workspace: { kind: 'path', path: ctx.work },
   });
 
+  expect(failed).rejects.toMatchObject({ code: 'host_unavailable' });
   expect(getRecord(retried, 'session')['alive']).toBeTrue();
   expect(readFileSync(join(ctx.dir, 'box', 'ws', 'README.md'), 'utf8')).toBe(committed);
 });
@@ -2040,6 +2043,7 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
   ]);
 
   expect(readdirSync(base)).toStrictEqual(['mine.txt']);
+  expect(readFileSync(join(base, 'mine.txt'), 'utf8')).toBe('keep\n');
   expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe(committed);
   expect(readFileSync(join(`${base}-3`, 'README.md'), 'utf8')).toBe(committed);
 });

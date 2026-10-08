@@ -485,12 +485,12 @@ test('it refuses a brokered spawn whose guest plan sets a proxy variable before 
 
   await spawn.catch(() => null);
 
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: { problem: 'guest_env_conflict', variable: 'https_proxy' },
   });
-
-  const listed = await daemon.client.sendRequest('session.list');
 
   expect(ctx.port.calls).toStrictEqual([]);
   expect(listed).toStrictEqual({ sessions: [] });
@@ -610,14 +610,25 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
   registerTestCleanup(() => store.stop());
 
   const bindings = await store.collectAuthBindings();
+  const listed = await daemon.client.sendRequest('session.list');
+
+  // The imp the spawn created and then destroyed, in call order.
+  const lifecycle = ctx.port.calls.filter(
+    (call) => call.startsWith('imps.create ') || call.startsWith('imps.destroy '),
+  );
+
+  const [created] = lifecycle;
+
+  invariant(created !== undefined, 'the spawn created no imp');
+
+  const imp = created.slice('imps.create '.length);
 
   expect(spawn).rejects.toMatchObject({
     code: 'broker_not_ready',
     data: { detail: 'the broker CA did not install' },
   });
 
-  const listed = await daemon.client.sendRequest('session.list');
-
+  expect(lifecycle).toStrictEqual([`imps.create ${imp}`, `imps.destroy ${imp}`]);
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
   expect(bindings).toStrictEqual([]);
   expect(listed).toStrictEqual({ sessions: [] });
@@ -865,12 +876,12 @@ test.each([
 
     await spawn.catch(() => null);
 
+    const listed = await daemon.client.sendRequest('session.list');
+
     expect(spawn).rejects.toMatchObject({
       code: 'auth_target_unsupported',
       data: { agent: 'glm', target: 'local' },
     });
-
-    const listed = await daemon.client.sendRequest('session.list');
 
     expect(ctx.port.calls).toStrictEqual([]);
     expect(existsSync(cwd)).toBe(false);
@@ -1427,14 +1438,14 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
     expect(ctx.port.findState(imp)).toBe('sleeping');
   });
 
+  const grants = await ctx.port.readGrants(imp);
+
   expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   expect(adopt).rejects.toMatchObject({
     code: 'auth_blocked',
     data: { state: 'revocation_pending' },
   });
-
-  const grants = await ctx.port.readGrants(imp);
 
   expect(ctx.port.sessionRequests.length).toBe(1);
   expect(grants).toStrictEqual(['glm']);
@@ -2014,14 +2025,14 @@ test('it sends no start for a revive that a revoke blocks while its connection t
 
   await adopt.catch(() => null);
 
+  const grants = await ctx.port.readGrants(imp);
+
   expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   expect(adopt).rejects.toMatchObject({
     code: 'auth_blocked',
     data: { state: 'revocation_pending' },
   });
-
-  const grants = await ctx.port.readGrants(imp);
 
   expect(ctx.port.sessionRequests.length).toBe(1);
   expect(grants).toStrictEqual(['glm']);

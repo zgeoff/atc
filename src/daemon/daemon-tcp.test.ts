@@ -252,9 +252,17 @@ test.each([['daemon.quit'], ['fleet.restore']])(
     const client = await daemon.openTCPClient();
 
     await client.sendHello('atc/test-gateway', 'a'.repeat(32));
-    await Promise.allSettled([client.sendRequest(method, {}, 'gw')]);
+
+    const refused = client.sendRequest(method, {}, 'gw');
+
+    await Promise.allSettled([refused]);
 
     const pinged = await daemon.client.sendRequest('daemon.ping', {});
+
+    expect(refused).rejects.toMatchObject({
+      code: 'unauthorized',
+      message: `${method} is open to the daemon's owner only`,
+    });
 
     expect(pinged).toStrictEqual({});
   },
@@ -447,10 +455,14 @@ test('it keeps a session that a TCP principal outside its targets tried to kill'
   const client = await daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
-  await Promise.allSettled([client.sendRequest('session.kill', { session: id }, 'gw')]);
+
+  const killed = client.sendRequest('session.kill', { session: id }, 'gw');
+
+  await Promise.allSettled([killed]);
 
   const listed = await daemon.client.sendRequest('session.list', {});
 
+  expect(killed).rejects.toMatchObject({ code: 'no_such_session', message: `no session '${id}'` });
   expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: true })] });
 });
 
@@ -803,6 +815,8 @@ test('it takes handshakes again after a valid reload follows an invalid one', as
 
   daemon.daemon.refreshTokens();
 
+  const afterInvalid = [...daemon.logs];
+
   writeFileSync(join(daemon.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
   daemon.daemon.refreshTokens();
@@ -810,6 +824,7 @@ test('it takes handshakes again after a valid reload follows an invalid one', as
   const client = await daemon.openTCPClient();
   const hello = await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
+  expect(afterInvalid).toSatisfyAny((line: string) => line.includes('token reload failed'));
   expect(hello).toContainKey('daemonID');
 });
 
