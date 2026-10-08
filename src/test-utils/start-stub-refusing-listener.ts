@@ -6,7 +6,7 @@ interface StubRefusingListener {
   // What each read took from any connection, decoded, in arrival order.
   readonly received: readonly string[];
 
-  readonly [Symbol.dispose]: () => void;
+  readonly stop: () => void;
 }
 
 /**
@@ -14,7 +14,7 @@ interface StubRefusingListener {
  * line is not a handshake: on a loopback port, it records what each read
  * takes from a connection and ends that connection, answering nothing.
  * It stops once the current test finishes, so it must run inside a test;
- * disposal stops it sooner, and a second stop does nothing.
+ * `stop` stops it sooner, and a second stop does nothing.
  */
 export function startStubRefusingListener(): StubRefusingListener {
   const received: string[] = [];
@@ -38,6 +38,6 @@ export function startStubRefusingListener(): StubRefusingListener {
   return {
     port: server.port,
     received,
-    [Symbol.dispose]: stop,
+    stop,
   };
 }

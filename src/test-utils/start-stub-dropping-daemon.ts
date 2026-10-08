@@ -25,8 +25,8 @@ interface DroppingDaemonOptions {
  * idempotency key each of those requests carried, `undefined` for one that
  * carried none. `reads` counts the reads it has taken from every connection,
  * so a test can wait until one piece of a split write has arrived. It stops
- * once the current test finishes, so it must run inside a test; `stop` or
- * disposal stops it sooner, and a second stop does nothing.
+ * once the current test finishes, so it must run inside a test; `stop`
+ * stops it sooner, and a second stop does nothing.
  */
 export function startStubDroppingDaemon(socketPath: string, options: DroppingDaemonOptions) {
   const keys: unknown[] = [];
@@ -100,6 +100,5 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
       return reads;
     },
     stop,
-    [Symbol.dispose]: stop,
   };
 }

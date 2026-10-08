@@ -189,17 +189,17 @@ test('it restarts the daemon on the same home after the signal stops it', async 
   expect(after['daemonID']).toBe(before['daemonID']);
 });
 
-test('it kills the daemon on disposal', async () => {
+test('it kills the daemon once stopped', async () => {
   const ctx = setupTest();
   const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
 
   await daemon.openClient();
-  await daemon[Symbol.asyncDispose]();
+  await daemon.stop();
 
   expect(daemon.proc.signalCode).toBe('SIGKILL');
 });
 
-test('it kills the daemon the state directory records on disposal', async () => {
+test('it kills the daemon the state directory records once stopped', async () => {
   const ctx = setupTest();
   const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.dir });
   const recorded = Bun.spawn(['sleep', '30']);
@@ -223,14 +223,14 @@ test('it kills the daemon the state directory records on disposal', async () => 
     }),
   );
 
-  await daemon[Symbol.asyncDispose]();
+  await daemon.stop();
 
   await recorded.exited;
 
   expect(recorded.signalCode).toBe('SIGKILL');
 });
 
-test('it kills the daemon once the test finishes without a dispose', () => {
+test('it kills the daemon once the test finishes without a stop', () => {
   const ctx = setupTest();
 
   // A stand-in that runs until killed and ignores the arguments after it.

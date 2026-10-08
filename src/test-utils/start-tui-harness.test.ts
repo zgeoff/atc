@@ -132,20 +132,20 @@ test('it resolves the exit code of the client it booted', async () => {
   expect(exitCode).toBe(0);
 });
 
-test('it stops the daemon the client started on dispose', async () => {
+test('it stops the daemon the client started on stop', async () => {
   const ctx = await setupTest();
 
   const pid = Number(readFileSync(join(ctx.tui.home, 'atc-daemon.pid'), 'utf8'));
 
-  await ctx.tui[Symbol.asyncDispose]();
+  await ctx.tui.stop();
 
   expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
 });
 
-test('it removes its home on dispose', async () => {
+test('it removes its home on stop', async () => {
   const ctx = await setupTest();
 
-  await ctx.tui[Symbol.asyncDispose]();
+  await ctx.tui.stop();
 
   expect(existsSync(ctx.tui.home)).toBe(false);
 });

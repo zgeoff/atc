@@ -23,15 +23,15 @@ test('it records the path of each call in order', async () => {
   expect(impd.paths).toStrictEqual(['/rpc/system/info', '/rpc/tokens/whoami']);
 });
 
-test('it stops serving once disposed', async () => {
+test('it stops serving once stopped', async () => {
   const impd = startStubImpdInfo();
 
-  await impd[Symbol.asyncDispose]();
+  await impd.stop();
 
   expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
 });
 
-test('it stops serving once the test finishes without a dispose', () => {
+test('it stops serving once the test finishes without a stop', () => {
   const impd = startStubImpdInfo();
 
   onTestFinished(() => {

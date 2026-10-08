@@ -43,7 +43,9 @@ async function setupTest() {
     }),
   );
 
-  const daemon = stack.use(startDaemonProcess({ command: atc, home }));
+  const daemon = startDaemonProcess({ command: atc, home });
+
+  stack.defer(() => daemon.stop());
 
   const client = await daemon.openClient();
 

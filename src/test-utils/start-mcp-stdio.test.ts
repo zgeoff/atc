@@ -71,7 +71,7 @@ test('it rejects a request still pending when the server stops', async () => {
   const held = mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
 
   // The helper's own release awaits this stop once the test finishes.
-  void mcp[Symbol.asyncDispose]();
+  void mcp.stop();
   expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/);
 });
 
@@ -172,14 +172,14 @@ test('it rejects a pending request once the server prints a line that is not JSO
   );
 });
 
-test('it resolves a second disposal', async () => {
+test('it resolves a second stop', async () => {
   const ctx = setupTest();
 
   const mcp = await startMCPStdio({ home: ctx.home });
 
-  await mcp[Symbol.asyncDispose]();
+  await mcp.stop();
 
-  expect(mcp[Symbol.asyncDispose]()).resolves.toBeUndefined();
+  expect(mcp.stop()).resolves.toBeUndefined();
 });
 
 test('it stops a server whose initialize fails before rejecting', async () => {
@@ -196,7 +196,7 @@ test('it stops a server whose initialize fails before rejecting', async () => {
   expect(isProcessAlive(pid)).toBeFalse();
 });
 
-test('it stops the server once the test finishes without a dispose', async () => {
+test('it stops the server once the test finishes without a stop', async () => {
   const mcpHome = setupMCPHome();
 
   const bin = createStubBin(

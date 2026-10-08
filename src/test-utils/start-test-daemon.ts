@@ -42,31 +42,67 @@ interface TestDaemonConfig {
   // The temp directory's name prefix.
   readonly prefix?: string;
   readonly options?: TestDaemonOptionsBuilder;
+
+  // Whether each boot opens the main client; it does unless this is false.
+  readonly mainClient?: boolean;
 }
+
+/**
+ * A running test daemon and the calls that drive it.
+ */
+interface TestDaemon extends TestDaemonPaths {
+  readonly build: string;
+  readonly logs: string[];
+  readonly events: EventMsg[];
+  readonly daemon: DaemonHandle;
+  readonly client: DaemonClient;
+  readonly openClient: (hello?: Readonly<Record<string, unknown>>) => Promise<DaemonClient>;
+  readonly openTCPClient: () => Promise<DaemonClient>;
+  readonly sendHookLines: (...lines: readonly Readonly<Record<string, unknown>>[]) => Promise<void>;
+  readonly stop: () => Promise<void>;
+  readonly restart: (options?: TestDaemonOptionsBuilder) => Promise<void>;
+  readonly dispose: () => Promise<void>;
+}
+
+/**
+ * The harness a config starts: one that opens no main client has neither
+ * that client nor the events it would collect.
+ */
+type StartedTestDaemon<Config extends TestDaemonConfig> = Config extends {
+  readonly mainClient: false;
+}
+  ? Omit<TestDaemon, 'client' | 'events'>
+  : TestDaemon;
 
 // The build string the daemon and every client the harness opens send in
 // their handshake.
 const BUILD = 'atc/test-build';
 
 /**
- * A real daemon in a fresh temp directory, with a client that has already
- * sent its handshake. The options builder chooses what the daemon wires;
- * the harness sets the paths and the build, and collects the daemon's log
- * lines unless the options set their own log. `events` collects every event
- * the main client receives, across restarts. `openClient` opens another
- * client over the unix socket and sends its handshake with the given
- * params; `openTCPClient` connects to the TCP listener and sends nothing, so
- * the test drives that handshake itself. `sendHookLines` writes reporter
- * lines to the reporter socket and resolves once the daemon has closed the
- * connection. `stop` closes every client and stops the daemon; `restart`
- * does the same, then boots on the same paths and state with the options
- * given or the last ones, and opens a new main client. Disposal stops what
- * is running and removes the directory. That disposal runs once the current
- * test finishes, so it must run inside a test; disposing sooner runs it
- * then, and a second disposal does nothing. A first boot that fails runs it
+ * A real daemon in a fresh temp directory, with a main client that has
+ * already sent its handshake unless the config turns that client off, which
+ * leaves every connection the daemon counts to the test. The options
+ * builder chooses what the daemon wires; the harness sets the paths and the
+ * build, and collects the daemon's log lines unless the options set their
+ * own log. `events` collects every event the main client receives, across
+ * restarts. `openClient` opens another client over the unix socket and
+ * sends its handshake with the given params; `openTCPClient` connects to
+ * the TCP listener and sends nothing, so the test drives that handshake
+ * itself. `sendHookLines` writes reporter lines to the reporter socket and
+ * resolves once the daemon has closed the connection. `stop` closes every
+ * client and stops the daemon; `restart` does the same, then boots on the
+ * same paths and state with the options given or the last ones, and opens
+ * a new main client unless the config turns it off. `dispose` stops what is
+ * running and removes the directory. It runs once the current test
+ * finishes, so the harness must start inside a test; calling it sooner runs
+ * it then, and a second call does nothing. A first boot that fails runs it
  * before the start rejects.
  */
-export async function startTestDaemon(config: TestDaemonConfig = {}) {
+export function startTestDaemon<const Config extends TestDaemonConfig = TestDaemonConfig>(
+  config?: Config,
+): Promise<StartedTestDaemon<Config>>;
+
+export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<TestDaemon> {
   const tmp = setupTempDir(config.prefix ?? 'atc-test-daemon-');
 
   // Registered after the directory, so it releases first: the daemon stops
@@ -75,7 +111,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.use(tmp);
+  stack.defer(tmp.teardown);
 
   const paths: TestDaemonPaths = {
     dir: tmp.dir,
@@ -142,6 +178,10 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
 
     live = daemon;
 
+    if (config.mainClient === false) {
+      return { daemon, client: null };
+    }
+
     const client = await openClient();
 
     client.onEvent = (event) => {
@@ -168,6 +208,10 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
       return current.daemon;
     },
     get client(): DaemonClient {
+      if (current.client === null) {
+        throw new Error('the test daemon started without a main client');
+      }
+
       return current.client;
     },
     openClient,
@@ -224,6 +268,6 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
 
       current = await boot();
     },
-    [Symbol.asyncDispose]: dispose,
+    dispose,
   };
 }

@@ -329,6 +329,31 @@ test('it closes every client the daemon holds when it stops', async () => {
   expect(closed.promise).resolves.toBeUndefined();
 });
 
+test('it opens no main client when the config turns it off', async () => {
+  const harness = await startTestDaemon({ mainClient: false });
+
+  expect(harness.daemon.countClients()).toBe(0);
+});
+
+test('it throws on a read of the main client when a widened config turns it off', async () => {
+  const config: NonNullable<Parameters<typeof startTestDaemon>[0]> = { mainClient: false };
+
+  const harness = await startTestDaemon(config);
+
+  expect(() => harness.client).toThrowWithMessage(
+    Error,
+    'the test daemon started without a main client',
+  );
+});
+
+test('it opens no main client on restart when the config turns it off', async () => {
+  const harness = await startTestDaemon({ mainClient: false });
+
+  await harness.restart();
+
+  expect(harness.daemon.countClients()).toBe(0);
+});
+
 test('it boots a new daemon with a new main client on restart', async () => {
   const harness = await startTestDaemon();
 
@@ -413,7 +438,7 @@ test('it boots with the options a restart gives', async () => {
   expect(listed['agents']).toPartiallyContain({ id: 'grok' });
 });
 
-test('it stops the running daemon and removes its directory on dispose', async () => {
+test('it stops the running daemon and removes its directory once disposed', async () => {
   const harness = await startTestDaemon();
   const outside = await DaemonClient.open(harness.socketPath);
 
@@ -427,13 +452,13 @@ test('it stops the running daemon and removes its directory on dispose', async (
     closed.resolve();
   };
 
-  await harness[Symbol.asyncDispose]();
+  await harness.dispose();
 
   expect(closed.promise).resolves.toBeUndefined();
   expect(existsSync(harness.dir)).toBeFalse();
 });
 
-test('it stops the daemon a restart booted on dispose', async () => {
+test('it stops the daemon a restart booted once disposed', async () => {
   const harness = await startTestDaemon();
 
   await harness.restart();
@@ -450,7 +475,7 @@ test('it stops the daemon a restart booted on dispose', async () => {
     closed.resolve();
   };
 
-  await harness[Symbol.asyncDispose]();
+  await harness.dispose();
 
   expect(closed.promise).resolves.toBeUndefined();
 });

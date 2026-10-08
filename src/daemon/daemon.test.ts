@@ -18,12 +18,22 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 import { waitFor } from '../test-utils/wait-for';
 
+// A test that leaves every connection to itself turns the main client off.
+interface DaemonTestConfig {
+  readonly mainClient: false;
+}
+
 /**
  * A real daemon whose Claude adapter is a stand-in that idles, with a main
- * client that has sent its handshake and collects every event it receives.
+ * client that has sent its handshake and collects every event it receives,
+ * unless the config turns that client off.
  */
-function setupTest() {
+function setupTest(config: DaemonTestConfig): ReturnType<typeof startTestDaemon<DaemonTestConfig>>;
+function setupTest(): ReturnType<typeof startTestDaemon<Record<never, never>>>;
+
+function setupTest(config?: DaemonTestConfig) {
   return startTestDaemon({
+    ...config,
     prefix: 'atc-daemon-',
 
     // Every spawn needs a Claude adapter; this one runs a sleep.
@@ -32,7 +42,7 @@ function setupTest() {
 }
 
 test('it answers daemon.hello with the build, limits, and features', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({ mainClient: false });
   const client = await DaemonClient.open(ctx.socketPath);
 
   registerTestCleanup(() => {
@@ -93,7 +103,7 @@ test('it stops counting a client connection once it closes', async () => {
 });
 
 test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({ mainClient: false });
   const raw = await subscribeToSocketLines(ctx.socketPath);
 
   raw.write('{"v":5,"id":1,"m":"daemon.hello","p":{"client":"atc/newer-build"}}\n');
@@ -120,7 +130,7 @@ test('it answers daemon.ping after the handshake', async () => {
 });
 
 test('it refuses any request before daemon.hello', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({ mainClient: false });
   const client = await DaemonClient.open(ctx.socketPath);
 
   registerTestCleanup(() => {
@@ -149,7 +159,7 @@ test('it stays connected after answering an unknown method', async () => {
 });
 
 test('it closes the connection on a malformed line', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({ mainClient: false });
   const raw = await subscribeToSocketLines(ctx.socketPath);
 
   raw.write('this is not json\n');
@@ -162,7 +172,7 @@ test('it closes the connection on a malformed line', async () => {
 });
 
 test('it closes the connection on an oversized line', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({ mainClient: false });
   const raw = await subscribeToSocketLines(ctx.socketPath);
 
   raw.write(`{"v":1,"id":1,"m":"daemon.hello","p":{"pad":"${'x'.repeat(1_100_000)}"}}\n`);
@@ -738,7 +748,7 @@ test('it holds events.read open while no event arrives within waitMs', async () 
 
   const read = ctx.client.sendRequest('events.read', { waitMs: 600_000 });
 
-  // The read fails when disposal closes the client; settling it here keeps
+  // The read fails when cleanup closes the client; settling it here keeps
   // that failure from going unhandled.
   void Promise.allSettled([read]);
 
@@ -834,7 +844,7 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
 });
 
 test('it stops the daemon when its handle is disposed', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({ mainClient: false });
 
   await ctx.daemon[Symbol.asyncDispose]();
 
@@ -842,7 +852,7 @@ test('it stops the daemon when its handle is disposed', async () => {
 });
 
 test('it releases nothing again when a stopped handle is disposed', async () => {
-  const ctx = await setupTest();
+  const ctx = await setupTest({ mainClient: false });
 
   const stopped = ctx.daemon;
 

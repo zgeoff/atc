@@ -112,7 +112,7 @@ test('it serves the caller from the restarted daemon on the same socket', async 
   expect(server.countDaemonClients()).toBe(1);
 });
 
-test('it stops the server and removes its home once the test finishes without a dispose', async () => {
+test('it stops the server and removes its home once the test finishes without a teardown', async () => {
   const setup = await setupMCPHTTP();
 
   onTestFinished(() => {
@@ -121,10 +121,10 @@ test('it stops the server and removes its home once the test finishes without a 
   });
 });
 
-test('it stops the server and removes its home once disposed', async () => {
+test('it stops the server and removes its home once torn down', async () => {
   const setup = await setupMCPHTTP();
 
-  await setup[Symbol.asyncDispose]();
+  await setup.teardown();
 
   expect(fetch(setup.url)).rejects.toThrow();
   expect(existsSync(setup.home)).toBeFalse();

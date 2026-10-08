@@ -8,7 +8,7 @@ interface StubAnsweringListener {
 
   // The first read each connection sent, decoded, in arrival order.
   readonly lines: readonly string[];
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
+  readonly stop: () => Promise<void>;
 }
 
 /**
@@ -17,7 +17,7 @@ interface StubAnsweringListener {
  * read each one sends, answers that read with the line `answer`, and
  * leaves every later byte unread on the connection. Resolves once it
  * listens. Once the current test finishes, it destroys every connection it
- * accepted and closes, so it must run inside a test; disposal does so
+ * accepted and closes, so it must run inside a test; `stop` does so
  * sooner and resolves once the server has closed, and a second stop does
  * nothing.
  */
@@ -60,6 +60,6 @@ export async function startStubAnsweringListener(path: string): Promise<StubAnsw
   return {
     peers,
     lines,
-    [Symbol.asyncDispose]: stop,
+    stop,
   };
 }

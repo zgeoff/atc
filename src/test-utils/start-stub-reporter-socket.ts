@@ -9,8 +9,7 @@ interface StubReporterSocket {
   // can wait until one piece of a split write has arrived.
   readonly reads: number;
   readonly waitForLine: (timeoutMs?: number) => Promise<string>;
-  readonly [Symbol.dispose]: () => void;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
+  readonly stop: () => void;
 }
 
 /**
@@ -21,7 +20,7 @@ interface StubReporterSocket {
  * connection for the sender to close. `waitForLine` resolves with the first
  * line once one has arrived, and rejects naming the socket when none arrives
  * within `timeoutMs`, 5 seconds by default. The listener stops once the
- * current test finishes, so it must run inside a test; disposal stops it
+ * current test finishes, so it must run inside a test; `stop` stops it
  * sooner, and a second stop does nothing.
  */
 export function startStubReporterSocket(path: string): StubReporterSocket {
@@ -69,11 +68,6 @@ export function startStubReporterSocket(path: string): StubReporterSocket {
         },
         { timeoutMs },
       ),
-    [Symbol.dispose]: stop,
-    [Symbol.asyncDispose]: () => {
-      stop();
-
-      return Promise.resolve();
-    },
+    stop,
   };
 }

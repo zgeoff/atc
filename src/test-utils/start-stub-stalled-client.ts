@@ -8,7 +8,7 @@ interface StubStalledClient {
 
   // How many bytes have arrived on the connection and wait unread.
   readonly countUnreadBytes: () => number;
-  readonly [Symbol.dispose]: () => void;
+  readonly stop: () => void;
 }
 
 /**
@@ -18,7 +18,7 @@ interface StubStalledClient {
  * a promise that never resolves, so whatever the daemon sends it after
  * that backs up. Resolves once that first chunk arrives. The connection is
  * destroyed once the current test finishes, so it must run inside a test;
- * disposal destroys it sooner, and a second stop does nothing.
+ * `stop` destroys it sooner, and a second stop does nothing.
  */
 export async function startStubStalledClient(
   socketPath: string,
@@ -56,6 +56,6 @@ export async function startStubStalledClient(
   return {
     chunks,
     countUnreadBytes: () => socket.readableLength,
-    [Symbol.dispose]: stop,
+    stop,
   };
 }

@@ -218,7 +218,7 @@ test('it closes a WebSocket that sends a message over 2 MiB', async () => {
   expect(code).toBe(1006);
 });
 
-test('it drops an open WebSocket on disposal', async () => {
+test('it drops an open WebSocket once stopped', async () => {
   const impd = startStubImpd();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
@@ -240,15 +240,15 @@ test('it drops an open WebSocket on disposal', async () => {
 
   await opened.promise;
 
-  impd[Symbol.dispose]();
+  await impd.stop();
 
   const code = await closed.promise;
 
-  // Disposal drops the connection at once, without a close frame.
+  // Stopping drops the connection at once, without a close frame.
   expect(code).toBe(1006);
 });
 
-test('it stops serving once the test finishes without a dispose', () => {
+test('it stops serving once the test finishes without a stop', () => {
   const impd = startStubImpd();
 
   onTestFinished(() => {

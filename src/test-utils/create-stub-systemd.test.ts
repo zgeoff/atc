@@ -163,7 +163,7 @@ test('it writes a cgroup file that places a pid in a user service', () => {
   );
 });
 
-test('it removes its directory once the test finishes without a dispose', () => {
+test('it removes its directory once the test finishes without a remove', () => {
   const fake = createStubSystemd(['/bin/true']);
 
   onTestFinished(() => {
@@ -171,10 +171,10 @@ test('it removes its directory once the test finishes without a dispose', () => 
   });
 });
 
-test('it removes its directory once disposed', () => {
+test('it removes its directory once removed', () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  fake[Symbol.dispose]();
+  fake.remove();
 
   expect(existsSync(dirname(fake.binDir))).toBeFalse();
 });

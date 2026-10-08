@@ -15,12 +15,13 @@ import { waitFor } from './wait-for';
  * no extra arguments. A server started with this home as its `HOME` and
  * `XDG_RUNTIME_DIR` boots its daemon here. Each stand-in appends its pid,
  * which is its process group as a session leader, to `stub-pids` in the
- * home. Disposal stops the daemon, when one wrote its pid file here, and
+ * home. `teardown` stops the daemon, when one wrote its pid file here, and
  * waits for it to exit; then it kills the daemon's process group and every
  * group `stub-pids` records, such as a reporter a stopped session left
  * behind, waits until each group is empty, and removes the home. That
- * disposal runs once the current test finishes, so it must run inside a
- * test; disposing sooner runs it then, and a second disposal does nothing.
+ * teardown runs once the current test finishes, so it must run inside a
+ * test; calling `teardown` sooner runs it then, and a second teardown does
+ * nothing.
  */
 export function setupMCPHome() {
   const tmp = setupTempDir('atc-mcp-');
@@ -29,9 +30,9 @@ export function setupMCPHome() {
   // stand-ins stop before the home that records them is removed.
   const stack = new AsyncDisposableStack();
 
-  const dispose = registerTestCleanup(() => stack.disposeAsync());
+  const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.use(tmp);
+  stack.defer(tmp.teardown);
 
   const home = tmp.dir;
 
@@ -60,7 +61,7 @@ export function setupMCPHome() {
     home,
     claudeBin,
     grokBin,
-    [Symbol.asyncDispose]: dispose,
+    teardown,
   };
 }
 

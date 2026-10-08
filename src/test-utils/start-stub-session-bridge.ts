@@ -16,8 +16,7 @@ interface StubSessionBridge {
   // How many reads the stand-in has taken from its connections, so a test
   // can wait until one piece of a split write has arrived.
   readonly reads: number;
-  readonly [Symbol.dispose]: () => void;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
+  readonly stop: () => void;
 }
 
 /**
@@ -28,7 +27,7 @@ interface StubSessionBridge {
  * does once it attaches the tap, and hands every other request to the
  * responder, writing back each line it returns. A line that is not a JSON
  * object reaches the responder as an empty request. The listener stops once
- * the current test finishes, so it must run inside a test; disposal stops it
+ * the current test finishes, so it must run inside a test; `stop` stops it
  * sooner, and a second stop does nothing.
  */
 export function startStubSessionBridge(path: string, respond: BridgeResponder): StubSessionBridge {
@@ -80,12 +79,7 @@ export function startStubSessionBridge(path: string, respond: BridgeResponder): 
     get reads() {
       return reads;
     },
-    [Symbol.dispose]: stop,
-    [Symbol.asyncDispose]: () => {
-      stop();
-
-      return Promise.resolve();
-    },
+    stop,
   };
 }
 

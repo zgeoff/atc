@@ -136,7 +136,7 @@ test('it throws listing the collected lines once the connection closes short of 
   );
 });
 
-test('it ends its connection once the test finishes without a dispose', async () => {
+test('it ends its connection once the test finishes without an unsubscribe', async () => {
   const path = join(tmpdir(), `atc-sock-lines-${randomUUID()}.sock`);
   const closes: string[] = [];
 
@@ -166,10 +166,10 @@ test('it ends its connection once the test finishes without a dispose', async ()
   await subscribeToSocketLines(path);
 });
 
-test('it ends its connection once disposed', async () => {
+test('it ends its connection once unsubscribed', async () => {
   const ctx = await setupTest();
 
-  await ctx.subscriber[Symbol.asyncDispose]();
+  ctx.subscriber.unsubscribe();
 
   expect(ctx.subscriber.closed).resolves.toBeUndefined();
 });

@@ -39,12 +39,12 @@ interface DaemonBoot {
  * sending no handshake, and fails at once with the daemon's stderr when the
  * daemon exits before it listens. `restart` stops the daemon with the given
  * signal, waits for it to exit, and starts another on the same home with the
- * same config. `readStderr` reads what the current boot printed. Disposal
+ * same config. `readStderr` reads what the current boot printed. `stop`
  * closes every client it opened, kills the daemon and waits for it to exit,
  * then kills the daemon the home's state directory records, which a restart
- * the test asked atc for may have started. That disposal runs once the
- * current test finishes, so it must run inside a test; disposing sooner
- * runs it then, and a second disposal does nothing.
+ * the test asked atc for may have started. That stop runs once the current
+ * test finishes, so it must run inside a test; calling `stop` sooner runs it
+ * then, and a second stop does nothing.
  */
 export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const socketPath = join(config.home, 'atc-daemon.sock');
@@ -53,7 +53,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const clients = new Set<DaemonClient>();
 
   let boots = 0;
-  let disposed = false;
+  let stopped = false;
 
   const boot = (): DaemonBoot => {
     boots++;
@@ -79,8 +79,8 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
   let current = boot();
 
-  const dispose = registerTestCleanup(async () => {
-    disposed = true;
+  const stop = registerTestCleanup(async () => {
+    stopped = true;
 
     for (const client of clients) {
       client.stop();
@@ -107,12 +107,12 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     }
   };
 
-  // A client that opens after the wait for it ended, or after disposal,
+  // A client that opens after the wait for it ended, or after the stop,
   // closes at once, so nothing outlives the daemon it reached.
   const openTrackedClient = async (isAbandoned: () => boolean) => {
     const client = await DaemonClient.open(socketPath);
 
-    if (disposed || isAbandoned()) {
+    if (stopped || isAbandoned()) {
       client.stop();
       throw new Error('the wait for the daemon ended before this client opened');
     }
@@ -132,7 +132,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     const openAfterExit = async () => {
       await watched.exited;
 
-      if (settled || disposed) {
+      if (settled || stopped) {
         return null;
       }
 
@@ -146,10 +146,10 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     };
 
     // Polls the socket while the daemon runs. Once the other wait settles or
-    // the daemon is disposed, each attempt resolves empty, which ends the
+    // the daemon stops, each attempt resolves empty, which ends the
     // polling.
     const openWhenListening = () =>
-      waitFor(() => (settled || disposed ? null : openTrackedClient(isSettled)), {
+      waitFor(() => (settled || stopped ? null : openTrackedClient(isSettled)), {
         timeoutMs: 15_000,
         intervalMs: 50,
       });
@@ -188,6 +188,6 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
       current = boot();
     },
-    [Symbol.asyncDispose]: dispose,
+    stop,
   };
 }

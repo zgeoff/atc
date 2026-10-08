@@ -30,15 +30,15 @@ test('it records the method, path, headers, and body of each request', async () 
   ]);
 });
 
-test('it stops serving once disposed', () => {
+test('it stops serving once stopped', async () => {
   const server = startStubMCPServer({});
 
-  server[Symbol.dispose]();
+  await server.stop();
 
   expect(fetch(`${server.url}/mcp`, { method: 'POST', body: '{}' })).rejects.toThrow();
 });
 
-test('it stops serving once the test finishes without a dispose', () => {
+test('it stops serving once the test finishes without a stop', () => {
   const server = startStubMCPServer({});
 
   onTestFinished(() => {

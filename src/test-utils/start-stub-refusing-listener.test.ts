@@ -28,17 +28,17 @@ test('it records what a connection sends and ends that connection', async () => 
   expect(listener.received).toStrictEqual(['not a handshake\n']);
 });
 
-test('it stops listening once disposed', () => {
+test('it stops listening once stopped', () => {
   const listener = startStubRefusingListener();
 
-  listener[Symbol.dispose]();
+  listener.stop();
 
   expect(
     Bun.connect({ hostname: '127.0.0.1', port: listener.port, socket: { data() {} } }),
   ).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   const listener = startStubRefusingListener();
 
   onTestFinished(() => {

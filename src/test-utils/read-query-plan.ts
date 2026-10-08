@@ -9,14 +9,18 @@ import type { CompiledQuery } from 'kysely';
  * before returning, so the query never runs and nothing is written.
  */
 export function readQueryPlan(dbPath: string, query: CompiledQuery): string {
-  using db = new Database(dbPath, { readonly: true });
+  const db = new Database(dbPath, { readonly: true });
 
   // oxlint-disable-next-line no-unsafe-type-assertion -- kysely's sqlite compiler only ever binds bun:sqlite-legal values
   const bindings = query.parameters as SQLQueryBindings[];
 
-  return db
-    .query<{ detail: string }, SQLQueryBindings[]>(`EXPLAIN QUERY PLAN ${query.sql}`)
-    .all(...bindings)
-    .map((row) => row.detail)
-    .join('\n');
+  try {
+    return db
+      .query<{ detail: string }, SQLQueryBindings[]>(`EXPLAIN QUERY PLAN ${query.sql}`)
+      .all(...bindings)
+      .map((row) => row.detail)
+      .join('\n');
+  } finally {
+    db.close();
+  }
 }

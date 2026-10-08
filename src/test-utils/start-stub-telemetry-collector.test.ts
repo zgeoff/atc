@@ -52,15 +52,15 @@ test('it answers each request with no content', async () => {
   expect(collector.received).toStrictEqual([collector.url]);
 });
 
-test('it stops serving once disposed', async () => {
+test('it stops serving once stopped', async () => {
   const collector = startStubTelemetryCollector();
 
-  await collector[Symbol.asyncDispose]();
+  await collector.stop();
 
   expect(fetch(collector.url)).rejects.toThrow();
 });
 
-test('it stops serving once the test finishes without a dispose', () => {
+test('it stops serving once the test finishes without a stop', () => {
   const collector = startStubTelemetryCollector();
 
   onTestFinished(() => {

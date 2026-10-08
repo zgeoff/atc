@@ -1053,23 +1053,6 @@ test('it runs a held command once its hold stops', async () => {
   expect(Buffer.from(ran.stdout).toString()).toBe('held\n');
 });
 
-test('it lets a held command run once its hold is disposed', async () => {
-  const ctx = setupTest();
-
-  await ctx.port.createImp({ name: 'imp-a' });
-
-  const hold = ctx.port.startCommandHold('echo held');
-  const result = ctx.port.runCommand('imp-a', { argv: ['sh', '-c', 'echo held'] });
-
-  await hold.entered;
-
-  hold[Symbol.dispose]();
-
-  const ran = await result;
-
-  expect(Buffer.from(ran.stdout).toString()).toBe('held\n');
-});
-
 test('it keeps a held command waiting until its hold stops', async () => {
   const ctx = setupTest();
 
@@ -3299,7 +3282,7 @@ test('it records the spec of each imp it is asked to create, in order', async ()
   ]);
 });
 
-test('it stops every forward once the test finishes without a dispose', () => {
+test('it stops every forward once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // forward's own stop takes it away.
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
@@ -3318,7 +3301,7 @@ test('it stops every forward once the test finishes without a dispose', () => {
   });
 });
 
-test('it stops every forward once disposed', () => {
+test('it stops every forward once stopped', () => {
   const guestPath = join(tmpdir(), `atc-stub-imp-port-${randomUUID()}.sock`);
 
   onTestFinished(() => {
@@ -3328,7 +3311,7 @@ test('it stops every forward once disposed', () => {
   const port = createStubImpPort();
 
   port.openReverseForward('imp-a', guestPath, () => {});
-  port[Symbol.dispose]();
+  port.stop();
 
   expect(existsSync(guestPath)).toBeFalse();
 });

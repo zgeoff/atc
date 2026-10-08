@@ -39,8 +39,8 @@ interface MCPToolResult {
  * with the new session's id. A request still unanswered when the server's
  * stdout ends rejects. When `initialize` fails, the server is stopped
  * before the start rejects. The server stops once the current test
- * finishes, so it must run inside a test; disposal stops it sooner and waits
- * for it to exit, and a second disposal waits for the same exit. The daemon
+ * finishes, so it must run inside a test; `stop` stops it sooner and waits
+ * for it to exit, and a second stop waits for the same exit. The daemon
  * stays up for the home to stop.
  */
 export async function startMCPStdio(options: MCPStdioOptions) {
@@ -58,7 +58,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     stderr: 'ignore',
   });
 
-  const stopServer = registerTestCleanup(async (): Promise<void> => {
+  const stop = registerTestCleanup(async (): Promise<void> => {
     void proc.stdin.end();
     proc.kill();
 
@@ -113,7 +113,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
       return id;
     },
-    [Symbol.asyncDispose]: stopServer,
+    stop,
   };
 
   // A failed initialize stops the server here, before the start rejects.
@@ -122,7 +122,7 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     capabilities: {},
     clientInfo: { name: 'atc-test' },
   }).catch(async (error: unknown) => {
-    await stopServer();
+    await stop();
 
     throw error;
   });

@@ -25,7 +25,6 @@ export interface CutProxy {
   // How many answers the proxy has swallowed in hold mode.
   readonly countHeld: () => number;
   readonly stop: () => void;
-  readonly [Symbol.dispose]: () => void;
 }
 
 // One proxied connection: the target side once it is connected, what the
@@ -49,8 +48,8 @@ interface ProxyLink {
  * the method it loses the target's next answer after the request reached
  * the target: the request runs, and the client never sees its response.
  * It stops, ending every link, once the current test finishes, so it must
- * run inside a test; `stop` or disposal stops it sooner, and a second stop
- * does nothing.
+ * run inside a test; `stop` stops it sooner, and a second stop does
+ * nothing.
  */
 export function startCutProxy(options: CutProxyOptions): CutProxy {
   let cutsLeft = options.cuts;
@@ -139,7 +138,6 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
     countRequests: () => requests,
     countHeld: () => held,
     stop,
-    [Symbol.dispose]: stop,
   };
 }
 

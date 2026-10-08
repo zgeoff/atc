@@ -7,16 +7,16 @@ let pending: (() => unknown)[] | null = null;
 /**
  * Registers the release of a resource a test just acquired, to run once the
  * current test finishes, and returns that release for the resource's own
- * stop and dispose members. Every release a test registers runs from one
- * hook, last registered first, as `using` declarations release, so a
- * directory made before a process that lives in it is removed only after
- * that process stops. A release that throws stops none of the others: the
- * hook rethrows once every release has run, as an `AggregateError` when
- * more than one threw. The returned release runs its callback once: every
- * later call, from the hook or from the test, returns what the first call
- * returned. Bun runs the hook after every `afterEach`, so a release works
- * from the paths and handles it captured. Throws outside a test, where
- * nothing would run the hook.
+ * early release, such as a `stop` member. Every release a test registers
+ * runs from one hook, last registered first, so a directory made before a
+ * process that lives in it is removed only after that process stops. A
+ * release that throws stops none of the others: the hook rethrows once
+ * every release has run, as an `AggregateError` when more than one threw.
+ * The returned release runs its callback once: every later call, from the
+ * hook or from the test, returns what the first call returned. Bun runs the
+ * hook after every `afterEach`, so a release works from the paths and
+ * handles it captured. Throws outside a test, where nothing would run the
+ * hook.
  */
 export function registerTestCleanup<T>(release: () => T): () => T {
   let released: { readonly value: T } | null = null;

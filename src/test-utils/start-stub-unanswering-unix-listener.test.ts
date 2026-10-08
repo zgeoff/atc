@@ -45,16 +45,16 @@ test('it records what a connection sends, answers nothing, and keeps the connect
   expect(events).toStrictEqual([]);
 });
 
-test('it stops listening once disposed', () => {
+test('it stops listening once stopped', () => {
   const ctx = setupTest();
   const listener = startStubUnansweringUnixListener(ctx.path);
 
-  listener[Symbol.dispose]();
+  listener.stop();
 
   expect(Bun.connect({ unix: ctx.path, socket: { data() {} } })).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-unanswering-${randomUUID()}.sock`);

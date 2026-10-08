@@ -24,7 +24,7 @@ interface StubSystemd {
   // daemon run by a user manager reads.
   readonly placeInUnit: (pid: number, unit: string) => void;
 
-  readonly [Symbol.dispose]: () => void;
+  readonly remove: () => void;
 }
 
 /**
@@ -36,7 +36,7 @@ interface StubSystemd {
  * `--` in the background with only the `--setenv` variables, as a transient
  * unit sees them, and appends its output to the `StandardOutput=append:`
  * file. Every call is logged. The stand-ins' directory is removed once the
- * current test finishes, so it must run inside a test; disposal removes it
+ * current test finishes, so it must run inside a test; `remove` removes it
  * sooner, and a second removal does nothing.
  */
 export function createStubSystemd(atcCommand: readonly string[]): StubSystemd {
@@ -126,6 +126,6 @@ exit 0
         `0::/user.slice/user-${process.getuid?.() ?? 0}.slice/user@${process.getuid?.() ?? 0}.service/app.slice/${unit}\n`,
       );
     },
-    [Symbol.dispose]: remove,
+    remove,
   };
 }

@@ -23,7 +23,7 @@ interface GitFixtureConfig {
  * The first call in a process builds a template pair under the test home,
  * and each call copies it, so a fixture costs a copy instead of a run of
  * git commands. The directory is removed once the current test finishes,
- * so it must run inside a test; disposal removes it sooner, and a second
+ * so it must run inside a test; `remove` removes it sooner, and a second
  * removal does nothing.
  */
 export async function createGitFixture(config: GitFixtureConfig = {}) {
@@ -56,7 +56,7 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
     upstream,
     work,
     sha: template.sha,
-    [Symbol.asyncDispose]: tmp[Symbol.asyncDispose],
+    remove: tmp.teardown,
   };
 }
 

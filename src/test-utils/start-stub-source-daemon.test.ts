@@ -60,7 +60,7 @@ test('it offers no sources when asked for none', async () => {
   expect(listed['sources']).toStrictEqual([]);
 });
 
-test('it stops the daemon process on dispose', async () => {
+test('it stops the daemon process once stopped', async () => {
   const ctx = setupTest();
 
   const daemon = await startStubSourceDaemon({
@@ -69,7 +69,7 @@ test('it stops the daemon process on dispose', async () => {
     XDG_RUNTIME_DIR: ctx.dir,
   });
 
-  await daemon[Symbol.asyncDispose]();
+  await daemon.stop();
 
   expect(() => process.kill(daemon.pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
 });
@@ -90,7 +90,7 @@ test('it rejects when the daemon exits before it listens', () => {
   expect(starting).rejects.toThrowWithMessage(Error, 'the source daemon exited before it listened');
 });
 
-test('it stops the daemon once the test finishes without a dispose', async () => {
+test('it stops the daemon once the test finishes without a stop', async () => {
   const ctx = setupTest();
 
   const daemon = await startStubSourceDaemon({
