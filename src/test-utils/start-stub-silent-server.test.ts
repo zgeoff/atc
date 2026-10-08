@@ -51,15 +51,15 @@ test('it records the path of each request in order', async () => {
   });
 });
 
-test('it stops listening once disposed', async () => {
+test('it stops listening once stopped', async () => {
   const server = startStubSilentServer();
 
-  await server[Symbol.asyncDispose]();
+  await server.stop();
 
   expect(fetch(`${server.url}silent.git`)).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   const server = startStubSilentServer();
   const port = Number(new URL(server.url).port);
 

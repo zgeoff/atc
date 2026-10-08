@@ -173,11 +173,11 @@ test('it counts a connection the client closed as accepted and no longer open', 
   });
 });
 
-test('it stops listening when disposed', () => {
+test('it stops listening when stopped', () => {
   const ctx = setupTest();
   const legacy = startStubLegacyDaemon(ctx.socketPath);
 
-  legacy[Symbol.dispose]();
+  legacy.stop();
 
   expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
 });

@@ -69,7 +69,7 @@ test('it leaves every byte after the first read unread', async () => {
   expect(listener.lines).toStrictEqual(['hello\n']);
 });
 
-test('it closes every connection it accepted once disposed', async () => {
+test('it closes every connection it accepted once stopped', async () => {
   const ctx = setupTest();
 
   const listener = await startStubAnsweringListener(ctx.path);
@@ -88,22 +88,22 @@ test('it closes every connection it accepted once disposed', async () => {
     expect(listener.peers).toBeArrayOfSize(1);
   });
 
-  await listener[Symbol.asyncDispose]();
+  await listener.stop();
 
   expect(closed.promise).resolves.toBeUndefined();
 });
 
-test('it stops listening once disposed', async () => {
+test('it stops listening once stopped', async () => {
   const ctx = setupTest();
 
   const listener = await startStubAnsweringListener(ctx.path);
 
-  await listener[Symbol.asyncDispose]();
+  await listener.stop();
 
   expect(Bun.connect({ unix: ctx.path, socket: { data() {} } })).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', async () => {
+test('it stops listening once the test finishes without a stop', async () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-answering-${randomUUID()}.sock`);

@@ -101,15 +101,15 @@ test('it rejects the wait naming the socket when no line arrives in time', () =>
   );
 });
 
-test('it stops listening once disposed', () => {
+test('it stops listening once stopped', () => {
   const ctx = setupTest();
 
-  startStubReporterSocket(ctx.path)[Symbol.dispose]();
+  startStubReporterSocket(ctx.path).stop();
 
   expect(Bun.connect({ unix: ctx.path, socket: { data() {} } })).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-reporter-${randomUUID()}.sock`);

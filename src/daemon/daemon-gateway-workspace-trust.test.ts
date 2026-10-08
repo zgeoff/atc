@@ -352,7 +352,7 @@ test.each([
     });
 
     // The spawn goes on once the hold stops; settling it keeps a failure
-    // from the daemon's disposal from going unhandled.
+    // from the daemon's cleanup from going unhandled.
     void Promise.allSettled([spawn]);
 
     await hold.entered;

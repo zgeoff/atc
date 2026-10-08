@@ -14,7 +14,7 @@ interface StubMCPServer {
   // Every request the stand-in received, in arrival order.
   readonly requests: readonly StubMCPRequest[];
 
-  readonly [Symbol.dispose]: () => void;
+  readonly stop: () => Promise<void>;
 }
 
 /**
@@ -22,7 +22,7 @@ interface StubMCPServer {
  * request with the JSON body given, and records each request's method,
  * path, authorization and content-type headers, and JSON body. `url` holds
  * its origin. It stops once the current test finishes, so it must run
- * inside a test; disposal stops it sooner, and a second stop does nothing.
+ * inside a test; `stop` stops it sooner, and a second stop does nothing.
  */
 export function startStubMCPServer(answer: unknown): StubMCPServer {
   const requests: StubMCPRequest[] = [];
@@ -48,8 +48,6 @@ export function startStubMCPServer(answer: unknown): StubMCPServer {
   return {
     url: `http://127.0.0.1:${String(server.port)}`,
     requests,
-    [Symbol.dispose]: () => {
-      void stop();
-    },
+    stop,
   };
 }

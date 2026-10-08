@@ -55,7 +55,7 @@ test('it stops the daemon its pid file holds before removing the home', async ()
 
   writeFileSync(join(mcpHome.home, 'atc-daemon.pid'), String(daemon.pid));
 
-  await mcpHome[Symbol.asyncDispose]();
+  await mcpHome.teardown();
 
   expect(isProcessAlive(daemon.pid)).toBe(false);
   expect(existsSync(mcpHome.home)).toBe(false);
@@ -82,7 +82,7 @@ test("it kills every process in a recorded stand-in's process group", async () =
     expect(existsSync(join(mcpHome.home, 'stub-pids'))).toBeTrue();
   });
 
-  await mcpHome[Symbol.asyncDispose]();
+  await mcpHome.teardown();
 
   expect(() => process.kill(-group, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
 });
@@ -97,7 +97,7 @@ test('it never kills a process outside the recorded process groups', async () =>
 
   invariant(bystander.pid !== undefined, 'the bystander did not start');
 
-  await mcpHome[Symbol.asyncDispose]();
+  await mcpHome.teardown();
 
   expect(isProcessAlive(bystander.pid)).toBeTrue();
 });
@@ -105,7 +105,7 @@ test('it never kills a process outside the recorded process groups', async () =>
 test('it removes a home that holds no daemon pid', async () => {
   const mcpHome = setupMCPHome();
 
-  await mcpHome[Symbol.asyncDispose]();
+  await mcpHome.teardown();
 
   expect(existsSync(mcpHome.home)).toBeFalse();
 });

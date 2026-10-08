@@ -12,7 +12,7 @@ interface StubTCPDaemon {
   // can wait until one piece of a split write has arrived before it sends
   // the next.
   readonly reads: number;
-  readonly [Symbol.dispose]: () => void;
+  readonly stop: () => void;
 }
 
 // The two request fields the stand-in reads; every other field passes
@@ -25,7 +25,7 @@ const REQUEST = z.object({ id: z.number(), m: z.string() });
  * the request's method, recording every method in `seen`. It sends no
  * handshake of its own and checks no token. `reads` counts the reads it has
  * taken from every connection. It stops once the current test finishes, so
- * it must run inside a test; disposal stops it sooner, and a second stop
+ * it must run inside a test; `stop` stops it sooner, and a second stop
  * does nothing.
  */
 export function startStubTCPDaemon(): StubTCPDaemon {
@@ -70,6 +70,6 @@ export function startStubTCPDaemon(): StubTCPDaemon {
     get reads() {
       return reads;
     },
-    [Symbol.dispose]: stop,
+    stop,
   };
 }

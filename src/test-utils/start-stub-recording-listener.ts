@@ -7,7 +7,7 @@ interface StubRecordingListener {
 
   // What each read took from any connection, decoded, in arrival order.
   readonly received: readonly string[];
-  readonly [Symbol.dispose]: () => void;
+  readonly stop: () => void;
 }
 
 /**
@@ -15,7 +15,7 @@ interface StubRecordingListener {
  * socket path, hands the test the server's side of the first connection it
  * accepts, records what each read takes from any connection, and sends
  * nothing of its own. It stops, dropping every connection it holds, once
- * the current test finishes, so it must run inside a test; disposal stops it
+ * the current test finishes, so it must run inside a test; `stop` stops it
  * sooner, and a second stop does nothing.
  */
 export function startStubRecordingListener(path: string): StubRecordingListener {
@@ -42,6 +42,6 @@ export function startStubRecordingListener(path: string): StubRecordingListener 
   return {
     accepted: accepted.promise,
     received,
-    [Symbol.dispose]: stop,
+    stop,
   };
 }

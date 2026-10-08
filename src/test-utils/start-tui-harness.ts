@@ -38,10 +38,10 @@ interface TUIHarnessOptions {
  * transports the fixture repositories need, with the fields given laid over
  * them. `env` is the environment the client runs with, so a daemon started
  * with it serves the client. A wait made before the client draws anything
- * gets `bootMs` for that first byte. Disposal stops the client and the
- * daemon in the home and removes it. That disposal runs once the current
- * test finishes, so it must run inside a test; disposing sooner runs it
- * then, and a second disposal does nothing.
+ * gets `bootMs` for that first byte. `stop` stops the client and the
+ * daemon in the home and removes it. That stop runs once the current test
+ * finishes, so it must run inside a test; calling `stop` sooner runs it
+ * then, and a second stop does nothing.
  */
 export function startTUIHarness(options: TUIHarnessOptions = {}) {
   const tmp = setupTempDir('atc-tui-');
@@ -50,9 +50,9 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   // daemon stop before their home is removed.
   const owned = new AsyncDisposableStack();
 
-  const dispose = registerTestCleanup(() => owned.disposeAsync());
+  const stop = registerTestCleanup(() => owned.disposeAsync());
 
-  owned.use(tmp);
+  owned.defer(tmp.remove);
 
   // The client boots with this home as its cwd and lists it first in the
   // picker, so the path is resolved the way the client reports it.
@@ -225,7 +225,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
       );
     },
 
-    [Symbol.asyncDispose]: dispose,
+    stop,
   };
 }
 

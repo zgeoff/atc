@@ -30,17 +30,17 @@ test('it accepts a connection and leaves a large write to it partly unsent', asy
   expect(written).toBeLessThan(16 * 1024 * 1024);
 });
 
-test('it stops listening once disposed', async () => {
+test('it stops listening once stopped', async () => {
   const ctx = setupTest();
 
   const listener = await startStubStalledListener(ctx.path);
 
-  listener[Symbol.dispose]();
+  listener.stop();
 
   expect(Bun.connect({ unix: ctx.path, socket: { data() {} } })).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', async () => {
+test('it stops listening once the test finishes without a stop', async () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-stalled-${randomUUID()}.sock`);

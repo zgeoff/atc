@@ -47,8 +47,8 @@ interface StubLegacyDaemonOptions {
  * `connections` counts the connections it accepted and those still open.
  * `port` holds the TCP port it bound, `null` on a unix socket. It stops
  * once the current test finishes, so it must run inside a test, unless the
- * options make the caller its owner; `stop` or disposal stops it sooner, and
- * a second stop does nothing.
+ * options make the caller its owner; `stop` stops it sooner, and a second
+ * stop does nothing.
  */
 export function startStubLegacyDaemon(
   address: string | StubLegacyDaemonTCPAddress,
@@ -135,7 +135,6 @@ export function startStubLegacyDaemon(
     connections,
     port: server.port,
     stop,
-    [Symbol.dispose]: stop,
   };
 }
 

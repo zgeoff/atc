@@ -413,7 +413,7 @@ test('it boots with the options a restart gives', async () => {
   expect(listed['agents']).toPartiallyContain({ id: 'grok' });
 });
 
-test('it stops the running daemon and removes its directory on dispose', async () => {
+test('it stops the running daemon and removes its directory once disposed', async () => {
   const harness = await startTestDaemon();
   const outside = await DaemonClient.open(harness.socketPath);
 
@@ -427,13 +427,13 @@ test('it stops the running daemon and removes its directory on dispose', async (
     closed.resolve();
   };
 
-  await harness[Symbol.asyncDispose]();
+  await harness.dispose();
 
   expect(closed.promise).resolves.toBeUndefined();
   expect(existsSync(harness.dir)).toBeFalse();
 });
 
-test('it stops the daemon a restart booted on dispose', async () => {
+test('it stops the daemon a restart booted once disposed', async () => {
   const harness = await startTestDaemon();
 
   await harness.restart();
@@ -450,7 +450,7 @@ test('it stops the daemon a restart booted on dispose', async () => {
     closed.resolve();
   };
 
-  await harness[Symbol.asyncDispose]();
+  await harness.dispose();
 
   expect(closed.promise).resolves.toBeUndefined();
 });

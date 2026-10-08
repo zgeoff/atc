@@ -9,7 +9,7 @@ import { registerTestCleanup } from './register-test-cleanup';
  * onto `lists`, and withholds the answer to any request that finds `lists`
  * empty. `methods` holds the method of each request it took, in order.
  * The listener stops once the current test finishes, so it must run inside
- * a test; disposal stops it sooner, and a second stop does nothing.
+ * a test; `stop` stops it sooner, and a second stop does nothing.
  */
 export function startStubRestoreDaemon(socketPath: string) {
   const lists: Readonly<Record<string, unknown>>[] = [];
@@ -49,11 +49,6 @@ export function startStubRestoreDaemon(socketPath: string) {
   return {
     lists,
     methods,
-    [Symbol.dispose]: stop,
-    [Symbol.asyncDispose]: () => {
-      stop();
-
-      return Promise.resolve();
-    },
+    stop,
   };
 }

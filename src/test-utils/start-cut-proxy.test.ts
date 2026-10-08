@@ -163,7 +163,7 @@ test('it closes the connection in place of forwarding a cut request in drop mode
   expect(proxy.countRequests()).toBe(1);
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: 1 },
     method: 'session.list',
@@ -178,7 +178,7 @@ test('it stops listening once the test finishes without a dispose', () => {
   });
 });
 
-test('it stops listening once disposed', () => {
+test('it stops listening once stopped', () => {
   const proxy = startCutProxy({
     target: { hostname: '127.0.0.1', port: 1 },
     method: 'session.list',
@@ -186,7 +186,7 @@ test('it stops listening once disposed', () => {
     mode: 'close',
   });
 
-  proxy[Symbol.dispose]();
+  proxy.stop();
 
   expect(
     Bun.connect({ hostname: '127.0.0.1', port: proxy.port, socket: { data() {} } }),

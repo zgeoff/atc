@@ -60,10 +60,10 @@ const BUILD = 'atc/test-build';
  * lines to the reporter socket and resolves once the daemon has closed the
  * connection. `stop` closes every client and stops the daemon; `restart`
  * does the same, then boots on the same paths and state with the options
- * given or the last ones, and opens a new main client. Disposal stops what
- * is running and removes the directory. That disposal runs once the current
- * test finishes, so it must run inside a test; disposing sooner runs it
- * then, and a second disposal does nothing. A first boot that fails runs it
+ * given or the last ones, and opens a new main client. `dispose` stops what
+ * is running and removes the directory. It runs once the current test
+ * finishes, so the harness must start inside a test; calling it sooner runs
+ * it then, and a second call does nothing. A first boot that fails runs it
  * before the start rejects.
  */
 export async function startTestDaemon(config: TestDaemonConfig = {}) {
@@ -75,7 +75,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.use(tmp);
+  stack.defer(tmp.remove);
 
   const paths: TestDaemonPaths = {
     dir: tmp.dir,
@@ -224,6 +224,6 @@ export async function startTestDaemon(config: TestDaemonConfig = {}) {
 
       current = await boot();
     },
-    [Symbol.asyncDispose]: dispose,
+    dispose,
   };
 }

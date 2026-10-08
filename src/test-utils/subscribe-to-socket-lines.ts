@@ -11,7 +11,7 @@ interface SocketLines {
 
   readonly write: (data: string) => void;
   readonly waitForLine: (count?: number, timeoutMs?: number) => Promise<string[]>;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
+  readonly unsubscribe: () => void;
 }
 
 interface SocketLinesOptions {
@@ -35,8 +35,8 @@ interface SocketLinesOptions {
  * the lines, throwing when `timeoutMs` passes first or the connection
  * closes short of the count; a stub clock passed as `now` and `wait` steps
  * that timeout without waiting it out. The connection ends once the current
- * test finishes, so it must run inside a test; disposal ends it sooner, and
- * a second end does nothing.
+ * test finishes, so it must run inside a test; `unsubscribe` ends it
+ * sooner, and a second end does nothing.
  */
 export async function subscribeToSocketLines(
   path: string,
@@ -72,7 +72,7 @@ export async function subscribeToSocketLines(
     },
   });
 
-  const stop = registerTestCleanup(() => {
+  const unsubscribe = registerTestCleanup(() => {
     socket.end();
   });
 
@@ -118,10 +118,6 @@ export async function subscribeToSocketLines(
 
       return requireLines(count);
     },
-    [Symbol.asyncDispose]: () => {
-      stop();
-
-      return Promise.resolve();
-    },
+    unsubscribe,
   };
 }

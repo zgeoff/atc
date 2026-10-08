@@ -120,15 +120,15 @@ test('it answers a client whose line another client left half written', async ()
   expect(restored).toStrictEqual({});
 });
 
-test('it stops listening once disposed', () => {
+test('it stops listening once stopped', () => {
   const ctx = setupTest();
 
-  ctx.daemon[Symbol.dispose]();
+  ctx.daemon.stop();
 
   expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-restore-${randomUUID()}.sock`);

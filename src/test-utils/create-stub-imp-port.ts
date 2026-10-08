@@ -43,12 +43,10 @@ const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 // A hold on the commands whose argv holds its text: entered resolves with
 // the argv of the first command it holds, and stop lets every command it
-// holds run. Disposing the hold stops it, so a test that holds it with
-// `using` after its daemon lets the daemon stop even when the test fails.
+// holds run.
 interface StubCommandHold {
   readonly entered: Promise<string>;
   readonly stop: () => void;
-  readonly [Symbol.dispose]: () => void;
 }
 
 /**
@@ -1067,7 +1065,7 @@ class StubImpPort implements ImpPort {
       hold.done.resolve();
     };
 
-    return { entered: hold.entered.promise, stop, [Symbol.dispose]: stop };
+    return { entered: hold.entered.promise, stop };
   }
 
   // How many commands wait for their command hold to stop.
@@ -1172,7 +1170,10 @@ class StubImpPort implements ImpPort {
     return proc.end;
   }
 
-  [Symbol.dispose](): void {
+  // Kills every process and stops every forward the stand-in holds. It runs
+  // once the current test finishes; calling it sooner runs it then, and a
+  // second call does nothing.
+  readonly stop: () => void = registerTestCleanup(() => {
     this.stopCommandHold();
 
     for (const imp of this.imps.values()) {
@@ -1187,7 +1188,7 @@ class StubImpPort implements ImpPort {
     }
 
     this.imps.clear();
-  }
+  });
 
   // impd's refusal of a grant or revoke: the scope and pattern checks run
   // before anything is looked up, then a missing imp or secret.
@@ -1650,16 +1651,10 @@ class StubImpPort implements ImpPort {
  * broker variable, and when it would join a process that started without
  * the broker required. Once the current test finishes, the stand-in kills
  * every process and stops every forward it holds, so it must be created inside
- * a test; disposal does so sooner, and a second disposal does nothing.
+ * a test; `stop` does so sooner, and a second stop does nothing.
  */
 export function createStubImpPort(principal = 'token:atc'): StubImpPort {
-  const port = new StubImpPort(principal);
-
-  registerTestCleanup(() => {
-    port[Symbol.dispose]();
-  });
-
-  return port;
+  return new StubImpPort(principal);
 }
 
 interface StubLease {

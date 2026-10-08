@@ -80,10 +80,10 @@ test('it lays the upstream and the work clone out in its directory', async () =>
   });
 });
 
-test('it removes its directory on dispose', async () => {
+test('it removes its directory once removed', async () => {
   const fixture = await createGitFixture();
 
-  await fixture[Symbol.asyncDispose]();
+  fixture.remove();
 
   expect(existsSync(fixture.dir)).toBeFalse();
 });
@@ -108,7 +108,7 @@ test('it refuses to build its template outside the test home', () => {
   );
 });
 
-test('it removes its directory once the test finishes without a dispose', async () => {
+test('it removes its directory once the test finishes without a remove', async () => {
   const fixture = await createGitFixture();
 
   onTestFinished(() => {

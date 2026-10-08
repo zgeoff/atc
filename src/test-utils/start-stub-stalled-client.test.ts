@@ -54,7 +54,7 @@ test('it reads nothing after the first chunk though more reaches its connection'
   expect(client.chunks).toBeArrayOfSize(1);
 });
 
-test('it closes its connection once disposed', async () => {
+test('it closes its connection once stopped', async () => {
   const ctx = await setupTest();
   const client = await startStubStalledClient(ctx.path, 'atc/stub');
 
@@ -68,12 +68,12 @@ test('it closes its connection once disposed', async () => {
     closed.resolve();
   });
 
-  client[Symbol.dispose]();
+  client.stop();
 
   expect(closed.promise).resolves.toBeUndefined();
 });
 
-test('it closes its connection once the test finishes without a dispose', async () => {
+test('it closes its connection once the test finishes without a stop', async () => {
   const path = join(tmpdir(), `atc-stub-stalled-client-${randomUUID()}.sock`);
   const closes: string[] = [];
 

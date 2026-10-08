@@ -738,7 +738,7 @@ test('it holds events.read open while no event arrives within waitMs', async () 
 
   const read = ctx.client.sendRequest('events.read', { waitMs: 600_000 });
 
-  // The read fails when disposal closes the client; settling it here keeps
+  // The read fails when cleanup closes the client; settling it here keeps
   // that failure from going unhandled.
   void Promise.allSettled([read]);
 

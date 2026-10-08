@@ -184,15 +184,15 @@ test('it counts each read it takes from a connection', async () => {
   });
 });
 
-test('it stops listening once disposed', () => {
+test('it stops listening once stopped', () => {
   const ctx = setupTest();
 
-  startStubSessionBridge(ctx.path, () => [])[Symbol.dispose]();
+  startStubSessionBridge(ctx.path, () => []).stop();
 
   expect(openBridgeSocket(ctx.path, () => {})).rejects.toThrow();
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-bridge-${randomUUID()}.sock`);

@@ -142,11 +142,11 @@ test('it answers a later request with a session and records each request key', a
   expect(daemon.keys).toStrictEqual(['k-1', undefined]);
 });
 
-test('it stops listening when disposed', () => {
+test('it stops listening when stopped', () => {
   const ctx = setupTest();
   const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
 
-  daemon[Symbol.dispose]();
+  daemon.stop();
 
   expect(DaemonClient.open(ctx.socketPath)).rejects.toThrow();
 });
@@ -200,7 +200,7 @@ test('it reads a request split across two writes as one request', async () => {
   expect(daemon.keys).toStrictEqual(['k-split']);
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-dropping-${randomUUID()}.sock`);

@@ -27,7 +27,7 @@ interface MCPHTTPSetupOptions {
  * restarts it, with the principals it is given; `countDaemonClients` reads
  * how many connections the current daemon holds open. Everything it starts
  * stops, and the directory is removed, once the current test finishes, so it
- * must run inside a test; disposal does so sooner, and a second disposal
+ * must run inside a test; `teardown` does so sooner, and a second teardown
  * does nothing.
  */
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
@@ -37,9 +37,9 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   // before the one it depends on, and the directory goes last.
   const stack = new AsyncDisposableStack();
 
-  const dispose = registerTestCleanup(() => stack.disposeAsync());
+  const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.use(tmp);
+  stack.defer(tmp.remove);
 
   const socketPath = join(tmp.dir, 'daemon.sock');
   const stateDir = join(tmp.dir, '.local', 'state', 'atc');
@@ -117,6 +117,6 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
       daemon = await startTestDaemon(principals);
     },
-    [Symbol.asyncDispose]: dispose,
+    teardown,
   };
 }

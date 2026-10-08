@@ -86,17 +86,17 @@ test('it counts each read it takes from a connection', async () => {
   });
 });
 
-test('it stops listening once disposed', () => {
+test('it stops listening once stopped', () => {
   const daemon = startStubTCPDaemon();
 
-  daemon[Symbol.dispose]();
+  daemon.stop();
 
   const connecting = DaemonClient.open({ hostname: '127.0.0.1', port: daemon.port });
 
   expect(connecting).rejects.toMatchObject({ code: 'ECONNREFUSED' });
 });
 
-test('it stops listening once the test finishes without a dispose', () => {
+test('it stops listening once the test finishes without a stop', () => {
   const daemon = startStubTCPDaemon();
 
   onTestFinished(() => {

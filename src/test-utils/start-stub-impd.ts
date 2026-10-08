@@ -18,8 +18,8 @@ type StubExecReply = 'refuse' | 'count' | 'exit-early';
  * whose broker is not ready by default. It takes no WebSocket message over
  * 2 MiB, as impd refuses one over its own limit. The server stops, dropping
  * every open connection at once, when the current test finishes, so it must
- * run inside a test; disposal stops it sooner, and a second stop does
- * nothing.
+ * run inside a test; `stop` stops it sooner and resolves once it has
+ * stopped, and a second stop does nothing.
  */
 export function startStubImpd() {
   const authorizations: (string | null)[] = [];
@@ -136,8 +136,6 @@ export function startStubImpd() {
     controls,
     execOpens,
     exec,
-    [Symbol.dispose]: () => {
-      void stop();
-    },
+    stop,
   };
 }

@@ -10,7 +10,7 @@ import { registerTestCleanup } from './register-test-cleanup';
  * `none`; `ATC_TEST_FIXTURE_URL` holds the repository the fixture source
  * lists, and `ATC_TEST_SOURCE_LOG` a file it appends each listing to.
  * The process stops once the current test finishes, so it must run inside
- * a test; disposal stops it sooner, and a second stop does nothing.
+ * a test; `stop` stops it sooner, and a second stop does nothing.
  */
 export async function startStubSourceDaemon(env: Readonly<Record<string, string | undefined>>) {
   const daemon = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
@@ -37,5 +37,5 @@ export async function startStubSourceDaemon(env: Readonly<Record<string, string 
     throw new Error('the source daemon exited before it listened');
   }
 
-  return { pid: daemon.pid, [Symbol.asyncDispose]: stop };
+  return { pid: daemon.pid, stop };
 }

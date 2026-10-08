@@ -7,7 +7,6 @@ interface GitHTTPServer {
   // Every Authorization header a request carried, in arrival order.
   readonly authorizations: string[];
   readonly stop: () => Promise<void>;
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }
 
 interface GitHTTPServerOptions {
@@ -30,8 +29,8 @@ interface GitHTTPServerOptions {
  * clone through it slow. An `onRequest` callback runs, and is awaited, while
  * each authenticated request is held, so it sees the client that sent the
  * request still running. It stops once the current test finishes, so it
- * must run inside a test; `stop` or disposal stops it sooner, and a second
- * stop does nothing.
+ * must run inside a test; `stop` stops it sooner, and a second stop does
+ * nothing.
  */
 export function startGitHTTPServer(
   root: string,
@@ -97,7 +96,6 @@ export function startGitHTTPServer(
     url: `http://127.0.0.1:${server.port}/`,
     authorizations,
     stop,
-    [Symbol.asyncDispose]: stop,
   };
 }
 

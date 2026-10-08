@@ -10,14 +10,6 @@ test('it creates an existing directory named by the prefix', () => {
   expect(basename(tmp.dir)).toStartWith('atc-setup-temp-');
 });
 
-test('it removes the directory on dispose', async () => {
-  const tmp = setupTempDir('atc-setup-temp-');
-
-  await tmp[Symbol.asyncDispose]();
-
-  expect(existsSync(tmp.dir)).toBeFalse();
-});
-
 test('it creates a distinct directory per call', () => {
   const first = setupTempDir('atc-setup-temp-');
   const second = setupTempDir('atc-setup-temp-');
@@ -25,15 +17,15 @@ test('it creates a distinct directory per call', () => {
   expect(second.dir).not.toBe(first.dir);
 });
 
-test('it removes the directory on synchronous dispose', () => {
+test('it removes the directory once removed', () => {
   const tmp = setupTempDir('atc-setup-temp-');
 
-  tmp[Symbol.dispose]();
+  tmp.remove();
 
   expect(existsSync(tmp.dir)).toBeFalse();
 });
 
-test('it removes the directory once the test finishes without a dispose', () => {
+test('it removes the directory once the test finishes without a remove', () => {
   const tmp = setupTempDir('atc-setup-temp-');
 
   onTestFinished(() => {
@@ -41,10 +33,10 @@ test('it removes the directory once the test finishes without a dispose', () => 
   });
 });
 
-test('it removes nothing once the test finishes after a dispose', () => {
+test('it removes nothing once the test finishes after a remove', () => {
   const tmp = setupTempDir('atc-setup-temp-');
 
-  tmp[Symbol.dispose]();
+  tmp.remove();
 
   mkdirSync(tmp.dir);
 
