@@ -26,13 +26,11 @@ function setupTest() {
       },
       scheduleKill: scheduler.schedule,
     },
-    [Symbol.dispose]: tmp[Symbol.dispose],
   };
 }
 
 test('it runs a hook with the event JSON on stdin and the event name in the environment', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const out = join(ctx.dir, 'out');
 
   const run = makeHookRunner(
@@ -53,7 +51,7 @@ test('it runs a hook with the event JSON on stdin and the event name in the envi
 });
 
 test('it runs a dir hook when the session repo root or cwd sits at or under the dir', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const run = makeHookRunner(
     {
@@ -69,14 +67,12 @@ test('it runs a dir hook when the session repo root or cwd sits at or under the 
 
   await ctx.settled;
 
-  expect([existsSync(join(ctx.dir, 'exact')), existsSync(join(ctx.dir, 'above'))]).toStrictEqual([
-    true,
-    true,
-  ]);
+  expect(existsSync(join(ctx.dir, 'exact'))).toBeTrue();
+  expect(existsSync(join(ctx.dir, 'above'))).toBeTrue();
 });
 
 test('it skips a dir hook when the session path only shares a string prefix', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const run = makeHookRunner(
     {
@@ -101,7 +97,7 @@ test('it skips a dir hook when the session path only shares a string prefix', as
 });
 
 test('it skips dir hooks for an event that carries no session', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const run = makeHookRunner(
     {
@@ -126,7 +122,7 @@ test('it skips dir hooks for an event that carries no session', async () => {
 });
 
 test('it runs nothing for an event with no configured hooks', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const run = makeHookRunner(
     { SessionAttached: [{ command: `touch '${join(ctx.dir, 'trap')}'` }] },
@@ -142,8 +138,7 @@ test('it runs nothing for an event with no configured hooks', async () => {
 });
 
 test('it kills a hook that runs past its timeout', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const command = 'exec sleep 30';
   const run = makeHookRunner({ SessionAttached: [{ command, timeout: 500 }] }, ctx.options);
 
@@ -153,15 +148,12 @@ test('it kills a hook that runs past its timeout', async () => {
 
   const outcomes = await ctx.settled;
 
-  expect({ timeouts: ctx.scheduler.collectDelays(), outcomes }).toStrictEqual({
-    timeouts: [500],
-    outcomes: [{ command, exitCode: null, signalCode: 'SIGTERM' }],
-  });
+  expect(ctx.scheduler.collectDelays()).toStrictEqual([500]);
+  expect(outcomes).toStrictEqual([{ command, exitCode: null, signalCode: 'SIGTERM' }]);
 });
 
 test('it arms the default timeout for a hook that sets none', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const run = makeHookRunner({ SessionAttached: [{ command: 'true' }] }, ctx.options);
 
   run({ v: 4, ev: 'SessionAttached' }, null);

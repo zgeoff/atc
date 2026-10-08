@@ -8,12 +8,11 @@ import { loadTranscriptPage } from './load-transcript-page';
 function setupTest() {
   const tmp = setupTempDir('atc-transcript-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it reads every row from the start of a transcript', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   const content =
@@ -42,8 +41,7 @@ test('it reads every row from the start of a transcript', async () => {
 });
 
 test('it stops at the row limit and reports more rows', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
@@ -70,8 +68,7 @@ test('it stops at the row limit and reports more rows', async () => {
 });
 
 test('it resumes from the offset a page at the row limit returns', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
@@ -102,8 +99,7 @@ test('it resumes from the offset a page at the row limit returns', async () => {
 });
 
 test('it picks up rows appended after the last read', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(path, '{"type":"user","message":{"role":"user","content":"one"}}\n');
@@ -130,8 +126,7 @@ test('it picks up rows appended after the last read', async () => {
 });
 
 test('it leaves a trailing partial line unread', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
   const complete = '{"type":"user","message":{"role":"user","content":"one"}}\n';
 
@@ -150,8 +145,7 @@ test('it leaves a trailing partial line unread', async () => {
 });
 
 test('it reads a partial line once a later write completes it', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
@@ -182,8 +176,7 @@ test('it reads a partial line once a later write completes it', async () => {
 });
 
 test('it skips lines it cannot parse while advancing past them', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   const content =
@@ -208,8 +201,7 @@ test('it skips lines it cannot parse while advancing past them', async () => {
 });
 
 test('it stops at the byte budget but always returns at least one row', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
@@ -231,8 +223,7 @@ test('it stops at the byte budget but always returns at least one row', async ()
 });
 
 test('it reads from the start when the cursor belongs to another file', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
@@ -256,8 +247,7 @@ test('it reads from the start when the cursor belongs to another file', async ()
 });
 
 test('it reads from the start when the cursor runs past the end of the file', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
 
   writeFileSync(
@@ -281,7 +271,7 @@ test('it reads from the start when the cursor runs past the end of the file', as
 });
 
 test('it answers a missing transcript with an empty page', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const page = await loadTranscriptPage({
     path: join(ctx.dir, 'missing.jsonl'),
@@ -295,8 +285,7 @@ test('it answers a missing transcript with an empty page', async () => {
 });
 
 test('it returns when the file shrinks while it is being read', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = join(ctx.dir, 't.jsonl');
   const line = '{"type":"user","message":{"role":"user","content":"row"}}\n';
 

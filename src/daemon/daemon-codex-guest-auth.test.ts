@@ -7,36 +7,44 @@ import { getRecord } from '../shared/get-record';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingCodex } from '../test-utils/create-stub-recording-codex';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 /**
- * A real daemon whose one target `box` is an imp provider over a stub
- * imp port that holds no identity or secret until the test adds them. The
- * guest has an atc stand-in, and the codex agent signs in through an oauth
- * secret for chatgpt.com and runs a stand-in Codex, which appends its
- * Codex home and arguments to the `starts` log.
+ * The imp target `box` over a stub imp port that holds no identity or
+ * secret until the test adds them, in a temp directory. The guest has an
+ * atc stand-in, and `fakeCodex` is a stand-in Codex that appends its Codex
+ * home and arguments to the `starts` log.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-codex-guest-auth-'));
+function setupTest() {
+  const tmp = setupTempDir('atc-codex-guest-auth-');
   const guestDir = join(tmp.dir, 'g');
-
-  // The codex agent entry runs this binary for every spawn.
-  const fakeCodex = createStubRecordingCodex(tmp.dir);
 
   // The imp provider hands the guest this atc binary.
   const guestATC = createStubBin(tmp.dir, 'atc', '#!/bin/sh\nexit 0\n');
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
 
   const provider = new ImpProvider(port, { guestDir, guestATC }, { atcBinary: null });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
+
+  return {
+    dir: tmp.dir,
+    port,
+    fakeCodex: createStubRecordingCodex(tmp.dir),
+    starts: join(tmp.dir, 'codex-starts.log'),
+    guestDir,
+    targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
+  };
+}
+
+test('it starts Codex on an imp in a Codex home of its own, signed in through the oauth secret', async () => {
+  const ctx = setupTest();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-codex-guest-auth-daemon-',
@@ -52,30 +60,13 @@ async function setupTest() {
               scheme: 'bearer',
             },
           },
-          agents: { codex: { bin: fakeCodex, auth: { profiles: ['codex'] } } },
+          agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
         }),
       ),
-      targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider }],
+      targets: ctx.targets,
       defaultTarget: 'box',
     }),
   });
-
-  stack.use(daemon);
-
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    daemon,
-    port,
-    starts: join(tmp.dir, 'codex-starts.log'),
-    guestDir,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
-}
-
-test('it starts Codex on an imp in a Codex home of its own, signed in through the oauth secret', async () => {
-  await using ctx = await setupTest();
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -100,7 +91,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
     },
   );
 
-  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'codex',
     target: 'box',
@@ -121,94 +112,120 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
   const auth: unknown = JSON.parse(readFileSync(join(home, 'auth.json'), 'utf8'));
   const hooks: unknown = JSON.parse(readFileSync(join(home, 'hooks.json'), 'utf8'));
 
-  expect({
-    started: readFileSync(ctx.starts, 'utf8'),
-    auth,
-    config: readFileSync(join(home, 'config.toml'), 'utf8'),
-    hooks,
-    grants: await Promise.all(ctx.port.collectImpNames().map((imp) => ctx.port.readGrants(imp))),
-  }).toStrictEqual({
-    started: `${home} --dangerously-bypass-hook-trust -c cli_auth_credentials_store="file" --no-daemon go\n`,
-    auth: {
-      OPENAI_API_KEY: null,
-      auth_mode: 'chatgpt',
-      last_refresh: '2099-01-01T00:00:00Z',
-      tokens: {
-        id_token:
-          'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
-        access_token: 'imp-broker-placeholder',
-        refresh_token: 'imp-broker-placeholder',
-        account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
-      },
+  const grants = await Promise.all(
+    ctx.port.collectImpNames().map((imp) => ctx.port.readGrants(imp)),
+  );
+
+  expect(readFileSync(ctx.starts, 'utf8')).toBe(
+    `${home} --dangerously-bypass-hook-trust -c cli_auth_credentials_store="file" --no-daemon go\n`,
+  );
+
+  expect(auth).toStrictEqual({
+    OPENAI_API_KEY: null,
+    auth_mode: 'chatgpt',
+    last_refresh: '2099-01-01T00:00:00Z',
+    tokens: {
+      id_token:
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
+      access_token: 'imp-broker-placeholder',
+      refresh_token: 'imp-broker-placeholder',
+      account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
     },
-    config: 'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
-    hooks: {
-      hooks: {
-        SessionStart: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        UserPromptSubmit: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        PermissionRequest: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        Stop: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
-                timeout: 5,
-              },
-            ],
-          },
-        ],
-        SessionEnd: [
-          {
-            hooks: [
-              {
-                type: 'command',
-                command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
-                timeout: 3,
-              },
-            ],
-          },
-        ],
-      },
-    },
-    grants: [['codex-chatgpt']],
   });
+
+  expect(readFileSync(join(home, 'config.toml'), 'utf8')).toBe(
+    'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
+  );
+
+  expect(hooks).toStrictEqual({
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      PermissionRequest: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"${join(ctx.dir, 'atc')}" hook-report --agent codex`,
+              timeout: 3,
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  expect(grants).toStrictEqual([['codex-chatgpt']]);
 });
 
 test.each(['pending', 'needs_login'] as const)(
   'it refuses a spawn while the sign-in is %s, before it creates an imp',
   async (status) => {
-    await using ctx = await setupTest();
+    const ctx = setupTest();
+
+    const daemon = await startTestDaemon({
+      prefix: 'atc-codex-guest-auth-daemon-',
+      options: () => ({
+        adapters: buildAgentAdapters(
+          parseConfig({
+            authProfiles: {
+              codex: {
+                secret: 'codex-chatgpt',
+                kind: 'oauth',
+                host: 'chatgpt.com',
+                header: 'authorization',
+                scheme: 'bearer',
+              },
+            },
+            agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
+          }),
+        ),
+        targets: ctx.targets,
+        defaultTarget: 'box',
+      }),
+    });
 
     ctx.port.setIdentity({
       kind: 'token',
@@ -225,7 +242,7 @@ test.each(['pending', 'needs_login'] as const)(
       { status, idClaims: { email: 'someone@example.com' } },
     );
 
-    const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+    const spawn = daemon.client.sendRequest('session.spawn', {
       cwd: ctx.dir,
       agent: 'codex',
       target: 'box',
@@ -240,7 +257,29 @@ test.each(['pending', 'needs_login'] as const)(
 );
 
 test('it refuses a spawn on an impd without oauth secrets', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-codex-guest-auth-daemon-',
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            codex: {
+              secret: 'codex-chatgpt',
+              kind: 'oauth',
+              host: 'chatgpt.com',
+              header: 'authorization',
+              scheme: 'bearer',
+            },
+          },
+          agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'box',
+    }),
+  });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -259,7 +298,7 @@ test('it refuses a spawn on an impd without oauth secrets', async () => {
 
   ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
-  const spawn = ctx.daemon.client.sendRequest('session.spawn', {
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'codex',
     target: 'box',

@@ -9,7 +9,7 @@ import { ImpProvider } from './imp-provider';
 function setupTest() {
   const tmp = setupTempDir('atc-build-imp-provider-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it builds no provider for an imp target without a url', () => {
@@ -83,8 +83,7 @@ test('it reports a target whose tokenEnv is not a non-empty string, without a pr
 });
 
 test('it builds an imp provider for a target whose token file holds a token', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n');
@@ -96,8 +95,7 @@ test('it builds an imp provider for a target whose token file holds a token', ()
 });
 
 test('it reports a target that gives both tokenEnv and tokenFile, without a provider', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n');
@@ -115,8 +113,7 @@ test('it reports a target that gives both tokenEnv and tokenFile, without a prov
 });
 
 test('it reports a target whose token file is empty, without a provider', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
@@ -130,7 +127,7 @@ test('it reports a target whose token file is empty, without a provider', () => 
 });
 
 test('it reports a target whose token file is missing, without a provider', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const built = buildImpProvider(
     'box',
@@ -166,9 +163,8 @@ test("it builds an imp provider that names imps under the target's impPrefix", (
 
   invariant(built.provider !== null, 'expected an imp provider');
 
-  expect({ prefix: built.provider.impPrefix, name: built.provider.getImpName('s1') }).toStrictEqual(
-    { prefix: 'harness-', name: 'harness-s1' },
-  );
+  expect(built.provider.impPrefix).toBe('harness-');
+  expect(built.provider.getImpName('s1')).toBe('harness-s1');
 });
 
 test.each([

@@ -1,17 +1,18 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildTarArchive } from './build-tar-archive';
 
 function setupTest() {
   const tmp = setupTempDir('atc-tar-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it packs files that tar unpacks with their content, parent directories, and modes', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const archive = buildTarArchive([
     { path: 'settings.json', content: '{"hooks":{}}' },
@@ -25,7 +26,7 @@ test('it packs files that tar unpacks with their content, parent directories, an
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 
@@ -43,8 +44,7 @@ test('it packs files that tar unpacks with their content, parent directories, an
 });
 
 test('it packs a path longer than 100 bytes that tar unpacks at the full path', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const path = `${'d'.repeat(80)}/${'e'.repeat(60)}/${'f'.repeat(90)}.md`;
 
   const proc = Bun.spawn(['tar', '-x', '-f', '-', '-C', ctx.dir], {
@@ -53,7 +53,7 @@ test('it packs a path longer than 100 bytes that tar unpacks at the full path', 
     stderr: 'pipe',
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     proc.kill('SIGKILL');
   });
 

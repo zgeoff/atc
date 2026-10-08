@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { loadOAuthStates } from './load-oauth-states';
@@ -9,30 +10,20 @@ import { loadOAuthStates } from './load-oauth-states';
 // An imp provider's broker host over a stub imp port, which reaches
 // impd's features and secrets alone.
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-oauth-states-'));
-  const port = stack.use(createStubImpPort());
+  const tmp = setupTempDir('atc-oauth-states-');
+  const port = createStubImpPort();
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
-  const owned = stack.move();
-
-  return {
-    port,
-    host: provider.brokerAuth,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { port, host: provider.brokerAuth };
 }
 
 test('it reads nothing from impd for a binding without an oauth secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const states = await loadOAuthStates(
     ctx.host,
@@ -47,11 +38,12 @@ test('it reads nothing from impd for a binding without an oauth secret', async (
     }),
   );
 
-  expect({ states, calls: ctx.port.calls }).toStrictEqual({ states: undefined, calls: [] });
+  expect(states).toBeUndefined();
+  expect(ctx.port.calls).toStrictEqual([]);
 });
 
 test("it reads each bound oauth secret's sign-in state from impd's features and one secret list", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.createSecret(
     'codex-chatgpt',
@@ -82,14 +74,15 @@ test("it reads each bound oauth secret's sign-in state from impd's features and 
     }),
   );
 
-  expect({ states, calls: ctx.port.calls }).toStrictEqual({
-    states: { 'codex-chatgpt': { status: 'ready', idClaims: { email: 'someone@example.com' } } },
-    calls: ['system.info', 'secrets.list'],
+  expect(states).toStrictEqual({
+    'codex-chatgpt': { status: 'ready', idClaims: { email: 'someone@example.com' } },
   });
+
+  expect(ctx.port.calls).toStrictEqual(['system.info', 'secrets.list']);
 });
 
 test('it refuses an impd without oauth secrets before it lists any secret', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.features = { ...ctx.port.features, oauthSecrets: false };
 
@@ -115,7 +108,7 @@ test('it refuses an impd without oauth secrets before it lists any secret', () =
 });
 
 test('it refuses a bound oauth secret that impd does not hold', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const loaded = loadOAuthStates(
     ctx.host,
@@ -134,7 +127,7 @@ test('it refuses a bound oauth secret that impd does not hold', () => {
 });
 
 test('it refuses a bound oauth secret that impd holds as another kind', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.createSecret('codex-chatgpt', 'custom', [
     { host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' },
@@ -157,7 +150,7 @@ test('it refuses a bound oauth secret that impd holds as another kind', () => {
 });
 
 test('it turns a call impd fails into an unavailable host', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.port.setFeatureFailures(1);
 

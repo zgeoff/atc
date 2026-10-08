@@ -1,7 +1,8 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
@@ -10,23 +11,14 @@ import { verifyBrokerAuthority } from './verify-broker-authority';
  * A stub imp port and a temp directory.
  */
 function setupTest() {
-  using stack = new DisposableStack();
+  const tmp = setupTempDir('atc-imp-provider-');
+  const port = createStubImpPort();
 
-  const tmp = stack.use(setupTempDir('atc-imp-provider-'));
-  const port = stack.use(createStubImpPort());
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    port,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir: tmp.dir, port };
 }
 
 test('it destroys the imp a failed prepare created, since no session holds it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
@@ -34,7 +26,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     { atcBinary: null },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -42,21 +34,20 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
   ]);
 
-  expect({ calls: ctx.port.calls, imps: ctx.port.collectImpNames() }).toStrictEqual({
-    calls: [
-      'system.info',
-      'imps.get atc-s1',
-      'imps.create atc-s1',
-      'leases.acquire atc-s1 atc-d1',
-      `exec.run atc-s1 sh -c mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; } sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')}`,
-      'imps.destroy atc-s1',
-    ],
-    imps: [],
-  });
+  expect(ctx.port.calls).toStrictEqual([
+    'system.info',
+    'imps.get atc-s1',
+    'imps.create atc-s1',
+    'leases.acquire atc-s1 atc-d1',
+    `exec.run atc-s1 sh -c mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; } sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')}`,
+    'imps.destroy atc-s1',
+  ]);
+
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
 });
 
 test('it refuses a prepare that installs atc when the guest atc is missing', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
@@ -64,7 +55,7 @@ test('it refuses a prepare that installs atc when the guest atc is missing', () 
     { atcBinary: null },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -77,7 +68,7 @@ test('it refuses a prepare that installs atc when the guest atc is missing', () 
 });
 
 test('it keeps an imp that existed before a failed prepare and gives back only its own lease', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
@@ -85,7 +76,7 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
     { atcBinary: null },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -93,34 +84,41 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
 
   ctx.port.acquireOtherLease('atc-s1', 'token:other', 'build', 60);
 
-  await Promise.allSettled([
-    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
-  ]);
+  const before = await ctx.port.readImp('atc-s1');
+
+  const prepared = provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  await Promise.allSettled([prepared]);
 
   const imp = await ctx.port.readImp('atc-s1');
+
+  expect(before).toMatchObject({ name: 'atc-s1', leases: [], otherLeaseCount: 1 });
+
+  expect(prepared).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { problem: 'no_guest_atc' },
+  });
 
   expect(imp).toMatchObject({ name: 'atc-s1', leases: [], otherLeaseCount: 1 });
 });
 
 test('it names each imp under the atc- prefix when the target sets none', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
 
-  expect({ prefix: provider.impPrefix, imps: ctx.port.collectImpNames() }).toStrictEqual({
-    prefix: 'atc-',
-    imps: ['atc-s1'],
-  });
+  expect(provider.impPrefix).toBe('atc-');
+  expect(ctx.port.collectImpNames()).toStrictEqual(['atc-s1']);
 });
 
 test("it names each imp under the target's configured prefix", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
@@ -128,7 +126,7 @@ test("it names each imp under the target's configured prefix", async () => {
     { atcBinary: null },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -138,7 +136,7 @@ test("it names each imp under the target's configured prefix", async () => {
 });
 
 test("it lets a token scoped to the target's configured prefix activate the broker for its imps", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
@@ -146,7 +144,7 @@ test("it lets a token scoped to the target's configured prefix activate the brok
     { atcBinary: null },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -168,7 +166,7 @@ test("it lets a token scoped to the target's configured prefix activate the brok
 });
 
 test("it refuses a token scoped beyond the target's configured prefix", () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
@@ -176,7 +174,7 @@ test("it refuses a token scoped beyond the target's configured prefix", () => {
     { atcBinary: null },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -198,11 +196,11 @@ test("it refuses a token scoped beyond the target's configured prefix", () => {
 });
 
 test('it asks impd to require the broker on a harness start that requires one', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -220,7 +218,7 @@ test('it asks impd to require the broker on a harness start that requires one', 
     requireBroker: true,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -234,11 +232,11 @@ test('it asks impd to require the broker on a harness start that requires one', 
 });
 
 test('it keeps a full UUID imp session name inside the session limit', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -255,7 +253,7 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -271,11 +269,11 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
 });
 
 test('it derives one imp session name per session', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -294,7 +292,7 @@ test('it derives one imp session name per session', async () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     first.kill();
   });
 
@@ -309,7 +307,7 @@ test('it derives one imp session name per session', async () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     repeat.kill();
   });
 
@@ -324,7 +322,7 @@ test('it derives one imp session name per session', async () => {
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     other.kill();
   });
 
@@ -341,18 +339,21 @@ test('it derives one imp session name per session', async () => {
 
   const distinct = new Set(sessions);
 
-  expect<Record<string, unknown>>({ sessions, distinct: distinct.size }).toStrictEqual({
-    sessions: [sessions[0], sessions[0], expect.any(String)],
-    distinct: 2,
-  });
+  expect<readonly unknown[]>(sessions).toStrictEqual([
+    sessions[0],
+    sessions[0],
+    expect.any(String),
+  ]);
+
+  expect(distinct.size).toBe(2);
 });
 
 test('it asks impd to require nothing on a harness start that requires no broker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
@@ -369,7 +370,7 @@ test('it asks impd to require nothing on a harness start that requires no broker
     rows: 24,
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.kill();
   });
 
@@ -385,7 +386,7 @@ test('it asks impd to require nothing on a harness start that requires no broker
 });
 
 test("it creates a host's imp for the broker with the target's image and memory", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const provider = new ImpProvider(
     ctx.port,
@@ -393,25 +394,20 @@ test("it creates a host's imp for the broker with the target's image and memory"
     { atcBinary: null },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
   const created = await provider.brokerAuth.createImp('s1');
 
-  expect<Record<string, unknown>>({
-    created,
-    calls: ctx.port.calls,
-    specs: ctx.port.createSpecs,
-  }).toStrictEqual({
-    created: {
-      id: expect.toBeString(),
-      name: 'atc-s1',
-      state: 'running',
-      leases: [],
-      otherLeaseCount: 0,
-    },
-    calls: ['imps.create atc-s1'],
-    specs: [{ name: 'atc-s1', image: 'base', memoryMib: 512 }],
+  expect(created).toStrictEqual({
+    id: expect.toBeString(),
+    name: 'atc-s1',
+    state: 'running',
+    leases: [],
+    otherLeaseCount: 0,
   });
+
+  expect(ctx.port.calls).toStrictEqual(['imps.create atc-s1']);
+  expect(ctx.port.createSpecs).toStrictEqual([{ name: 'atc-s1', image: 'base', memoryMib: 512 }]);
 });

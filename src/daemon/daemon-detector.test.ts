@@ -8,7 +8,7 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 
 test('it flags a hook-less agent waiting at a prompt via the screen detector', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-detector-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -42,7 +42,7 @@ test('it flags a hook-less agent waiting at a prompt via the screen detector', a
 });
 
 test('it flips the session back to working once the prompt is answered', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-detector-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -94,7 +94,7 @@ test('it flips the session back to working once the prompt is answered', async (
 });
 
 test('it opens a permission request from a screen-detected prompt', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-detector-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -126,7 +126,7 @@ test('it opens a permission request from a screen-detected prompt', async () => 
 test('it never flags a prompt as needing input when the adapter has no screen detector', async () => {
   const onDetectSkipped = mock<(sessionID: SessionID) => void>();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-detector-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -173,7 +173,7 @@ test('it never flags a prompt as needing input when the adapter has no screen de
 test('it never flags a prompt as needing input when another agent has a screen detector but the session agent has none', async () => {
   const onDetectSkipped = mock<(sessionID: SessionID) => void>();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-detector-',
     options: () => ({
       adapter: buildMockAgentAdapter({

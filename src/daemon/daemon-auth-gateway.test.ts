@@ -8,6 +8,8 @@ import { StateStore } from '../store/state-store';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
+import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
@@ -15,90 +17,76 @@ import { LocalPTYProvider } from './local-pty-provider';
 import type { RestoreSettled } from './restore-fleet';
 
 /**
- * A real daemon with a `local` target and an imp target `box` over a
- * stub imp port, and two gateways whose binary is a fake Claude that
- * records each start in `marker`: `glm` takes its credential through
- * `auth`, and `zai` takes none. `settles` records each fleet restore once
- * its terminal adoption ends.
+ * A temp directory holding a fake Claude that records each start in
+ * `marker`, and the two targets a daemon runs on: `local`, and the imp
+ * target `box` over a stub imp port. `settles` collects the fleet restores
+ * a daemon reports to the `onRestoreSettled` recorder.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const port = stack.use(createStubImpPort());
+function setupTest() {
+  const tmp = setupTempDir('atc-auth-gateway-');
+  const port = createStubImpPort();
   const settles: RestoreSettled[] = [];
 
-  const daemon = await startTestDaemon({
-    prefix: 'atc-auth-gateway-',
-    options: (paths) => {
-      const fakeClaude = createStubRecordingClaude(paths.dir);
+  const box = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 
-      // The gateways and their auth profile are what every test spawns or
-      // lists.
-      const parsed = parseConfig({
-        authProfiles: {
-          glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-        },
-        agents: {
-          claude: { bin: fakeClaude },
-          glm: {
-            kind: 'claude',
-            bin: fakeClaude,
-            baseURL: 'https://api.z.ai/api/anthropic',
-            auth: {
-              profiles: ['glm'],
-              placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-            },
-          },
-          zai: { kind: 'claude', bin: fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
-        },
-      });
-
-      return {
-        adapters: buildAgentAdapters(parsed),
-        targets: [
-          {
-            id: 'local',
-            kind: 'local-pty',
-            options: {},
-            identity: 'local-pty:test',
-            provider: new LocalPTYProvider(),
-          },
-          {
-            id: 'box',
-            kind: 'imp',
-            options: {},
-            identity: 'imp:test',
-            provider: new ImpProvider(
-              port,
-              { guestDir: join(paths.dir, 'g') },
-              { atcBinary: null },
-            ),
-          },
-        ],
-        defaultTarget: 'local',
-        onRestoreSettled: (settled) => {
-          settles.push(settled);
-        },
-      };
-    },
+  registerTestCleanup(() => {
+    box.dispose();
   });
 
-  stack.use(daemon);
-
-  const owned = stack.move();
-
-  return Object.assign(daemon, {
+  return {
+    dir: tmp.dir,
     port,
     settles,
-    marker: join(daemon.dir, 'claude-starts.log'),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  });
+    fakeClaude: createStubRecordingClaude(tmp.dir),
+    marker: join(tmp.dir, 'claude-starts.log'),
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: 'local-pty:test',
+        provider: new LocalPTYProvider(),
+      },
+      { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: box },
+    ],
+    onRestoreSettled: (settled: RestoreSettled) => {
+      settles.push(settled);
+    },
+  };
 }
 
 test('it refuses a local spawn of a gateway with auth and starts no harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            claude: { bin: ctx.fakeClaude },
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'local',
+      onRestoreSettled: ctx.onRestoreSettled,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
@@ -106,20 +94,45 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
 
   await Promise.allSettled([spawn]);
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  expect({ listed, started: existsSync(ctx.marker) }).toStrictEqual({
-    listed: { sessions: [] },
-    started: false,
-  });
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it refuses an imp spawn of a gateway with auth before touching impd', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            claude: { bin: ctx.fakeClaude },
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'local',
+      onRestoreSettled: ctx.onRestoreSettled,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'box',
@@ -128,18 +141,43 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
   await Promise.allSettled([spawn]);
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  expect({
-    calls: ctx.port.calls,
-    sessions: ctx.port.sessionRequests,
-    started: existsSync(ctx.marker),
-  }).toStrictEqual({ calls: [], sessions: [], started: false });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it starts the harness of a gateway without auth on a local spawn', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'zai', target: 'local' });
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            claude: { bin: ctx.fakeClaude },
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'local',
+      onRestoreSettled: ctx.onRestoreSettled,
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', { cwd: ctx.dir, agent: 'zai', target: 'local' });
 
   await waitFor(() => {
     expect(existsSync(ctx.marker)).toBeTrue();
@@ -147,9 +185,37 @@ test('it starts the harness of a gateway without auth on a local spawn', async (
 });
 
 test('it lists a gateway with auth as able to spawn, since a target with a broker binding can start it', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const answer = await ctx.client.sendRequest('agents.list');
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            claude: { bin: ctx.fakeClaude },
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'local',
+      onRestoreSettled: ctx.onRestoreSettled,
+    }),
+  });
+
+  const answer = await daemon.client.sendRequest('agents.list');
 
   expect(answer['agents']).toStrictEqual([
     {
@@ -276,9 +342,37 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
 });
 
 test('it refuses a local spawn that resumes a session of a gateway with auth and starts no harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const spawn = ctx.client.sendRequest('session.spawn', {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            claude: { bin: ctx.fakeClaude },
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'local',
+      onRestoreSettled: ctx.onRestoreSettled,
+    }),
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: ctx.dir,
     agent: 'glm',
     target: 'local',
@@ -287,18 +381,43 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
 
   await Promise.allSettled([spawn]);
 
-  const listed = await ctx.client.sendRequest('session.list');
+  const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_target_unsupported' });
-
-  expect({ listed, started: existsSync(ctx.marker) }).toStrictEqual({
-    listed: { sessions: [] },
-    started: false,
-  });
+  expect(listed).toStrictEqual({ sessions: [] });
+  expect(existsSync(ctx.marker)).toBeFalse();
 });
 
 test('it refuses to adopt a restored local session of a gateway with auth and starts no harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            claude: { bin: ctx.fakeClaude },
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'local',
+      onRestoreSettled: ctx.onRestoreSettled,
+    }),
+  });
 
   // A transcript that exists makes the session resumable.
   const transcriptPath = join(ctx.dir, 'transcript.jsonl');
@@ -307,9 +426,11 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
 
   // The stored fleet is read when the daemon starts, so it is written while
   // the daemon is stopped.
-  await ctx.stop();
+  await daemon.stop();
 
-  await using store = await StateStore.open(ctx.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await store.writeFleet([
     buildMockFleetEntry({
@@ -323,10 +444,10 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
     }),
   ]);
 
-  await ctx.restart();
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const adopt = ctx.client.sendRequest('session.adopt', { session: 's1' });
+  const adopt = daemon.client.sendRequest('session.adopt', { session: 's1' });
 
   await Promise.allSettled([adopt]);
 
@@ -335,7 +456,35 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
 });
 
 test('it restores a local session of a gateway with auth without starting its harness', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: buildAgentAdapters(
+        parseConfig({
+          authProfiles: {
+            glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+          },
+          agents: {
+            claude: { bin: ctx.fakeClaude },
+            glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
+              baseURL: 'https://api.z.ai/api/anthropic',
+              auth: {
+                profiles: ['glm'],
+                placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+              },
+            },
+            zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
+          },
+        }),
+      ),
+      targets: ctx.targets,
+      defaultTarget: 'local',
+      onRestoreSettled: ctx.onRestoreSettled,
+    }),
+  });
 
   // A transcript that exists makes the session resumable.
   const transcriptPath = join(ctx.dir, 'transcript.jsonl');
@@ -344,9 +493,11 @@ test('it restores a local session of a gateway with auth without starting its ha
 
   // The stored fleet is read when the daemon starts, so it is written while
   // the daemon is stopped.
-  await ctx.stop();
+  await daemon.stop();
 
-  await using store = await StateStore.open(ctx.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await store.writeFleet([
     buildMockFleetEntry({
@@ -358,15 +509,13 @@ test('it restores a local session of a gateway with auth without starting its ha
     }),
   ]);
 
-  await ctx.restart();
-  await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   await waitFor(() => {
     expect(ctx.settles).toHaveLength(1);
   });
 
-  expect({ settles: ctx.settles, started: existsSync(ctx.marker) }).toStrictEqual({
-    settles: [{ restored: 1, outcome: 'finished' }],
-    started: false,
-  });
+  expect(ctx.settles).toStrictEqual([{ restored: 1, outcome: 'finished' }]);
+  expect(existsSync(ctx.marker)).toBeFalse();
 });

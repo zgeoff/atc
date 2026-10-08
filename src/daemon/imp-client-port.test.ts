@@ -1,8 +1,9 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubImpd } from '../test-utils/start-stub-impd';
 import { waitFor } from '../test-utils/wait-for';
@@ -10,29 +11,18 @@ import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
 
 /**
- * An impd stand-in on a real HTTP port, and a temp directory for the token
- * file.
+ * An impd stand-in on a real HTTP port.
  */
 function setupTest() {
-  using stack = new DisposableStack();
+  const impd = startStubImpd();
 
-  const tmp = stack.use(setupTempDir('atc-imp-client-port-'));
-  const impd = stack.use(startStubImpd());
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    impd,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { impd };
 }
 
 test('it calls impd with the token its token file holds', async () => {
-  using ctx = setupTest();
-
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const tokenPath = join(tmp.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n');
 
@@ -53,9 +43,9 @@ test('it calls impd with the token its token file holds', async () => {
 });
 
 test('it calls impd with the new token on the next call after the token file changes', async () => {
-  using ctx = setupTest();
-
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const tokenPath = join(tmp.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'first-token\n');
 
@@ -71,9 +61,9 @@ test('it calls impd with the new token on the next call after the token file cha
 });
 
 test('it refuses a call as unauthorized without reaching impd when the token file is empty', () => {
-  using ctx = setupTest();
-
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const tokenPath = join(tmp.dir, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
 
@@ -84,9 +74,9 @@ test('it refuses a call as unauthorized without reaching impd when the token fil
 });
 
 test('it ends a session connection as unauthorized without reaching impd when the token file is empty', async () => {
-  using ctx = setupTest();
-
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const tokenPath = join(tmp.dir, 'imp-token');
 
   writeFileSync(tokenPath, '');
 
@@ -104,9 +94,9 @@ test('it ends a session connection as unauthorized without reaching impd when th
 });
 
 test('it refuses a reverse forward as unauthorized without reaching impd when the token file is empty', () => {
-  using ctx = setupTest();
-
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const tokenPath = join(tmp.dir, 'imp-token');
 
   writeFileSync(tokenPath, '');
 
@@ -119,9 +109,9 @@ test('it refuses a reverse forward as unauthorized without reaching impd when th
 });
 
 test('it opens a guest connection relay with the token its token file holds when the relay opens', async () => {
-  using ctx = setupTest();
-
-  const tokenPath = join(ctx.dir, 'imp-token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const tokenPath = join(tmp.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'first-token\n');
 
@@ -129,7 +119,7 @@ test('it opens a guest connection relay with the token its token file holds when
 
   const forward = port.openReverseForward('imp-a', '/tmp/atc/report.sock', () => {});
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     forward.stop();
   });
 
@@ -190,7 +180,7 @@ test.each([
     },
   ],
 ])('it reads grant and exec requirement flags sent as %s as %p', async (_kind, flag, sent) => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { features: sent } });
 
@@ -209,9 +199,9 @@ test.each([
 });
 
 test('it sends a command stdin larger than one WebSocket message impd takes', async () => {
-  using ctx = setupTest();
-
-  const file = join(ctx.dir, 'token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const file = join(tmp.dir, 'token');
 
   writeFileSync(file, 't0');
 
@@ -231,9 +221,9 @@ test('it sends a command stdin larger than one WebSocket message impd takes', as
 });
 
 test('it returns the exit of a command that ends before it reads its stdin', async () => {
-  using ctx = setupTest();
-
-  const file = join(ctx.dir, 'token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const file = join(tmp.dir, 'token');
 
   writeFileSync(file, 't0');
 
@@ -250,9 +240,9 @@ test('it returns the exit of a command that ends before it reads its stdin', asy
 });
 
 test('it rejects a command whose start impd refuses with the refusal', () => {
-  using ctx = setupTest();
-
-  const file = join(ctx.dir, 'token');
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const file = join(tmp.dir, 'token');
 
   writeFileSync(file, 't0');
 
@@ -264,7 +254,7 @@ test('it rejects a command whose start impd refuses with the refusal', () => {
 });
 
 test('it reads the caller identity impd answers tokens.whoami with', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/tokens/whoami', {
     status: 200,
@@ -287,7 +277,7 @@ test('it reads the caller identity impd answers tokens.whoami with', async () =>
 });
 
 test('it reads an identity without a grantable list as one that grants nothing', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/tokens/whoami', {
     status: 200,
@@ -308,7 +298,7 @@ test('it reads an identity without a grantable list as one that grants nothing',
 });
 
 test('it lists each secret with its kind, rules, and imps', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/secrets/list', {
     status: 200,
@@ -351,7 +341,7 @@ test('it lists each secret with its kind, rules, and imps', async () => {
 });
 
 test('it lists an oauth secret with its sign-in status and ID token claims', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/secrets/list', {
     status: 200,
@@ -392,7 +382,7 @@ test('it lists an oauth secret with its sign-in status and ID token claims', asy
 });
 
 test('it lists the secrets granted to the named imp', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/grants/list', { status: 200, json: ['glm'] });
 
@@ -405,7 +395,7 @@ test('it lists the secrets granted to the named imp', async () => {
 });
 
 test('it grants a secret to the named imp', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/grants/add', { status: 200, json: {} });
 
@@ -419,7 +409,7 @@ test('it grants a secret to the named imp', async () => {
 });
 
 test('it reports a revoke of a grant impd held as done', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/grants/delete', { status: 200, json: {} });
 
@@ -435,7 +425,7 @@ test('it reports a revoke of a grant impd held as done', async () => {
 });
 
 test('it reports a revoke of a grant impd no longer holds as nothing removed', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/grants/delete', {
     status: 404,
@@ -456,7 +446,7 @@ test('it reports a revoke of a grant impd no longer holds as nothing removed', a
 });
 
 test('it rejects a revoke on an imp impd does not hold', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/grants/delete', {
     status: 404,
@@ -478,7 +468,7 @@ test('it rejects a revoke on an imp impd does not hold', () => {
 });
 
 test('it rejects a revoke impd forbids with its reason', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/grants/delete', {
     status: 403,
@@ -500,7 +490,7 @@ test('it rejects a revoke impd forbids with its reason', () => {
 });
 
 test('it reads the id of the imp under a name', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/imps/get', {
     status: 200,
@@ -521,7 +511,7 @@ test('it reads the id of the imp under a name', async () => {
 });
 
 test('it reads the id of the imp it creates', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   ctx.impd.answers.set('/rpc/imps/create', {
     status: 200,
@@ -542,7 +532,7 @@ test('it reads the id of the imp it creates', async () => {
 });
 
 test('it sends the requirements of a start to impd and ends the connection with its refusal', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The client asks impd whether it checks exec requirements before a
   // start that requires one.
@@ -558,32 +548,31 @@ test('it sends the requirements of a start to impd and ends the connection with 
 
   const outcome = await connection.outcome;
 
-  expect({ opens: ctx.impd.execOpens, outcome }).toStrictEqual({
-    opens: [
-      {
-        type: 'start',
-        name: request.name,
-        session: request.session,
-        argv: request.argv,
-        tty: true,
-        env: request.env,
-        cwd: request.cwd,
-        cols: request.cols,
-        rows: request.rows,
-        require: ['broker'],
-      },
-    ],
-    outcome: {
-      kind: 'failed',
-      code: 'PRECONDITION_FAILED',
-      message: 'the broker is not ready',
-      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
+  expect(ctx.impd.execOpens).toStrictEqual([
+    {
+      type: 'start',
+      name: request.name,
+      session: request.session,
+      argv: request.argv,
+      tty: true,
+      env: request.env,
+      cwd: request.cwd,
+      cols: request.cols,
+      rows: request.rows,
+      require: ['broker'],
     },
+  ]);
+
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready',
+    data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
   });
 });
 
 test('it closes a session connection whose gate shuts as it opens, sending impd nothing', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
@@ -611,11 +600,12 @@ test('it closes a session connection whose gate shuts as it opens, sending impd 
 
   await connection.outcome;
 
-  expect({ gates, opens: ctx.impd.execOpens }).toStrictEqual({ gates: ['checked'], opens: [] });
+  expect(gates).toStrictEqual(['checked']);
+  expect(ctx.impd.execOpens).toStrictEqual([]);
 });
 
 test('it closes a session connection whose gate throws as it opens, sending impd nothing', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The client asks impd whether it checks exec requirements before a
   // start that requires one.
@@ -646,14 +636,12 @@ test('it closes a session connection whose gate throws as it opens, sending impd
 
   const outcome = await connection.outcome;
 
-  expect({ outcome, opens: ctx.impd.execOpens }).toStrictEqual({
-    outcome: { kind: 'closed', reason: 'closed before sending' },
-    opens: [],
-  });
+  expect(outcome).toStrictEqual({ kind: 'closed', reason: 'closed before sending' });
+  expect(ctx.impd.execOpens).toStrictEqual([]);
 });
 
 test('it sends the request of a session connection whose gate stays open as it opens', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The client asks impd whether it checks exec requirements before a
   // start that requires one.
@@ -683,32 +671,31 @@ test('it sends the request of a session connection whose gate stays open as it o
   const outcome = await connection.outcome;
 
   // The stand-in refuses every start it is sent.
-  expect({ outcome, opens: ctx.impd.execOpens }).toStrictEqual({
-    outcome: {
-      kind: 'failed',
-      code: 'PRECONDITION_FAILED',
-      message: 'the broker is not ready',
-      data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
-    },
-    opens: [
-      {
-        type: 'start',
-        name: 'atc-s1',
-        session: 'atc-s1',
-        argv: ['claude'],
-        env: {},
-        cwd: '/work',
-        cols: 80,
-        rows: 24,
-        tty: true,
-        require: ['broker'],
-      },
-    ],
+  expect(outcome).toStrictEqual({
+    kind: 'failed',
+    code: 'PRECONDITION_FAILED',
+    message: 'the broker is not ready',
+    data: { reason: 'broker_not_ready', detail: 'the broker CA did not install' },
   });
+
+  expect(ctx.impd.execOpens).toStrictEqual([
+    {
+      type: 'start',
+      name: 'atc-s1',
+      session: 'atc-s1',
+      argv: ['claude'],
+      env: {},
+      cwd: '/work',
+      cols: 80,
+      rows: 24,
+      tty: true,
+      require: ['broker'],
+    },
+  ]);
 });
 
 test('it sends the requirements of an attach to impd', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 
@@ -741,7 +728,7 @@ test('it sends the requirements of an attach to impd', async () => {
 });
 
 test('it sends a start without requirements when the request holds none', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
 

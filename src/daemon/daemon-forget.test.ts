@@ -15,7 +15,7 @@ test('it answers a forget on a host-destroying target with a token and destroys 
 
   const clock = { now: 1_800_000_000_000 };
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -56,7 +56,7 @@ test('it destroys the host and forgets the session when the forget carries its t
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -97,7 +97,7 @@ test('it refuses a forget with internal and keeps the session when the host dest
 
   provider.setDestroyFailure(new Error('the host did not answer'));
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -135,7 +135,7 @@ test('it refuses a confirm token a forget already took', async () => {
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -157,9 +157,12 @@ test('it refuses a confirm token a forget already took', async () => {
 
   provider.setDestroyFailure(new Error('the host did not answer'));
 
-  await daemon.client
-    .sendRequest('session.forget', { session: id, confirmToken: offered['confirmToken'] })
-    .catch(() => null);
+  const failed = daemon.client.sendRequest('session.forget', {
+    session: id,
+    confirmToken: offered['confirmToken'],
+  });
+
+  await Promise.allSettled([failed]);
 
   provider.setDestroyFailure(null);
 
@@ -167,6 +170,8 @@ test('it refuses a confirm token a forget already took', async () => {
     session: id,
     confirmToken: offered['confirmToken'],
   });
+
+  expect(failed).rejects.toMatchObject({ code: 'internal' });
 
   expect(retried).rejects.toMatchObject({
     code: 'confirm_token_invalid',
@@ -182,7 +187,7 @@ test('it refuses a confirm token past its lifetime', async () => {
 
   const clock = { now: 1_800_000_000_000 };
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -226,7 +231,7 @@ test('it takes a confirm token up to the last millisecond of its lifetime', asyn
 
   const clock = { now: 1_800_000_000_000 };
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -263,7 +268,7 @@ test('it refuses a confirm token handed out for another session', async () => {
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -303,7 +308,7 @@ test('it refuses a confirm token handed out for another session', async () => {
 test('it forgets a session on the local target at once without a token', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -330,7 +335,7 @@ test('it forgets a session on the local target at once without a token', async (
 test('it refuses a forget of a session the daemon does not hold', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -348,7 +353,7 @@ test('it refuses a forget of a session the daemon does not hold', async () => {
 test('it refuses a forget that refuses a pinned session when a pin lands after the session was read', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -386,7 +391,7 @@ test('it refuses a forget that refuses a pinned session when a pin lands after t
 test('it refuses a forget that refuses a pinned session of a sub-session of a pinned session', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -430,7 +435,7 @@ test('it refuses a forget that refuses a pinned session of a sub-session of a pi
 test('it refuses a forget that refuses a live session when the session is live', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -464,7 +469,7 @@ test('it refuses a forget that refuses a live session when the session is live',
 test('it forgets a dead unpinned session when the forget refuses pinned and live sessions', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -500,7 +505,7 @@ test('it refuses a pinned session on a host-destroying target before it hands ou
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -535,7 +540,7 @@ test('it keeps a headless run going when the forget of its session fails to dest
 
   provider.setDestroyFailure(new Error('impd is unreachable'));
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -602,7 +607,7 @@ test('it refuses a principal forget without a token of a session on a target it 
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -645,7 +650,7 @@ test('it refuses a principal forget without a token of a session that does not e
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -676,7 +681,7 @@ test('it refuses a principal forget with the owner token of a session on a targe
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -725,7 +730,7 @@ test('it refuses a principal forget with the owner token of a session that does 
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -768,7 +773,7 @@ test('it destroys the host when a principal that may use its target forgets with
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-forget-',
     options: () => ({
       adapter: buildMockAgentAdapter(),

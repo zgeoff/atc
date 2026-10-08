@@ -21,13 +21,12 @@ function setupTest() {
 }
 
 test('it replays the fleet as SessionAdded lines on connect', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
   await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'two', ctx.dir);
 
-  await using subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
-
+  const subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
   const initial = await subscriber.waitForLine(2);
 
   expect(initial.map((line) => decodeMessage(line))).toMatchObject([
@@ -51,11 +50,9 @@ test('it replays the fleet as SessionAdded lines on connect', async () => {
 });
 
 test('it streams a live event after the replay', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const sessionID = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
-
-  await using subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
+  const subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
 
   await subscriber.waitForLine(1);
   await ctx.client.sendRequest('session.update', { session: sessionID, name: 'renamed-one' });
@@ -69,8 +66,8 @@ test('it streams a live event after the replay', async () => {
 });
 
 test('it ignores subscriber input and keeps streaming', async () => {
-  await using ctx = await setupTest();
-  await using subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
+  const ctx = await setupTest();
+  const subscriber = await subscribeToSocketLines(ctx.eventsSocketPath);
 
   subscriber.write('{"m":"session.kill"}\nnot even json\n');
 

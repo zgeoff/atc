@@ -1,39 +1,27 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { buildTargetList } from './build-target-list';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
+/**
+ * An imp provider over a stub imp port.
+ */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
 
   const provider = new ImpProvider(port, {}, { atcBinary: null });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
-  const local = new LocalPTYProvider();
-
-  stack.defer(() => {
-    local.dispose();
-  });
-
-  const owned = stack.move();
-
-  return {
-    provider,
-    local,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { provider };
 }
 
 test('it lists an imp target as reaching the broker', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const entries = buildTargetList(
     [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
@@ -65,7 +53,11 @@ test('it lists an imp target as reaching the broker', () => {
 });
 
 test('it lists the local target and a target without a provider as reaching no broker', () => {
-  using ctx = setupTest();
+  const local = new LocalPTYProvider();
+
+  onTestFinished(() => {
+    local.dispose();
+  });
 
   const entries = buildTargetList(
     [
@@ -74,7 +66,7 @@ test('it lists the local target and a target without a provider as reaching no b
         kind: 'local-pty',
         options: {},
         identity: 'local-pty:test',
-        provider: ctx.local,
+        provider: local,
       },
       { id: 'gone', kind: 'imp', options: {}, identity: 'imp:gone', provider: null },
     ],
