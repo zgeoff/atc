@@ -10,8 +10,10 @@ import { isRecord } from './report';
  * A Claude-compatible backend the Claude CLI is pointed at: its own agent id,
  * its own row in the spawn menu, and its own generated settings file. The
  * credential is never held here: a helper command supplies it at run time,
- * or, with `auth`, impd's credential broker adds it to each request on the
- * host's side, so it stays out of the file atc writes.
+ * and, with `auth`, impd's credential broker adds it to each request on the
+ * host's side, so it stays out of the file atc writes. A gateway with both
+ * runs the helper on the daemon's machine and takes the broker's
+ * credential on an imp.
  */
 export interface GatewayConfig {
   readonly id: AgentID;

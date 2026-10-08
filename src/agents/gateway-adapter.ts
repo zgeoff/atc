@@ -58,7 +58,7 @@ export class GatewayAdapter implements AgentAdapter {
 
   // A headless turn carries the same settings file the terminal spawn does,
   // so it reaches this backend rather than the default one. A gateway whose
-  // credential comes through impd's broker runs no headless turn.
+  // credential comes through impd's broker alone runs no headless turn.
   readonly headlessRunner: HeadlessRunner | null;
 
   // The CLI's hooks are authoritative; no screen heuristics needed.
@@ -132,7 +132,7 @@ export class GatewayAdapter implements AgentAdapter {
     );
 
     this.headlessRunner =
-      headlessRun === null || gateway.auth !== undefined
+      headlessRun === null || isBrokerOnlyGateway(gateway)
         ? null
         : makeClaudeHeadlessRunner(headlessRun, {
             claudeBin: gateway.bin,
@@ -169,15 +169,16 @@ export class GatewayAdapter implements AgentAdapter {
     return {
       gateway: { id: this.gateway.id, baseURL: this.gateway.baseURL, auth },
       profiles: this.config.authProfiles,
-      brokerRequired: true,
+      brokerRequired: isBrokerOnlyGateway(this.gateway),
     };
   }
 
-  // A gateway whose credential comes through impd's broker never starts on
-  // the daemon's machine: started without the broker, the CLI would send
-  // whatever credential it holds to the gateway's host.
+  // A gateway whose credential comes through impd's broker alone never
+  // starts on the daemon's machine: started without the broker, the CLI
+  // would send whatever credential it holds to the gateway's host. One
+  // with a credential helper as well starts there under that helper.
   planSpawn(opts: SpawnOptions): SpawnPlan {
-    if (this.gateway.auth !== undefined) {
+    if (isBrokerOnlyGateway(this.gateway)) {
       throw this.buildBrokerRefusal('which only an imp target can give it');
     }
 
@@ -186,7 +187,13 @@ export class GatewayAdapter implements AgentAdapter {
 
     return {
       bin: this.gateway.bin,
-      args: this.buildArgs(opts, modeArgs, this.writeSettings(), this.writeBridge()),
+      args: this.buildArgs(
+        this.gateway.args,
+        opts,
+        modeArgs,
+        this.writeSettings(),
+        this.writeBridge(),
+      ),
     };
   }
 
@@ -196,8 +203,9 @@ export class GatewayAdapter implements AgentAdapter {
   // and placeholders in place of the credential, which the broker swaps
   // for the real one on the host's side. A shell seeds the config folder
   // before it runs the CLI, since a transferred file would replace the
-  // state an earlier run left. Any other gateway's credential
-  // helper runs on the daemon's machine, so it never runs remotely.
+  // state an earlier run left. The launch takes the auth's own arguments
+  // when it sets them, and never the credential helper, which runs on the
+  // daemon's machine alone. A gateway without auth never runs remotely.
   planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
     if (this.gateway.auth === undefined) {
       return null;
@@ -244,11 +252,14 @@ export class GatewayAdapter implements AgentAdapter {
       argv,
     );
 
+    const args = this.gateway.auth.args ?? this.gateway.args;
+
     const launch = buildClaudeGuestLaunch(guest.dir, [
       this.gateway.bin,
       ...this.buildArgs(
+        args,
         opts,
-        this.buildGuestModeArgs(),
+        this.buildGuestModeArgs(args),
         `${guest.dir}/${settingsPath}`,
         `${guest.dir}/atc-bridge`,
       ),
@@ -291,10 +302,10 @@ export class GatewayAdapter implements AgentAdapter {
   // explicit flag, so that mode overrides the one the CLI would restore, and
   // the generated settings file, because
   // without it the CLI would resume the session against the default backend.
-  // A gateway whose credential comes through impd's broker has none, since
-  // outside atc the broker never reaches it.
+  // A gateway whose credential comes through impd's broker alone has none,
+  // since outside atc the broker never reaches it.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
-    if (this.gateway.auth !== undefined) {
+    if (isBrokerOnlyGateway(this.gateway)) {
       return null;
     }
 
@@ -312,13 +323,14 @@ export class GatewayAdapter implements AgentAdapter {
   }
 
   private buildArgs(
+    args: readonly string[],
     opts: SpawnOptions,
     modeArgs: readonly string[],
     settings: string,
     pluginDir: string,
   ): string[] {
     return [
-      ...buildClaudeOverrideArgs(this.gateway.args, opts),
+      ...buildClaudeOverrideArgs(args, opts),
       ...modeArgs,
       '--settings',
       settings,
@@ -332,11 +344,11 @@ export class GatewayAdapter implements AgentAdapter {
 
   // A brokered session's Claude config is fresh, so the CLI's own default
   // mode would apply rather than the one the owner's settings set. Every
-  // start therefore names its mode: the one the gateway's arguments or
-  // settings set, else the CLI's manual mode, which asks before each
-  // action.
-  private buildGuestModeArgs(): string[] {
-    if (findFlagValue(this.gateway.args, ['--permission-mode']) !== null) {
+  // start therefore names its mode: the one the launch's arguments or the
+  // gateway's settings set, else the CLI's manual mode, which asks before
+  // each action.
+  private buildGuestModeArgs(args: readonly string[]): string[] {
+    if (findFlagValue(args, ['--permission-mode']) !== null) {
       return [];
     }
 
@@ -462,6 +474,12 @@ export class GatewayAdapter implements AgentAdapter {
 
     return this.bridgeDir;
   }
+}
+
+// Whether a gateway takes its credential from impd's broker with no
+// credential helper to fall back on, so it starts only behind the broker.
+function isBrokerOnlyGateway(gateway: GatewayConfig): boolean {
+  return gateway.auth !== undefined && gateway.apiKeyHelper === undefined;
 }
 
 // The variable the Claude CLI sends as a bearer authorization header, and

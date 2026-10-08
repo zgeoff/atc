@@ -7,11 +7,14 @@ import { resolveAuthProfiles } from './resolve-auth-profiles';
 /**
  * The auth profiles a gateway's sessions are bound to through impd's
  * broker, and the variables each session gets in place of a credential,
- * every value the fixed placeholder.
+ * every value the fixed placeholder. `args`, when set, replaces the
+ * gateway's arguments on a launch behind the broker, whose host lays out
+ * its files apart from the daemon's.
  */
 export interface GatewayAuth {
   readonly profiles: readonly string[];
   readonly placeholderEnv: Readonly<Record<string, string>>;
+  readonly args?: readonly string[];
 }
 
 /**
@@ -19,7 +22,6 @@ export interface GatewayAuth {
  */
 interface GatewayAuthEntry {
   readonly baseURL?: string | undefined;
-  readonly apiKeyHelper?: string | undefined;
   readonly env: Readonly<Record<string, string>>;
   readonly settings?: Readonly<Record<string, unknown>> | undefined;
 }
@@ -40,15 +42,9 @@ export function checkGatewayAuth(
 
   const problems: string[] = [];
 
-  if (entry.apiKeyHelper !== undefined) {
-    problems.push(
-      'apiKeyHelper cannot be set together with auth, which supplies the credential through the broker',
-    );
-  }
-
   if (entry.settings?.['apiKeyHelper'] !== undefined) {
     problems.push(
-      'settings.apiKeyHelper cannot be set together with auth, which supplies the credential through the broker',
+      'settings.apiKeyHelper cannot be set together with auth; apiKeyHelper holds the credential helper of a launch without the broker',
     );
   }
 
@@ -128,7 +124,17 @@ function parseGatewayAuth(raw: unknown): GatewayAuth | string {
     env[key] = value;
   }
 
-  return { profiles: profiles.map(String), placeholderEnv: env };
+  const args = raw['args'];
+
+  if (args === undefined) {
+    return { profiles: profiles.map(String), placeholderEnv: env };
+  }
+
+  if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string')) {
+    return 'auth.args must be an array of strings';
+  }
+
+  return { profiles: profiles.map(String), placeholderEnv: env, args: args.map(String) };
 }
 
 // A settings env's variable names; anything but an object sets none.

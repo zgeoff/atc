@@ -176,14 +176,68 @@ test('it loads a gateway with auth through the gateway checks', () => {
   });
 });
 
-test('it refuses a gateway whose apiKeyHelper is set beside auth', () => {
+test('it loads a gateway that holds a credential helper beside auth, with the arguments of its brokered launch', () => {
   const result = collectAgents(
     {
       glm: {
         kind: 'claude',
         baseURL: 'https://api.z.ai/api/anthropic',
+        args: ['--plugin-dir', '/home/me/mods/auto-mode'],
         apiKeyHelper: 'op read x',
-        auth: { profiles: ['glm'] },
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
+        },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+    ]),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'glm',
+        kind: 'claude',
+        label: 'glm',
+        mark: 'g',
+        bin: 'claude',
+        args: ['--plugin-dir', '/home/me/mods/auto-mode'],
+        env: {},
+        baseURL: 'https://api.z.ai/api/anthropic',
+        apiKeyHelper: 'op read x',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
+        },
+      },
+    ],
+    errors: [],
+  });
+});
+
+test('it refuses a gateway whose auth args are not an array of strings', () => {
+  const result = collectAgents(
+    {
+      glm: {
+        kind: 'claude',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          args: ['--plugin-dir', 42],
+        },
       },
     },
     new Map<string, AuthProfile>([
@@ -201,9 +255,7 @@ test('it refuses a gateway whose apiKeyHelper is set beside auth', () => {
 
   expect(result).toStrictEqual({
     agents: [],
-    errors: [
-      'agents.glm: apiKeyHelper cannot be set together with auth, which supplies the credential through the broker',
-    ],
+    errors: ['agents.glm: auth.args must be an array of strings'],
   });
 });
 

@@ -325,7 +325,6 @@ function readClaudeAuth(
       raw,
       {
         baseURL: entry.baseURL,
-        apiKeyHelper: entry.apiKeyHelper,
         env: entry.env,
         settings: entry.settings,
       },

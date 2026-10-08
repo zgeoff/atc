@@ -320,10 +320,10 @@ the imp lacks it. A daemon run from source has no binary to copy, so without `gu
 remote Claude spawn with `unsupported_operation`. The session's settings and its copy of the
 `atc-bridge` mod unpack into `sessions/<id>/`, and the session's [record](./session-record.md) lands
 read-only at `records/<id>.json`. Their statusline shows the session's own state alone, never the
-rest of the fleet. A gateway with a credential helper never runs remotely, since the helper runs on
-the daemon's machine. A gateway with `auth`, and stock Claude with `auth`, run on an imp with a
-Claude config folder of their own under `sessions/<id>/` and a placeholder in place of the
-credential, which impd's broker swaps for the secret; the
+rest of the fleet. A gateway with a credential helper and no `auth` never runs remotely, since the
+helper runs on the daemon's machine. A gateway with `auth`, and stock Claude with `auth`, run on an
+imp with a Claude config folder of their own under `sessions/<id>/` and a placeholder in place of
+the credential, which impd's broker swaps for the secret; the
 [brokered credentials](../guides/configuration.md#brokered-credentials) guide covers the config. A
 stock Claude session with `auth` also takes the
 [Claude config bundle](../guides/configuration.md#claude-config-bundle) into its config folder at
