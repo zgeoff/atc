@@ -745,6 +745,7 @@ class StubImpPort implements ImpPort {
       stdin: command.stdin ?? 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
+      detached: true,
     });
 
     const pending = new Set(['stdout', 'stderr', 'exit']);
@@ -1315,7 +1316,9 @@ class StubImpPort implements ImpPort {
   }
 
   // Kills every process and stops every forward the stand-in holds, and
-  // resolves once every guest command it killed exits. A command a hold
+  // resolves once every guest command it killed exits. The kill takes each
+  // command's whole process group, so a child the command left holding its
+  // output ends too and the command's run settles. A command a hold
   // still holds then exits as a killed one does, without running. It runs
   // once the current test finishes; calling it sooner runs it then, and a
   // second call does nothing.
@@ -1340,7 +1343,7 @@ class StubImpPort implements ImpPort {
     }
 
     for (const command of commands) {
-      command.kill('SIGKILL');
+      tryKillGroup(command.pid);
     }
 
     for (const imp of this.imps.values()) {
@@ -1815,6 +1818,15 @@ function buildLease(name: string, principal: string, label: string, until: numbe
 function tryKill(pty: IPty, signal: NodeJS.Signals): void {
   try {
     process.kill(pty.pid, signal);
+  } catch {}
+}
+
+// A guest command leads a process group of its own, so the kill also ends
+// a child it left holding its output; a group already empty has nothing
+// left to kill.
+function tryKillGroup(leader: number): void {
+  try {
+    process.kill(-leader, 'SIGKILL');
   } catch {}
 }
 

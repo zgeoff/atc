@@ -1235,32 +1235,54 @@ test('it reports a command that exited while a child it left holds its output op
   const marker = join(tmp.dir, 'pids');
 
   void port.runCommand('imp-a', {
-    argv: ['sh', '-c', 'sleep 30 & echo "$$ $!" > "$1"', 'sh', marker],
+    argv: ['sh', '-c', 'sleep 30 & echo "$$" > "$1"', 'sh', marker],
   });
 
-  const pids = await waitFor(() => {
-    const [shell, child] = readFileSync(marker, 'utf8').trim().split(' ').map(Number);
+  const shell = await waitFor(() => {
+    const pid = Number(readFileSync(marker, 'utf8').trim());
 
-    invariant(shell !== undefined && child !== undefined);
+    invariant(pid > 0);
 
-    return { shell, child };
-  });
-
-  onTestFinished(() => {
-    process.kill(pids.child, 'SIGKILL');
+    return pid;
   });
 
   // A shell the port has reaped is gone from the process table, so the port
   // has seen its exit.
   await waitFor(() => {
-    expect(() => process.kill(pids.shell, 0)).toThrow();
+    expect(() => process.kill(shell, 0)).toThrow();
   });
 
   await port.stop();
 
   expect(reported).toStrictEqual([
-    `the stub imp port stopped while a guest command still ran: sh -c sleep 30 & echo "$$ $!" > "$1" sh ${marker}; it waited for stdout, stderr`,
+    `the stub imp port stopped while a guest command still ran: sh -c sleep 30 & echo "$$" > "$1" sh ${marker}; it waited for stdout, stderr`,
   ]);
+});
+
+test('it ends a command whose child holds its output open once the port stops', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const marker = join(ctx.dir, 'pids');
+
+  const result = ctx.port.runCommand('imp-a', {
+    argv: ['sh', '-c', 'sleep 30 & echo "$$ $!" > "$1"', 'sh', marker],
+  });
+
+  const child = await waitFor(() => {
+    const pid = Number(readFileSync(marker, 'utf8').trim().split(' ')[1]);
+
+    invariant(pid > 0);
+
+    return pid;
+  });
+
+  await ctx.port.stop();
+
+  await expect(result).toResolve();
+
+  expect(isProcessAlive(child)).toBeFalse();
 });
 
 test('it reports nothing for a running command the port stop cuts short', async () => {
