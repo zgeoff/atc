@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.4.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.4.1...@zgeoff/atc@3.4.2) (2026-10-08)
+
+### Bug Fixes
+
+- **geo-175:** type a slash command name on claude and paste only its argument
+  ([#426](https://github.com/zgeoff/atc/issues/426))
+  ([b0a3f3a](https://github.com/zgeoff/atc/commit/b0a3f3aed9427412cc9d339dcd3b66ebf2c86a0c))
+
 ## [3.4.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.4.0...@zgeoff/atc@3.4.1) (2026-10-08)
 
 ### Bug Fixes
