@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.9.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.1...@zgeoff/atc@3.9.2) (2026-10-08)
+
+### Bug Fixes
+
+- **config:** link the first-run config into place whole
+  ([#467](https://github.com/zgeoff/atc/issues/467))
+  ([9c4a23e](https://github.com/zgeoff/atc/commit/9c4a23e1101ae546b6ed2af014c1717a87ea7911))
+
 ## [3.9.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.0...@zgeoff/atc@3.9.1) (2026-10-08)
 
 ### Bug Fixes
