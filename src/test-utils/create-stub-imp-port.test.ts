@@ -1031,6 +1031,20 @@ test('it runs a command with the guest home as HOME once the test gives one', as
   expect(Buffer.from(result.stdout).toString()).toBe(`${ctx.dir}\n`);
 });
 
+test('it runs a command with the PATH the test gives in place of the guest one', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setGuestPath(ctx.dir);
+
+  const result = await ctx.port.runCommand('imp-a', {
+    argv: ['/bin/sh', '-c', 'printf %s "$PATH"'],
+  });
+
+  expect(Buffer.from(result.stdout).toString()).toBe(ctx.dir);
+});
+
 test('it ends the output and exit of a command that runs while a session PTY opens in its imp', async () => {
   const ctx = setupTest();
 

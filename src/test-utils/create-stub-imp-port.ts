@@ -240,6 +240,8 @@ class StubImpPort implements ImpPort {
   // own working directory.
   private homeDir: string | null = null;
 
+  private guestPath = GUEST_PATH;
+
   // Commands whose argv holds this text wait for the hold to stop, while
   // one is held.
   private commandHold: {
@@ -724,7 +726,7 @@ class StubImpPort implements ImpPort {
 
     const proc = Bun.spawn([...command.argv], {
       ...(cwd === undefined ? {} : { cwd }),
-      env: { PATH: GUEST_PATH, ...(this.homeDir === null ? {} : { HOME: this.homeDir }) },
+      env: { PATH: this.guestPath, ...(this.homeDir === null ? {} : { HOME: this.homeDir }) },
       stdin: command.stdin ?? 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
@@ -1147,6 +1149,15 @@ class StubImpPort implements ImpPort {
    */
   setHomeDir(dir: string): void {
     this.homeDir = dir;
+  }
+
+  /**
+   * Runs every command inside an imp with path as its PATH in place of the
+   * guest's standard one, so a test can give an imp a tool or take one
+   * away.
+   */
+  setGuestPath(path: string): void {
+    this.guestPath = path;
   }
 
   /**
