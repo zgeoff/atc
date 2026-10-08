@@ -2,15 +2,17 @@
 
 ## [3.9.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.0...@zgeoff/atc@3.9.1) (2026-10-08)
 
-
 ### Bug Fixes
 
-* **geo-164:** keep dyld variables for a harness at a path holding = ([#464](https://github.com/zgeoff/atc/issues/464)) ([1d76506](https://github.com/zgeoff/atc/commit/1d76506802dbb218897211f0ab0fa8f8c7a13585))
-
+- **geo-164:** keep dyld variables for a harness at a path holding =
+  ([#464](https://github.com/zgeoff/atc/issues/464))
+  ([1d76506](https://github.com/zgeoff/atc/commit/1d76506802dbb218897211f0ab0fa8f8c7a13585))
 
 ### Performance Improvements
 
-* **geo-193:** time imp spawn steps and combine three guest checks ([#466](https://github.com/zgeoff/atc/issues/466)) ([1e7b6a9](https://github.com/zgeoff/atc/commit/1e7b6a995e48ed9123ceb98d0b28a56c9ce516c9))
+- **geo-193:** time imp spawn steps and combine three guest checks
+  ([#466](https://github.com/zgeoff/atc/issues/466))
+  ([1e7b6a9](https://github.com/zgeoff/atc/commit/1e7b6a995e48ed9123ceb98d0b28a56c9ce516c9))
 
 ## [3.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.8.1...@zgeoff/atc@3.9.0) (2026-10-08)
 
