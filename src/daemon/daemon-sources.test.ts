@@ -13,7 +13,7 @@ import { updateEnv } from '../test-utils/update-env';
 import { LocalPTYProvider } from './local-pty-provider';
 
 test('it lists the sources it offers in order in agents.list', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -42,7 +42,7 @@ test('it lists the sources it offers in order in agents.list', async () => {
 });
 
 test('it lists the spawn history, then the roots, then zoxide, as directories on the daemon host', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -84,7 +84,7 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
 });
 
 test('it lists the owner the directories spawned on every target', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -143,7 +143,7 @@ test('it lists the owner the directories spawned on every target', async () => {
 });
 
 test('it lists a principal only the directories spawned on targets it may use', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -202,7 +202,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
 });
 
 test('it lists the configured GitHub owner through gh at the clone URL gh prefers', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -245,7 +245,7 @@ esac
 });
 
 test('it lists the scope a request holds over the configured owner, at https URLs by default', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -290,7 +290,7 @@ esac
 });
 
 test('it refuses a GitHub scope gh could read as an option, running no gh', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -321,7 +321,7 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
 });
 
 test('it refuses a GitHub listing on a host without gh as github_unavailable', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -341,7 +341,7 @@ test('it refuses a GitHub listing on a host without gh as github_unavailable', a
 });
 
 test('it refuses a git source listing for a target that cannot take a workspace', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -376,7 +376,7 @@ test('it refuses a git source listing for a target that cannot take a workspace'
 });
 
 test('it lists directories for a target that cannot take a workspace', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -428,7 +428,7 @@ test('it lists directories for a target that cannot take a workspace', async () 
 });
 
 test('it refuses a principal a source listing for the default target it may not use', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -469,7 +469,7 @@ test('it refuses a principal a source listing for the default target it may not 
 });
 
 test('it refuses a source the daemon does not offer as unsupported', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -496,7 +496,7 @@ test.each([
   ['dirs', '/srv/work', { kind: 'path', dir: '/srv/work' }],
   ['dirs', 'work', { kind: 'none' }],
 ] as const)('it reads %s input %p as %p', async (source, input, expected) => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -523,7 +523,7 @@ test.each([
 });
 
 test('it reads a leading ~ in directory input as the daemon home', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -549,9 +549,9 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
 });
 
 test('it probes a git source for the target a principal may use', async () => {
-  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
+  const git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -595,9 +595,9 @@ test('it probes a git source for the target a principal may use', async () => {
 });
 
 test('it refuses a principal a probe for a target it may not use', async () => {
-  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
+  const git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -632,9 +632,9 @@ test('it refuses a principal a probe for a target it may not use', async () => {
 });
 
 test('it refuses a probe for a ref the upstream does not have as ref_not_found', async () => {
-  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
+  const git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -651,9 +651,9 @@ test('it refuses a probe for a ref the upstream does not have as ref_not_found',
 });
 
 test('it refuses a probe of an upstream git cannot read as clone_failed', async () => {
-  await using git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
+  const git = await createGitFixture({ prefix: 'atc-daemon-sources-git-' });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -670,7 +670,7 @@ test('it refuses a probe of an upstream git cannot read as clone_failed', async 
 });
 
 test("it refuses a GitHub probe git cannot read with the repository's other URL form", async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -699,7 +699,7 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
 });
 
 test('it refuses a probe of the owner/repo shorthand, which only a spawn expands', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
       // Probes and git sources read the fixture's upstream over file URLs.
@@ -725,7 +725,7 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
 });
 
 test('it refuses a GitHub probe with no alternates when the daemon offers no GitHub source', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
       // Probes and git sources read the fixture's upstream over file URLs.

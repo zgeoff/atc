@@ -10,6 +10,7 @@ import { buildStubBrokeredAgentAdapter } from '../test-utils/build-stub-brokered
 import { buildStubProxiedAgentAdapter } from '../test-utils/build-stub-proxied-agent-adapter';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { getOnlyImpName } from '../test-utils/get-only-imp-name';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
@@ -23,31 +24,20 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
  * as the target `box`.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-runtime-auth-'));
-  const port = stack.use(createStubImpPort());
+  const tmp = setupTempDir('atc-runtime-auth-');
+  const port = createStubImpPort();
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
-  const owned = stack.move();
-
-  return {
-    dir: tmp.dir,
-    port,
-    provider,
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
-  };
+  return { dir: tmp.dir, port, provider };
 }
 
 test('it provisions the host of a spawn before readying it and starts the harness only behind a ready broker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -55,7 +45,7 @@ test('it provisions the host of a spawn before readying it and starts the harnes
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -97,40 +87,43 @@ test('it provisions the host of a spawn before readying it and starts the harnes
   const id = String(getRecord(spawned, 'session')['id']);
   const imp = getOnlyImpName(ctx.port);
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   const binding = await store.findAuthBinding(toSessionID(id));
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls.filter((call) => !call.startsWith('leases.renew')),
-    requests: ctx.port.sessionRequests.map((request) => [request.kind, request.require]),
-    grants: await ctx.port.readGrants(imp),
-    binding,
-  }).toStrictEqual({
-    calls: [
-      'system.info',
-      'tokens.whoami',
-      'secrets.list',
-      `imps.get ${imp}`,
-      `imps.create ${imp}`,
-      `grants.list ${imp}`,
-      `grants.add ${imp} glm`,
-      'system.info',
-      `imps.get ${imp}`,
-      expect.toStartWith(`leases.acquire ${imp} `),
-      expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
-      expect.toStartWith(`reverse ${imp} `),
-      'system.info',
-      expect.toStartWith(`exec.start ${imp} `),
-    ],
-    requests: [['start', ['broker']]],
-    grants: ['glm'],
-    binding: expect.objectContaining({ state: 'ready', revision: 1, impName: imp }),
-  });
+  const calls = ctx.port.calls.filter((call) => !call.startsWith('leases.renew'));
+
+  const grants = await ctx.port.readGrants(imp);
+
+  expect(calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    `imps.get ${imp}`,
+    `imps.create ${imp}`,
+    `grants.list ${imp}`,
+    `grants.add ${imp} glm`,
+    'system.info',
+    `imps.get ${imp}`,
+    expect.toStartWith(`leases.acquire ${imp} `),
+    expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
+    expect.toStartWith(`reverse ${imp} `),
+    'system.info',
+    expect.toStartWith(`exec.start ${imp} `),
+  ]);
+
+  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
+    ['start', ['broker']],
+  ]);
+
+  expect(grants).toStrictEqual(['glm']);
+  expect(binding).toMatchObject({ state: 'ready', revision: 1, impName: imp });
 });
 
 test('it lists the imp target as reaching the broker and the local target as reaching none', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -138,7 +131,7 @@ test('it lists the imp target as reaching the broker and the local target as rea
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -217,7 +210,7 @@ test('it lists the imp target as reaching the broker and the local target as rea
 });
 
 test('it lists an agent that takes the broker credential as spawnable on a daemon with a broker target', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -225,7 +218,7 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -383,7 +376,7 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
 });
 
 test('it starts a brokered harness with the variables its guest plan holds beside the ones atc sets', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -391,7 +384,7 @@ test('it starts a brokered harness with the variables its guest plan holds besid
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -442,7 +435,7 @@ test('it starts a brokered harness with the variables its guest plan holds besid
 });
 
 test('it refuses a brokered spawn whose guest plan sets a proxy variable before touching impd', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
@@ -465,7 +458,7 @@ test('it refuses a brokered spawn whose guest plan sets a proxy variable before 
 
   const proxied = buildStubProxiedAgentAdapter({ id: 'proxied' });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -492,19 +485,19 @@ test('it refuses a brokered spawn whose guest plan sets a proxy variable before 
 
   await spawn.catch(() => null);
 
+  const listed = await daemon.client.sendRequest('session.list');
+
   expect(spawn).rejects.toMatchObject({
     code: 'auth_target_unsupported',
     data: { problem: 'guest_env_conflict', variable: 'https_proxy' },
   });
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls,
-    listed: await daemon.client.sendRequest('session.list'),
-  }).toStrictEqual({ calls: [], listed: { sessions: [] } });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a spawn on an impd without exec requirements after reading only its features', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -512,7 +505,7 @@ test('it refuses a spawn on an impd without exec requirements after reading only
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -554,16 +547,15 @@ test('it refuses a spawn on an impd without exec requirements after reading only
 
   await spawn.catch(() => null);
 
-  expect(spawn).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+  const listed = await daemon.client.sendRequest('session.list');
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls,
-    listed: await daemon.client.sendRequest('session.list'),
-  }).toStrictEqual({ calls: ['system.info'], listed: { sessions: [] } });
+  expect(spawn).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+  expect(ctx.port.calls).toStrictEqual(['system.info']);
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a spawn whose broker is not ready, takes back its imp, and lists no session', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -571,7 +563,7 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -613,24 +605,37 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
 
   await spawn.catch(() => null);
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   const bindings = await store.collectAuthBindings();
+  const listed = await daemon.client.sendRequest('session.list');
+
+  // The imp the spawn created and then destroyed, in call order.
+  const lifecycle = ctx.port.calls.filter(
+    (call) => call.startsWith('imps.create ') || call.startsWith('imps.destroy '),
+  );
+
+  const [created] = lifecycle;
+
+  invariant(created !== undefined, 'the spawn created no imp');
+
+  const imp = created.slice('imps.create '.length);
 
   expect(spawn).rejects.toMatchObject({
     code: 'broker_not_ready',
     data: { detail: 'the broker CA did not install' },
   });
 
-  expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames(),
-    bindings,
-    listed: await daemon.client.sendRequest('session.list'),
-  }).toStrictEqual({ imps: [], bindings: [], listed: { sessions: [] } });
+  expect(lifecycle).toStrictEqual([`imps.create ${imp}`, `imps.destroy ${imp}`]);
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(bindings).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [] });
 });
 
 test('it refuses a spawn with runtime auth on the local target before touching impd', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -638,7 +643,7 @@ test('it refuses a spawn with runtime auth on the local target before touching i
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -683,7 +688,7 @@ test('it refuses a spawn with runtime auth on the local target before touching i
 });
 
 test('it starts an agent that takes the broker credential only where a broker is on the local target without touching impd', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -691,7 +696,7 @@ test('it starts an agent that takes the broker credential only where a broker is
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -738,18 +743,18 @@ test('it starts an agent that takes the broker credential only where a broker is
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   const binding = await store.findAuthBinding(toSessionID(id));
 
-  expect<Record<string, unknown>>({ calls: ctx.port.calls, binding }).toStrictEqual({
-    calls: [],
-    binding: null,
-  });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(binding).toBeNull();
 });
 
 test('it binds an agent that takes the broker credential only where a broker is on an imp target and starts it behind the broker', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -757,7 +762,7 @@ test('it binds an agent that takes the broker credential only where a broker is 
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -804,10 +809,13 @@ test('it binds an agent that takes the broker credential only where a broker is 
 
   const imp = getOnlyImpName(ctx.port);
 
-  expect<Record<string, unknown>>({
-    requests: ctx.port.sessionRequests.map((request) => [request.kind, request.require]),
-    grants: await ctx.port.readGrants(imp),
-  }).toStrictEqual({ requests: [['start', ['broker']]], grants: ['glm'] });
+  const grants = await ctx.port.readGrants(imp);
+
+  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
+    ['start', ['broker']],
+  ]);
+
+  expect(grants).toStrictEqual(['glm']);
 });
 
 test.each([
@@ -816,7 +824,7 @@ test.each([
 ] as const)(
   'it refuses %s of a brokered agent with a workspace on the local target before materializing it',
   async (_kind, resume) => {
-    using ctx = setupTest();
+    const ctx = setupTest();
 
     const glm = buildStubBrokeredAgentAdapter({
       id: 'glm',
@@ -824,7 +832,7 @@ test.each([
       isSelected: () => true,
     });
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       prefix: 'atc-runtime-auth-daemon-',
       options: () => ({
         adapter: glm,
@@ -868,21 +876,21 @@ test.each([
 
     await spawn.catch(() => null);
 
+    const listed = await daemon.client.sendRequest('session.list');
+
     expect(spawn).rejects.toMatchObject({
       code: 'auth_target_unsupported',
       data: { agent: 'glm', target: 'local' },
     });
 
-    expect<Record<string, unknown>>({
-      calls: ctx.port.calls,
-      created: existsSync(cwd),
-      listed: await daemon.client.sendRequest('session.list'),
-    }).toStrictEqual({ calls: [], created: false, listed: { sessions: [] } });
+    expect(ctx.port.calls).toStrictEqual([]);
+    expect(existsSync(cwd)).toBe(false);
+    expect(listed).toStrictEqual({ sessions: [] });
   },
 );
 
 test('it refuses to adopt a local session with a workspace once its agent takes the broker credential', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
@@ -905,7 +913,7 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
     isSelected: () => authSelected,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -937,7 +945,9 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await store.createMaterialization(
     { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
@@ -975,23 +985,18 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
     data: { agent: 'glm', target: 'local' },
   });
 
-  expect<Record<string, unknown>>({
-    session: getRecord(got, 'session'),
-    materialization,
-    calls: ctx.port.calls,
-  }).toStrictEqual({
-    session: expect.objectContaining({
-      state: 'exited',
-      alive: false,
-      workspace: { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
-    }),
-    materialization: recorded,
-    calls: [],
-  });
+  expect(getRecord(got, 'session')).toContainEntries([
+    ['state', 'exited'],
+    ['alive', false],
+    ['workspace', { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 }],
+  ]);
+
+  expect(materialization).toStrictEqual(recorded);
+  expect(ctx.port.calls).toStrictEqual([]);
 });
 
 test('it restores a local session with a workspace without a terminal once its agent takes the broker credential', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
@@ -1014,7 +1019,7 @@ test('it restores a local session with a workspace without a terminal once its a
     isSelected: () => authSelected,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1044,7 +1049,9 @@ test('it restores a local session with a workspace without a terminal once its a
 
   const id = toSessionID(String(getRecord(spawned, 'session')['id']));
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await store.createMaterialization(
     { sessionID: id, target: 'local', dir: ctx.dir, sourceKind: 'path', withheldEnv: [] },
@@ -1073,23 +1080,18 @@ test('it restores a local session with a workspace without a terminal once its a
   const materialization = await store.findMaterialization(id);
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
-  expect<Record<string, unknown>>({
-    session: getRecord(got, 'session'),
-    materialization,
-    calls: ctx.port.calls,
-  }).toStrictEqual({
-    session: expect.objectContaining({
-      kind: 'headless',
-      lastMsg: 'waiting to restore',
-      workspace: { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 },
-    }),
-    materialization: recorded,
-    calls: [],
-  });
+  expect(getRecord(got, 'session')).toContainEntries([
+    ['kind', 'headless'],
+    ['lastMsg', 'waiting to restore'],
+    ['workspace', { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 }],
+  ]);
+
+  expect(materialization).toStrictEqual(recorded);
+  expect(ctx.port.calls).toStrictEqual([]);
 });
 
 test('it refuses to revive a session whose agent dropped the broker credential while its host holds a binding', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
@@ -1112,7 +1114,7 @@ test('it refuses to revive a session whose agent dropped the broker credential w
     isSelected: () => authSelected,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1159,7 +1161,7 @@ test('it refuses to revive a session whose agent dropped the broker credential w
 });
 
 test('it revives a session whose agent takes no broker credential on a host that holds no binding', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
@@ -1182,7 +1184,7 @@ test('it revives a session whose agent takes no broker credential on a host that
     isSelected: () => authSelected,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1222,7 +1224,7 @@ test('it revives a session whose agent takes no broker credential on a host that
 });
 
 test('it restores a session whose agent dropped the broker credential while its host holds a binding without a terminal', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
@@ -1245,7 +1247,7 @@ test('it restores a session whose agent dropped the broker credential while its 
     isSelected: () => authSelected,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1285,17 +1287,16 @@ test('it restores a session whose agent dropped the broker credential while its 
 
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
-  expect<Record<string, unknown>>({
-    sent: ctx.port.sessionRequests.length - before,
-    session: getRecord(got, 'session'),
-  }).toStrictEqual({
-    sent: 0,
-    session: expect.objectContaining({ kind: 'headless', lastMsg: 'waiting to restore' }),
+  expect(ctx.port.sessionRequests.length - before).toBe(0);
+
+  expect(getRecord(got, 'session')).toMatchObject({
+    kind: 'headless',
+    lastMsg: 'waiting to restore',
   });
 });
 
 test('it restores a session whose agent takes no broker credential on a host that holds no binding', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
@@ -1318,7 +1319,7 @@ test('it restores a session whose agent takes no broker credential on a host tha
     isSelected: () => authSelected,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1356,14 +1357,12 @@ test('it restores a session whose agent takes no broker credential on a host tha
 
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
-  expect<Record<string, unknown>>({
-    sent: ctx.port.sessionRequests.length - before,
-    session: getRecord(got, 'session'),
-  }).toStrictEqual({ sent: 1, session: expect.objectContaining({ kind: 'pty' }) });
+  expect(ctx.port.sessionRequests.length - before).toBe(1);
+  expect(getRecord(got, 'session')).toMatchObject({ kind: 'pty' });
 });
 
 test('it refuses a revive that a revoke blocks while its host wakes, sending no start', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1371,7 +1370,7 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1439,6 +1438,8 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
     expect(ctx.port.findState(imp)).toBe('sleeping');
   });
 
+  const grants = await ctx.port.readGrants(imp);
+
   expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   expect(adopt).rejects.toMatchObject({
@@ -1446,14 +1447,12 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
     data: { state: 'revocation_pending' },
   });
 
-  expect<Record<string, unknown>>({
-    starts: ctx.port.sessionRequests.length,
-    grants: await ctx.port.readGrants(imp),
-  }).toStrictEqual({ starts: 1, grants: ['glm'] });
+  expect(ctx.port.sessionRequests.length).toBe(1);
+  expect(grants).toStrictEqual(['glm']);
 });
 
 test('it refuses a sub-session spawn that a revoke blocks while it readies the shared host, sending no start', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1461,7 +1460,7 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1538,7 +1537,7 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
 });
 
 test('it puts a shared host back to sleep when a revoke refuses the sub-session that woke it, keeping the imp and its grant', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1546,7 +1545,7 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1621,16 +1620,15 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
     expect(ctx.port.findState(imp)).toBe('sleeping');
   });
 
-  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+  const grants = await ctx.port.readGrants(imp);
 
-  expect<Record<string, unknown>>({
-    destroyed: ctx.port.calls.filter((call) => call.startsWith('imps.destroy')),
-    grants: await ctx.port.readGrants(imp),
-  }).toStrictEqual({ destroyed: [], grants: ['glm'] });
+  expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.destroy'))).toStrictEqual([]);
+  expect(grants).toStrictEqual(['glm']);
 });
 
 test('it keeps a shared host awake when a revoke refuses a sub-session while another harness runs there', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1638,7 +1636,7 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1703,15 +1701,12 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
   await child.catch(() => null);
 
   expect(child).rejects.toMatchObject({ code: 'auth_blocked' });
-
-  expect<Record<string, unknown>>({
-    state: ctx.port.findState(imp),
-    sleeps: ctx.port.calls.filter((call) => call.startsWith('imps.sleep')),
-  }).toStrictEqual({ state: 'running', sleeps: [] });
+  expect(ctx.port.findState(imp)).toBe('running');
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.sleep'))).toStrictEqual([]);
 });
 
 test('it keeps a host awake for a sub-session that readies it while a refused revive puts it to sleep', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1719,7 +1714,7 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1802,20 +1797,13 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
   const got = await daemon.client.sendRequest('session.get', { session: childID });
 
   expect(revive).rejects.toMatchObject({ code: 'broker_not_ready' });
-
-  expect<Record<string, unknown>>({
-    sleeps: ctx.port.calls.filter((call) => call.startsWith('imps.sleep')),
-    state: ctx.port.findState(imp),
-    child: getRecord(got, 'session'),
-  }).toStrictEqual({
-    sleeps: [],
-    state: 'running',
-    child: expect.objectContaining({ kind: 'pty', alive: true }),
-  });
+  expect(ctx.port.calls.filter((call) => call.startsWith('imps.sleep'))).toStrictEqual([]);
+  expect(ctx.port.findState(imp)).toBe('running');
+  expect(getRecord(got, 'session')).toMatchObject({ kind: 'pty', alive: true });
 });
 
 test('it puts a host to sleep after a refused revive when no other launch readies it', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1823,7 +1811,7 @@ test('it puts a host to sleep after a refused revive when no other launch readie
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1895,7 +1883,7 @@ test('it puts a host to sleep after a refused revive when no other launch readie
 });
 
 test('it spawns a sub-session on the shared host while it readies when no revoke comes between', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1903,7 +1891,7 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -1967,7 +1955,7 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
 });
 
 test('it sends no start for a revive that a revoke blocks while its connection to impd opens', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -1975,7 +1963,7 @@ test('it sends no start for a revive that a revoke blocks while its connection t
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2037,6 +2025,8 @@ test('it sends no start for a revive that a revoke blocks while its connection t
 
   await adopt.catch(() => null);
 
+  const grants = await ctx.port.readGrants(imp);
+
   expect(revoke).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
   expect(adopt).rejects.toMatchObject({
@@ -2044,14 +2034,12 @@ test('it sends no start for a revive that a revoke blocks while its connection t
     data: { state: 'revocation_pending' },
   });
 
-  expect<Record<string, unknown>>({
-    starts: ctx.port.sessionRequests.length,
-    grants: await ctx.port.readGrants(imp),
-  }).toStrictEqual({ starts: 1, grants: ['glm'] });
+  expect(ctx.port.sessionRequests.length).toBe(1);
+  expect(grants).toStrictEqual(['glm']);
 });
 
 test('it sends the start of a revive whose connection to impd opens late when no revoke comes between', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2059,7 +2047,7 @@ test('it sends the start of a revive whose connection to impd opens late when no
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2118,7 +2106,7 @@ test('it sends the start of a revive whose connection to impd opens late when no
 });
 
 test('it revives a session while its host wakes when no revoke comes between', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2126,7 +2114,7 @@ test('it revives a session while its host wakes when no revoke comes between', a
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2186,7 +2174,7 @@ test('it revives a session while its host wakes when no revoke comes between', a
 });
 
 test('it revives a slept session after verifying its binding, granting nothing again', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2194,7 +2182,7 @@ test('it revives a slept session after verifying its binding, granting nothing a
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2242,33 +2230,29 @@ test('it revives a slept session after verifying its binding, granting nothing a
 
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls.filter((call) => !call.startsWith('leases.renew')),
-    requests: ctx.port.sessionRequests.map((request) => [request.kind, request.require]),
-  }).toStrictEqual({
-    calls: [
-      'system.info',
-      'tokens.whoami',
-      'secrets.list',
-      `imps.get ${imp}`,
-      `grants.list ${imp}`,
-      'system.info',
-      `imps.get ${imp}`,
-      expect.toStartWith(`leases.acquire ${imp} `),
-      expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
-      expect.toStartWith(`reverse ${imp} `),
-      'system.info',
-      expect.toStartWith(`exec.start ${imp} `),
-    ],
-    requests: [
-      ['start', ['broker']],
-      ['start', ['broker']],
-    ],
-  });
+  expect(ctx.port.calls.filter((call) => !call.startsWith('leases.renew'))).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    `imps.get ${imp}`,
+    `grants.list ${imp}`,
+    'system.info',
+    `imps.get ${imp}`,
+    expect.toStartWith(`leases.acquire ${imp} `),
+    expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
+    expect.toStartWith(`reverse ${imp} `),
+    'system.info',
+    expect.toStartWith(`exec.start ${imp} `),
+  ]);
+
+  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
+    ['start', ['broker']],
+    ['start', ['broker']],
+  ]);
 });
 
 test('it refuses to revive a session whose grant was revoked outside atc and grants it no more', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2276,7 +2260,7 @@ test('it refuses to revive a session whose grant was revoked outside atc and gra
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2328,16 +2312,13 @@ test('it refuses to revive a session whose grant was revoked outside atc and gra
   await adopt.catch(() => null);
 
   expect(adopt).rejects.toMatchObject({ code: 'auth_grant_missing' });
-
-  expect<Record<string, unknown>>({
-    starts: ctx.port.sessionRequests.length,
-    granted: ctx.port.calls.filter((call) => call.startsWith('grants.add')),
-    state: ctx.port.findState(imp),
-  }).toStrictEqual({ starts: 1, granted: [], state: 'sleeping' });
+  expect(ctx.port.sessionRequests.length).toBe(1);
+  expect(ctx.port.calls.filter((call) => call.startsWith('grants.add'))).toStrictEqual([]);
+  expect(ctx.port.findState(imp)).toBe('sleeping');
 });
 
 test('it refuses to revive a session whose broker is not ready and puts its host back to sleep', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2345,7 +2326,7 @@ test('it refuses to revive a session whose broker is not ready and puts its host
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2398,24 +2379,22 @@ test('it refuses to revive a session whose broker is not ready and puts its host
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(adopt).rejects.toMatchObject({ code: 'broker_not_ready' });
+  expect(ctx.port.findState(imp)).toBe('sleeping');
 
-  expect<Record<string, unknown>>({ state: ctx.port.findState(imp), listed }).toMatchObject({
-    state: 'sleeping',
-    listed: {
-      sessions: [
-        {
-          id,
-          alive: false,
-          lastMsg: 'imp broker not ready (the broker CA did not install)',
-          lifecycle: { vm: 'asleep' },
-        },
-      ],
-    },
+  expect(listed).toMatchObject({
+    sessions: [
+      {
+        id,
+        alive: false,
+        lastMsg: 'imp broker not ready (the broker CA did not install)',
+        lifecycle: { vm: 'asleep' },
+      },
+    ],
   });
 });
 
 test('it provisions concurrent spawns each in an imp of its own with only its own grant', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2423,7 +2402,7 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2463,30 +2442,29 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
   const imps = ctx.port.collectImpNames();
 
   const grants = await Promise.all(imps.map((imp) => ctx.port.readGrants(imp)));
+  const store = await StateStore.open(daemon.dbPath);
 
-  await using store = await StateStore.open(daemon.dbPath);
+  registerTestCleanup(() => store.stop());
 
   const bindings = await store.collectAuthBindings();
 
-  expect<Record<string, unknown>>({
-    imps,
-    grants,
-    hostKeys: bindings.map((binding) => binding.hostKey),
-    impNames: bindings.map((binding) => binding.impName),
-    states: bindings.map((binding) => binding.state),
-  }).toStrictEqual({
-    imps: [expect.stringMatching(/^atc-[\da-f]{20}$/), expect.stringMatching(/^atc-[\da-f]{20}$/)],
-    grants: [['glm'], ['glm']],
-    hostKeys: expect.toIncludeSameMembers(
-      spawned.map((answer) => getRecord(answer, 'session')['id']),
-    ),
-    impNames: expect.toIncludeSameMembers(imps),
-    states: ['ready', 'ready'],
-  });
+  expect<readonly unknown[]>(imps).toStrictEqual([
+    expect.stringMatching(/^atc-[\da-f]{20}$/),
+    expect.stringMatching(/^atc-[\da-f]{20}$/),
+  ]);
+
+  expect(grants).toStrictEqual([['glm'], ['glm']]);
+
+  expect(bindings.map((binding) => binding.hostKey)).toIncludeSameMembers(
+    spawned.map((answer) => getRecord(answer, 'session')['id']),
+  );
+
+  expect(bindings.map((binding) => binding.impName)).toIncludeSameMembers(imps);
+  expect(bindings.map((binding) => binding.state)).toStrictEqual(['ready', 'ready']);
 });
 
 test('it revokes the grants of a running session while its harness keeps running', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2494,7 +2472,7 @@ test('it revokes the grants of a running session while its harness keeps running
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2538,20 +2516,15 @@ test('it revokes the grants of a running session while its harness keeps running
 
   const revoked = await daemon.client.sendRequest('session.auth.revoke', { session: id });
   const listed = await daemon.client.sendRequest('session.list');
+  const grants = await ctx.port.readGrants(imp);
 
-  expect<Record<string, unknown>>({
-    revoked,
-    grants: await ctx.port.readGrants(imp),
-    listed,
-  }).toStrictEqual({
-    revoked: { revoked: true },
-    grants: [],
-    listed: { sessions: [expect.objectContaining({ id, alive: true })] },
-  });
+  expect(revoked).toStrictEqual({ revoked: true });
+  expect(grants).toStrictEqual([]);
+  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: true })] });
 });
 
 test('it refuses to revive a session revoked while it slept', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2559,7 +2532,7 @@ test('it refuses to revive a session revoked while it slept', async () => {
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2612,7 +2585,7 @@ test('it refuses to revive a session revoked while it slept', async () => {
 });
 
 test('it rebinds a revoked session so it revives under the next revision', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2620,7 +2593,7 @@ test('it rebinds a revoked session so it revives under the next revision', async
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2668,26 +2641,22 @@ test('it rebinds a revoked session so it revives under the next revision', async
 
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  expect<Record<string, unknown>>({
-    rebound,
-    requests: ctx.port.sessionRequests,
-  }).toStrictEqual({
-    rebound: { revision: 2 },
-    requests: [
-      expect.objectContaining({
-        kind: 'start',
-        argv: ['sh', '-c', 'echo "revision 1"; exec sleep 30'],
-      }),
-      expect.objectContaining({
-        kind: 'start',
-        argv: ['sh', '-c', 'echo "revision 2"; exec sleep 30'],
-      }),
-    ],
-  });
+  expect(rebound).toStrictEqual({ revision: 2 });
+
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    expect.objectContaining({
+      kind: 'start',
+      argv: ['sh', '-c', 'echo "revision 1"; exec sleep 30'],
+    }),
+    expect.objectContaining({
+      kind: 'start',
+      argv: ['sh', '-c', 'echo "revision 2"; exec sleep 30'],
+    }),
+  ]);
 });
 
 test('it refuses session.auth.revoke from a principal as unauthorized and revokes nothing', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2695,7 +2664,7 @@ test('it refuses session.auth.revoke from a principal as unauthorized and revoke
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2749,7 +2718,7 @@ test('it refuses session.auth.revoke from a principal as unauthorized and revoke
 });
 
 test('it refuses session.auth.rebind from a principal as unauthorized and binds nothing', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2757,7 +2726,7 @@ test('it refuses session.auth.rebind from a principal as unauthorized and binds 
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2811,7 +2780,7 @@ test('it refuses session.auth.rebind from a principal as unauthorized and binds 
 });
 
 test('it forgets a bound session by destroying its imp and dropping its binding, never a secret', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2819,7 +2788,7 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2869,20 +2838,20 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
     confirmToken: offered['confirmToken'],
   });
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   const bindings = await store.collectAuthBindings();
   const secrets = await ctx.port.readSecrets();
 
-  expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames(),
-    secrets: secrets.map((secret) => secret.name),
-    bindings,
-  }).toStrictEqual({ imps: [], secrets: ['glm'], bindings: [] });
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(secrets.map((secret) => secret.name)).toStrictEqual(['glm']);
+  expect(bindings).toStrictEqual([]);
 });
 
 test("it runs a sub-session under the same binding in its parent's imp without granting again", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2890,7 +2859,7 @@ test("it runs a sub-session under the same binding in its parent's imp without g
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -2937,24 +2906,22 @@ test("it runs a sub-session under the same binding in its parent's imp without g
     parent: getRecord(parent, 'session')['id'],
   });
 
-  expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames(),
-    created: ctx.port.calls.filter(
+  expect<readonly unknown[]>(ctx.port.collectImpNames()).toStrictEqual([expect.any(String)]);
+
+  expect(
+    ctx.port.calls.filter(
       (call) => call.startsWith('imps.create') || call.startsWith('grants.add'),
     ),
-    requests: ctx.port.sessionRequests.map((request) => [request.kind, request.require]),
-  }).toStrictEqual({
-    imps: [expect.any(String)],
-    created: [],
-    requests: [
-      ['start', ['broker']],
-      ['start', ['broker']],
-    ],
-  });
+  ).toStrictEqual([]);
+
+  expect(ctx.port.sessionRequests.map((request) => [request.kind, request.require])).toStrictEqual([
+    ['start', ['broker']],
+    ['start', ['broker']],
+  ]);
 });
 
 test("it refuses a sub-session without runtime auth in a bound parent's imp", async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -2962,7 +2929,7 @@ test("it refuses a sub-session without runtime auth in a bound parent's imp", as
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -3014,7 +2981,7 @@ test("it refuses a sub-session without runtime auth in a bound parent's imp", as
 });
 
 test('it takes back, as it starts, a spawn a stopped daemon left provisioning', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -3022,7 +2989,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,
@@ -3054,7 +3021,9 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  await using store = await StateStore.open(daemon.dbPath);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
 
   await new RuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
     hostKey: toSessionID('orphan'),
@@ -3094,7 +3063,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
 });
 
 test('it restores a session whose broker is not ready without a terminal', async () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   const glm = buildStubBrokeredAgentAdapter({
     id: 'glm',
@@ -3102,7 +3071,7 @@ test('it restores a session whose broker is not ready without a terminal', async
     isSelected: () => true,
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-runtime-auth-daemon-',
     options: () => ({
       adapter: glm,

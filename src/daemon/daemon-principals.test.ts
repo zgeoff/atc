@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -19,6 +19,7 @@ import { buildStubAttentionAdapter } from '../test-utils/build-stub-attention-ad
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { buildStubHostHold } from '../test-utils/build-stub-host-hold';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startStubStalledClient } from '../test-utils/start-stub-stalled-client';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { trySendRequest } from '../test-utils/try-send-request';
@@ -27,7 +28,7 @@ import { waitFor } from '../test-utils/wait-for';
 test('it refuses a client a configured target other than local when the config has no principals', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -54,7 +55,7 @@ test('it refuses a client a configured target other than local when the config h
 test('it lets a client spawn on the local target when the config has no principals', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -83,7 +84,7 @@ test('it lets a client spawn on the local target when the config has no principa
 test('it refuses a client a local spawn when the local target holds other options and the config has no principals', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets({ local: { provider: 'local-pty', shell: 'zsh' } }, undefined);
 
@@ -105,7 +106,7 @@ test('it refuses a client a local spawn when the local target holds other option
 test('it refuses a client a spawn without a target when the local target holds other options and the config has no principals', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets({ local: { provider: 'local-pty', shell: 'zsh' } }, undefined);
 
@@ -127,7 +128,7 @@ test('it refuses a client a spawn without a target when the local target holds o
 test('it hides from a client a session on a local target that holds other options when the config has no principals', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets({ local: { provider: 'local-pty', shell: 'zsh' } }, undefined);
 
@@ -157,7 +158,7 @@ test('it hides from a client a session on a local target that holds other option
 test('it lists a client no session on a local target that holds other options when the config has no principals', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets({ local: { provider: 'local-pty', shell: 'zsh' } }, undefined);
 
@@ -186,7 +187,7 @@ test('it lists a client no session on a local target that holds other options wh
 test('it gives a client the implicit local target when the config has no targets or principals', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(undefined, undefined);
 
@@ -213,7 +214,7 @@ test.each([
 ])('it refuses a spawn to %s', async (_label, principal) => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -246,7 +247,7 @@ test.each([
 ])('it lists %s no target and no session', async (_label, principal) => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -306,7 +307,7 @@ test.each([
   async (method, params) => {
     const harnesses: string[] = [];
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: () => {
         const targets = collectTargets(
           { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -372,7 +373,7 @@ test.each([
 test('it answers a spawn under a session on a target outside the principal as under a session that does not exist', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -471,7 +472,7 @@ test.each([
   async (method, params) => {
     const harnesses: string[] = [];
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: () => {
         const targets = collectTargets(
           { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -551,7 +552,7 @@ test.each([
 test('it answers a spawn under a parent whose sub-session is on a target outside the principal as under a session that does not exist', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -659,7 +660,7 @@ test.each([
   async (method, params) => {
     const harnesses: string[] = [];
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: () => {
         const targets = collectTargets(
           { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -739,7 +740,7 @@ test.each([
 test('it answers a spawn under a sub-session whose parent is on a target outside the principal as under a session that does not exist', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -823,7 +824,7 @@ test('it answers a spawn under a sub-session whose parent is on a target outside
 test('it answers permission.respond for a request of a session outside the principal as for an unknown request', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -890,7 +891,7 @@ test('it answers permission.respond for a request of a session outside the princ
 test('it refuses a principal a workspace spawn on a target it may not use for the target alone', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -923,7 +924,7 @@ test('it refuses a principal a workspace spawn on a target it may not use for th
 test('it lists a principal only the directories of spawns on targets it may use', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -966,7 +967,7 @@ test('it lists a principal only the directories of spawns on targets it may use'
 test('it lists a principal only the fleet entries of sessions on targets it may use', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1021,7 +1022,7 @@ test('it lists a principal only the fleet entries of sessions on targets it may 
 test('it keeps the events of a hidden session from a principal whose exited session holds the same agent session id', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1090,7 +1091,7 @@ test('it keeps the events of a hidden session from a principal whose exited sess
 test('it keeps the messages of a hidden session from a principal whose exited session holds the same agent session id', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1167,7 +1168,7 @@ test('it keeps the messages of a hidden session from a principal whose exited se
 test('it keeps the events of a hidden session from the full trail of a principal whose live session resumes the same agent session', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1233,7 +1234,7 @@ test('it keeps the events of a hidden session from the full trail of a principal
 test('it keeps the events of a hidden session from the trail a principal reads for its own session that resumes the same agent session', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1304,7 +1305,7 @@ test('it keeps the events of a hidden session from the trail a principal reads f
 test('it keeps the messages of a hidden session from a principal whose live session resumes the same agent session', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1377,7 +1378,7 @@ test('it keeps the messages of a hidden session from a principal whose live sess
 test('it keeps the activity of a hidden session out of the last activity of a principal session that resumes the same agent session', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1444,7 +1445,7 @@ test('it keeps the activity of a hidden session out of the last activity of a pr
 test("it lists a principal no message of a hidden session that one turn answered with its own session's", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1527,7 +1528,7 @@ test('it keeps the activity of a forgotten hidden session out of a principal ses
   const harnesses: string[] = [];
   const clock = buildStubClock(1_700_000_000_000);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1602,7 +1603,7 @@ test.each([
   async (_label, [rootTarget = 'local', childTarget = 'local']) => {
     const harnesses: string[] = [];
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: () => {
         const targets = collectTargets(
           { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1666,8 +1667,12 @@ test.each([
     expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id: shown })] });
     expect(fleet).toStrictEqual({ fleet: [expect.objectContaining({ sessionID: shown })] });
     expect(JSON.stringify(read)).toInclude(shown);
-    expect(JSON.stringify([listed, fleet, read])).not.toInclude(root);
-    expect(JSON.stringify([listed, fleet, read])).not.toInclude(child);
+    expect(JSON.stringify(listed)).not.toInclude(root);
+    expect(JSON.stringify(fleet)).not.toInclude(root);
+    expect(JSON.stringify(read)).not.toInclude(root);
+    expect(JSON.stringify(listed)).not.toInclude(child);
+    expect(JSON.stringify(fleet)).not.toInclude(child);
+    expect(JSON.stringify(read)).not.toInclude(child);
   },
 );
 
@@ -1679,7 +1684,7 @@ test.each([
   async (_label, [rootTarget = 'local', childTarget = 'local']) => {
     const harnesses: string[] = [];
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: () => {
         const targets = collectTargets(
           { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1756,7 +1761,7 @@ test.each([
 test('it shows a principal a parent leaving when an out-of-reach sub-session joins it as when the owner forgets it', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1778,7 +1783,7 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
 
   const forgotHarnesses: string[] = [];
 
-  await using forgot = await startTestDaemon({
+  const forgot = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1852,35 +1857,35 @@ test('it shows a principal a parent leaving when an out-of-reach sub-session joi
     expect(fleet).toStrictEqual({ fleet: [] });
   });
 
-  const joinedSeen = {
-    events: joinedEvents,
-    sessions: await joinedClient.sendRequest('session.list'),
-    fleet: await joinedClient.sendRequest('fleet.list'),
-  };
+  const joinedSessions = await joinedClient.sendRequest('session.list');
+  const joinedFleet = await joinedClient.sendRequest('fleet.list');
+  const forgotSessions = await forgotClient.sendRequest('session.list');
+  const forgotFleet = await forgotClient.sendRequest('fleet.list');
 
-  const forgotSeen = {
-    events: forgotEvents,
-    sessions: await forgotClient.sendRequest('session.list'),
-    fleet: await forgotClient.sendRequest('fleet.list'),
-  };
-
-  expect(JSON.stringify(forgotSeen).replaceAll(forgotParent, '<parent>')).toBe(
-    JSON.stringify(joinedSeen).replaceAll(joinedParent, '<parent>'),
+  expect(JSON.stringify(forgotEvents).replaceAll(forgotParent, '<parent>')).toBe(
+    JSON.stringify(joinedEvents).replaceAll(joinedParent, '<parent>'),
   );
 
-  expect(forgotSeen).toStrictEqual({
-    events: [{ v: PROTOCOL_V, ev: 'SessionRemoved', s: forgotParent }],
-    sessions: { sessions: [] },
-    fleet: { fleet: [] },
-  });
+  expect(JSON.stringify(forgotSessions).replaceAll(forgotParent, '<parent>')).toBe(
+    JSON.stringify(joinedSessions).replaceAll(joinedParent, '<parent>'),
+  );
 
-  expect(JSON.stringify(joinedSeen)).not.toInclude(child);
+  expect(JSON.stringify(forgotFleet).replaceAll(forgotParent, '<parent>')).toBe(
+    JSON.stringify(joinedFleet).replaceAll(joinedParent, '<parent>'),
+  );
+
+  expect(forgotEvents).toStrictEqual([{ v: PROTOCOL_V, ev: 'SessionRemoved', s: forgotParent }]);
+  expect(forgotSessions).toStrictEqual({ sessions: [] });
+  expect(forgotFleet).toStrictEqual({ fleet: [] });
+  expect(JSON.stringify(joinedEvents)).not.toInclude(child);
+  expect(JSON.stringify(joinedSessions)).not.toInclude(child);
+  expect(JSON.stringify(joinedFleet)).not.toInclude(child);
 });
 
 test('it pushes a principal that sees the whole tree only the removal of a forgotten parent', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -1945,7 +1950,7 @@ test('it pushes a principal that sees the whole tree only the removal of a forgo
 test('it takes the inbox tap from a principal connection whose tapped session leaves its view', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2025,7 +2030,7 @@ test('it takes the inbox tap from a principal connection whose tapped session le
 test('it hides from a principal a restored sub-session of a hidden parent', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2106,7 +2111,7 @@ test('it kills only the sub-sessions a principal could see when the kill began',
   const host = buildStubHostHold();
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2174,7 +2179,7 @@ test('it kills only the sub-sessions a principal could see when the kill began',
 test('it spawns a principal that may see the parent beside the sub-session it asks for', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2223,7 +2228,7 @@ test('it spawns a principal that may see the parent beside the sub-session it as
 test('it lets a principal forget a session on a target it may use', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2260,7 +2265,7 @@ test('it lets a principal forget a session on a target it may use', async () => 
 test('it answers a forget of a dead session with a dead sub-session out of reach as for a session that does not exist, forgetting nothing', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2325,7 +2330,7 @@ test('it answers a forget of a dead session with a dead sub-session out of reach
 test('it leaves the events of a session outside the principal out of an unfiltered read', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2376,7 +2381,7 @@ test('it leaves the events of a session outside the principal out of an unfilter
 test('it answers a report of a session outside the principal as a report that does not exist', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2438,7 +2443,7 @@ test('it answers a report of a session outside the principal as a report that do
 test('it gives a principal the report of a session it may see', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2490,7 +2495,7 @@ test('it gives a principal the report of a session it may see', async () => {
 test('it reads the whole text of only the reports of sessions a principal may see in one events read', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2511,7 +2516,7 @@ test('it reads the whole text of only the reports of sessions a principal may se
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -2567,7 +2572,7 @@ test('it reads the whole text of only the reports of sessions a principal may se
 test('it reads the first of many large reports a principal may see while another connection never reads', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets({ local: { provider: 'local-pty' } }, undefined);
 
@@ -2585,11 +2590,11 @@ test('it reads the first of many large reports a principal may see while another
     DaemonClient.open(path),
   );
 
-  onTestFinished(() => caller.stop());
+  registerTestCleanup(() => caller.stop());
 
   // A connection that reads its handshake answer and then stops reading, so
   // whatever the daemon sends it backs up.
-  using slow = await startStubStalledClient(daemon.socketPath, 'atc/test-build');
+  const slow = await startStubStalledClient(daemon.socketPath, 'atc/test-build');
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {
     cwd: daemon.dir,
@@ -2631,7 +2636,7 @@ test('it reads the first of many large reports a principal may see while another
 test('it names a report by the session that sent it, never a hidden session that resumes the same agent session', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2693,7 +2698,7 @@ test('it names a report by the session that sent it, never a hidden session that
 test('it narrows a request on an owner connection to the principal it acts as', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2740,7 +2745,7 @@ test('it narrows a request on an owner connection to the principal it acts as', 
 test('it lists a connection only the reach of the principal it acts as when a request asks for a wider one', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2787,7 +2792,7 @@ test('it lists a connection only the reach of the principal it acts as when a re
 test('it refuses a connection a spawn on a target only a wider principal than its own may use', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2822,7 +2827,7 @@ test.each(['daemon.quit', 'fleet.restore'])(
   async (method) => {
     const harnesses: string[] = [];
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: () => {
         const targets = collectTargets(
           { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2852,7 +2857,7 @@ test.each(['daemon.quit', 'fleet.restore'])(
 test('it pushes a principal connection only the events of sessions it may see', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2909,7 +2914,7 @@ test('it pushes a principal connection only the events of sessions it may see', 
 test('it refuses a handshake whose principal it cannot read', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(undefined, undefined);
 
@@ -2929,7 +2934,7 @@ test('it refuses a handshake whose principal it cannot read', async () => {
 test('it answers message.get for a message of a session outside the principal as for an unknown message', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -2982,7 +2987,7 @@ test('it answers message.get for a message of a session outside the principal as
 test('it gives each principal a session of its own under the same idempotency key', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(undefined, undefined);
 
@@ -3015,7 +3020,7 @@ test('it gives each principal a session of its own under the same idempotency ke
 test("it answers a principal's retry under its idempotency key with its own session when another principal holds the same key", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(undefined, undefined);
 
@@ -3054,7 +3059,7 @@ test("it answers a principal's retry under its idempotency key with its own sess
 test("it refuses a principal's retry under its idempotency key with another payload", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(undefined, undefined);
 
@@ -3090,7 +3095,7 @@ test("it refuses a principal's retry under its idempotency key with another payl
 test("it keeps a principal connection out of another principal's idempotency keys", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(undefined, undefined);
 
@@ -3125,7 +3130,7 @@ test("it keeps a principal connection out of another principal's idempotency key
 test('it answers a kill of a session with a sub-session out of reach as for a session that does not exist, killing nothing', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3191,7 +3196,7 @@ test.each([
 ])('it lets %s kill a session together with its sub-sessions', async (_label, principal) => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3243,7 +3248,7 @@ test.each([
 test('it answers a second kill of a dead session with a dead sub-session out of reach as for a session that does not exist, removing nothing', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3301,7 +3306,7 @@ test('it answers a second kill of a dead session with a dead sub-session out of 
 test('it answers a second kill that would move a live sub-session out of reach as for a session that does not exist, moving nothing', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3365,7 +3370,7 @@ test.each([
   async (_label, change) => {
     const harnesses: string[] = [];
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: () => {
         const targets = collectTargets(
           { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3421,7 +3426,7 @@ test.each([
 test('it refuses the replay of a held spawn key once the grant no longer reaches its target', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3493,7 +3498,7 @@ test('it refuses the replay of a held spawn key once the grant no longer reaches
 test("it refuses the replay of a held spawn key once its session's tree leaves the principal's reach", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3547,7 +3552,7 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
 test("it refuses the replay of a held spawn key after a restart once its stored tree leaves the principal's reach", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3625,7 +3630,7 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
 test("it answers a principal's long poll on a session whose tree leaves its reach as a poll on a session that never existed", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3702,7 +3707,7 @@ test("it answers a principal's long poll on a session whose tree leaves its reac
 test("it keeps a hidden session's messages from a principal tapping a session that shares its agent session id", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3793,7 +3798,7 @@ test('it refuses a principal an adopt of a session whose tree leaves its reach w
   const host = buildStubHostHold();
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3881,7 +3886,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
   const host = buildStubHostHold();
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -3962,7 +3967,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
 test('it answers the replay of a held spawn key with its session while the grant still reaches it', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4019,7 +4024,7 @@ test('it answers the replay of a held spawn key with its session while the grant
 test("it refuses a narrow connection a spawn on a wider principal's target, with no session and no replay", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4072,7 +4077,7 @@ test("it refuses a narrow connection a spawn on a wider principal's target, with
 test('it runs one spawn for one key on a principal connection, whatever principal each request acts as', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4113,7 +4118,7 @@ test('it runs one spawn for one key on a principal connection, whatever principa
 test("it refuses the replay of a forgotten session's spawn key once its target holds another identity", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4175,7 +4180,7 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
 test("it answers the replay of a forgotten session's spawn key with its session while its target holds the same identity", async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4231,7 +4236,7 @@ test("it answers the replay of a forgotten session's spawn key with its session 
 test('it refuses a principal the replay of a held spawn key that records no target', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4266,9 +4271,15 @@ test('it refuses a principal the replay of a held spawn key that records no targ
   });
 
   await daemon.restart(() => {
-    using db = new Database(daemon.dbPath);
+    const db = new Database(daemon.dbPath);
+
+    const closeDB = registerTestCleanup(() => {
+      db.close();
+    });
 
     db.run('UPDATE idempotency SET effect_target = NULL, effect_target_identity = NULL');
+
+    closeDB();
 
     const targets = collectTargets(
       { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4303,7 +4314,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
 test('it answers the owner the replay of a held spawn key that records no target', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4338,9 +4349,15 @@ test('it answers the owner the replay of a held spawn key that records no target
   });
 
   await daemon.restart(() => {
-    using db = new Database(daemon.dbPath);
+    const db = new Database(daemon.dbPath);
+
+    const closeDB = registerTestCleanup(() => {
+      db.close();
+    });
 
     db.run('UPDATE idempotency SET effect_target = NULL, effect_target_identity = NULL');
+
+    closeDB();
 
     const targets = collectTargets(
       { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4369,7 +4386,7 @@ test('it answers the owner the replay of a held spawn key that records no target
 test('it lists a principal its sessions in the order it gets when no hidden session sits among them', async () => {
   const harnesses: string[] = [];
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4391,7 +4408,7 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
 
   const cleanHarnesses: string[] = [];
 
-  await using clean = await startTestDaemon({
+  const clean = await startTestDaemon({
     options: () => {
       const targets = collectTargets(
         { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
@@ -4511,20 +4528,24 @@ test('it lists a principal its sessions in the order it gets when no hidden sess
   const sessionList = z.object({ sessions: z.array(sessionEntry) });
   const fleetList = z.object({ fleet: z.array(fleetEntry) });
 
-  const mixedOrder = {
-    sessions: sessionList.parse(mixedListed).sessions.map((x) => mixedLabels.get(x.id)),
-    fleet: fleetList.parse(mixedFleet).fleet.map((x) => mixedLabels.get(x.sessionID)),
-  };
+  const mixedSessionOrder = sessionList
+    .parse(mixedListed)
+    .sessions.map((x) => mixedLabels.get(x.id));
 
-  const cleanOrder = {
-    sessions: sessionList.parse(cleanListed).sessions.map((x) => cleanLabels.get(x.id)),
-    fleet: fleetList.parse(cleanFleet).fleet.map((x) => cleanLabels.get(x.sessionID)),
-  };
+  const mixedFleetOrder = fleetList
+    .parse(mixedFleet)
+    .fleet.map((x) => mixedLabels.get(x.sessionID));
 
-  expect(cleanOrder).toStrictEqual({
-    sessions: expect.toIncludeSameMembers(['first', 'second', 'third']),
-    fleet: expect.toIncludeSameMembers(['first', 'second', 'third']),
-  });
+  const cleanSessionOrder = sessionList
+    .parse(cleanListed)
+    .sessions.map((x) => cleanLabels.get(x.id));
 
-  expect(mixedOrder).toStrictEqual(cleanOrder);
+  const cleanFleetOrder = fleetList
+    .parse(cleanFleet)
+    .fleet.map((x) => cleanLabels.get(x.sessionID));
+
+  expect(cleanSessionOrder).toIncludeSameMembers(['first', 'second', 'third']);
+  expect(cleanFleetOrder).toIncludeSameMembers(['first', 'second', 'third']);
+  expect(mixedSessionOrder).toStrictEqual(cleanSessionOrder);
+  expect(mixedFleetOrder).toStrictEqual(cleanFleetOrder);
 });
