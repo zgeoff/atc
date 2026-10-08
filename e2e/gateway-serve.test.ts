@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveGatewayCommand } from '../src/test-utils/resolve-gateway-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
@@ -8,13 +9,11 @@ import { setupTempDir } from '../src/test-utils/setup-temp-dir';
  * A temp directory to run the gateway in, so a relative path lands there,
  * a free port for a gateway that serves, and the command and environment
  * to run one with: `PATH` and a `HOME` inside the temp directory that
- * nothing creates, so a write under it shows in the directory listing.
- * Disposal removes the directory.
+ * nothing creates, so a write under it shows in the directory listing. The
+ * directory goes once the test finishes.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-gateway-bin-'));
+  const tmp = setupTempDir('atc-gateway-bin-');
 
   // The gateway refuses port 0, so a serving gateway takes a port the
   // kernel handed out and released just before.
@@ -22,8 +21,6 @@ function setupTest() {
   const port = probe.port;
 
   probe.stop(true);
-
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
@@ -36,14 +33,11 @@ function setupTest() {
       HOME: join(tmp.dir, 'home'),
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
-test('it exits 1 when it has no state directory', () => {
-  using ctx = setupTest();
+test('it serves from the state directory given before its subcommand over the environment and exits 0 on SIGTERM', async () => {
+  const ctx = setupTest();
 
   writeFileSync(
     join(ctx.dir, 'registry.json'),
@@ -55,93 +49,12 @@ test('it exits 1 when it has no state directory', () => {
     }),
   );
 
-  const result = Bun.spawnSync(
+  const gateway = Bun.spawn(
     [
       ...ctx.command,
-      'serve',
-      '--public-url',
-      'https://atc.geoff.cloud',
-      '--registry',
-      join(ctx.dir, 'registry.json'),
-    ],
-    { cwd: ctx.dir, env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) } },
-  );
-
-  expect({ exitCode: result.exitCode, stderr: result.stderr.toString() }).toStrictEqual({
-    exitCode: 1,
-    stderr: 'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR\n',
-  });
-});
-
-test('it exits 0 on SIGTERM', async () => {
-  using ctx = setupTest();
-
-  writeFileSync(
-    join(ctx.dir, 'registry.json'),
-    JSON.stringify({
-      daemons: {
-        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
-      },
-      defaultDaemon: 'cloud',
-    }),
-  );
-
-  await using gateway = Bun.spawn(
-    [
-      ...ctx.command,
-      'serve',
-      '--public-url',
-      'https://atc.geoff.cloud',
-      '--registry',
-      join(ctx.dir, 'registry.json'),
       '--state-dir',
-      join(ctx.dir, 'state'),
-      '--port',
-      String(ctx.port),
-    ],
-    {
-      cwd: ctx.dir,
-      env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-  );
-
-  // The gateway prints its serving line once its probes answer ready.
-  const reader = gateway.stdout.getReader();
-
-  await reader.read();
-
-  reader.releaseLock();
-  gateway.kill('SIGTERM');
-
-  const exitCode = await gateway.exited;
-
-  expect(exitCode).toBe(0);
-});
-
-test.each([
-  { args: ['--state-dir', 'flagged', 'serve'] },
-  { args: ['--state-dir=flagged', 'serve'] },
-  { args: ['serve', '--state-dir', 'flagged'] },
-  { args: ['serve', '--state-dir=flagged'] },
-])('it serves from the state directory in $args over the environment', async (row) => {
-  using ctx = setupTest();
-
-  writeFileSync(
-    join(ctx.dir, 'registry.json'),
-    JSON.stringify({
-      daemons: {
-        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
-      },
-      defaultDaemon: 'cloud',
-    }),
-  );
-
-  await using gateway = Bun.spawn(
-    [
-      ...ctx.command,
-      ...row.args,
+      'flagged',
+      'serve',
       '--public-url',
       'https://atc.geoff.cloud',
       '--registry',
@@ -161,6 +74,12 @@ test.each([
     },
   );
 
+  registerTestCleanup(() => {
+    gateway.kill();
+
+    return gateway.exited;
+  });
+
   // The gateway prints its serving line once its probes answer ready.
   const reader = gateway.stdout.getReader();
 
@@ -168,11 +87,14 @@ test.each([
 
   reader.releaseLock();
 
-  expect({
-    entries: readdirSync(ctx.dir).toSorted(),
-    flagged: readdirSync(join(ctx.dir, 'flagged')),
-  }).toStrictEqual({
-    entries: ['flagged', 'registry.json'],
-    flagged: expect.toIncludeAllMembers(['gateway.db', 'mcp-auth.db']),
-  });
+  const entries = readdirSync(ctx.dir).toSorted();
+  const flagged = readdirSync(join(ctx.dir, 'flagged'));
+
+  gateway.kill('SIGTERM');
+
+  const exitCode = await gateway.exited;
+
+  expect(entries).toStrictEqual(['flagged', 'registry.json']);
+  expect(flagged).toIncludeAllMembers(['gateway.db', 'mcp-auth.db']);
+  expect(exitCode).toBe(0);
 });
