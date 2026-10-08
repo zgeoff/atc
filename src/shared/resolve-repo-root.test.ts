@@ -10,8 +10,8 @@ function setupTest() {
 
   // A test may leave a directory unreadable, and nothing can remove a tree
   // it cannot read, so every mode is restored before the tree is removed.
-  registerTestCleanup(() => {
-    Bun.spawnSync(['chmod', '-R', 'u+rwx', tmp.dir]);
+  registerTestCleanup(async () => {
+    await Bun.spawn(['chmod', '-R', 'u+rwx', tmp.dir]).exited;
   });
 
   return { dir: tmp.dir };

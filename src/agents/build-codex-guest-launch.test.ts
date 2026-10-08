@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCommand } from '../test-utils/run-command';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 
@@ -11,7 +12,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it copies the staged sign-in, config, and hooks into the Codex home and runs the CLI there', () => {
+test('it copies the staged sign-in, config, and hooks into the Codex home and runs the CLI there', async () => {
   const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
@@ -28,10 +29,11 @@ test('it copies the staged sign-in, config, and hooks into the Codex home and ru
     'c-1',
   ]);
 
-  const run = Bun.spawnSync([launch.bin, ...launch.args], { env: { ...launch.env } });
+  const run = await runCommand([launch.bin, ...launch.args], { env: { ...launch.env } });
+
   const home = join(ctx.dir, 'codex-home');
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout.toString() }).toStrictEqual({
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: `${home}|resume c-1`,
   });
@@ -48,7 +50,7 @@ test('it copies the staged sign-in, config, and hooks into the Codex home and ru
   expect(readFileSync(join(home, 'hooks.json'), 'utf8')).toBe('{"hooks":{}}');
 });
 
-test('it appends the clone trust seed to the config on every launch that finds one', () => {
+test('it appends the clone trust seed to the config on every launch that finds one', async () => {
   const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
@@ -67,10 +69,12 @@ test('it appends the clone trust seed to the config on every launch that finds o
 
   const first = buildCodexGuestLaunch(ctx.dir, 'auth-r1', ['true']);
 
-  Bun.spawnSync([first.bin, ...first.args]);
+  await runCommand([first.bin, ...first.args]);
 
   const second = buildCodexGuestLaunch(ctx.dir, 'auth-r2', ['true']);
-  const run = Bun.spawnSync([second.bin, ...second.args]);
+
+  const run = await runCommand([second.bin, ...second.args]);
+
   const home = join(ctx.dir, 'codex-home');
 
   expect(run.exitCode).toBe(0);
@@ -81,7 +85,7 @@ test('it appends the clone trust seed to the config on every launch that finds o
   );
 });
 
-test('it unsets every variable that would sign Codex in another way', () => {
+test('it unsets every variable that would sign Codex in another way', async () => {
   const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'auth-r1'), { recursive: true });
@@ -95,7 +99,7 @@ test('it unsets every variable that would sign Codex in another way', () => {
     'for v in OPENAI_API_KEY CODEX_API_KEY CODEX_ACCESS_TOKEN KEPT; do printf "%s," "$(printenv "$v" || echo unset)"; done',
   ]);
 
-  const run = Bun.spawnSync([launch.bin, ...launch.args], {
+  const run = await runCommand([launch.bin, ...launch.args], {
     env: {
       OPENAI_API_KEY: 'sk-example',
       CODEX_API_KEY: 'sk-example',
@@ -104,15 +108,16 @@ test('it unsets every variable that would sign Codex in another way', () => {
     },
   });
 
-  expect(run.stdout.toString()).toBe('unset,unset,unset,kept,');
+  expect(run.stdout).toBe('unset,unset,unset,kept,');
 });
 
-test('it stops before the CLI runs when the staged sign-in is missing', () => {
+test('it stops before the CLI runs when the staged sign-in is missing', async () => {
   const ctx = setupTest();
   const launch = buildCodexGuestLaunch(ctx.dir, 'auth-r1', ['sh', '-c', 'echo ran']);
-  const run = Bun.spawnSync([launch.bin, ...launch.args]);
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout.toString() }).toStrictEqual({
+  const run = await runCommand([launch.bin, ...launch.args]);
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
     exitCode: 1,
     stdout: '',
   });

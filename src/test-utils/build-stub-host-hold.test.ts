@@ -32,3 +32,13 @@ test('it lets a held operation finish once released', () => {
 
   expect(held).resolves.toBeUndefined();
 });
+
+test('it lets every operation after the release through at once', () => {
+  const stub = buildStubHostHold();
+
+  stub.startHold();
+  void stub.waitForRelease();
+  stub.release();
+
+  expect(Bun.peek.status(stub.waitForRelease())).toBe('fulfilled');
+});

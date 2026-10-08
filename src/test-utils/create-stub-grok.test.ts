@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
 import { createStubGrok } from './create-stub-grok';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -12,7 +13,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it reports a start in its directory and a permission prompt as grok hooks', () => {
+test('it reports a start in its directory and a permission prompt as grok hooks', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
@@ -20,7 +21,7 @@ test('it reports a start in its directory and a permission prompt as grok hooks'
 
   const stub = createStubGrok(ctx.dir, { atc: [atc], composer: join(ctx.dir, 'composer.js') });
 
-  Bun.spawnSync([stub], {
+  await runCommand([stub], {
     cwd: ctx.dir,
     env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-1' },
   });
@@ -31,7 +32,7 @@ test('it reports a start in its directory and a permission prompt as grok hooks'
   );
 });
 
-test('it reports the events file in place of the permission prompt', () => {
+test('it reports the events file in place of the permission prompt', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
@@ -44,7 +45,7 @@ test('it reports the events file in place of the permission prompt', () => {
     '{"hookEventName":"stop","sessionId":"fake-grok-1"}\n\n',
   );
 
-  Bun.spawnSync([stub], {
+  await runCommand([stub], {
     cwd: ctx.dir,
     env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-1' },
   });
@@ -55,7 +56,7 @@ test('it reports the events file in place of the permission prompt', () => {
   );
 });
 
-test('it prints its arguments, then that its hooks are done, then runs the composer', () => {
+test('it prints its arguments, then that its hooks are done, then runs the composer', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
@@ -63,17 +64,15 @@ test('it prints its arguments, then that its hooks are done, then runs the compo
 
   const stub = createStubGrok(ctx.dir, { atc: [atc], composer: join(ctx.dir, 'composer.js') });
 
-  const run = Bun.spawnSync([stub, '--no-leader'], {
+  const run = await runCommand([stub, '--no-leader'], {
     cwd: ctx.dir,
     env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-1' },
   });
 
-  expect(run.stdout.toString()).toBe(
-    'FAKE_GROK_UP args: --no-leader\nFAKE_GROK_HOOKS_DONE\nCOMPOSER_RAN\n',
-  );
+  expect(run.stdout).toBe('FAKE_GROK_UP args: --no-leader\nFAKE_GROK_HOOKS_DONE\nCOMPOSER_RAN\n');
 });
 
-test('it reports nothing and only echoes input while the home holds its start', () => {
+test('it reports nothing and only echoes input while the home holds its start', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'hooks.log')));
 
@@ -83,12 +82,12 @@ test('it reports nothing and only echoes input while the home holds its start', 
 
   writeFileSync(join(ctx.dir, 'fake-grok-hold-start'), '');
 
-  const run = Bun.spawnSync([stub], {
+  const run = await runCommand([stub], {
     cwd: ctx.dir,
     env: { ...process.env, HOME: ctx.dir, ATC_SESSION_ID: 's-1' },
     stdin: Buffer.from('hello\n'),
   });
 
-  expect(run.stdout.toString()).toBe('FAKE_GROK_UP args: \nGOT:hello\n');
+  expect(run.stdout).toBe('FAKE_GROK_UP args: \nGOT:hello\n');
   expect(readdirSync(ctx.dir)).not.toContain('hooks.log');
 });

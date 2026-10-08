@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCommand } from '../src/test-utils/run-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 function setupTest() {
@@ -9,7 +10,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it chains the user statusline and appends the fleet segment', () => {
+test('it chains the user statusline and appends the fleet segment', async () => {
   const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.claude'), { recursive: true });
@@ -26,21 +27,20 @@ test('it chains the user statusline and appends the fleet segment', () => {
     JSON.stringify({ needs_you: 2, running: 1, done: 0, exited: 0, urgent: 'auth-bug' }),
   );
 
-  const proc = Bun.spawnSync(
+  const proc = await runCommand(
     [process.execPath, join(import.meta.dir, '..', 'src', 'cli.ts'), 'statusline'],
     {
-      stdin: new TextEncoder().encode(JSON.stringify({ session_id: 'sl-1' })),
+      stdin: JSON.stringify({ session_id: 'sl-1' }),
       env: { ...process.env, HOME: ctx.dir, PATH: '/usr/sbin:/usr/bin:/bin' },
-      stdout: 'pipe',
     },
   );
 
-  expect(proc.stdout.toString()).toBe(
+  expect(proc.stdout).toBe(
     'CHAINED-SEGMENT \u001B[90m▏\u001B[0m \u001B[1;31m● 2 need you: auth-bug\u001B[0m \u001B[36m◐ 1\u001B[0m\n',
   );
 });
 
-test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', () => {
+test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_DIR sets', async () => {
   const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, '.claude'), { recursive: true });
@@ -56,19 +56,18 @@ test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_
     JSON.stringify({ statusLine: { type: 'command', command: 'echo CONFIG-DIR-SEGMENT' } }),
   );
 
-  const proc = Bun.spawnSync(
+  const proc = await runCommand(
     [process.execPath, join(import.meta.dir, '..', 'src', 'cli.ts'), 'statusline'],
     {
-      stdin: new TextEncoder().encode(JSON.stringify({ session_id: 'sl-2' })),
+      stdin: JSON.stringify({ session_id: 'sl-2' }),
       env: {
         ...process.env,
         HOME: ctx.dir,
         PATH: '/usr/sbin:/usr/bin:/bin',
         CLAUDE_CONFIG_DIR: join(ctx.dir, 'claude-config'),
       },
-      stdout: 'pipe',
     },
   );
 
-  expect(proc.stdout.toString()).toBe('CONFIG-DIR-SEGMENT\n');
+  expect(proc.stdout).toBe('CONFIG-DIR-SEGMENT\n');
 });

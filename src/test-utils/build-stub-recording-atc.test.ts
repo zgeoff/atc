@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -11,11 +12,11 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it records its arguments, its atc session, and its input in the log', () => {
+test('it records its arguments, its atc session, and its input in the log', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'atc.log')));
 
-  const result = Bun.spawnSync([atc, 'report', 'note'], {
+  const result = await runCommand([atc, 'report', 'note'], {
     stdin: Buffer.from('half way'),
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
@@ -27,16 +28,16 @@ test('it records its arguments, its atc session, and its input in the log', () =
   );
 });
 
-test('it appends each run after the runs before it', () => {
+test('it appends each run after the runs before it', async () => {
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'atc.log')));
 
-  Bun.spawnSync([atc, 'first'], {
+  await runCommand([atc, 'first'], {
     stdin: Buffer.from(''),
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
-  Bun.spawnSync([atc, 'second'], {
+  await runCommand([atc, 'second'], {
     stdin: Buffer.from(''),
     env: { ...process.env, ATC_SESSION_ID: 's-2' },
   });

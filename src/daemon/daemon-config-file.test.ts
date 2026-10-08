@@ -347,7 +347,7 @@ test.each([
   expect(ctx.runs).toStrictEqual([]);
 });
 
-test('it refuses every spawn when a config file sets agents beside an old agent key', async () => {
+test('it refuses a spawn without a target when a config file sets agents beside an old agent key', async () => {
   const ctx = setupTest();
 
   writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: {} }, claudeArgs: [] }));
@@ -368,9 +368,8 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
   });
 
   const untargeted = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir });
-  const local = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
 
-  await Promise.allSettled([untargeted, local]);
+  await untargeted.catch(() => null);
 
   expect(untargeted).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -381,6 +380,33 @@ test('it refuses every spawn when a config file sets agents beside an old agent 
         "claudeArgs cannot be set together with agents; move them into agents or run 'atc config migrate'",
     },
   });
+
+  expect(ctx.harnesses).toStrictEqual([]);
+});
+
+test('it refuses a spawn on the local target when a config file sets agents beside an old agent key', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: {} }, claudeArgs: [] }));
+
+  const daemon = await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        ejectSettleMs: 0,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+        targetErrors: loaded.targetErrors,
+        principals: loaded.principals,
+      };
+    },
+  });
+
+  const local = daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, target: 'local' });
+
+  await local.catch(() => null);
 
   expect(local).rejects.toMatchObject({
     code: 'target_config_invalid',
@@ -651,14 +677,13 @@ test.each([
   });
 });
 
-test.each([
-  '{ "targets": { "local": { "provider": "local-pty" } }, "token": sk_fixture_NOT_A_SECRET_1234 }',
-  '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
-  '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
-])('it keeps a config value out of the listed target errors for the config %s', async (text) => {
+test('it keeps a config value out of the listed target error of a config that is not valid JSON', async () => {
   const ctx = setupTest();
 
-  writeFileSync(ctx.configPath, text);
+  writeFileSync(
+    ctx.configPath,
+    '{ "targets": { "local": { "provider": "local-pty" } }, "token": sk_fixture_NOT_A_SECRET_1234 }',
+  );
 
   const daemon = await startTestDaemon({
     options: () => {
@@ -677,8 +702,59 @@ test.each([
 
   const listed = await daemon.client.sendRequest('agents.list');
 
+  expect(listed['targetErrors']).toStrictEqual([
+    {
+      scope: 'config',
+      problem: 'config_malformed',
+      path: ctx.configPath,
+      detail: 'the file is not valid JSON',
+    },
+  ]);
+
   expect(JSON.stringify(listed['targetErrors'])).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
 });
+
+test.each([
+  [
+    '{ "targets": { "local": { "provider": "local-pty" } }, "defaultTarget": { "token": "sk_fixture_NOT_A_SECRET_1234" } }',
+    { scope: 'defaultTarget', problem: 'defaultTarget: expected a string, got an object' },
+  ],
+  [
+    '{ "targets": { "local": { "provider": "local-pty" }, "box": { "provider": 7, "token": "sk_fixture_NOT_A_SECRET_1234" } } }',
+    {
+      scope: 'target',
+      target: 'box',
+      problem: 'target "box" must be an object with a non-empty string provider',
+    },
+  ],
+])(
+  'it keeps a config value out of the listed target errors for the config %s',
+  async (text, error) => {
+    const ctx = setupTest();
+
+    writeFileSync(ctx.configPath, text);
+
+    const daemon = await startTestDaemon({
+      options: () => {
+        const loaded = loadConfig(ctx.configPath);
+
+        return {
+          adapter: ctx.claude,
+          ejectSettleMs: 0,
+          targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+          defaultTarget: loaded.defaultTarget,
+          targetErrors: loaded.targetErrors,
+          principals: loaded.principals,
+        };
+      },
+    });
+
+    const listed = await daemon.client.sendRequest('agents.list');
+
+    expect(listed['targetErrors']).toStrictEqual([error]);
+    expect(JSON.stringify(listed['targetErrors'])).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
+  },
+);
 
 test.each([
   [
@@ -735,6 +811,7 @@ test.each([
 
     const sessions = await daemon.client.sendRequest('session.list');
 
+    expect(sessions).toMatchObject({ sessions: [{ id: 's-old', name: 'old work' }] });
     expect(JSON.stringify(sessions)).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
   },
 );

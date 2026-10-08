@@ -1,22 +1,30 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 // Each test writes a two-test fixture file into its own temp directory and
 // runs `bun test` on it in a subprocess from the repository root, where the
 // bunfig preload applies, so every check runs in a test home of its own and
-// a write or an override never lands in this run's.
+// a write or an override never lands in this run's. One runner goes through
+// the package script's test-home wrapper, the other runs a bare `bun test`;
+// each resolves once the nested run exits.
 function setupTest() {
   const tmp = setupTempDir('atc-isolate-home-');
+  const repo = join(import.meta.dir, '..', '..');
 
   return {
     dir: tmp.dir,
-    repo: join(import.meta.dir, '..', '..'),
+    repo,
+    runFixture: (fixture: string, env: Readonly<Record<string, string | undefined>>) =>
+      runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], { cwd: repo, env }),
+    runBareFixture: (fixture: string, env: Readonly<Record<string, string | undefined>>) =>
+      runCommand(['bun', 'test', fixture], { cwd: repo, env }),
   };
 }
 
-test("it resolves every atc config and state path inside the run's own home", () => {
+test("it resolves every atc config and state path inside the run's own home", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'state-paths.test.ts');
 
@@ -38,20 +46,15 @@ test('it resolves the databases and the legacy fleet file under the home', () =>
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: process.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, process.env);
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test("it resolves every atc socket and the daemon record inside the run's own runtime directory", () => {
+test("it resolves every atc socket and the daemon record inside the run's own runtime directory", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'runtime-paths.test.ts');
 
@@ -73,20 +76,15 @@ test('it resolves the events socket and the daemon record under the runtime dire
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: process.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, process.env);
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test("it resolves the grok and codex homes inside the run's own home", () => {
+test("it resolves the grok and codex homes inside the run's own home", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'agent-homes.test.ts');
 
@@ -108,20 +106,15 @@ test('it resolves the codex home under the home', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: process.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, process.env);
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test("it resolves the Claude config folder inside the run's own home", () => {
+test("it resolves the Claude config folder inside the run's own home", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'claude-home.test.ts');
 
@@ -143,20 +136,18 @@ test('it runs without an inherited Claude config folder', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: { ...process.env, CLAUDE_CONFIG_DIR: join(ctx.dir, 'claude') },
-    stdout: 'pipe',
-    stderr: 'pipe',
+  const nested = await ctx.runFixture(fixture, {
+    ...process.env,
+    CLAUDE_CONFIG_DIR: join(ctx.dir, 'claude'),
   });
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test('it runs with no enclosing atc session to report to', () => {
+test('it runs with no enclosing atc session to report to', async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'no-session.test.ts');
 
@@ -174,20 +165,19 @@ test('it runs without the session socket', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: { ...process.env, ATC_SESSION_ID: 's1-enclosing', ATC_SOCKET: join(ctx.dir, 'atc.sock') },
-    stdout: 'pipe',
-    stderr: 'pipe',
+  const nested = await ctx.runFixture(fixture, {
+    ...process.env,
+    ATC_SESSION_ID: 's1-enclosing',
+    ATC_SOCKET: join(ctx.dir, 'atc.sock'),
   });
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test("it resolves the XDG config, data, state, and cache homes inside the run's own home", () => {
+test("it resolves the XDG config, data, state, and cache homes inside the run's own home", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'xdg.test.ts');
 
@@ -214,20 +204,15 @@ test('it sets the XDG state and cache homes under the home', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: process.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, process.env);
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test('it runs git in a test without the git config of the host XDG config home', () => {
+test('it runs git in a test without the git config of the host XDG config home', async () => {
   const ctx = setupTest();
   const host = join(ctx.dir, 'host-xdg');
 
@@ -239,35 +224,31 @@ test('it runs git in a test without the git config of the host XDG config home',
   writeFileSync(
     fixture,
     `import { expect, test } from 'bun:test';
+import { runCommand } from '${join(ctx.repo, 'src', 'test-utils', 'run-command')}';
 
-test('it reads no value for the host canary key', () => {
-  const read = Bun.spawnSync(['git', 'config', '--get', 'atc.canary'], { stdout: 'pipe', stderr: 'pipe' });
+test('it reads no value for the host canary key', async () => {
+  const read = await runCommand(['git', 'config', '--get', 'atc.canary']);
 
-  expect(read.stdout.toString()).toBe('');
+  expect(read.stdout).toBe('');
 });
 
-test('it finds no host canary key at all', () => {
-  const read = Bun.spawnSync(['git', 'config', '--get', 'atc.canary'], { stdout: 'pipe', stderr: 'pipe' });
+test('it finds no host canary key at all', async () => {
+  const read = await runCommand(['git', 'config', '--get', 'atc.canary']);
 
   expect(read.exitCode).toBe(1);
 });
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: { ...process.env, XDG_CONFIG_HOME: host },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, { ...process.env, XDG_CONFIG_HOME: host });
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test("it writes a gateway's generated settings file inside the run's own home", () => {
+test("it writes a gateway's generated settings file inside the run's own home", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'gateway-settings.test.ts');
 
@@ -298,20 +279,15 @@ test('it holds the state directory under the home', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: process.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, process.env);
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test("it writes the atc-bridge mod inside the run's own home by default", () => {
+test("it writes the atc-bridge mod inside the run's own home by default", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'atc-bridge.test.ts');
 
@@ -336,20 +312,15 @@ test('it writes the mod again to the same directory', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: process.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, process.env);
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test("it puts back an environment override before the run's next test", () => {
+test("it puts back an environment override before the run's next test", async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'restore.test.ts');
 
@@ -370,20 +341,15 @@ test('it starts without the override', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: process.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, process.env);
 
-  expect({ exitCode: nested.exitCode, summary: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, summary: nested.stderr }).toStrictEqual({
     exitCode: 0,
     summary: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 });
 
-test('it stops a bare bun test before any test runs', () => {
+test('it stops a bare bun test before any test runs', async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'bare.test.ts');
 
@@ -403,17 +369,12 @@ test('it reports the second test ran', () => {
 
   const { ATC_TEST_HOME: _marker, ...outer } = process.env;
 
-  const nested = Bun.spawnSync(['bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: outer,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runBareFixture(fixture, outer);
 
   expect({
     exitCode: nested.exitCode,
-    stdout: nested.stdout.toString(),
-    stderr: nested.stderr.toString(),
+    stdout: nested.stdout,
+    stderr: nested.stderr,
   }).toStrictEqual({
     exitCode: 2,
     stdout: expect.not.toInclude('fixture test ran'),
@@ -421,7 +382,7 @@ test('it reports the second test ran', () => {
   });
 });
 
-test('it refuses to run under a test-home marker whose paths do not match it', () => {
+test('it refuses to run under a test-home marker whose paths do not match it', async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'stale.test.ts');
 
@@ -439,17 +400,15 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: { ...process.env, ATC_TEST_HOME: join(ctx.dir, 'stale-marker') },
-    stdout: 'pipe',
-    stderr: 'pipe',
+  const nested = await ctx.runBareFixture(fixture, {
+    ...process.env,
+    ATC_TEST_HOME: join(ctx.dir, 'stale-marker'),
   });
 
   expect({
     exitCode: nested.exitCode,
-    stdout: nested.stdout.toString(),
-    stderr: nested.stderr.toString(),
+    stdout: nested.stdout,
+    stderr: nested.stderr,
   }).toStrictEqual({
     exitCode: 2,
     stdout: expect.not.toInclude('fixture test ran'),
@@ -457,7 +416,7 @@ test('it reports the second test ran', () => {
   });
 });
 
-test('it refuses to run under a test-home marker beside an enclosing atc session', () => {
+test('it refuses to run under a test-home marker beside an enclosing atc session', async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'session.test.ts');
 
@@ -475,17 +434,15 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: { ...process.env, ATC_SESSION_ID: 's1-enclosing' },
-    stdout: 'pipe',
-    stderr: 'pipe',
+  const nested = await ctx.runBareFixture(fixture, {
+    ...process.env,
+    ATC_SESSION_ID: 's1-enclosing',
   });
 
   expect({
     exitCode: nested.exitCode,
-    stdout: nested.stdout.toString(),
-    stderr: nested.stderr.toString(),
+    stdout: nested.stdout,
+    stderr: nested.stderr,
   }).toStrictEqual({
     exitCode: 2,
     stdout: expect.not.toInclude('fixture test ran'),
@@ -493,7 +450,7 @@ test('it reports the second test ran', () => {
   });
 });
 
-test('it accepts the test home the package script sets up under a temp directory ending in a slash', () => {
+test('it accepts the test home the package script sets up under a temp directory ending in a slash', async () => {
   const ctx = setupTest();
   const fixture = join(ctx.dir, 'slash.test.ts');
 
@@ -511,17 +468,12 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = Bun.spawnSync(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
-    cwd: ctx.repo,
-    env: { ...process.env, TMPDIR: `${ctx.dir}/` },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
+  const nested = await ctx.runFixture(fixture, { ...process.env, TMPDIR: `${ctx.dir}/` });
 
-  expect({ exitCode: nested.exitCode, stderr: nested.stderr.toString() }).toStrictEqual({
+  expect({ exitCode: nested.exitCode, stderr: nested.stderr }).toStrictEqual({
     exitCode: 0,
     stderr: expect.toInclude(' 2 pass\n 0 fail\n'),
   });
 
-  expect(nested.stdout.toString()).toMatch(/fixture test ran\n[\s\S]*fixture test ran\n/);
+  expect(nested.stdout).toMatch(/fixture test ran\n[\s\S]*fixture test ran\n/);
 });

@@ -380,7 +380,15 @@ test('it unpacks a tar archive into a directory it creates', async () => {
   mkdirSync(join(source, 'nested'), { recursive: true });
   writeFileSync(join(source, 'nested', 'file.txt'), 'packed contents');
 
-  const archive = Bun.spawnSync(['tar', '-c', '-f', '-', '-C', source, '.']).stdout;
+  const tar = Bun.spawn(['tar', '-c', '-f', '-', '-C', source, '.'], { stdout: 'pipe' });
+
+  registerTestCleanup(async () => {
+    tar.kill('SIGKILL');
+
+    await tar.exited;
+  });
+
+  const [archive] = await Promise.all([new Response(tar.stdout).bytes(), tar.exited]);
 
   await ctx.provider.transferArchive(archive, join(ctx.dir, 'dest', 'deeper'));
 

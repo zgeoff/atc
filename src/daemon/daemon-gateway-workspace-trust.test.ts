@@ -843,6 +843,7 @@ test.each([
 
     invariant(id !== undefined, 'expected child guest');
 
+    const clonedAtHold = existsSync(root);
     const guest = join(ctx.guestDir, 'sessions', id);
 
     renameSync(guest, `${guest}-saved`);
@@ -855,6 +856,7 @@ test.each([
       message: `tar exited 1 unpacking into ${guest}`,
     });
 
+    expect(clonedAtHold).toBeTrue();
     expect(existsSync(root)).toBeFalse();
   },
 );

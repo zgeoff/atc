@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubSignedInGH } from './build-stub-signed-in-gh';
 import { createStubBin } from './create-stub-bin';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -12,20 +13,20 @@ function setupTest() {
   return { dir: tmp.dir, gh };
 }
 
-test('it prints https for the git protocol', () => {
+test('it prints https for the git protocol', async () => {
   const ctx = setupTest();
 
-  const result = Bun.spawnSync([ctx.gh, 'config', 'get', 'git_protocol'], {
+  const result = await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 
-  expect(result.stdout.toString()).toBe('https\n');
+  expect(result.stdout).toBe('https\n');
 });
 
-test("it lists the signed-in account's one public repository", () => {
+test("it lists the signed-in account's one public repository", async () => {
   const ctx = setupTest();
 
-  const result = Bun.spawnSync(
+  const result = await runCommand(
     [
       ctx.gh,
       'repo',
@@ -38,7 +39,7 @@ test("it lists the signed-in account's one public repository", () => {
     { env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' } },
   );
 
-  expect(JSON.parse(result.stdout.toString())).toStrictEqual([
+  expect(JSON.parse(result.stdout)).toStrictEqual([
     {
       nameWithOwner: 'me/dots',
       description: 'dotfiles',
@@ -49,10 +50,10 @@ test("it lists the signed-in account's one public repository", () => {
   ]);
 });
 
-test("it lists an owner's one private repository", () => {
+test("it lists an owner's one private repository", async () => {
   const ctx = setupTest();
 
-  const result = Bun.spawnSync(
+  const result = await runCommand(
     [
       ctx.gh,
       'repo',
@@ -66,7 +67,7 @@ test("it lists an owner's one private repository", () => {
     { env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' } },
   );
 
-  expect(JSON.parse(result.stdout.toString())).toStrictEqual([
+  expect(JSON.parse(result.stdout)).toStrictEqual([
     {
       nameWithOwner: 'acme/app',
       description: '',
@@ -77,14 +78,14 @@ test("it lists an owner's one private repository", () => {
   ]);
 });
 
-test('it records each command line it runs in the home', () => {
+test('it records each command line it runs in the home', async () => {
   const ctx = setupTest();
 
-  Bun.spawnSync([ctx.gh, 'repo', 'list', '--limit', '100'], {
+  await runCommand([ctx.gh, 'repo', 'list', '--limit', '100'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 
-  Bun.spawnSync([ctx.gh, 'config', 'get', 'git_protocol'], {
+  await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 

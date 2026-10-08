@@ -13,9 +13,10 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it creates the script and the burst pipe under the directory', () => {
+test('it creates the script and the burst pipe under the directory', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   expect(guest).toStrictEqual({
     path: join(ctx.dir, 'harness'),
@@ -28,7 +29,9 @@ test('it creates the script and the burst pipe under the directory', () => {
 
 test('it prints its pid on start, echoes each line, and exits 3 on quit', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
+
   const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 
   registerTestCleanup(() => {
@@ -49,7 +52,8 @@ test('it prints its pid on start, echoes each line, and exits 3 on quit', async 
 
 test('it prints the terminal size it starts at', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   const decoder = new TextDecoder();
 
@@ -77,7 +81,8 @@ test('it prints the terminal size it starts at', async () => {
 
 test('it prints the terminal size again on size', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   const decoder = new TextDecoder();
 
@@ -107,7 +112,9 @@ test('it prints the terminal size again on size', async () => {
 
 test('it prints the burst on later once a line reaches the burst pipe', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
+
   const output: string[] = [];
   const proc = Bun.spawn([guest.path], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' });
 

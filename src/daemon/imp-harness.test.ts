@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
+import { buildStubFailingAttachmentListener } from '../test-utils/build-stub-failing-attachment-listener';
 import { buildStubLaunchAdmission } from '../test-utils/build-stub-launch-admission';
 import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
@@ -22,7 +23,8 @@ function setupTest() {
 
 test('it reconnects after impd drops a send and resumes after the last byte it has', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -119,7 +121,8 @@ test('it reconnects after impd drops a send and resumes after the last byte it h
 
 test('it drops the bytes a resume repeats below its high-water offset', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -185,7 +188,8 @@ test('it drops the bytes a resume repeats below its high-water offset', async ()
 
 test('it does a fresh attach that clears the screen when the resume finds a gap', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -265,7 +269,8 @@ test('it does a fresh attach that clears the screen when the resume finds a gap'
 
 test('it does a fresh attach when impd refuses its resume offset', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -334,7 +339,8 @@ test('it does a fresh attach when impd refuses its resume offset', async () => {
 
 test('it takes the session back from another connection that takes it over', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -415,7 +421,8 @@ test('it takes the session back from another connection that takes it over', asy
 
 test('it carries input once it takes the session back from another connection', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -465,7 +472,8 @@ test('it carries input once it takes the session back from another connection', 
 
 test('it ends a harness whose imp booted cold with the cause of the first boot after its own', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -517,7 +525,8 @@ test('it ends a harness whose imp booted cold with the cause of the first boot a
 test('it ends a harness without a boot id as ended with the cause unknown', async () => {
   const ready = Promise.withResolvers<void>();
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -571,7 +580,8 @@ test('it ends a harness without a boot id as ended with the cause unknown', asyn
 
 test('it ends with the kept exit code of its own generation when impd no longer holds it', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -630,7 +640,8 @@ test('it ends with the kept exit code of its own generation when impd no longer 
 
 test('it ends with the refusal message in the detail when impd refuses without a code', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -686,7 +697,8 @@ test('it ends with the refusal message in the detail when impd refuses without a
 
 test('it redacts credential-shaped runs from a refusal message it shows', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -748,7 +760,8 @@ test('it redacts credential-shaped runs from a refusal message it shows', async 
 
 test('it redacts short credentials in URL, header, and authorization shapes it shows', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -811,7 +824,8 @@ test('it redacts short credentials in URL, header, and authorization shapes it s
 test('it never sends a resume offset to a session whose agent carries none', async () => {
   const ready = Promise.withResolvers<void>();
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -880,7 +894,8 @@ test('it never sends a resume offset to a session whose agent carries none', asy
 
 test('it never sends a resume offset when impd carries no offsets', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-b' });
 
@@ -941,7 +956,8 @@ test('it never sends a resume offset when impd carries no offsets', async () => 
 
 test('it reports a harness whose imp another owner put to sleep as suspended, without waking it', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1021,7 +1037,8 @@ test('it reports a harness whose imp another owner put to sleep as suspended, wi
 
 test('it confirms the exit of a killed harness once impd reports its process exited', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1064,7 +1081,8 @@ test('it confirms the exit of a killed harness once impd reports its process exi
 
 test('it reports no exit for a running harness whose wait runs out', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1105,7 +1123,8 @@ test('it reports no exit for a running harness whose wait runs out', async () =>
 
 test('it reports no exit for a harness whose imp went to sleep with the process inside', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1150,7 +1169,8 @@ test('it reports no exit for a harness whose imp went to sleep with the process 
 
 test('it counts connections impd drops before they start, and ends once its reconnects run out', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1207,7 +1227,8 @@ test('it counts connections impd drops before they start, and ends once its reco
 
 test('it ends once its reconnects run out when a listener throws on every connection that starts', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1250,12 +1271,7 @@ test('it ends once its reconnects run out when a listener throws on every connec
     expect(output.join('')).toInclude('UP:');
   });
 
-  harness.onAttachment((attachment) => {
-    if (attachment === 'attached') {
-      throw new Error('write EPIPE');
-    }
-  });
-
+  harness.onAttachment(buildStubFailingAttachmentListener('write EPIPE'));
   ctx.port.stopConnection('imp-a', 's1', 1011);
 
   await waitFor(() => {
@@ -1274,7 +1290,8 @@ test('it ends once its reconnects run out when a listener throws on every connec
 test('it starts at the size a resize asked for while its host was still readying', async () => {
   const ready = Promise.withResolvers<void>();
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1332,7 +1349,8 @@ test('it starts at the size a resize asked for while its host was still readying
 test('it applies a resize that arrived before impd answered the start', async () => {
   const ready = Promise.withResolvers<void>();
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 
@@ -1384,7 +1402,8 @@ test('it applies a resize that arrived before impd answered the start', async ()
 
 test('it settles its start once impd starts the process', async () => {
   const ctx = setupTest();
-  const guest = createStubHarnessGuest(ctx.dir);
+
+  const guest = await createStubHarnessGuest(ctx.dir);
 
   await ctx.port.createImp({ name: 'imp-a' });
 

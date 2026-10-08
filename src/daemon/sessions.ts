@@ -290,8 +290,8 @@ interface SpawnReadied {
 // stored identity ran on.
 const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
 
-// How long a failed spawn's rollback waits for the killed process to exit,
-// once after its kill and once more after a forced kill.
+// How long a failed spawn's rollback waits for the killed process to exit
+// unless the manager is given another wait.
 const FAILED_SPAWN_EXIT_WAIT_MS = 2000;
 
 // How a harness takes its credential from impd's broker: the broker the
@@ -363,6 +363,11 @@ export class SessionManager {
   // Publishes each session's record before its harness starts; with none,
   // sessions start without a record.
   records: PublishedRecords | null = null;
+
+  // How long a failed spawn's rollback waits for the killed process to
+  // exit, in milliseconds, once after its kill and once more after a forced
+  // kill.
+  failedSpawnExitWaitMs = FAILED_SPAWN_EXIT_WAIT_MS;
 
   // Whether any registered adapter has a screen detector, decided once at
   // construction since the registry never changes afterward. Lets a hot path
@@ -2531,7 +2536,7 @@ export class SessionManager {
   // Waits for a killed harness to exit, ending it with a signal it cannot
   // ignore when the first wait runs out and its provider can send one.
   private async waitForKilledExit(pty: HarnessHandle): Promise<boolean> {
-    const exited = await pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS);
+    const exited = await pty.waitForExit(this.failedSpawnExitWaitMs);
 
     if (exited) {
       return true;
@@ -2543,7 +2548,7 @@ export class SessionManager {
 
     pty.killForced();
 
-    return pty.waitForExit(FAILED_SPAWN_EXIT_WAIT_MS);
+    return pty.waitForExit(this.failedSpawnExitWaitMs);
   }
 
   // Whether a failed spawn's rollback leaves the session free to revive:

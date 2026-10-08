@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 test('it runs the release once the test finishes', () => {
@@ -54,8 +55,8 @@ test('it waits for an asynchronous release before the next hook runs', () => {
   });
 });
 
-test('it refuses to register outside a test', () => {
-  const result = Bun.spawnSync(
+test('it refuses to register outside a test', async () => {
+  const result = await runCommand(
     [
       process.execPath,
       '-e',
@@ -64,7 +65,7 @@ test('it refuses to register outside a test', () => {
     { cwd: import.meta.dir },
   );
 
-  expect(result.stderr.toString()).toInclude('outside of the test runner');
+  expect(result.stderr).toInclude('outside of the test runner');
 });
 
 test('it releases what one test registered last first', () => {
@@ -83,7 +84,7 @@ test('it releases what one test registered last first', () => {
   });
 });
 
-test('it runs every release though some throw, then rethrows them together', () => {
+test('it runs every release though some throw, then rethrows them together', async () => {
   const tmp = setupTempDir('atc-register-test-cleanup-');
   const log = join(tmp.dir, 'releases.log');
   const fixture = join(tmp.dir, 'releases.test.ts');
@@ -107,15 +108,15 @@ test('releases', () => {
 `,
   );
 
-  const result = Bun.spawnSync([process.execPath, 'test', fixture], { cwd: tmp.dir });
+  const result = await runCommand([process.execPath, 'test', fixture], { cwd: tmp.dir });
 
   expect(result.exitCode).toBe(1);
   expect(readFileSync(log, 'utf8')).toBe('third\nfirst\n');
-  expect(result.stderr.toString()).toInclude('error: fourth release failed');
-  expect(result.stderr.toString()).toInclude('error: second release failed');
+  expect(result.stderr).toInclude('error: fourth release failed');
+  expect(result.stderr).toInclude('error: second release failed');
 });
 
-test('it rethrows the one failure itself when a single release throws', () => {
+test('it rethrows the one failure itself when a single release throws', async () => {
   const tmp = setupTempDir('atc-register-test-cleanup-');
   const log = join(tmp.dir, 'releases.log');
   const fixture = join(tmp.dir, 'releases.test.ts');
@@ -135,10 +136,10 @@ test('releases', () => {
 `,
   );
 
-  const result = Bun.spawnSync([process.execPath, 'test', fixture], { cwd: tmp.dir });
+  const result = await runCommand([process.execPath, 'test', fixture], { cwd: tmp.dir });
 
   expect(result.exitCode).toBe(1);
   expect(readFileSync(log, 'utf8')).toBe('first\n');
-  expect(result.stderr.toString()).toInclude('error: second release failed');
-  expect(result.stderr.toString()).not.toInclude('more than one test cleanup failed');
+  expect(result.stderr).toInclude('error: second release failed');
+  expect(result.stderr).not.toInclude('more than one test cleanup failed');
 });

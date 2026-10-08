@@ -10,6 +10,7 @@ import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubImpPort } from './create-stub-imp-port';
 import { KEYS } from './keys';
 import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -1311,7 +1312,7 @@ test('it refuses a grant of a secret the token may not grant', async () => {
 test('it refuses a grant to an imp outside the token patterns', async () => {
   const ctx = setupTest();
 
-  ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
+  ctx.port.setIdentity(buildMockImpIdentity({ imps: ['atc-*'], grantable: ['glm'] }));
 
   ctx.port.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
@@ -3332,8 +3333,10 @@ test('it detaches a live connection as lost and stops its process when the imp s
 
   const outcome = await connection.outcome;
 
-  await waitFor(() => {
-    expect(Bun.spawnSync(['ps', '-o', 'state=', '-p', pid]).stdout.toString()).toStartWith('T');
+  await waitFor(async () => {
+    const ps = await runCommand(['ps', '-o', 'state=', '-p', pid]);
+
+    expect(ps.stdout).toStartWith('T');
   });
 
   expect(outcome).toStrictEqual({ kind: 'detached', reason: 'lost', offset: end });
@@ -3376,8 +3379,10 @@ test('it continues a stopped process under the same generation when the imp wake
 
   await opened.outcome;
 
-  await waitFor(() => {
-    expect(Bun.spawnSync(['ps', '-o', 'state=', '-p', pid]).stdout.toString()).toStartWith('T');
+  await waitFor(async () => {
+    const ps = await runCommand(['ps', '-o', 'state=', '-p', pid]);
+
+    expect(ps.stdout).toStartWith('T');
   });
 
   const started: ImpSessionStarted[] = [];
@@ -3396,8 +3401,10 @@ test('it continues a stopped process under the same generation when the imp wake
     expect(started).toHaveLength(1);
   });
 
-  await waitFor(() => {
-    expect(Bun.spawnSync(['ps', '-o', 'state=', '-p', pid]).stdout.toString()).toStartWith('S');
+  await waitFor(async () => {
+    const ps = await runCommand(['ps', '-o', 'state=', '-p', pid]);
+
+    expect(ps.stdout).toStartWith('S');
   });
 
   expect(started[0]?.output).toMatchObject({ executionGeneration: generation });

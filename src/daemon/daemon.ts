@@ -163,6 +163,11 @@ export interface DaemonOptions {
   // Starts the eject settle timer; defaults to a real `setTimeout`.
   readonly scheduleEjectSettle?: SettleScheduler;
 
+  // How long a failed spawn's rollback waits for the killed process to
+  // exit, once after its kill and once more after a forced kill; 2 s when
+  // unset.
+  readonly failedSpawnExitWaitMs?: number;
+
   // A fleet-wide restore revives one session at a time, waiting for each to
   // report it has booted before starting the next so the machine is not
   // buried under a dozen simultaneous agent boots. This caps how long a
@@ -425,6 +430,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   if (opts.log !== undefined) {
     mgr.log = opts.log;
+  }
+
+  if (opts.failedSpawnExitWaitMs !== undefined) {
+    mgr.failedSpawnExitWaitMs = opts.failedSpawnExitWaitMs;
   }
 
   const records = new PublishedRecords({

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubRecordingFilter } from './build-stub-recording-filter';
 import { createStubBin } from './create-stub-bin';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -11,7 +12,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it records each run and passes its input through unchanged', () => {
+test('it records each run and passes its input through unchanged', async () => {
   const ctx = setupTest();
 
   const filter = createStubBin(
@@ -20,11 +21,11 @@ test('it records each run and passes its input through unchanged', () => {
     buildStubRecordingFilter(join(ctx.dir, 'filter-ran')),
   );
 
-  Bun.spawnSync([filter], { stdin: Buffer.from('first\n') });
+  await runCommand([filter], { stdin: Buffer.from('first\n') });
 
-  const second = Bun.spawnSync([filter], { stdin: Buffer.from('hello\n') });
+  const second = await runCommand([filter], { stdin: Buffer.from('hello\n') });
 
-  expect({ exitCode: second.exitCode, stdout: second.stdout.toString() }).toStrictEqual({
+  expect({ exitCode: second.exitCode, stdout: second.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: 'hello\n',
   });

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import invariant from 'tiny-invariant';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
+import { runCommand } from '../src/test-utils/run-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 /**
@@ -17,10 +18,10 @@ function setupTest() {
   };
 }
 
-test('it adds, lists, and removes a client through atc clients', () => {
+test('it adds, lists, and removes a client through atc clients', async () => {
   const ctx = setupTest();
 
-  const added = Bun.spawnSync(
+  const added = await runCommand(
     [
       ...ctx.atc,
       'clients',
@@ -34,21 +35,19 @@ test('it adds, lists, and removes a client through atc clients', () => {
   );
 
   expect(added.exitCode).toBe(0);
-  expect(added.stdout.toString()).toMatch(/^Added Claude\. Its client ID is \w+\n$/u);
+  expect(added.stdout).toMatch(/^Added Claude\. Its client ID is \w+\n$/u);
 
-  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout.toString())?.groups?.['id'];
+  const clientID = /client ID is (?<id>\w+)/u.exec(added.stdout)?.groups?.['id'];
 
-  invariant(clientID !== undefined, `no client ID in: ${added.stdout.toString()}`);
+  invariant(clientID !== undefined, `no client ID in: ${added.stdout}`);
 
-  const listed = Bun.spawnSync([...ctx.atc, 'clients'], { env: ctx.env });
+  const listed = await runCommand([...ctx.atc, 'clients'], { env: ctx.env });
 
-  expect(listed.stdout.toString()).toBe(
+  expect(listed.stdout).toBe(
     `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback https://claude.com/api/mcp/auth_callback\n`,
   );
 
-  const removed = Bun.spawnSync([...ctx.atc, 'clients', 'remove', clientID], { env: ctx.env });
+  const removed = await runCommand([...ctx.atc, 'clients', 'remove', clientID], { env: ctx.env });
 
-  expect(removed.stdout.toString()).toBe(
-    `Removed client ${clientID} and revoked every grant it held\n`,
-  );
+  expect(removed.stdout).toBe(`Removed client ${clientID} and revoked every grant it held\n`);
 });

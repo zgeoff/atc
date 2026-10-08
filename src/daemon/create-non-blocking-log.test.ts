@@ -3,6 +3,7 @@ import { closeSync, constants, createReadStream, openSync, writeFileSync } from 
 import { join } from 'node:path';
 import { DaemonClient } from '../client/daemon-client';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
+import { runCommand } from '../test-utils/run-command';
 import { sendLinesBeforeHandshake } from '../test-utils/send-lines-before-handshake';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
@@ -21,7 +22,7 @@ async function setupTest() {
   // The listener refuses to start without a token file.
   writeFileSync(join(tmp.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  Bun.spawnSync(['mkfifo', fifoPath]);
+  await runCommand(['mkfifo', fifoPath]);
 
   // The read end opens first and never blocks, so the write end opens at
   // once, and the daemon's writes block once the pipe is full. This end

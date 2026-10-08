@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 import { createStubBin } from './create-stub-bin';
 import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
 // A temp directory that serves as the stand-in's home and holds the socket
@@ -14,7 +15,7 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it moves the listening socket to the daemon socket of its home and exits 0', () => {
+test('it moves the listening socket to the daemon socket of its home and exits 0', async () => {
   const ctx = setupTest();
 
   const listening = Bun.listen({
@@ -32,7 +33,7 @@ test('it moves the listening socket to the daemon socket of its home and exits 0
     buildStubHandoffDaemon(join(ctx.dir, 'next.sock')),
   );
 
-  const run = Bun.spawnSync([atc, 'daemon'], {
+  const run = await runCommand([atc, 'daemon'], {
     env: { HOME: ctx.dir, PATH: '/usr/bin:/bin' },
   });
 

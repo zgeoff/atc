@@ -42,8 +42,8 @@ test('it keeps running after it records the IDs', async () => {
 
   // kill(1) exits nonzero without throwing once the test's own kill has
   // emptied the group.
-  registerTestCleanup(() => {
-    Bun.spawnSync(['kill', '-KILL', '--', `-${proc.pid}`]);
+  registerTestCleanup(async () => {
+    await Bun.spawn(['kill', '-KILL', '--', `-${proc.pid}`]).exited;
   });
 
   await waitFor(() => readFile(pidsFile, 'utf8'));
@@ -64,8 +64,8 @@ test('it stops its child too when its process group is killed', async () => {
 
   // kill(1) exits nonzero without throwing once the test's own kill has
   // emptied the group.
-  registerTestCleanup(() => {
-    Bun.spawnSync(['kill', '-KILL', '--', `-${proc.pid}`]);
+  registerTestCleanup(async () => {
+    await Bun.spawn(['kill', '-KILL', '--', `-${proc.pid}`]).exited;
   });
 
   const pids = await waitFor(() => readFile(pidsFile, 'utf8'));

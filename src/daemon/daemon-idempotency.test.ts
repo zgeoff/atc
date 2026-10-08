@@ -347,7 +347,7 @@ test('it refuses a spawn with fractional rows as bad_args before any session sta
 });
 
 test('it refuses a keyed spawn that fails after its process starts as internal', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
@@ -370,7 +370,7 @@ test('it refuses a keyed spawn that fails after its process starts as internal',
 });
 
 test('it leaves no session behind from a keyed spawn that fails after its process starts, so a retry spawns once', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
@@ -394,7 +394,7 @@ test('it leaves no session behind from a keyed spawn that fails after its proces
 });
 
 test('it answers outcome_unknown with its claim when killing a failed spawn throws', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 2,
@@ -430,7 +430,7 @@ test('it answers outcome_unknown with its claim when killing a failed spawn thro
 });
 
 test('it keeps the key as outcome_unknown when killing a failed spawn throws, so a retry spawns nothing', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 2,
@@ -469,7 +469,7 @@ test('it keeps the key as outcome_unknown when killing a failed spawn throws, so
 });
 
 test('it answers outcome_unknown when a failed spawn cannot be removed from the fleet', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
@@ -503,7 +503,7 @@ test('it answers outcome_unknown when a failed spawn cannot be removed from the 
 });
 
 test('it keeps the key as outcome_unknown when a failed spawn cannot be removed from the fleet, so a retry spawns nothing', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
@@ -784,7 +784,7 @@ test('it keeps the key in progress when the fleet write and the key update both 
 });
 
 test('it answers outcome_unknown with its claim when a failed spawn cannot leave the fleet and the key update fails too', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
@@ -826,7 +826,7 @@ test('it answers outcome_unknown with its claim when a failed spawn cannot leave
 });
 
 test('it keeps the key in progress when a failed spawn cannot leave the fleet and the key update fails too, so a retry spawns nothing', async () => {
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: { bin: 'sleep', args: ['30'] },
     laterPlan: { bin: 'sleep', args: ['30'] },
     failedReads: 1,
@@ -876,7 +876,7 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
@@ -888,7 +888,12 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
 
   const daemon = await startTestDaemon({
     prefix: 'atc-idempotency-',
-    options: () => ({ adapter: stub.adapter }),
+    options: () => ({
+      adapter: stub.adapter,
+
+      // Long enough for a forced kill to land, short of the 2 s default.
+      failedSpawnExitWaitMs: 500,
+    }),
   });
 
   const spawned = daemon.client.sendRequest('session.spawn', {
@@ -912,7 +917,7 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
@@ -924,7 +929,12 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
 
   const daemon = await startTestDaemon({
     prefix: 'atc-idempotency-',
-    options: () => ({ adapter: stub.adapter }),
+    options: () => ({
+      adapter: stub.adapter,
+
+      // Long enough for a forced kill to land, short of the 2 s default.
+      failedSpawnExitWaitMs: 500,
+    }),
   });
 
   const params = { cwd: daemon.dir, cols: 80, rows: 24, idempotencyKey: 'k-1' };
@@ -944,7 +954,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
@@ -958,6 +968,9 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
     prefix: 'atc-idempotency-',
     options: () => ({
       adapter: stub.adapter,
+
+      // With no forced kill to send, the wait only has to run out.
+      failedSpawnExitWaitMs: 100,
       targets: [
         {
           id: 'local',
@@ -1002,13 +1015,64 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
   expect(process.kill(pid, 0)).toBeTrue();
 });
 
+test('it answers outcome_unknown for a failed spawn whose killed process outlasts the exit wait it is given', async () => {
+  const pids = setupTempDir('atc-idempotency-pid-');
+  const pidPipe = join(pids.dir, 'child.pid');
+
+  // The child takes a second to exit after SIGHUP, longer than the given
+  // wait and shorter than the default one, and the start fails only once it
+  // has set that trap and written its pid. It ends by itself after the
+  // rollback's kill, so nothing outlives the test.
+  const stub = await createStubFailingAgentAdapter({
+    firstPlan: {
+      bin: 'bash',
+      args: [
+        '-c',
+        `trap 'sleep 1; exit 0' HUP; echo $$ > '${pidPipe}'; while :; do sleep 0.05; done`,
+      ],
+    },
+    laterPlan: { bin: 'sleep', args: ['30'] },
+    failedReads: 1,
+    ready: { path: pidPipe, timeoutMs: 5000 },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-idempotency-',
+    options: () => ({
+      adapter: stub.adapter,
+      failedSpawnExitWaitMs: 100,
+      targets: [
+        {
+          id: 'local',
+          kind: 'no-forced-kill',
+          options: {},
+          identity: 'test:local',
+          provider: buildStubSoftKillProvider(),
+        },
+      ],
+    }),
+  });
+
+  const spawned = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    idempotencyKey: 'k-1',
+  });
+
+  await Promise.allSettled([spawned]);
+
+  expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown' });
+});
+
 test('it keeps the key of a failed spawn whose provider cannot confirm the exit as outcome_unknown, so a retry spawns nothing', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.dir, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
@@ -1022,6 +1086,9 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
     prefix: 'atc-idempotency-',
     options: () => ({
       adapter: stub.adapter,
+
+      // With no forced kill to send, the wait only has to run out.
+      failedSpawnExitWaitMs: 100,
       targets: [
         {
           id: 'local',
@@ -1073,7 +1140,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
   // only once that pid is written, so the rollback's kill cannot end it.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: ['-c', `trap '' HUP; echo $$ > '${pidPipe}'; exec sleep 10`],
@@ -1087,6 +1154,9 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
     prefix: 'atc-idempotency-',
     options: () => ({
       adapter: stub.adapter,
+
+      // With no forced kill to send, the wait only has to run out.
+      failedSpawnExitWaitMs: 100,
       targets: [
         {
           id: 'local',
@@ -1143,7 +1213,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: [
@@ -1182,7 +1252,7 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: [
@@ -1217,7 +1287,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: [
@@ -1272,7 +1342,7 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
 
   // The child takes 300ms to exit after SIGHUP, and the start fails only
   // once it has set that trap and written its pid.
-  const stub = createStubFailingAgentAdapter({
+  const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
       args: [

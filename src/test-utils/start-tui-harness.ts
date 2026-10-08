@@ -22,6 +22,14 @@ interface TUIHarnessOptions {
   // How long a wait gives the client to draw its first byte; 9 seconds
   // unless set.
   readonly bootMs?: number;
+
+  // The clock the waits read their deadlines from; the wall clock unless
+  // set.
+  readonly now?: () => number;
+
+  // Waits out the interval between a wait's retries; a real sleep unless
+  // set.
+  readonly wait?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -39,12 +47,16 @@ interface TUIHarnessOptions {
  * transports the fixture repositories need, with the fields given laid over
  * them. `env` is the environment the client runs with, so a daemon started
  * with it serves the client. A wait made before the client draws anything
- * gets `bootMs` for that first byte. `stop` kills every client a boot
+ * gets `bootMs` for that first byte. Every wait reads its deadline from
+ * `now` and sleeps between retries through `wait`, the wall clock and a real
+ * sleep unless the options set them. `stop` kills every client a boot
  * started, stops the daemon in the home, and removes the home. That stop runs once the current test
  * finishes, so it must run inside a test; calling `stop` sooner runs it
  * then, and a second stop does nothing.
  */
 export function startTUIHarness(options: TUIHarnessOptions = {}) {
+  const now = options.now ?? Date.now;
+  const wait = options.wait ?? Bun.sleep;
   const tmp = setupTempDir('atc-tui-');
 
   // Registered after the home, so it releases first: the client and its
@@ -147,7 +159,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
       exited = exit.promise;
 
       capture = booted.onData((data) => {
-        firstOutputAt ??= Date.now();
+        firstOutputAt ??= now();
         out += data;
       });
 
@@ -171,7 +183,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
     },
 
     async waitFor(needle: string, ms = 4000): Promise<void> {
-      const start = Date.now();
+      const start = now();
 
       // The client gives its daemon 8 seconds to answer before it draws an
       // error, so the boot phase waits that long plus 1 second for the
@@ -190,7 +202,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
 
           return firstOutputAt;
         },
-        { timeoutMs: bootMs, intervalMs: 50 },
+        { timeoutMs: bootMs, intervalMs: 50, now, wait },
       );
 
       await waitFor(
@@ -201,7 +213,12 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
             );
           }
         },
-        { timeoutMs: Math.max(0, Math.max(start, firstAt) + ms - Date.now()), intervalMs: 50 },
+        {
+          timeoutMs: Math.max(0, Math.max(start, firstAt) + ms - now()),
+          intervalMs: 50,
+          now,
+          wait,
+        },
       );
     },
 
@@ -228,7 +245,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
             );
           }
         },
-        { timeoutMs: ms },
+        { timeoutMs: ms, now, wait },
       );
     },
 

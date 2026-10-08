@@ -251,6 +251,7 @@ test("it keeps a gateway's env values, helper, and base URL out of the agent lis
 
   const listed = JSON.stringify(answer);
 
+  expect(answer['agents']).toPartiallyContain({ id: 'zai', label: 'GLM (z.ai)', kind: 'gateway' });
   expect(listed).not.toInclude('sk-zai-secret');
   expect(listed).not.toInclude('ANTHROPIC_AUTH_TOKEN');
   expect(listed).not.toInclude('600000');

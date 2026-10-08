@@ -10,6 +10,7 @@ import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
 import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { KEYS } from '../test-utils/keys';
+import { runCommand } from '../test-utils/run-command';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { ClaudeAdapter } from './claude-adapter';
@@ -273,75 +274,77 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
       'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
       'atc-bridge/hooks/atc-cli.ts':
         'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
-      'settings.json': JSON.stringify(
+      'settings.json': expect.toBeString(),
+    },
+  });
+
+  const settingsFile = plan?.files['settings.json'];
+
+  invariant(typeof settingsFile === 'string', 'expected the settings file');
+
+  expect(JSON.parse(settingsFile)).toStrictEqual({
+    permissions: { defaultMode: 'plan' },
+    hooks: {
+      SessionStart: [
         {
-          permissions: { defaultMode: 'plan' },
-          hooks: {
-            SessionStart: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            Notification: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            Stop: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            UserPromptSubmit: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            SessionEnd: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-          },
-          statusLine: {
-            type: 'command',
-            command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
-            padding: 0,
-          },
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
         },
-        null,
-        2,
-      ),
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      padding: 0,
     },
   });
 });
@@ -372,74 +375,76 @@ test('it plans a remote spawn in the permission mode its configured arguments se
       'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
       'atc-bridge/hooks/atc-cli.ts':
         'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
-      'settings.json': JSON.stringify(
+      'settings.json': expect.toBeString(),
+    },
+  });
+
+  const settingsFile = plan?.files['settings.json'];
+
+  invariant(typeof settingsFile === 'string', 'expected the settings file');
+
+  expect(JSON.parse(settingsFile)).toStrictEqual({
+    hooks: {
+      SessionStart: [
         {
-          hooks: {
-            SessionStart: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            Notification: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            Stop: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            UserPromptSubmit: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            SessionEnd: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-          },
-          statusLine: {
-            type: 'command',
-            command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
-            padding: 0,
-          },
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
         },
-        null,
-        2,
-      ),
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      padding: 0,
     },
   });
 });
@@ -1043,74 +1048,76 @@ test('it plans a guest spawn without a broker binding in the config of the host 
       'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
       'atc-bridge/hooks/atc-cli.ts':
         'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
-      'settings.json': JSON.stringify(
+      'settings.json': expect.toBeString(),
+    },
+  });
+
+  const settingsFile = plan?.files['settings.json'];
+
+  invariant(typeof settingsFile === 'string', 'expected the settings file');
+
+  expect(JSON.parse(settingsFile)).toStrictEqual({
+    hooks: {
+      SessionStart: [
         {
-          hooks: {
-            SessionStart: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            Notification: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            Stop: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            UserPromptSubmit: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-            SessionEnd: [
-              {
-                hooks: [
-                  {
-                    type: 'command',
-                    command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
-                    timeout: 5,
-                  },
-                ],
-              },
-            ],
-          },
-          statusLine: {
-            type: 'command',
-            command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
-            padding: 0,
-          },
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
         },
-        null,
-        2,
-      ),
+      ],
+      Notification: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      SessionEnd: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent \'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+    statusLine: {
+      type: 'command',
+      command: '"/opt/atc/bin/atc" statusline --agent \'claude\'',
+      padding: 0,
     },
   });
 });
@@ -1229,7 +1236,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
   );
 });
 
-test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', () => {
+test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', async () => {
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1269,13 +1276,13 @@ test('it refuses to start a subscription session in a host whose environment set
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
-  const run = Bun.spawnSync([plan.bin, ...plan.args], {
+  const run = await runCommand([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
   });
 
   expect(run.exitCode).toBe(78);
 
-  expect(run.stderr.toString()).toBe(
+  expect(run.stderr).toBe(
     "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
   );
 
@@ -1293,7 +1300,7 @@ test.each([
   ['CLAUDE_CODE_USE_GATEWAY', '1'],
 ])(
   'it refuses to start a subscription session in a host whose environment sets %s',
-  (name, value) => {
+  async (name, value) => {
     const ctx = setupTest();
 
     const config = parseConfig({
@@ -1328,18 +1335,18 @@ test.each([
 
     invariant(plan !== null, 'expected a guest spawn plan');
 
-    const run = Bun.spawnSync([plan.bin, ...plan.args], {
+    const run = await runCommand([plan.bin, ...plan.args], {
       env: { PATH: process.env['PATH'] ?? '', ...plan.env, [name]: value },
     });
 
-    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+    expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
       exitCode: 78,
       stderr: `atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n`,
     });
   },
 );
 
-test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', () => {
+test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', async () => {
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1379,7 +1386,7 @@ test('it starts a subscription session with a seeded config folder in a host who
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
 
-  const run = Bun.spawnSync([plan.bin, ...plan.args], {
+  const run = await runCommand([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env },
   });
 

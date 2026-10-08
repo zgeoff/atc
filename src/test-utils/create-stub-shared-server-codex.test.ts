@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
 import { createStubSharedServerCodex } from './create-stub-shared-server-codex';
+import { runCommand } from './run-command';
 
 function setupTest() {
   const dir = mkdtempSync(join(tmpdir(), 'atc-stub-shared-codex-'));
@@ -23,11 +24,11 @@ function setupTest() {
   return { dir, stub };
 }
 
-test('it runs the hooks of a later start with the session of the first start', () => {
+test('it runs the hooks of a later start with the session of the first start', async () => {
   const ctx = setupTest();
 
-  Bun.spawnSync([ctx.stub], { cwd: ctx.dir, env: { ...process.env, ATC_SESSION_ID: 's-1' } });
-  Bun.spawnSync([ctx.stub], { cwd: ctx.dir, env: { ...process.env, ATC_SESSION_ID: 's-2' } });
+  await runCommand([ctx.stub], { cwd: ctx.dir, env: { ...process.env, ATC_SESSION_ID: 's-1' } });
+  await runCommand([ctx.stub], { cwd: ctx.dir, env: { ...process.env, ATC_SESSION_ID: 's-2' } });
 
   expect(readFileSync(join(ctx.dir, 'hooks.log'), 'utf8')).toBe(
     'args:hook-report --agent codex\nsession:s-1\nstdin:{"hook_event_name":"SessionStart","session_id":"fake-thread-s-1","source":"startup"}\n' +
@@ -37,12 +38,12 @@ test('it runs the hooks of a later start with the session of the first start', (
   );
 });
 
-test('it runs the hooks of a start with --no-daemon under its own session', () => {
+test('it runs the hooks of a start with --no-daemon under its own session', async () => {
   const ctx = setupTest();
 
-  Bun.spawnSync([ctx.stub], { cwd: ctx.dir, env: { ...process.env, ATC_SESSION_ID: 's-1' } });
+  await runCommand([ctx.stub], { cwd: ctx.dir, env: { ...process.env, ATC_SESSION_ID: 's-1' } });
 
-  Bun.spawnSync([ctx.stub, '--no-daemon'], {
+  await runCommand([ctx.stub, '--no-daemon'], {
     cwd: ctx.dir,
     env: { ...process.env, ATC_SESSION_ID: 's-2' },
   });
@@ -53,10 +54,10 @@ test('it runs the hooks of a start with --no-daemon under its own session', () =
   );
 });
 
-test('it reports the thread it resumes', () => {
+test('it reports the thread it resumes', async () => {
   const ctx = setupTest();
 
-  Bun.spawnSync([ctx.stub, '--no-daemon', 'resume', 't-9'], {
+  await runCommand([ctx.stub, '--no-daemon', 'resume', 't-9'], {
     cwd: ctx.dir,
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
@@ -67,13 +68,13 @@ test('it reports the thread it resumes', () => {
   );
 });
 
-test('it prints its arguments, then runs the composer', () => {
+test('it prints its arguments, then runs the composer', async () => {
   const ctx = setupTest();
 
-  const run = Bun.spawnSync([ctx.stub, '--no-daemon', 'resume', 't-9'], {
+  const run = await runCommand([ctx.stub, '--no-daemon', 'resume', 't-9'], {
     cwd: ctx.dir,
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
-  expect(run.stdout.toString()).toBe('FAKE_CODEX_UP args: --no-daemon resume t-9\nCOMPOSER_RAN\n');
+  expect(run.stdout).toBe('FAKE_CODEX_UP args: --no-daemon resume t-9\nCOMPOSER_RAN\n');
 });
