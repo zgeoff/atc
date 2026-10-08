@@ -4,7 +4,8 @@
  * and keeps what the daemon wrote; while not, it takes none and returns 0,
  * as a socket whose kernel buffer is full does, so backpressure is a switch
  * instead of a buffer race. It starts accepting, and `setAccepting` flips
- * it. It ignores the end of the connection. `collectFrames`
+ * it. `hasEnded` is true once the daemon has ended the connection, which
+ * changes nothing else the stub does. `collectFrames`
  * parses each complete line written so far as one protocol frame, in order.
  * `waitForAnswer` resolves with the frame answering the request id once the
  * daemon has written it, that id left out, so two answers compare whole.
@@ -14,6 +15,7 @@ export function buildStubPeerSocket() {
   const waiters = new Map<number, PromiseWithResolvers<Record<string, unknown>>>();
 
   let accepting = true;
+  let ended = false;
   let written = '';
 
   const collectFrames = (): Record<string, unknown>[] =>
@@ -46,11 +48,14 @@ export function buildStubPeerSocket() {
 
         return data.length;
       },
-      end: () => {},
+      end: () => {
+        ended = true;
+      },
     },
     setAccepting: (value: boolean) => {
       accepting = value;
     },
+    hasEnded: (): boolean => ended,
     collectFrames,
     waitForAnswer: (id: number): Promise<Record<string, unknown>> => {
       const found = collectFrames().find((frame) => frame['id'] === id);

@@ -1844,8 +1844,13 @@ export class DaemonConnection {
     });
   }
 
+  // An answer the full queue refuses ends the connection, as an event does,
+  // so the client sees its request fail rather than wait for an answer
+  // that never comes.
   private sendOk(id: number, ok: Readonly<Record<string, unknown>>): void {
-    this.queue.send(encodeMessage({ v: PROTOCOL_V, id, ok }));
+    if (!this.queue.send(encodeMessage({ v: PROTOCOL_V, id, ok }))) {
+      this.peer.end();
+    }
   }
 
   private sendErr(
@@ -1854,13 +1859,17 @@ export class DaemonConnection {
     msg: string,
     data?: Readonly<Record<string, unknown>>,
   ): void {
-    this.queue.send(
+    const queued = this.queue.send(
       encodeMessage({
         v: PROTOCOL_V,
         id,
         err: { code, msg, ...(data === undefined ? {} : { data }) },
       }),
     );
+
+    if (!queued) {
+      this.peer.end();
+    }
   }
 }
 
