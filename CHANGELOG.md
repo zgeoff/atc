@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.4.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.4.0...@zgeoff/atc@3.4.1) (2026-10-08)
+
+### Bug Fixes
+
+- **geo-171:** run each codex session without the shared server
+  ([#414](https://github.com/zgeoff/atc/issues/414))
+  ([e249a03](https://github.com/zgeoff/atc/commit/e249a038caa5fd86221616c67be0aeea2b3739da))
+
 ## [3.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.3.1...@zgeoff/atc@3.4.0) (2026-10-07)
 
 ### Features
