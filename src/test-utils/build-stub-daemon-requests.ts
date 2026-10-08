@@ -51,7 +51,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
 
   const countAll = () => sent.length + options.countReactions();
 
-  const resolveAndWait = async (request: Readonly<StubRequest>, value: DaemonAnswer) => {
+  const answerRequest = async (request: Readonly<StubRequest>, value: DaemonAnswer) => {
     const before = countAll();
 
     answered.add(request);
@@ -81,7 +81,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
         return latest;
       }, waitOptions);
 
-      await resolveAndWait(request, value);
+      await answerRequest(request, value);
     },
     async answerOldest(m: string, value: DaemonAnswer): Promise<void> {
       const request = await waitFor(() => {
@@ -94,7 +94,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
         return oldest;
       }, waitOptions);
 
-      await resolveAndWait(request, value);
+      await answerRequest(request, value);
     },
     collectSent(m: string): DaemonAnswer[] {
       return sent.filter((request) => request.m === m).map((request) => request.p);

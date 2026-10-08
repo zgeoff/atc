@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
+import { PROTOCOL_V } from '../protocol/protocol';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubAnsweringListener } from './start-stub-answering-listener';
@@ -29,7 +31,7 @@ test('it sends a hello with no auth under the client name it is given', async ()
 
   expect(ctx.lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
     {
-      v: expect.toBeNumber(),
+      v: PROTOCOL_V,
       id: 1,
       m: 'daemon.hello',
       p: { client: 'atc/stub', auth: { scheme: 'none' } },
@@ -75,6 +77,11 @@ test('it closes its connection once stopped', async () => {
 
 test('it closes its connection once the test finishes without a stop', async () => {
   const path = join(tmpdir(), `atc-stub-stalled-client-${randomUUID()}.sock`);
+
+  registerTestCleanup(() => {
+    rmSync(path, { force: true });
+  });
+
   const closes: string[] = [];
 
   const server = Bun.listen({

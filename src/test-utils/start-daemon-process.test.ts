@@ -1,7 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
@@ -102,7 +101,17 @@ test('it rejects a client at once with the daemon stderr when the daemon exited 
 test('it opens a client on the socket a replacement holds when the daemon exits before it listens', async () => {
   const ctx = setupTest();
   const nextPath = join(ctx.dir, 'next.sock');
-  const replacement = Bun.listen({ unix: nextPath, socket: { data() {} } });
+  let accepted = 0;
+
+  const replacement = Bun.listen({
+    unix: nextPath,
+    socket: {
+      open() {
+        accepted += 1;
+      },
+      data() {},
+    },
+  });
 
   registerTestCleanup(() => {
     replacement.stop(true);
@@ -111,10 +120,14 @@ test('it opens a client on the socket a replacement holds when the daemon exits 
   const atc = createStubBin(join(ctx.dir, 'bin'), 'atc', buildStubHandoffDaemon(nextPath));
   const daemon = startDaemonProcess({ command: [atc], home: ctx.dir });
 
-  const client = await daemon.openClient();
+  await daemon.openClient();
+
   const exitCode = await daemon.proc.exited;
 
-  expect(client).toBeInstanceOf(DaemonClient);
+  await waitFor(() => {
+    expect(accepted).toBe(1);
+  });
+
   expect(exitCode).toBe(0);
 });
 
@@ -242,7 +255,7 @@ test('it kills the daemon once the test finishes without a stop', () => {
   });
 });
 
-test('it kills the daemon its home records before the home is removed once the test finishes', () => {
+test('it kills the daemon its home records and removes the home once the test finishes', () => {
   const ctx = setupTest();
   const daemon = startDaemonProcess({ command: ['bash', '-c', 'exec sleep 30'], home: ctx.dir });
 

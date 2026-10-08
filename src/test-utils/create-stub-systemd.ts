@@ -8,7 +8,7 @@ interface StubSystemd {
   // first on the PATH of every process that could reach a real one.
   readonly binDir: string;
 
-  // The directory `ATC_PROC_ROOT` points at, where `placeInUnit` writes.
+  // The directory `ATC_PROC_ROOT` points at, where `writeUnitCgroup` writes.
   readonly procRoot: string;
 
   // The arguments of every `systemctl` call, one line per call.
@@ -22,7 +22,7 @@ interface StubSystemd {
 
   // Places the pid in a user service of the given name, as the cgroup of a
   // daemon run by a user manager reads.
-  readonly placeInUnit: (pid: number, unit: string) => void;
+  readonly writeUnitCgroup: (pid: number, unit: string) => void;
 
   readonly remove: () => void;
 }
@@ -118,7 +118,7 @@ exit 0
     writeMainPID: (pid) => {
       writeFileSync(join(root, 'mainpid'), String(pid));
     },
-    placeInUnit: (pid, unit) => {
+    writeUnitCgroup: (pid, unit) => {
       mkdirSync(join(procRoot, String(pid)), { recursive: true });
 
       writeFileSync(

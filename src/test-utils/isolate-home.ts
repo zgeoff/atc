@@ -16,7 +16,7 @@ if (marker === undefined) {
   stopRun('a bare `bun test` runs against your real home; run `bun run test` instead');
 }
 
-assertTestHome(marker);
+requireTestHome(marker);
 
 afterEach(() => {
   removeEnvOverrides();
@@ -26,7 +26,7 @@ afterEach(() => {
 // points under it and no enclosing session's variables remain; a stale or
 // hand-set marker stops the run before any test imports atc. An inherited
 // CLAUDE_CONFIG_DIR would move the Claude config folder out of the home.
-function assertTestHome(root: string): void {
+function requireTestHome(root: string): void {
   const expected: Readonly<Record<string, string>> = {
     HOME: join(root, 'home'),
     XDG_RUNTIME_DIR: join(root, 'runtime'),

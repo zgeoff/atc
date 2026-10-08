@@ -1,5 +1,4 @@
 import { expect, mock, test } from 'bun:test';
-import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { buildStubTargets } from './build-stub-targets';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -24,7 +23,7 @@ test('it builds a target with a provider for each local-pty entry and none for a
     id: 'local',
     kind: 'local-pty',
     options: {},
-    identity: buildTargetIdentity('local-pty', {}),
+    identity: 'local-pty:44136fa355b3678a',
     provider: {
       kind: 'local-pty',
       remote: false,
@@ -43,7 +42,7 @@ test('it builds a target with a provider for each local-pty entry and none for a
     id: 'box',
     kind: 'imp',
     options: { size: 2 },
-    identity: buildTargetIdentity('imp', { size: 2 }),
+    identity: 'imp:7028e13f78f6f7ad',
     provider: null,
   });
 });

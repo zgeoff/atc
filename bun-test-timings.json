@@ -452,7 +452,7 @@
     "src/test-utils/remove-env-overrides.test.ts": 55,
     "src/client/resolve-workspace-root.test.ts": 54,
     "src/shared/collect-targets.test.ts": 54,
-    "src/test-utils/can-bind-addresses.test.ts": 54,
+    "src/test-utils/try-bind-addresses.test.ts": 54,
     "src/test-utils/setup-temp-dir.test.ts": 54,
     "src/client/build-leader-chords.test.ts": 53,
     "src/client/ui.test.ts": 53,

@@ -25,7 +25,7 @@ async function setupTest() {
 test('it revokes a grant whose id starts with a dash with --revoke <id> so its access token stops working', async () => {
   const ctx = await setupTest();
 
-  const clientID = await ctx.server.addClient('Claude', [
+  const clientID = await ctx.server.createClient('Claude', [
     'https://claude.ai/api/mcp/auth_callback',
   ]);
 

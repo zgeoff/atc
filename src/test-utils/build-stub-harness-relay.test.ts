@@ -45,7 +45,7 @@ test('it runs every close listener when the guest hangs up', () => {
 
   stub.relay.onClose(first);
   stub.relay.onClose(second);
-  stub.hangUp();
+  stub.emitClose();
 
   expect(first).toHaveBeenCalledOnce();
   expect(second).toHaveBeenCalledOnce();

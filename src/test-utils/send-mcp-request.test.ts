@@ -38,3 +38,12 @@ test('it refuses a response without a result', () => {
     'result is not an object',
   );
 });
+
+test('it refuses a response whose body is not a JSON object', () => {
+  const server = startStubMCPServer([{ jsonrpc: '2.0', id: 1, result: {} }]);
+
+  expect(sendMCPRequest(server.url, 'tok', 'tools/list')).rejects.toThrowWithMessage(
+    TypeError,
+    'response body is not a JSON object',
+  );
+});

@@ -6,7 +6,7 @@ import { setupMCPHTTP } from './setup-mcp-http';
 
 test('it collects the approval line the server prints', async () => {
   const server = await setupMCPHTTP();
-  const clientID = await server.addClient('dots', ['https://dots.example/cb']);
+  const clientID = await server.createClient('dots', ['https://dots.example/cb']);
 
   const authorize = new URL(`${server.url}/oauth2/authorize`);
 
@@ -45,7 +45,7 @@ test('it keeps the authorization database where atc keeps it under the home dire
 
 test('it adds a client the store lists under its name and redirect URIs', async () => {
   const server = await setupMCPHTTP();
-  const clientID = await server.addClient('dots', ['https://dots.example/cb']);
+  const clientID = await server.createClient('dots', ['https://dots.example/cb']);
   const clients = await collectClients(server.store.db);
 
   expect(clients).toStrictEqual([

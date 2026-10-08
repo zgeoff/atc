@@ -18,7 +18,7 @@ test("it sends a principal's tap that replaced the owner's during the read no me
 
   inbox.source.taps.attach(toSessionID('s-shown'), principal, false);
 
-  inbox.read([
+  inbox.answer([
     {
       id: toMessageID('m-hidden'),
       atcID: toSessionID('s-hidden'),
@@ -49,7 +49,7 @@ test('it sends a tap that replaced the one a drain read for nothing from that dr
 
   inbox.source.taps.attach(toSessionID('s-shown'), second, true);
 
-  inbox.read([
+  inbox.answer([
     {
       id: toMessageID('m-1'),
       atcID: toSessionID('s-shown'),
@@ -74,7 +74,7 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
 
   const drain = drainInbox(toSessionID('s-shown'), inbox.source);
 
-  inbox.read([
+  inbox.answer([
     {
       id: toMessageID('m-hidden'),
       atcID: toSessionID('s-hidden'),

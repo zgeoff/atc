@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import type { HookEvent } from '../protocol/hook-event';
@@ -39,7 +39,7 @@ test('it keeps every socket and state path inside its directory', async () => {
 test('it names the directory by the prefix', async () => {
   const harness = await startTestDaemon({ prefix: 'atc-named-' });
 
-  expect(harness.dir).toInclude('/atc-named-');
+  expect(basename(harness.dir)).toStartWith('atc-named-');
 });
 
 test('it hands the options builder the daemon paths', async () => {
@@ -209,6 +209,23 @@ test('it collects the events the main client receives', async () => {
 
   await waitFor(() => {
     expect(harness.events).toPartiallyContain({ ev: 'SessionAdded' });
+  });
+});
+
+test('it collects the events the new main client receives after a restart in the same list', async () => {
+  const harness = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter() }),
+  });
+
+  // Nothing spawns before the restart, so a session added is one the new
+  // main client saw.
+  const events = harness.events;
+
+  await harness.restart();
+  await harness.client.sendRequest('session.spawn', { cwd: harness.dir, name: 'after-restart' });
+
+  await waitFor(() => {
+    expect(events).toPartiallyContain({ ev: 'SessionAdded' });
   });
 });
 

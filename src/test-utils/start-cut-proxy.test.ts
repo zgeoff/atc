@@ -80,7 +80,9 @@ test('it forwards the answer once its cuts are spent', async () => {
     cut.stop();
   });
 
-  await Promise.allSettled([cut.sendRequest('session.spawn')]);
+  const cutReply = cut.sendRequest('session.spawn');
+
+  await Promise.allSettled([cutReply]);
 
   const fresh = await DaemonClient.open({ hostname: '127.0.0.1', port: proxy.port });
 
@@ -90,6 +92,7 @@ test('it forwards the answer once its cuts are spent', async () => {
 
   const answer = await fresh.sendRequest('session.spawn');
 
+  expect(cutReply).rejects.toMatchObject({ code: 'internal' });
   expect(answer).toStrictEqual({ m: 'session.spawn' });
 });
 

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubWaitClock } from './build-stub-wait-clock';
@@ -138,6 +139,11 @@ test('it throws listing the collected lines once the connection closes short of 
 
 test('it ends its connection once the test finishes without an unsubscribe', async () => {
   const path = join(tmpdir(), `atc-sock-lines-${randomUUID()}.sock`);
+
+  registerTestCleanup(() => {
+    rmSync(path, { force: true });
+  });
+
   const closes: string[] = [];
 
   const server = Bun.listen({

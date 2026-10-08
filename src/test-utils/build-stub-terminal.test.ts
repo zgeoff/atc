@@ -19,7 +19,7 @@ test('it returns only the chunks written after a mark', () => {
 
   terminal.write('stale frame');
 
-  const mark = terminal.mark();
+  const mark = terminal.countChunks();
 
   terminal.write('fresh ');
   terminal.write('frame');
@@ -32,7 +32,7 @@ test('it returns no text since a mark when nothing is written after it', () => {
 
   terminal.write('stale frame');
 
-  const mark = terminal.mark();
+  const mark = terminal.countChunks();
 
   expect(terminal.getTextSince(mark)).toBe('');
 });

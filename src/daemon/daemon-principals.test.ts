@@ -2125,7 +2125,7 @@ test('it kills only the sub-sessions a principal could see when the kill began',
           hosts: {
             local: {
               capabilities: { suspend: true },
-              suspendHost: host.hold,
+              suspendHost: host.waitForRelease,
             },
           },
         }),
@@ -2147,7 +2147,7 @@ test('it kills only the sub-sessions a principal could see when the kill began',
 
   const parent = String(getRecord(parentSpawned, 'session')['id']);
 
-  host.arm();
+  host.startHold();
 
   // A held host operation would keep the daemon's stop waiting.
   const releaseHost = registerTestCleanup(() => {
@@ -3816,7 +3816,7 @@ test('it refuses a principal an adopt of a session whose tree leaves its reach w
           spawned: harnesses,
           hosts: {
             local: {
-              prepareHost: host.hold,
+              prepareHost: host.waitForRelease,
             },
           },
         }),
@@ -3841,7 +3841,7 @@ test('it refuses a principal an adopt of a session whose tree leaves its reach w
 
   await daemon.client.sendRequest('session.kill', { session: parent });
 
-  host.arm();
+  host.startHold();
 
   // A held host operation would keep the daemon's stop waiting.
   const releaseHost = registerTestCleanup(() => {
@@ -3909,7 +3909,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
           spawned: harnesses,
           hosts: {
             local: {
-              prepareHost: host.hold,
+              prepareHost: host.waitForRelease,
             },
           },
         }),
@@ -3932,7 +3932,7 @@ test('it refuses a principal a spawn under a parent whose tree leaves its reach 
   const parent = String(getRecord(parentSpawned, 'session')['id']);
   const missing = randomUUID();
 
-  host.arm();
+  host.startHold();
 
   // A held host operation would keep the daemon's stop waiting.
   const releaseHost = registerTestCleanup(() => {

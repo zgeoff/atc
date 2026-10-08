@@ -18,15 +18,13 @@ test('it records the host of each preparation in the order it began', () => {
   expect(stub.prepares).toStrictEqual(['h1', 'h2']);
 });
 
-test('it finishes a held host preparation once its host is released', async () => {
+test('it finishes a held host preparation once its host is released', () => {
   const stub = buildStubHeldProvider();
   const preparing = stub.provider.prepareHost({ host: 'h1', daemonID: 'd1' });
 
   stub.release('h1');
 
-  const settled = await Promise.allSettled([preparing]);
-
-  expect(settled).toStrictEqual([{ status: 'fulfilled', value: undefined }]);
+  expect(preparing).resolves.toBeUndefined();
 });
 
 test('it holds the preparation of a host not yet released after an earlier one finishes', async () => {

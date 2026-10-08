@@ -21,7 +21,7 @@ interface MCPHTTPSetupOptions {
  * collected. The authorization server's database sits where atc keeps it
  * under `home`, so a CLI run with that home opens the same file. `store` is
  * the authorization server's database opened a second time the way
- * `atc clients` and `atc grants` open it, and `addClient` adds a client
+ * `atc clients` and `atc grants` open it, and `createClient` adds a client
  * through it and returns the client id. `restartDaemon` stops the daemon and
  * starts a fresh one on the same socket and database, the way an operator
  * restarts it, with the principals it is given; `countDaemonClients` reads
@@ -102,7 +102,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     requests,
     caller,
     store,
-    async addClient(name: string, redirectURIs: readonly string[]): Promise<string> {
+    async createClient(name: string, redirectURIs: readonly string[]): Promise<string> {
       const created = await store.auth.api.createFixedClient({
         body: { name, redirectURIs: [...redirectURIs] },
       });

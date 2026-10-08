@@ -4,7 +4,7 @@ import { buildStubHostHold } from './build-stub-host-hold';
 test('it lets an operation through while unarmed', async () => {
   const stub = buildStubHostHold();
 
-  await stub.hold();
+  await stub.waitForRelease();
 
   expect(Bun.peek.status(stub.entered)).toBe('pending');
 });
@@ -12,9 +12,9 @@ test('it lets an operation through while unarmed', async () => {
 test('it reports the entry of an armed operation and holds it until the release', async () => {
   const stub = buildStubHostHold();
 
-  stub.arm();
+  stub.startHold();
 
-  const held = stub.hold();
+  const held = stub.waitForRelease();
 
   await stub.entered;
 
@@ -24,9 +24,9 @@ test('it reports the entry of an armed operation and holds it until the release'
 test('it lets a held operation finish once released', () => {
   const stub = buildStubHostHold();
 
-  stub.arm();
+  stub.startHold();
 
-  const held = stub.hold();
+  const held = stub.waitForRelease();
 
   stub.release();
 

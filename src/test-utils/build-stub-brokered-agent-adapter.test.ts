@@ -106,3 +106,36 @@ test('it takes the id it is given and sleeps on a local spawn', () => {
     args: ['30'],
   });
 });
+
+test('it reports a GLM profile of the claude kind that offers no model or effort', () => {
+  const adapter = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+  });
+
+  expect(adapter.profile).toStrictEqual({
+    label: 'GLM',
+    kind: 'claude',
+    bin: 'sh',
+    models: null,
+    spawnOptions: {
+      model: {
+        supported: false,
+        values: null,
+        examples: [],
+        default: null,
+        backendEffect: null,
+        note: null,
+      },
+      effort: {
+        supported: false,
+        values: null,
+        examples: [],
+        default: null,
+        backendEffect: null,
+        note: null,
+      },
+    },
+  });
+});

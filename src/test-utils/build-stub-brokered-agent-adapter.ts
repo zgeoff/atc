@@ -23,7 +23,9 @@ interface StubBrokeredAgentAdapterConfig {
  * prints `revision <n>` for the binding's revision and then sleeps, with
  * the binding's variables and `CLAUDE_CONFIG_DIR` set to `claude-config`
  * in the guest folder; a guest spawn without one, and a local spawn, sleep.
- * Every other member is the plain agent adapter's.
+ * Its profile is a `GLM` agent of the claude kind run through `sh`, which
+ * offers no model or effort choice. Every other member is the plain agent
+ * adapter's.
  */
 export function buildStubBrokeredAgentAdapter(
   config: StubBrokeredAgentAdapterConfig,

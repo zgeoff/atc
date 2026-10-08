@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -58,10 +58,19 @@ test('it stops listening once the test finishes without a stop', () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-unanswering-${randomUUID()}.sock`);
+  let left: boolean | null = null;
+
+  // Runs after the helper's own release, which registers later; it
+  // records whether that release left the socket, then removes it.
+  registerTestCleanup(() => {
+    left = existsSync(path);
+
+    rmSync(path, { force: true });
+  });
 
   startStubUnansweringUnixListener(path);
 
   onTestFinished(() => {
-    expect(existsSync(path)).toBeFalse();
+    expect(left).toBeFalse();
   });
 });

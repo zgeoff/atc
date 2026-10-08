@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStubEchoClaude } from './create-stub-echo-claude';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
@@ -20,6 +21,10 @@ test('it prints its pid, then echoes each line with its pid until it reads quit'
   const bin = createStubEchoClaude(ctx.dir);
   const run = Bun.spawn([bin], { stdin: Buffer.from('one\ntwo\nquit\nafter\n'), stdout: 'pipe' });
 
+  registerTestCleanup(() => {
+    run.kill();
+  });
+
   const output = await new Response(run.stdout).text();
 
   await run.exited;
@@ -34,6 +39,10 @@ test('it exits 0 when its input ends without quit', async () => {
   const ctx = setupTest();
   const bin = createStubEchoClaude(ctx.dir);
   const run = Bun.spawn([bin], { stdin: Buffer.from('one\n'), stdout: 'ignore' });
+
+  registerTestCleanup(() => {
+    run.kill();
+  });
 
   const exitCode = await run.exited;
 

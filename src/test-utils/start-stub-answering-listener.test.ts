@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -38,7 +38,7 @@ test('it records the first read and answers it with one line', async () => {
 
   expect(answer).toBe('answer\n');
   expect(listener.lines).toStrictEqual(['hello\n']);
-  expect(listener.peers.length).toBe(1);
+  expect(listener.peers).toHaveLength(1);
 });
 
 test('it leaves every byte after the first read unread', async () => {
@@ -107,10 +107,19 @@ test('it stops listening once the test finishes without a stop', async () => {
   // The socket sits outside any directory the test removes, so only the
   // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-answering-${randomUUID()}.sock`);
+  let left: boolean | null = null;
+
+  // Runs after the helper's own release, which registers later; it
+  // records whether that release left the socket, then removes it.
+  registerTestCleanup(() => {
+    left = existsSync(path);
+
+    rmSync(path, { force: true });
+  });
 
   await startStubAnsweringListener(path);
 
   onTestFinished(() => {
-    expect(existsSync(path)).toBeFalse();
+    expect(left).toBeFalse();
   });
 });

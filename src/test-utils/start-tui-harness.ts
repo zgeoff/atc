@@ -32,14 +32,15 @@ interface TUIHarnessOptions {
  * starts a new client on the same home and stops capturing the old one.
  * `read` returns every byte the client drew since the last `reset`, and
  * `waitFor` polls that capture for a needle. The client appends what it
- * decides without drawing to a log: `markClientLog` returns a cursor into
- * it, and `waitForClientLog` polls for a line written after that cursor.
+ * decides without drawing to a log: `countClientLogLines` returns how many
+ * lines it holds, and `waitForClientLog` polls for a line written after
+ * that many.
  * `writeConfig` writes the home's config: the stand-in binaries and the git
  * transports the fixture repositories need, with the fields given laid over
  * them. `env` is the environment the client runs with, so a daemon started
  * with it serves the client. A wait made before the client draws anything
- * gets `bootMs` for that first byte. `stop` stops the client and the
- * daemon in the home and removes it. That stop runs once the current test
+ * gets `bootMs` for that first byte. `stop` kills every client a boot
+ * started, stops the daemon in the home, and removes the home. That stop runs once the current test
  * finishes, so it must run inside a test; calling `stop` sooner runs it
  * then, and a second stop does nothing.
  */
@@ -129,6 +130,12 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
         env,
       });
 
+      // Every client a boot starts is killed before the daemon stops, so a
+      // client a later boot replaced never outlives the test.
+      owned.defer(() => {
+        booted.kill();
+      });
+
       const exit = Promise.withResolvers<number>();
 
       booted.onExit((event) => {
@@ -206,7 +213,7 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
       return exited;
     },
 
-    markClientLog(): number {
+    countClientLogLines(): number {
       return readClientLog(clientLogPath).length;
     },
 

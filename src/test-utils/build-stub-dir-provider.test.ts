@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { buildStubDirProvider } from './build-stub-dir-provider';
+import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 
 // A temp directory the provider's transfers and commands run in.
@@ -125,8 +126,13 @@ test('it starts a harness on a local terminal and records its spec', async () =>
   };
 
   const exited = Promise.withResolvers<number>();
+  const harness = provider.spawnHarness(spec);
 
-  provider.spawnHarness(spec).onExit((exit) => {
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  harness.onExit((exit) => {
     exited.resolve(exit.exitCode);
   });
 

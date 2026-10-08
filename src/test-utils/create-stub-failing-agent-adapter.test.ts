@@ -111,13 +111,16 @@ test('it finds no headless runner once the failing reads the config holds are sp
 
   stub.adapter.planSpawn({ prompt: '', resume: false });
 
-  // Spends both failing reads, whose throws other tests check.
-  await Promise.allSettled([
-    Promise.try(() => stub.adapter.headlessRunner),
-    Promise.try(() => stub.adapter.headlessRunner),
-  ]);
+  const firstRead = Promise.try(() => stub.adapter.headlessRunner);
+  const secondRead = Promise.try(() => stub.adapter.headlessRunner);
 
-  expect(stub.adapter.headlessRunner).toBeNull();
+  await Promise.allSettled([firstRead, secondRead]);
+
+  const runner = stub.adapter.headlessRunner;
+
+  expect(firstRead).rejects.toThrowWithMessage(Error, 'adapter failed after the process started');
+  expect(secondRead).rejects.toThrowWithMessage(Error, 'adapter failed after the process started');
+  expect(runner).toBeNull();
 });
 
 test('it fails the first read only once a process has written its pid to the ready pipe', () => {

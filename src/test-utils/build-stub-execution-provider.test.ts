@@ -93,10 +93,16 @@ test('it rejects a destroy with the failure it was given and records nothing', (
 test('it suspends and destroys again once a failure is cleared', async () => {
   const provider = buildStubExecutionProvider();
 
-  provider.setSuspendFailure(new Error('refused'));
-  provider.setDestroyFailure(new Error('refused'));
+  const suspendFailure = new Error('suspend refused');
+  const destroyFailure = new Error('destroy refused');
 
-  await Promise.allSettled([provider.suspendHost('host-a'), provider.destroyHost('host-a')]);
+  provider.setSuspendFailure(suspendFailure);
+  provider.setDestroyFailure(destroyFailure);
+
+  const failedSuspend = provider.suspendHost('host-a');
+  const failedDestroy = provider.destroyHost('host-a');
+
+  await Promise.allSettled([failedSuspend, failedDestroy]);
 
   provider.setSuspendFailure(null);
   provider.setDestroyFailure(null);
@@ -104,6 +110,8 @@ test('it suspends and destroys again once a failure is cleared', async () => {
   await provider.suspendHost('host-a');
   await provider.destroyHost('host-a');
 
+  expect(failedSuspend).rejects.toBe(suspendFailure);
+  expect(failedDestroy).rejects.toBe(destroyFailure);
   expect(provider.suspended).toStrictEqual(['host-a']);
   expect(provider.destroyed).toStrictEqual(['host-a']);
 });

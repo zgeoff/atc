@@ -342,7 +342,7 @@ test('it offers the local directory flow alone when the daemon offers no sources
 
   ctx.reset();
 
-  const mark = ctx.markClientLog();
+  const mark = ctx.countClientLogLines();
 
   ctx.write(KEYS.tab);
 
