@@ -5,7 +5,6 @@ import invariant from 'tiny-invariant';
 import { buildStubForkingGH } from './build-stub-forking-gh';
 import { createStubBin } from './create-stub-bin';
 import { registerTestCleanup } from './register-test-cleanup';
-import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 import { waitFor } from './wait-for';
 
@@ -44,7 +43,7 @@ test('it keeps running after it records the IDs', async () => {
   // kill(1) exits nonzero without throwing once the test's own kill has
   // emptied the group.
   registerTestCleanup(async () => {
-    await runCommand(['kill', '-KILL', '--', `-${proc.pid}`]);
+    await Bun.spawn(['kill', '-KILL', '--', `-${proc.pid}`]).exited;
   });
 
   await waitFor(() => readFile(pidsFile, 'utf8'));
@@ -66,7 +65,7 @@ test('it stops its child too when its process group is killed', async () => {
   // kill(1) exits nonzero without throwing once the test's own kill has
   // emptied the group.
   registerTestCleanup(async () => {
-    await runCommand(['kill', '-KILL', '--', `-${proc.pid}`]);
+    await Bun.spawn(['kill', '-KILL', '--', `-${proc.pid}`]).exited;
   });
 
   const pids = await waitFor(() => readFile(pidsFile, 'utf8'));

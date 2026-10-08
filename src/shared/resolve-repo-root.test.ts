@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { runCommand } from '../test-utils/run-command';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { resolveRepoRoot } from './resolve-repo-root';
 
@@ -12,7 +11,7 @@ function setupTest() {
   // A test may leave a directory unreadable, and nothing can remove a tree
   // it cannot read, so every mode is restored before the tree is removed.
   registerTestCleanup(async () => {
-    await runCommand(['chmod', '-R', 'u+rwx', tmp.dir]);
+    await Bun.spawn(['chmod', '-R', 'u+rwx', tmp.dir]).exited;
   });
 
   return { dir: tmp.dir };

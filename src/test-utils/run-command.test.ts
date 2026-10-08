@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
@@ -39,4 +39,19 @@ test('it takes standard input as bytes', async () => {
   const result = await runCommand(['cat'], { stdin: Buffer.from('bytes') });
 
   expect(result.stdout).toBe('bytes');
+});
+
+test('it kills a command still running when the test finishes', () => {
+  const run = runCommand(['sleep', '30']);
+
+  onTestFinished(async () => {
+    const result = await run;
+
+    expect(result).toStrictEqual({
+      exitCode: null,
+      signalCode: 'SIGKILL',
+      stdout: '',
+      stderr: '',
+    });
+  });
 });

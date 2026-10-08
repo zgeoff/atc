@@ -1,3 +1,5 @@
+import { registerTestCleanup } from './register-test-cleanup';
+
 interface CommandOptions {
   readonly cwd?: string;
 
@@ -19,7 +21,9 @@ interface CommandResult {
 /**
  * Runs a command as its own process and resolves once it exits, with its
  * exit code, the signal that ended it, and everything it printed. The run
- * never blocks the test's event loop, so the test's timeout still applies.
+ * never blocks the test's event loop, so the test's timeout still applies,
+ * and a command still running when the test finishes is killed and awaited
+ * then. Call it only inside a test, never from a cleanup.
  */
 export async function runCommand(
   cmd: readonly string[],
@@ -31,6 +35,14 @@ export async function runCommand(
     stdin: options.stdin === undefined ? 'ignore' : Buffer.from(options.stdin),
     stdout: 'pipe',
     stderr: 'pipe',
+  });
+
+  registerTestCleanup(async () => {
+    if (proc.exitCode === null && proc.signalCode === null) {
+      proc.kill('SIGKILL');
+    }
+
+    await proc.exited;
   });
 
   const [stdout, stderr] = await Promise.all([
