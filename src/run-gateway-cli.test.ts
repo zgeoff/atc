@@ -13,7 +13,13 @@ test.each([
 ])(
   'it adds a client to the state directory in $before $after over the environment',
   async (row) => {
-    const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+    const io = {
+      runGateway: mock(),
+      runClients: mock(),
+      print: mock(),
+      printError: mock(),
+      exit: mock(),
+    };
 
     await runGatewayCLI(
       [
@@ -42,7 +48,13 @@ test.each([
   { args: ['clients', 'list', '--state-dir', 'flagged'] },
   { args: ['clients', 'list', '--state-dir=flagged'] },
 ])('it lists the clients in the state directory in $args over the environment', async (row) => {
-  const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
 
   await runGatewayCLI(row.args, { ATC_GATEWAY_STATE_DIR: 'from-env' }, io);
 
@@ -62,7 +74,13 @@ test.each([
 ])(
   'it removes a client from the state directory in $before $after over the environment',
   async (row) => {
-    const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+    const io = {
+      runGateway: mock(),
+      runClients: mock(),
+      print: mock(),
+      printError: mock(),
+      exit: mock(),
+    };
 
     await runGatewayCLI(
       [...row.before, 'client-1', ...row.after],
@@ -83,7 +101,13 @@ test.each([
   { args: ['serve', '--state-dir', 'flagged'] },
   { args: ['serve', '--state-dir=flagged'] },
 ])('it serves from the state directory in $args over the environment', async (row) => {
-  const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
 
   await runGatewayCLI(
     [...row.args, '--public-url', 'https://atc.geoff.cloud', '--registry', 'registry.json'],
@@ -101,7 +125,13 @@ test.each([
 });
 
 test('it exits 1 when it serves with no state directory', async () => {
-  const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
 
   await runGatewayCLI(
     ['serve', '--public-url', 'https://atc.geoff.cloud', '--registry', 'registry.json'],
@@ -118,7 +148,13 @@ test('it exits 1 when it serves with no state directory', async () => {
 });
 
 test('it exits 1 on two state directories that differ', async () => {
-  const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
 
   await runGatewayCLI(
     [
@@ -144,7 +180,13 @@ test('it exits 1 on two state directories that differ', async () => {
 });
 
 test('it exits 1 when a flag takes the state directory flag as its value', async () => {
-  const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
 
   await runGatewayCLI(
     ['clients', 'add', 'Claude', '--redirect-uri', '--state-dir', 'flagged'],
@@ -161,7 +203,13 @@ test('it exits 1 when a flag takes the state directory flag as its value', async
 });
 
 test('it exits 1 on a flag it does not know at the root', async () => {
-  const io = { runGateway: mock(), runClients: mock(), printError: mock(), exit: mock() };
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
 
   await runGatewayCLI(
     [
@@ -182,4 +230,102 @@ test('it exits 1 on a flag it does not know at the root', async () => {
 
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
   expect(io.runClients).not.toHaveBeenCalled();
+});
+
+test('it exits 1 on a port it cannot parse', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(
+    [
+      'serve',
+      '--port',
+      'abc',
+      '--public-url',
+      'https://atc.geoff.cloud',
+      '--registry',
+      'registry.json',
+      '--state-dir',
+      'flagged',
+    ],
+    {},
+    io,
+  );
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+    "atc-gateway: --port takes a port from 1 to 65535, not 'abc'",
+  );
+
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(io.runGateway).not.toHaveBeenCalled();
+});
+
+test.each([
+  { args: ['clients'] },
+  { args: ['clients', 'list'] },
+  {
+    args: ['clients', 'add', 'Claude', '--redirect-uri', 'https://claude.ai/api/mcp/auth_callback'],
+  },
+  { args: ['clients', 'remove', 'client-1'] },
+])('it exits 1 on $args with no state directory', async (row) => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(row.args, {}, io);
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+    'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR',
+  );
+
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(io.runClients).not.toHaveBeenCalled();
+});
+
+test('it prints the usage of the command --help follows and exits 0', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(['--state-dir', 'flagged', 'clients', 'add', '--help'], {}, io);
+
+  expect(io.print).toHaveBeenCalledExactlyOnceWith(
+    expect.toInclude('Add a client and print its client ID (clients add)'),
+  );
+
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(0);
+  expect(io.runClients).not.toHaveBeenCalled();
+});
+
+test('it prints the usage and the reason and exits 1 on a missing required flag', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(['--state-dir', 'flagged', 'serve', '--registry', 'registry.json'], {}, io);
+
+  expect(io.print).toHaveBeenCalledExactlyOnceWith(
+    expect.toInclude('Serve MCP over HTTP behind OAuth (atc-gateway serve'),
+  );
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith('Missing required argument: --public-url');
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(io.runGateway).not.toHaveBeenCalled();
 });
