@@ -175,7 +175,7 @@ test('it exits after its reports without reading input when the home asks it to'
 });
 
 test('it runs the composer after its reports when the home asks for one last', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'composer.js'), "console.log('COMPOSER_RAN');\n");
 
