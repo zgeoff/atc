@@ -40,6 +40,7 @@ const ERROR_CODES = [
   'credential_missing',
   'ref_not_found',
   'clone_failed',
+  'git_output_open',
   'sanitize_failed',
   'tar_failed',
   'workspace_exists',

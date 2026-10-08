@@ -57,7 +57,7 @@ test('it stops a command that runs past its time limit and reports it timed out'
   });
 });
 
-test('it reports a git that exits while a child it left holds its output open, by subcommand only', async () => {
+test('it fails with git_output_open, by subcommand only, when a child a git left holds its output open past the bound', async () => {
   const ctx = setupTest();
   const groups: number[] = [];
   const armed: (() => void)[] = [];
@@ -67,7 +67,6 @@ test('it reports a git that exits while a child it left holds its output open, b
     ['-c', 'alias.hold=!sleep 30 & :', 'hold', 'https://user:secret@example.test'],
     {
       cwd: ctx.dir,
-      timeoutMs: 20_000,
       onSpawn: (pid) => {
         groups.push(pid);
       },
@@ -84,34 +83,70 @@ test('it reports a git that exits while a child it left holds its output open, b
     },
   );
 
-  // The watch arms once git exits; the sleep it left still holds the output.
-  const report = await waitFor(() => {
+  // The bound arms once git exits; the sleep it left still holds the output.
+  const bound = await waitFor(() => {
     invariant(armed[0]);
 
     return armed[0];
   });
 
-  report();
+  bound();
 
-  const [group] = groups;
-
-  invariant(group !== undefined && group > 0);
-
-  process.kill(-group, 'SIGKILL');
-
-  await run;
+  expect(run).rejects.toMatchObject({
+    code: 'git_output_open',
+    message: 'git hold exited 0, but its output was still open 30000 ms later',
+    data: { subcommand: 'hold', exitCode: 0 },
+  });
 
   expect(reported).toStrictEqual([
-    'atc: git hold exited 0, but its output was still open 5000 ms later',
+    'atc: git hold exited 0, but its output was still open 30000 ms later; killing its process group',
   ]);
 });
 
-test('it disarms the open-output report once the output of the git closes', async () => {
+test('it kills the process group of a git whose output stays open past the bound', async () => {
+  const ctx = setupTest();
+  const groups: number[] = [];
+  const armed: (() => void)[] = [];
+
+  const run = runGit(['-c', 'alias.hold=!sleep 30 & :', 'hold'], {
+    cwd: ctx.dir,
+    onSpawn: (pid) => {
+      groups.push(pid);
+    },
+    openOutputWatch: {
+      schedule: (report) => {
+        armed.push(report);
+
+        return () => {};
+      },
+      report: () => {},
+    },
+  });
+
+  const bound = await waitFor(() => {
+    invariant(armed[0]);
+
+    return armed[0];
+  });
+
+  bound();
+
+  await run.catch(() => null);
+
+  // Every git leads its own process group, so the kill reaches the sleep
+  // it left. A killed group is gone once the kernel reaps it.
+  await waitFor(() => {
+    expect(() => process.kill(-(groups[0] ?? 0), 0)).toThrow('ESRCH');
+  });
+});
+
+test('it disarms the bound when a command passes its time limit', async () => {
   const ctx = setupTest();
   const watched: { disarmed: boolean }[] = [];
 
-  await runGit(['--version'], {
+  await runGit(['-c', 'alias.wait=!sleep 30', 'wait'], {
     cwd: ctx.dir,
+    timeoutMs: 200,
     openOutputWatch: {
       schedule: () => {
         const entry = { disarmed: false };
@@ -126,7 +161,34 @@ test('it disarms the open-output report once the output of the git closes', asyn
     },
   });
 
-  expect(watched).toStrictEqual([{ disarmed: true }]);
+  // The killed git exits a moment after the time limit, which arms the
+  // bound only to disarm it.
+  await waitFor(() => {
+    expect(watched).toStrictEqual([{ disarmed: true }]);
+  });
+});
+
+test('it disarms the bound once the output of the git closes', async () => {
+  const ctx = setupTest();
+  const watched: { afterMs: number; disarmed: boolean }[] = [];
+
+  await runGit(['--version'], {
+    cwd: ctx.dir,
+    openOutputWatch: {
+      schedule: (_report, afterMs) => {
+        const entry = { afterMs, disarmed: false };
+
+        watched.push(entry);
+
+        return () => {
+          entry.disarmed = true;
+        };
+      },
+      report: () => {},
+    },
+  });
+
+  expect(watched).toStrictEqual([{ afterMs: 30_000, disarmed: true }]);
 });
 
 test('it reports the pid of the git it starts', async () => {

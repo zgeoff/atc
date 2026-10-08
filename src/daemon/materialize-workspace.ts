@@ -222,7 +222,7 @@ function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
 // trust, refuses the spawn rather than run it in place unchecked.
 async function isOutsideWorkTree(path: string): Promise<boolean> {
   const inside = await runGit(['rev-parse', '--is-inside-work-tree'], { cwd: path }).catch(
-    () => null,
+    requireStartFailure,
   );
 
   if (inside === null || inside.exitCode === 0) {
@@ -238,6 +238,17 @@ async function isOutsideWorkTree(path: string): Promise<boolean> {
     `git cannot inspect ${path}: ${inside.stderr.trim().split('\n')[0] ?? ''}`,
     { phase: 'resolving' },
   );
+}
+
+// A git that cannot start, such as one given a cwd that is gone, reads as
+// no answer; any refusal, such as git's output that stays open after it
+// exits, is thrown on so it fails the spawn.
+function requireStartFailure(error: unknown): null {
+  if (error instanceof DaemonError) {
+    throw error;
+  }
+
+  return null;
 }
 
 // The credential's value, which every message leaving this module is
@@ -403,7 +414,7 @@ async function resolveSource(
  */
 async function requireNoOriginRewriteCredentials(path: string): Promise<void> {
   const origin = await runGit(['config', '--get', 'remote.origin.url'], { cwd: path }).catch(
-    () => null,
+    requireStartFailure,
   );
 
   const normalized = origin?.exitCode === 0 ? normalizeGitURL(origin.stdout) : null;
@@ -605,9 +616,13 @@ async function createCleanClone(
   return { sha: clone.sha, branch: clone.branch, archive };
 }
 
+// A refusal holds the phase it failed in; one raised without a phase, such
+// as a git whose output stays open, takes the phase it was raised in.
 function toDaemonError(error: unknown, code: ErrorCode, phase: MaterializationPhase): DaemonError {
   if (error instanceof DaemonError) {
-    return error;
+    return error.data?.['phase'] === undefined
+      ? new DaemonError(error.code, error.message, { ...error.data, phase })
+      : error;
   }
 
   const reason = error instanceof Error ? error.message : String(error);

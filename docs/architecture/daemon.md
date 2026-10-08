@@ -434,6 +434,14 @@ the daemon records each phase in it before the phase starts:
 | `ready`        | starts the session in `cwd`                                                                                                            |
 | `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                             |
 
+The daemon waits at most 30 s for a git command's stdout and stderr to close once git exits. The
+output can stay open after git exits for 2 reasons: a process that git started still holds it, or
+the daemon never sees its hangup. Each git command the daemon runs leads its own process group, so a
+kill reaches those helpers. When the output stays open past 30 s, the daemon logs a line with the
+git subcommand and its exit code, kills git's process group, and fails the step that ran git with
+`git_output_open`. A spawn fails in the phase it reached, and a `git.probe` fails with the same
+code.
+
 The session registers only once its workspace is ready, so no client lists a session over a partial
 checkout. The row holds the URL without its credential, the commit, and the ref, and never a
 credential. It also holds the names of the variables the session withholds: the `credentialRef`
