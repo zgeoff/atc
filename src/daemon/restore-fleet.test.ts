@@ -5,6 +5,7 @@ import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { restoreFleet } from './restore-fleet';
@@ -13,50 +14,36 @@ import { SessionManager } from './sessions';
 import type { Session } from './sessions';
 
 /**
- * A session manager over a fresh state store, as one daemon life sees it,
- * and `restarted`, a second manager over the same store, as the next life
- * sees it. Before the store closes, disposal waits for every session the
- * restarted manager holds to get its terminal and writes its fleet once
- * more: each adopted terminal fires a fleet write, and the last write
- * queues behind them, so none lands after the store closes.
+ * A session manager over a fresh state store, as one daemon life sees it.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-restore-'));
+  const tmp = setupTempDir('atc-restore-');
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'));
 
-  stack.use(store);
+  registerTestCleanup(() => store.stop());
 
   const statusPath = join(tmp.dir, 'status.json');
-  const mgr = stack.use(new SessionManager(buildMockAgentAdapter(), store, statusPath, []));
-  const restarted = stack.use(new SessionManager(buildMockAgentAdapter(), store, statusPath, []));
 
-  stack.defer(async () => {
-    await waitFor(() => {
-      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
-    });
+  const mgr = new SessionManager(buildMockAgentAdapter(), store, statusPath, []);
 
-    await restarted.writeFleet();
+  registerTestCleanup(() => {
+    mgr.detachAll();
   });
 
   const runtimes = new Map<string, SessionRuntime>();
 
-  const owned = stack.move();
-
   return {
     dir: tmp.dir,
+    statusPath,
     store,
     mgr,
-    restarted,
     findRuntime: (id: string) => runtimes.get(id),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it lists every restored session under the session id its row holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({
@@ -80,8 +67,7 @@ test('it lists every restored session under the session id its row holds', async
 });
 
 test('it revives a listed dead session in place instead of listing its id twice', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const s = await ctx.mgr.spawn(ctx.dir, 'worker', '', 80, 24, toAgentSessionID('c-1'));
 
   await ctx.mgr.writeFleet();
@@ -91,6 +77,8 @@ test('it revives a listed dead session in place instead of listing its id twice'
   await waitFor(() => {
     expect(s.state).toBe('exited');
   });
+
+  const exitedPTY = s.pty;
 
   await restoreFleet({
     mgr: ctx.mgr,
@@ -102,11 +90,30 @@ test('it revives a listed dead session in place instead of listing its id twice'
   });
 
   expect(ctx.mgr.sessions.map((x) => x.id)).toStrictEqual([s.id]);
+  expect(exitedPTY).toBeNull();
   expect(s.pty).not.toBeNull();
 });
 
 test('it keeps a sub-session under the session that resumed its parent agent session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  // The next daemon life, over the same store. Before the store closes, its
+  // release waits for every session it holds to get its terminal and writes
+  // its fleet once more: each adopted terminal fires a fleet write, and the
+  // last write queues behind them, so none lands after the store closes.
+  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
+
+  registerTestCleanup(() => {
+    restarted.detachAll();
+  });
+
+  registerTestCleanup(async () => {
+    await waitFor(() => {
+      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+    });
+
+    await restarted.writeFleet();
+  });
 
   const parent = ctx.mgr.restore(
     buildMockFleetEntry({
@@ -142,7 +149,7 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
   await ctx.mgr.writeFleet();
 
   await restoreFleet({
-    mgr: ctx.restarted,
+    mgr: restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -150,13 +157,31 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
     capMs: 0,
   });
 
-  const restoredChild = ctx.restarted.sessions.find((s) => s.id === child.id);
+  const restoredChild = restarted.sessions.find((s) => s.id === child.id);
 
   expect(restoredChild?.parent).toBe(resumed.id);
 });
 
 test('it keeps a sub-session under a sub-session that resumed their parent agent session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  // The next daemon life, over the same store. Before the store closes, its
+  // release waits for every session it holds to get its terminal and writes
+  // its fleet once more: each adopted terminal fires a fleet write, and the
+  // last write queues behind them, so none lands after the store closes.
+  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
+
+  registerTestCleanup(() => {
+    restarted.detachAll();
+  });
+
+  registerTestCleanup(async () => {
+    await waitFor(() => {
+      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+    });
+
+    await restarted.writeFleet();
+  });
 
   const parent = ctx.mgr.restore(
     buildMockFleetEntry({
@@ -197,7 +222,7 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
   await ctx.mgr.writeFleet();
 
   await restoreFleet({
-    mgr: ctx.restarted,
+    mgr: restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -205,7 +230,7 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     capMs: 0,
   });
 
-  const restored = ctx.restarted.sessions.map((s) => [s.id, s.parent]);
+  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
 
   expect(restored).toIncludeSameMembers([
     [child.id, resumed.id],
@@ -214,7 +239,25 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
 });
 
 test('it restores two crossed resumes with the earlier one top-level and the later one under it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
+
+  // The next daemon life, over the same store. Before the store closes, its
+  // release waits for every session it holds to get its terminal and writes
+  // its fleet once more: each adopted terminal fires a fleet write, and the
+  // last write queues behind them, so none lands after the store closes.
+  const restarted = new SessionManager(buildMockAgentAdapter(), ctx.store, ctx.statusPath, []);
+
+  registerTestCleanup(() => {
+    restarted.detachAll();
+  });
+
+  registerTestCleanup(async () => {
+    await waitFor(() => {
+      expect(restarted.sessions).toSatisfyAll((s: Session) => s.pty !== null);
+    });
+
+    await restarted.writeFleet();
+  });
 
   const first = ctx.mgr.restore(
     buildMockFleetEntry({
@@ -263,7 +306,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
   await ctx.mgr.writeFleet();
 
   await restoreFleet({
-    mgr: ctx.restarted,
+    mgr: restarted,
     store: ctx.store,
     findRuntime: ctx.findRuntime,
     cols: 80,
@@ -271,7 +314,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
     capMs: 0,
   });
 
-  const restored = ctx.restarted.sessions.map((s) => [s.id, s.parent]);
+  const restored = restarted.sessions.map((s) => [s.id, s.parent]);
 
   expect(restored).toIncludeSameMembers([
     [resumedFirst.id, null],

@@ -6,36 +6,17 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
 
 /**
- * A real daemon that admits the principal `gw` to the `local` target, over
- * its socket and over a TCP listener whose gateway token is 32 `a`s. The
- * agent takes messages, so the message methods reach their own checks.
+ * A mock agent adapter for the daemon to boot with. It takes messages, so
+ * the message methods reach their own checks.
  */
-async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const daemon = await startTestDaemon({
-    options: (paths) => {
-      const tokenFile = join(paths.dir, 'gateway-token');
-
-      writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
-
-      return {
-        adapter: buildMockAgentAdapter({
-          takesMessages: true,
-          normalizeHook: () => ({ kind: 'prompt-submitted' }),
-          buildResumeCommand: () => 'claude --resume',
-        }),
-        principals: new Map([['gw', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile },
-      };
-    },
+function setupTest() {
+  const adapter = buildMockAgentAdapter({
+    takesMessages: true,
+    normalizeHook: () => ({ kind: 'prompt-submitted' }),
+    buildResumeCommand: () => 'claude --resume',
   });
 
-  stack.use(daemon);
-
-  const owned = stack.move();
-
-  return { daemon, [Symbol.asyncDispose]: () => owned.disposeAsync() };
+  return { adapter };
 }
 
 test('it keeps the daemon-wide and credential methods, and only those, owner-only', () => {
@@ -92,59 +73,82 @@ test('it opens every other method to a principal', () => {
   ]);
 });
 
-test.each(
-  Object.entries(REQUEST_ACCESS_CLASSES)
-    .filter(([, access]) => access === 'owner')
-    .map(([method]) => [method]),
-)('it refuses %s from a principal connection as owner-only', async (method) => {
-  await using ctx = await setupTest();
+test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
+  'it refuses %s from a principal connection as owner-only',
+  async (method) => {
+    const ctx = setupTest();
 
-  const client = await ctx.daemon.openClient({ principal: 'gw' });
+    const daemon = await startTestDaemon({
+      options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+    });
 
-  expect(client.sendRequest(method, {})).rejects.toMatchObject({
-    code: 'unauthorized',
-    message: `${method} is open to the daemon's owner only`,
-  });
-});
+    const client = await daemon.openClient({ principal: 'gw' });
 
-test.each(
-  Object.entries(REQUEST_ACCESS_CLASSES)
-    .filter(([, access]) => access === 'owner')
-    .map(([method]) => [method]),
-)('it refuses %s from the owner acting as a principal as owner-only', async (method) => {
-  await using ctx = await setupTest();
+    expect(client.sendRequest(method, {})).rejects.toMatchObject({
+      code: 'unauthorized',
+      message: `${method} is open to the daemon's owner only`,
+    });
+  },
+);
 
-  expect(ctx.daemon.client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
-    code: 'unauthorized',
-    message: `${method} is open to the daemon's owner only`,
-  });
-});
+test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
+  'it refuses %s from the owner acting as a principal as owner-only',
+  async (method) => {
+    const ctx = setupTest();
 
-test.each(
-  Object.entries(REQUEST_ACCESS_CLASSES)
-    .filter(([, access]) => access === 'owner')
-    .map(([method]) => [method]),
-)('it refuses %s over TCP as owner-only', async (method) => {
-  await using ctx = await setupTest();
+    const daemon = await startTestDaemon({
+      options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+    });
 
-  const client = await ctx.daemon.openTCPClient();
+    expect(daemon.client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
+      code: 'unauthorized',
+      message: `${method} is open to the daemon's owner only`,
+    });
+  },
+);
 
-  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
+  'it refuses %s over TCP as owner-only',
+  async (method) => {
+    const ctx = setupTest();
 
-  expect(client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
-    code: 'unauthorized',
-    message: `${method} is open to the daemon's owner only`,
-  });
-});
+    const daemon = await startTestDaemon({
+      options: (paths) => {
+        const tokenFile = join(paths.dir, 'gateway-token');
+
+        writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+        return {
+          adapter: ctx.adapter,
+          principals: new Map([['gw', ['local']]]),
+          listen: { host: '127.0.0.1', port: 0, tokenFile },
+        };
+      },
+    });
+
+    const client = await daemon.openTCPClient();
+
+    await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+
+    expect(client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
+      code: 'unauthorized',
+      message: `${method} is open to the daemon's owner only`,
+    });
+  },
+);
 
 test('it keeps answering the owner after it refuses an owner-only method to a principal', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const client = await ctx.daemon.openClient({ principal: 'gw' });
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
 
   await client.sendRequest('fleet.restore', {}).catch(() => null);
 
-  const pinged = await ctx.daemon.client.sendRequest('daemon.ping', {});
+  const pinged = await daemon.client.sendRequest('daemon.ping', {});
 
   expect(pinged).toStrictEqual({});
 });
@@ -152,9 +156,11 @@ test('it keeps answering the owner after it refuses an owner-only method to a pr
 // The owner's quit stops the daemon under the test, so the daemon e2e suite
 // covers it instead.
 test('it admits fleet.restore from the owner', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  expect(ctx.daemon.client.sendRequest('fleet.restore', {})).resolves.toStrictEqual({
+  const daemon = await startTestDaemon({ options: () => ({ adapter: ctx.adapter }) });
+
+  expect(daemon.client.sendRequest('fleet.restore', {})).resolves.toStrictEqual({
     restored: 0,
   });
 });
@@ -163,9 +169,11 @@ test.each([
   ['session.auth.revoke', 'no_such_session'],
   ['session.auth.rebind', 'no_such_session'],
 ])('it admits %s from the owner, which answers it with %s', async (method, code) => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  expect(ctx.daemon.client.sendRequest(method, {})).rejects.toMatchObject({ code });
+  const daemon = await startTestDaemon({ options: () => ({ adapter: ctx.adapter }) });
+
+  expect(daemon.client.sendRequest(method, {})).rejects.toMatchObject({ code });
 });
 
 // The handshake has rules of its own and is answered before admission, so
@@ -254,9 +262,13 @@ test.each([
   ['session.detach', {}],
   ['events.read', { events: [], cursor: expect.toBeString(), more: false }],
 ] as const)('it admits %s from a principal connection', async (method, reply) => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const client = await ctx.daemon.openClient({ principal: 'gw' });
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).resolves.toStrictEqual(reply);
 });
@@ -287,9 +299,13 @@ test.each([
   ['report.get', 'bad_args'],
   ['message.ack', 'bad_args'],
 ])('it admits %s from a principal connection, which answers it with %s', async (method, code) => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const client = await ctx.daemon.openClient({ principal: 'gw' });
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest(method, {})).rejects.toMatchObject({ code });
 });
@@ -378,9 +394,23 @@ test.each([
   ['session.detach', {}],
   ['events.read', { events: [], cursor: expect.toBeString(), more: false }],
 ] as const)('it admits %s over TCP from a principal', async (method, reply) => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const client = await ctx.daemon.openTCPClient();
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      const tokenFile = join(paths.dir, 'gateway-token');
+
+      writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: ctx.adapter,
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile },
+      };
+    },
+  });
+
+  const client = await daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
@@ -413,9 +443,23 @@ test.each([
   ['report.get', 'bad_args'],
   ['message.ack', 'bad_args'],
 ])('it admits %s over TCP from a principal, which answers it with %s', async (method, code) => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const client = await ctx.daemon.openTCPClient();
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      const tokenFile = join(paths.dir, 'gateway-token');
+
+      writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: ctx.adapter,
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile },
+      };
+    },
+  });
+
+  const client = await daemon.openTCPClient();
 
   await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
@@ -423,9 +467,13 @@ test.each([
 });
 
 test('it answers a method the protocol does not define from a principal as unknown', async () => {
-  await using ctx = await setupTest();
+  const ctx = setupTest();
 
-  const client = await ctx.daemon.openClient({ principal: 'gw' });
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
+
+  const client = await daemon.openClient({ principal: 'gw' });
 
   expect(client.sendRequest('daemon.nuke', {})).rejects.toMatchObject({
     code: 'unknown_method',

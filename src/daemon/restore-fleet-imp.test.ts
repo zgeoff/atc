@@ -8,6 +8,7 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubLog } from '../test-utils/build-stub-log';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { ImpProvider } from './imp-provider';
 import { restoreFleet } from './restore-fleet';
@@ -17,27 +18,24 @@ import { SessionManager } from './sessions';
 // of logged lines, and an imp provider over a stub imp port. A manager the
 // test holds after this setup detaches before the store and the provider go.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-restore-imp-'));
+  const tmp = setupTempDir('atc-restore-imp-');
   const dbPath = join(tmp.dir, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
   const store = await StateStore.open(dbPath);
 
-  stack.defer(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
 
   const recorder = buildStubLog();
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
@@ -46,20 +44,23 @@ async function setupTest() {
     provider,
     logged: recorder.lines,
     log: recorder.log,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it restores the fleet with no terminal for each session whose agent is not signed in on its imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter({ planAuthCheck: () => ['false'] }),
     ctx.store,
     ctx.statusPath,
     [],
     [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -98,7 +99,7 @@ test('it restores the fleet with no terminal for each session whose agent is not
 });
 
 test('it logs a later session whose revive fails and leaves it without a terminal', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const planGuestSpawn = mock<NonNullable<AgentAdapter['planGuestSpawn']>>(() => ({
     bin: 'sleep',
@@ -112,13 +113,17 @@ test('it logs a later session whose revive fails and leaves it without a termina
       throw new Error('no plan for s-second');
     });
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter({ planGuestSpawn }),
     ctx.store,
     ctx.statusPath,
     [],
     [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -161,7 +166,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
 });
 
 test('it logs a first session whose revive fails with a plain error and still revives the next one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const planGuestSpawn = mock<NonNullable<AgentAdapter['planGuestSpawn']>>(() => ({
     bin: 'sleep',
@@ -173,13 +178,17 @@ test('it logs a first session whose revive fails with a plain error and still re
     throw new Error('no plan for s-first');
   });
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter({ planGuestSpawn }),
     ctx.store,
     ctx.statusPath,
     [],
     [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 

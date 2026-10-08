@@ -32,10 +32,8 @@ test('it applies the first responder decision', () => {
   const req = registry.open(toSessionID('s1'), 'allow tool?', true);
   const answered = registry.answer(req.id, 'allow');
 
-  expect({ answered, resolutions }).toStrictEqual({
-    answered: 'ok',
-    resolutions: [[req.id, 'allow']],
-  });
+  expect(answered).toBe('ok');
+  expect(resolutions).toStrictEqual([[req.id, 'allow']]);
 });
 
 test('it reports already_answered to a second responder', () => {

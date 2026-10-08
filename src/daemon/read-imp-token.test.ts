@@ -7,12 +7,11 @@ import { readImpToken } from './read-imp-token';
 function setupTest() {
   const tmp = setupTempDir('atc-read-imp-token-');
 
-  return { dir: tmp.dir, [Symbol.dispose]: tmp[Symbol.dispose] };
+  return { dir: tmp.dir };
 }
 
 test('it reads a token file without its one trailing newline', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token\n\n');
@@ -21,8 +20,7 @@ test('it reads a token file without its one trailing newline', () => {
 });
 
 test('it reads a token file without a trailing newline as written', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, 'file-token');
@@ -31,8 +29,7 @@ test('it reads a token file without a trailing newline as written', () => {
 });
 
 test('it refuses an empty token file as unauthorized', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenPath = join(ctx.dir, 'imp-token');
 
   writeFileSync(tokenPath, '\n');
@@ -46,8 +43,7 @@ test('it refuses an empty token file as unauthorized', () => {
 });
 
 test('it refuses a missing token file as unauthorized, giving the read error code', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const tokenPath = join(ctx.dir, 'imp-token');
 
   expect(() => readImpToken(tokenPath)).toThrow(

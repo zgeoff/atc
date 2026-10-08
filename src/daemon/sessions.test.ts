@@ -11,6 +11,7 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHostProvider } from '../test-utils/build-stub-host-provider';
 import { buildStubLog } from '../test-utils/build-stub-log';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
@@ -18,33 +19,26 @@ import { LocalPTYProvider } from './local-pty-provider';
 import { SessionManager } from './sessions';
 
 // The fixed parts every session manager test shares: a real state store, a
-// recorder of logged lines, and two providers: `local` on this machine's
-// terminals, and `box`, whose hosts can sleep and be destroyed. Each test
-// builds its targets over them. A manager the test holds after this setup
-// detaches before the store and the providers go.
+// recorder of logged lines, and the `local` provider on this machine's
+// terminals. Each test builds its targets over it. A manager the test holds
+// after this setup detaches before the store and the provider go.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-sessions-'));
+  const tmp = setupTempDir('atc-sessions-');
   const dbPath = join(tmp.dir, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
   const store = await StateStore.open(dbPath);
 
-  stack.use(store);
+  registerTestCleanup(() => store.stop());
 
   const local = new LocalPTYProvider();
 
-  const box = buildStubHostProvider();
-
-  stack.defer(() => {
+  registerTestCleanup(() => {
     local.dispose();
-    box.dispose();
   });
 
   const recorder = buildStubLog();
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
@@ -52,17 +46,15 @@ async function setupTest() {
     statusPath: join(tmp.dir, 'status.json'),
     store,
     local,
-    box,
     lines: recorder.lines,
     log: recorder.log,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it restores an entry whose agent id is registered as waiting for its terminal', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -74,14 +66,12 @@ test('it restores an entry whose agent id is registered as waiting for its termi
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -99,9 +89,9 @@ test('it restores an entry whose agent id is registered as waiting for its termi
 });
 
 test('it restores an entry whose agent id is unregistered with a message that the adapter is missing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -113,14 +103,12 @@ test('it restores an entry whose agent id is unregistered with a message that th
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -138,9 +126,9 @@ test('it restores an entry whose agent id is unregistered with a message that th
 });
 
 test('it never revives a restored entry whose agent id is unregistered as another agent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -152,14 +140,12 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -181,9 +167,9 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
 test('it resolves an agent id to the registered adapter that declares it', async () => {
   const gateway = buildMockAgentAdapter({ id: 'zai' });
 
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -195,14 +181,12 @@ test('it resolves an agent id to the registered adapter that declares it', async
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -212,9 +196,9 @@ test('it resolves an agent id to the registered adapter that declares it', async
 test('it resolves the fallback adapter by its own id, not by another registered one', async () => {
   const fallback = buildMockAgentAdapter();
 
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     fallback,
     ctx.store,
     ctx.statusPath,
@@ -226,14 +210,12 @@ test('it resolves the fallback adapter by its own id, not by another registered 
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -241,9 +223,9 @@ test('it resolves the fallback adapter by its own id, not by another registered 
 });
 
 test('it resolves an agent id no adapter declares to no adapter', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -255,14 +237,12 @@ test('it resolves an agent id no adapter declares to no adapter', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -270,9 +250,9 @@ test('it resolves an agent id no adapter declares to no adapter', async () => {
 });
 
 test('it reports no screen detector when no registered adapter provides one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -284,14 +264,12 @@ test('it reports no screen detector when no registered adapter provides one', as
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -299,9 +277,9 @@ test('it reports no screen detector when no registered adapter provides one', as
 });
 
 test('it reports a screen detector when a registered adapter provides one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -313,14 +291,12 @@ test('it reports a screen detector when a registered adapter provides one', asyn
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -328,9 +304,9 @@ test('it reports a screen detector when a registered adapter provides one', asyn
 });
 
 test('it links a restored sub-session to the parent already registered under its session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -342,14 +318,12 @@ test('it links a restored sub-session to the parent already registered under its
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -378,9 +352,9 @@ test('it links a restored sub-session to the parent already registered under its
 });
 
 test('it restores a sub-session whose parent is absent as a top-level session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -392,14 +366,12 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -418,9 +390,9 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
 });
 
 test('it persists a sub-session link by the parent atc session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -432,14 +404,12 @@ test('it persists a sub-session link by the parent atc session id', async () => 
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -495,9 +465,9 @@ test('it persists a sub-session link by the parent atc session id', async () => 
 });
 
 test('it stores a sub-session under a sub-session that resumed their parent agent session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -509,14 +479,12 @@ test('it stores a sub-session under a sub-session that resumed their parent agen
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -567,9 +535,9 @@ test('it stores a sub-session under a sub-session that resumed their parent agen
 });
 
 test('it refuses to pin a sub-session and leaves it unpinned', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -581,14 +549,12 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -615,16 +581,14 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
 
   const pinned = mgr.updateSession(child.id, undefined, true);
 
-  expect({ pinned, isPinned: child.pinned }).toStrictEqual({
-    pinned: 'child_pin',
-    isPinned: false,
-  });
+  expect(pinned).toBe('child_pin');
+  expect(child.pinned).toBeFalse();
 });
 
 test('it pins a parent that has a sub-session', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -636,14 +600,12 @@ test('it pins a parent that has a sub-session', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -672,9 +634,9 @@ test('it pins a parent that has a sub-session', async () => {
 });
 
 test('it kills a live sub-session along with its parent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -686,14 +648,12 @@ test('it kills a live sub-session along with its parent', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -702,17 +662,15 @@ test('it kills a live sub-session along with its parent', async () => {
 
   await mgr.kill(parent.id);
 
-  expect({ parent: parent.state, child: child.state, link: child.parent }).toStrictEqual({
-    parent: 'exited',
-    child: 'exited',
-    link: parent.id,
-  });
+  expect(parent.state).toBe('exited');
+  expect(child.state).toBe('exited');
+  expect(child.parent).toBe(parent.id);
 });
 
 test('it forgets a dead parent with its dead sub-sessions and promotes the live ones', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -724,14 +682,12 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -778,9 +734,15 @@ test('it forgets a dead parent with its dead sub-sessions and promotes the live 
 });
 
 test('it keeps an exited sub-session on a host-destroying target when a second kill forgets its dead local parent', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const box = buildStubHostProvider();
+
+  registerTestCleanup(() => {
+    box.dispose();
+  });
+
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -796,10 +758,14 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
         id: 'box',
         kind: 'imp-like',
         identity: 'imp-like:test',
-        provider: ctx.box,
+        provider: box,
       }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -838,9 +804,15 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
 });
 
 test("it refuses to forget a session kept asleep inside its parent's host and keeps its record", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const box = buildStubHostProvider();
+
+  registerTestCleanup(() => {
+    box.dispose();
+  });
+
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -856,10 +828,14 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
         id: 'box',
         kind: 'imp-like',
         identity: 'imp-like:test',
-        provider: ctx.box,
+        provider: box,
       }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -907,9 +883,15 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
 });
 
 test("it forgets an exited session on its parent's host while that host is not asleep", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const box = buildStubHostProvider();
+
+  registerTestCleanup(() => {
+    box.dispose();
+  });
+
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -925,10 +907,14 @@ test("it forgets an exited session on its parent's host while that host is not a
         id: 'box',
         kind: 'imp-like',
         identity: 'imp-like:test',
-        provider: ctx.box,
+        provider: box,
       }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -962,16 +948,14 @@ test("it forgets an exited session on its parent's host while that host is not a
 
   const destroyed = await mgr.forget(toSessionID('s-guest'));
 
-  expect({ destroyed, ids: mgr.sessions.map((s) => s.id) }).toStrictEqual({
-    destroyed: false,
-    ids: [toSessionID('s-parent')],
-  });
+  expect(destroyed).toBeFalse();
+  expect(mgr.sessions.map((s) => s.id)).toStrictEqual([toSessionID('s-parent')]);
 });
 
 test("it keeps a finished turn's last message as the session result", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -987,14 +971,12 @@ test("it keeps a finished turn's last message as the session result", async () =
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1023,9 +1005,9 @@ test("it keeps a finished turn's last message as the session result", async () =
 });
 
 test('it truncates a stored result past 16 KiB', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1041,14 +1023,12 @@ test('it truncates a stored result past 16 KiB', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1064,9 +1044,9 @@ test('it truncates a stored result past 16 KiB', async () => {
 });
 
 test('it persists the transcript path its hooks report', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1086,14 +1066,12 @@ test('it persists the transcript path its hooks report', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1121,9 +1099,9 @@ test('it persists the transcript path its hooks report', async () => {
 });
 
 test("it restores an entry's prompt, result, and transcript path onto the session", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1135,14 +1113,12 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1164,9 +1140,9 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
 });
 
 test('it keeps a crashed sibling restorable as live when another session finishes a turn', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1182,14 +1158,12 @@ test('it keeps a crashed sibling restorable as live when another session finishe
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1238,9 +1212,9 @@ test('it keeps a crashed sibling restorable as live when another session finishe
 });
 
 test('it restores an entry under the session id its row holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1252,14 +1226,12 @@ test('it restores an entry under the session id its row holds', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1277,9 +1249,9 @@ test('it restores an entry under the session id its row holds', async () => {
 });
 
 test('it restores an entry with no agent session id as exited', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1291,14 +1263,12 @@ test('it restores an entry with no agent session id as exited', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1309,16 +1279,14 @@ test('it restores an entry with no agent session id as exited', async () => {
     agent: 'claude',
   });
 
-  expect({ state: session.state, lastMsg: session.lastMsg }).toStrictEqual({
-    state: 'exited',
-    lastMsg: 'nothing to resume',
-  });
+  expect(session.state).toBe('exited');
+  expect(session.lastMsg).toBe('nothing to resume');
 });
 
 test('it persists a session the agent has not yet given a session id', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1330,14 +1298,12 @@ test('it persists a session the agent has not yet given a session id', async () 
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1361,9 +1327,9 @@ test('it persists a session the agent has not yet given a session id', async () 
 });
 
 test('it logs a background fleet write that fails and keeps the change in memory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1375,14 +1341,12 @@ test('it logs a background fleet write that fails and keeps the change in memory
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1394,11 +1358,15 @@ test('it logs a background fleet write that fails and keeps the change in memory
   });
 
   // Another connection drops the table, so the store's write fails in SQLite.
-  {
-    using db = new Database(ctx.dbPath);
+  const db = new Database(ctx.dbPath);
 
-    db.run('DROP TABLE fleet');
-  }
+  const closeDB = registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('DROP TABLE fleet');
+
+  closeDB();
 
   mgr.updateSession(session.id, 'renamed');
 
@@ -1412,9 +1380,9 @@ test('it logs a background fleet write that fails and keeps the change in memory
 });
 
 test('it logs a background row update that fails', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1426,14 +1394,12 @@ test('it logs a background row update that fails', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1445,11 +1411,15 @@ test('it logs a background row update that fails', async () => {
   });
 
   // Another connection drops the table, so the store's write fails in SQLite.
-  {
-    using db = new Database(ctx.dbPath);
+  const db = new Database(ctx.dbPath);
 
-    db.run('DROP TABLE fleet');
-  }
+  const closeDB = registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run('DROP TABLE fleet');
+
+  closeDB();
 
   mgr.updateSurfaceState(session.id, 'done', 'finished', 'the result');
 
@@ -1461,9 +1431,9 @@ test('it logs a background row update that fails', async () => {
 });
 
 test('it logs nothing for a background fleet write refused as stale_epoch', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1475,14 +1445,12 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1495,14 +1463,18 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
 
   // An owner row from a later ownership epoch, which this daemon's writes
   // may no longer replace.
-  {
-    using db = new Database(ctx.dbPath);
+  const db = new Database(ctx.dbPath);
 
-    db.run(
-      'INSERT INTO session_owner (session_id, daemon_id, owner_epoch, updated_at) VALUES (?, ?, 2, 0)',
-      ['s-1', ctx.store.daemonID],
-    );
-  }
+  const closeDB = registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run(
+    'INSERT INTO session_owner (session_id, daemon_id, owner_epoch, updated_at) VALUES (?, ?, 2, 0)',
+    ['s-1', ctx.store.daemonID],
+  );
+
+  closeDB();
 
   mgr.updateSession(session.id, 'renamed');
 
@@ -1513,9 +1485,9 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
 });
 
 test('it ends each harness on this machine when disposed', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1527,14 +1499,12 @@ test('it ends each harness on this machine when disposed', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 
@@ -1552,9 +1522,9 @@ test('it ends each harness on this machine when disposed', async () => {
 });
 
 test('it allows a second disposal', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  using mgr = new SessionManager(
+  const mgr = new SessionManager(
     buildMockAgentAdapter(),
     ctx.store,
     ctx.statusPath,
@@ -1566,14 +1536,12 @@ test('it allows a second disposal', async () => {
         identity: buildTargetIdentity('local-pty', {}),
         provider: ctx.local,
       }),
-      buildMockExecutionTarget({
-        id: 'box',
-        kind: 'imp-like',
-        identity: 'imp-like:test',
-        provider: ctx.box,
-      }),
     ],
   );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
 
   mgr.log = ctx.log;
 

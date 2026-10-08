@@ -6,6 +6,10 @@ test('it stops its screen model on dispose', () => {
   const runtime = new SessionRuntime();
   const model = new ScreenModel(20, 5);
 
+  onTestFinished(() => {
+    model.stop();
+  });
+
   const stop = spyOn(model, 'stop');
 
   runtime.screen = model;
@@ -99,6 +103,10 @@ test('it settles a pending boot waiter on dispose', () => {
 test('it releases each resource only once when disposed twice', () => {
   const runtime = new SessionRuntime();
   const model = new ScreenModel(20, 5);
+
+  onTestFinished(() => {
+    model.stop();
+  });
 
   const stopScreen = spyOn(model, 'stop');
   const stopHeadless = mock(() => {});

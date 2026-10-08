@@ -9,10 +9,8 @@ test('it counts a session as tapped once a client attaches', () => {
 
   taps.attach(toSessionID('s1'), { name: 'a' });
 
-  expect({
-    tapped: taps.hasTap(toSessionID('s1')),
-    other: taps.hasTap(toSessionID('s2')),
-  }).toStrictEqual({ tapped: true, other: false });
+  expect(taps.hasTap(toSessionID('s1'))).toBeTrue();
+  expect(taps.hasTap(toSessionID('s2'))).toBeFalse();
 });
 
 test('it hands a message to the tap', () => {
@@ -110,10 +108,8 @@ test('it gives a session to the latest tapping client', () => {
   taps.attach(session, first);
   taps.attach(session, second);
 
-  expect({
-    first: taps.isTap(session, first),
-    second: taps.isTap(session, second),
-  }).toStrictEqual({ first: false, second: true });
+  expect(taps.isTap(session, first)).toBeFalse();
+  expect(taps.isTap(session, second)).toBeTrue();
 });
 
 test('it drops every tap a closing client held', () => {
@@ -127,11 +123,9 @@ test('it drops every tap a closing client held', () => {
   taps.attach(toSessionID('s3'), staying);
   taps.detachAll(closing);
 
-  expect({
-    s1: taps.hasTap(toSessionID('s1')),
-    s2: taps.hasTap(toSessionID('s2')),
-    s3: taps.hasTap(toSessionID('s3')),
-  }).toStrictEqual({ s1: false, s2: false, s3: true });
+  expect(taps.hasTap(toSessionID('s1'))).toBeFalse();
+  expect(taps.hasTap(toSessionID('s2'))).toBeFalse();
+  expect(taps.hasTap(toSessionID('s3'))).toBeTrue();
 });
 
 test('it returns no client to claim for an untapped session', () => {

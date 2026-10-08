@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
 import { toSessionID } from '../shared/to-session-id';
@@ -6,6 +6,7 @@ import { StateStore } from '../store/state-store';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { waitFor } from '../test-utils/wait-for';
 import { EffectRemainsError } from './effect-remains-error';
@@ -16,26 +17,22 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
 // A binder over a real state store, and an imp provider's broker host over
 // a stub imp port, which the test prepares as an operator prepares impd.
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-auth-binder-'));
+  const tmp = setupTempDir('atc-auth-binder-');
   const dbPath = join(tmp.dir, 'state.db');
 
   await createMigratedStateDB(dbPath);
 
   const store = await StateStore.open(dbPath);
 
-  stack.defer(() => store.stop());
+  registerTestCleanup(() => store.stop());
 
-  const port = stack.use(createStubImpPort());
+  const port = createStubImpPort();
 
   const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
 
-  stack.defer(() => {
+  registerTestCleanup(() => {
     provider.dispose();
   });
-
-  const owned = stack.move();
 
   return {
     dir: tmp.dir,
@@ -43,12 +40,11 @@ async function setupTest() {
     port,
     host: provider.brokerAuth,
     binder: new RuntimeAuthBinder(store),
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
   };
 }
 
 test('it provisions a host through the gate, the record, a new imp and each grant, in that order', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -102,30 +98,29 @@ test('it provisions a host through the gate, the record, a new imp and each gran
 
   invariant(imp);
 
-  expect<Record<string, unknown>>({ binding, grants }).toStrictEqual({
-    binding: expect.objectContaining({
-      impName: 'atc-s1',
-      impID: imp.id,
-      revision: 1,
-      bindingHash: 'h1',
-      state: 'provisioning',
-      attemptID,
-      impCreatedByAttempt: true,
-    }),
-    grants: [
-      expect.objectContaining({
-        secret: 'glm',
-        revision: 1,
-        attemptID,
-        preexisting: false,
-        phase: 'granted',
-      }),
-    ],
+  expect(binding).toMatchObject({
+    impName: 'atc-s1',
+    impID: imp.id,
+    revision: 1,
+    bindingHash: 'h1',
+    state: 'provisioning',
+    attemptID,
+    impCreatedByAttempt: true,
   });
+
+  expect(grants).toMatchObject([
+    {
+      secret: 'glm',
+      revision: 1,
+      attemptID,
+      preexisting: false,
+      phase: 'granted',
+    },
+  ]);
 });
 
 test('it refuses an impd without exec requirements after reading only its features and records nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -170,14 +165,16 @@ test('it refuses an impd without exec requirements after reading only its featur
     data: { execRequire: false },
   });
 
-  expect<Record<string, unknown>>({
-    calls: [...ctx.port.calls],
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({ calls: ['system.info'], binding: null });
+  const calls = [...ctx.port.calls];
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(calls).toStrictEqual(['system.info']);
+  expect(binding).toBeNull();
 });
 
 test('it refuses a token that reaches every imp and records nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The token `host-wide` manages every imp, not only `atc-*` ones.
   ctx.port.setIdentity({
@@ -207,14 +204,16 @@ test('it refuses a token that reaches every imp and records nothing', async () =
 
   expect(created).rejects.toMatchObject({ code: 'auth_token_too_broad' });
 
-  expect<Record<string, unknown>>({
-    calls: [...ctx.port.calls],
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({ calls: ['system.info', 'tokens.whoami'], binding: null });
+  const calls = [...ctx.port.calls];
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(calls).toStrictEqual(['system.info', 'tokens.whoami']);
+  expect(binding).toBeNull();
 });
 
 test('it refuses a secret whose rules differ from the binding and creates no imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `judge` for
@@ -256,17 +255,16 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
 
   expect(created).rejects.toMatchObject({ code: 'auth_secret_mismatch' });
 
-  expect<Record<string, unknown>>({
-    calls: [...ctx.port.calls],
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    calls: ['system.info', 'tokens.whoami', 'secrets.list'],
-    binding: null,
-  });
+  const calls = [...ctx.port.calls];
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(calls).toStrictEqual(['system.info', 'tokens.whoami', 'secrets.list']);
+  expect(binding).toBeNull();
 });
 
 test('it refuses an imp that already holds the name and grants nothing to it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -308,25 +306,25 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
 
   expect(created).rejects.toMatchObject({ code: 'auth_runtime_exists' });
 
-  expect<Record<string, unknown>>({
-    calls: [...ctx.port.calls],
-    grants: await ctx.port.readGrants('atc-s1'),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    calls: [
-      'imps.create atc-s1',
-      'system.info',
-      'tokens.whoami',
-      'secrets.list',
-      'imps.get atc-s1',
-    ],
-    grants: [],
-    binding: null,
-  });
+  const calls = [...ctx.port.calls];
+
+  const grants = await ctx.port.readGrants('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(calls).toStrictEqual([
+    'imps.create atc-s1',
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    'imps.get atc-s1',
+  ]);
+
+  expect(grants).toStrictEqual([]);
+  expect(binding).toBeNull();
 });
 
 test('it takes back the imp a refused grant left and drops the record', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -372,31 +370,30 @@ test('it takes back the imp a refused grant left and drops the record', async ()
     data: { problem: 'forbidden' },
   });
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls,
-    imps: ctx.port.collectImpNames(),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    calls: [
-      'system.info',
-      'tokens.whoami',
-      'secrets.list',
-      'imps.get atc-s1',
-      'imps.create atc-s1',
-      'grants.list atc-s1',
-      'grants.add atc-s1 glm',
-      'tokens.whoami',
-      'imps.get atc-s1',
-      'imps.destroy atc-s1',
-      'imps.get atc-s1',
-    ],
-    imps: [],
-    binding: null,
-  });
+  const imps = ctx.port.collectImpNames();
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(ctx.port.calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    'imps.get atc-s1',
+    'imps.create atc-s1',
+    'grants.list atc-s1',
+    'grants.add atc-s1 glm',
+    'tokens.whoami',
+    'imps.get atc-s1',
+    'imps.destroy atc-s1',
+    'imps.get atc-s1',
+  ]);
+
+  expect(imps).toStrictEqual([]);
+  expect(binding).toBeNull();
 });
 
 test('it verifies a bound host without granting anything again', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -454,20 +451,19 @@ test('it verifies a bound host without granting anything again', async () => {
     }),
   );
 
-  expect<Record<string, unknown>>({ state: verified.state, calls: ctx.port.calls }).toStrictEqual({
-    state: 'ready',
-    calls: [
-      'system.info',
-      'tokens.whoami',
-      'secrets.list',
-      'imps.get atc-s1',
-      'grants.list atc-s1',
-    ],
-  });
+  expect(verified.state).toBe('ready');
+
+  expect(ctx.port.calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    'imps.get atc-s1',
+    'grants.list atc-s1',
+  ]);
 });
 
 test('it refuses a host whose grant was revoked outside atc and grants it no more', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -541,7 +537,7 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
 });
 
 test('it refuses a host that holds a grant its binding does not', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -609,7 +605,7 @@ test('it refuses a host that holds a grant its binding does not', async () => {
 });
 
 test('it refuses a host whose used profiles changed before it reaches impd', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -672,7 +668,7 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
 });
 
 test('it refuses an imp made again under the recorded name', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -735,7 +731,7 @@ test('it refuses an imp made again under the recorded name', async () => {
 });
 
 test('it revokes every grant through the identity checks alone, without reading any secret', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -784,21 +780,20 @@ test('it revokes every grant through the identity checks alone, without reading 
 
   await ctx.binder.revokeBinding(ctx.host, toSessionID('s1'));
 
-  expect<Record<string, unknown>>({
-    calls: [...ctx.port.calls],
-    grants: await ctx.port.readGrants('atc-s1'),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-    rows: await ctx.store.collectAuthGrants(toSessionID('s1')),
-  }).toStrictEqual({
-    calls: ['tokens.whoami', 'imps.get atc-s1', 'grants.delete atc-s1 glm'],
-    grants: [],
-    binding: expect.objectContaining({ state: 'revoked', revokedAt: expect.toBeNumber() }),
-    rows: [expect.objectContaining({ secret: 'glm', phase: 'revoked' })],
-  });
+  const calls = [...ctx.port.calls];
+
+  const grants = await ctx.port.readGrants('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const rows = await ctx.store.collectAuthGrants(toSessionID('s1'));
+
+  expect(calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1', 'grants.delete atc-s1 glm']);
+  expect(grants).toStrictEqual([]);
+  expect(binding).toMatchObject({ state: 'revoked', revokedAt: expect.toBeNumber() });
+  expect(rows).toMatchObject([{ secret: 'glm', phase: 'revoked' }]);
 });
 
 test('it blocks every launch on a host once its grants are revoked', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -862,7 +857,7 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
 });
 
 test('it records the block of a revoke and keeps it pending when impd cannot be reached', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -909,17 +904,15 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
     data: { pending: ['glm'] },
   });
 
-  expect<Record<string, unknown>>({
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-    rows: await ctx.store.collectAuthGrants(toSessionID('s1')),
-  }).toStrictEqual({
-    binding: expect.objectContaining({ state: 'revocation_pending', revokedAt: null }),
-    rows: [expect.objectContaining({ secret: 'glm', phase: 'revocation_pending' })],
-  });
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const rows = await ctx.store.collectAuthGrants(toSessionID('s1'));
+
+  expect(binding).toMatchObject({ state: 'revocation_pending', revokedAt: null });
+  expect(rows).toMatchObject([{ secret: 'glm', phase: 'revocation_pending' }]);
 });
 
 test('it counts a grant a secret rebind already dropped as revoked though the token can no longer revoke it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -969,7 +962,7 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
 });
 
 test('it keeps a revoke pending when the token cannot revoke a grant impd still holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1021,17 +1014,15 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
 
   expect(revoked).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
-  expect<Record<string, unknown>>({
-    grants: await ctx.port.readGrants('atc-s1'),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    grants: ['glm'],
-    binding: expect.objectContaining({ state: 'revocation_pending' }),
-  });
+  const grants = await ctx.port.readGrants('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(grants).toStrictEqual(['glm']);
+  expect(binding).toMatchObject({ state: 'revocation_pending' });
 });
 
 test('it rebinds a host to the next revision, granting the new secret and revoking the dropped one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1089,35 +1080,36 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
     }),
   );
 
-  expect<Record<string, unknown>>({
-    revision,
-    calls: [...ctx.port.calls],
-    grants: await ctx.port.readGrants('atc-s1'),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
+  const calls = [...ctx.port.calls];
+
+  const grants = await ctx.port.readGrants('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(revision).toBe(2);
+
+  expect(calls).toStrictEqual([
+    'system.info',
+    'tokens.whoami',
+    'secrets.list',
+    'tokens.whoami',
+    'imps.get atc-s1',
+    'grants.list atc-s1',
+    'grants.add atc-s1 judge',
+    'grants.delete atc-s1 glm',
+  ]);
+
+  expect(grants).toStrictEqual(['judge']);
+
+  expect(binding).toMatchObject({
+    state: 'ready',
     revision: 2,
-    calls: [
-      'system.info',
-      'tokens.whoami',
-      'secrets.list',
-      'tokens.whoami',
-      'imps.get atc-s1',
-      'grants.list atc-s1',
-      'grants.add atc-s1 judge',
-      'grants.delete atc-s1 glm',
-    ],
-    grants: ['judge'],
-    binding: expect.objectContaining({
-      state: 'ready',
-      revision: 2,
-      bindingHash: 'h2',
-      rebind: null,
-    }),
+    bindingHash: 'h2',
+    rebind: null,
   });
 });
 
 test('it removes only the grants a failed rebind added and keeps the imp at the old revision', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1207,21 +1199,18 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames(),
-    grants: await ctx.port.readGrants('atc-s1'),
-    binding,
-    rebind: binding?.rebind,
-  }).toStrictEqual({
-    imps: ['atc-s1'],
-    grants: ['glm'],
-    binding: expect.objectContaining({ state: 'rebind_failed', revision: 1, bindingHash: 'h1' }),
-    rebind: expect.objectContaining({ revision: 2, bindingHash: 'h2' }),
-  });
+  const imps = ctx.port.collectImpNames();
+
+  const grants = await ctx.port.readGrants('atc-s1');
+
+  expect(imps).toStrictEqual(['atc-s1']);
+  expect(grants).toStrictEqual(['glm']);
+  expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1, bindingHash: 'h1' });
+  expect(binding?.rebind).toMatchObject({ revision: 2, bindingHash: 'h2' });
 });
 
 test('it takes back one attempt without touching the imp or grants of another host', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1280,23 +1269,28 @@ test('it takes back one attempt without touching the imp or grants of another ho
 
   await ctx.binder.removeAttempt(ctx.host, toSessionID('s1'), first);
 
-  expect<Record<string, unknown>>({
-    calls: [...ctx.port.calls],
-    imps: ctx.port.collectImpNames(),
-    grants: await ctx.port.readGrants('atc-s2'),
-    first: await ctx.store.findAuthBinding(toSessionID('s1')),
-    second: await ctx.store.findAuthBinding(toSessionID('s2')),
-  }).toStrictEqual({
-    calls: ['tokens.whoami', 'imps.get atc-s1', 'imps.destroy atc-s1', 'imps.get atc-s1'],
-    imps: ['atc-s2'],
-    grants: ['glm'],
-    first: null,
-    second: expect.objectContaining({ hostKey: 's2', state: 'provisioning' }),
-  });
+  const calls = [...ctx.port.calls];
+  const imps = ctx.port.collectImpNames();
+
+  const grants = await ctx.port.readGrants('atc-s2');
+  const firstBinding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const secondBinding = await ctx.store.findAuthBinding(toSessionID('s2'));
+
+  expect(calls).toStrictEqual([
+    'tokens.whoami',
+    'imps.get atc-s1',
+    'imps.destroy atc-s1',
+    'imps.get atc-s1',
+  ]);
+
+  expect(imps).toStrictEqual(['atc-s2']);
+  expect(grants).toStrictEqual(['glm']);
+  expect(firstBinding).toBeNull();
+  expect(secondBinding).toMatchObject({ hostKey: 's2', state: 'provisioning' });
 });
 
 test('it leaves a host alone when asked to take back an attempt other than the one it holds', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1338,17 +1332,12 @@ test('it leaves a host alone when asked to take back an attempt other than the o
 
   await ctx.binder.removeAttempt(ctx.host, toSessionID('s1'), 'another-attempt');
 
-  expect<Record<string, unknown>>({
-    calls: ctx.port.calls,
-    imps: ctx.port.collectImpNames(),
-  }).toStrictEqual({
-    calls: [],
-    imps: ['atc-s1'],
-  });
+  expect(ctx.port.calls).toStrictEqual([]);
+  expect(ctx.port.collectImpNames()).toStrictEqual(['atc-s1']);
 });
 
 test('it forgets a bound host by destroying its imp and dropping the record', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1396,23 +1385,27 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
 
   const secrets = await ctx.port.readSecrets();
 
-  expect<Record<string, unknown>>({
-    forgotten,
-    calls,
-    imps: ctx.port.collectImpNames(),
-    secrets: secrets.map((secret) => secret.name),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    forgotten: true,
-    calls: ['tokens.whoami', 'imps.get atc-s1', 'imps.destroy atc-s1', 'imps.get atc-s1'],
-    imps: [],
-    secrets: ['glm', 'judge'],
-    binding: null,
-  });
+  const imps = ctx.port.collectImpNames();
+  const secretNames = secrets.map((secret) => secret.name);
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(forgotten).toBeTrue();
+
+  expect(calls).toStrictEqual([
+    'tokens.whoami',
+    'imps.get atc-s1',
+    'imps.destroy atc-s1',
+    'imps.get atc-s1',
+  ]);
+
+  expect(imps).toStrictEqual([]);
+  expect(secretNames).toStrictEqual(['glm', 'judge']);
+  expect(binding).toBeNull();
 });
 
 test('it refuses to forget a host whose imp was made again and leaves that imp alone', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1458,17 +1451,16 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
 
   expect(forgotten).rejects.toMatchObject({ code: 'auth_revocation_pending' });
 
-  expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames(),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    imps: ['atc-s1'],
-    binding: expect.objectContaining({ state: 'revocation_pending' }),
-  });
+  const imps = ctx.port.collectImpNames();
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(imps).toStrictEqual(['atc-s1']);
+  expect(binding).toMatchObject({ state: 'revocation_pending' });
 });
 
 test('it takes back a provisioning attempt no fleet entry lists as a daemon starts, and leaves a listed host alone', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1518,21 +1510,19 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
     },
   );
 
-  expect<Record<string, unknown>>({
-    logged,
-    imps: ctx.port.collectImpNames(),
-    first: await ctx.store.findAuthBinding(toSessionID('s1')),
-    second: await ctx.store.findAuthBinding(toSessionID('s2')),
-  }).toStrictEqual({
-    logged: [],
-    imps: ['atc-s2'],
-    first: null,
-    second: expect.objectContaining({ state: 'provisioning' }),
-  });
+  const imps = ctx.port.collectImpNames();
+
+  const firstBinding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const secondBinding = await ctx.store.findAuthBinding(toSessionID('s2'));
+
+  expect(logged).toStrictEqual([]);
+  expect(imps).toStrictEqual(['atc-s2']);
+  expect(firstBinding).toBeNull();
+  expect(secondBinding).toMatchObject({ state: 'provisioning' });
 });
 
 test('it fails a rebind a stopped daemon left in flight and revokes only the grants it added', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1601,17 +1591,15 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
     () => {},
   );
 
-  expect<Record<string, unknown>>({
-    grants: await ctx.port.readGrants('atc-s1'),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    grants: ['glm'],
-    binding: expect.objectContaining({ state: 'rebind_failed', revision: 1 }),
-  });
+  const grants = await ctx.port.readGrants('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(grants).toStrictEqual(['glm']);
+  expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1 });
 });
 
 test('it rebinds a provisioned host whose spawn listed but never recorded its start', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1667,14 +1655,12 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
 
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
-  expect<Record<string, unknown>>({ revision, binding }).toStrictEqual({
-    revision: 2,
-    binding: expect.objectContaining({ state: 'ready', revision: 2, rebind: null }),
-  });
+  expect(revision).toBe(2);
+  expect(binding).toMatchObject({ state: 'ready', revision: 2, rebind: null });
 });
 
 test('it refuses to rebind a host whose spawn is still provisioning before it created the imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1728,7 +1714,7 @@ test('it refuses to rebind a host whose spawn is still provisioning before it cr
 });
 
 test('it refuses to take back an attempt through a target whose imp prefix changed, and destroys no imp', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1770,7 +1756,7 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
 
   const renamed = new ImpProvider(ctx.port, { impPrefix: 'atc-new-' }, { atcBinary: null });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     renamed.dispose();
   });
 
@@ -1781,17 +1767,16 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
     /^atc could not take back the runtime auth of host s1 \(/,
   );
 
-  expect<Record<string, unknown>>({
-    imps: ctx.port.collectImpNames().toSorted(),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    imps: ['atc-new-s1', 'atc-s1'],
-    binding: expect.objectContaining({ state: 'rollback_pending' }),
-  });
+  const imps = ctx.port.collectImpNames().toSorted();
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(imps).toStrictEqual(['atc-new-s1', 'atc-s1']);
+  expect(binding).toMatchObject({ state: 'rollback_pending' });
 });
 
 test('it keeps the grants a failed rebind added while impd cannot be reached', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1866,7 +1851,7 @@ test('it keeps the grants a failed rebind added while impd cannot be reached', a
 });
 
 test('it retries the removal of the grants a failed rebind added on a later start once impd is reachable', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -1941,17 +1926,15 @@ test('it retries the removal of the grants a failed rebind added on a later star
     () => {},
   );
 
-  expect<Record<string, unknown>>({
-    grants: await ctx.port.readGrants('atc-s1'),
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    grants: ['glm'],
-    binding: expect.objectContaining({ state: 'rebind_failed', revision: 1 }),
-  });
+  const grants = await ctx.port.readGrants('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(grants).toStrictEqual(['glm']);
+  expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1 });
 });
 
 test('it hands a launch over before a revoke that arrives during its admission, which then completes', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -2013,17 +1996,14 @@ test('it hands a launch over before a revoke that arrives during its admission, 
 
   await Promise.all(revoked);
 
-  expect<Record<string, unknown>>({
-    order,
-    binding: await ctx.store.findAuthBinding(toSessionID('s1')),
-  }).toStrictEqual({
-    order: ['sent', 'revoked'],
-    binding: expect.objectContaining({ state: 'revoked' }),
-  });
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(order).toStrictEqual(['sent', 'revoked']);
+  expect(binding).toMatchObject({ state: 'revoked' });
 });
 
 test('it refuses a launch whose admission waits behind a revoke, handing nothing over', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -2082,7 +2062,7 @@ test('it refuses a launch whose admission waits behind a revoke, handing nothing
 });
 
 test('it refuses a start planned under another binding hash than the ready one', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -2138,7 +2118,7 @@ test('it refuses a start planned under another binding hash than the ready one',
 });
 
 test('it holds a launch admission while its connection opens and returns it once the request goes out', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -2209,7 +2189,7 @@ test('it holds a launch admission while its connection opens and returns it once
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
@@ -2242,7 +2222,7 @@ test('it holds a launch admission while its connection opens and returns it once
 });
 
 test('it returns the launch admission of each connection that fails before it opens', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -2316,7 +2296,7 @@ test('it returns the launch admission of each connection that fails before it op
       },
     );
 
-    onTestFinished(() => {
+    registerTestCleanup(() => {
       harness.detach();
     });
 
@@ -2325,14 +2305,12 @@ test('it returns the launch admission of each connection that fails before it op
     pending.push(ctx.binder.countPendingAdmissions(toSessionID('s1')));
   }
 
-  expect({ pending, requests: ctx.port.sessionRequests }).toStrictEqual({
-    pending: [0, 0, 0],
-    requests: [],
-  });
+  expect(pending).toStrictEqual([0, 0, 0]);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it returns the launch admission of a connection whose opening throws before it returns', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
   // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
@@ -2403,16 +2381,13 @@ test('it returns the launch admission of a connection whose opening throws befor
     },
   );
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     harness.detach();
   });
 
   const started = harness.waitForStart();
 
   expect(started).rejects.toMatchObject({ code: 'internal' });
-
-  expect({
-    pending: ctx.binder.countPendingAdmissions(toSessionID('s1')),
-    requests: ctx.port.sessionRequests,
-  }).toStrictEqual({ pending: 0, requests: [] });
+  expect(ctx.binder.countPendingAdmissions(toSessionID('s1'))).toBe(0);
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
