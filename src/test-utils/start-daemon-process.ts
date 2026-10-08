@@ -131,6 +131,11 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     const watched = current.proc;
     let settled = false;
     const isSettled = () => settled;
+    const isWatchedExited = () => watched.exitCode !== null || watched.signalCode !== null;
+
+    // The poll's latest connect, so the wait after an exit can reuse one
+    // that was still in flight instead of dialing a second time.
+    let polled: Promise<DaemonClient> | null = null;
 
     // A daemon that has exited either refused to start or handed its socket
     // to a replacement, so one more connect tells the two apart.
@@ -139,6 +144,12 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
       if (settled || stopped) {
         return null;
+      }
+
+      const inFlight = await polled?.catch(() => null);
+
+      if (inFlight !== undefined && inFlight !== null) {
+        return inFlight;
       }
 
       try {
@@ -150,16 +161,29 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       }
     };
 
-    // Polls the socket while the daemon runs. Once the other wait settles or
-    // the daemon stops, each attempt resolves empty, which ends the
-    // polling.
+    // Polls the socket while the daemon runs. Once the daemon exits, it dials
+    // no more and leaves the connect to the wait after the exit. Once the
+    // other wait settles or the daemon stops, each attempt resolves empty,
+    // which ends the polling.
     const openWhenListening = () =>
-      waitFor(() => (settled || stopped ? null : openTrackedClient(isSettled)), {
-        timeoutMs: 15_000,
-        intervalMs: 50,
-      });
+      waitFor(
+        () => {
+          if (settled || stopped) {
+            return null;
+          }
 
-    const hasExited = watched.exitCode !== null || watched.signalCode !== null;
+          if (isWatchedExited()) {
+            throw new Error('the daemon exited');
+          }
+
+          polled = openTrackedClient(isSettled);
+
+          return polled;
+        },
+        { timeoutMs: 15_000, intervalMs: 50 },
+      );
+
+    const hasExited = isWatchedExited();
 
     try {
       const client = await (hasExited
