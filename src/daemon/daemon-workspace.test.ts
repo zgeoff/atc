@@ -25,6 +25,7 @@ import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createStubBin } from '../test-utils/create-stub-bin';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { updateEnv } from '../test-utils/update-env';
@@ -38,33 +39,20 @@ import { LocalPTYProvider } from './local-pty-provider';
  * its global git config.
  */
 async function setupTest() {
-  await using stack = new AsyncDisposableStack();
-
   const git = await createGitFixture({ prefix: 'atc-workspace-' });
 
-  stack.use(git);
-
-  const owned = stack.move();
-
-  return {
-    dir: git.dir,
-    env: git.env,
-    upstream: git.upstream,
-    work: git.work,
-    sha: git.sha,
-    [Symbol.asyncDispose]: () => owned.disposeAsync(),
-  };
+  return { dir: git.dir, env: git.env, upstream: git.upstream, work: git.work, sha: git.sha };
 }
 
 test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -207,7 +195,7 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
 });
 
 test('it verifies the target checkout itself when the daemon env points git at another repository', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A git hook in a linked worktree exports GIT_DIR, and a daemon started
   // from one inherits it.
@@ -222,7 +210,7 @@ test('it verifies the target checkout itself when the daemon env points git at a
 
   updateEnv('GIT_DIR', join(decoy, '.git'));
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -259,7 +247,7 @@ test('it verifies the target checkout itself when the daemon env points git at a
 });
 
 test('it fails the spawn when the target checkout lacks a tracked file, and removes it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The unpack on the host leaves one tracked file out.
   const box = buildStubDirProvider({
@@ -268,7 +256,7 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
     },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -315,7 +303,7 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
 });
 
 test('it removes only the directory it created when a symlink in the requested path changes before a rollback', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const safe = join(ctx.dir, 'safe');
   const busy = join(ctx.dir, 'busy');
@@ -337,7 +325,7 @@ test('it removes only the directory it created when a symlink in the requested p
     },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -373,9 +361,9 @@ test('it removes only the directory it created when a symlink in the requested p
 });
 
 test('it records a ready workspace and lists it again on the session after a restart', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -434,11 +422,11 @@ test('it records a ready workspace and lists it again on the session after a res
 });
 
 test('it refuses a path source whose HEAD was never pushed, transferring nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -480,11 +468,11 @@ test('it refuses a path source whose HEAD was never pushed, transferring nothing
 });
 
 test('it refuses a path source with uncommitted changes as workspace_dirty when dirt is refused', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -521,12 +509,12 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
 });
 
 test('it materializes the committed HEAD of a dirty path source and leaves its changes behind', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -587,9 +575,9 @@ test('it materializes the committed HEAD of a dirty path source and leaves its c
 });
 
 test('it materializes the committed HEAD of a dirty path source when dirt is allowed with a warning', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -636,11 +624,11 @@ test('it materializes the committed HEAD of a dirty path source when dirt is all
 });
 
 test('it refuses a dirty path source whose HEAD was never pushed, transferring nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -681,11 +669,11 @@ test('it refuses a dirty path source whose HEAD was never pushed, transferring n
 });
 
 test('it refuses a path source that uses submodules, transferring nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -728,11 +716,11 @@ test('it refuses a path source that uses submodules, transferring nothing', asyn
 });
 
 test('it refuses a git source that tracks LFS paths, transferring nothing and leaving no directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -777,11 +765,11 @@ test('it refuses a git source that tracks LFS paths, transferring nothing and le
 });
 
 test('it refuses a path source whose git config rewrites its origin into a URL with a token', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -821,11 +809,9 @@ test('it refuses a path source whose git config rewrites its origin into a URL w
 });
 
 test('it refuses a git source whose URL carries a token', async () => {
-  await using ctx = await setupTest();
-
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -848,7 +834,7 @@ test('it refuses a git source whose URL carries a token', async () => {
   });
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(daemon.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: 'https://x-access-token:tok-1@example.com/r.git', ref: 'main' },
   });
@@ -860,9 +846,9 @@ test('it refuses a git source whose URL carries a token', async () => {
 });
 
 test('it keeps a workspace credential out of every row, the session, the fleet, and the log', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -910,9 +896,9 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
 });
 
 test("it keeps a workspace credential out of a refusal that carries git's error, its log line, and every row", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -966,13 +952,9 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
 });
 
 test('it clones with the workspace credential and starts the harness without it or the askpass context', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const server = startGitHTTPServer(ctx.dir, ctx.env);
-
-  onTestFinished(async () => {
-    await server.stop();
-  });
 
   // The askpass variables stand in for a daemon whose own environment holds
   // them; the credential variable is the one the spawn names.
@@ -982,7 +964,7 @@ test('it clones with the workspace credential and starts the harness without it 
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1044,7 +1026,7 @@ test('it clones with the workspace credential and starts the harness without it 
 });
 
 test('it starts a revived harness after a restart without the workspace credential', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const dest = join(ctx.dir, 'box', 'ws');
 
@@ -1053,12 +1035,14 @@ test('it starts a revived harness after a restart without the workspace credenti
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: async (paths) => {
       // The fleet holds a ready git workspace on box, as a spawn under a
       // workspace credential leaves it.
-      await using store = await StateStore.open(paths.dbPath);
+      const store = await StateStore.open(paths.dbPath);
+
+      const stopStore = registerTestCleanup(() => store.stop());
 
       await store.createMaterialization(
         {
@@ -1086,6 +1070,8 @@ test('it starts a revived harness after a restart without the workspace credenti
           targetIdentity: 'test:box',
         }),
       ]);
+
+      await stopStore();
 
       return {
         adapter: buildMockAgentAdapter(),
@@ -1123,8 +1109,7 @@ test('it starts a revived harness after a restart without the workspace credenti
 });
 
 test('it fails the spawn when the target checkout is not at the pinned commit, and removes it', async () => {
-  await using ctx = await setupTest();
-
+  const ctx = await setupTest();
   const parent = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
 
   writeFileSync(join(ctx.work, 'README.md'), 'second\n');
@@ -1141,7 +1126,7 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
     },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1175,7 +1160,11 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  using db = new Database(daemon.dbPath, { readonly: true });
+  const db = new Database(daemon.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   const rows = db.query('SELECT phase, error_code, sha FROM workspace_materialization').all();
 
@@ -1195,11 +1184,11 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
 test.each([['transfer'], ['run']] as const)(
   'it refuses a workspace on a target whose provider cannot %s before any git command runs',
   async (capability) => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
 
     const box = buildStubDirProvider({ lacking: [capability] });
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       prefix: 'atc-workspace-daemon-',
       options: () => ({
         adapter: buildMockAgentAdapter(),
@@ -1233,7 +1222,11 @@ test.each([['transfer'], ['run']] as const)(
 
     await spawn.catch(() => null);
 
-    using db = new Database(daemon.dbPath, { readonly: true });
+    const db = new Database(daemon.dbPath, { readonly: true });
+
+    registerTestCleanup(() => {
+      db.close();
+    });
 
     const rows = db.query('SELECT * FROM workspace_materialization').all();
 
@@ -1248,7 +1241,7 @@ test.each([['transfer'], ['run']] as const)(
 );
 
 test('it fails a materialization that a restart interrupts and lists no session for it', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const held = Promise.withResolvers<undefined>();
 
@@ -1258,7 +1251,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
 
   const box = buildStubDirProvider({ afterTransfer: () => held.promise });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1316,7 +1309,11 @@ test('it fails a materialization that a restart interrupts and lists no session 
 
   const listed = await daemon.client.sendRequest('session.list');
 
-  using db = new Database(daemon.dbPath, { readonly: true });
+  const db = new Database(daemon.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   const rows = db.query('SELECT phase, error_code FROM workspace_materialization').all();
 
@@ -1325,7 +1322,7 @@ test('it fails a materialization that a restart interrupts and lists no session 
 });
 
 test("it logs the failure of an interrupted materialization that resumes into the stopped daemon's closed store", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const held = Promise.withResolvers<undefined>();
 
@@ -1335,7 +1332,7 @@ test("it logs the failure of an interrupted materialization that resumes into th
 
   const box = buildStubDirProvider({ afterTransfer: () => held.promise });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1399,11 +1396,11 @@ test("it logs the failure of an interrupted materialization that resumes into th
 });
 
 test('it refuses to materialize into a directory that already exists and leaves it as it was', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1444,7 +1441,7 @@ test('it refuses to materialize into a directory that already exists and leaves 
 });
 
 test('it removes the checkout it created and keeps the files beside it when its harness fails to start', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // A provider whose harness start throws, as a refused launch does.
   const box = buildStubExecutionProvider({
@@ -1454,7 +1451,7 @@ test('it removes the checkout it created and keeps the files beside it when its 
     },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1493,7 +1490,7 @@ test('it removes the checkout it created and keeps the files beside it when its 
 });
 
 test('it spawns a retry into the directory a harness that failed to start left', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -1506,7 +1503,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
     }),
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1552,7 +1549,7 @@ test.each([
 ] as const)(
   'it keeps a checkout that a session on %s runs inside when its spawn fails on a target without hosts',
   async (_where, insideTarget) => {
-    await using ctx = await setupTest();
+    const ctx = await setupTest();
 
     const transferred = Promise.withResolvers<void>();
     const released = Promise.withResolvers<void>();
@@ -1567,7 +1564,7 @@ test.each([
       },
     });
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       prefix: 'atc-workspace-daemon-',
       options: () => ({
         adapter: buildMockAgentAdapter(),
@@ -1612,20 +1609,17 @@ test.each([
     await spawn.catch(() => null);
 
     expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
-
-    expect<Record<string, unknown>>({
-      kept: readFileSync(join(dest, 'inner', 'mine.txt'), 'utf8'),
-      alive: getRecord(inside, 'session')['alive'],
-    }).toStrictEqual({ kept: 'kept\n', alive: true });
+    expect(readFileSync(join(dest, 'inner', 'mine.txt'), 'utf8')).toBe('kept\n');
+    expect(getRecord(inside, 'session')['alive']).toBe(true);
   },
 );
 
 test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1660,11 +1654,9 @@ test('it refuses a workspace spawn whose cwd is relative before anything runs', 
 });
 
 test('it refuses a directory outside git as the workspace of a target off the daemon host', async () => {
-  await using ctx = await setupTest();
-
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1686,12 +1678,12 @@ test('it refuses a directory outside git as the workspace of a target off the da
     }),
   });
 
-  const plain = join(ctx.dir, 'plain');
+  const plain = join(daemon.dir, 'plain');
 
   mkdirSync(plain);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(daemon.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'path', path: plain },
   });
@@ -1703,9 +1695,7 @@ test('it refuses a directory outside git as the workspace of a target off the da
 });
 
 test('it runs a local session in a directory outside git as it stands', async () => {
-  await using ctx = await setupTest();
-
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1727,7 +1717,7 @@ test('it runs a local session in a directory outside git as it stands', async ()
     }),
   });
 
-  const plain = join(ctx.dir, 'plain');
+  const plain = join(daemon.dir, 'plain');
 
   mkdirSync(plain);
 
@@ -1737,7 +1727,11 @@ test('it runs a local session in a directory outside git as it stands', async ()
     workspace: { kind: 'path', path: plain },
   });
 
-  using db = new Database(daemon.dbPath, { readonly: true });
+  const db = new Database(daemon.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   const rows = db.query('SELECT * FROM workspace_materialization').all();
 
@@ -1747,9 +1741,9 @@ test('it runs a local session in a directory outside git as it stands', async ()
 });
 
 test('it refuses to run a local repository in place when git cannot read its config', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1785,9 +1779,9 @@ test('it refuses to run a local repository in place when git cannot read its con
 });
 
 test('it refuses to run a local repository in place when git does not trust its owner', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1828,9 +1822,9 @@ test('it refuses to run a local repository in place when git does not trust its 
 });
 
 test('it runs a local spawn without a workspace in a repository git cannot read', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1863,9 +1857,7 @@ test('it runs a local spawn without a workspace in a repository git cannot read'
 });
 
 test('it refuses a local directory outside git as the workspace of a spawn elsewhere', async () => {
-  await using ctx = await setupTest();
-
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1887,12 +1879,12 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
     }),
   });
 
-  const plain = join(ctx.dir, 'plain');
+  const plain = join(daemon.dir, 'plain');
 
   mkdirSync(plain);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'elsewhere'),
+    cwd: join(daemon.dir, 'elsewhere'),
     target: 'local',
     workspace: { kind: 'path', path: plain },
   });
@@ -1900,13 +1892,13 @@ test('it refuses a local directory outside git as the workspace of a spawn elsew
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toMatchObject({ code: 'bad_args', data: { phase: 'resolving' } });
-  expect(existsSync(join(ctx.dir, 'elsewhere'))).toBeFalse();
+  expect(existsSync(join(daemon.dir, 'elsewhere'))).toBeFalse();
 });
 
 test('it materializes a git source on the local target like on any other', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1946,14 +1938,14 @@ test('it materializes a git source on the local target like on any other', async
 });
 
 test('it materializes a git source without a cwd under the home on the local target and answers with its directory', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.dir, 'home');
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -1999,7 +1991,7 @@ test('it materializes a git source without a cwd under the home on the local tar
 });
 
 test('it lands concurrent spawns of one repository without a cwd beside a directory that exists and leaves that directory as it was', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -2010,7 +2002,7 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
   mkdirSync(base, { recursive: true });
   writeFileSync(join(base, 'mine.txt'), 'keep\n');
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2053,14 +2045,14 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
 });
 
 test('it lands a git source without a cwd under the root the config sets for its target', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const root = join(ctx.dir, 'roots', 'box');
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2096,14 +2088,14 @@ test('it lands a git source without a cwd under the root the config sets for its
 });
 
 test('it refuses a git source without a cwd whose root it cannot write after one attempt, with the cause', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const root = join(ctx.dir, 'read-only');
   const box = buildStubDirProvider();
 
   mkdirSync(root, { mode: 0o555 });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2148,7 +2140,7 @@ test('it refuses a git source without a cwd whose root it cannot write after one
 });
 
 test('it refuses a spawn without a cwd or a workspace as bad_args', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2181,11 +2173,11 @@ test('it refuses a spawn without a cwd or a workspace as bad_args', async () => 
 });
 
 test('it refuses a spawn without a cwd whose workspace is not a git source before anything runs', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2223,9 +2215,9 @@ test('it refuses a spawn without a cwd whose workspace is not a git source befor
 });
 
 test('it runs a local spawn without a workspace in its directory as it stands', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2249,7 +2241,11 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
 
   const spawned = await daemon.client.sendRequest('session.spawn', { cwd: ctx.work });
 
-  using db = new Database(daemon.dbPath, { readonly: true });
+  const db = new Database(daemon.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
 
   const rows = db.query('SELECT * FROM workspace_materialization').all();
 
@@ -2264,9 +2260,9 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
 });
 
 test('it checks out the sha of a git source that holds both on the branch its ref names', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2324,11 +2320,9 @@ test('it checks out the sha of a git source that holds both on the branch its re
 });
 
 test("it runs git from the daemon's PATH for a git spawn on an allowed transport", async () => {
-  await using ctx = await setupTest();
-
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2350,26 +2344,31 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
   });
 
   // A git first on the PATH records each run.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(
+    daemon.dir,
+    'git',
+    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+  );
+
+  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
 
   await daemon.client
     .sendRequest('session.spawn', {
-      cwd: join(ctx.dir, 'box', 'ws'),
+      cwd: join(daemon.dir, 'box', 'ws'),
       target: 'box',
       workspace: { kind: 'git', url: 'https://example.com/app.git', ref: 'main' },
     })
     .catch(() => null);
 
-  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeTrue();
+  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeTrue();
 });
 
 test('it refuses a git source on a local transport before it runs git, transferring nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2416,11 +2415,11 @@ test('it refuses a git source on a local transport before it runs git, transferr
 });
 
 test('it refuses a path source whose origin is a local repository, in git, transferring nothing', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2457,11 +2456,11 @@ test('it refuses a path source whose origin is a local repository, in git, trans
 });
 
 test('it holds a probe to the configured transports whatever transports it carries', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2496,11 +2495,11 @@ test('it holds a probe to the configured transports whatever transports it carri
 });
 
 test('it holds a spawn to the configured transports whatever transports it carries', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2535,11 +2534,11 @@ test('it holds a spawn to the configured transports whatever transports it carri
 });
 
 test('it refuses a git source that carries transports of its own as bad_args', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2578,14 +2577,14 @@ test('it refuses a git source that carries transports of its own as bad_args', a
 });
 
 test('it holds git to the configured transports whatever the daemon environment allows', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   updateEnv('GIT_ALLOW_PROTOCOL', 'https:ssh:file');
   updateEnv('ATC_GIT_ALLOW_PROTOCOL', 'https:ssh:file');
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2622,7 +2621,7 @@ test('it holds git to the configured transports whatever the daemon environment 
 });
 
 test('it materializes a spawn from the owner/repo shorthand at its GitHub https URL', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   // The rewrite sends the expanded URL to the fixture upstream, so no
   // request reaches GitHub.
@@ -2633,7 +2632,7 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
 
   updateEnv('GIT_CONFIG_GLOBAL', join(ctx.dir, 'gitconfig'));
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2669,11 +2668,9 @@ test('it materializes a spawn from the owner/repo shorthand at its GitHub https 
 });
 
 test("it runs git from the daemon's PATH for a probe under a valid transport list", async () => {
-  await using ctx = await setupTest();
-
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2695,22 +2692,25 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
   });
 
   // A git first on the PATH records each run.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(
+    daemon.dir,
+    'git',
+    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+  );
+
+  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
 
   await daemon.client
     .sendRequest('git.probe', { url: 'https://example.com/app.git', target: 'box' })
     .catch(() => null);
 
-  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeTrue();
+  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeTrue();
 });
 
 test('it refuses a probe under an invalid transport list before any git runs', async () => {
-  await using ctx = await setupTest();
-
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2737,8 +2737,13 @@ test('it refuses a probe under an invalid transport list before any git runs', a
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(
+    daemon.dir,
+    'git',
+    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+  );
+
+  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
 
   const refused = daemon.client.sendRequest('git.probe', {
     url: 'https://example.com/app.git',
@@ -2753,16 +2758,14 @@ test('it refuses a probe under an invalid transport list before any git runs', a
       "workspaces.gitTransports in config.json is invalid, so the daemon runs no git: workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
   });
 
-  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeFalse();
+  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeFalse();
   expect(box.calls).toStrictEqual([]);
 });
 
 test('it refuses a git spawn under an invalid transport list before any git runs', async () => {
-  await using ctx = await setupTest();
-
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2789,11 +2792,16 @@ test('it refuses a git spawn under an invalid transport list before any git runs
 
   // A git first on the PATH records each run, so a refusal that runs git
   // leaves the record behind.
-  createStubBin(ctx.dir, 'git', `#!/bin/sh\necho "$@" >> '${join(ctx.dir, 'git-ran')}'\nexit 1\n`);
-  updateEnv('PATH', `${ctx.dir}:${process.env['PATH'] ?? ''}`);
+  createStubBin(
+    daemon.dir,
+    'git',
+    `#!/bin/sh\necho "$@" >> '${join(daemon.dir, 'git-ran')}'\nexit 1\n`,
+  );
+
+  updateEnv('PATH', `${daemon.dir}:${process.env['PATH'] ?? ''}`);
 
   const refused = daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'box', 'ws'),
+    cwd: join(daemon.dir, 'box', 'ws'),
     target: 'box',
     workspace: { kind: 'git', url: 'https://example.com/app.git', ref: 'main' },
   });
@@ -2806,16 +2814,16 @@ test('it refuses a git spawn under an invalid transport list before any git runs
       "workspaces.gitTransports in config.json is invalid, so the daemon runs no git: workspaces.gitTransports holds 'ext', which atc never allows because it runs a command or reads a descriptor on the daemon host; the daemon runs no git until it is fixed",
   });
 
-  expect(existsSync(join(ctx.dir, 'git-ran'))).toBeFalse();
+  expect(existsSync(join(daemon.dir, 'git-ran'))).toBeFalse();
   expect(box.calls).toStrictEqual([]);
 });
 
 test("it runs git from the daemon's PATH for a checkout spawn under a valid transport list", async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2852,11 +2860,11 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
 });
 
 test('it refuses a checkout spawn under an invalid transport list before any git runs', async () => {
-  await using ctx = await setupTest();
+  const ctx = await setupTest();
 
   const box = buildStubDirProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2905,9 +2913,7 @@ test('it refuses a checkout spawn under an invalid transport list before any git
 });
 
 test('it spawns a local session under an invalid transport list', async () => {
-  await using ctx = await setupTest();
-
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2933,17 +2939,15 @@ test('it spawns a local session under an invalid transport list', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.dir,
+    cwd: daemon.dir,
     target: 'local',
   });
 
-  expect(spawned).toMatchObject({ session: { cwd: ctx.dir } });
+  expect(spawned).toMatchObject({ session: { cwd: daemon.dir } });
 });
 
 test('it spawns a local session in a directory outside git under an invalid transport list', async () => {
-  await using ctx = await setupTest();
-
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -2968,13 +2972,13 @@ test('it spawns a local session in a directory outside git under an invalid tran
     }),
   });
 
-  mkdirSync(join(ctx.dir, 'loose'));
+  mkdirSync(join(daemon.dir, 'loose'));
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.dir, 'loose'),
+    cwd: join(daemon.dir, 'loose'),
     target: 'local',
-    workspace: { kind: 'path', path: join(ctx.dir, 'loose') },
+    workspace: { kind: 'path', path: join(daemon.dir, 'loose') },
   });
 
-  expect(spawned).toMatchObject({ session: { cwd: join(ctx.dir, 'loose') } });
+  expect(spawned).toMatchObject({ session: { cwd: join(daemon.dir, 'loose') } });
 });

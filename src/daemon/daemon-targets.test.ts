@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -8,6 +8,7 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
 import { buildTargetIdentity } from './build-target-identity';
@@ -47,7 +48,7 @@ function setupTest() {
 test('it spawns a session on the target the spawn names and records it in the fleet', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -93,7 +94,7 @@ test('it spawns a session on the target the spawn names and records it in the fl
 test('it spawns a session without a target on the local target when the config sets no targets', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -115,7 +116,7 @@ test('it spawns a session without a target on the local target when the config s
 test('it refuses a spawn to a target the config does not hold with unknown_target', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -134,7 +135,7 @@ test('it refuses a spawn to a target the config does not hold with unknown_targe
 test('it refuses a spawn to a target this daemon has no provider for with target_unavailable', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -162,7 +163,7 @@ test('it refuses a spawn to a target this daemon has no provider for with target
 test('it refuses a spawn to the local target when the targets map leaves it out', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -183,7 +184,7 @@ test('it refuses a spawn to the local target when the targets map leaves it out'
 test('it refuses a spawn without a target, and starts no terminal, for a malformed targets map', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -206,7 +207,7 @@ test('it refuses a spawn without a target, and starts no terminal, for a malform
 test('it refuses a spawn to local, and starts no terminal, for a malformed targets map', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -224,7 +225,7 @@ test('it refuses a spawn to local, and starts no terminal, for a malformed targe
 test('it refuses a spawn to a malformed target entry', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -247,7 +248,7 @@ test('it refuses a spawn to a malformed target entry', async () => {
 test('it spawns on a well-formed target beside a malformed target entry', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -274,7 +275,7 @@ test('it spawns on a well-formed target beside a malformed target entry', async 
 test('it refuses a spawn without a target, and starts no terminal, for an unknown defaultTarget', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -302,7 +303,7 @@ test('it refuses a spawn without a target, and starts no terminal, for an unknow
 test('it lists each target and each config error', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -396,12 +397,12 @@ test.each([
   async (_label, boundKind, targets, code) => {
     const ctx = setupTest();
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: async (paths) => {
         const store = await StateStore.open(paths.dbPath);
 
-        onTestFinished(() => store.stop());
+        const stopStore = registerTestCleanup(() => store.stop());
 
         await store.writeFleet([
           buildMockFleetEntry({
@@ -413,7 +414,7 @@ test.each([
           }),
         ]);
 
-        await store.stop();
+        await stopStore();
 
         return {
           adapter: ctx.adapter,
@@ -436,12 +437,12 @@ test.each([
 test('it refuses input to a restored headless session on local once the targets map turns local off', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
 
-      onTestFinished(() => store.stop());
+      const stopStore = registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({
@@ -451,7 +452,7 @@ test('it refuses input to a restored headless session on local once the targets 
         }),
       ]);
 
-      await store.stop();
+      await stopStore();
 
       return {
         adapter: ctx.adapter,
@@ -492,12 +493,12 @@ test('it refuses input to a restored headless session whose provider runs no hea
     ],
   ]);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
 
-      onTestFinished(() => store.stop());
+      const stopStore = registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({
@@ -509,7 +510,7 @@ test('it refuses input to a restored headless session whose provider runs no hea
         }),
       ]);
 
-      await store.stop();
+      await stopStore();
 
       return {
         adapter: ctx.adapter,
@@ -539,12 +540,12 @@ test('it refuses input to a restored headless session whose provider runs no hea
 test('it refuses input to a killed headless session on a working target, without running it', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
 
-      onTestFinished(() => store.stop());
+      const stopStore = registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({
@@ -555,7 +556,7 @@ test('it refuses input to a killed headless session on a working target, without
         }),
       ]);
 
-      await store.stop();
+      await stopStore();
 
       return {
         adapter: ctx.adapter,
@@ -576,7 +577,7 @@ test('it refuses input to a killed headless session on a working target, without
 test('it runs a local headless turn through the runner once per request', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -646,7 +647,7 @@ test.each([
       ],
     ]);
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: () => ({
         adapter: ctx.adapter,
@@ -723,7 +724,7 @@ test.each([
       ],
     ]);
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: () => ({
         adapter: ctx.adapter,
@@ -799,7 +800,7 @@ test.each([
       ],
     ]);
 
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       prefix: 'atc-daemon-targets-',
       options: () => ({
         adapter: ctx.adapter,
@@ -857,7 +858,7 @@ test.each([
 test('it revives a session on its target after a restart with the config unchanged', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -907,7 +908,7 @@ test('it revives a session on its target after a restart with the config unchang
 test('it spawns a new session on the default a restart changed', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -962,7 +963,7 @@ test('it spawns a new session on the default a restart changed', async () => {
 test('it keeps a restored session on its target after a restart changed the default', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: () => ({
       adapter: ctx.adapter,
@@ -1013,12 +1014,12 @@ test('it keeps a restored session on its target after a restart changed the defa
 test('it revives a restored session without a stored target on the implicit local target', async () => {
   const ctx = setupTest();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-targets-',
     options: async (paths) => {
       const store = await StateStore.open(paths.dbPath);
 
-      onTestFinished(() => store.stop());
+      const stopStore = registerTestCleanup(() => store.stop());
 
       await store.writeFleet([
         buildMockFleetEntry({
@@ -1028,7 +1029,7 @@ test('it revives a restored session without a stored target on the implicit loca
         }),
       ]);
 
-      await store.stop();
+      await stopStore();
 
       return {
         adapter: ctx.adapter,

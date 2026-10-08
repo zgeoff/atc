@@ -10,6 +10,7 @@ import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { canBindAddresses } from '../test-utils/can-bind-addresses';
+import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { waitFor } from '../test-utils/wait-for';
@@ -19,13 +20,10 @@ import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * A temp directory for a test that starts its daemon itself, with the paths
- * the daemon takes inside it. Disposal removes the directory.
+ * the daemon takes inside it, removed once the test finishes.
  */
 function setupTest() {
-  using stack = new DisposableStack();
-
-  const tmp = stack.use(setupTempDir('atc-daemon-tcp-'));
-  const owned = stack.move();
+  const tmp = setupTempDir('atc-daemon-tcp-');
 
   return {
     dir: tmp.dir,
@@ -34,14 +32,11 @@ function setupTest() {
     dbPath: join(tmp.dir, 'state.db'),
     statusPath: join(tmp.dir, 'status.json'),
     tokenFile: join(tmp.dir, 'gateway-token'),
-    [Symbol.dispose]: () => {
-      owned.dispose();
-    },
   };
 }
 
 test('it answers a TCP handshake that carries a token from the token file', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -64,7 +59,7 @@ test('it answers a TCP handshake that carries a token from the token file', asyn
 });
 
 test('it refuses a TCP handshake without a token and closes the connection', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -92,7 +87,7 @@ test('it refuses a TCP handshake without a token and closes the connection', asy
 });
 
 test('it refuses a TCP handshake with a wrong token and closes the connection', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -120,7 +115,7 @@ test('it refuses a TCP handshake with a wrong token and closes the connection', 
 });
 
 test('it closes a TCP connection that sends a request before the handshake without answering it', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -144,7 +139,7 @@ test.each([
   ['the first', 'a'.repeat(32)],
   ['the second', 'b'.repeat(40)],
 ])('it accepts a handshake with %s token of a two-token file', async (_which, token) => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
 
@@ -163,7 +158,7 @@ test.each([
 });
 
 test('it serves a TCP request that acts as a listed principal', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -192,7 +187,7 @@ test('it serves a TCP request that acts as a listed principal', async () => {
 });
 
 test('it refuses a TCP request that carries no principal to act as', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -216,7 +211,7 @@ test('it refuses a TCP request that carries no principal to act as', async () =>
 test.each([['daemon.quit'], ['fleet.restore']])(
   'it refuses %s over TCP as owner-only',
   async (method) => {
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: (paths) => {
         writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -242,7 +237,7 @@ test.each([['daemon.quit'], ['fleet.restore']])(
 test.each([['daemon.quit'], ['fleet.restore']])(
   'it keeps serving the owner after it refuses %s over TCP',
   async (method) => {
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: (paths) => {
         writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -266,7 +261,7 @@ test.each([['daemon.quit'], ['fleet.restore']])(
 );
 
 test('it refuses a TCP request as a principal the principals key does not list', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -289,7 +284,7 @@ test('it refuses a TCP request as a principal the principals key does not list',
 });
 
 test('it refuses every TCP principal when the config has no principals key', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -314,7 +309,7 @@ test('it refuses every TCP principal when the config has no principals key', asy
 });
 
 test('it refuses a TCP handshake whose principal the principals key does not list', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -346,7 +341,7 @@ test('it refuses a TCP handshake whose principal the principals key does not lis
 });
 
 test('it lists none of the sessions outside the targets of a TCP principal', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -370,7 +365,7 @@ test('it lists none of the sessions outside the targets of a TCP principal', asy
 });
 
 test('it answers a TCP principal reading a session outside its targets as for a missing session', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -400,7 +395,7 @@ test('it answers a TCP principal reading a session outside its targets as for a 
 });
 
 test('it answers a TCP principal killing a session outside its targets as for a missing session', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -430,7 +425,7 @@ test('it answers a TCP principal killing a session outside its targets as for a 
 });
 
 test('it keeps a session that a TCP principal outside its targets tried to kill', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -460,7 +455,7 @@ test('it keeps a session that a TCP principal outside its targets tried to kill'
 });
 
 test('it lists for a TCP principal only the sessions on the targets it may use', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -513,7 +508,7 @@ test('it lists for a TCP principal only the sessions on the targets it may use',
 });
 
 test('it reads for a TCP principal a session on a target it may use', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -560,7 +555,7 @@ test('it reads for a TCP principal a session on a target it may use', async () =
 });
 
 test('it answers a TCP principal reading a session on a target it may not use as for a missing session', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -608,7 +603,7 @@ test('it answers a TCP principal reading a session on a target it may not use as
 });
 
 test('it pushes a TCP connection no event of a session it did not act on', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -642,7 +637,7 @@ test('it pushes a TCP connection no event of a session it did not act on', async
 });
 
 test('it closes a TCP connection whose token a reload removes', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
 
@@ -677,7 +672,7 @@ test('it closes a TCP connection whose token a reload removes', async () => {
 });
 
 test('it keeps serving a TCP connection whose token a reload keeps', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n${'b'.repeat(40)}\n`);
 
@@ -703,7 +698,7 @@ test('it keeps serving a TCP connection whose token a reload keeps', async () =>
 });
 
 test('it refuses a handshake with a token a reload removed', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -727,7 +722,7 @@ test('it refuses a handshake with a token a reload removed', async () => {
 });
 
 test('it closes every TCP connection after an invalid reload', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -762,7 +757,7 @@ test('it closes every TCP connection after an invalid reload', async () => {
 });
 
 test('it refuses every handshake after an invalid reload and logs the failed reload', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -792,7 +787,7 @@ test('it refuses every handshake after an invalid reload and logs the failed rel
 });
 
 test('it takes handshakes again after a valid reload follows an invalid one', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -821,7 +816,7 @@ test('it takes handshakes again after a valid reload follows an invalid one', as
 test('it delays the next handshake from an address by the failure delay after five failures within a minute', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -861,7 +856,7 @@ test('it delays the next handshake from an address by the failure delay after fi
 test('it answers a delayed handshake once the failure delay passes', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -900,16 +895,14 @@ test('it answers a delayed handshake once the failure delay passes', async () =>
 
   const answered = await hello;
 
-  expect<Record<string, unknown>>({ before, answered }).toStrictEqual({
-    before: 'pending',
-    answered: expect.objectContaining({ daemonID: expect.toBeString() }),
-  });
+  expect(before).toBe('pending');
+  expect(answered).toMatchObject({ daemonID: expect.toBeString() });
 });
 
 test('it answers the handshake at once before an address has failed five times', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -936,14 +929,12 @@ test('it answers the handshake at once before an address has failed five times',
   const client = await daemon.openTCPClient();
   const hello = await client.sendHello('atc/test-gateway', 'a'.repeat(32));
 
-  expect<Record<string, unknown>>({ hello, pending: clock.collectPending() }).toStrictEqual({
-    hello: expect.objectContaining({ daemonID: expect.toBeString() }),
-    pending: [],
-  });
+  expect(hello).toMatchObject({ daemonID: expect.toBeString() });
+  expect(clock.collectPending()).toStrictEqual([]);
 });
 
 test('it refuses to start a listener on an address outside the allowed ranges', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
@@ -961,7 +952,7 @@ test('it refuses to start a listener on an address outside the allowed ranges', 
 });
 
 test('it refuses to start a listener whose token file holds a short token', () => {
-  using ctx = setupTest();
+  const ctx = setupTest();
 
   writeFileSync(ctx.tokenFile, 'short\n');
 
@@ -979,7 +970,7 @@ test('it refuses to start a listener whose token file holds a short token', () =
 });
 
 test('it logs the address and port the TCP listener bound', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -997,8 +988,7 @@ test('it logs the address and port the TCP listener bound', async () => {
 });
 
 test('it logs no listener start when the TCP listener cannot bind', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
   onTestFinished(() => {
@@ -1029,7 +1019,7 @@ test('it logs no listener start when the TCP listener cannot bind', async () => 
 });
 
 test('it logs a refused handshake with the peer and the reason', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1053,7 +1043,7 @@ test('it logs a refused handshake with the peer and the reason', async () => {
 test('it logs no part of the token a refused handshake presents', async () => {
   const presented = randomBytes(24).toString('hex');
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1075,7 +1065,7 @@ test('it logs no part of the token a refused handshake presents', async () => {
 });
 
 test('it logs a refused principal as unlisted with the peer', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1103,7 +1093,7 @@ test('it logs a refused principal as unlisted with the peer', async () => {
 });
 
 test('it logs a principal refused on a request after the handshake', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1128,7 +1118,7 @@ test('it logs a principal refused on a request after the handshake', async () =>
 test('it logs a token sent in pieces as a refused principal as unlisted', async () => {
   const token = randomBytes(24).toString('hex');
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${token}\n`);
 
@@ -1158,7 +1148,7 @@ test('it logs a token sent in pieces as a refused principal as unlisted', async 
 test('it logs no part of a token sent in pieces as a refused principal', async () => {
   const token = randomBytes(24).toString('hex');
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${token}\n`);
 
@@ -1186,7 +1176,7 @@ test('it logs no part of a token sent in pieces as a refused principal', async (
 });
 
 test('it logs no principal line for a listed principal', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1210,7 +1200,7 @@ test('it logs no principal line for a listed principal', async () => {
 });
 
 test('it logs no control character of a refused principal', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1240,7 +1230,7 @@ test('it logs no control character of a refused principal', async () => {
 test('it folds repeated refusals from one peer within the window into one line', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1278,7 +1268,7 @@ test('it folds repeated refusals from one peer within the window into one line',
 test('it logs a refusal after the window as a new line after the count of the folded ones', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1321,7 +1311,7 @@ test('it logs a refusal after the window as a new line after the count of the fo
 test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it logs a line for each new peer while the cap of refusal windows has room',
   async () => {
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: (paths) => {
         writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1359,7 +1349,7 @@ test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
         })
         .end('not a handshake\n');
 
-      onTestFinished(() => {
+      registerTestCleanup(() => {
         peer.destroy();
       });
 
@@ -1381,7 +1371,7 @@ test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
 test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it folds refusals from peers past the cap of refusal windows into one overflow line',
   async () => {
-    await using daemon = await startTestDaemon({
+    const daemon = await startTestDaemon({
       options: (paths) => {
         writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1417,7 +1407,7 @@ test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
         })
         .end('not a handshake\n');
 
-      onTestFinished(() => {
+      registerTestCleanup(() => {
         peer.destroy();
       });
 
@@ -1433,8 +1423,7 @@ test.skipIf(!canBindAddresses(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5
 );
 
 test('it refuses a listener whose port another socket holds', () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
   onTestFinished(() => {
@@ -1460,8 +1449,7 @@ test('it refuses a listener whose port another socket holds', () => {
 });
 
 test('it releases the daemon lock and leaves no socket or record behind when the listener cannot bind', async () => {
-  using ctx = setupTest();
-
+  const ctx = setupTest();
   const held = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
 
   onTestFinished(() => {
@@ -1484,19 +1472,17 @@ test('it releases the daemon lock and leaves no socket or record behind when the
 
   const lock = await claimDaemonLock(join(ctx.dir, 'daemon.lock'), 0);
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     lock?.dispose();
   });
 
-  expect<Record<string, unknown>>({
-    lock,
-    socket: existsSync(ctx.socketPath),
-    record: existsSync(join(ctx.dir, 'daemon.json')),
-  }).toStrictEqual({ lock: expect.anything(), socket: false, record: false });
+  expect(lock).not.toBeNil();
+  expect(existsSync(ctx.socketPath)).toBe(false);
+  expect(existsSync(join(ctx.dir, 'daemon.json'))).toBe(false);
 });
 
 test('it closes an unauthenticated TCP connection that sends a malformed line without a reply', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1528,7 +1514,7 @@ test('it closes an unauthenticated TCP connection that sends a malformed line wi
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     peer.terminate();
   });
 
@@ -1540,7 +1526,7 @@ test('it closes an unauthenticated TCP connection that sends a malformed line wi
 test('it counts lines before the handshake as failed handshakes toward the delay', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1582,7 +1568,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
       },
     });
 
-    onTestFinished(() => {
+    registerTestCleanup(() => {
       peer.terminate();
     });
 
@@ -1603,7 +1589,7 @@ test('it counts lines before the handshake as failed handshakes toward the delay
 });
 
 test('it refuses a second handshake on a TCP connection and closes it', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1657,7 +1643,7 @@ test('it refuses a second handshake on a TCP connection and closes it', async ()
 test('it closes a TCP peer that floods lines behind its delayed handshake', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1699,7 +1685,7 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
     },
   });
 
-  onTestFinished(() => {
+  registerTestCleanup(() => {
     flood.terminate();
   });
 
@@ -1714,7 +1700,7 @@ test('it closes a TCP peer that floods lines behind its delayed handshake', asyn
 test('it refuses at once a handshake that would wait while the cap of delayed handshakes is full', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1762,7 +1748,7 @@ test('it refuses at once a handshake that would wait while the cap of delayed ha
 test('it answers the held handshakes once the delay passes after the cap refused another', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1815,7 +1801,7 @@ test('it answers the held handshakes once the delay passes after the cap refused
 test('it cancels the delay timer of a delayed handshake once its socket closes', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1864,7 +1850,7 @@ test('it cancels the delay timer of a delayed handshake once its socket closes',
 test('it delays a new handshake in the place in the cap that a closed delayed handshake freed', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1929,7 +1915,7 @@ test('it delays a new handshake in the place in the cap that a closed delayed ha
 test('it answers a local ping while many TCP sockets each send a handshake during the delay', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -1968,16 +1954,14 @@ test('it answers a local ping while many TCP sockets each send a handshake durin
 
   const pinged = await daemon.client.sendRequest('daemon.ping', {});
 
-  expect({ pinged, pending: clock.collectPending() }).toStrictEqual({
-    pinged: {},
-    pending: Array.from({ length: 64 }, () => 1500),
-  });
+  expect(pinged).toStrictEqual({});
+  expect(clock.collectPending()).toStrictEqual(Array.from({ length: 64 }, () => 1500));
 });
 
 test('it answers a local ping as the delay of every held handshake ends at once', async () => {
   const clock = buildStubClock(0);
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
@@ -2018,19 +2002,17 @@ test('it answers a local ping as the delay of every held handshake ends at once'
   const pinged = await daemon.client.sendRequest('daemon.ping', {});
   const settled = await floodHellos;
 
-  expect({
-    pinged,
-    statuses: settled.map((result) => result.status),
-    pending: clock.collectPending(),
-  }).toStrictEqual({
-    pinged: {},
-    statuses: Array.from({ length: 300 }, () => 'rejected'),
-    pending: [],
-  });
+  expect(pinged).toStrictEqual({});
+
+  expect(settled.map((result) => result.status)).toStrictEqual(
+    Array.from({ length: 300 }, () => 'rejected'),
+  );
+
+  expect(clock.collectPending()).toStrictEqual([]);
 });
 
 test('it pushes a TCP connection whose handshake gives a principal the removal of a session that leaves its reach', async () => {
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
 

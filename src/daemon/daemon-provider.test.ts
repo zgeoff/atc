@@ -10,7 +10,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 test('it streams the output of a session harness on the local pty provider', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       // The agent prints a marker, then echoes each line it reads.
@@ -51,7 +51,7 @@ test('it streams the output of a session harness on the local pty provider', asy
 test('it types input into a session harness on the local pty provider', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       // The agent prints a marker, then echoes each line it reads.
@@ -91,7 +91,7 @@ test('it types input into a session harness on the local pty provider', async ()
 test('it kills a session harness on the local pty provider', async () => {
   const provider = new LocalPTYProvider();
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -121,7 +121,7 @@ test('it kills a session harness on the local pty provider', async () => {
 test('it refuses a spawn with unsupported_operation when the provider cannot spawn', async () => {
   const provider = buildStubExecutionProvider({ kind: 'no-spawn', capabilities: { spawn: false } });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -148,7 +148,7 @@ test('it refuses a spawn with unsupported_operation when the provider cannot spa
 test('it refuses input with unsupported_operation when the provider takes no input', async () => {
   const provider = buildStubExecutionProvider({ kind: 'no-input', capabilities: { input: false } });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -175,7 +175,7 @@ test('it refuses input with unsupported_operation when the provider takes no inp
 test('it refuses a kill with unsupported_operation when the provider cannot end a harness', async () => {
   const provider = buildStubExecutionProvider({ kind: 'no-kill', capabilities: { kill: false } });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -208,7 +208,7 @@ test('it refuses an attach with unsupported_operation when the provider streams 
     capabilities: { attach: false },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -239,7 +239,7 @@ test('it takes a resize from an attached client on a provider that cannot resize
     capabilities: { resize: false },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -278,7 +278,7 @@ test('it puts the host of a killed session to sleep on a provider that can suspe
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -321,7 +321,7 @@ test('it refuses a second kill with confirmation_required on a provider that can
     capabilities: { suspend: true, destroy: true },
   });
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
@@ -370,7 +370,7 @@ test('it keeps a session running when its host refuses to sleep', async () => {
     }),
   );
 
-  await using daemon = await startTestDaemon({
+  const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
