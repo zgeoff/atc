@@ -32,7 +32,7 @@ jobs:
   binaries:
     uses: ./.github/workflows/binaries.yml
 
-  checks:
+  static:
     runs-on: ubuntu-latest
     # a hung step (a script that never exits, a wedged process) must fail the
     # run, not burn runner hours
@@ -75,8 +75,49 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+  # the suite runs in two shards, balanced by the committed per-file timings
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      LEFTHOOK: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
       - name: Test
-        run: bun run test
+        run: bun run test --shard=${{ matrix.shard }}/2
+
+  # the one status the main ruleset requires: it runs even when a job it needs
+  # failed or was skipped, and passes only when every one of them succeeded
+  checks:
+    needs: [static, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every check
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "a required job ended as $result" >&2
+              exit 1
+            fi
+          done
 
   atc-bridge:
     runs-on: ubuntu-latest
