@@ -92,6 +92,12 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     JSON.parse(readFileSync(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),
   );
 
+  // The server prints its no-clients line after it opens the auth database,
+  // so the stop waits for that line.
+  await waitFor(() => {
+    expect(stdout).toEndWith('--redirect-uri <uri>\n');
+  });
+
   mcp.kill('SIGTERM');
 
   await mcp.exited;
