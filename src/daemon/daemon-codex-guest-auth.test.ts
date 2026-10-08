@@ -128,7 +128,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
     hooks,
     grants: await Promise.all(ctx.port.collectImpNames().map((imp) => ctx.port.readGrants(imp))),
   }).toStrictEqual({
-    started: `${home} --dangerously-bypass-hook-trust -c cli_auth_credentials_store="file" go\n`,
+    started: `${home} --dangerously-bypass-hook-trust -c cli_auth_credentials_store="file" --no-daemon go\n`,
     auth: {
       OPENAI_API_KEY: null,
       auth_mode: 'chatgpt',
