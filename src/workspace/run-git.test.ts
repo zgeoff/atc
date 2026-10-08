@@ -93,7 +93,11 @@ test('it reports a git that exits while a child it left holds its output open, b
 
   report();
 
-  process.kill(-(groups[0] ?? 0), 'SIGKILL');
+  const [group] = groups;
+
+  invariant(group !== undefined && group > 0);
+
+  process.kill(-group, 'SIGKILL');
 
   await run;
 
