@@ -765,6 +765,7 @@ Every workspace refusal holds the phase it failed in as `data.phase`, and its me
 | `ref_not_found`          | cloning                   | the upstream has no such branch, tag, or commit                                                                                                                                                                     |
 | `lfs_unsupported`        | cloning                   | a tracked path uses Git LFS, counted in `data.count`                                                                                                                                                                |
 | `clone_failed`           | cloning                   | git cannot clone the repository or check the commit out                                                                                                                                                             |
+| `git_output_open`        | resolving or cloning      | a git command exits, but its output stays open 30 s later, with the subcommand in `data.subcommand` and its exit code in `data.exitCode`                                                                            |
 | `sanitize_failed`        | cloning                   | the clone still holds a credential, or its history no longer reads                                                                                                                                                  |
 | `tar_failed`             | cloning                   | tar cannot archive the clone                                                                                                                                                                                        |
 | `transfer_failed`        | resolving or transferring | the provider cannot create `cwd`'s parent or unpack the archive, or an imp has no gzip to unpack it                                                                                                                 |
@@ -854,10 +855,11 @@ ref listing never shows whether the upstream holds a commit; the clone checks th
 `resolved` is null. A client that spawns with both the resolved `sha` and its `ref` gets the commit
 it showed, whatever lands on the branch in between. A refusal takes the code the same failure gets
 in a spawn: `invalid_git_url`, `credential_in_url`, `credential_missing`, `clone_failed` with git's
-own message for an upstream the host cannot read, and `ref_not_found`. A refusal holds, in
-`data.alternates`, the repository's other URLs that an offered source knows: the GitHub source gives
-the ssh form of an https URL and the https form of an ssh URL. A `git ls-remote` that runs longer
-than 20 s is stopped and fails the request with `clone_failed`.
+own message for an upstream the host cannot read, `ref_not_found`, and `git_output_open` for a git
+whose output stays open after it exits. A refusal holds, in `data.alternates`, the repository's
+other URLs that an offered source knows: the GitHub source gives the ssh form of an https URL and
+the https form of an ssh URL. A `git ls-remote` that runs longer than 20 s is stopped and fails the
+request with `clone_failed`.
 
 ## Kill and sleep
 

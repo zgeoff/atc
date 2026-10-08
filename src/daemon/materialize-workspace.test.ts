@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonError } from '../protocol/daemon-error';
 import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
@@ -65,4 +66,40 @@ test('it leaves no staging directory behind when the materialization row cannot 
   );
 
   expect(readdirSync(ctx.scratch)).toStrictEqual([]);
+});
+
+test('it holds the phase a refusal failed in when the refusal carries none', async () => {
+  const ctx = await setupTest();
+
+  const materialized = materializeWorkspace(
+    {
+      sessionID: toSessionID('s-1'),
+      target: 'box',
+      dir: join(ctx.scratch, 'ws'),
+      source: { kind: 'git', url: 'https://example.com/repo.git', ref: 'main' },
+      inPlace: false,
+    },
+    {
+      requireProvider: () => {
+        throw new Error('no provider call is expected');
+      },
+      store: ctx.store,
+      log: () => {},
+      readyHost: () =>
+        Promise.reject(
+          new DaemonError(
+            'git_output_open',
+            'git ls-remote exited 0, but its output was still open 30000 ms later',
+          ),
+        ),
+      removeClaim: () => Promise.resolve(true),
+      stagingRoot: ctx.scratch,
+      gitTransports: ['https', 'ssh'],
+    },
+  );
+
+  expect(materialized).rejects.toMatchObject({
+    code: 'git_output_open',
+    data: { phase: 'resolving' },
+  });
 });

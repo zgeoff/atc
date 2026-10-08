@@ -1,3 +1,4 @@
+import { DaemonError } from '../protocol/daemon-error';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
@@ -14,19 +15,19 @@ interface GitRunOptions {
   // The transports git may fetch over; https and ssh when unset.
   readonly transports?: readonly string[];
 
-  // Called with the pid of the started git right after it starts; with a
-  // time limit, that pid is also its process group's id.
+  // Called with the pid of the started git right after it starts; that pid
+  // is also its process group's id.
   readonly onSpawn?: ((pid: number) => void) | undefined;
 
-  // Reports a git whose output stays open after it exits; a line on stderr
-  // 5 s after the exit when unset.
+  // Bounds the wait for the output of a git that has exited; a 30 s timer
+  // and a line on stderr when unset.
   readonly openOutputWatch?: OpenOutputWatch;
 }
 
 interface OpenOutputWatch {
-  // Arms the report to run after the delay, and returns the function that
+  // Arms the bound to fire after the delay, and returns the function that
   // disarms it.
-  readonly schedule: (report: () => void, afterMs: number) => () => void;
+  readonly schedule: (fire: () => void, afterMs: number) => () => void;
   readonly report: (line: string) => void;
 }
 
@@ -41,7 +42,9 @@ interface GitRun {
  * Runs one git command to completion, feeding it any given input, and
  * returns its exit code and output. A command given a time limit is
  * stopped once it passes it, with every process it started, and reported
- * as timed out.
+ * as timed out. Once git exits, its output has 30 s to close: output that
+ * a process git left holds open past that kills git's process group and
+ * fails the run with `git_output_open`.
  * git never prompts on a terminal here, since the daemon has none to answer
  * with, its messages stay in the C locale so callers can read them, and it
  * fetches only over the transports it is given, https and ssh unless told
@@ -94,19 +97,22 @@ export async function runGit(
     stdout: 'pipe',
     stderr: 'pipe',
 
-    // A command with a time limit leads its own process group, so stopping
-    // it stops the helpers it started, such as `git remote-http`, too.
-    detached: options.timeoutMs !== undefined,
+    // Every git leads its own process group, so stopping it stops the
+    // helpers it started, such as `git remote-http`, too.
+    detached: true,
   });
 
   options.onSpawn?.(proc.pid);
   const output = Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+  const stopped = Promise.withResolvers<void>();
 
   const closed = waitForOutputClose(
+    proc.pid,
     proc.exited,
     output,
     findSubcommand(args) ?? 'command',
     options.openOutputWatch ?? DEFAULT_OPEN_OUTPUT_WATCH,
+    stopped.promise,
   );
 
   const finished = (async () => {
@@ -129,11 +135,18 @@ export async function runGit(
     limit.resolve(null);
   }, options.timeoutMs);
 
-  const settled = await Promise.race([finished, limit.promise]);
+  let settled: Awaited<typeof finished> | null;
 
-  clearTimeout(timer);
+  try {
+    settled = await Promise.race([finished, limit.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (settled === null) {
+    // The group is stopped here, so the bound has nothing left to wait for.
+    stopped.resolve();
+
     try {
       process.kill(-proc.pid, 'SIGKILL');
     } catch {
@@ -148,11 +161,11 @@ export async function runGit(
   return { exitCode, stdout, stderr, timedOut: false };
 }
 
-const OPEN_OUTPUT_REPORT_MS = 5000;
+const OPEN_OUTPUT_BOUND_MS = 30_000;
 
 const DEFAULT_OPEN_OUTPUT_WATCH: OpenOutputWatch = {
-  schedule: (report, afterMs) => {
-    const timer = setTimeout(report, afterMs);
+  schedule: (fire, afterMs) => {
+    const timer = setTimeout(fire, afterMs);
 
     timer.unref();
 
@@ -166,24 +179,38 @@ const DEFAULT_OPEN_OUTPUT_WATCH: OpenOutputWatch = {
 };
 
 // A run waits for git's output to close as well as for its exit, so output
-// that stays open after the exit holds the run; the report says which git
-// it waits on. It resolves once the output closes.
+// that stays open after the exit holds the run. Past the bound, a line says
+// which git it waited on, git's process group is killed, and the wait
+// fails, since the hangup of output whose writer is gone may never arrive.
+// It resolves once the output closes or the run stops the group itself.
 async function waitForOutputClose(
+  pid: number,
   exited: Readonly<Promise<number>>,
   output: Readonly<Promise<unknown>>,
   subcommand: string,
   watch: OpenOutputWatch,
+  stopped: Readonly<Promise<void>>,
 ): Promise<void> {
   const exitCode = await exited;
 
+  const bound = Promise.withResolvers<never>();
+
   const disarm = watch.schedule(() => {
-    watch.report(
-      `atc: git ${subcommand} exited ${exitCode}, but its output was still open ${OPEN_OUTPUT_REPORT_MS} ms later`,
-    );
-  }, OPEN_OUTPUT_REPORT_MS);
+    const message = `git ${subcommand} exited ${exitCode}, but its output was still open ${OPEN_OUTPUT_BOUND_MS} ms later`;
+
+    watch.report(`atc: ${message}; killing its process group`);
+
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      // The group already exited.
+    }
+
+    bound.reject(new DaemonError('git_output_open', message, { subcommand, exitCode }));
+  }, OPEN_OUTPUT_BOUND_MS);
 
   try {
-    await output;
+    await Promise.race([output, bound.promise, stopped]);
   } finally {
     disarm();
   }
