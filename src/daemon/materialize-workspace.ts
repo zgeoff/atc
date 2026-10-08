@@ -242,10 +242,10 @@ async function isOutsideWorkTree(path: string): Promise<boolean> {
 
 // A git that cannot start, such as one given a cwd that is gone, reads as
 // no answer; any refusal, such as git's output that stays open after it
-// exits, is thrown on so it fails the spawn.
+// exits, is thrown on with the resolving phase so it fails the spawn.
 function requireStartFailure(error: unknown): null {
   if (error instanceof DaemonError) {
-    throw error;
+    throw toDaemonError(error, 'internal', 'resolving');
   }
 
   return null;
