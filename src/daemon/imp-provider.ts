@@ -89,19 +89,20 @@ const UNPACK_SCRIPT = `command -v gzip >/dev/null 2>&1 || exit ${NO_GZIP_CODE}; 
 // Readies the guest folder, prints the version of the image's atc and of
 // the atc at `bin/atc`, one per line and empty for one that is missing,
 // and links `bin/atc` to the image's atc when that one prints the
-// daemon's version.
+// daemon's version and lives elsewhere.
 const READ_GUEST_ATC_SCRIPT = [
   'mkdir -p "$1/run" "$1/bin" || exit 1',
   'image=$("$2" --version 2>/dev/null) || image=',
   'copied=$("$1/bin/atc" --version 2>/dev/null) || copied=',
   String.raw`printf '%s\n%s\n' "$image" "$copied"`,
   '[ -n "$image" ] && [ "$image" = "$3" ] || exit 0',
-  'ln -sfn "$2" "$1/bin/atc"',
+  '[ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc"',
 ].join('\n');
 
 // Readies the guest folder and links `bin/atc` to the image's atc again,
 // as a cold boot of an imp leaves it without the link.
-const LINK_GUEST_ATC_SCRIPT = 'mkdir -p "$1/run" "$1/bin" && ln -sfn "$2" "$1/bin/atc"';
+const LINK_GUEST_ATC_SCRIPT =
+  'mkdir -p "$1/run" "$1/bin" && { [ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc"; }';
 
 /**
  * The `imp` provider: one imp, a VM that impd hosts, per top-level session,
@@ -160,7 +161,8 @@ export class ImpProvider implements ExecutionProvider {
   private readonly version: string;
 
   // The version the image's atc printed on each imp, or null for an imp
-  // without one, read once per imp: an imp's image never changes.
+  // without one, kept once a readying of the imp succeeds: an imp's image
+  // never changes, and `bin/atc` there then runs the daemon's version.
   private readonly imageATCVersions = new Map<string, string | null>();
 
   // Whether impd carries output offsets, once a prepare has read its
@@ -589,8 +591,6 @@ export class ImpProvider implements ExecutionProvider {
 
       imageVersion = readImage === undefined || readImage === '' ? null : readImage;
       copiedVersion = readCopied === undefined || readCopied === '' ? null : readCopied;
-
-      this.imageATCVersions.set(name, imageVersion);
     }
 
     const found =
@@ -599,12 +599,16 @@ export class ImpProvider implements ExecutionProvider {
         : `the image's atc at ${image} is ${imageVersion}`;
 
     if (imageVersion === this.version) {
+      this.imageATCVersions.set(name, imageVersion);
+
       log(`imp ${name} runs hooks through the image's atc ${this.version} at ${image}`);
 
       return;
     }
 
     if (copiedVersion === this.version) {
+      this.imageATCVersions.set(name, imageVersion);
+
       log(
         `imp ${name} runs hooks through the daemon's atc ${this.version}, already at ${dir}/bin/atc: ${found}`,
       );
@@ -621,6 +625,8 @@ export class ImpProvider implements ExecutionProvider {
     }
 
     await this.copyATCBinary(name, this.atcBinary);
+
+    this.imageATCVersions.set(name, imageVersion);
 
     log(
       `imp ${name} runs hooks through the daemon's atc ${this.version}, copied to ${dir}/bin/atc: ${found}`,

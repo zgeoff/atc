@@ -56,7 +56,7 @@ image=$("$2" --version 2>/dev/null) || image=
 copied=$("$1/bin/atc" --version 2>/dev/null) || copied=
 printf '%s\\n%s\\n' "$image" "$copied"
 [ -n "$image" ] && [ "$image" = "$3" ] || exit 0
-ln -sfn "$2" "$1/bin/atc" sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
+[ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc" sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
     'imps.destroy atc-s1',
   ]);
 
@@ -303,6 +303,58 @@ test("it reads the image's version again for an imp created after the one it rea
   await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
 
   expect(ctx.port.calls.filter((call) => call.includes('--version'))).toBeArrayOfSize(2);
+});
+
+test('it refuses a retried prepare on an imp whose atc runs another version when the daemon has no binary to copy', async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+
+  createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.8.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await ctx.port.createImp({ name: 'atc-s1' });
+
+  await Promise.allSettled([
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ]);
+
+  expect(
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { problem: 'no_guest_atc' },
+  });
+});
+
+test("it uses an image's atc at the guest's own atc path when it runs the daemon's version", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
+  const log = mock(() => {});
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true, log });
+
+  expect(log).toHaveBeenCalledExactlyOnceWith(
+    `imp atc-s1 runs hooks through the image's atc 1.0.0 at ${guestATC}`,
+  );
 });
 
 test('it keeps an imp that existed before a failed prepare and gives back only its own lease', async () => {
