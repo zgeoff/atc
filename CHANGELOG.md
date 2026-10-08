@@ -2,10 +2,11 @@
 
 ## [3.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.4.2...@zgeoff/atc@3.5.0) (2026-10-08)
 
-
 ### Features
 
-* **geo-158:** publish a session record with the scope a session may touch ([#434](https://github.com/zgeoff/atc/issues/434)) ([ce10710](https://github.com/zgeoff/atc/commit/ce107100453ad2f82aef59bfe62c3502cfb85c30))
+- **geo-158:** publish a session record with the scope a session may touch
+  ([#434](https://github.com/zgeoff/atc/issues/434))
+  ([ce10710](https://github.com/zgeoff/atc/commit/ce107100453ad2f82aef59bfe62c3502cfb85c30))
 
 ## [3.4.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.4.1...@zgeoff/atc@3.4.2) (2026-10-08)
 
