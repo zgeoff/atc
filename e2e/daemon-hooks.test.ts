@@ -25,10 +25,14 @@ function setupTest() {
   const tmp = setupTempDir('atc-e2e-hooks-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(tmp.dir);
+  const configDir = join(tmp.dir, '.config', 'atc');
+
+  mkdirSync(configDir, { recursive: true });
 
   return {
     home: tmp.dir,
     atc,
+    configPath: join(configDir, 'config.json'),
     claude: createStubClaude(tmp.dir, { atc, composer }),
     grok: createStubGrok(tmp.dir, { atc, composer }),
     codex: createStubCodex(tmp.dir, { atc, composer }),
@@ -38,10 +42,8 @@ function setupTest() {
 test('it keeps a live terminal alive when its session reports an end', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -97,10 +99,8 @@ test('it keeps a live terminal alive when its session reports an end', async () 
 test('it stops showing a live terminal as ended once a new session starts in it', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -172,10 +172,8 @@ test('it stops showing a live terminal as ended once a new session starts in it'
 test('it keeps a gone terminal exited when a late end and start arrive', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -245,10 +243,8 @@ test('it keeps a gone terminal exited when a late end and start arrive', async (
 test('it marks a grok session done on end-turn Stop', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -295,10 +291,8 @@ test('it marks a grok session done on end-turn Stop', async () => {
 test('it ignores a grok hook event that names a subagent', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -364,10 +358,8 @@ test('it ignores a grok hook event that names a subagent', async () => {
 test('it keeps a grok session needing you when an idle notification follows a permission prompt', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -437,10 +429,8 @@ test('it keeps a grok session needing you when an idle notification follows a pe
 test('it keeps a nested codex harness from rebinding or answering for the claude session it runs in', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -537,10 +527,8 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
 test('it drops a hook line without an agent at a session whose own hooks carry one', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -606,10 +594,8 @@ test.each(['resume', 'clear', 'compact'])(
   async (source) => {
     const ctx = setupTest();
 
-    mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
     writeFileSync(
-      join(ctx.home, '.config', 'atc', 'config.json'),
+      ctx.configPath,
       JSON.stringify({
         agents: {
           claude: { bin: ctx.claude },
@@ -665,10 +651,8 @@ test.each(['resume', 'clear', 'compact'])(
 test('it binds a gateway session through the hook command atc wrote for it', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -711,10 +695,8 @@ test('it binds a gateway session through the hook command atc wrote for it', asy
 test('it binds a session from a hook line without an agent while none of its own carried one', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },

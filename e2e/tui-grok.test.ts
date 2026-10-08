@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KEYS } from '../src/test-utils/keys';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { spawnGrokSession } from '../src/test-utils/spawn-grok-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
 import { waitFor } from '../src/test-utils/wait-for';
@@ -34,11 +35,15 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 
   rmSync(join(ctx.home, 'fake-grok-defer-start'));
 
+  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
   await waitFor(() => {
-    using db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
-
     expect(
       db.query('SELECT name, cwd, agent_session_id AS agentSessionID, agent FROM fleet').all(),
     ).toStrictEqual([
@@ -122,11 +127,15 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
+  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The daemon writes each hook it takes to the trail with the kind it read
   // the hook as, after it has applied the hook to the session.
   await waitFor(() => {
-    using db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
-
     expect(db.query("SELECT kind FROM events WHERE event = 'Stop'").all()).toStrictEqual([
       { kind: 'heartbeat' },
     ]);

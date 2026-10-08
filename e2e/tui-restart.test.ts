@@ -22,11 +22,15 @@ test('it restarts a daemon on another protocol after the user confirms and resto
 
   await spawnClaudeSession(ctx, 'fleettest');
 
+  const db = new Database(join(stateDir, 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
   await waitFor(() => {
-    using db = new Database(join(stateDir, 'atc.db'), { readonly: true });
-
     expect(db.query('SELECT agent_session_id AS agentSessionID FROM fleet').all()).toStrictEqual([
       { agentSessionID: 'fake-1' },
     ]);

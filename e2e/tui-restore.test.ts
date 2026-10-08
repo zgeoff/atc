@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
 import { spawnGrokSession } from '../src/test-utils/spawn-grok-session';
 import { startTUIHarness } from '../src/test-utils/start-tui-harness';
@@ -19,11 +20,15 @@ test('it restores the fleet from disk after a crash', async () => {
 
   await spawnClaudeSession(ctx, 'fleettest');
 
+  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
   await waitFor(() => {
-    using db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
-
     expect(
       db.query('SELECT name, cwd, agent_session_id AS agentSessionID FROM fleet').all(),
     ).toStrictEqual([{ name: 'fleettest', cwd: ctx.home, agentSessionID: 'fake-1' }]);
@@ -62,11 +67,15 @@ test('it restores a grok session with grok --resume after a crash', async () => 
 
   await spawnGrokSession(ctx, 'grokfleet');
 
+  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
   await waitFor(() => {
-    using db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
-
     expect(
       db.query('SELECT name, cwd, agent_session_id AS agentSessionID, agent FROM fleet').all(),
     ).toStrictEqual([

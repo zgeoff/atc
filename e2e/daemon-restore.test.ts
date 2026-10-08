@@ -31,10 +31,14 @@ function setupTest() {
   const tmp = setupTempDir('atc-e2e-restore-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(tmp.dir);
+  const configDir = join(tmp.dir, '.config', 'atc');
+
+  mkdirSync(configDir, { recursive: true });
 
   return {
     home: tmp.dir,
     atc,
+    configPath: join(configDir, 'config.json'),
     claude: createStubClaude(tmp.dir, { atc, composer }),
     grok: createStubGrok(tmp.dir, { atc, composer }),
   };
@@ -43,10 +47,8 @@ function setupTest() {
 test('it restores the fleet cold after a daemon crash', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -93,10 +95,8 @@ test('it restores the fleet cold after a daemon crash', async () => {
 test('it starts a daemon on the state directory of one killed with SIGKILL', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -115,12 +115,6 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
   });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
   await daemon.restart('SIGKILL');
@@ -143,10 +137,8 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
 test('it restores a killed session as exited across a daemon restart', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -211,10 +203,8 @@ test('it restores a killed session as exited across a daemon restart', async () 
 test('it restores a stored exited row once and nothing on a second restore', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -233,12 +223,6 @@ test('it restores a stored exited row once and nothing on a second restore', asy
   });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
 
@@ -259,10 +243,8 @@ test('it restores a stored exited row once and nothing on a second restore', asy
 test('it revives the fleet one boot at a time, gated on SessionStart', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -340,10 +322,8 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 test('it moves on to the next revive when one dies before announcing itself', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -403,10 +383,8 @@ test('it moves on to the next revive when one dies before announcing itself', as
 test('it revives the fleet most recently active first', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -481,10 +459,8 @@ test('it revives the fleet most recently active first', async () => {
 test('it restores a grok session via grok --resume, not claude --resume', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -561,10 +537,8 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
 test('it keeps the spawn prompt and latest result across a daemon restart', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -643,10 +617,8 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
 test("it revives a restored session with the spawn's model and effort", async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -665,12 +637,6 @@ test("it revives a restored session with the spawn's model and effort", async ()
   });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
 
@@ -714,10 +680,8 @@ test("it revives a restored session with the spawn's model and effort", async ()
 test('it revives a restored session that has no model or effort without either flag', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
@@ -736,12 +700,6 @@ test('it revives a restored session that has no model or effort without either f
   });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
 

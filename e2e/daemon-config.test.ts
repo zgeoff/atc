@@ -194,7 +194,7 @@ test('it keeps the configured model and effort when a spawn sets neither', async
     rows: 24,
   });
 
-  const screens = await waitFor(async () => {
+  const [claudeScreen, gatewayScreen] = await waitFor(async () => {
     const read = await Promise.all(
       [claude, gateway].map((ok) =>
         client.sendRequest('session.screen', {
@@ -210,9 +210,8 @@ test('it keeps the configured model and effort when a spawn sets neither', async
     return read.map((screen) => screen['text']);
   });
 
-  expect(screens).toSatisfyAll((text: unknown) =>
-    String(text).includes('args: --model opus --effort low --settings'),
-  );
+  expect(claudeScreen).toInclude('args: --model opus --effort low --settings');
+  expect(gatewayScreen).toInclude('args: --model opus --effort low --settings');
 });
 
 test("it replaces the configured model and effort with a spawn's overrides", async () => {

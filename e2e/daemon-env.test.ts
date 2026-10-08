@@ -13,29 +13,23 @@ import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
 import { waitFor } from '../src/test-utils/wait-for';
 
 /**
- * A home with a stub Claude CLI and a config that offers it, for a test to
- * start a daemon on with the environment it is about.
+ * A home with a stub Claude CLI and an empty config directory, for a test
+ * to write the config offering it and start a daemon on with the
+ * environment it is about.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-e2e-env-');
   const atc = resolveATCCommand();
-  const claude = createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) });
+  const configDir = join(tmp.dir, '.config', 'atc');
 
-  // The daemon spawns its sessions from the agents the config offers, and
-  // clones a workspace from a local path only over the file transport.
-  mkdirSync(join(tmp.dir, '.config', 'atc'), { recursive: true });
+  mkdirSync(configDir, { recursive: true });
 
-  writeFileSync(
-    join(tmp.dir, '.config', 'atc', 'config.json'),
-    JSON.stringify({
-      agents: {
-        claude: { bin: claude },
-      },
-      workspaces: { gitTransports: ['https', 'ssh', 'file'] },
-    }),
-  );
-
-  return { home: tmp.dir, atc };
+  return {
+    home: tmp.dir,
+    atc,
+    configPath: join(configDir, 'config.json'),
+    claude: createStubClaude(tmp.dir, { atc, composer: createStubComposer(tmp.dir) }),
+  };
 }
 
 test.each([
@@ -46,6 +40,13 @@ test.each([
   'it starts a session with TERM $sessionTERM when the daemon starts with TERM $daemonTERM',
   async (row) => {
     const ctx = setupTest();
+
+    writeFileSync(
+      ctx.configPath,
+      JSON.stringify({
+        agents: { claude: { bin: ctx.claude } },
+      }),
+    );
 
     const daemon = startDaemonProcess({
       command: ctx.atc,
@@ -75,6 +76,13 @@ test.each([
 
 test('it starts a session without a parent-session variable the daemon started with', async () => {
   const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
 
   const daemon = startDaemonProcess({
     command: ctx.atc,
@@ -111,6 +119,17 @@ test('it unpacks every tracked file of a local workspace when the daemon env ask
   await $`git add notes.txt`.env(fixture.env).cwd(fixture.work).quiet();
   await $`git commit --quiet -m notes`.env(fixture.env).cwd(fixture.work).quiet();
   await $`git push --quiet origin main`.env(fixture.env).cwd(fixture.work).quiet();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+
+      // The daemon clones a workspace from a local path only over the file
+      // transport.
+      workspaces: { gitTransports: ['https', 'ssh', 'file'] },
+    }),
+  );
 
   // TAR_OPTIONS reaches tar only through the environment a process starts
   // with, so the daemon here starts with it set.

@@ -22,10 +22,14 @@ function setupTest() {
   const tmp = setupTempDir('atc-e2e-agents-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(tmp.dir);
+  const configDir = join(tmp.dir, '.config', 'atc');
+
+  mkdirSync(configDir, { recursive: true });
 
   return {
     home: tmp.dir,
     atc,
+    configPath: join(configDir, 'config.json'),
     claude: createStubClaude(tmp.dir, { atc, composer }),
     grok: createStubGrok(tmp.dir, { atc, composer }),
     codex: createStubCodex(tmp.dir, { atc, composer }),
@@ -35,10 +39,8 @@ function setupTest() {
 test('it spawns a grok session and captures a grok descriptor from SessionStart', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -86,10 +88,8 @@ test('it spawns a grok session and captures a grok descriptor from SessionStart'
 test('it yanks a bare grok command for a grok session before its SessionStart', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -105,12 +105,6 @@ test('it yanks a bare grok command for a grok session before its SessionStart', 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
 
@@ -133,10 +127,8 @@ test('it yanks a bare grok command for a grok session before its SessionStart', 
 test('it yanks grok --resume for a grok session once its id is captured', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -185,10 +177,8 @@ test('it yanks grok --resume for a grok session once its id is captured', async 
 test('it spawns a codex session and captures its descriptor from SessionStart', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -234,10 +224,8 @@ test('it spawns a codex session and captures its descriptor from SessionStart', 
 test('it builds a codex resume command once the codex id is captured', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -288,10 +276,8 @@ test.each([['grok'], ['codex']])(
   async (agent) => {
     const ctx = setupTest();
 
-    mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
     writeFileSync(
-      join(ctx.home, '.config', 'atc', 'config.json'),
+      ctx.configPath,
       JSON.stringify({
         agents: {
           claude: { bin: ctx.claude },
@@ -307,12 +293,6 @@ test.each([['grok'], ['codex']])(
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
     const client = await daemon.openClient();
-
-    const events: EventMsg[] = [];
-
-    client.onEvent = (event) => {
-      events.push(event);
-    };
 
     await client.sendHello('atc/test');
 
@@ -334,10 +314,8 @@ test.each([['grok'], ['codex']])(
 test('it starts a Claude session with the atc-bridge mod folder', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -353,12 +331,6 @@ test('it starts a Claude session with the atc-bridge mod folder', async () => {
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
 
@@ -389,10 +361,8 @@ test('it starts a Claude session with the atc-bridge mod folder', async () => {
 test('it starts a gateway session with the atc-bridge mod folder', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -408,12 +378,6 @@ test('it starts a gateway session with the atc-bridge mod folder', async () => {
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
 
@@ -440,10 +404,8 @@ test('it starts a gateway session with the atc-bridge mod folder', async () => {
 test("it runs and stores a resume request's own model and effort", async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.config', 'atc'), { recursive: true });
-
   writeFileSync(
-    join(ctx.home, '.config', 'atc', 'config.json'),
+    ctx.configPath,
     JSON.stringify({
       agents: {
         claude: { bin: ctx.claude },
@@ -459,12 +421,6 @@ test("it runs and stores a resume request's own model and effort", async () => {
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
-
-  const events: EventMsg[] = [];
-
-  client.onEvent = (event) => {
-    events.push(event);
-  };
 
   await client.sendHello('atc/test');
 
