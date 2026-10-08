@@ -19,11 +19,13 @@ interface CommandResult {
 }
 
 /**
- * Runs a command as its own process and resolves once it exits, with its
- * exit code, the signal that ended it, and everything it printed. The run
- * never blocks the test's event loop, so the test's timeout still applies,
- * and a command still running when the test finishes is killed and awaited
- * then. Call it only inside a test, never from a cleanup.
+ * Runs a command as its own process and resolves once it exits and its
+ * output closes, with its exit code, the signal that ended it, and
+ * everything it printed. The run never blocks the test's event loop, so the
+ * test's timeout still applies. The command leads a process group of its
+ * own, and a run still incomplete when the test finishes has that whole
+ * group killed, so a child the command left holding its output ends too.
+ * Call it only inside a test, never from a cleanup.
  */
 export async function runCommand(
   cmd: readonly string[],
@@ -35,11 +37,14 @@ export async function runCommand(
     stdin: options.stdin === undefined ? 'ignore' : Buffer.from(options.stdin),
     stdout: 'pipe',
     stderr: 'pipe',
+    detached: true,
   });
 
+  let complete = false;
+
   registerTestCleanup(async () => {
-    if (proc.exitCode === null && proc.signalCode === null) {
-      proc.kill('SIGKILL');
+    if (!complete) {
+      killProcessGroup(proc.pid);
     }
 
     await proc.exited;
@@ -51,5 +56,18 @@ export async function runCommand(
     proc.exited,
   ]);
 
+  complete = true;
+
   return { exitCode: proc.exitCode, signalCode: proc.signalCode, stdout, stderr };
+}
+
+// A group already empty has nothing left to kill.
+function killProcessGroup(group: number): void {
+  try {
+    process.kill(-group, 'SIGKILL');
+  } catch (error) {
+    if (!(error instanceof Error && Reflect.get(error, 'code') === 'ESRCH')) {
+      throw error;
+    }
+  }
 }

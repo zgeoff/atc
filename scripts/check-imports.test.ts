@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { runCommand } from '../src/test-utils/run-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
 
 // A temp directory standing in for a repo root, and a run of the checker
@@ -10,21 +11,13 @@ function setupTest() {
   return {
     dir: tmp.dir,
     check: async () => {
-      const proc = Bun.spawn(
-        [process.execPath, join(import.meta.dir, 'check-imports.ts'), tmp.dir],
-        {
-          stdout: 'pipe',
-          stderr: 'pipe',
-        },
-      );
-
-      const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(proc.stdout).text(),
-        new Response(proc.stderr).text(),
-        proc.exited,
+      const checked = await runCommand([
+        process.execPath,
+        join(import.meta.dir, 'check-imports.ts'),
+        tmp.dir,
       ]);
 
-      return { exitCode, stdout, stderr };
+      return { exitCode: checked.exitCode, stdout: checked.stdout, stderr: checked.stderr };
     },
   };
 }

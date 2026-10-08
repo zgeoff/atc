@@ -1,6 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
+import { waitFor } from './wait-for';
 
 function setupTest() {
   const tmp = setupTempDir('atc-run-command-');
@@ -52,6 +55,28 @@ test('it kills a command still running when the test finishes', () => {
       signalCode: 'SIGKILL',
       stdout: '',
       stderr: '',
+    });
+  });
+});
+
+test('it kills a child the command left holding its output when the test finishes', async () => {
+  const ctx = setupTest();
+  const pidPath = join(ctx.dir, 'child.pid');
+  const run = runCommand(['bash', '-c', `sleep 30 & echo $! > '${pidPath}'; exit 0`]);
+
+  await waitFor(() => {
+    expect(readFileSync(pidPath, 'utf8')).toMatch(/^\d+\n$/);
+  });
+
+  const child = Number(readFileSync(pidPath, 'utf8'));
+
+  onTestFinished(async () => {
+    const result = await run;
+
+    expect(result.stdout).toBe('');
+
+    await waitFor(() => {
+      expect(() => process.kill(child, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
     });
   });
 });

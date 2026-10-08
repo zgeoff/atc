@@ -382,6 +382,12 @@ test('it unpacks a tar archive into a directory it creates', async () => {
 
   const tar = Bun.spawn(['tar', '-c', '-f', '-', '-C', source, '.'], { stdout: 'pipe' });
 
+  registerTestCleanup(async () => {
+    tar.kill('SIGKILL');
+
+    await tar.exited;
+  });
+
   const [archive] = await Promise.all([new Response(tar.stdout).bytes(), tar.exited]);
 
   await ctx.provider.transferArchive(archive, join(ctx.dir, 'dest', 'deeper'));
