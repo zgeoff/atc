@@ -666,8 +666,9 @@ target, the session takes the broker's credential, and the helper never reaches 
 On an imp target, the session's guest folder holds a settings file for its binding revision and a
 Claude config folder of its own. The settings file points the CLI at `baseURL` with the placeholder
 and holds no credential helper. atc seeds the config folder with first-run onboarding state only
-when `.claude.json` does not exist. Each start names a permission mode: the one the gateway's `args`
-or `settings` set, else Claude's manual `default` mode.
+when `.claude.json` does not exist. Each start names a permission mode: the one the launch's
+arguments set, which are `auth.args` when it is set and `args` otherwise, else the one the gateway's
+`settings` set, else Claude's manual `default` mode.
 
 With [clone trust](#clone-trust) on an imp target, atc seeds trust for the clone's resolved root in
 that session's isolated guest config, never in the user's Claude config. atc preserves an existing
