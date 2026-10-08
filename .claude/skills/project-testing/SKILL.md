@@ -1,9 +1,9 @@
 ---
 name: project-testing
 description:
-  atc's test harness facts on top of the shared testing skill — the per-run test home and the PTY
-  harness that drives the real TUI. Load together with the testing skill when designing, writing, or
-  reviewing atc tests.
+  atc's test harness facts on top of the shared testing skill — the per-run test home, the PTY
+  harness that drives the real TUI, and socket delivery. Load together with the testing skill when
+  designing, writing, or reviewing atc tests.
 ---
 
 # atc testing
@@ -39,10 +39,11 @@ subprocesses.
 inside a fresh home. These patterns each come from a real failure:
 
 - The stand-in `claude` (`src/test-utils/build-stub-tui-claude.ts`) is a bash script that prints
-  `FAKE_CLAUDE_UP args: ` with its arguments, then reports `SessionStart` and a `Notification`
-  through the real reporter over the real socket, so everything after that boundary is production
-  code. Extend a scenario by dropping a file into the home, such as `fake-transcript.jsonl` with a
-  `custom-title` line, not by adding flags to the script.
+  `FAKE_CLAUDE_UP args: ` with its arguments, then reports `SessionStart` through the real reporter
+  over the real socket, so everything after that boundary is production code. It then reports a
+  permission `Notification`, unless the home holds `fake-claude-events.jsonl`, whose hook lines it
+  reports instead. Extend a scenario by dropping a file into the home, such as
+  `fake-transcript.jsonl` with a `custom-title` line, not by adding flags to the script.
 - Call `reset()` on the harness before the action whose output you assert on. The capture
   accumulates from boot, and an absence check against the whole run can pass on text drawn two
   screens earlier.
@@ -53,3 +54,9 @@ inside a fresh home. These patterns each come from a real failure:
   lines: hint text changes with every keybinding addition.
 - Type control bytes and escape sequences through `KEYS` from `src/test-utils/keys.ts`, never as raw
   bytes or inline escapes.
+
+## Sockets
+
+- `Bun.socket.write()` returns the number of bytes it accepted and silently drops the rest. Only a
+  test at the transport catches a missing drain path: prove delivery by sending a slow reader more
+  than one write accepts through the real socket, and assert that nothing was lost.
