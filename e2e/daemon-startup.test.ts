@@ -23,13 +23,20 @@ test('it lets exactly one of two daemons started at once serve a state directory
   const ctx = setupTest();
   const first = startDaemonProcess({ command: ctx.atc, home: ctx.home });
   const second = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+  const daemons = [first, second] as const;
 
-  const loserCode = await Promise.race([first.proc.exited, second.proc.exited]);
+  const loserIndex = await Promise.race(
+    daemons.map(async (daemon, index) => {
+      await daemon.proc.exited;
 
-  const live = [first, second].filter((daemon) => daemon.proc.exitCode === null);
-  const [winner] = live;
+      return index;
+    }),
+  );
 
-  invariant(winner !== undefined, 'both daemons exited');
+  const loser = daemons[loserIndex];
+  const winner = daemons[1 - loserIndex];
+
+  invariant(loser !== undefined && winner !== undefined, 'no daemon exited first');
 
   // The loser can exit before the winner binds its socket, so the client
   // waits on the daemon that still runs.
@@ -37,8 +44,8 @@ test('it lets exactly one of two daemons started at once serve a state directory
 
   await client.sendHello('atc/test');
 
-  expect(loserCode).toBe(1);
-  expect(live).toHaveLength(1);
+  expect(loser.proc.exitCode).toBe(1);
+  expect(Bun.peek.status(winner.proc.exited)).toBe('pending');
 
   expect(findDaemonRecord(join(first.stateDir, 'daemon.json'))).toStrictEqual({
     pid: winner.proc.pid,
@@ -48,7 +55,11 @@ test('it lets exactly one of two daemons started at once serve a state directory
     listenPort: null,
   });
 
-  expect(`${first.readStderr()}${second.readStderr()}`).toInclude('another daemon already serves');
+  // Both daemons print to the one stderr file of their shared home, so the
+  // refusal shows it came from the loser by holding the winner's pid.
+  expect(loser.readStderr()).toInclude(
+    `atc daemon: another daemon already serves ${first.stateDir} (pid ${winner.proc.pid},`,
+  );
 });
 
 test('it prints the running daemon id through atc daemon id', async () => {

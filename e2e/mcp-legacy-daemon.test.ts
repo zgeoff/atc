@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import invariant from 'tiny-invariant';
-import { isRecord } from '../src/shared/report';
+import { getRecord } from '../src/shared/get-record';
+import { getRecords } from '../src/test-utils/get-records';
 import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
 import { startStubLegacyDaemon } from '../src/test-utils/start-stub-legacy-daemon';
@@ -19,11 +19,24 @@ test('it leaves the agent list out of the tools for an older daemon', async () =
   const ctx = await setupTest();
   const response = await ctx.mcp.sendRequest('tools/list');
 
-  const result = response['result'];
+  const tools = getRecords(getRecord(response, 'result'), 'tools');
 
-  invariant(isRecord(result) && Array.isArray(result['tools']), 'tools/list returned no tools');
-
-  expect(result['tools']).not.toPartiallyContain({ name: 'atc_agents_list' });
+  expect(tools.map((tool) => tool['name'])).toIncludeSameMembers([
+    'atc_session_list',
+    'atc_session_spawn',
+    'atc_session_input',
+    'atc_session_screen',
+    'atc_session_update',
+    'atc_session_kill',
+    'atc_session_ack',
+    'atc_resume_command',
+    'atc_dirs_list',
+    'atc_session_get',
+    'atc_session_read',
+    'atc_events_read',
+    'atc_session_message',
+    'atc_message_get',
+  ]);
 });
 
 test('it refuses a call an older daemon cannot serve without sending it', async () => {

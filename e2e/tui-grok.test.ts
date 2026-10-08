@@ -262,6 +262,20 @@ test('it keeps needs-you when grok emits idle_prompt after permission_prompt', a
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
+  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  // The daemon writes each hook it takes to the trail with the kind it read
+  // the hook as, after it has applied the hook to the session.
+  await waitFor(() => {
+    expect(
+      db.query("SELECT kind FROM events WHERE event = 'Notification' ORDER BY id").all(),
+    ).toStrictEqual([{ kind: 'needs-input' }, { kind: 'heartbeat' }]);
+  });
+
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 

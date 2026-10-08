@@ -163,7 +163,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
   ]);
 }, 20_000);
 
-test('it keeps the target step open on a target the directory cannot run on', async () => {
+test('it keeps the target step open on a target whose provider the daemon lacks', async () => {
   const ctx = setupTest();
 
   ctx.writeConfig({
@@ -288,5 +288,7 @@ test('it starts claude with the settings file atc generates', async () => {
 
   await spawnClaudeSession(ctx, 'withsettings');
 
-  expect(ctx.read()).toMatch(/FAKE_CLAUDE_UP args: [^\r\n]*--settings /u);
+  expect(ctx.read()).toInclude(
+    `--settings ${join(ctx.home, '.local', 'state', 'atc', 'hook-settings-claude.json')} `,
+  );
 });

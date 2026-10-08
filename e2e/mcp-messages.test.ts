@@ -44,7 +44,7 @@ test('it sends a message to a session that has not started', async () => {
 
   expect(result).toStrictEqual({
     isError: undefined,
-    text: JSON.stringify({ message, status: 'accepted' }, null, 2),
+    text: `{\n  "message": "${String(message)}",\n  "status": "accepted"\n}`,
     structured: { message: expect.stringMatching(/^m-[\da-f-]{36}$/u), status: 'accepted' },
   });
 });

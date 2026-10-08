@@ -69,9 +69,7 @@ test('it spawns a session and broadcasts SessionAdded to every client', async ()
   const actorAdded = await waitForEvent(actorEvents, { ev: 'SessionAdded' });
 
   expect(ok).toStrictEqual({
-    session: expect.toSatisfy(
-      (s: Readonly<Record<string, unknown>>) => s['kind'] === 'pty' && s['alive'] === true,
-    ),
+    session: expect.objectContaining({ kind: 'pty', alive: true }),
   });
 
   expect(added).toMatchObject({

@@ -123,7 +123,7 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
 
   await revived.sendHello('atc/test');
 
-  expect(daemon.proc.exitCode).toBeNull();
+  expect(Bun.peek.status(daemon.proc.exited)).toBe('pending');
 
   expect(findDaemonRecord(join(daemon.stateDir, 'daemon.json'))).toStrictEqual({
     pid: daemon.proc.pid,
@@ -371,12 +371,19 @@ test('it moves on to the next revive when one dies before announcing itself', as
 
   const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
+  const died = await waitForEvent(events, {
+    ev: 'SessionState',
+    session: { id: 's-dying', alive: false },
+  });
+
   const survivor = await waitForEvent(events, {
     ev: 'SessionState',
     session: { id: 's-survivor', kind: 'pty' },
   });
 
   expect(restored).toStrictEqual({ restored: 2 });
+  expect(died).toMatchObject({ session: { state: 'exited', lastMsg: 'process exited' } });
+  expect(events.indexOf(died)).toBeLessThan(events.indexOf(survivor));
   expect(survivor).toMatchObject({ session: { alive: true } });
 });
 

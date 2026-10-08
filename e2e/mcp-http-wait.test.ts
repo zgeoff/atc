@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '../src/client/daemon-client';
 import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
 import { setupTempDir } from '../src/test-utils/setup-temp-dir';
@@ -86,6 +87,16 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   await mcp.exited;
   await drained;
 
+  // A handshake answered after the server stopped proves the daemon still
+  // serves.
+  const client = await DaemonClient.open(join(ctx.dir, 'atc-daemon.sock'));
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
   expect(stderr).toMatch(
     /^atc mcp --http: no daemon answers yet; waiting up to 30s for one, without starting it\nPOST \/mcp 401 \d+ms\n$/u,
   );
@@ -100,5 +111,5 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     listenPort: null,
   });
 
-  expect(daemon.exitCode).toBeNull();
+  expect(Bun.peek.status(daemon.exited)).toBe('pending');
 });

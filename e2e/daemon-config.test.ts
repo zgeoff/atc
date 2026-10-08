@@ -167,7 +167,43 @@ test.each([
   expect(stderr).not.toInclude('sk_fixture_NOT_A_SECRET_1234');
 });
 
-test('it keeps the configured model and effort when a spawn sets neither', async () => {
+test('it keeps the configured model and effort when a claude spawn sets neither', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      claudeBin: ctx.claude,
+      claudeArgs: ['--model', 'opus', '--effort', 'low'],
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    cols: 400,
+    rows: 24,
+  });
+
+  const screen = await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', {
+      session: getString(getRecord(ok, 'session'), 'id'),
+    });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:');
+
+    return read;
+  });
+
+  expect(screen['text']).toInclude('args: --model opus --effort low --settings');
+});
+
+test('it keeps the configured model and effort when a gateway spawn sets neither', async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -185,36 +221,64 @@ test('it keeps the configured model and effort when a spawn sets neither', async
 
   await client.sendHello('atc/test');
 
-  const claude = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 400, rows: 24 });
-
-  const gateway = await client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     agent: 'zai',
     cols: 400,
     rows: 24,
   });
 
-  const [claudeScreen, gatewayScreen] = await waitFor(async () => {
-    const read = await Promise.all(
-      [claude, gateway].map((ok) =>
-        client.sendRequest('session.screen', {
-          session: getString(getRecord(ok, 'session'), 'id'),
-        }),
-      ),
-    );
+  const screen = await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', {
+      session: getString(getRecord(ok, 'session'), 'id'),
+    });
 
-    expect(read.map((screen) => screen['text'])).toSatisfyAll((text: unknown) =>
-      String(text).includes('FAKE_CLAUDE_TERM:'),
-    );
+    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:');
 
-    return read.map((screen) => screen['text']);
+    return read;
   });
 
-  expect(claudeScreen).toInclude('args: --model opus --effort low --settings');
-  expect(gatewayScreen).toInclude('args: --model opus --effort low --settings');
+  expect(screen['text']).toInclude('args: --model opus --effort low --settings');
 });
 
-test("it replaces the configured model and effort with a spawn's overrides", async () => {
+test("it replaces the configured model with a claude spawn's model override", async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      claudeBin: ctx.claude,
+      claudeArgs: ['--model', 'opus', '--effort', 'low'],
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', {
+    cwd: ctx.home,
+    model: 'sonnet',
+    cols: 400,
+    rows: 24,
+  });
+
+  const screen = await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', {
+      session: getString(getRecord(ok, 'session'), 'id'),
+    });
+
+    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:');
+
+    return read;
+  });
+
+  expect(screen['text']).toInclude('args: --effort low --model sonnet --settings');
+});
+
+test("it replaces the configured model and effort with a gateway spawn's overrides", async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -232,14 +296,7 @@ test("it replaces the configured model and effort with a spawn's overrides", asy
 
   await client.sendHello('atc/test');
 
-  const claude = await client.sendRequest('session.spawn', {
-    cwd: ctx.home,
-    model: 'sonnet',
-    cols: 400,
-    rows: 24,
-  });
-
-  const gateway = await client.sendRequest('session.spawn', {
+  const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     agent: 'zai',
     model: 'haiku',
@@ -248,24 +305,17 @@ test("it replaces the configured model and effort with a spawn's overrides", asy
     rows: 24,
   });
 
-  const [claudeScreen, gatewayScreen] = await waitFor(async () => {
-    const read = await Promise.all(
-      [claude, gateway].map((ok) =>
-        client.sendRequest('session.screen', {
-          session: getString(getRecord(ok, 'session'), 'id'),
-        }),
-      ),
-    );
+  const screen = await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', {
+      session: getString(getRecord(ok, 'session'), 'id'),
+    });
 
-    expect(read.map((screen) => screen['text'])).toSatisfyAll((text: unknown) =>
-      String(text).includes('FAKE_CLAUDE_TERM:'),
-    );
+    expect(read['text']).toInclude('FAKE_CLAUDE_TERM:');
 
-    return read.map((screen) => screen['text']);
+    return read;
   });
 
-  expect(claudeScreen).toInclude('args: --effort low --model sonnet --settings');
-  expect(gatewayScreen).toInclude('args: --model haiku --effort max --settings');
+  expect(screen['text']).toInclude('args: --model haiku --effort max --settings');
 });
 
 test('it restores the stored fleet by itself when the config leaves restoreFleetOnRestart unset', async () => {
