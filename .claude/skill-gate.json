@@ -1,0 +1,8 @@
+{
+  "ignore": ["node_modules/", "dist/"],
+  "gates": [
+    { "match": "**/*.test.ts", "skills": ["testing", "project-testing"] },
+    { "match": "e2e/**", "skills": ["testing", "project-testing"] },
+    { "match": "**/*.md", "skills": ["docs-writing"] }
+  ]
+}
