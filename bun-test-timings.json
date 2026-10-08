@@ -49,7 +49,7 @@
     "src/daemon/daemon-imp-guest.test.ts": 2296,
     "src/daemon/daemon-imp-bridge.test.ts": 2270,
     "src/daemon/daemon-tcp.test.ts": 2257,
-    "src/test-utils/run-source-daemon.test.ts": 2156,
+    "src/test-utils/run-stub-source-daemon.test.ts": 2156,
     "e2e/mcp-configured-agents.test.ts": 2144,
     "e2e/mcp-sub-sessions.test.ts": 2042,
     "e2e/gateway-serve.test.ts": 2017,

@@ -5,7 +5,7 @@
     "src/gateway.ts",
     "e2e/**/*.test.ts",
     "src/**/*.test.ts",
-    "src/test-utils/run-source-daemon.ts",
+    "src/test-utils/run-stub-source-daemon.ts",
     "src/test-utils/run-listener-daemon.ts",
     "src/test-utils/run-stub-legacy-daemon.ts"
   ],

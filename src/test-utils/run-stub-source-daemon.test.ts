@@ -33,7 +33,7 @@ function setupTest() {
 test('it offers the built-in sources and then the fixture source', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -72,7 +72,7 @@ test('it offers the built-in sources and then the fixture source', async () => {
 test('it offers no sources when told none', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: { ...ctx.env, ATC_TEST_SOURCES: 'none' },
     stdout: 'pipe',
     stderr: 'ignore',
@@ -102,7 +102,7 @@ test('it offers no sources when told none', async () => {
 test('it lists the fixture repository at the fixture URL', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -146,7 +146,7 @@ test('it lists the fixture repository at the fixture URL', async () => {
 test('it lists the fixture repository under the scope it is given', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -194,7 +194,7 @@ test('it lists the fixture repository under the scope it is given', async () => 
 test('it appends each listing it serves to the source log', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -235,7 +235,7 @@ test.each([
 ])('it reads the input %p as %p', async (input, expected) => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: {
       ...ctx.env,
       ATC_TEST_SOURCES: 'fixture',
@@ -273,7 +273,7 @@ test.each([
 test('it stops with exit code 0 on SIGTERM', async () => {
   const ctx = setupTest();
 
-  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-source-daemon.ts')], {
+  const proc = Bun.spawn([process.execPath, join(import.meta.dir, 'run-stub-source-daemon.ts')], {
     env: { ...ctx.env, ATC_TEST_SOURCES: 'none' },
     stdout: 'pipe',
     stderr: 'ignore',
