@@ -47,6 +47,10 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
     ['sessionRecord.session', 'id'],
     ['sessionRecord.daemonID', 'opaque'],
   ]),
+  'session.scope.add': new Map([
+    ['record.session', 'id'],
+    ['record.daemonID', 'opaque'],
+  ]),
   'session.message': new Map([['message', 'id']]),
   'message.get': new Map([
     ['message', 'id'],

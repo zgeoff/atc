@@ -97,6 +97,26 @@ test('it has a rule for every id in a session.get answer', async () => {
   expect(collectUnruledIDPaths(got, ID_RULES['session.get'] ?? new Map())).toStrictEqual([]);
 });
 
+test('it has a rule for every id in a session.scope.add answer', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const added = await ctx.client.sendRequest('session.scope.add', {
+    session: getRecord(spawned, 'session')['id'],
+    scope: {},
+  });
+
+  expect(collectUnruledIDPaths(added, ID_RULES['session.scope.add'] ?? new Map())).toStrictEqual(
+    [],
+  );
+
+  expect(ID_RULES['session.scope.add']).toBeDefined();
+});
+
 test('it has a rule for every id in a session.message answer', async () => {
   const ctx = await setupTest();
 

@@ -610,7 +610,8 @@ format, the checks, and where each provider places the copy. Three parts of the 
   its target is that session or a session it is a sub-session of.
 
 `session.get` returns the record as `sessionRecord`, null for a session that has none yet. The
-gateway passes `session.get` but not `session.scope.add`.
+gateway passes both `session.get` and `session.scope.add`, with the record's `session` rewritten to
+the gateway's id.
 
 ## Runtime auth
 

@@ -152,7 +152,11 @@ export class PublishedRecords {
 
     const merged = mergeRecordedScope(current.scope, checked);
 
+    // A change that adds nothing still places the copy, so a retry after a
+    // failed copy write brings the copy level with the store.
     if (stored !== null && merged === current.scope) {
+      await this.writeCopy(subject, stored);
+
       return stored;
     }
 

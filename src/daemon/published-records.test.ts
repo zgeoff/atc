@@ -420,6 +420,43 @@ test('it removes the record and its local copy', async () => {
   expect(stored).toBeNull();
 });
 
+test('it rewrites the copy on a retry after a failed copy write left the store ahead', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-retried');
+
+  const subject = {
+    session,
+    target: 'local',
+    provider: ctx.provider,
+    host: session,
+    dir: ctx.fixture.work,
+    workspace: null,
+  };
+
+  const path = await ctx.records.createRecord(subject, null);
+
+  const added = { worktrees: [], branches: [{ name: 'main' }], pullRequests: [] };
+
+  // A file where the copies' directory stands fails the next copy write.
+  rmSync(ctx.localDir, { recursive: true, force: true });
+  writeFileSync(ctx.localDir, '');
+
+  const failed = ctx.records.updateScope(subject, added);
+
+  expect(failed).rejects.toThrow();
+
+  await Promise.allSettled([failed]);
+
+  rmSync(ctx.localDir, { force: true });
+
+  const retried = await ctx.records.updateScope(subject, added);
+  const text = await Bun.file(path).text();
+
+  expect(retried.revision).toBe(2);
+  expect(parsePublishedRecord(text)).toStrictEqual(retried);
+});
+
 test("it never removes another session's copy", async () => {
   const ctx = await setupTest();
 
