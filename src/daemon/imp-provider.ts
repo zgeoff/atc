@@ -23,6 +23,7 @@ import type {
 import { ImpHarness } from './imp-harness';
 import type { ImpPort, ImpRelayConnection } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import { isImpNameAllowed } from './is-imp-name-allowed';
 
 /**
  * The options an `imp` target takes beside its provider: the image a new
@@ -210,6 +211,25 @@ export class ImpProvider implements ExecutionProvider {
   getImpName(hostKey: string): string {
     return buildImpName(this.impPrefix, hostKey);
   }
+
+  readonly checkExistingHost = async (host: string): Promise<boolean> => {
+    try {
+      const name = this.getImpName(host);
+
+      const identity = await this.port.readIdentity();
+
+      if (
+        identity.scope === 'read' ||
+        (identity.imps !== null && !isImpNameAllowed(identity.imps, name))
+      ) {
+        return false;
+      }
+
+      return (await this.port.readImp(name)) !== null;
+    } catch {
+      return false;
+    }
+  };
 
   // Creates the host's imp when impd holds none, then takes the daemon's
   // lease, which boots or wakes the imp.

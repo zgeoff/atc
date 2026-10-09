@@ -36,6 +36,11 @@ export interface ExecutionProvider {
   // harnesses run. Rejects with the refusal before any harness starts.
   readonly prepareHost: (request: HostRequest) => Promise<void>;
 
+  // Checks that an existing host is reachable with this provider's current
+  // credentials. Creates nothing and takes no lease. Absent when the
+  // provider cannot check an existing host.
+  readonly checkExistingHost?: (host: string) => Promise<boolean>;
+
   // Starts a process in a pseudo-terminal of the given size, on the host the
   // spec holds, which a prepare readied first.
   readonly spawnHarness: (spec: HarnessSpec) => HarnessHandle;

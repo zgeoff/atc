@@ -110,10 +110,11 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   for (const entry of entries) {
     try {
       const listed = mgr.sessions.find((s) => s.id === entry.sessionID);
+      const resolved = listed === undefined ? await mgr.resolveRestoredEntry(entry) : entry;
 
       const row =
         listed === undefined
-          ? { session: mgr.restore(entry), revive: false }
+          ? { session: mgr.restore(resolved), revive: false }
           : { session: listed, revive: true };
 
       registered.push(row);

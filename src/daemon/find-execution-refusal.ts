@@ -24,7 +24,7 @@ interface TargetBinding {
  *   when there is no target because the config gives no default.
  * - `unknown_target` when no target holds the id.
  * - `target_changed` when the target's identity is not the one the session
- *   was bound to: the name now holds another provider or other options.
+ *   was bound to: the target holds another provider or connection options.
  * - `target_unavailable` when this daemon has no provider of its kind.
  * - `unsupported_operation` when the provider lacks the capability.
  */

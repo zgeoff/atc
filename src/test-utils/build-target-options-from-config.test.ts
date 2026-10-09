@@ -64,7 +64,7 @@ test('it leaves a target whose kind no factory serves without a provider', () =>
         id: 'box',
         kind: 'imp',
         options: {},
-        identity: 'imp:44136fa355b3678a',
+        identity: 'imp:reach-v1:44136fa355b3678a',
         provider: null,
       },
     ],

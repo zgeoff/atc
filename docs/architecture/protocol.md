@@ -494,10 +494,13 @@ spawn without one runs on the default target, which `agents.list` returns as `sp
 A sub-session runs on the default target too, unless its spawn holds one; it never inherits its
 parent's. The [configuration guide](../guides/configuration.md#targets) covers how targets are set.
 
-A session binds to its target's identity when it spawns: the provider kind, a colon, and the first
-16 hex digits of a sha256 over the target's options with sorted keys, such as
-`local-pty:44136fa355b3678a`. The fleet row holds the target and the identity. A row without either
-binds to `local` with the identity of the implicit `local` target.
+A session binds to its target's identity when it spawns. An imp identity has the form
+`imp:reach-v1:<digest>`, where the digest is the first 16 hex digits of sha256 over sorted target
+options except `image`, `memoryMib`, and `guestATC`. Other providers hash every option and use
+`<provider>:<digest>`, such as `local-pty:44136fa355b3678a`. The fleet row holds the target and
+identity. A row without either binds to the implicit `local` target. The
+[configuration guide](../guides/configuration.md#targets) covers changes and the checks for
+unversioned imp bindings.
 
 Every request that starts work on a session checks the session's target first, in one place: a
 spawn, an adopt or fleet restore, terminal input, an attach, a kill, an eject, and a headless turn.

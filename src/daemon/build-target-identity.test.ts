@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { buildTargetIdentity } from './build-target-identity';
 
-test('it builds the provider kind and a sixteen-digit hex digest of the options', () => {
-  expect(buildTargetIdentity('imp', { image: 'dev' })).toMatch(/^imp:[\da-f]{16}$/);
+test('it builds a versioned imp identity with a sixteen-digit hex digest', () => {
+  expect(buildTargetIdentity('imp', { image: 'dev' })).toMatch(/^imp:reach-v1:[\da-f]{16}$/);
 });
 
 test('it builds the same identity whatever order the options list their keys in', () => {
@@ -17,9 +17,30 @@ test('it builds another identity for another provider kind with the same options
   );
 });
 
-test('it builds another identity for other options under the same provider kind', () => {
-  expect(buildTargetIdentity('imp', { image: 'dev' })).not.toBe(
+test('it preserves the identity when the image for new imps changes', () => {
+  expect(buildTargetIdentity('imp', { image: 'dev' })).toBe(
     buildTargetIdentity('imp', { image: 'ci' }),
+  );
+});
+
+test.each([
+  ['guestATC', '/usr/bin/atc', '/opt/atc'],
+  ['memoryMib', 2048, 4096],
+])('it preserves the identity when %s changes', (key, before, after) => {
+  expect(buildTargetIdentity('imp', { [key]: before })).toBe(
+    buildTargetIdentity('imp', { [key]: after }),
+  );
+});
+
+test.each([
+  ['url', 'http://server-a', 'http://server-b'],
+  ['tokenEnv', 'TOKEN_A', 'TOKEN_B'],
+  ['tokenFile', '/tokens/a', '/tokens/b'],
+  ['impPrefix', 'home-', 'work-'],
+  ['guestDir', '/tmp/atc', '/opt/atc'],
+])('it refuses a changed %s through a different identity', (key, before, after) => {
+  expect(buildTargetIdentity('imp', { [key]: before })).not.toBe(
+    buildTargetIdentity('imp', { [key]: after }),
   );
 });
 
