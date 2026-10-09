@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.4...@zgeoff/atc@3.10.0) (2026-10-09)
+
+
+### Features
+
+* **geo-200:** clone git workspaces inside the imp ([#475](https://github.com/zgeoff/atc/issues/475)) ([ab2f3bb](https://github.com/zgeoff/atc/commit/ab2f3bbaaed20d779fcd0b43cb6eb3953613d6c5))
+
 ## [3.9.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.3...@zgeoff/atc@3.9.4) (2026-10-08)
 
 ### Bug Fixes
