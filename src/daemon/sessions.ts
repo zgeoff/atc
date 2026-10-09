@@ -597,7 +597,9 @@ export class SessionManager {
     const target = entry.target ?? 'local';
     const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
     const refusal = this.findExecutionRefusal({ target, targetIdentity }, 'spawn');
-    const targetRefusal = refusal === null ? null : formatTargetRefusal(refusal.code, target);
+
+    const targetRefusal =
+      refusal === null ? null : formatTargetRefusal(refusal.code, target, targetIdentity);
 
     // A session whose target this daemon cannot use comes back exited, so
     // nothing runs it anywhere else: neither a terminal nor a headless turn.
@@ -662,6 +664,19 @@ export class SessionManager {
     this.onEvent('added', session);
 
     return session;
+  }
+
+  // Publishes a checked binding and clears the refusal from its earlier
+  // restore before a terminal adoption can fail for a different reason.
+  updateRestoredIdentity(s: Session, identity: string): void {
+    if (s.targetIdentity === identity) {
+      return;
+    }
+
+    s.targetIdentity = identity;
+    s.lastMsg = 'waiting to restore';
+
+    this.onEvent('state', s);
   }
 
   // Whether a target's host has a lifecycle of its own that the daemon
@@ -3472,7 +3487,7 @@ function pickExitMessage(exit: Readonly<{ reason?: string; detail?: string }>): 
 }
 
 // A target refusal as a session's last message, short enough for a list row.
-function formatTargetRefusal(code: ErrorCode, target: string): string {
+function formatTargetRefusal(code: ErrorCode, target: string, identity: string): string {
   if (code === 'target_config_invalid') {
     return `target '${target}' misconfigured`;
   }
@@ -3482,6 +3497,10 @@ function formatTargetRefusal(code: ErrorCode, target: string): string {
   }
 
   if (code === 'target_changed') {
+    if (/^imp:[\da-f]{16}$/.test(identity)) {
+      return `target '${target}' binding unverified`;
+    }
+
     return `target '${target}' changed`;
   }
 

@@ -124,7 +124,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       const resolved = await mgr.resolveRestoredEntry(binding);
 
       if (listed !== undefined && resolved.targetIdentity !== undefined) {
-        listed.targetIdentity = resolved.targetIdentity;
+        mgr.updateRestoredIdentity(listed, resolved.targetIdentity);
       }
 
       const row =

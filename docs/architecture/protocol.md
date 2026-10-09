@@ -515,7 +515,8 @@ refuses the request before anything starts:
   `data.problem` alone.
 - A target the config does not hold is `unknown_target`, with the id as `data.target`.
 - A target whose identity is not the session's is `target_changed`, with `data.target`,
-  `data.boundIdentity`, and `data.currentIdentity`.
+  `data.boundIdentity`, and `data.currentIdentity`. An unversioned imp binding keeps this refusal
+  until the existing-host check confirms it.
 - A target whose provider kind this daemon does not have is `target_unavailable`, with `data.target`
   and `data.provider`.
 - A provider without the capability the request needs is `unsupported_operation`. A headless turn

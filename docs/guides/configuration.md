@@ -167,14 +167,16 @@ unavailable target fails, and a restore lists a session whose target is gone as 
 A session stays bound to its target's provider and connection options. On an imp target, you can
 change `image`, `memoryMib`, or `guestATC` without refusing existing sessions; new imps use the
 configured image and memory. Changes to the impd URL, token source, imp prefix, guest directory, or
-other options refuse input, resume, and revive with `target_changed`. Restore the target's earlier
-config to use those sessions again. Never put a credential value in a target's options; name an
-environment variable or a file that holds it instead.
+other options refuse input, resume, and revive with `target_changed` for a versioned binding.
+Restore the target's earlier config to use those sessions again. Never put a credential value in a
+target's options; name an environment variable or a file that holds it instead.
 
 During fleet restore, atc checks a session with an unversioned imp identity against impd with the
 current credentials. It accepts the connection identity only when the existing imp is present and
 the credentials permit execution on it. A missing or unreachable imp stays refused; this check
-creates no imp. The [protocol](../architecture/protocol.md#targets) defines the identity format.
+creates no imp. An unconfirmed binding lists as `target '<target_id>' binding unverified`; check
+impd access and retry fleet restore. The [protocol](../architecture/protocol.md#targets) defines the
+identity format.
 
 ### Clone trust
 

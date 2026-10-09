@@ -151,7 +151,7 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
       targetIdentity: 'imp:0123456789abcdef',
       state: 'exited',
       pty: null,
-      lastMsg: "target 'cloud' changed",
+      lastMsg: "target 'cloud' binding unverified",
     },
   ]);
 
@@ -195,7 +195,7 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
   await restored.settled;
 
-  expect(refused).toBe("target 'cloud' changed");
+  expect(refused).toBe("target 'cloud' binding unverified");
 
   expect(ctx.mgr.sessions).toMatchObject([
     { id: entry.sessionID, targetIdentity: ctx.identity, state: 'running' },
@@ -203,4 +203,51 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
 
   expect(ctx.mgr.sessions).toBeArrayOfSize(1);
   expect(ctx.mgr.sessions[0]?.pty?.detach).toBeFunction();
+});
+
+test('it clears a stale binding refusal when the host check succeeds but adoption fails', async () => {
+  const ctx = await setupTest();
+
+  const entry = buildMockFleetEntry({
+    cwd: ctx.dir,
+    target: 'cloud',
+    targetIdentity: 'imp:0123456789abcdef',
+  });
+
+  await ctx.store.writeFleet([entry]);
+
+  const first = await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await first.settled;
+
+  await ctx.port.createImp({ name: ctx.provider.getImpName(entry.sessionID) });
+
+  ctx.port.setAcquireFailure(0, 'LEASED');
+
+  const restored = await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await restored.settled;
+
+  expect(ctx.mgr.sessions).toMatchObject([
+    {
+      id: entry.sessionID,
+      targetIdentity: ctx.identity,
+      state: 'exited',
+      lastMsg: 'waiting to restore',
+    },
+  ]);
 });
