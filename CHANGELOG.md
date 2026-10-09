@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.10.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.1...@zgeoff/atc@3.10.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* **geo-205:** keep cloud sessions usable when the target image changes ([0b05993](https://github.com/zgeoff/atc/commit/0b059930fe8eed89012e5919661c02b1b67b2c5b))
+* **geo-206:** wait for the managed daemon instead of starting one ([af66137](https://github.com/zgeoff/atc/commit/af66137f9cf4ef67cff3d782edf5295619226fc1))
+
 ## [3.10.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.0...@zgeoff/atc@3.10.1) (2026-10-09)
 
 ### Bug Fixes
