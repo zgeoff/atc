@@ -35,6 +35,10 @@ export class DaemonClient implements DaemonChannel {
   // once instead of waiting on a response that can never arrive.
   private closedReason: string | null = null;
 
+  isClosed(): boolean {
+    return this.closedReason !== null;
+  }
+
   // Connects to the daemon at a unix socket path, or at a TCP address.
   static async open(
     address: string | { readonly hostname: string; readonly port: number },

@@ -35,6 +35,65 @@ function setupTest() {
   };
 }
 
+test('it makes a CLI client wait for an installed daemon unit before connecting', async () => {
+  const ctx = setupTest();
+  const unitDir = join(ctx.dir, '.config', 'systemd', 'user');
+
+  mkdirSync(unitDir, { recursive: true });
+  writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
+
+  const probe = join(ctx.dir, 'probe.ts');
+
+  writeFileSync(
+    probe,
+    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
+const boot = await bootDaemonClient();
+boot.client.stop();
+console.log('connected');
+`,
+  );
+
+  const proc = Bun.spawn([process.execPath, probe], {
+    env: ctx.env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  registerTestCleanup(() => {
+    proc.kill();
+  });
+
+  const reader = proc.stderr.getReader();
+
+  const message = await reader.read();
+
+  reader.releaseLock();
+
+  const waiting = new TextDecoder().decode(message.value);
+
+  const autostarted = existsSync(join(ctx.stateDir, 'atc.db'));
+
+  const daemon = await startDaemon({
+    socketPath: ctx.sockPath,
+    reporterSocketPath: join(ctx.dir, 'atc.sock'),
+    dbPath: join(ctx.stateDir, 'atc.db'),
+    statusPath: join(ctx.stateDir, 'status.json'),
+    build: getBuild(),
+    adapter: buildMockAgentAdapter(),
+  });
+
+  registerTestCleanup(() => daemon.stop());
+
+  const stdout = await new Response(proc.stdout).text();
+
+  const code = await proc.exited;
+
+  expect(code).toBe(0);
+  expect(stdout).toBe('connected\n');
+  expect(waiting).toBe('waiting for atc-daemon.service; this client does not start a daemon\n');
+  expect(autostarted).toBe(false);
+});
+
 test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
   const ctx = setupTest();
 

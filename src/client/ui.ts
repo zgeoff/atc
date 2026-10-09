@@ -79,6 +79,7 @@ export interface StatusView {
   readonly leaderLabel: string;
   readonly stale: boolean;
   readonly restarting: boolean;
+  readonly waiting?: boolean;
 }
 
 export function drawStatusBar(view: StatusView) {
@@ -105,7 +106,9 @@ export function drawStatusBar(view: StatusView) {
     parts.push(`✗ ${c.exited}`);
   }
 
-  if (view.restarting) {
+  if (view.waiting === true) {
+    parts.push('⟳ waiting for daemon');
+  } else if (view.restarting) {
     parts.push('⟳ restarting daemon');
   } else if (view.stale) {
     parts.push('⟳ update ready');
