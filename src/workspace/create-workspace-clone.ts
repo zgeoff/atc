@@ -2,7 +2,7 @@ import { rm } from 'node:fs/promises';
 import { checkWorkspaceCompleteness } from './check-workspace-completeness';
 import { createGitAskpass } from './create-git-askpass';
 import type { GitCredential } from './create-git-askpass';
-import { findRemoteRef } from './find-remote-ref';
+import { resolveRemoteRef } from './resolve-remote-ref';
 import { runGit } from './run-git';
 import type { WorkspaceSource } from './workspace-source';
 
@@ -76,7 +76,7 @@ async function createCloneAtRef(
   env: Readonly<Record<string, string>>,
   args: readonly string[],
 ): Promise<CloneRefusal | CreatedClone | IncompleteCheckout> {
-  const target = await resolveRef(request, env, args);
+  const target = await resolveRemoteRef(request, env, args);
 
   if (!target.ok) {
     return target;
@@ -137,68 +137,4 @@ async function createCloneAtRef(
   }
 
   return { ok: true, sha: target.sha, branch: target.branch };
-}
-
-interface ResolvedRef {
-  readonly ok: true;
-  readonly sha: string;
-  readonly branch: string | null;
-}
-
-const SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
-
-/**
- * Pins a ref to a commit before cloning, so the checkout is exactly the
- * commit the ref pointed at when asked, whatever lands on the branch meanwhile.
- * A branch wins over a same-named tag, and an annotated tag resolves to the
- * commit it points at. A source already pinned to a commit keeps it, and
- * its ref only decides whether the checkout is on a branch: a ref that
- * names a branch upstream checks the commit out as that branch.
- */
-async function resolveRef(
-  request: CloneRequest,
-  env: Readonly<Record<string, string>>,
-  args: readonly string[],
-): Promise<CloneRefusal | ResolvedRef> {
-  const source = request.source;
-
-  if (SHA_PATTERN.test(source.ref)) {
-    return { ok: true, sha: source.ref, branch: null };
-  }
-
-  const pinned = source.sha;
-
-  const listed = await runGit(
-    [...args, 'ls-remote', '--', source.url, source.ref, `${source.ref}^{}`],
-    { env, transports: request.transports },
-  );
-
-  if (listed.exitCode !== 0) {
-    return { ok: false, code: 'clone_failed', message: listed.stderr.trim() };
-  }
-
-  const refs = new Map(
-    listed.stdout
-      .split('\n')
-      .filter((line) => line !== '')
-      .map((line) => {
-        const [sha = '', name = ''] = line.split('\t');
-
-        return [name, sha] as const;
-      }),
-  );
-
-  const match = findRemoteRef(refs, source.ref);
-
-  if (pinned !== undefined) {
-    return { ok: true, sha: pinned, branch: match?.branch ?? null };
-  }
-
-  if (match !== null) {
-    return { ok: true, ...match };
-  }
-
-  const name = source.ref.replace(/^refs\/(?:heads|tags)\//u, '');
-
-  return { ok: false, code: 'ref_not_found', message: `origin has no branch or tag '${name}'` };
 }

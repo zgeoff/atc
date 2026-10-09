@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   symlinkSync,
@@ -222,6 +223,298 @@ test('it materializes a git source without a cwd under the home of an imp and st
   expect(
     ctx.port.sessionRequests.flatMap((request) => (request.kind === 'start' ? [request.cwd] : [])),
   ).toStrictEqual([dest]);
+});
+
+test('it clones a git source inside the imp as a blobless clone and uploads nothing', async () => {
+  const ctx = await setupTest();
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  // The upstream serves filtered fetches, so a blobless clone stays blobless.
+  await $`git config uploadpack.allowFilter true`.env(ctx.env).cwd(ctx.upstream).quiet();
+
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  const filter = await $`git config remote.origin.partialclonefilter`.env(ctx.env).cwd(dest).text();
+
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+  expect(filter.trim()).toBe('blob:none');
+  expect(ctx.port.calls.filter((call) => call.includes('tar -x'))).toStrictEqual([]);
+});
+
+test('it leaves a clone made inside the imp on its branch with a token-free origin and no hooks or reflogs', async () => {
+  const ctx = await setupTest();
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  const branch = await $`git symbolic-ref --short HEAD`.env(ctx.env).cwd(dest).text();
+  const head = await $`git rev-parse HEAD`.env(ctx.env).cwd(dest).text();
+  const origin = await $`git config remote.origin.url`.env(ctx.env).cwd(dest).text();
+
+  expect(branch.trim()).toBe('main');
+  expect(head.trim()).toBe(ctx.sha);
+  expect(origin.trim()).toBe(ctx.upstream);
+  expect(readdirSync(join(dest, '.git', 'hooks'))).toStrictEqual([]);
+  expect(existsSync(join(dest, '.git', 'logs'))).toBeFalse();
+});
+
+test('it times a clone made inside the imp as resolve-ref and guest-clone, with no clone, archive or transfer step', async () => {
+  const ctx = await setupTest();
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  const line = daemon.logs.find((entry) =>
+    /^atc: spawn of session \S+ on target 'box' took /u.test(entry),
+  );
+
+  invariant(line !== undefined);
+
+  const steps = line
+    .replace(/^.* took /u, '')
+    .split(', ')
+    .map((step) => step.split(' ')[0]);
+
+  expect(steps).toIncludeAllMembers(['dir-create', 'resolve-ref', 'guest-clone', 'verify']);
+  expect(steps).not.toIncludeAnyMembers(['clone', 'sanitize', 'archive', 'transfer']);
+});
+
+test('it uploads the workspace from the daemon and logs why when the imp cannot clone a repository the daemon reaches', async () => {
+  const ctx = await setupTest();
+
+  // The daemon's own git config reaches the repository behind its URL, as
+  // a credential helper on the daemon host reaches a private repository;
+  // the imp's git has no such config, and nothing listens at the URL.
+  const gitConfig = join(ctx.dir, 'daemon-gitconfig');
+
+  writeFileSync(
+    gitConfig,
+    `[url "${ctx.upstream}"]\n\tinsteadOf = http://127.0.0.1:9/acme/private.git\n`,
+  );
+
+  updateEnv('GIT_CONFIG_GLOBAL', gitConfig);
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: 'http://127.0.0.1:9/acme/private.git', ref: 'main' },
+  });
+
+  expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
+
+  expect<readonly unknown[]>(
+    ctx.port.calls.filter((call) => call.includes('tar -x')),
+  ).toStrictEqual([expect.stringContaining(` sh ${dest}`)]);
+
+  expect<readonly unknown[]>(
+    daemon.logs.filter((line) => line.includes('could not clone inside')),
+  ).toStrictEqual([
+    expect.stringMatching(
+      /^atc: workspace for session \S+ could not clone inside its host, so the daemon uploads it: fatal: unable to access 'http:\/\/127\.0\.0\.1:9\/acme\/private\.git\/': /u,
+    ),
+  ]);
+});
+
+test('it clones inside the imp only after the broker grants of the session are bound there', async () => {
+  const ctx = await setupTest();
+
+  // The broker sign-in of `glm` needs impd's token to manage `atc-*` imps
+  // and grant `glm`, and impd to hold `glm`.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const glmAdapter = buildStubBrokeredGatewayAdapter();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: glmAdapter,
+      adapters: [glmAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'glm',
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  const grant = ctx.port.calls.findIndex((call) => /^grants\.add \S+ glm$/u.test(call));
+  const clone = ctx.port.calls.findIndex((call) => call.includes('--filter=blob:none'));
+
+  expect(grant).toBeGreaterThan(-1);
+  expect(clone).toBeGreaterThan(grant);
+});
+
+test('it refuses a git source with submodules inside the imp as has_submodules without uploading it', async () => {
+  const ctx = await setupTest();
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  writeFileSync(
+    join(ctx.work, '.gitmodules'),
+    '[submodule "lib"]\n\tpath = lib\n\turl = https://example.com/lib.git\n',
+  );
+
+  await $`git add .gitmodules && git commit -q -m submodules && git push -q origin main`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .quiet();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  expect(spawn).rejects.toMatchObject({ code: 'has_submodules' });
+  expect(ctx.port.calls.filter((call) => call.includes('tar -x'))).toStrictEqual([]);
+});
+
+test('it refuses a git source that tracks paths through Git LFS inside the imp as lfs_unsupported without uploading it', async () => {
+  const ctx = await setupTest();
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  writeFileSync(join(ctx.work, '.gitattributes'), '*.bin filter=lfs diff=lfs merge=lfs -text\n');
+  writeFileSync(join(ctx.work, 'model.bin'), 'pointer\n');
+
+  await $`git add .gitattributes model.bin && git commit -q -m lfs && git push -q origin main`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .quiet();
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'plain',
+    target: 'box',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'lfs_unsupported',
+    data: { count: 1, paths: ['model.bin'] },
+  });
+
+  expect(ctx.port.calls.filter((call) => call.includes('tar -x'))).toStrictEqual([]);
 });
 
 test('it lands concurrent sub-sessions of one repository without a cwd side by side on their shared imp', async () => {
@@ -4590,11 +4883,13 @@ test('it refuses a workspace spawn on an imp without gzip with a transfer error 
 
   const dest = join(ctx.dir, 'box', 'ws');
 
+  // A path source is uploaded from the daemon, where a git source clones
+  // inside the imp and needs no gzip there.
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: dest,
     agent: 'plain',
     target: 'box',
-    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+    workspace: { kind: 'path', path: ctx.work },
   });
 
   expect(spawn).rejects.toMatchObject({ code: 'transfer_failed' });

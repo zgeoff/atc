@@ -425,14 +425,34 @@ stays, the daemon logs it, and the refusal holds it as `data.leftDir`; a refusal
 `workspace_materialization` table holds one row per materialization, keyed by the session id, and
 the daemon records each phase in it before the phase starts:
 
-| Phase          | What the daemon does                                                                                                                   |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolving`    | resolves the source to a URL and commit, checks the URL, readies the host, and creates `cwd` with `mkdir`                              |
-| `cloning`      | clones the commit into a staging directory on its own host, sanitizes it, and tars it                                                  |
-| `transferring` | unpacks the archive into `cwd` through `transfer`; an imp target sends it gzipped and refuses the phase when the imp has no gzip       |
-| `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it |
-| `ready`        | starts the session in `cwd`                                                                                                            |
-| `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                             |
+| Phase          | What the daemon does                                                                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolving`    | resolves the source to a URL and commit, checks the URL, readies the host, and creates `cwd` with `mkdir`                                                  |
+| `cloning`      | clones the commit and sanitizes it: inside the imp for a git source on an imp target, otherwise in a staging directory on its own host, which it then tars |
+| `transferring` | unpacks the archive into `cwd` through `transfer`; an imp target sends it gzipped and refuses the phase when the imp has no gzip                           |
+| `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it                     |
+| `ready`        | starts the session in `cwd`                                                                                                                                |
+| `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                                                 |
+
+An imp clones a git source over its own network, so no repository bytes cross the daemon's link. The
+daemon pins the ref to a commit with `git ls-remote`, then runs one command in the imp that makes a
+blobless clone (`--filter=blob:none`) of that commit in `cwd`, checks it for submodules and Git LFS
+paths, and sanitizes it. That command ignores the imp's system and global git config. The session's
+broker grants are bound before the workspace is built, so on an imp with a GitHub grant, impd's
+broker adds the credential to the clone's requests. The imp fetches over every allowed transport
+except ssh, because it holds no ssh key.
+
+Three cases build the workspace on the daemon's host and upload it instead:
+
+- a `path` source, or a target other than an imp
+- a git source with a `credentialRef`, whose credential stays on the daemon's host; the daemon logs
+  the reason
+- a clone or checkout that fails in the imp: the command empties `cwd`, and the daemon logs git's
+  error and builds the workspace once on its own host
+
+A commit with submodules or Git LFS paths, or a clone the sanitize cannot clear, fails the spawn
+with its own code and is never uploaded. The spawn's step line holds `resolve-ref` and `guest-clone`
+for a clone in the imp, and `clone`, `sanitize`, `archive`, and `transfer` for an upload.
 
 The daemon waits at most 30 s for a git command's stdout and stderr to close once git exits. The
 output can stay open after git exits for 2 reasons: a process that git started still holds it, or

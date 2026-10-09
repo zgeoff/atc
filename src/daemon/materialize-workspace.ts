@@ -15,8 +15,10 @@ import { readWorkspaceTar } from '../workspace/read-workspace-tar';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
+import { resolveRemoteRef } from '../workspace/resolve-remote-ref';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
+import { createGuestClone } from './create-guest-clone';
 import { createStepTimer } from './create-step-timer';
 import type { StepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
@@ -74,6 +76,10 @@ interface MaterializeDeps {
 
   // Times each step of the build under its name, for the spawn it is for.
   readonly timer?: StepTimer;
+
+  // Whether a git source is cloned inside the host the workspace lands on,
+  // rather than cloned on the daemon's host and transferred there.
+  readonly cloneOnTarget?: boolean;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -109,11 +115,15 @@ type ProgressTracker = (update: Readonly<Partial<MaterializationProgress>>) => v
  * Builds a spawn's working directory on its execution target as a clean
  * checkout of a pushed commit, through the target provider's generic
  * operations alone. The source resolves to a repository URL and a commit,
- * the target directory is claimed with a `mkdir` that fails if it exists,
- * the daemon clones and sanitizes the commit on its own host and tars it,
- * the provider unpacks the archive into the directory, and a `git
- * rev-parse HEAD` the provider runs there must print the pinned commit.
- * Each provider call passes the execution gate first.
+ * and the target directory is claimed with a `mkdir` that fails if it
+ * exists. On a target that clones in its hosts, a git source is pinned to a
+ * commit on the daemon and cloned, checked, and sanitized inside the host,
+ * so no repository bytes cross the daemon's link; a clone the host cannot
+ * make is logged and built the other way once. Otherwise the daemon clones
+ * and sanitizes the commit on its own host and tars it, and the provider
+ * unpacks the archive into the directory. Either way, a `git rev-parse
+ * HEAD` the provider runs there must print the pinned commit. Each provider
+ * call passes the execution gate first.
  *
  * Every phase is recorded before it starts, so a daemon that stops partway
  * leaves a row the next start fails as interrupted. A refusal fails the
@@ -290,24 +300,20 @@ async function runMaterialization(
     ...(request.autoDir === true ? { dir: landing.dir } : {}),
   });
 
-  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports, timer);
+  const cloned = await createCheckout(
+    request,
+    deps,
+    updateProgress,
+    pinned,
+    landing,
+    staging,
+    transports,
+    timer,
+  );
 
-  // The archive is in memory, so the clone leaves the daemon's host before
-  // the target is touched.
-  await rm(staging, { recursive: true, force: true });
-  await recordPhase(request, deps, updateProgress, 'transferring', { sha: clone.sha });
+  await recordPhase(request, deps, updateProgress, 'verifying', { sha: cloned.sha });
 
-  try {
-    await timer.withStep('transfer', () =>
-      deps.requireProvider('transfer').transferArchive(clone.archive, landing.dir, landing.host),
-    );
-  } catch (error) {
-    throw toDaemonError(error, 'transfer_failed', 'transferring');
-  }
-
-  await recordPhase(request, deps, updateProgress, 'verifying', {});
-
-  await timer.withStep('verify', () => verifyTargetHead(request, deps, landing, clone.sha));
+  await timer.withStep('verify', () => verifyTargetHead(request, deps, landing, cloned.sha));
 
   const materializedAt = Date.now();
 
@@ -317,11 +323,11 @@ async function runMaterialization(
     kind: 'ready',
     workspace: {
       repoURL,
-      sha: clone.sha,
+      sha: cloned.sha,
       ...(ref === null ? {} : { ref }),
       materializedAt,
     },
-    branch: clone.branch,
+    branch: cloned.branch,
     warnings: pinned.warnings,
   };
 }
@@ -552,6 +558,153 @@ async function recordPhase(
   await deps.store.updateMaterialization(request.sessionID, { phase, ...fields }, Date.now());
 
   updateProgress({ phase });
+}
+
+// The commit a workspace is checked out at, and the branch it is on, null
+// for a detached checkout.
+interface Checkout {
+  readonly sha: string;
+  readonly branch: string | null;
+}
+
+// Clones inside the host when it can, and uploads a clone made on the
+// daemon's host otherwise.
+async function createCheckout(
+  request: MaterializeRequest,
+  deps: MaterializeDeps,
+  updateProgress: ProgressTracker,
+  pinned: PinnedSource,
+  landing: Landing,
+  staging: string,
+  transports: readonly string[],
+  timer: StepTimer,
+): Promise<Checkout> {
+  const onTarget = await tryCreateCloneOnTarget(request, deps, pinned, landing, transports, timer);
+
+  if (onTarget.kind === 'cloned') {
+    return onTarget.checkout;
+  }
+
+  return transferCleanClone(
+    request,
+    deps,
+    updateProgress,
+    onTarget.pinned,
+    landing,
+    staging,
+    transports,
+    timer,
+  );
+}
+
+/**
+ * Builds the workspace inside its host when the target clones there and
+ * the source is a git URL: the daemon pins the ref to a commit, and the host
+ * clones that commit itself. Resolves to the source to upload instead
+ * when the host does not clone it: a source whose credential stays on the
+ * daemon's host, or a clone the host could not make, which is logged with
+ * its reason and uploads the commit the daemon pinned for it. The host
+ * holds no ssh key, so it fetches over every allowed transport but ssh.
+ */
+async function tryCreateCloneOnTarget(
+  request: MaterializeRequest,
+  deps: MaterializeDeps,
+  pinned: PinnedSource,
+  landing: Landing,
+  transports: readonly string[],
+  timer: StepTimer,
+): Promise<
+  | { readonly kind: 'cloned'; readonly checkout: Checkout }
+  | { readonly kind: 'upload'; readonly pinned: PinnedSource }
+> {
+  if (deps.cloneOnTarget !== true || request.source.kind !== 'git') {
+    return { kind: 'upload', pinned };
+  }
+
+  if (pinned.credential !== undefined) {
+    deps.log(
+      `atc: workspace for session ${request.sessionID} is uploaded from the daemon, since its source credential stays on the daemon's host`,
+    );
+
+    return { kind: 'upload', pinned };
+  }
+
+  const target = await timer.withStep('resolve-ref', () =>
+    resolveRemoteRef(
+      {
+        source: {
+          kind: 'git',
+          url: pinned.cloneURL,
+          ref: pinned.checkout,
+          ...(pinned.sha === undefined ? {} : { sha: pinned.sha }),
+        },
+        transports,
+      },
+      {},
+      [],
+    ),
+  );
+
+  if (!target.ok) {
+    throw new DaemonError(target.code, target.message, { phase: 'cloning' });
+  }
+
+  const clone = await timer
+    .withStep('guest-clone', () =>
+      createGuestClone(deps.requireProvider('run'), {
+        host: landing.host,
+        dir: landing.dir,
+        url: pinned.cloneURL,
+        sha: target.sha,
+        branch: target.branch,
+        transports: transports.filter((transport) => transport !== 'ssh'),
+      }),
+    )
+    .catch((error: unknown) => {
+      throw toDaemonError(error, 'transfer_failed', 'cloning');
+    });
+
+  if (!clone.ok) {
+    deps.log(
+      `atc: workspace for session ${request.sessionID} could not clone inside its host, so the daemon uploads it: ${clone.reason}`,
+    );
+
+    return { kind: 'upload', pinned: { ...pinned, sha: target.sha } };
+  }
+
+  return { kind: 'cloned', checkout: { sha: target.sha, branch: target.branch } };
+}
+
+/**
+ * Clones the source on the daemon's host and unpacks it into the landing
+ * directory through the provider's transfer.
+ */
+async function transferCleanClone(
+  request: MaterializeRequest,
+  deps: MaterializeDeps,
+  updateProgress: ProgressTracker,
+  pinned: PinnedSource,
+  landing: Landing,
+  staging: string,
+  transports: readonly string[],
+  timer: StepTimer,
+): Promise<Checkout> {
+  const clone = await createCleanClone(pinned, join(staging, 'clone'), transports, timer);
+
+  // The archive is in memory, so the clone leaves the daemon's host before
+  // the target is touched.
+  await rm(staging, { recursive: true, force: true });
+  await recordPhase(request, deps, updateProgress, 'transferring', { sha: clone.sha });
+
+  try {
+    await timer.withStep('transfer', () =>
+      deps.requireProvider('transfer').transferArchive(clone.archive, landing.dir, landing.host),
+    );
+  } catch (error) {
+    throw toDaemonError(error, 'transfer_failed', 'transferring');
+  }
+
+  return { sha: clone.sha, branch: clone.branch };
 }
 
 interface CleanClone {
