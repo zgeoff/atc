@@ -12,6 +12,7 @@ import { makeSingleFlight } from '../shared/make-single-flight';
 import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
 import { restartManagedDaemon } from '../shared/restart-managed-daemon';
 import { bootDaemonClient } from './boot-daemon';
+import type { DaemonBoot } from './boot-daemon';
 import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
 import { collectTargetPicks } from './collect-target-picks';
@@ -858,19 +859,39 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
   scheduleStatus();
 
   try {
-    const next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus });
+    for (;;) {
+      let next: DaemonBoot | null = null;
 
-    client = next.client;
-    daemonStale = next.stale;
-    daemonFeatures = next.features;
-    lastUsedAgent = next.lastUsedAgent;
-    client.onEvent = applyDaemonEvent;
-    client.onClose = handleDaemonClose;
+      try {
+        next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus });
 
-    await refreshMirror();
-    await refreshAgents();
+        client = next.client;
+        daemonStale = next.stale;
+        daemonFeatures = next.features;
+        lastUsedAgent = next.lastUsedAgent;
+        client.onEvent = applyDaemonEvent;
+        client.onClose = handleDaemonClose;
 
-    renderOverlay();
+        await refreshMirror();
+        await refreshAgents();
+
+        if (next.client.isClosed()) {
+          continue;
+        }
+
+        if (service.getSnapshot().value === 'overlay') {
+          renderOverlay();
+        }
+
+        break;
+      } catch (error) {
+        if (next !== null && next.client.isClosed()) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
