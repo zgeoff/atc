@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { realpathSync, writeFileSync } from 'node:fs';
 import { posix } from 'node:path';
 import type {
   AgentAdapter,
@@ -401,13 +401,18 @@ export class SessionManager {
   // so a host with a launch in flight is never idle.
   private readonly readying = new Map<SessionID, number>();
 
-  // The workspace directory each spawn on a shared host holds from its
-  // overlap check until its session lists or its spawn fails, by spawn id.
+  // The workspace directory each spawn on a shared host, and each plain
+  // spawn on the daemon's own machine, holds from its overlap check until
+  // its session lists or its spawn fails, by spawn id.
   private readonly reservations = new Map<SessionID, WorkspaceReservation>();
 
   // The shared hosts with a workspace rollback removing a directory now,
   // each with how many removals run there.
   private readonly removals = new Map<string, number>();
+
+  // The directories workspace rollbacks remove on the daemon's own machine
+  // now, each with the spawn whose rollback removes it.
+  private readonly machineRemovals: { readonly id: SessionID; readonly dir: string }[] = [];
 
   // Sessions dropped from the list on purpose whose rows the next fleet
   // write deletes; each stays here until a write carrying it lands.
@@ -1155,6 +1160,8 @@ export class SessionManager {
       } else {
         this.claimWorkspace(id, hostKey, target, cwd);
       }
+    } else if (materialize === null && !this.hasHostLifecycle(target)) {
+      this.claimMachineDir(id, target, cwd);
     }
 
     // A spawn that builds its workspace reads the workspace's project
@@ -1540,6 +1547,34 @@ export class SessionManager {
     this.reservations.set(id, { hostKey, target, dir, resolved: null, kind: 'plain' });
   }
 
+  // Holds a plain spawn's directory on the daemon's own machine until the
+  // session lists, refusing one inside or around a directory a workspace
+  // rollback removes there now, as given or with every symlink in it
+  // resolved. A relative directory is refused while any removal runs. A
+  // rollback there resolves each held directory and keeps a directory
+  // that holds one, so the check and the hold run in one turn. Symlinks
+  // are resolved only while a removal runs, since resolving blocks the
+  // daemon.
+  private claimMachineDir(id: SessionID, target: string, dir: string): void {
+    if (this.machineRemovals.length > 0) {
+      const forms = posix.isAbsolute(dir) ? [dir, resolveMachineDir(dir)] : null;
+
+      const removal = this.machineRemovals.find(
+        (r) => forms === null || forms.some((form) => isPathOverlapping(form, r.dir)),
+      );
+
+      if (removal !== undefined) {
+        throw new DaemonError(
+          'workspace_overlap',
+          `${dir} overlaps ${removal.dir}, which the failed workspace spawn of session ${removal.id} is removing on the daemon host; spawn again once it is done`,
+          { phase: 'resolving', dir, session: removal.id },
+        );
+      }
+    }
+
+    this.reservations.set(id, { hostKey: id, target, dir, resolved: null, kind: 'plain' });
+  }
+
   // The directory a spawn's workspace lands in, as the readied host
   // resolves it: every later step creates, fills, and removes this
   // physical path, never the requested one. On a shared host the spawn's
@@ -1588,35 +1623,46 @@ export class SessionManager {
     dir: string,
   ): Promise<boolean> {
     // Targets without hosts run their sessions on the daemon's machine, so
-    // the directory stays while a session listed on any of them runs inside.
+    // the directory stays while a session listed on any of them, or a plain
+    // spawn still starting there, runs inside. While the removal runs, a
+    // plain spawn there inside or around the directory is refused.
     if (!this.hasHostLifecycle(target)) {
-      const isOnMachine = (s: Session) => s.id !== id && !this.hasHostLifecycle(s.target);
-      const others = this.sessions.filter(isOnMachine);
+      const others = this.collectMachineDirs(id);
 
       const resolved = await Promise.all(
-        others.map((s) => this.resolveHostDir(provider, null, s.cwd).catch(() => null)),
+        others.map(([, cwd]) => this.resolveHostDir(provider, null, cwd).catch(() => null)),
       );
 
-      if (this.sessions.some((s) => isOnMachine(s) && !others.includes(s))) {
+      const seen = new Set(others.map(([other]) => other));
+
+      if (this.collectMachineDirs(id).some(([other]) => !seen.has(other))) {
         return this.removeClaimedDir(provider, id, hostKey, target, dir);
       }
 
-      const holds = others.some((s, index) => {
+      const holds = others.some(([, cwd], index) => {
         const physical = resolved[index] ?? null;
 
-        return physical === null || isPathWithin(s.cwd, dir) || isPathWithin(physical, dir);
+        return physical === null || isPathWithin(cwd, dir) || isPathWithin(physical, dir);
       });
 
       if (holds) {
         return false;
       }
 
-      const removed = await provider.runCommand({
-        argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
-        cwd: '/',
-      });
+      const removal = { id, dir };
 
-      return removed.exitCode === 0;
+      this.machineRemovals.push(removal);
+
+      try {
+        const removed = await provider.runCommand({
+          argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', dir, `${dir}\nx`],
+          cwd: '/',
+        });
+
+        return removed.exitCode === 0;
+      } finally {
+        this.machineRemovals.splice(this.machineRemovals.indexOf(removal), 1);
+      }
     }
 
     const before = this.collectHostSessionIDs(hostKey, target);
@@ -1678,6 +1724,22 @@ export class SessionManager {
     return [...this.reservations]
       .filter(([, r]) => r.kind === 'plain' && r.hostKey === hostKey && r.target === target)
       .map(([id, r]) => [id, r.dir] as const);
+  }
+
+  // The directories sessions on the daemon's own machine hold, other than
+  // the given spawn's: every session listed on a target without hosts, and
+  // every plain spawn still starting there, as given.
+  private collectMachineDirs(id: SessionID): (readonly [SessionID, string])[] {
+    return [
+      ...this.sessions
+        .filter((s) => s.id !== id && !this.hasHostLifecycle(s.target))
+        .map((s) => [s.id, s.cwd] as const),
+      ...[...this.reservations]
+        .filter(
+          ([other, r]) => other !== id && r.kind === 'plain' && !this.hasHostLifecycle(r.target),
+        )
+        .map(([other, r]) => [other, r.dir] as const),
+    ];
   }
 
   private requireSeparateWorkspace(
@@ -3432,6 +3494,18 @@ function isPathWithin(child: string, parent: string): boolean {
   const relative = posix.relative(parent, child);
 
   return relative !== '..' && !relative.startsWith('../') && !posix.isAbsolute(relative);
+}
+
+// An absolute directory on the daemon's own machine with every symlink in
+// it resolved, through its nearest existing directory.
+function resolveMachineDir(dir: string): string {
+  try {
+    return realpathSync(dir);
+  } catch {
+    const parent = posix.dirname(dir);
+
+    return parent === dir ? dir : posix.join(resolveMachineDir(parent), posix.basename(dir));
+  }
 }
 
 // Each path the settings read printed, once and in the order it first
