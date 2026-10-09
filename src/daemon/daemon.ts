@@ -1181,6 +1181,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         stagingRoot: tmpdir(),
         timer: host.timer,
         gitTransports,
+
+        // An imp fetches from the repository host over its own network,
+        // so its workspace never crosses the daemon's link.
+        cloneOnTarget: bound.provider.kind === 'imp',
       },
     );
   };

@@ -1,5 +1,6 @@
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { collectCredentialConfigKeys } from './collect-credential-config-keys';
 import { normalizeGitURL } from './normalize-git-url';
 import { runGit } from './run-git';
 import type { WorkspaceProvenance } from './workspace-provenance';
@@ -67,54 +68,11 @@ export async function sanitizeWorkspaceClone(
   return verifyClone(dir, configFile, normalized.url);
 }
 
-/**
- * Every config key whose setting can carry a secret: credential helpers and
- * usernames, http extra headers (where an Authorization header rides),
- * remote URLs that lose something when stripped of credentials, and URL
- * rewrites whose either side holds userinfo.
- */
+// Every credential key the repository config holds.
 async function collectCredentialKeys(configFile: string): Promise<string[]> {
   const listed = await runGit(['config', '--file', configFile, '--list', '-z']);
 
-  const keys = new Set<string>();
-
-  for (const entry of listed.stdout.split('\0')) {
-    const newline = entry.indexOf('\n');
-    const key = newline === -1 ? entry : entry.slice(0, newline);
-    const value = newline === -1 ? '' : entry.slice(newline + 1);
-
-    if (isCredentialEntry(key.toLowerCase(), key, value)) {
-      keys.add(key);
-    }
-  }
-
-  return [...keys];
-}
-
-const URL_WITH_USERINFO = /^[a-z][a-z\d+.-]*:\/\/[^/]*@/iu;
-
-function isCredentialEntry(lowered: string, key: string, value: string): boolean {
-  if (lowered.startsWith('credential.')) {
-    return true;
-  }
-
-  if (lowered.startsWith('http.') && lowered.endsWith('.extraheader')) {
-    return true;
-  }
-
-  if (lowered.startsWith('remote.') && /\.(?:url|pushurl)$/u.test(lowered)) {
-    const normalized = normalizeGitURL(value);
-
-    return !normalized.ok || normalized.url !== value;
-  }
-
-  const rewrite = /^url\.(?<base>.+)\.(?:insteadof|pushinsteadof)$/iu.exec(key);
-
-  if (rewrite !== null) {
-    return URL_WITH_USERINFO.test(rewrite.groups?.['base'] ?? '') || URL_WITH_USERINFO.test(value);
-  }
-
-  return false;
+  return collectCredentialConfigKeys(listed.stdout);
 }
 
 async function verifyClone(
