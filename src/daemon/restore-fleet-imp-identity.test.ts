@@ -157,3 +157,50 @@ test('it leaves a missing legacy imp refused instead of creating a replacement',
 
   expect(ctx.port.createSpecs).toStrictEqual([]);
 });
+
+test('it restores a listed legacy session when its imp becomes reachable on a later restore', async () => {
+  const ctx = await setupTest();
+
+  const entry = buildMockFleetEntry({
+    cwd: ctx.dir,
+    target: 'cloud',
+    targetIdentity: 'imp:0123456789abcdef',
+  });
+
+  await ctx.store.writeFleet([entry]);
+
+  const first = await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await first.settled;
+
+  const refused = ctx.mgr.sessions[0]?.lastMsg;
+
+  await ctx.port.createImp({ name: ctx.provider.getImpName(entry.sessionID), image: 'old' });
+
+  const restored = await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await restored.settled;
+
+  expect(refused).toBe("target 'cloud' changed");
+
+  expect(ctx.mgr.sessions).toMatchObject([
+    { id: entry.sessionID, targetIdentity: ctx.identity, state: 'running' },
+  ]);
+
+  expect(ctx.mgr.sessions).toBeArrayOfSize(1);
+  expect(ctx.mgr.sessions[0]?.pty?.detach).toBeFunction();
+});
