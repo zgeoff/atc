@@ -30,6 +30,9 @@ interface StubLegacyDaemonOptions {
 
   readonly replies?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 
+  // Drops the connection when this request arrives, without a response.
+  readonly closeOnRequest?: string;
+
   // Who stops the daemon: the current test, once it finishes, or the
   // caller alone, for a process that runs it outside any test; the test
   // unless set.
@@ -93,6 +96,12 @@ export function startStubLegacyDaemon(
         const req = decoded.msg;
 
         requests.push({ m: req.m, p: req.p });
+
+        if (req.m === options.closeOnRequest) {
+          socket.end();
+
+          return;
+        }
 
         if (req.m === 'daemon.hello' && req.v !== protocol) {
           const client = req.p?.['client'];

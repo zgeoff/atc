@@ -10,6 +10,8 @@ import { findPidFilePID } from '../shared/find-pid-file-pid';
 import { getBuild } from '../shared/get-build';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { makeSingleFlight } from '../shared/make-single-flight';
+import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
+import { restartManagedDaemon } from '../shared/restart-managed-daemon';
 import { spawnATCDetached } from '../shared/spawn-atc-detached';
 import { systemClock } from '../shared/system-clock';
 import type { Clock } from '../shared/system-clock';
@@ -81,7 +83,8 @@ const PROCESS_PATHS: DaemonPaths = {
 /**
  * Opens a handshaken client to the daemon, booting the daemon first when
  * neither the computed socket nor the one in the daemon's record answers,
- * or waiting for one to answer when the caller set `waitForDaemonMs`.
+ * or waiting for one when a daemon user unit is installed or the caller
+ * set `waitForDaemonMs`.
  * Overlapping calls in one process share a single boot. A daemon from an
  * older build stays in service, since stopping it would end every hosted
  * session, and is reported as stale so the caller can offer a deliberate
@@ -96,24 +99,33 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
   let waited = false;
   const clock = options.clock ?? systemClock;
   const paths = options.paths ?? PROCESS_PATHS;
+  const managed = options.paths === undefined && readManagedDaemonUnit() !== null;
+  const waitMs = options.waitForDaemonMs ?? (managed ? Number.POSITIVE_INFINITY : undefined);
 
   const wait =
-    options.waitForDaemonMs === undefined
+    waitMs === undefined
       ? null
       : {
-          deadline: clock.now() + options.waitForDaemonMs,
-          timeoutMs: options.waitForDaemonMs,
+          deadline: clock.now() + waitMs,
+          timeoutMs: waitMs,
           clock,
           paths,
           onWait: () => {
             if (!waited) {
               waited = true;
-              options.onWaitForDaemon?.();
+
+              if (options.onWaitForDaemon !== undefined) {
+                options.onWaitForDaemon();
+              } else if (managed) {
+                console.error(
+                  'waiting for atc-daemon.service; this client does not start a daemon',
+                );
+              }
             }
           },
         };
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 2; ) {
     const build = getBuild();
 
     const opened =
@@ -137,7 +149,21 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
         socketPath: opened.socketPath,
       };
     } catch (error) {
+      const closed = client.isClosed();
+
       client.stop();
+
+      if (wait !== null && closed && clock.now() < wait.deadline) {
+        wait.onWait();
+
+        const polled = Promise.withResolvers<void>();
+
+        clock.schedule(polled.resolve, 100);
+
+        await polled.promise;
+
+        continue;
+      }
 
       if (attempt > 0 || !(error instanceof DaemonError) || error.code !== 'protocol_mismatch') {
         throw error;
@@ -161,7 +187,11 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
         throw new DaemonError('protocol_mismatch', formatProtocolMismatch(mismatch));
       }
 
-      await stopDaemon(mismatch.daemonPID);
+      const restart = managed ? restartManagedDaemon() : stopDaemon(mismatch.daemonPID);
+
+      await restart;
+
+      attempt++;
     }
   }
 
@@ -247,6 +277,10 @@ async function waitForHello(
   sendHello: () => Promise<Readonly<Record<string, unknown>>>,
   wait: DaemonWait,
 ): Promise<Readonly<Record<string, unknown>>> {
+  if (wait.deadline === Number.POSITIVE_INFINITY) {
+    return sendHello();
+  }
+
   const expired = Promise.withResolvers<never>();
 
   const cancel = wait.clock.schedule(

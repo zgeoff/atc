@@ -17,6 +17,26 @@ function setupTest() {
   return { socketPath: join(tmp.dir, 'daemon.sock') };
 }
 
+test('it drops a connection on the selected request after answering the handshake', async () => {
+  const ctx = setupTest();
+  const daemon = startStubLegacyDaemon(ctx.socketPath, { closeOnRequest: 'session.list' });
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test-build');
+
+  expect(client.sendRequest('session.list')).rejects.toThrowWithMessage(Error, 'connection closed');
+
+  expect(daemon.requests).toStrictEqual([
+    { m: 'daemon.hello', p: { client: 'atc/test-build', auth: { scheme: 'none' } } },
+    { m: 'session.list', p: undefined },
+  ]);
+});
+
 test('it answers the handshake without a feature list when given none', async () => {
   const ctx = setupTest();
 

@@ -9,7 +9,10 @@ import { sortSessionViews } from '../protocol/sort-session-views';
 import type { AgentID } from '../shared/agent-id';
 import { configFile, loadConfig } from '../shared/config';
 import { makeSingleFlight } from '../shared/make-single-flight';
+import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
+import { restartManagedDaemon } from '../shared/restart-managed-daemon';
 import { bootDaemonClient } from './boot-daemon';
+import type { DaemonBoot } from './boot-daemon';
 import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
 import { collectTargetPicks } from './collect-target-picks';
@@ -101,6 +104,7 @@ function scheduleStatus() {
         leaderLabel: leader.label,
         stale: daemonStale,
         restarting: daemonRestarting,
+        waiting: daemonWaiting,
       });
     }
   }, 50);
@@ -385,6 +389,8 @@ async function restoreFleet() {
 
 function quit(code = 0): never {
   detachFocused();
+
+  client.onClose = () => {};
 
   client.stop();
   stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
@@ -843,6 +849,65 @@ const service = createActor(
 // A daemon on another protocol is restarted only when the user confirms
 // it, and the fleet it hosted is then restored on the new one.
 let restartedOnBoot = false;
+let daemonWaiting = false;
+
+const reconnectDaemonOnce = makeSingleFlight(async () => {
+  daemonWaiting = true;
+
+  service.send({ type: 'OVERLAY' });
+
+  scheduleStatus();
+
+  try {
+    for (;;) {
+      let next: DaemonBoot | null = null;
+
+      try {
+        next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus });
+
+        client = next.client;
+        daemonStale = next.stale;
+        daemonFeatures = next.features;
+        lastUsedAgent = next.lastUsedAgent;
+        client.onEvent = applyDaemonEvent;
+        client.onClose = handleDaemonClose;
+
+        await refreshMirror();
+        await refreshAgents();
+
+        if (next.client.isClosed()) {
+          continue;
+        }
+
+        if (service.getSnapshot().value === 'overlay') {
+          renderOverlay();
+        }
+
+        break;
+      } catch (error) {
+        if (next !== null && next.client.isClosed()) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.error(message);
+  } finally {
+    daemonWaiting = false;
+
+    scheduleStatus();
+  }
+});
+
+function handleDaemonClose() {
+  if (!daemonRestarting) {
+    void reconnectDaemonOnce();
+  }
+}
 
 const boot = await bootDaemonClient({
   onProtocolMismatch: async (mismatch) => {
@@ -859,6 +924,7 @@ let daemonRestarting = false;
 
 lastUsedAgent = boot.lastUsedAgent;
 client.onEvent = applyDaemonEvent;
+client.onClose = handleDaemonClose;
 
 if (restartedOnBoot) {
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
@@ -951,9 +1017,13 @@ const restartDaemonOnce = makeSingleFlight(async () => {
 });
 
 async function restartDaemon() {
-  try {
-    await client.sendRequest('daemon.quit');
-  } catch {}
+  if (readManagedDaemonUnit() === null) {
+    try {
+      await client.sendRequest('daemon.quit');
+    } catch {}
+  } else {
+    await restartManagedDaemon();
+  }
 
   client.stop();
 
@@ -976,6 +1046,7 @@ async function restartDaemon() {
   daemonFeatures = next.features;
   lastUsedAgent = next.lastUsedAgent;
   client.onEvent = applyDaemonEvent;
+  client.onClose = handleDaemonClose;
 
   // A new daemon may map aliases differently, so rows fall back to the
   // config baseline until its own answer arrives; the target count goes

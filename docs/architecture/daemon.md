@@ -1,8 +1,20 @@
 # Daemon architecture
 
-A per-user daemon owns the sessions; thin clients attach over the [wire protocol](./protocol.md).
-The first `atc` invocation boots the daemon if its socket is absent, then connects — tmux-style
-auto-spawn. `atc daemon` runs it in the foreground for systemd or debugging.
+A per-user daemon owns the sessions; thin clients attach over the [wire protocol](./protocol.md). An
+`atc` client connects to the daemon at its socket or through its state record. Without a managed
+daemon, the client starts one when neither socket answers. `atc daemon` runs it in the foreground
+for systemd or debugging.
+
+An installed `atc-daemon.service` user unit reserves daemon startup for systemd, even while the unit
+is inactive, disabled, or masked. Clients check the user unit search directories, including the home
+configuration directory and XDG directories; `SYSTEMD_UNIT_PATH` overrides the search. This file
+check works while the service manager is unreachable. A client that finds the unit waits for its
+daemon without a deadline, prints `waiting for atc-daemon.service`, and starts no daemon. Start the
+unit with `systemctl --user start atc-daemon.service`; remove the unit to return to automatic
+startup. A caller's explicit `waitForDaemonMs` keeps its own deadline.
+
+After a daemon connection closes, the TUI shows `waiting for daemon` and reconnects through the same
+startup check. The TUI refreshes the fleet and agent list once the daemon returns.
 
 `atc mcp --http --wait-for-daemon` never boots a daemon: it waits for one to answer and exits when
 none does, so a service manager's daemon unit keeps the state directory.
