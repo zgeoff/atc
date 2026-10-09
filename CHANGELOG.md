@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.10.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.0...@zgeoff/atc@3.10.1) (2026-10-09)
+
+### Bug Fixes
+
+- **geo-85:** guard local spawns while a rollback removes a checkout
+  ([#477](https://github.com/zgeoff/atc/issues/477))
+  ([4c59487](https://github.com/zgeoff/atc/commit/4c594872f1e64836772bf813037fa106883ec15f))
+
 ## [3.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.9.4...@zgeoff/atc@3.10.0) (2026-10-09)
 
 ### Features
