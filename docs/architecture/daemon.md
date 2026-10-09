@@ -419,12 +419,13 @@ its own directory when one of them lies inside or cannot be resolved.
 
 Every target without hosts runs its sessions on the daemon's own machine, so a workspace rollback on
 any of them guards the plain spawns of all of them. A plain spawn there holds its `cwd` until it
-lists. The rollback resolves each held `cwd` and keeps its own directory when one lies inside or
-cannot be resolved. While the rollback removes its directory, the daemon refuses a plain spawn there
-with `workspace_overlap` when the spawn's `cwd` lies inside or around that directory, as given or
-with every symlink in it resolved. The refusal holds the rolled-back spawn as `data.session`. A
-plain spawn whose `cwd` lies elsewhere on the machine starts, and a relative `cwd` is refused while
-any removal runs.
+lists or fails, and one that fails as `outcome_unknown` holds it until a daemon restart. The
+rollback resolves each held `cwd` and keeps its own directory when one lies inside or cannot be
+resolved. While the rollback removes its directory, the daemon refuses a plain spawn there with
+`workspace_overlap` when the spawn's `cwd` lies inside or around that directory, as given or with
+every symlink in it resolved. The refusal holds the rolled-back spawn as `data.session`. A plain
+spawn whose `cwd` lies elsewhere on the machine starts, and a relative `cwd` is refused while any
+removal runs.
 
 A failure removes the directory it created only while no listed session's or other claim's directory
 lies inside it, and only while the path still resolves to itself on the host: the removal enters the

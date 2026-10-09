@@ -2130,6 +2130,214 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
   expect(getRecord(started, 'session')['alive']).toBe(true);
 });
 
+test('it keeps a checkout that a local spawn starts inside while its failed workspace spawn resolves the sessions on a target without hosts', async () => {
+  const ctx = await setupTest();
+
+  const resolving = Promise.withResolvers<void>();
+  const releasedResolve = Promise.withResolvers<void>();
+  const preparing = Promise.withResolvers<void>();
+  const releasedPrepare = Promise.withResolvers<void>();
+
+  const host = buildStubDirProvider({
+    afterTransfer: (dir) => {
+      unlinkSync(join(dir, 'README.md'));
+
+      return Promise.resolve();
+    },
+  });
+
+  // The workspace spawn readies its host first, and the plain spawn's
+  // readying is held until the test releases it.
+  const prepareHost = mock<ExecutionProvider['prepareHost']>(host.prepareHost)
+    .mockImplementationOnce(host.prepareHost)
+    .mockImplementationOnce(async () => {
+      preparing.resolve();
+
+      await releasedPrepare.promise;
+    });
+
+  // The rollback's first resolve of the listed session's directory is held
+  // until the test releases it.
+  const box: ExecutionProvider = {
+    kind: host.kind,
+    remote: host.remote,
+    capabilities: host.capabilities,
+    prepareHost,
+    spawnHarness: host.spawnHarness,
+    transferArchive: host.transferArchive,
+    runCommand: async (spec) => {
+      if (spec.argv.length === 5 && spec.argv[4] === join(ctx.dir, 'elsewhere')) {
+        resolving.resolve();
+
+        await releasedResolve.promise;
+      }
+
+      return host.runCommand(spec);
+    },
+    suspendHost: host.suspendHost,
+    destroyHost: host.destroyHost,
+    dispose: host.dispose,
+  };
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  // The held resolve and readying are released before the daemon stops
+  // and its directories go.
+  const releaseResolve = registerTestCleanup(() => {
+    releasedResolve.resolve();
+  });
+
+  const releasePrepare = registerTestCleanup(() => {
+    releasedPrepare.resolve();
+  });
+
+  mkdirSync(join(ctx.dir, 'elsewhere'));
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'elsewhere'),
+    target: 'local',
+  });
+
+  const dest = join(ctx.dir, 'box', 'ws');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: dest,
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await resolving.promise;
+
+  mkdirSync(join(dest, 'inner'));
+  writeFileSync(join(dest, 'inner', 'mine.txt'), 'kept\n');
+
+  const inside = daemon.client.sendRequest('session.spawn', {
+    cwd: join(dest, 'inner'),
+    target: 'box',
+  });
+
+  await preparing.promise;
+
+  releaseResolve();
+
+  await spawn.catch(() => null);
+
+  const kept = readdirSync(join(dest, 'inner'));
+
+  releasePrepare();
+
+  const started = await inside;
+
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch', data: { leftDir: dest } });
+  expect(kept).toStrictEqual(['mine.txt']);
+  expect(getRecord(started, 'session')['alive']).toBe(true);
+});
+
+test('it refuses a local spawn in a relative directory while a failed workspace spawn removes its checkout on a target without hosts', async () => {
+  const ctx = await setupTest();
+
+  const removing = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
+
+  const host = buildStubDirProvider({
+    afterTransfer: (dir) => {
+      unlinkSync(join(dir, 'README.md'));
+
+      return Promise.resolve();
+    },
+  });
+
+  // The fixture-dir provider, with its directory removal held until the
+  // test releases it.
+  const box: ExecutionProvider = {
+    kind: host.kind,
+    remote: host.remote,
+    capabilities: host.capabilities,
+    prepareHost: host.prepareHost,
+    spawnHarness: host.spawnHarness,
+    transferArchive: host.transferArchive,
+    runCommand: async (spec) => {
+      if (spec.argv.at(-1)?.endsWith('\nx') === true) {
+        removing.resolve();
+
+        await released.promise;
+      }
+
+      return host.runCommand(spec);
+    },
+    suspendHost: host.suspendHost,
+    destroyHost: host.destroyHost,
+    dispose: host.dispose,
+  };
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  // The held removal is released before the daemon stops and its
+  // directories go.
+  const releaseRemoval = registerTestCleanup(() => {
+    released.resolve();
+  });
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await removing.promise;
+
+  const local = daemon.client.sendRequest('session.spawn', { cwd: 'relative', target: 'local' });
+
+  await local.catch(() => null);
+
+  releaseRemoval();
+
+  await spawn.catch(() => null);
+
+  expect(local).rejects.toMatchObject({ code: 'workspace_overlap', data: { dir: 'relative' } });
+  expect(spawn).rejects.toMatchObject({ code: 'workspace_mismatch' });
+});
+
 test('it refuses a workspace spawn whose cwd is relative before anything runs', async () => {
   const ctx = await setupTest();
 

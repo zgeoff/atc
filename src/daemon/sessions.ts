@@ -1552,12 +1552,18 @@ export class SessionManager {
   // rollback removes there now, as given or with every symlink in it
   // resolved. A relative directory is refused while any removal runs. A
   // rollback there resolves each held directory and keeps a directory
-  // that holds one, so the check and the hold run in one turn.
+  // that holds one, so the check and the hold run in one turn. Symlinks
+  // are resolved only while a removal runs, since resolving blocks the
+  // daemon.
   private claimMachineDir(id: SessionID, target: string, dir: string): void {
-    const forms = posix.isAbsolute(dir) ? [dir, resolveMachineDir(dir)] : null;
+    if (this.machineRemovals.length > 0) {
+      const forms = posix.isAbsolute(dir) ? [dir, resolveMachineDir(dir)] : null;
 
-    for (const removal of this.machineRemovals) {
-      if (forms === null || forms.some((form) => isPathOverlapping(form, removal.dir))) {
+      const removal = this.machineRemovals.find(
+        (r) => forms === null || forms.some((form) => isPathOverlapping(form, r.dir)),
+      );
+
+      if (removal !== undefined) {
         throw new DaemonError(
           'workspace_overlap',
           `${dir} overlaps ${removal.dir}, which the failed workspace spawn of session ${removal.id} is removing on the daemon host; spawn again once it is done`,
