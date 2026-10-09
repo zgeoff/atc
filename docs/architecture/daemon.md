@@ -425,14 +425,14 @@ stays, the daemon logs it, and the refusal holds it as `data.leftDir`; a refusal
 `workspace_materialization` table holds one row per materialization, keyed by the session id, and
 the daemon records each phase in it before the phase starts:
 
-| Phase          | What the daemon does                                                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolving`    | resolves the source to a URL and commit, checks the URL, readies the host, and creates `cwd` with `mkdir`                                            |
-| `cloning`      | clones the commit and sanitizes it: inside the imp for a git source on an imp target, otherwise in a staging directory on its own host, then tars it |
-| `transferring` | unpacks the archive into `cwd` through `transfer`; an imp target sends it gzipped and refuses the phase when the imp has no gzip                     |
-| `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it               |
-| `ready`        | starts the session in `cwd`                                                                                                                          |
-| `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                                           |
+| Phase          | What the daemon does                                                                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolving`    | resolves the source to a URL and commit, checks the URL, readies the host, and creates `cwd` with `mkdir`                                                  |
+| `cloning`      | clones the commit and sanitizes it: inside the imp for a git source on an imp target, otherwise in a staging directory on its own host, which it then tars |
+| `transferring` | unpacks the archive into `cwd` through `transfer`; an imp target sends it gzipped and refuses the phase when the imp has no gzip                           |
+| `verifying`    | runs `git rev-parse` and `git status` in `cwd` through `run`, and checks HEAD is the pinned commit with every tracked file matching it                     |
+| `ready`        | starts the session in `cwd`                                                                                                                                |
+| `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                                                 |
 
 An imp clones a git source over its own network, so no repository bytes cross the daemon's link. The
 daemon pins the ref to a commit with `git ls-remote`, then runs one command in the imp that makes a
