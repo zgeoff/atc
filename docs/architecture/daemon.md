@@ -275,6 +275,12 @@ without `resize` keeps its terminal at the size it started with, while the sessi
 follows the attached clients. `local-pty` declares every capability except `suspend` and `destroy`:
 its host is the daemon's own machine.
 
+Fleet restore resolves an unversioned imp binding only after the provider checks that its existing
+host is reachable with the current credentials. It records the connection identity on the restored
+session, so later work uses the same target checks as a spawn. The
+[configuration guide](../guides/configuration.md#targets) covers which target changes preserve
+sessions.
+
 A provider is local or remote. A local harness inherits the daemon's environment around the
 variables atc sets for it. A remote harness gets only those variables and the host's own terminal,
 locale, and `PATH`, so nothing from the daemon's environment reaches the remote host. Before a

@@ -55,6 +55,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
 import type { PublishedRecords } from './published-records';
+import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
@@ -574,17 +575,31 @@ export class SessionManager {
     return resolveRepoRoot(cwd);
   }
 
-  // Registers a fleet entry as a session with no terminal yet, under the
-  // atc session id its row holds, so a fleet-wide restore can show every
-  // incoming session at once; adopting it later attaches the terminal.
-  // Exited entries come back as killed sessions: still listed and revivable,
-  // never auto-adopted. An entry without an agent session id has nothing to
-  // resume, so it comes back exited too.
+  // Checks the configured target before resolving an unversioned binding
+  // against an existing host. Invalid config never reaches the provider.
+  async resolveRestoredEntry(entry: FleetEntry): Promise<FleetEntry> {
+    const target = entry.target ?? 'local';
+
+    if (this.findExecutionRefusal({ target, targetIdentity: null }, 'spawn') !== null) {
+      return entry;
+    }
+
+    const targetIdentity = await resolveRestoredTargetIdentity(this.targets.get(target), entry);
+
+    return targetIdentity === undefined || targetIdentity === entry.targetIdentity
+      ? entry
+      : { ...entry, targetIdentity };
+  }
+
+  // Registers a fleet entry without a terminal, so the fleet lists before
+  // adoption. Exited entries stay exited until revived by hand.
   restore(entry: FleetEntry): Session {
     const target = entry.target ?? 'local';
     const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
     const refusal = this.findExecutionRefusal({ target, targetIdentity }, 'spawn');
-    const targetRefusal = refusal === null ? null : formatTargetRefusal(refusal.code, target);
+
+    const targetRefusal =
+      refusal === null ? null : formatTargetRefusal(refusal.code, target, targetIdentity);
 
     // A session whose target this daemon cannot use comes back exited, so
     // nothing runs it anywhere else: neither a terminal nor a headless turn.
@@ -649,6 +664,19 @@ export class SessionManager {
     this.onEvent('added', session);
 
     return session;
+  }
+
+  // Publishes a checked binding and clears the refusal from its earlier
+  // restore before a terminal adoption can fail for a different reason.
+  updateRestoredIdentity(s: Session, identity: string): void {
+    if (s.targetIdentity === identity) {
+      return;
+    }
+
+    s.targetIdentity = identity;
+    s.lastMsg = 'waiting to restore';
+
+    this.onEvent('state', s);
   }
 
   // Whether a target's host has a lifecycle of its own that the daemon
@@ -3459,7 +3487,7 @@ function pickExitMessage(exit: Readonly<{ reason?: string; detail?: string }>): 
 }
 
 // A target refusal as a session's last message, short enough for a list row.
-function formatTargetRefusal(code: ErrorCode, target: string): string {
+function formatTargetRefusal(code: ErrorCode, target: string, identity: string): string {
   if (code === 'target_config_invalid') {
     return `target '${target}' misconfigured`;
   }
@@ -3469,6 +3497,10 @@ function formatTargetRefusal(code: ErrorCode, target: string): string {
   }
 
   if (code === 'target_changed') {
+    if (/^imp:[\da-f]{16}$/.test(identity)) {
+      return `target '${target}' binding unverified`;
+    }
+
     return `target '${target}' changed`;
   }
 

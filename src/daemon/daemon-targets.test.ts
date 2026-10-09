@@ -352,7 +352,7 @@ test('it lists each target and each config error', async () => {
       {
         id: 'box',
         provider: 'imp',
-        identity: 'imp:44136fa355b3678a',
+        identity: 'imp:reach-v1:44136fa355b3678a',
         available: false,
         default: true,
         capabilities: {
@@ -381,8 +381,7 @@ test('it lists each target and each config error', async () => {
   });
 });
 
-// Each bound identity is the kind, then the first 16 hex digits of
-// sha256('{}').
+// Each digest is the first 16 hex digits of sha256('{}').
 test.each([
   [
     'removed from the config',
@@ -392,7 +391,7 @@ test.each([
   ],
   [
     'left without a provider',
-    'imp:44136fa355b3678a',
+    'imp:reach-v1:44136fa355b3678a',
     { local: { provider: 'local-pty' }, box: { provider: 'imp' } },
     'target_unavailable',
   ],

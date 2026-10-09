@@ -42,7 +42,7 @@ test('it builds a target with a provider for each local-pty entry and none for a
     id: 'box',
     kind: 'imp',
     options: { size: 2 },
-    identity: 'imp:7028e13f78f6f7ad',
+    identity: 'imp:reach-v1:7028e13f78f6f7ad',
     provider: null,
   });
 });

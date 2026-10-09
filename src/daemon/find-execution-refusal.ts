@@ -24,7 +24,7 @@ interface TargetBinding {
  *   when there is no target because the config gives no default.
  * - `unknown_target` when no target holds the id.
  * - `target_changed` when the target's identity is not the one the session
- *   was bound to: the name now holds another provider or other options.
+ *   was bound to: the target holds another provider or connection options.
  * - `target_unavailable` when this daemon has no provider of its kind.
  * - `unsupported_operation` when the provider lacks the capability.
  */
@@ -77,11 +77,16 @@ export function findExecutionRefusal(
   }
 
   if (binding.targetIdentity !== null && binding.targetIdentity !== target.identity) {
-    return new DaemonError(
-      'target_changed',
-      `execution target '${id}' changed since this session started on it (was ${binding.targetIdentity}, now ${target.identity}). Restore the target's earlier config to use the session, or kill it`,
-      { target: id, boundIdentity: binding.targetIdentity, currentIdentity: target.identity },
-    );
+    const message =
+      target.kind === 'imp' && /^imp:[\da-f]{16}$/.test(binding.targetIdentity)
+        ? `execution target '${id}' has not confirmed this session's unversioned binding. Check that its existing imp is reachable with the current credentials and retry fleet restore`
+        : `execution target '${id}' changed since this session started on it (was ${binding.targetIdentity}, now ${target.identity}). Restore the target's earlier config to use the session, or kill it`;
+
+    return new DaemonError('target_changed', message, {
+      target: id,
+      boundIdentity: binding.targetIdentity,
+      currentIdentity: target.identity,
+    });
   }
 
   if (target.provider === null) {

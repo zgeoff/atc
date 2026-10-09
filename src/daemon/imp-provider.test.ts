@@ -11,11 +11,14 @@ import {
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import invariant from 'tiny-invariant';
+import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
 import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { startStubImpd } from '../test-utils/start-stub-impd';
 import { buildTarArchive } from './build-tar-archive';
+import { ImpClientPort } from './imp-client-port';
 import { ImpProvider } from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
@@ -28,6 +31,53 @@ function setupTest() {
 
   return { dir: tmp.dir, port };
 }
+
+test('it keeps an existing-host check refused when impd errors after the credential check', async () => {
+  const impd = startStubImpd();
+
+  impd.answers.set('/rpc/tokens/whoami', { status: 200, json: buildMockImpIdentity() });
+  impd.answers.set('/rpc/imps/get', { status: 500, json: { message: 'impd unavailable' } });
+
+  const provider = new ImpProvider(
+    new ImpClientPort({ url: impd.url, readToken: () => 'current-token' }),
+    {},
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const reachable = await provider.checkExistingHost('s1');
+
+  expect(reachable).toBe(false);
+
+  expect(impd.calls.map((call) => call.path)).toStrictEqual([
+    '/rpc/tokens/whoami',
+    '/rpc/imps/get',
+  ]);
+
+  expect(impd.authorizations).toStrictEqual(['Bearer current-token', 'Bearer current-token']);
+});
+
+test('it keeps an existing-host check refused when impd is unreachable', async () => {
+  const impd = startStubImpd();
+
+  const provider = new ImpProvider(
+    new ImpClientPort({ url: impd.url, readToken: () => 'current-token' }),
+    {},
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await impd.stop();
+
+  const reachable = await provider.checkExistingHost('s1');
+
+  expect(reachable).toBe(false);
+  expect(impd.calls).toStrictEqual([]);
+});
 
 test('it destroys the imp a failed prepare created, since no session holds it', async () => {
   const ctx = setupTest();
