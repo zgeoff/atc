@@ -581,15 +581,15 @@ async function createCheckout(
 ): Promise<Checkout> {
   const onTarget = await tryCreateCloneOnTarget(request, deps, pinned, landing, transports, timer);
 
-  if (onTarget !== null) {
-    return onTarget;
+  if (onTarget.kind === 'cloned') {
+    return onTarget.checkout;
   }
 
   return transferCleanClone(
     request,
     deps,
     updateProgress,
-    pinned,
+    onTarget.pinned,
     landing,
     staging,
     transports,
@@ -600,10 +600,11 @@ async function createCheckout(
 /**
  * Builds the workspace inside its host when the target clones there and
  * the source is a git URL: the daemon pins the ref to a commit, and the host
- * clones that commit itself. Resolves to null when the workspace is to be
- * uploaded instead: a source whose credential stays on the daemon's host,
- * or a clone the host could not make, which is logged with its reason. The
- * host holds no ssh key, so it fetches over every allowed transport but ssh.
+ * clones that commit itself. Resolves to the source to upload instead
+ * when the host does not clone it: a source whose credential stays on the
+ * daemon's host, or a clone the host could not make, which is logged with
+ * its reason and uploads the commit the daemon pinned for it. The host
+ * holds no ssh key, so it fetches over every allowed transport but ssh.
  */
 async function tryCreateCloneOnTarget(
   request: MaterializeRequest,
@@ -612,9 +613,12 @@ async function tryCreateCloneOnTarget(
   landing: Landing,
   transports: readonly string[],
   timer: StepTimer,
-): Promise<Checkout | null> {
+): Promise<
+  | { readonly kind: 'cloned'; readonly checkout: Checkout }
+  | { readonly kind: 'upload'; readonly pinned: PinnedSource }
+> {
   if (deps.cloneOnTarget !== true || request.source.kind !== 'git') {
-    return null;
+    return { kind: 'upload', pinned };
   }
 
   if (pinned.credential !== undefined) {
@@ -622,7 +626,7 @@ async function tryCreateCloneOnTarget(
       `atc: workspace for session ${request.sessionID} is uploaded from the daemon, since its source credential stays on the daemon's host`,
     );
 
-    return null;
+    return { kind: 'upload', pinned };
   }
 
   const target = await timer.withStep('resolve-ref', () =>
@@ -665,10 +669,10 @@ async function tryCreateCloneOnTarget(
       `atc: workspace for session ${request.sessionID} could not clone inside its host, so the daemon uploads it: ${clone.reason}`,
     );
 
-    return null;
+    return { kind: 'upload', pinned: { ...pinned, sha: target.sha } };
   }
 
-  return { sha: target.sha, branch: target.branch };
+  return { kind: 'cloned', checkout: { sha: target.sha, branch: target.branch } };
 }
 
 /**
