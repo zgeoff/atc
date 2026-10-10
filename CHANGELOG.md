@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.3...@zgeoff/atc@3.11.0) (2026-10-10)
+
+
+### Features
+
+* **geo-211:** scope the pre-push hook to the branch ([#489](https://github.com/zgeoff/atc/issues/489)) ([d936d05](https://github.com/zgeoff/atc/commit/d936d0516ac7ebdbbd3288cea814b7f2ec4c7c10))
+
 ## [3.10.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.2...@zgeoff/atc@3.10.3) (2026-10-10)
 
 ### Bug Fixes
