@@ -41,17 +41,17 @@ Methods are `noun.verb`; events are PascalCase, the naming style hook consumers 
 Claude Code's hook events. The MCP tools map onto both mechanically (`session.spawn` → tool
 `atc_session_spawn`, `SessionAdded` → a notification). Error codes are human-readable strings from a
 closed, extendable set: `protocol_mismatch`, `unauthorized`, `unknown_method`, `bad_args`,
-`scope_invalid`, `no_such_session`, `session_dead`, `unsupported`, `unsupported_operation`,
-`unknown_target`, `target_unavailable`, `target_changed`, `target_config_invalid`,
-`target_forbidden`, `host_unavailable`, `auth_not_configured`, `auth_target_unsupported`,
-`auth_placeholder_unsupported`, the [runtime auth](#runtime-auth) refusals, `host_leased`,
-`confirmation_required`, `confirm_token_invalid`, `session_pinned`, `session_live`,
-`already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`, `outcome_unknown`,
-`idempotency_key_unknown`, `github_unavailable`, `internal`, plus the workspace refusals that
-[workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never a disconnect;
-unknown fields in any message are ignored. A peer decodes an error code it does not know as
-`internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer. An
-error may also carry `data`, an object whose fields its code defines.
+`scope_invalid`, `no_such_session`, `session_dead`, `permission_pending`, `unsupported`,
+`unsupported_operation`, `unknown_target`, `target_unavailable`, `target_changed`,
+`target_config_invalid`, `target_forbidden`, `host_unavailable`, `auth_not_configured`,
+`auth_target_unsupported`, `auth_placeholder_unsupported`, the [runtime auth](#runtime-auth)
+refusals, `host_leased`, `confirmation_required`, `confirm_token_invalid`, `session_pinned`,
+`session_live`, `already_answered`, `too_slow`, `stale_epoch`, `idempotency_conflict`,
+`outcome_unknown`, `idempotency_key_unknown`, `github_unavailable`, `internal`, plus the workspace
+refusals that [workspaces](#workspaces) lists. An unknown method is an `unknown_method` error, never
+a disconnect; unknown fields in any message are ignored. A peer decodes an error code it does not
+know as `internal` and keeps its `msg`. These rules exist so additive evolution never breaks a peer.
+An error may also carry `data`, an object whose fields its code defines.
 
 `unsupported_operation` refuses a request that the session's execution host cannot serve, such as
 input to a host that takes none. Its `data` holds the provider kind as `provider` and the missing
@@ -274,6 +274,16 @@ A shorter line reaches the model as plain text.
 
 A headless session takes the line as the prompt of its next turn, as it takes `session.input`. The
 ok means the daemon wrote the line and its submit key to the PTY, not that the agent answered.
+
+A Claude session whose latest notification was a permission prompt refuses `session.submit` with
+`permission_pending`. A permission menu confirms its highlighted option on the carriage return that
+ends a submitted line, so a typed answer would approve the action. Only a person answers the prompt,
+with real keys in the atc TUI, and `session.input` stays open for that. The refusal holds until a
+hook event shows the prompt closed: a submitted prompt, a finished turn, a start, an end, or an idle
+notice. Attaching, a screen judgment, a heartbeat, and any other notification leave it in place.
+Claude sends the notification after the prompt has waited about six seconds, so a line submitted
+inside that window is not refused. An idle notice and every other notification type never start a
+refusal.
 
 ## Events
 

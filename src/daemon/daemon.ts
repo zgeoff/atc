@@ -1965,6 +1965,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       mgr.requireExecution(s, 'input');
 
+      // Typed text would confirm the prompt's highlighted option. Attaching
+      // or a screen judgment changes the state while the prompt stays open,
+      // so only the flag decides.
+      if (s.permissionPending === true) {
+        return Promise.resolve('permission_pending');
+      }
+
       const runtime = getRuntime(sessionID);
       const bracketedPaste = runtime.screen?.hasBracketedPaste() ?? false;
       const adapter = mgr.findAdapter(s.agent);

@@ -19,6 +19,7 @@ const ERROR_CODES = [
   'bad_args',
   'no_such_session',
   'session_dead',
+  'permission_pending',
   'unsupported',
   'unsupported_operation',
   'unknown_target',

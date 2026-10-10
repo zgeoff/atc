@@ -123,6 +123,10 @@ export interface Session {
   unread: boolean;
   lastMsg: string;
   lastDetail?: string;
+
+  // True while the session's agent reported a permission prompt that no
+  // later event has closed. Attaching or a screen judgment leaves it set.
+  permissionPending?: boolean;
   agentSessionID?: AgentSessionID;
   agent: AgentID;
   transcriptSource?: string;
@@ -2797,6 +2801,15 @@ export class SessionManager {
 
     if (ev.nameSource !== undefined) {
       void this.refreshName(s, ev.nameSource);
+    }
+
+    // A permission prompt stays pending until an event shows it closed: a
+    // prompt, a finished turn, a start, an end, or an idle notice. A heartbeat
+    // or a notice that says nothing about the prompt leaves it pending.
+    if (ev.kind === 'needs-input') {
+      s.permissionPending = ev.permissionPending ?? s.permissionPending === true;
+    } else if (ev.kind !== 'heartbeat') {
+      s.permissionPending = false;
     }
 
     switch (ev.kind) {
