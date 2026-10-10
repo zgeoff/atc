@@ -69,7 +69,9 @@ test('it ignores the identity of the repository the daemon runs in', async () =>
 
   process.chdir(repo.dir);
 
-  onTestFinished(() => process.chdir(previous));
+  onTestFinished(() => {
+    process.chdir(previous);
+  });
 
   const identity = await readHostGitIdentity();
 
