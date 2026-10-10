@@ -181,7 +181,7 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
 
   const restart = await runATC({
     command: ctx.atc,
-    args: ['daemon', 'restart', '--timeout', '3'],
+    args: ['daemon', 'restart'],
     home: ctx.home,
     env: { PATH: ctx.path },
   });

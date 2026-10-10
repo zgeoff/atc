@@ -29,7 +29,9 @@ const UNSIZED_READ_MS = 30_000;
  * row that is not exited must be listed with a live terminal before the deadline
  * passes (`timeoutSeconds` when set, else the rows that are not exited times the restore boot cap, plus 30 s), and an exited row must be listed. A stored row that is not listed
  * failed to restore, and a listed row that is still without a live terminal
- * at the deadline failed to revive. The deadline counts from the call, and
+ * at the deadline failed to revive. A listed row without a live terminal
+ * whose agent the new daemon's config no longer holds fails at once, since
+ * no wait can revive it. The deadline counts from the call, and
  * every request to the daemon is held to it: the daemon must answer the first
  * list before it, and when it overtakes a later list, the verdict comes from
  * the last list the daemon answered. The deadline, the waits between lists,
@@ -58,14 +60,20 @@ export async function verifyRestoredFleet(
   const deadline = startedAt + pickDeadlineMs(stored, timeoutSeconds);
 
   const restored = await tryRestore(client, deadline, clock);
-  let found = await sendBounded(() => collectFailedRows(client, stored, restored), deadline, clock);
+  const agents = await tryReadAgentIDs(client, deadline, clock);
+
+  let found = await sendBounded(
+    () => collectFailedRows(client, stored, restored, agents),
+    deadline,
+    clock,
+  );
 
   while (found.pending && clock.now() < deadline) {
     await new Promise<void>((resolve) => {
       clock.schedule(resolve, Math.min(250, deadline - clock.now()));
     });
 
-    const polled = await tryCollectFailedRows(client, stored, restored, deadline, clock);
+    const polled = await tryCollectFailedRows(client, stored, restored, agents, deadline, clock);
 
     if (polled === null) {
       break;
@@ -129,6 +137,39 @@ async function tryRestore(
   }
 }
 
+// How long the agent list may take, so a daemon that withholds it still
+// leaves the rest of the deadline to list the rows.
+const AGENTS_READ_MS = 5000;
+
+/**
+ * Reads the ids of the agents in the new daemon's config, or returns null
+ * when the daemon predates the agent list, answers without one, or does
+ * not answer within its time limit, so every row stays one that waiting can still revive.
+ */
+async function tryReadAgentIDs(
+  client: Pick<DaemonClient, 'sendRequest'>,
+  deadline: number,
+  clock: Clock,
+): Promise<ReadonlySet<string> | null> {
+  try {
+    const listed = await sendBounded(
+      () => client.sendRequest('agents.list'),
+      Math.min(deadline, clock.now() + AGENTS_READ_MS),
+      clock,
+    );
+
+    const agents = listed['agents'];
+
+    if (!Array.isArray(agents)) {
+      return null;
+    }
+
+    return new Set(agents.filter((agent) => isRecord(agent)).map((agent) => String(agent['id'])));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Lists the rows again, or returns null when the deadline passes before the
  * daemon answers, so the caller keeps the verdict of the last list it got.
@@ -137,6 +178,7 @@ async function tryCollectFailedRows(
   client: Pick<DaemonClient, 'sendRequest'>,
   stored: readonly StoredRow[],
   restored: boolean,
+  agents: ReadonlySet<string> | null,
   deadline: number,
   clock: Clock,
 ): Promise<FailedRows | null> {
@@ -152,7 +194,7 @@ async function tryCollectFailedRows(
   });
 
   try {
-    return await Promise.race([collectFailedRows(client, stored, restored), expired]);
+    return await Promise.race([collectFailedRows(client, stored, restored, agents), expired]);
   } finally {
     stopTimer?.();
   }
@@ -162,6 +204,7 @@ async function collectFailedRows(
   client: Pick<DaemonClient, 'sendRequest'>,
   stored: readonly StoredRow[],
   restored: boolean,
+  agents: ReadonlySet<string> | null,
 ): Promise<FailedRows> {
   const listed = await client.sendRequest('session.list');
 
@@ -196,7 +239,9 @@ async function collectFailedRows(
         reason: `listed in state ${String(session['state'])} without a terminal: ${String(session['lastMsg'])}`,
       });
 
-      pending = true;
+      // A row whose agent is gone from the config never gets a terminal,
+      // while one whose agent is listed but not installed yet still may.
+      pending ||= agents === null || agents.has(String(session['agent']));
     }
   }
 
