@@ -2605,7 +2605,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   const read = await runTool(
     buildPrincipalCaller(caller, 'client-a'),
     'atc_events_read',
-    { reportText: true },
+    {},
     { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
   );
 
@@ -2670,7 +2670,7 @@ test('it reads the first of many large notes a principal may see while another c
   const read = await runTool(
     buildPrincipalCaller(caller, 'client-a'),
     'atc_events_read',
-    { limit: 50, reportText: true },
+    { limit: 50 },
     { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
   );
 

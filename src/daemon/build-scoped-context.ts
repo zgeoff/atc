@@ -133,7 +133,8 @@ export function buildScopedContext(
 
     // The daemon's kill takes the session's sub-sessions before its first
     // await, so the set it kills is the set this check saw.
-    killSession: (id) => (canSee(id) ? ctx.killSession(id) : Promise.resolve(false)),
+    killSession: (id, stopOnly) =>
+      canSee(id) ? ctx.killSession(id, stopOnly) : Promise.resolve('missing' as const),
 
     // A session out of reach answers before any confirm token is handed
     // out or taken, so its host is never touched.

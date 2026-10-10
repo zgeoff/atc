@@ -2973,17 +2973,31 @@ export class SessionManager {
   // forgotten by a kill: forgetting it destroys the host, which takes a
   // confirmed forget. The set is taken before the first await, so a
   // sub-session spawned while the kill waits on a host is not part of it.
-  async kill(id: SessionID): Promise<void> {
+  // With stopOnly, a session that is not live is left as it is: nothing
+  // changes and nothing is removed. Answers what the kill did.
+  async kill(id: SessionID, stopOnly = false): Promise<'stopped' | 'unchanged' | 'removed'> {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s) {
-      return;
+      return 'unchanged';
     }
 
     const children = this.collectChildren(id);
 
     if (s.pty) {
       await this.stopHarness(s);
+
+      for (const child of children) {
+        if (this.sessions.includes(child) && child.parent === id) {
+          await this.tryStopHarness(child);
+        }
+      }
+    } else if (stopOnly) {
+      if (s.kind !== 'headless' || s.state === 'exited') {
+        return 'unchanged';
+      }
+
+      this.killTerminal(s);
 
       for (const child of children) {
         if (this.sessions.includes(child) && child.parent === id) {
@@ -3000,11 +3014,19 @@ export class SessionManager {
       }
 
       this.removeWithChildren(s, children);
+
+      await this.writeFleet();
+
+      this.emitChange();
+
+      return 'removed';
     }
 
     await this.writeFleet();
 
     this.emitChange();
+
+    return 'stopped';
   }
 
   /**

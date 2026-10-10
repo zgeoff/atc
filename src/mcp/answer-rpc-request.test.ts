@@ -47,7 +47,7 @@ test('it refuses a tool call whose scope the caller lacks and leaves the session
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_kill', arguments: { session: sessionID } },
+      params: { name: 'atc_session_stop', arguments: { session: sessionID } },
     },
     {
       caller: ctx.caller,
@@ -115,7 +115,7 @@ test('it runs a tool call whose scope the caller holds', async () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_list', arguments: {} },
+      params: { name: 'atc_sessions_list', arguments: {} },
     },
     {
       caller: ctx.caller,
@@ -210,23 +210,21 @@ test('it lists every tool to a caller with one scope', async () => {
       id: 2,
       result: {
         tools: [
-          expect.objectContaining({ name: 'atc_session_list' }),
+          expect.objectContaining({ name: 'atc_sessions_list' }),
           expect.objectContaining({ name: 'atc_session_spawn' }),
-          expect.objectContaining({ name: 'atc_session_input' }),
-          expect.objectContaining({ name: 'atc_session_screen' }),
+          expect.objectContaining({ name: 'atc_terminal_type' }),
+          expect.objectContaining({ name: 'atc_terminal_read' }),
           expect.objectContaining({ name: 'atc_session_scope_add' }),
           expect.objectContaining({ name: 'atc_session_update' }),
-          expect.objectContaining({ name: 'atc_session_kill' }),
+          expect.objectContaining({ name: 'atc_session_stop' }),
           expect.objectContaining({ name: 'atc_session_forget' }),
-          expect.objectContaining({ name: 'atc_session_ack' }),
-          expect.objectContaining({ name: 'atc_resume_command' }),
-          expect.objectContaining({ name: 'atc_dirs_list' }),
-          expect.objectContaining({ name: 'atc_agents_list' }),
+          expect.objectContaining({ name: 'atc_session_mark_read' }),
+          expect.objectContaining({ name: 'atc_recent_dirs_list' }),
+          expect.objectContaining({ name: 'atc_spawn_options_get' }),
           expect.objectContaining({ name: 'atc_session_get' }),
-          expect.objectContaining({ name: 'atc_session_read' }),
+          expect.objectContaining({ name: 'atc_transcript_read' }),
           expect.objectContaining({ name: 'atc_events_read' }),
-          expect.objectContaining({ name: 'atc_report_get' }),
-          expect.objectContaining({ name: 'atc_session_message' }),
+          expect.objectContaining({ name: 'atc_message_send' }),
           expect.objectContaining({ name: 'atc_message_get' }),
         ],
       },
@@ -263,7 +261,7 @@ test('it lists the agents to a caller holding only the read scope', async () => 
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_agents_list', arguments: {} },
+      params: { name: 'atc_spawn_options_get', arguments: {} },
     },
     {
       caller: ctx.caller,
@@ -396,7 +394,7 @@ test('it leaves the agents tool out of the list when the connected daemon does n
 
   invariant(Array.isArray(tools), 'no tools array');
 
-  expect(tools).not.toPartiallyContain({ name: 'atc_agents_list' });
+  expect(tools).not.toPartiallyContain({ name: 'atc_spawn_options_get' });
 });
 
 test('it lists the message tool in its older form when the connected daemon announces no features', async () => {
@@ -434,12 +432,12 @@ test('it lists the message tool in its older form when the connected daemon anno
   expect(messageGet).toStrictEqual({
     name: 'atc_message_get',
     description:
-      'Read one message sent with atc_session_message: its id, session, from, text, status (queued, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.',
+      'Read one message sent with atc_message_send: status (queued, delivered or answered), the answer once answered, turn, answeredWith and timestamps. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered message returns at once. Ids and statuses persist, so call again after a timeout.',
     inputSchema: {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       type: 'object',
       properties: {
-        message: { type: 'string', description: 'The message id atc_session_message returned' },
+        message: { type: 'string', description: 'The message id atc_message_send returned' },
       },
       required: ['message'],
       additionalProperties: false,
@@ -451,7 +449,7 @@ test('it lists the message tool in its older form when the connected daemon anno
 test.each([
   ['atc_message_get', { message: 'm-1', waitMs: 5000 }],
   ['atc_events_read', { session: 's-1' }],
-  ['atc_agents_list', {}],
+  ['atc_spawn_options_get', {}],
 ])(
   'it refuses %p called with %p with a restart hint when the connected daemon predates it, sending nothing',
   async (name, args) => {
@@ -644,11 +642,11 @@ test('it names the registered agents in the spawn tool to a caller holding the r
   const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
 
   expect(spawn['description']).toBe(
-    "Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value. When this tool list was built, the host registered: claude (not installed). atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.",
+    'Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller (listed under it, stopped with it) unless detached is true. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.',
   );
 
   expect(getRecord(properties, 'agent')['description']).toBe(
-    'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude (not installed). atc_agents_list returns the current list.',
+    'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude (not installed). atc_spawn_options_get returns the current list.',
   );
 });
 
@@ -680,11 +678,11 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
   const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
 
   expect(spawn['description']).toBe(
-    "Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value. atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.",
+    'Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller (listed under it, stopped with it) unless detached is true. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.',
   );
 
   expect(getRecord(properties, 'agent')['description']).toBe(
-    'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. atc_agents_list returns the current list.',
+    'Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. atc_spawn_options_get returns the current list.',
   );
 });
 
@@ -744,10 +742,10 @@ test('it lists the agents tool without an output schema when the daemon takes no
   invariant(Array.isArray(tools), 'no tools array');
 
   const agentsTool: unknown = tools.find(
-    (tool) => isRecord(tool) && tool['name'] === 'atc_agents_list',
+    (tool) => isRecord(tool) && tool['name'] === 'atc_spawn_options_get',
   );
 
-  invariant(isRecord(agentsTool), 'atc_agents_list is not listed');
+  invariant(isRecord(agentsTool), 'atc_spawn_options_get is not listed');
 
   expect(agentsTool).not.toContainKey('outputSchema');
 });
@@ -797,7 +795,7 @@ test('it returns the agents a daemon without spawn options lists', async () => {
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
-      params: { name: 'atc_agents_list', arguments: {} },
+      params: { name: 'atc_spawn_options_get', arguments: {} },
     },
     {
       caller,

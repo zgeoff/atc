@@ -143,6 +143,12 @@ export interface TapClient {
   readonly sendEvent: (event: EventMsg) => void;
 }
 
+/**
+ * What a kill did to its session: it stopped a live one, left an exited
+ * one as it was, removed an exited one, or found no such session.
+ */
+type KillOutcome = 'stopped' | 'unchanged' | 'removed' | 'missing';
+
 export interface DaemonContext {
   readonly build: string;
   readonly daemonID: DaemonID;
@@ -239,7 +245,10 @@ export interface DaemonContext {
     keyed: KeyedRequest | null,
     access: TargetAccess | null,
   ) => Promise<Readonly<Record<string, unknown>>>;
-  readonly killSession: (id: SessionID) => Promise<boolean>;
+
+  // Kills a session, or with stopOnly stops one that is live and leaves an
+  // exited one alone. Answers what happened to it.
+  readonly killSession: (id: SessionID, stopOnly: boolean) => Promise<KillOutcome>;
 
   // Forgets a session, or answers with the token a forget that destroys a
   // host must carry. Throws the refusal for a token it does not take, and

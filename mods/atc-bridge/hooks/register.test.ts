@@ -45,7 +45,7 @@ test('it registers nothing outside atc', async (engine, on) => {
   on('tool.register', ($, e) => {
     registered.push(e.name);
 
-    return { value: { tool: 'mcp__atc-bridge__report' } };
+    return { value: { tool: 'mcp__atc-bridge__note' } };
   });
 
   on('process.spawn', async function* ($, e) {
@@ -68,7 +68,7 @@ test('it submits a tapped message when no turn runs', async (engine, on) => {
   const spawned: string[][] = [];
   const submitted: string[] = [];
 
-  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__report' } }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
   on('process.spawn', async function* ($, e) {
     spawned.push([...e.argv]);
@@ -95,7 +95,7 @@ test('it reports the answer for the message a turn carried', async (engine, on) 
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
-  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__report' } }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
   on('process.spawn', async function* () {
     yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
@@ -132,7 +132,7 @@ test('it reports nothing for a turn that ended in an error', async (engine, on) 
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
-  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__report' } }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
   on('process.spawn', async function* () {
     yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
@@ -162,12 +162,23 @@ test('it reports nothing for a turn that ended in an error', async (engine, on) 
   expect(ctx.ran).toStrictEqual([]);
 });
 
-test('it sends a report through atc', async (engine, on) => {
+async function startNoteSession(
+  engine: {
+    readonly session: {
+      readonly start: (init: {
+        cwd: string;
+        surface: 'terminal';
+        isInteractive: boolean;
+      }) => Promise<unknown>;
+    };
+  },
+  on: On,
+) {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
-  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__report' } }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
   // The hook starts its tap at session start; this one never yields a line.
   on('process.spawn', async function* () {
@@ -176,10 +187,44 @@ test('it sends a report through atc', async (engine, on) => {
 
   await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
 
+  return ctx;
+}
+
+test('it registers the note tool with a label input', async (engine, on) => {
+  setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const registered: { name: string; properties: unknown; required: unknown }[] = [];
+
+  on('tool.register', ($, e) => {
+    registered.push({
+      name: e.name,
+      properties: Object.keys(e.inputSchema['properties'] as object),
+      required: e.inputSchema['required'],
+    });
+
+    return { value: { tool: 'mcp__atc-bridge__note' } };
+  });
+
+  on('process.spawn', async function* () {
+    return { value: { code: 0, signal: null } };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+
+  expect(registered).toStrictEqual([
+    { name: 'note', properties: ['text', 'label'], required: ['text'] },
+  ]);
+});
+
+test('it sends a note through atc under the full tool name', async (engine, on) => {
+  const ctx = await startNoteSession(engine, on);
+
   const answered = await engine.tool.call({
-    tool: 'mcp__atc-bridge__report',
+    tool: 'mcp__atc-bridge__note',
     text: 'blocked on review',
-    kind: 'blocked',
+    label: 'blocked',
   });
 
   expect(answered.result).toBe('Sent to the user through atc.');
@@ -189,23 +234,44 @@ test('it sends a report through atc', async (engine, on) => {
   ]);
 });
 
-test('it refuses a report without text', async (engine, on) => {
-  const ctx = setupTest({ on });
+test('it defaults a note without a label to progress', async (engine, on) => {
+  const ctx = await startNoteSession(engine, on);
 
-  mock.env(on, { ATC_SESSION_ID: 's-1' });
+  await engine.tool.call({ tool: 'mcp__atc-bridge__note', text: 'found the cause' });
 
-  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__report' } }));
+  expect(ctx.ran).toStrictEqual([
+    { argv: ['atc', 'note', '--label', 'progress'], stdin: 'found the cause' },
+  ]);
+});
 
-  // The hook starts its tap at session start; this one never yields a line.
-  on('process.spawn', async function* () {
-    return { value: { code: 0, signal: null } };
+test('it takes each valid label', async (engine, on) => {
+  const ctx = await startNoteSession(engine, on);
+
+  for (const label of ['progress', 'blocked', 'decision']) {
+    await engine.tool.call({ tool: 'mcp__atc-bridge__note', text: 'x', label });
+  }
+
+  expect(ctx.ran.map((run) => run.argv.at(-1))).toStrictEqual(['progress', 'blocked', 'decision']);
+});
+
+test('it refuses a note with an unknown label', async (engine, on) => {
+  const ctx = await startNoteSession(engine, on);
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__note',
+    text: 'x',
+    label: 'urgent',
   });
 
-  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  expect(answered.deny).toBe('note label must be progress, blocked or decision');
+  expect(ctx.ran).toStrictEqual([]);
+});
 
-  const answered = await engine.tool.call({ tool: 'mcp__atc-bridge__report', text: '   ' });
+test('it refuses a note without text', async (engine, on) => {
+  const ctx = await startNoteSession(engine, on);
+  const answered = await engine.tool.call({ tool: 'mcp__atc-bridge__note', text: '   ' });
 
-  expect(answered.deny).toBe('report needs non-empty text');
+  expect(answered.deny).toBe('note needs non-empty text');
   expect(ctx.ran).toStrictEqual([]);
 });
 
@@ -214,7 +280,7 @@ test('it reports every message a queued turn carried in one report', async (engi
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
-  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__report' } }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
   on('process.spawn', async function* () {
     yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"one"}\n{"id":"m-2","fr' };
@@ -259,7 +325,7 @@ test('it submits a mid-turn message when the session refuses the append', async 
   const tapLine = Promise.withResolvers<void>();
   const submitted: string[] = [];
 
-  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__report' } }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
   on('process.spawn', async function* () {
     await tapLine.promise;
@@ -296,7 +362,7 @@ test('it submits a mid-turn message when the session refuses the append', async 
   expect(ctx.ran).toStrictEqual([]);
 });
 
-test('it starts no tap when the build refuses the report tool', async (engine, on) => {
+test('it starts no tap when the build refuses the note tool', async (engine, on) => {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });

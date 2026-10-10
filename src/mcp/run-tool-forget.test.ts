@@ -117,7 +117,7 @@ test('it destroys the host and drops the live session when the second call carri
   expect(
     runTool(
       ctx.caller,
-      'atc_session_list',
+      'atc_sessions_list',
       {},
       { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
     ),
@@ -182,7 +182,7 @@ test('it forgets a dead session on a local target in one call', async () => {
   expect(
     runTool(
       ctx.caller,
-      'atc_session_list',
+      'atc_sessions_list',
       {},
       { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
     ),
@@ -212,7 +212,7 @@ test('it stops and forgets a live session on a local target in one call when sto
   expect(
     runTool(
       ctx.caller,
-      'atc_session_list',
+      'atc_sessions_list',
       {},
       { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
     ),

@@ -26,7 +26,7 @@ test('it resolves a tool call with its error flag, text, and structured content'
   const ctx = setupTest();
 
   const mcp = await startMCPStdio({ home: ctx.home });
-  const result = await mcp.sendToolCall('atc_session_list', {});
+  const result = await mcp.sendToolCall('atc_sessions_list', {});
 
   expect(result).toStrictEqual({ isError: undefined, text: '[]', structured: { sessions: [] } });
 });
@@ -36,7 +36,7 @@ test('it resolves a spawn with the id of the session it started', async () => {
 
   const mcp = await startMCPStdio({ home: ctx.home });
   const id = await mcp.spawnSession({ cwd: ctx.home, name: 'harness' });
-  const listed = await mcp.sendToolCall('atc_session_list', {});
+  const listed = await mcp.sendToolCall('atc_sessions_list', {});
 
   expect(listed.structured).toMatchObject({ sessions: [{ id, name: 'harness' }] });
 });
@@ -89,7 +89,7 @@ test('it rejects a tool call whose response holds no result', async () => {
 
   const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
-  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+  expect(server.sendToolCall('atc_sessions_list', {})).rejects.toThrowWithMessage(
     TypeError,
     'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"nope"}}',
   );
@@ -109,7 +109,7 @@ test('it rejects a tool call whose result holds no text item', async () => {
 
   const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
-  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+  expect(server.sendToolCall('atc_sessions_list', {})).rejects.toThrowWithMessage(
     TypeError,
     'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"result":{"content":[]}}',
   );
@@ -129,7 +129,7 @@ test('it rejects a tool call whose result holds two text items', async () => {
 
   const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
-  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+  expect(server.sendToolCall('atc_sessions_list', {})).rejects.toThrowWithMessage(
     TypeError,
     'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}}',
   );
@@ -149,7 +149,7 @@ test('it rejects a tool call whose structured content is not an object', async (
 
   const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
-  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+  expect(server.sendToolCall('atc_sessions_list', {})).rejects.toThrowWithMessage(
     TypeError,
     'tool call returned an unexpected result: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"5"}],"structuredContent":5}}',
   );
@@ -166,7 +166,7 @@ test('it rejects a pending request once the server prints a line that is not JSO
 
   const server = await startMCPStdio({ home: ctx.home, command: [bin] });
 
-  expect(server.sendToolCall('atc_session_list', {})).rejects.toThrowWithMessage(
+  expect(server.sendToolCall('atc_sessions_list', {})).rejects.toThrowWithMessage(
     Error,
     'atc mcp stopped answering before request 2',
   );

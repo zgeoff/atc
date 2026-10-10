@@ -1678,11 +1678,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         })();
       }, 80);
     },
-    killSession: async (id) => {
+    killSession: async (id, stopOnly) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
       if (s === undefined) {
-        return false;
+        return 'missing';
       }
 
       for (const live of [s, ...mgr.collectChildren(id)]) {
@@ -1693,11 +1693,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       const set = [s, ...mgr.collectChildren(id)];
 
-      await mgr.kill(id);
+      const outcome = await mgr.kill(id, stopOnly);
 
       stopEndedHeadlessRuns(set);
 
-      return true;
+      return outcome;
     },
 
     // A forget on a target that cannot destroy its host forgets at once. On

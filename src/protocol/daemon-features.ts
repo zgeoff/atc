@@ -98,6 +98,10 @@ export const DAEMON_FEATURES = [
 
   // Events, notes, and messages use the note and queued vocabulary.
   'vocabulary.note',
+
+  // `session.kill` takes `stopOnly`, which stops a live session and leaves an
+  // exited one as it is, and answers `{ stopped }`.
+  'session.kill.stopOnly',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

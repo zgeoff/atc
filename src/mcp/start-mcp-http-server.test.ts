@@ -267,7 +267,7 @@ test('it runs a tool call whose scope the token holds', async () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_list', arguments: {} },
+      params: { name: 'atc_sessions_list', arguments: {} },
     }),
   });
 
@@ -360,7 +360,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_list', arguments: {} },
+      params: { name: 'atc_sessions_list', arguments: {} },
     }),
   });
 
@@ -454,7 +454,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_list', arguments: {} },
+      params: { name: 'atc_sessions_list', arguments: {} },
     }),
   });
 
@@ -2869,7 +2869,7 @@ test('it accepts a token bound to /mcp at the bare origin', async () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_list', arguments: {} },
+      params: { name: 'atc_sessions_list', arguments: {} },
     }),
   });
 
@@ -2909,14 +2909,14 @@ test('it prints one line per request with its method, path, tool, status, time, 
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'atc_session_list', arguments: {} },
+      params: { name: 'atc_sessions_list', arguments: {} },
     }),
   });
 
   expect(ctx.requests).toHaveLength(1);
 
   expect(ctx.requests[0]).toMatch(
-    /^POST \/mcp 401 \d+ms rpc=tools\/call tool=atc_session_list mcp-protocol-version=2025-06-18$/,
+    /^POST \/mcp 401 \d+ms rpc=tools\/call tool=atc_sessions_list mcp-protocol-version=2025-06-18$/,
   );
 });
 
