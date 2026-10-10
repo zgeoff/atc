@@ -2812,61 +2812,67 @@ test('it lands a git source without a cwd under the root the config sets for its
   expect(readFileSync(join(root, 'upstream-main', 'README.md'), 'utf8')).toBe(committed);
 });
 
-test('it refuses a git source without a cwd whose root it cannot write after one attempt, with the cause', async () => {
-  const ctx = await setupTest();
+// Root writes past directory modes, so the root stays writable.
+test.skipIf(process.getuid?.() === 0)(
+  'it refuses a git source without a cwd whose root it cannot write after one attempt, with the cause',
+  async () => {
+    const ctx = await setupTest();
 
-  const root = join(ctx.dir, 'read-only');
-  const box = buildStubDirProvider();
+    const root = join(ctx.dir, 'read-only');
+    const box = buildStubDirProvider();
 
-  mkdirSync(root, { mode: 0o555 });
+    mkdirSync(root, { mode: 0o555 });
 
-  const daemon = await startTestDaemon({
-    prefix: 'atc-workspace-daemon-',
-    options: () => ({
-      adapter: buildMockAgentAdapter(),
-      gitTransports: ['https', 'ssh', 'http', 'file'],
-      workspaceRoots: { root, targetRoots: new Map() },
-      targets: [
-        buildMockExecutionTarget({
-          id: 'local',
-          kind: 'local-pty',
-          identity: 'test:local',
-          provider: new LocalPTYProvider(),
-        }),
-        buildMockExecutionTarget({
-          id: 'box',
-          kind: box.kind,
-          identity: 'test:box',
-          provider: box,
-        }),
-      ],
-    }),
-  });
+    const daemon = await startTestDaemon({
+      prefix: 'atc-workspace-daemon-',
+      options: () => ({
+        adapter: buildMockAgentAdapter(),
+        gitTransports: ['https', 'ssh', 'http', 'file'],
+        workspaceRoots: { root, targetRoots: new Map() },
+        targets: [
+          buildMockExecutionTarget({
+            id: 'local',
+            kind: 'local-pty',
+            identity: 'test:local',
+            provider: new LocalPTYProvider(),
+          }),
+          buildMockExecutionTarget({
+            id: 'box',
+            kind: box.kind,
+            identity: 'test:box',
+            provider: box,
+          }),
+        ],
+      }),
+    });
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    target: 'box',
-    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
-  });
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      target: 'box',
+      workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+    });
 
-  await spawn.catch(() => null);
+    await spawn.catch(() => null);
 
-  expect(spawn).rejects.toBeInstanceOf(DaemonError);
+    expect(spawn).rejects.toBeInstanceOf(DaemonError);
 
-  expect(spawn).rejects.toMatchObject({
-    code: 'transfer_failed',
-    message: expect.toInclude('Permission denied'),
-  });
+    expect(spawn).rejects.toMatchObject({
+      code: 'transfer_failed',
+      message: expect.toInclude('Permission denied'),
+    });
 
-  expect(
-    box.calls.filter((call) => call.op === 'run' && call.argv[0] === 'sh' && call.argv[4] === root),
-  ).toStrictEqual([
-    {
-      op: 'run',
-      argv: ['sh', '-c', expect.toStartWith('mkdir -p'), 'sh', root, join(root, 'upstream-main')],
-      cwd: '/',
-    },
-  ]);
-});
+    expect(
+      box.calls.filter(
+        (call) => call.op === 'run' && call.argv[0] === 'sh' && call.argv[4] === root,
+      ),
+    ).toStrictEqual([
+      {
+        op: 'run',
+        argv: ['sh', '-c', expect.toStartWith('mkdir -p'), 'sh', root, join(root, 'upstream-main')],
+        cwd: '/',
+      },
+    ]);
+  },
+);
 
 test('it refuses a spawn without a cwd or a workspace as bad_args', async () => {
   const daemon = await startTestDaemon({

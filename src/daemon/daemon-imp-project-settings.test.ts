@@ -1245,75 +1245,79 @@ test('it refuses a subscription launch in an existing folder whose settings file
   expect(existsSync(ctx.starts)).toBeFalse();
 });
 
-test('it refuses a subscription launch in an existing folder whose settings file the host cannot read', async () => {
-  const ctx = await setupTest();
+// Root reads past file modes, so the host can read the settings file.
+test.skipIf(process.getuid?.() === 0)(
+  'it refuses a subscription launch in an existing folder whose settings file the host cannot read',
+  async () => {
+    const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant the agent's secret, and
-  // the secret itself.
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['claude-setup-token'],
-  });
+    // A brokered spawn needs a token that may grant the agent's secret, and
+    // the secret itself.
+    ctx.port.setIdentity({
+      kind: 'token',
+      name: 'atc-runtime',
+      scope: 'manage',
+      imps: ['atc-*'],
+      grantable: ['claude-setup-token'],
+    });
 
-  ctx.port.createSecret('claude-setup-token', 'custom', [
-    { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
-  ]);
+    ctx.port.createSecret('claude-setup-token', 'custom', [
+      { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
+    ]);
 
-  // `claude` signs in through impd's broker on a subscription and runs the
-  // fake Claude.
-  const config = parseConfig({
-    authProfiles: {
-      claude: {
-        secret: 'claude-setup-token',
-        host: 'api.anthropic.com',
-        header: 'authorization',
-        scheme: 'bearer',
+    // `claude` signs in through impd's broker on a subscription and runs the
+    // fake Claude.
+    const config = parseConfig({
+      authProfiles: {
+        claude: {
+          secret: 'claude-setup-token',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        },
       },
-    },
-    agents: { claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } } },
-  });
+      agents: { claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } } },
+    });
 
-  const daemon = await startTestDaemon({
-    prefix: 'atc-project-settings-daemon-',
-    options: () => ({
-      adapters: [new ClaudeAdapter(getAgentEntry(config, 'claude'), config)],
-      targets: [
-        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
-      ],
-      defaultTarget: 'box',
-    }),
-  });
+    const daemon = await startTestDaemon({
+      prefix: 'atc-project-settings-daemon-',
+      options: () => ({
+        adapters: [new ClaudeAdapter(getAgentEntry(config, 'claude'), config)],
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+        ],
+        defaultTarget: 'box',
+      }),
+    });
 
-  mkdirSync(join(ctx.work, '.claude'));
+    mkdirSync(join(ctx.work, '.claude'));
 
-  const settings = join(ctx.work, '.claude/settings.json');
+    const settings = join(ctx.work, '.claude/settings.json');
 
-  writeFileSync(settings, '{}');
-  chmodSync(settings, 0o000);
+    writeFileSync(settings, '{}');
+    chmodSync(settings, 0o000);
 
-  const spawn = daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.work,
-    agent: 'claude',
-    target: 'box',
-  });
-
-  await spawn.catch(() => null);
-
-  expect(spawn).rejects.toMatchObject({
-    code: 'auth_target_unsupported',
-    data: {
+    const spawn = daemon.client.sendRequest('session.spawn', {
+      cwd: ctx.work,
       agent: 'claude',
       target: 'box',
-      problem: 'project_settings_unreadable',
-      file: settings,
-    },
-  });
+    });
 
-  expect(existsSync(ctx.starts)).toBeFalse();
-});
+    await spawn.catch(() => null);
+
+    expect(spawn).rejects.toMatchObject({
+      code: 'auth_target_unsupported',
+      data: {
+        agent: 'claude',
+        target: 'box',
+        problem: 'project_settings_unreadable',
+        file: settings,
+      },
+    });
+
+    expect(existsSync(ctx.starts)).toBeFalse();
+  },
+);
 
 test('it reads every project settings file of a subscription launch in one command on the host', async () => {
   const ctx = await setupTest();
