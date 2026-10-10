@@ -99,3 +99,26 @@ test('it takes raw input while a permission prompt is pending', async () => {
 
   expect(input).toStrictEqual({});
 });
+
+test('it keeps refusing a submitted line after a statusline report', async () => {
+  const ctx = await setupTest();
+
+  await ctx.sendNotification('permission_prompt', 'Claude needs your permission to use Bash');
+
+  await ctx.daemon.sendHookLines({
+    atcId: ctx.sessionID,
+    agent: 'claude',
+    event: 'Statusline',
+    payload: { session_id: 'agent-session-1' },
+  });
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(JSON.stringify(listed)).toInclude('agent-session-1');
+  });
+
+  expect(
+    ctx.daemon.client.sendRequest('session.submit', { session: ctx.sessionID, text: 'no' }),
+  ).rejects.toMatchObject({ code: 'permission_pending' });
+});
