@@ -147,7 +147,7 @@ export interface TapClient {
  * What a kill did to its session: it stopped a live one, left an exited
  * one as it was, removed an exited one, or found no such session.
  */
-export type KillOutcome = 'stopped' | 'unchanged' | 'removed' | 'missing';
+type KillOutcome = 'stopped' | 'unchanged' | 'removed' | 'missing';
 
 export interface DaemonContext {
   readonly build: string;

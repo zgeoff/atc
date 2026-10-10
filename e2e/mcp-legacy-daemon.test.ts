@@ -22,19 +22,18 @@ test('it leaves the agent list out of the tools for an older daemon', async () =
   const tools = getRecords(getRecord(response, 'result'), 'tools');
 
   expect(tools.map((tool) => tool['name'])).toIncludeSameMembers([
-    'atc_session_list',
+    'atc_sessions_list',
     'atc_session_spawn',
-    'atc_session_input',
-    'atc_session_screen',
+    'atc_terminal_type',
+    'atc_terminal_read',
     'atc_session_update',
-    'atc_session_kill',
-    'atc_session_ack',
-    'atc_resume_command',
-    'atc_dirs_list',
+    'atc_session_stop',
+    'atc_session_mark_read',
+    'atc_recent_dirs_list',
     'atc_session_get',
-    'atc_session_read',
+    'atc_transcript_read',
     'atc_events_read',
-    'atc_session_message',
+    'atc_message_send',
     'atc_message_get',
   ]);
 });

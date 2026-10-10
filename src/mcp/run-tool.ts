@@ -23,7 +23,7 @@ export function runTool(
   ctx: ToolContext,
 ): Promise<ToolResult> {
   return match(name)
-    .with('atc_session_list', async () => {
+    .with('atc_sessions_list', async () => {
       const ok = await caller.sendRequest('session.list');
 
       // A caller that routes across named daemons adds each daemon's state,
@@ -115,7 +115,7 @@ export function runTool(
 
       return buildObjectResult(session);
     })
-    .with('atc_session_input', async () => {
+    .with('atc_terminal_type', async () => {
       // An older daemon would take the line as raw input, which some agents
       // never submit.
       await caller.sendRequest(
@@ -127,9 +127,9 @@ export function runTool(
         ['session.submit'],
       );
 
-      return { text: 'sent', structured: null };
+      return buildObjectResult({ written: true });
     })
-    .with('atc_session_screen', async () => {
+    .with('atc_terminal_read', async () => {
       const ok = await caller.sendRequest('session.screen', { session: args['session'] });
 
       return {
@@ -155,10 +155,16 @@ export function runTool(
 
       return { text: JSON.stringify(ok), structured: ok };
     })
-    .with('atc_session_kill', async () => {
-      await caller.sendRequest('session.kill', { session: args['session'] });
+    .with('atc_session_stop', async () => {
+      // A stop never removes a session, so an exited one stays listed until
+      // a forget removes it.
+      const ok = await caller.sendRequest(
+        'session.kill',
+        { session: args['session'], stopOnly: true },
+        ['session.kill.stopOnly'],
+      );
 
-      return { text: 'killed', structured: null };
+      return buildObjectResult({ stopped: ok['stopped'] === true });
     })
     .with('atc_session_forget', async () => {
       const params = {
@@ -184,20 +190,12 @@ export function runTool(
 
       return buildObjectResult(ok);
     })
-    .with('atc_session_ack', async () => {
+    .with('atc_session_mark_read', async () => {
       await caller.sendRequest('session.ack', { session: args['session'] });
 
-      return { text: 'acked', structured: null };
+      return { text: 'marked read', structured: null };
     })
-    .with('atc_resume_command', async () => {
-      const ok = await caller.sendRequest('session.resumeCommand', { session: args['session'] });
-
-      return {
-        text: typeof ok['command'] === 'string' ? ok['command'] : JSON.stringify(ok),
-        structured: null,
-      };
-    })
-    .with('atc_dirs_list', async () => {
+    .with('atc_recent_dirs_list', async () => {
       const params = typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {};
 
       const ok = await caller.sendRequest('dirs.list', params);
@@ -209,7 +207,7 @@ export function runTool(
 
       return buildObjectResult(ok);
     })
-    .with('atc_agents_list', async () => {
+    .with('atc_spawn_options_get', async () => {
       const ok = await caller.sendRequest('agents.list', {}, ['agents.list']);
 
       return buildObjectResult(ok);
@@ -219,7 +217,7 @@ export function runTool(
 
       return buildObjectResult(ok);
     })
-    .with('atc_session_read', async () => {
+    .with('atc_transcript_read', async () => {
       const ok = await caller.sendRequest('session.read', {
         session: args['session'],
         ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
@@ -230,10 +228,13 @@ export function runTool(
     })
     .with('atc_events_read', async () => {
       const filtered = typeof args['session'] === 'string' && args['session'] !== '';
+      const previewOnly = args['previewOnly'] === true;
 
-      const required: DaemonFeature[] = filtered
-        ? ['vocabulary.note', 'events.session']
-        : ['vocabulary.note'];
+      const required: DaemonFeature[] = [
+        'vocabulary.note',
+        ...(filtered ? (['events.session'] as const) : []),
+        ...(previewOnly ? [] : (['note.get'] as const)),
+      ];
 
       const ok = await caller.sendRequest(
         'events.read',
@@ -246,25 +247,13 @@ export function runTool(
         required,
       );
 
-      // Each note's whole text rides the same call, so a reader catches
-      // up without one note read per note.
-      if (args['reportText'] === true) {
-        const withTexts = await readNoteTexts(caller, ok);
+      // Each note's whole text rides the same call, so a reader catches up
+      // without one note read per note.
+      const page = previewOnly ? ok : await readNoteTexts(caller, ok);
 
-        return buildObjectResult(withTexts);
-      }
-
-      return buildObjectResult(ok);
+      return buildObjectResult(buildPageWithoutNoteHandles(page));
     })
-    .with('atc_report_get', async () => {
-      const ok = await caller.sendRequest('note.get', { note: args['report'] }, [
-        'note.get',
-        'vocabulary.note',
-      ]);
-
-      return buildObjectResult(ok);
-    })
-    .with('atc_session_message', async () => {
+    .with('atc_message_send', async () => {
       const given = args['from'];
 
       const from =
@@ -309,6 +298,31 @@ export function runTool(
       return buildObjectResult(ok);
     })
     .otherwise(() => Promise.reject(new Error(`unknown tool '${name}'`)));
+}
+
+// A page without the per-event note handle, which only a note read takes and
+// no tool offers to a caller.
+function buildPageWithoutNoteHandles(
+  page: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  const events: unknown = page['events'];
+
+  if (!Array.isArray(events)) {
+    return page;
+  }
+
+  return {
+    ...page,
+    events: events.map((event: unknown) => {
+      if (!isRecord(event)) {
+        return event;
+      }
+
+      const { note: _handle, ...rest } = event;
+
+      return rest;
+    }),
+  };
 }
 
 function buildObjectResult(value: unknown): ToolResult {
