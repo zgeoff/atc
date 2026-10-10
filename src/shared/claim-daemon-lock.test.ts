@@ -85,14 +85,18 @@ test('it waits for a holder that lets go within the wait', async () => {
   expect(second).not.toBeNull();
 });
 
-test('it throws when the lock file cannot be opened for reading and writing', () => {
-  const ctx = setupTest();
-  const lockPath = join(ctx.dir, 'daemon.lock');
+// Root opens a file past its mode, so the lock file stays readable.
+test.skipIf(process.getuid?.() === 0)(
+  'it throws when the lock file cannot be opened for reading and writing',
+  () => {
+    const ctx = setupTest();
+    const lockPath = join(ctx.dir, 'daemon.lock');
 
-  writeFileSync(lockPath, '');
-  chmodSync(lockPath, 0o200);
+    writeFileSync(lockPath, '');
+    chmodSync(lockPath, 0o200);
 
-  expect(claimDaemonLock(lockPath, 0)).rejects.toThrow(
-    `atc daemon: cannot open the lock file ${lockPath}`,
-  );
-});
+    expect(claimDaemonLock(lockPath, 0)).rejects.toThrow(
+      `atc daemon: cannot open the lock file ${lockPath}`,
+    );
+  },
+);

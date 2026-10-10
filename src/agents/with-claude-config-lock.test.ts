@@ -83,6 +83,13 @@ test('it leaves a lock another holder took over in place on release', async () =
     rmdirSync(lockPath);
     mkdirSync(lockPath);
 
+    // Another holder takes over only a lock that went stale, ten seconds
+    // after its last refresh, so the lock it makes is that much younger. A
+    // filesystem can give the new directory the old one's inode.
+    const takenOver = new Date(Date.now() + 11_000);
+
+    utimesSync(lockPath, takenOver, takenOver);
+
     return Promise.resolve();
   });
 

@@ -144,22 +144,27 @@ test('it refuses a spawn whose worktree is not a git worktree and leaves no reco
   expect(existsSync(ctx.records)).toBeFalse();
 });
 
-test("it refuses the session's own write to its record", async () => {
-  const ctx = await setupTest();
+// Root writes past file modes, so a read-only record holds only for a
+// session that runs as another user.
+test.skipIf(process.getuid?.() === 0)(
+  "it refuses the session's own write to its record",
+  async () => {
+    const ctx = await setupTest();
 
-  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.fixture.work,
-    target: 'box',
-  });
+    const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+      cwd: ctx.fixture.work,
+      target: 'box',
+    });
 
-  const path = join(ctx.records, `${String(getRecord(spawned, 'session')['id'])}.json`);
+    const path = join(ctx.records, `${String(getRecord(spawned, 'session')['id'])}.json`);
 
-  expect(statSync(path).mode & 0o777).toBe(0o444);
+    expect(statSync(path).mode & 0o777).toBe(0o444);
 
-  expect(() => {
-    writeFileSync(path, '{"scope":"everything"}');
-  }).toThrow(expect.objectContaining({ code: 'EACCES' }));
-});
+    expect(() => {
+      writeFileSync(path, '{"scope":"everything"}');
+    }).toThrow(expect.objectContaining({ code: 'EACCES' }));
+  },
+);
 
 test('it adds scope from a client outside the session and rewrites the record', async () => {
   const ctx = await setupTest();
