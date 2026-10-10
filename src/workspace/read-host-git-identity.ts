@@ -6,10 +6,11 @@ export interface GitIdentity {
 }
 
 /**
- * Reads the git `user.name` and `user.email` the daemon's host is
- * configured with, in the daemon's own environment and from a directory
- * outside any repository, so only the global config applies. Resolves to both when each is non-empty, and to null when either
- * is missing or git cannot run; it never throws.
+ * Reads the git `user.name` and `user.email` of the daemon host's global
+ * config, so no repository's own config applies, whatever directory or
+ * repository the daemon's environment points git at. Resolves to both when
+ * each is non-empty, and to null when either is missing or git cannot run;
+ * it never throws.
  */
 export async function readHostGitIdentity(): Promise<GitIdentity | null> {
   const [name, email] = await Promise.all([
@@ -26,7 +27,7 @@ export async function readHostGitIdentity(): Promise<GitIdentity | null> {
 
 async function readConfigValue(key: string): Promise<string | null> {
   try {
-    const proc = Bun.spawn(['git', 'config', '--get', key], {
+    const proc = Bun.spawn(['git', 'config', '--global', '--get', key], {
       cwd: tmpdir(),
       env: process.env,
       stdin: 'ignore',

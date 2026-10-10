@@ -80,3 +80,30 @@ test('it ignores the identity of the repository the daemon runs in', async () =>
     email: 'ada@example.com',
   });
 });
+
+test('it ignores the identity of the repository the environment points git at', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.config, '[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n');
+
+  const repo = setupTempDir('atc-host-identity-env-repo-');
+  const gitDir = join(repo.dir, '.git');
+
+  mkdirSync(join(gitDir, 'objects'), { recursive: true });
+  mkdirSync(join(gitDir, 'refs'));
+  writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n');
+
+  writeFileSync(
+    join(gitDir, 'config'),
+    '[user]\n\tname = Local Person\n\temail = local@example.com\n',
+  );
+
+  updateEnv('GIT_DIR', gitDir);
+
+  const identity = await readHostGitIdentity();
+
+  expect(identity).toStrictEqual({
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+  });
+});
