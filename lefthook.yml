@@ -1,5 +1,6 @@
-# Git hooks. pre-commit fixes staged files only (fast); pre-push gates the
-# whole tree so config drift affecting unstaged files is caught before CI.
+# Git hooks. pre-commit fixes staged files only (fast); pre-push checks what
+# the branch changes, plus the cheap whole-tree gates. CI runs every
+# whole-tree check: type-aware lint, dead code, and the full test suite.
 
 pre-commit:
   piped: true
@@ -27,17 +28,20 @@ commit-msg:
       run: node_modules/.bin/commitlint --edit {1}
 
 pre-push:
-  parallel: true
+  # Sequential, to bound memory on a small host.
+  piped: true
   jobs:
     - name: format:check
       run: bun run format:check
-    - name: lint
-      run: bun run lint
-    - name: typecheck
-      run: bun run typecheck
-    - name: deadcode
-      run: bun run deadcode
     - name: check:imports
       run: bun run check:imports
+    - name: lint
+      files: bun run --silent files:branch
+      glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'
+      run: bun run lint:files {files}
+    - name: typecheck
+      run: bun run typecheck
     - name: test
-      run: bun run test
+      files: bun run --silent files:branch
+      glob: '*.ts'
+      run: bun run test:related {files}
