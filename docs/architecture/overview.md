@@ -126,8 +126,8 @@ through `CLAUDE_CODE_PLUGIN_DIRS`. The mod connects the session to its
 - When a turn that carried messages ends with a reply, the mod reports every message the turn
   carried as answered with that reply and the turn's id, in one call. An aborted or failed turn
   leaves its messages delivered.
-- It gives the model a `report` tool for progress mid-turn, which clients receive as a `SessionNote`
-  event.
+- It gives the model a `note` tool for progress mid-turn. Its `label` input is `progress` (the
+  default), `blocked`, or `decision`, and clients receive each call as a `SessionNote` event.
 
 Outside atc, with no `ATC_SESSION_ID` in its environment, the mod does nothing.
 
