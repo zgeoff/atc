@@ -14,7 +14,8 @@ publish step in `.github/workflows/main.yml`. No npm tokens live in CI. The setu
 3. The merge triggers `main.yml` again: release-please tags `@zgeoff/atc@X.Y.Z`, creates the GitHub
    release, and the publish step runs `bun pm pack` then `npm publish <tarball> --provenance` under
    OIDC.
-4. The same run attaches the compiled binaries to the release and pushes the Homebrew formula.
+4. The same run attaches the compiled binaries to the release, pushes the Homebrew formula, and
+   opens the agent image pin pull request in `zgeoff/cloud`.
 
 ## Binaries
 
@@ -61,6 +62,15 @@ a token from the release App:
 
 With either missing, the release job leaves the formula alone and every other step still runs.
 `brew install zgeoff/tap/atc` then resolves to that repository.
+
+### Agent image pin in zgeoff/cloud
+
+The imp agent image in `zgeoff/cloud` bakes in atc. After each release, the release job mints a
+release App token for the `cloud` repository only, clones it, and runs its
+`scripts/open-atc-pin-pr.sh <version> dist/SHA256SUMS`. That opens or updates one pull request that
+pins the new version and its `atc-linux-x64` sum, and cloud's agent image workflow turns on
+auto-merge once the image passes its check. The release App has to be installed on `cloud`; cloud's
+`docs/runbooks/agent-image.md` covers the rest.
 
 ### First publish
 
