@@ -221,7 +221,7 @@ test('it leaves out of events.read the events of a session that leaves the view 
         at: 0,
         session: 's-held',
         name: 'secret',
-        kind: 'message-accepted',
+        kind: 'message-queued',
         detail: 'secret',
       },
     ],
@@ -234,24 +234,24 @@ test('it leaves out of events.read the events of a session that leaves the view 
   expect(answered).toMatchObject({ ok: { events: [], more: false } });
 });
 
-test('it answers report.get whose session leaves the view during the read as for a report that does not exist', async () => {
+test('it answers note.get whose session leaves the view during the read as for a note that does not exist', async () => {
   const entered = Promise.withResolvers<void>();
-  const report = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readReport']>>>();
+  const note = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readNote']>>>();
   const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  const readReport = mock<DaemonContext['readReport']>(() => {
+  const readNote = mock<DaemonContext['readNote']>(() => {
     entered.resolve();
 
-    return report.promise;
+    return note.promise;
   });
 
-  readReport.mockImplementationOnce(() => Promise.resolve(null));
+  readNote.mockImplementationOnce(() => Promise.resolve(null));
 
   const peer = buildStubPeerSocket();
 
   const conn = new DaemonConnection(
     peer.socket,
-    buildStubDaemonContext({ canSeeSession, readReport }),
+    buildStubDaemonContext({ canSeeSession, readNote }),
   );
 
   // The connection acts as a principal, the caller whose reach the daemon
@@ -261,13 +261,13 @@ test('it answers report.get whose session leaves the view during the read as for
   );
 
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'note.get', p: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
   );
 
   const missing = await peer.waitForAnswer(2);
 
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'note.get', p: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
   );
 
   const held = peer.waitForAnswer(3);
@@ -276,10 +276,10 @@ test('it answers report.get whose session leaves the view during the read as for
 
   canSeeSession.mockReturnValue(false);
 
-  report.resolve({
+  note.resolve({
     owner: toSessionID('s-held'),
     view: {
-      report: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      note: 'eyJrIjoiZXYiLCJpIjoxfQ',
       at: 0,
       session: 's-held',
       name: 'secret',
@@ -295,24 +295,24 @@ test('it answers report.get whose session leaves the view during the read as for
   expect(answered).toMatchObject({ err: { code: 'bad_args' } });
 });
 
-test('it answers report.get whose sender leaves the view during the read as for a report that does not exist, whatever session its view is named by', async () => {
+test('it answers note.get whose sender leaves the view during the read as for a note that does not exist, whatever session its view is named by', async () => {
   const entered = Promise.withResolvers<void>();
-  const report = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readReport']>>>();
+  const note = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readNote']>>>();
   const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
 
-  const readReport = mock<DaemonContext['readReport']>(() => {
+  const readNote = mock<DaemonContext['readNote']>(() => {
     entered.resolve();
 
-    return report.promise;
+    return note.promise;
   });
 
-  readReport.mockImplementationOnce(() => Promise.resolve(null));
+  readNote.mockImplementationOnce(() => Promise.resolve(null));
 
   const peer = buildStubPeerSocket();
 
   const conn = new DaemonConnection(
     peer.socket,
-    buildStubDaemonContext({ canSeeSession, readReport }),
+    buildStubDaemonContext({ canSeeSession, readNote }),
   );
 
   // The connection acts as a principal, the caller whose reach the daemon
@@ -322,13 +322,13 @@ test('it answers report.get whose sender leaves the view during the read as for 
   );
 
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'note.get', p: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
   );
 
   const missing = await peer.waitForAnswer(2);
 
   conn.applyChunk(
-    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'report.get', p: { report: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'note.get', p: { note: 'eyJrIjoiZXYiLCJpIjoxfQ' } })}\n`,
   );
 
   const held = peer.waitForAnswer(3);
@@ -337,10 +337,10 @@ test('it answers report.get whose sender leaves the view during the read as for 
 
   canSeeSession.mockImplementation((id) => id !== 's-held');
 
-  report.resolve({
+  note.resolve({
     owner: toSessionID('s-held'),
     view: {
-      report: 'eyJrIjoiZXYiLCJpIjoxfQ',
+      note: 'eyJrIjoiZXYiLCJpIjoxfQ',
       at: 0,
       session: 's-shown',
       name: 'shown',
@@ -520,7 +520,7 @@ test('it answers session.message whose session leaves the view during the write 
   await entered.promise;
 
   canSeeSession.mockReturnValue(false);
-  write.resolve({ message: 'm-1', status: 'accepted' });
+  write.resolve({ message: 'm-1', status: 'queued' });
 
   const answered = await held;
 

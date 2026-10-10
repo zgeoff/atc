@@ -47,11 +47,11 @@ import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
-import { buildReportTrailEntry } from './build-report-trail-entry';
-import { buildReportView } from './build-report-view';
+import { buildNoteTrailEntry } from './build-note-trail-entry';
+import { buildNoteView } from './build-note-view';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
-import { buildSessionReportEvent } from './build-session-report-event';
+import { buildSessionNoteEvent } from './build-session-note-event';
 import { buildTargetAccess } from './build-target-access';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { buildTargetList } from './build-target-list';
@@ -82,7 +82,7 @@ import type { HookScope } from './make-hook-runner';
 import { materializeWorkspace } from './materialize-workspace';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
-import { parseReport } from './parse-report';
+import { parseNote } from './parse-note';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
 import { requireGitTransports } from './require-git-transports';
@@ -199,10 +199,10 @@ export interface DaemonOptions {
   // the option is off, or the stored fleet holds no sessions.
   readonly onRestoreSkipped?: (reason: 'disabled' | 'empty') => void;
 
-  // Called when a Report line changes nothing: a note from a session the
+  // Called when a Note line changes nothing: a note from a session the
   // fleet does not list, or an answer that matches no unanswered message
   // the reporting session owns.
-  readonly onReportIgnored?: (sessionID: string, kind: 'note' | 'answered') => void;
+  readonly onNoteIgnored?: (sessionID: string, kind: 'note' | 'answered') => void;
 
   // How long a confirm token from `session.forget` stays usable.
   readonly forgetConfirmMs?: number;
@@ -493,9 +493,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const registry = new PermissionRegistry(undefined, clock);
   const eventSignal = new EventSignal(clock);
 
-  // A trail write that fails never fails the message request or report behind it.
+  // A trail write that fails never fails the message request or note behind it.
   // Returns false when the entry was not written: a failed write, or a
-  // report the trail already holds.
+  // note the trail already holds.
   const recordTrailEntry = async (entry: TrailEntry): Promise<boolean> => {
     let written: boolean;
 
@@ -629,7 +629,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const attachments = new AttachRegistry<OutputClient>();
   const taps = new TapRegistry<TapClient>();
 
-  // Writes accepted messages one at a time so the store's insertion order is
+  // Writes queued messages one at a time so the store's insertion order is
   // the order of their sent times, which the inbox drains by.
   let lastMessageWrite: Promise<void> = Promise.resolve();
 
@@ -645,40 +645,30 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const drainSessionInbox = (sessionID: SessionID) => drainInbox(sessionID, inboxSource);
 
-  // A report id, which a remote session's reporter gives each report,
+  // A note id, which a remote session's reporter gives each note,
   // makes a resent note land once; a resent answer changes nothing, since
   // only an unanswered message takes one.
-  const applyReport = async (e: HookEvent, reportID?: string) => {
-    const report = parseReport(e.payload);
+  const applyNote = async (e: HookEvent, noteID?: string) => {
+    const note = parseNote(e.payload);
 
-    if (report === null) {
+    if (note === null) {
       return;
     }
 
-    if (report.kind === 'note') {
+    if (note.kind === 'note') {
       const sender = mgr.sessions.find((x) => x.id === e.atcId);
 
       if (sender === undefined) {
-        opts.onReportIgnored?.(e.atcId, 'note');
+        opts.onNoteIgnored?.(e.atcId, 'note');
       } else {
-        const capped = { ...report, text: truncateToBytes(report.text, ANSWER_BYTE_CAP) };
-        const reportedAt = clock.now();
-
-        const entry = buildReportTrailEntry(
-          sender.id,
-          sender.agentSessionID,
-          capped,
-          reportedAt,
-          reportID,
-        );
+        const capped = { ...note, text: truncateToBytes(note.text, ANSWER_BYTE_CAP) };
+        const sentAt = clock.now();
+        const entry = buildNoteTrailEntry(sender.id, sender.agentSessionID, capped, sentAt, noteID);
 
         const written = await recordTrailEntry(entry);
 
         if (written) {
-          emitEvent(
-            buildSessionReportEvent(sender.id, capped, reportedAt),
-            findHookScope(sender.id),
-          );
+          emitEvent(buildSessionNoteEvent(sender.id, capped, sentAt), findHookScope(sender.id));
         }
       }
 
@@ -692,15 +682,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       // One statement answers the whole turn, so a reader that sees any
       // member answered already finds every sibling answered beside it.
       const answered = await store.updateMessagesAnswered(
-        report.messages,
+        note.messages,
         owner,
-        truncateToBytes(report.answer, ANSWER_BYTE_CAP),
+        truncateToBytes(note.answer, ANSWER_BYTE_CAP),
         Date.now(),
-        report.turn,
+        note.turn,
       );
 
       if (answered.length === 0) {
-        opts.onReportIgnored?.(e.atcId, 'answered');
+        opts.onNoteIgnored?.(e.atcId, 'answered');
       }
 
       for (const record of answered) {
@@ -980,8 +970,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   const applyHookEvent = (e: HookEvent) => {
-    if (e.event === 'Report') {
-      void applyReport(e);
+    if (e.event === 'Note') {
+      void applyNote(e);
 
       return;
     }
@@ -1062,12 +1052,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     startSessionBridge(relay, binding, {
       findSession: (sessionID) => mgr.sessions.find((x) => x.id === sessionID),
       applyHookEvent,
-      applyReport: async (sessionID, payload, reportID) => {
-        if (parseReport(payload) === null) {
+      applyNote: async (sessionID, payload, noteID) => {
+        if (parseNote(payload) === null) {
           return false;
         }
 
-        await applyReport({ atcId: sessionID, event: 'Report', payload: { ...payload } }, reportID);
+        await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } }, noteID);
 
         return true;
       },
@@ -1411,7 +1401,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // no message was written.
   // The caller's check runs again once the writes ahead of this one land,
   // before anything is written; a failed check writes nothing.
-  const writeAcceptedMessage = async (
+  const writeQueuedMessage = async (
     sessionID: SessionID,
     from: string,
     text: string,
@@ -1432,7 +1422,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       ...(s?.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
       from,
       text,
-      status: 'accepted',
+      status: 'queued',
       sentAt: Date.now(),
     };
 
@@ -1688,11 +1678,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         })();
       }, 80);
     },
-    killSession: async (id) => {
+    killSession: async (id, stopOnly) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
       if (s === undefined) {
-        return false;
+        return 'missing';
       }
 
       for (const live of [s, ...mgr.collectChildren(id)]) {
@@ -1703,11 +1693,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       const set = [s, ...mgr.collectChildren(id)];
 
-      await mgr.kill(id);
+      const outcome = await mgr.kill(id, stopOnly);
 
       stopEndedHeadlessRuns(set);
 
-      return true;
+      return outcome;
     },
 
     // A forget on a target that cannot destroy its host forgets at once. On
@@ -2124,8 +2114,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         await eventSignal.waitForNext(generation, remaining);
       }
     },
-    readReport: async (id, access) => {
-      const stored = await store.findReport(id, buildEventScope(null, access));
+    readNote: async (id, access) => {
+      const stored = await store.findNote(id, buildEventScope(null, access));
 
       if (stored === null) {
         return null;
@@ -2134,12 +2124,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const naming = collectNamingDescriptors(access);
       const aliases = access === null ? naming : [];
 
-      // Under an access a report takes no alias, so a session in reach
-      // never names a report whose own session left the access while the
+      // Under an access a note takes no alias, so a session in reach
+      // never names a note whose own session left the access while the
       // query waited.
       return {
         owner: stored.atcID,
-        view: buildReportView(stored, naming, aliases),
+        view: buildNoteView(stored, naming, aliases),
       };
     },
     writeSessionMessage: async (sessionID, from, text, keyed, access) => {
@@ -2159,7 +2149,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         }
 
         try {
-          const record = await writeAcceptedMessage(
+          const record = await writeQueuedMessage(
             sessionID,
             from,
             text,
@@ -2195,7 +2185,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
               throw new MessageRefusedError(refusal);
             }
 
-            const record = await writeAcceptedMessage(
+            const record = await writeQueuedMessage(
               sessionID,
               from,
               text,

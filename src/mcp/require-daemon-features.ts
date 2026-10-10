@@ -3,21 +3,21 @@ import type { DaemonFeature } from '../protocol/daemon-features';
 // What each feature lets a tool call ask for, as an outdated-daemon refusal
 // states it.
 const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
-  'agents.list': 'atc_agents_list',
+  'agents.list': 'atc_spawn_options_get',
   'daemon.id': "the daemon's persisted identity",
   'events.more': "atc_events_read's more flag",
   'events.session': "atc_events_read's session filter",
-  'message.idempotency': "atc_session_message's idempotencyKey",
+  'message.idempotency': "atc_message_send's idempotencyKey",
   'message.turn': "atc_message_get's turn and answeredWith",
   'message.wait': "atc_message_get's waitMs",
   'session.forget': 'atc_session_forget',
   'session.forget.preconditions': "atc_session_forget's pinned and live checks in the daemon",
   'session.locator': "a session's locator",
-  'session.submit': 'atc_session_input',
+  'session.submit': 'atc_terminal_type',
   'spawn.idempotency': "atc_session_spawn's idempotencyKey",
   'spawn.options': "atc_session_spawn's model and effort",
   'spawn.target': "atc_session_spawn's target",
-  'report.get': 'atc_report_get',
+  'note.get': "atc_events_read's full note texts",
   'request.principal': 'the target limits of a remote MCP client',
   'spawn.workspace': "atc_session_spawn's workspace",
   'spawn.workspace.trust': "atc_session_spawn's trustClonedWorkspace",
@@ -27,7 +27,10 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'transport.tcp': 'a TCP connection to the daemon',
   'idempotency.replayOnly': 'a resend that only replays a held idempotency key',
   'session.auth': 'session.auth.revoke and session.auth.rebind',
+  'session.kill.stopOnly': 'atc_session_stop',
   'session.record': "atc_session_scope_add and atc_session_spawn's scope",
+  'vocabulary.note':
+    'the note and queued words in the results of atc_events_read, atc_message_send, and atc_message_get',
 };
 
 /**

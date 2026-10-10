@@ -8,13 +8,13 @@ import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
 /**
  * A temp directory for a tap inside a remote host: the socket path where a
  * test starts its stand-in session bridge, and the outbox the tap sends its
- * reports from. The directory goes once the test finishes.
+ * notes from. The directory goes once the test finishes.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-bridge-tap-');
   const outbox = join(tmp.dir, 'outbox');
 
-  // The tap reads its reports from here, and each test writes one into it.
+  // The tap reads its notes from here, and each test writes one into it.
   mkdirSync(outbox);
 
   return {
@@ -24,7 +24,7 @@ function setupTest() {
   };
 }
 
-test('it removes the outbox file of a report the bridge took', async () => {
+test('it removes the outbox file of a note the bridge took', async () => {
   const ctx = setupTest();
 
   const bridge = startStubSessionBridge(ctx.sock, (request) => [
@@ -34,7 +34,7 @@ test('it removes the outbox file of a report the bridge took', async () => {
 
   writeFileSync(
     join(ctx.outbox, 'r1.json'),
-    JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
   const codes: number[] = [];
@@ -54,19 +54,49 @@ test('it removes the outbox file of a report the bridge took', async () => {
     { v: 1, id: 'tap.open', op: 'tap.open' },
     {
       v: 1,
-      id: 'report:r1',
-      op: 'report',
-      reportID: 'r1',
+      id: 'note:r1',
+      op: 'note',
+      noteID: 'r1',
       payload: { kind: 'note', label: 'progress', text: 'hi' },
     },
   ]);
 });
 
-test('it removes no file for an answer to a report id it never sent', async () => {
+test('it sends an outbox file that holds its id as reportID as a note', async () => {
+  const ctx = setupTest();
+
+  const bridge = startStubSessionBridge(ctx.sock, (request) => [
+    { id: request['id'], ok: true },
+    { ev: 'InboxClosed' },
+  ]);
+
+  writeFileSync(
+    join(ctx.outbox, 'r1.json'),
+    JSON.stringify({ reportID: 'r1', payload: { kind: 'note', text: 'hi' } }),
+  );
+
+  await runBridgeTap(ctx.sock, ctx.outbox, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: () => {},
+  });
+
+  expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(false);
+
+  expect(bridge.requests).toContainEqual({
+    v: 1,
+    id: 'note:r1',
+    op: 'note',
+    noteID: 'r1',
+    payload: { kind: 'note', text: 'hi' },
+  });
+});
+
+test('it removes no file for an answer to a note id it never sent', async () => {
   const ctx = setupTest();
 
   const bridge = startStubSessionBridge(ctx.sock, () => [
-    { id: 'report:../victim', ok: true },
+    { id: 'note:../victim', ok: true },
     { ev: 'InboxClosed' },
   ]);
 
@@ -74,7 +104,7 @@ test('it removes no file for an answer to a report id it never sent', async () =
 
   writeFileSync(
     join(ctx.outbox, 'r1.json'),
-    JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
   const codes: number[] = [];
@@ -95,9 +125,9 @@ test('it removes no file for an answer to a report id it never sent', async () =
     { v: 1, id: 'tap.open', op: 'tap.open' },
     {
       v: 1,
-      id: 'report:r1',
-      op: 'report',
-      reportID: 'r1',
+      id: 'note:r1',
+      op: 'note',
+      noteID: 'r1',
       payload: { kind: 'note', label: 'progress', text: 'hi' },
     },
   ]);

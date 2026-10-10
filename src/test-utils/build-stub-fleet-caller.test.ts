@@ -16,9 +16,9 @@ test('it reports every feature a current daemon announces by default', () => {
 });
 
 test('it reports the features the config gives', () => {
-  const caller = buildStubFleetCaller({ features: ['report.get', 'fleet.daemons'] });
+  const caller = buildStubFleetCaller({ features: ['note.get', 'fleet.daemons'] });
 
-  expect(caller.readFeatures()).resolves.toStrictEqual(new Set(['report.get', 'fleet.daemons']));
+  expect(caller.readFeatures()).resolves.toStrictEqual(new Set(['note.get', 'fleet.daemons']));
 });
 
 test('it records each request with the arguments the sender passed, in order', async () => {

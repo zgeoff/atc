@@ -12,7 +12,7 @@ const RETRYABLE_METHODS: ReadonlySet<string> = new Set([
   'dirs.list',
   'events.read',
   'message.get',
-  'report.get',
+  'note.get',
   'session.get',
   'session.list',
   'session.read',

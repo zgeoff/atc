@@ -2,28 +2,28 @@ import type { AgentSessionID } from '../shared/agent-session-id';
 import type { SessionID } from '../shared/session-id';
 import { truncateDetail } from '../shared/truncate-detail';
 import type { TrailEntry } from '../store/trail-entry';
-import type { NoteReport } from './parse-report';
+import type { SentNote } from './parse-note';
 
 /**
  * The trail entry for one note a session reported, carrying its label, its
  * text and a preview of it, and the id its reporter gave it, when it gave
  * one.
  */
-export function buildReportTrailEntry(
+export function buildNoteTrailEntry(
   sessionID: SessionID,
   agentSessionID: AgentSessionID | undefined,
-  report: Readonly<NoteReport>,
-  reportedAt: number,
-  reportID?: string,
+  note: Readonly<SentNote>,
+  sentAt: number,
+  noteID?: string,
 ): TrailEntry {
   return {
-    at: reportedAt,
+    at: sentAt,
     atcID: sessionID,
     agentSessionID: agentSessionID ?? null,
-    kind: 'report',
-    label: report.label,
-    detail: truncateDetail(report.text),
-    text: report.text,
-    ...(reportID === undefined ? {} : { reportID }),
+    kind: 'note',
+    label: note.label,
+    detail: truncateDetail(note.text),
+    text: note.text,
+    ...(noteID === undefined ? {} : { noteID }),
   };
 }

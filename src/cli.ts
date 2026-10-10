@@ -391,12 +391,62 @@ const main = defineCommand({
           await tap.runTap(ctx.args.session);
         },
       }),
+    note: () =>
+      defineCommand({
+        meta: {
+          name: 'note',
+          description: 'Send a note from a wrangled session to the atc socket',
+          hidden: true,
+        },
+
+        // No arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          label: { type: 'string', default: '' },
+        },
+        async run(ctx) {
+          const note = await import('./note');
+
+          await note.runNote('note', {
+            message: '',
+            messages: '',
+            label: ctx.args.label,
+            turn: '',
+          });
+        },
+      }),
+    answer: () =>
+      defineCommand({
+        meta: {
+          name: 'answer',
+          description: 'Record the answer of a turn for the messages it answered',
+          hidden: true,
+        },
+
+        // No arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          message: { type: 'string', default: '' },
+          messages: { type: 'string', default: '' },
+          turn: { type: 'string', default: '' },
+        },
+        async run(ctx) {
+          const note = await import('./note');
+
+          await note.runNote('answered', {
+            message: ctx.args.message,
+            messages: ctx.args.messages,
+            label: '',
+            turn: ctx.args.turn,
+          });
+        },
+      }),
     report: () =>
       defineCommand({
         meta: {
           name: 'report',
           description:
-            'Report a message answer or a note from a wrangled session to the atc socket',
+            'Compatibility form of note and answer for sessions that loaded an older mod',
           hidden: true,
         },
 
@@ -410,9 +460,9 @@ const main = defineCommand({
           turn: { type: 'string', default: '' },
         },
         async run(ctx) {
-          const reporter = await import('./report');
+          const note = await import('./note');
 
-          await reporter.runReport(ctx.args.kind, {
+          await note.runNote(ctx.args.kind, {
             message: ctx.args.message,
             messages: ctx.args.messages,
             label: ctx.args.label,

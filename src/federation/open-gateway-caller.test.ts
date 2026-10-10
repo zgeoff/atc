@@ -203,7 +203,7 @@ test('it lists the sessions of both daemons under gateway ids with each daemon u
   });
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_session_list',
+    name: 'atc_sessions_list',
     arguments: {},
   });
 
@@ -288,7 +288,7 @@ test('it reads the events of both daemons in one page', async () => {
   await Promise.all(
     ids.map((session) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-        name: 'atc_session_message',
+        name: 'atc_message_send',
         arguments: { session, text: `hello ${session}` },
       }),
     ),
@@ -302,7 +302,7 @@ test('it reads the events of both daemons in one page', async () => {
   const page = getRecord(read, 'structuredContent');
 
   expect(page['events']).toIncludeAllPartialMembers(
-    ids.map((session) => ({ kind: 'message-accepted', session })),
+    ids.map((session) => ({ kind: 'message-queued', session })),
   );
 
   expect(page['unavailable']).toStrictEqual([]);
@@ -325,7 +325,7 @@ test('it resumes an events read after the events of its page', async () => {
   await Promise.all(
     ids.map((session) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-        name: 'atc_session_message',
+        name: 'atc_message_send',
         arguments: { session, text: `hello ${session}` },
       }),
     ),
@@ -337,7 +337,7 @@ test('it resumes an events read after the events of its page', async () => {
   });
 
   await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_session_message',
+    name: 'atc_message_send',
     arguments: { session: ids[1], text: 'later' },
   });
 
@@ -347,7 +347,7 @@ test('it resumes an events read after the events of its page', async () => {
   });
 
   expect(getRecord(next, 'structuredContent')['events']).toStrictEqual([
-    expect.objectContaining({ kind: 'message-accepted', session: ids[1] }),
+    expect.objectContaining({ kind: 'message-queued', session: ids[1] }),
   ]);
 });
 
@@ -357,7 +357,7 @@ test('it shows a stopped daemon as down', async () => {
   await ctx.pc.stop();
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_session_list',
+    name: 'atc_sessions_list',
     arguments: {},
   });
 
@@ -391,7 +391,7 @@ test('it answers daemon_unauthorized for a daemon that refuses the gateway token
   ctx.pc.daemon.refreshTokens();
 
   const refused = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_dirs_list',
+    name: 'atc_recent_dirs_list',
     arguments: { daemon: 'pc' },
   });
 
@@ -436,7 +436,7 @@ test('it answers a tool call from a client the daemons list', async () => {
   const ctx = await setupTest();
 
   const listed = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_dirs_list',
+    name: 'atc_recent_dirs_list',
     arguments: {},
   });
 
@@ -478,7 +478,7 @@ test('it refuses a client no daemon lists as unauthorized', async () => {
   const tokens = await readJSONRecord(exchanged);
 
   const refused = await sendMCPRequest(ctx.url, String(tokens['access_token']), 'tools/call', {
-    name: 'atc_dirs_list',
+    name: 'atc_recent_dirs_list',
     arguments: {},
   });
 
@@ -494,7 +494,7 @@ test('it offers the daemon input on spawn and dirs and the daemons tool in the t
 
   const tools = [listed['tools']].flat().filter((tool) => isRecord(tool));
   const spawnTool = tools.find((tool) => tool['name'] === 'atc_session_spawn');
-  const dirsTool = tools.find((tool) => tool['name'] === 'atc_dirs_list');
+  const dirsTool = tools.find((tool) => tool['name'] === 'atc_recent_dirs_list');
   const spawnSchema = getRecord(getRecord({ spawnTool }, 'spawnTool'), 'inputSchema');
   const dirsSchema = getRecord(getRecord({ dirsTool }, 'dirsTool'), 'inputSchema');
 
@@ -509,7 +509,7 @@ test('it lists the agents tool without an output schema', async () => {
 
   const agentsTool = [listed['tools']]
     .flat()
-    .find((tool) => isRecord(tool) && tool['name'] === 'atc_agents_list');
+    .find((tool) => isRecord(tool) && tool['name'] === 'atc_spawn_options_get');
 
   expect(getRecord({ agentsTool }, 'agentsTool')).not.toContainKey('outputSchema');
 });
@@ -570,18 +570,18 @@ test('it holds a waiting events read open until one daemon has an event and retu
   });
 
   await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_session_message',
+    name: 'atc_message_send',
     arguments: { session, text: 'wake' },
   });
 
   const woken = await waiting;
 
   expect(getRecord(woken, 'structuredContent')['events']).toStrictEqual([
-    expect.objectContaining({ kind: 'message-accepted', session }),
+    expect.objectContaining({ kind: 'message-queued', session }),
   ]);
 });
 
-test('it reads a report from either daemon through the report handle of its event', async () => {
+test('it returns the whole note text of either daemon without a note handle', async () => {
   const ctx = await setupTest();
 
   const spawns = await Promise.all(
@@ -599,17 +599,17 @@ test('it reads a report from either daemon through the report handle of its even
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'from pc' },
   });
 
-  const reports = await waitFor(async () => {
+  const notes = await waitFor(async () => {
     const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
       name: 'atc_events_read',
       arguments: {},
@@ -617,69 +617,22 @@ test('it reads a report from either daemon through the report handle of its even
 
     const found = [getRecord(read, 'structuredContent')['events']]
       .flat()
-      .filter((event) => isRecord(event) && event['kind'] === 'report');
+      .filter((event) => isRecord(event) && event['kind'] === 'note');
 
     expect(found).toHaveLength(2);
 
     return found;
   });
 
-  const got = await Promise.all(
-    reports.map((event) =>
-      sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-        name: 'atc_report_get',
-        arguments: { report: getRecord({ event }, 'event')['report'] },
-      }),
-    ),
-  );
-
-  expect(got.map((answer) => getRecord(answer, 'structuredContent')['text'])).toIncludeSameMembers([
+  expect(notes.map((event) => getRecord({ event }, 'event')['text'])).toIncludeSameMembers([
     'from cloud',
     'from pc',
   ]);
+
+  expect(notes.map((event) => Object.keys(getRecord({ event }, 'event')))).not.toContain('note');
 });
 
-test('it refuses a report handle with a stale incarnation', async () => {
-  const ctx = await setupTest();
-
-  const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_session_spawn',
-    arguments: { cwd: ctx.dir },
-  });
-
-  await ctx.cloud.sendHookLines({
-    atcId: String(getRecord(spawned, 'structuredContent')['id']).split('.').at(-1),
-    event: 'Report',
-    payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
-  });
-
-  const report = await waitFor(async () => {
-    const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-      name: 'atc_events_read',
-      arguments: {},
-    });
-
-    const found = [getRecord(read, 'structuredContent')['events']]
-      .flat()
-      .find((event) => isRecord(event) && event['kind'] === 'report');
-
-    return String(getRecord({ found }, 'found')['report']);
-  });
-
-  const stale = report.replace(`cloud.${ctx.cloudID.slice(0, 8)}.`, 'cloud.ffffffff.');
-
-  const refused = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
-    name: 'atc_report_get',
-    arguments: { report: stale },
-  });
-
-  expect(refused).toStrictEqual({
-    content: [{ type: 'text', text: `bad_args: no report '${stale}'` }],
-    isError: true,
-  });
-});
-
-test('it reads the whole reports of both daemons in one events read', async () => {
+test('it reads the whole notes of both daemons in one events read', async () => {
   const ctx = await setupTest();
 
   const spawns = await Promise.all(
@@ -697,27 +650,27 @@ test('it reads the whole reports of both daemons in one events read', async () =
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'p'.repeat(1000) },
   });
 
   const page = await waitFor(async () => {
     const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
       name: 'atc_events_read',
-      arguments: { reportText: true },
+      arguments: {},
     });
 
     const structured = getRecord(read, 'structuredContent');
 
     expect([structured['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
 
     return structured;
@@ -727,7 +680,7 @@ test('it reads the whole reports of both daemons in one events read', async () =
 
   expect([page['events']].flat()).toIncludeSameMembers([
     expect.objectContaining({
-      kind: 'report',
+      kind: 'note',
       session: cloudID,
       label: 'cloud',
       detail: 'from cloud',
@@ -735,7 +688,7 @@ test('it reads the whole reports of both daemons in one events read', async () =
       complete: true,
     }),
     expect.objectContaining({
-      kind: 'report',
+      kind: 'note',
       session: pcID,
       label: 'pc',
       detail: `${'p'.repeat(599)}…`,
@@ -745,7 +698,7 @@ test('it reads the whole reports of both daemons in one events read', async () =
   ]);
 });
 
-test('it resumes a report text read after the reports of its page', async () => {
+test('it resumes a note text read after the notes of its page', async () => {
   const ctx = await setupTest();
 
   const spawns = await Promise.all(
@@ -763,27 +716,27 @@ test('it resumes a report text read after the reports of its page', async () => 
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'from pc' },
   });
 
   const first = await waitFor(async () => {
     const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
       name: 'atc_events_read',
-      arguments: { reportText: true },
+      arguments: {},
     });
 
     const structured = getRecord(read, 'structuredContent');
 
     expect([structured['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
 
     return structured;
@@ -791,14 +744,14 @@ test('it resumes a report text read after the reports of its page', async () => 
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'later' },
   });
 
   const next = await waitFor(async () => {
     const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
       name: 'atc_events_read',
-      arguments: { cursor: first['cursor'], reportText: true },
+      arguments: { cursor: first['cursor'] },
     });
 
     const structured = getRecord(read, 'structuredContent');
@@ -810,11 +763,11 @@ test('it resumes a report text read after the reports of its page', async () => 
   });
 
   expect(next['events']).toStrictEqual([
-    expect.objectContaining({ kind: 'report', session: cloudID, text: 'later', complete: true }),
+    expect.objectContaining({ kind: 'note', session: cloudID, text: 'later', complete: true }),
   ]);
 });
 
-test('it reads the whole reports of the daemons that answer and lists the one that does not', async () => {
+test('it reads the whole notes of the daemons that answer and lists the one that does not', async () => {
   const ctx = await setupTest();
 
   const spawns = await Promise.all(
@@ -832,13 +785,13 @@ test('it reads the whole reports of the daemons that answer and lists the one th
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'from pc' },
   });
 
@@ -849,8 +802,8 @@ test('it reads the whole reports of the daemons that answer and lists the one th
     });
 
     expect([getRecord(read, 'structuredContent')['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
   });
 
@@ -858,7 +811,7 @@ test('it reads the whole reports of the daemons that answer and lists the one th
 
   const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_events_read',
-    arguments: { reportText: true },
+    arguments: {},
   });
 
   const page = getRecord(read, 'structuredContent');
@@ -867,7 +820,7 @@ test('it reads the whole reports of the daemons that answer and lists the one th
 
   expect(page['events']).toStrictEqual([
     expect.objectContaining({
-      kind: 'report',
+      kind: 'note',
       session: cloudID,
       text: 'from cloud',
       complete: true,
@@ -875,7 +828,7 @@ test('it reads the whole reports of the daemons that answer and lists the one th
   ]);
 });
 
-test('it stops a report text read across daemons at 64 KiB', async () => {
+test('it stops a note text read across daemons at 64 KiB', async () => {
   const ctx = await setupTest();
 
   const spawns = await Promise.all(
@@ -893,31 +846,31 @@ test('it stops a report text read across daemons at 64 KiB', async () => {
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'c'.repeat(40_000) },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'p'.repeat(30_000) },
   });
 
   await waitFor(async () => {
     const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
       name: 'atc_events_read',
-      arguments: {},
+      arguments: { previewOnly: true },
     });
 
     expect([getRecord(read, 'structuredContent')['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
   });
 
   const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_events_read',
-    arguments: { reportText: true },
+    arguments: {},
   });
 
   const page = getRecord(read, 'structuredContent');
@@ -925,13 +878,13 @@ test('it stops a report text read across daemons at 64 KiB', async () => {
   expect(page['more']).toBeTrue();
 
   expect(
-    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'report'),
+    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'note'),
   ).toStrictEqual([
     expect.objectContaining({ session: cloudID, text: 'c'.repeat(40_000), complete: true }),
   ]);
 });
 
-test('it reads the rest of a report text read stopped at 64 KiB at its cursor', async () => {
+test('it reads the rest of a note text read stopped at 64 KiB at its cursor', async () => {
   const ctx = await setupTest();
 
   const spawns = await Promise.all(
@@ -949,36 +902,36 @@ test('it reads the rest of a report text read stopped at 64 KiB at its cursor', 
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'c'.repeat(40_000) },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'p'.repeat(30_000) },
   });
 
   await waitFor(async () => {
     const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
       name: 'atc_events_read',
-      arguments: {},
+      arguments: { previewOnly: true },
     });
 
     expect([getRecord(read, 'structuredContent')['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
   });
 
   const first = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_events_read',
-    arguments: { reportText: true },
+    arguments: {},
   });
 
   const read = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
     name: 'atc_events_read',
-    arguments: { cursor: getRecord(first, 'structuredContent')['cursor'], reportText: true },
+    arguments: { cursor: getRecord(first, 'structuredContent')['cursor'] },
   });
 
   const page = getRecord(read, 'structuredContent');
@@ -986,7 +939,7 @@ test('it reads the rest of a report text read stopped at 64 KiB at its cursor', 
   expect(page['more']).toBeFalse();
 
   expect(
-    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'report'),
+    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'note'),
   ).toStrictEqual([
     expect.objectContaining({ session: pcID, text: 'p'.repeat(30_000), complete: true }),
   ]);

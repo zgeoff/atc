@@ -9,7 +9,7 @@ test('it builds a default message record', () => {
     atcID: expect.toBeString(),
     from: expect.toBeString(),
     text: expect.toBeString(),
-    status: 'accepted',
+    status: 'queued',
     sentAt: expect.toBeNumber(),
   });
 });

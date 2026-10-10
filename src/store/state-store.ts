@@ -74,7 +74,7 @@ export interface StoredEvent {
   // The message id on a message status event.
   readonly message?: MessageID;
 
-  // The report label on a report event.
+  // The note label on a note event.
   readonly label?: string;
 }
 
@@ -100,14 +100,14 @@ export interface TurnSibling {
 }
 
 /**
- * One report as the trail holds it. A report recorded before the trail kept
+ * One note as the trail holds it. A note recorded before the trail kept
  * whole texts has only its preview, so its text is that preview and
  * `complete` is false.
  */
-export interface StoredReport {
+export interface StoredNote {
   readonly id: number;
 
-  // Epoch ms the report arrived.
+  // Epoch ms the note arrived.
   readonly at: number;
   readonly atcID: SessionID;
   readonly agentSessionID: AgentSessionID | null;
@@ -118,7 +118,7 @@ export interface StoredReport {
 
 /**
  * Daemon state in one SQLite store: the restorable fleet, the event trail
- * (hook events, message status changes, and reports) that events.read and
+ * (hook events, message status changes, and notes) that events.read and
  * lastActivityAt read, the spawn-directory
  * history, and the per-session message inbox. The statusline contract
  * file (status.json) stays a plain file because reporters inside wrangled
@@ -467,7 +467,7 @@ export class StateStore {
       .execute();
   }
 
-  // Returns whether the entry was written: a report whose id the trail
+  // Returns whether the entry was written: a note whose id the trail
   // already holds is left out.
   async recordTrailEntry(entry: TrailEntry): Promise<boolean> {
     const result = await this.db
@@ -475,17 +475,17 @@ export class StateStore {
       .values({
         ts: new Date(entry.at).toISOString(),
         atc_id: entry.atcID,
-        event: entry.kind === 'report' ? 'SessionReport' : 'SessionMessage',
+        event: entry.kind === 'note' ? 'SessionNote' : 'SessionMessage',
 
-        // The message column holds the message id or the report label; the reads hand it back by kind.
-        message: entry.kind === 'report' ? entry.label : entry.message,
+        // The message column holds the message id or the note label; the reads hand it back by kind.
+        message: entry.kind === 'note' ? entry.label : entry.message,
         session_id: entry.agentSessionID,
         kind: entry.kind,
         detail: entry.detail,
-        report_id: entry.kind === 'report' ? (entry.reportID ?? null) : null,
-        report_text: entry.kind === 'report' ? entry.text : null,
+        note_id: entry.kind === 'note' ? (entry.noteID ?? null) : null,
+        note_text: entry.kind === 'note' ? entry.text : null,
       })
-      .onConflict((oc) => oc.column('report_id').doNothing())
+      .onConflict((oc) => oc.column('note_id').doNothing())
       .executeTakeFirst();
 
     return result.numInsertedOrUpdatedRows !== 0n;
@@ -509,14 +509,14 @@ export class StateStore {
     return buildStoredEvents(rows);
   }
 
-  // A row that is not a report, or that lies outside the scope, misses as a
+  // A row that is not a note, or that lies outside the scope, misses as a
   // row the trail never held does.
-  async findReport(id: number, scope: EventScope | null = null): Promise<StoredReport | null> {
+  async findNote(id: number, scope: EventScope | null = null): Promise<StoredNote | null> {
     const row = await this.db
       .selectFrom('events')
-      .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'report_text'])
+      .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'note_text'])
       .where('id', '=', id)
-      .where('kind', '=', 'report')
+      .where('kind', '=', 'note')
       .where((eb) => buildScopeMatch(eb, scope))
       .executeTakeFirst();
 
@@ -530,8 +530,8 @@ export class StateStore {
       atcID: toSessionID(row.atc_id),
       agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
       label: row.message ?? '',
-      text: row.report_text ?? row.detail ?? '',
-      complete: row.report_text !== null,
+      text: row.note_text ?? row.detail ?? '',
+      complete: row.note_text !== null,
     };
   }
 
@@ -647,7 +647,7 @@ export class StateStore {
     const rows = await this.db
       .selectFrom('messages')
       .selectAll()
-      .where('status', '=', 'accepted')
+      .where('status', '=', 'queued')
       .where((eb) => buildOwnerFilter(eb, owner))
       .orderBy('sent_at', 'asc')
       .orderBy(sql`rowid`, 'asc')
@@ -711,7 +711,7 @@ export class StateStore {
       .updateTable('messages')
       .set({ status: 'delivered', delivered_at: at })
       .where('id', '=', id)
-      .where('status', '=', 'accepted')
+      .where('status', '=', 'queued')
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .executeTakeFirst();
@@ -737,7 +737,7 @@ export class StateStore {
       .updateTable('messages')
       .set({ status: 'answered', answered_at: at, answer, turn_id: turn })
       .where('id', 'in', ids)
-      .where('status', 'in', ['accepted', 'delivered'])
+      .where('status', 'in', ['queued', 'delivered'])
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .execute();
@@ -775,7 +775,7 @@ export class StateStore {
       .set({ session_id: next })
       .where('atc_id', '=', atcID)
       .where('session_id', 'is', null)
-      .where('kind', 'in', ['message-accepted', 'message-delivered', 'message-answered', 'report'])
+      .where('kind', 'in', ['message-queued', 'message-delivered', 'message-answered', 'note'])
       .execute();
   }
 
@@ -1508,12 +1508,12 @@ function buildStoredEvents(rows: readonly EventRow[]): StoredEvent[] {
 }
 
 const MESSAGE_TRAIL_KINDS: ReadonlySet<string> = new Set([
-  'message-accepted',
+  'message-queued',
   'message-delivered',
   'message-answered',
 ]);
 
-// Message and report rows keep their message id or label where hook rows keep
+// Message and note rows keep their message id or label where hook rows keep
 // the hook's message, so only hook rows fall back to it for a detail.
 function buildTrailFields(
   kind: string,
@@ -1524,7 +1524,7 @@ function buildTrailFields(
     return { detail, ...(message === null ? {} : { message: toMessageID(message) }) };
   }
 
-  if (kind === 'report') {
+  if (kind === 'note') {
     return { detail, ...(message === null ? {} : { label: message }) };
   }
 

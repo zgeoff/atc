@@ -50,7 +50,7 @@ test('it pages a session transcript through a tool call', async () => {
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
   const page = await waitFor(async () => {
-    const read = await ctx.mcp.sendToolCall('atc_session_read', { session });
+    const read = await ctx.mcp.sendToolCall('atc_transcript_read', { session });
 
     expect(read.structured).toMatchObject({ rows: [{ text: 'hello' }, { text: 'hi there' }] });
 
@@ -82,43 +82,62 @@ test('it reads fleet events through a tool call', async () => {
   expect(read.structured?.['events']).toPartiallyContain({ kind: 'started', session });
 });
 
-test('it reads the whole text of a report its event previews through a tool call', async () => {
+function findNote(events: unknown): Record<string, unknown> {
+  invariant(Array.isArray(events), 'the events read holds no events');
+
+  const found: unknown = events.find(
+    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'note',
+  );
+
+  invariant(isRecord(found), 'the events read holds no note event');
+
+  return found;
+}
+
+test('it returns the whole text of a note its event previews, and the preview on request', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(join(ctx.home, 'fake-claude-note'), `${'option '.repeat(150)}end`);
+  const whole = `${'option '.repeat(150)}end`;
+
+  writeFileSync(join(ctx.home, 'fake-claude-note'), whole);
 
   await ctx.mcp.spawnSession({ cwd: ctx.home });
 
-  const events = await waitFor(async () => {
+  const full = await waitFor(async () => {
     const read = await ctx.mcp.sendToolCall('atc_events_read', {});
 
     const listed = read.structured?.['events'];
 
-    expect(listed).toPartiallyContain({ kind: 'report' });
+    expect(listed).toPartiallyContain({ kind: 'note' });
 
     return listed;
   });
 
-  invariant(Array.isArray(events), 'the events read holds no events');
+  const preview = await ctx.mcp.sendToolCall('atc_events_read', { previewOnly: true });
 
-  const event: unknown = events.find(
-    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'report',
-  );
+  const fullNote = findNote(full);
+  const previewNote = findNote(preview.structured?.['events']);
 
-  invariant(isRecord(event), 'the events read holds no report event');
-
-  const report = await ctx.mcp.sendToolCall('atc_report_get', { report: event['cursor'] });
-
-  expect(event['detail']).toBe(`${'option '.repeat(150).slice(0, 599)}…`);
-
-  expect(report.structured).toStrictEqual({
-    report: event['cursor'],
-    at: event['at'],
-    session: event['session'],
-    name: event['name'],
+  expect(fullNote).toStrictEqual({
+    cursor: expect.toBeString(),
+    at: expect.toBeNumber(),
+    session: expect.toBeString(),
+    name: expect.toBeString(),
+    kind: 'note',
     label: 'decision',
-    text: `${'option '.repeat(150)}end`,
+    detail: `${'option '.repeat(150).slice(0, 599)}…`,
+    text: whole,
     complete: true,
+  });
+
+  expect(previewNote).toStrictEqual({
+    cursor: fullNote['cursor'],
+    at: fullNote['at'],
+    session: fullNote['session'],
+    name: fullNote['name'],
+    kind: 'note',
+    label: 'decision',
+    detail: `${'option '.repeat(150).slice(0, 599)}…`,
   });
 });
 
@@ -137,7 +156,7 @@ test('it answers a session list while an events long-poll is still waiting', asy
   const ctx = await setupTest();
 
   const poll = ctx.mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
-  const list = ctx.mcp.sendToolCall('atc_session_list', {});
+  const list = ctx.mcp.sendToolCall('atc_sessions_list', {});
 
   const first = await Promise.race([poll.then(() => 'poll'), list.then(() => 'list')]);
 

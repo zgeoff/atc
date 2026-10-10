@@ -14,7 +14,7 @@ const NO_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(z.strictObjec
  * empty string.
  */
 const SESSION_ID_BASE = z.object({
-  session: z.string().describe('The atc session id, from atc_session_list'),
+  session: z.string().describe('The atc session id, from atc_sessions_list'),
 });
 
 const SESSION_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(SESSION_ID_BASE.strict());
@@ -85,13 +85,13 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     prompt: SPAWN_SCHEMA.shape.prompt.describe('First message for the session'),
     agent: SPAWN_SCHEMA.shape.agent.describe(SPAWN_AGENT_DESCRIPTION),
     model: SPAWN_SCHEMA.shape.model.describe(
-      "Model for the new session: an alias or a full model name, at most 200 characters, never starting with '-'. It reaches the agent CLI as its own argument. Refused when the agent takes no model; spawnOptions.model in atc_agents_list holds each agent's support, default, and examples. Omit it to keep the agent's configured default.",
+      "Model for the new session: an alias or a full model name, at most 200 characters, never starting with '-'. It reaches the agent CLI as its own argument. Refused when the agent takes no model; spawnOptions.model in atc_spawn_options_get holds each agent's support, default, and examples. Omit it to keep the agent's configured default.",
     ),
     effort: SPAWN_SCHEMA.shape.effort.describe(
-      "Effort level for the new session, one of the agent's spawnOptions.effort.values in atc_agents_list. Refused when the agent takes no effort. Omit it to keep the agent's configured default.",
+      "Effort level for the new session, one of the agent's spawnOptions.effort.values in atc_spawn_options_get. Refused when the agent takes no effort. Omit it to keep the agent's configured default.",
     ),
     target: SPAWN_SCHEMA.shape.target.describe(
-      'Execution target for the new session, one of the target ids in atc_agents_list. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.',
+      'Execution target for the new session, one of the target ids in atc_spawn_options_get. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.',
     ),
     workspace: SPAWN_SCHEMA.shape.workspace.describe(
       "Where the session's working directory comes from. Omit it to run the session in cwd as it stands. With it, atc materializes a clean checkout into cwd on the target, which must not exist yet, or for a git source without cwd into a directory atc picks: {kind:'path', path, allowDirty?} checks out the pushed HEAD of a git checkout on the atc host, leaving its uncommitted and untracked changes behind with a warning, or refusing them when allowDirty is 'refuse'; {kind:'git', url, ref or sha, credentialRef?} checks out a branch, tag, or full commit of a repository, with credentialRef {kind:'env', name} naming the atc daemon's environment variable that holds its token. A directory outside git runs in place only on a target on the atc host itself (provider local-pty), with cwd equal to its path. Submodules and Git LFS are refused, and so is a URL that carries a credential.",
@@ -104,7 +104,7 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       .boolean()
       .optional()
       .describe(
-        'Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, killed with it.',
+        'Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, stopped with it.',
       ),
     idempotencyKey: IDEMPOTENCY_KEY_FIELD,
   }),
@@ -122,7 +122,7 @@ const SESSION_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       .string()
       .optional()
       .describe(
-        'The cursor a previous atc_session_read returned; omit to read from the start of the conversation',
+        'The cursor a previous atc_transcript_read returned; omit to read from the start of the conversation',
       ),
     limit: z
       .number()
@@ -161,11 +161,11 @@ const EVENTS_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
     waitMs: WAIT_MS.describe(
       'How long to wait for a new event when none is pending, in milliseconds; defaults to 0, capped at 30000. Keep it short.',
     ),
-    reportText: z
+    previewOnly: z
       .boolean()
       .optional()
       .describe(
-        "true adds each report's whole text to its event, so one call reads every report of the page; defaults to false",
+        'true returns each note as its 600-character preview instead of its full text; defaults to false',
       ),
   }),
   { io: 'input' },
@@ -173,21 +173,10 @@ const EVENTS_READ_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
 
 const MESSAGE_GET_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
   z.strictObject({
-    message: z.string().describe('The message id atc_session_message returned'),
+    message: z.string().describe('The message id atc_message_send returned'),
     waitMs: WAIT_MS.describe(
       'How long to hold the call until the message status changes from what it was when you called, in milliseconds; defaults to 0, capped at 30000',
     ),
-  }),
-  { io: 'input' },
-);
-
-const REPORT_GET_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
-  z.strictObject({
-    report: z
-      .string()
-      .describe(
-        "The report handle of the report's event from atc_events_read, or the event's cursor when it carries no report handle",
-      ),
   }),
   { io: 'input' },
 );
@@ -201,7 +190,7 @@ const MESSAGE_OUTPUT: Readonly<Record<string, unknown>> = {
     session: { type: 'string' },
     from: { type: 'string' },
     text: { type: 'string' },
-    status: { type: 'string', enum: ['accepted', 'delivered', 'answered'] },
+    status: { type: 'string', enum: ['queued', 'delivered', 'answered'] },
     answer: { type: 'string' },
     turn: { type: ['string', 'null'] },
     answeredWith: { type: 'array', items: { type: 'string' } },
@@ -216,7 +205,7 @@ const MESSAGE_SENT_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {
     message: { type: 'string' },
-    status: { type: 'string', enum: ['accepted', 'delivered', 'answered'] },
+    status: { type: 'string', enum: ['queued', 'delivered', 'answered'] },
   },
   required: ['message', 'status'],
 };
@@ -224,20 +213,44 @@ const MESSAGE_SENT_OUTPUT: Readonly<Record<string, unknown>> = {
 const SPAWN_OPTION_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {
-    supported: { type: 'boolean' },
-    available: { type: 'boolean' },
-    values: { type: ['array', 'null'], items: { type: 'string' } },
+    supported: {
+      type: 'boolean',
+      description: 'whether atc passes this option to the agent CLI',
+    },
+    available: {
+      type: 'boolean',
+      description: 'whether a spawn on this host can pass the option now',
+    },
+    values: {
+      type: ['array', 'null'],
+      items: { type: 'string' },
+      description: 'the accepted set; null for any alias or model name',
+    },
     examples: {
       type: 'array',
+      description: 'example values, each with the provider model it resolves to',
       items: {
         type: 'object',
-        properties: { value: { type: 'string' }, resolvesTo: { type: ['string', 'null'] } },
+        properties: {
+          value: { type: 'string', description: 'a value the option takes' },
+          resolvesTo: {
+            type: ['string', 'null'],
+            description: 'the provider model the value resolves to; null when the config maps none',
+          },
+        },
         required: ['value', 'resolvesTo'],
       },
     },
-    default: { type: ['string', 'null'] },
-    backendEffect: { type: ['string', 'null'], enum: ['applied', 'unverified', null] },
-    note: { type: ['string', 'null'] },
+    default: {
+      type: ['string', 'null'],
+      description: "the configured value; null for the CLI's own default",
+    },
+    backendEffect: {
+      type: ['string', 'null'],
+      enum: ['applied', 'unverified', null],
+      description: 'applied, or unverified when the backend may ignore the option',
+    },
+    note: { type: ['string', 'null'], description: 'a note on the option, or null' },
   },
   required: ['supported', 'available', 'values', 'examples', 'default', 'backendEffect', 'note'],
 };
@@ -247,41 +260,75 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
   properties: {
     daemon: {
       type: 'object',
+      description: 'the host the daemon runs on',
       properties: {
-        hostname: { type: 'string' },
-        platform: { type: 'string' },
-        arch: { type: 'string' },
-        build: { type: 'string' },
+        hostname: { type: 'string', description: "the host's name" },
+        platform: { type: 'string', description: "the host's operating system" },
+        arch: { type: 'string', description: "the host's CPU architecture" },
+        build: { type: 'string', description: "the daemon's build" },
       },
       required: ['hostname', 'platform', 'arch', 'build'],
     },
     agents: {
       type: 'array',
+      description: 'the registered agents',
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
-          label: { type: 'string' },
-          kind: { type: 'string' },
-          installed: { type: 'boolean' },
-          brokerAuth: { type: 'boolean' },
-          brokerRequired: { type: 'boolean' },
+          id: {
+            type: 'string',
+            description: "the agent's id; pass it as agent to atc_session_spawn",
+          },
+          label: { type: 'string', description: "the agent's display name" },
+          kind: { type: 'string', description: 'the agent CLI family it runs' },
+          installed: {
+            type: 'boolean',
+            description:
+              'whether its binary resolves on this host; a registered agent that is not installed cannot spawn',
+          },
+          brokerAuth: {
+            type: 'boolean',
+            description: 'whether a session can sign in through a credential broker',
+          },
+          brokerRequired: {
+            type: 'boolean',
+            description: 'whether the agent runs only through a credential broker',
+          },
           capabilities: {
             type: 'object',
+            description: 'what atc can do with the agent',
             properties: {
-              spawn: { type: 'boolean' },
-              readTranscript: { type: 'boolean' },
-              message: { type: 'boolean' },
-              attach: { type: 'boolean' },
-              screen: { type: 'boolean' },
-              input: { type: 'boolean' },
+              spawn: { type: 'boolean', description: 'atc can start a session of the agent' },
+              readTranscript: {
+                type: 'boolean',
+                description: "atc_transcript_read can read the agent's conversation log",
+              },
+              message: {
+                type: 'boolean',
+                description: 'the agent takes messages through atc_message_send',
+              },
+              attach: { type: 'boolean', description: 'a person can attach to its terminal' },
+              screen: { type: 'boolean', description: 'atc_terminal_read can read its screen' },
+              input: {
+                type: 'boolean',
+                description: 'atc_terminal_type can type into its terminal',
+              },
             },
             required: ['spawn', 'readTranscript', 'message', 'attach', 'screen', 'input'],
           },
-          models: { type: ['object', 'null'], additionalProperties: { type: 'string' } },
+          models: {
+            type: ['object', 'null'],
+            additionalProperties: { type: 'string' },
+            description: 'the model names the config sets for the agent; null when it sets none',
+          },
           spawnOptions: {
             type: 'object',
-            properties: { model: SPAWN_OPTION_OUTPUT, effort: SPAWN_OPTION_OUTPUT },
+            description:
+              'the model and effort options a spawn takes, present when the daemon supports them',
+            properties: {
+              model: SPAWN_OPTION_OUTPUT,
+              effort: SPAWN_OPTION_OUTPUT,
+            },
             required: ['model', 'effort'],
           },
         },
@@ -290,41 +337,86 @@ const AGENTS_OUTPUT: Readonly<Record<string, unknown>> = {
     },
     targets: {
       type: 'array',
+      description: 'the execution targets, present when the daemon supports targets',
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
-          provider: { type: 'string' },
-          identity: { type: 'string' },
-          available: { type: 'boolean' },
-          default: { type: 'boolean' },
+          id: {
+            type: 'string',
+            description: "the target's id; pass it as target to atc_session_spawn",
+          },
+          provider: { type: 'string', description: "the target's provider kind" },
+          identity: { type: 'string', description: "the target's identity" },
+          available: {
+            type: 'boolean',
+            description: 'whether a spawn can use the target now',
+          },
+          default: { type: 'boolean', description: 'whether a spawn without target runs here' },
           capabilities: {
             type: 'object',
+            description: 'what the target can do, by capability name',
             additionalProperties: { type: 'boolean' },
           },
-          brokerAuth: { type: 'boolean' },
+          brokerAuth: {
+            type: 'boolean',
+            description: 'whether sessions on the target sign in through a credential broker',
+          },
         },
         required: ['id', 'provider', 'identity', 'available', 'default', 'capabilities'],
       },
     },
     spawnDefaults: {
       type: 'object',
-      properties: { agent: { type: 'string' }, target: { type: ['string', 'null'] } },
+      description: 'what a spawn without agent or target runs with',
+      properties: {
+        agent: { type: 'string', description: 'the agent id a spawn without agent runs' },
+        target: {
+          type: ['string', 'null'],
+          description:
+            'the target id a spawn without target runs on; a null target means a spawn without target is refused',
+        },
+      },
       required: ['agent', 'target'],
     },
-    configRevision: { type: 'string' },
+    configRevision: {
+      type: 'string',
+      description: 'a digest that changes whenever the target config does',
+    },
     targetErrors: {
       type: 'array',
+      description:
+        'config problems that leave a target, or every target, unusable; scope config, with problem config_malformed or config_unreadable, means the config file exists but cannot be parsed or read, and refuses every spawn, local included',
       items: {
         type: 'object',
         properties: {
-          scope: { type: 'string', enum: ['config', 'targets', 'target', 'defaultTarget'] },
-          target: { type: 'string' },
-          problem: { type: 'string' },
-          path: { type: 'string' },
-          detail: { type: 'string' },
+          scope: {
+            type: 'string',
+            enum: ['config', 'targets', 'target', 'defaultTarget'],
+            description: 'what the problem affects',
+          },
+          target: { type: 'string', description: 'the target the problem is about, when one' },
+          problem: { type: 'string', description: 'the problem code, such as config_malformed' },
+          path: { type: 'string', description: 'the config path the problem is about' },
+          detail: { type: 'string', description: 'the problem in words' },
         },
         required: ['scope', 'problem'],
+      },
+    },
+    sources: {
+      type: 'array',
+      description:
+        "the sources the TUI's spawn picker offers for choosing a directory or repository",
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: "the source's id" },
+          label: { type: 'string', description: "the source's display name" },
+          kind: {
+            type: 'string',
+            description: 'path for a directory on the host, git for a repository URL',
+          },
+        },
+        required: ['id', 'label', 'kind'],
       },
     },
   },
@@ -343,36 +435,65 @@ const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
           at: { type: 'number' },
           session: { type: 'string' },
           name: { type: ['string', 'null'] },
-          kind: { type: 'string' },
+          kind: {
+            type: 'string',
+            description: 'the event kind; the tool description lists them',
+          },
           detail: { type: ['string', 'null'] },
           message: { type: 'string' },
           label: { type: 'string' },
-          report: { type: 'string' },
           text: { type: 'string' },
-          complete: { type: 'boolean' },
-          textError: { type: 'string' },
+          complete: {
+            type: 'boolean',
+            description: "false: atc kept only this note's preview, and text holds it",
+          },
+          textError: {
+            type: 'string',
+            description: "the note's text did not load within 10 seconds; detail holds the preview",
+          },
         },
         required: ['cursor', 'at', 'session', 'name', 'kind', 'detail'],
       },
     },
     cursor: { type: 'string' },
     more: { type: 'boolean' },
+    unavailable: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'under the gateway, daemons that did not answer; each keeps its place in the cursor',
+    },
+    started: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'under the gateway, daemons that joined the cursor on this call, read from their latest events',
+    },
+    truncated: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'under the gateway, those of the started daemons with older events left unread',
+    },
   },
   required: ['events', 'cursor', 'more'],
 };
 
-const REPORT_OUTPUT: Readonly<Record<string, unknown>> = {
+const TERMINAL_TYPE_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: { written: { type: 'boolean' } },
+  required: ['written'],
+};
+
+const SESSION_STOP_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {
-    report: { type: 'string' },
-    at: { type: 'number' },
-    session: { type: 'string' },
-    name: { type: ['string', 'null'] },
-    label: { type: 'string' },
-    text: { type: 'string' },
-    complete: { type: 'boolean' },
+    stopped: {
+      type: 'boolean',
+      description:
+        'true when the call stopped a live process; false when the session had already exited',
+    },
   },
-  required: ['report', 'at', 'session', 'name', 'label', 'text', 'complete'],
+  required: ['stopped'],
 };
 
 interface MCPToolAnnotations {
@@ -438,11 +559,11 @@ const AGENT_FACING_DESTRUCTIVE: MCPToolAnnotations = {
 
 export const MCP_TOOLS: readonly MCPToolDefinition[] = [
   {
-    name: 'atc_session_list',
+    name: 'atc_sessions_list',
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'List every session the atc daemon hosts: id, name, working directory, state (running, needs_you, done, exited), unread flag, and last activity.',
+      "List the sessions atc hosts, or every daemon's sessions under the gateway, with each one's id, name, directory, agent, state, unread and pinned flags. state is running (the agent is working), needs_you (the agent asked for a person, such as a permission prompt), done (the turn ended; it waits for the next prompt) or exited (no live process). For one session's pending prompt and last reply, use atc_session_get. Under the gateway, daemons holds each daemon's state, so a daemon that is down never reads as one with no sessions.",
     inputSchema: NO_INPUT,
   },
   {
@@ -465,30 +586,28 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     },
   },
   {
-    name: 'atc_session_input',
+    name: 'atc_terminal_type',
     annotations: AGENT_FACING_DESTRUCTIVE,
     scope: 'spawn',
     description:
-      "Type a line of text into a running session and submit it, as if the operator typed it and pressed enter. atc submits the line the way the session's agent accepts one. Use it to answer a session that is waiting on input. atc pastes the line, so its newlines stay in it, and Claude takes a line of about 800 characters or more as pasted text, not as typed words. On a Claude session, a line that starts with a slash command and an argument, such as /goal finish the release, has the command name typed and only the argument pasted, so the command runs at any length. On an agent that needs it, such a line has the command name and the argument pasted separately, about 100 ms apart, and the session takes no other input until the line is submitted. A result of sent means atc wrote the line and its submit key to the session; it does not confirm that the agent took the line or answered it. Read the session's screen or events for that. The tool sends no raw keystrokes. Refused with permission_pending while the agent waits on a permission prompt.",
+      "Type a line into a session's terminal and press Enter, as a person at the keyboard would. This tool cannot answer a menu: on a permission prompt, the folder-trust dialog or any other choice list, the text is dropped and Enter picks the highlighted option. A person answers those in the TUI. It is refused with permission_pending while the agent waits on a permission prompt. Use it for a plain-text prompt, or for an agent that takes no messages. When the agent takes messages (capabilities.message true in atc_spawn_options_get), use atc_message_send instead: it is tracked and returns the answer. Returns { written: true } once the line reaches the terminal; that does not show the agent took it, so check with atc_terminal_read or atc_events_read. A long line arrives as a paste, so the agent's input box and atc_terminal_read can show a placeholder such as [Pasted text #1] instead of the text.",
     inputSchema: {
       type: 'object',
       properties: {
-        session: { type: 'string', description: 'The atc session id' },
-        text: {
-          type: 'string',
-          description: "The line to submit; atc adds the submit key the session's agent expects",
-        },
+        session: { type: 'string', description: 'The atc session id, from atc_sessions_list' },
+        text: { type: 'string', description: 'The line to type; atc presses Enter after it' },
       },
       required: ['session', 'text'],
       additionalProperties: false,
     },
+    outputSchema: TERMINAL_TYPE_OUTPUT,
   },
   {
-    name: 'atc_session_screen',
+    name: 'atc_terminal_read',
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Read the current terminal screen of a session as plain text, without attaching to it. Use it to see what a session printed or what it is waiting on before answering it with atc_session_input. A killed session keeps its last screen.',
+      "Read a session's terminal screen as plain text, as it is now. Use it to see a prompt, a menu or an error the agent printed. A stopped session keeps its last screen until it is forgotten; after a daemon restart, or for a headless session, there is no screen and the call returns session_dead.",
     inputSchema: SESSION_INPUT,
   },
   {
@@ -496,7 +615,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: ADDITIVE,
     scope: 'spawn',
     description:
-      "Add worktrees, branches, or pull requests to the scope a session's record holds, as checked by atc on the session's host. Entries the record already holds change nothing, and atc never removes an entry. A session can never add to its own scope or to that of a session it is a sub-session of; ask whoever started it. Returns the record as it stands after.",
+      "Add worktrees, branches or pull requests to the scope a session's record holds. atc checks each entry on the session's host and refuses an invalid one with scope_invalid. Entries already held change nothing, and nothing is ever removed. A session cannot add to its own scope or its parent's. Returns the record as it stands after.",
     inputSchema: SCOPE_ADD_INPUT,
     requires: { tool: 'session.record' },
   },
@@ -505,7 +624,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: ADDITIVE,
     scope: 'message',
     description:
-      'Rename and/or pin a session. Renames stick against auto-summaries; pinned sessions lead every list. A sub-session pins with its parent, so pin the parent instead. Use this to organise the fleet: name sessions after their task.',
+      'Rename or pin a session. A name set here replaces auto-summaries, but a name the agent set with /rename wins: the rename is skipped and the call still returns updated. A pinned session leads every list and cannot be forgotten. A sub-session pins with its parent, so pin the parent.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -518,18 +637,20 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     },
   },
   {
-    name: 'atc_session_kill',
+    name: 'atc_session_stop',
     annotations: DESTRUCTIVE,
     scope: 'kill',
-    description: 'Kill a session. A second kill on a dead session removes it from the list.',
+    description:
+      "Stop a session's agent process. Its live sub-sessions stop with it. On an imp the host is suspended, not destroyed, and the call fails with host_leased while something keeps the host awake. The session stays in the list as exited; atc_session_forget removes it. Stopping an exited session changes nothing.",
     inputSchema: SESSION_INPUT,
+    outputSchema: SESSION_STOP_OUTPUT,
   },
   {
     name: 'atc_session_forget',
     annotations: DESTRUCTIVE,
     scope: 'kill',
     description:
-      'Forget a session for good: it leaves the list. A live local sub-session of the session is not stopped: it stays alive and moves to the top level. On a target that can destroy its host (an imp), the first call changes nothing and returns { confirmToken, expiresAt }, a token good for 60 seconds; a second call with that token destroys the host and returns { forgotten: true, destroyed: true }, except that a sub-session on the imp host of its parent does not destroy that host and returns destroyed: false. On any other target one call forgets and returns { forgotten: true, destroyed: false }. A live session is refused unless stop is true, which stops it as part of the forget. A pinned session, or a sub-session of a pinned session, is refused: unpin it with atc_session_update first.',
+      "Remove a session from the list for good. On an imp target this destroys the host and everything on it, so it takes two calls: the first changes nothing and returns confirmToken, valid for 60 seconds; the second, with that token, returns { forgotten: true, destroyed: true }. A sub-session that shares its parent's imp host needs the token too but keeps the host (destroyed: false). On any other target one call returns { forgotten: true, destroyed: false }. Refused: a live session unless stop is true, and a pinned session or a sub-session of one (unpin it with atc_session_update first). Live sub-sessions on a host that survives move to the top level.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -550,25 +671,18 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     requires: { tool: 'session.forget' },
   },
   {
-    name: 'atc_session_ack',
+    name: 'atc_session_mark_read',
     annotations: ADDITIVE,
     scope: 'message',
-    description: 'Clear a session unread flag without attaching to it.',
+    description: "Clear a session's unread flag. Nothing else changes.",
     inputSchema: SESSION_INPUT,
   },
   {
-    name: 'atc_resume_command',
+    name: 'atc_recent_dirs_list',
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Build the shell command that reopens a session outside atc (cd into its directory and claude --resume its id).',
-    inputSchema: SESSION_INPUT,
-  },
-  {
-    name: 'atc_dirs_list',
-    annotations: READ_ONLY,
-    scope: 'read',
-    description: 'List directories sessions were previously spawned from, most recent first.',
+      "List the directories earlier spawns used, newest first, as candidates for atc_session_spawn's cwd. Under the gateway, daemon picks whose history to read.",
     inputSchema: DIRS_INPUT,
     requires: { inputs: { daemon: 'fleet.daemons' } },
   },
@@ -577,16 +691,16 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "List the atc daemons this server routes to: each one's name, state (up, down, unauthorized, changed, or outdated), build, daemonID, and features, plus defaultDaemon, the daemon a spawn or directory listing without daemon goes to. Session and message ids start with the name of the daemon that holds them.",
+      "List the daemons this gateway routes to: name, state (up, down, unauthorized, changed or outdated), build and features, plus defaultDaemon, where a spawn without daemon goes. Session and message ids start with the daemon's name and incarnation, so an id shows which daemon holds it.",
     inputSchema: NO_INPUT,
     requires: { tool: 'fleet.daemons' },
   },
   {
-    name: 'atc_agents_list',
+    name: 'atc_spawn_options_get',
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), models (the model names the config sets for it, or null), and spawnOptions when the daemon supports spawn options. spawnOptions holds model and effort, each with supported (whether atc passes it to the agent CLI), available (whether a spawn on this host can pass it now), values (the accepted set, or null for any alias or model name), examples (each with the provider model it resolves to, when the config maps one), default (the configured value, or null for the CLI's own), backendEffect (applied, or unverified when the backend may ignore it), and a note. atc_session_spawn accepts exactly the available options. When the daemon supports targets, it also returns targets (each with its id, provider kind, identity, available, default, and capabilities), spawnDefaults (the agent and target a spawn without either runs with; a null target means such a spawn is refused), configRevision (a digest that changes whenever the target config does), and targetErrors (config problems that leave a target, or every target, unusable; a config file that exists but cannot be read or parsed is scope config, problem config_malformed or config_unreadable, with its path and detail, and refuses every spawn, local included). It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
+      'Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, and the model and effort values it takes; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. Under the gateway it returns one such object per daemon. It never holds credentials, environment values or endpoints.',
     inputSchema: NO_INPUT,
     outputSchema: AGENTS_OUTPUT,
     requires: { tool: 'agents.list', output: 'spawn.options', outputUnless: 'fleet.daemons' },
@@ -596,15 +710,15 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Read one session in a single call: its descriptor (state, unread flag, last activity message), the prompt it was spawned with, when it last reported activity, the prompt or question it is waiting on while it needs you (read-only; answer it with atc_session_input), and the final message of its latest finished turn.',
+      'Read one session: its entry as atc_sessions_list shows it, the prompt it was spawned with, when it last reported activity, pending (the agent\'s notification text while it is needs_you, such as "Claude needs your permission"; never a menu\'s options), result (the final reply of its latest finished turn) and sessionRecord (the scope atc recorded for it). A permission prompt or other menu cannot be answered through atc; a person answers it in the TUI.',
     inputSchema: SESSION_INPUT,
   },
   {
-    name: 'atc_session_read',
+    name: 'atc_transcript_read',
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "Read a session's conversation a page at a time, oldest first: user and assistant messages with tool uses summarised. Pass the returned cursor to continue where you left off; more is true when the page stopped before the end. Claude sessions only; other agents answer unsupported.",
+      "Read a session's conversation log a page at a time, oldest first: user and assistant messages, with tool uses summarised. Pass the returned cursor to continue; more is true when the page stopped before the end. Claude and Claude-compatible agents only; other agents return unsupported.",
     inputSchema: SESSION_READ_INPUT,
   },
   {
@@ -612,34 +726,24 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label and a preview of its text; read the full text with atc_report_get, passing the report handle of that event when it carries one, else its cursor, or pass reportText: true to get the full text of every report in this call. With reportText, each report event also carries text and complete (false when atc kept only the preview), or textError when its text could not be read within 10 seconds; the page holds at most 64 KiB of report text and stops early, with more true, when the next report would not fit or 10 seconds of report reads have passed. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.',
+      "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered, with the message id) and notes (note, with its label and full text). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more is false even when older ones exist. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character note previews. A partial read says so: complete false or textError on a note, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
     inputSchema: EVENTS_READ_INPUT,
     outputSchema: EVENTS_OUTPUT,
     requires: {
       output: 'events.more',
-      inputs: { session: 'events.session', reportText: 'report.get' },
+      inputs: { session: 'events.session' },
     },
   },
   {
-    name: 'atc_report_get',
-    annotations: READ_ONLY,
-    scope: 'read',
-    description:
-      "Read one report's full text without messaging the session that sent it. Pass the report handle of the report's event from atc_events_read, or the event's cursor when it carries none. Returns the report cursor, at, the session id and name, the label, the text (up to 64 KiB, as the session sent it), and complete, which is false for a report recorded before atc kept full texts: its text is then only the preview the event held. A cursor of an event that is not a report answers as an unknown report.",
-    inputSchema: REPORT_GET_INPUT,
-    outputSchema: REPORT_OUTPUT,
-    requires: { tool: 'report.get' },
-  },
-  {
-    name: 'atc_session_message',
+    name: 'atc_message_send',
     annotations: AGENT_FACING,
     scope: 'message',
     description:
-      "Send a session a message and get its id back. Follow up with atc_message_get, passing waitMs so each call waits for the next status change instead of polling in a tight loop, until its status is answered; don't read the session's screen or transcript to check on it. The answer is the final output of the session turn that carried the message, and one turn can carry several messages. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (capabilities.message is false in atc_agents_list), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
+      "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer comes back on the message: follow with atc_message_get and waitMs until status is answered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model) or answered. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. A message whose turn is interrupted stays delivered. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session has no live process, including one still booting after a daemon restart; no_such_session for an unknown id. A retry with the same idempotencyKey and text returns the same message.",
     inputSchema: {
       type: 'object',
       properties: {
-        session: { type: 'string', description: 'The atc session id, from atc_session_list' },
+        session: { type: 'string', description: 'The atc session id, from atc_sessions_list' },
         text: { type: 'string', description: 'The message text' },
         from: {
           type: 'string',
@@ -659,7 +763,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.',
+      'Read one message sent with atc_message_send: status (queued, delivered or answered), the answer once answered, turn, answeredWith and timestamps. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered message returns at once. Ids and statuses persist, so call again after a timeout.',
     inputSchema: MESSAGE_GET_INPUT,
     outputSchema: MESSAGE_OUTPUT,
     requires: { output: 'message.turn', inputs: { waitMs: 'message.wait' } },

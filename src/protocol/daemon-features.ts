@@ -67,8 +67,8 @@ export const DAEMON_FEATURES = [
   // `session.submit` exists.
   'session.submit',
 
-  // `report.get` exists.
-  'report.get',
+  // `note.get` exists.
+  'note.get',
 
   // `sources.list` and `sources.interpret` exist, and `agents.list` returns
   // `sources`.
@@ -95,6 +95,13 @@ export const DAEMON_FEATURES = [
   // `session.scope.add` exists, `session.get` returns `sessionRecord`, and
   // `daemon.hello` takes `session`, the session the client runs inside.
   'session.record',
+
+  // Events, notes, and messages use the note and queued vocabulary.
+  'vocabulary.note',
+
+  // `session.kill` takes `stopOnly`, which stops a live session and leaves an
+  // exited one as it is, and answers `{ stopped }`.
+  'session.kill.stopOnly',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

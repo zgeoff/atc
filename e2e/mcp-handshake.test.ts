@@ -139,14 +139,14 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "List every session the atc daemon hosts: id, name, working directory, state (running, needs_you, done, exited), unread flag, and last activity.",
+            "description": "List the sessions atc hosts, or every daemon's sessions under the gateway, with each one's id, name, directory, agent, state, unread and pinned flags. state is running (the agent is working), needs_you (the agent asked for a person, such as a permission prompt), done (the turn ended; it waits for the next prompt) or exited (no live process). For one session's pending prompt and last reply, use atc_session_get. Under the gateway, daemons holds each daemon's state, so a daemon that is down never reads as one with no sessions.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {},
               "type": "object",
             },
-            "name": "atc_session_list",
+            "name": "atc_sessions_list",
           },
           {
             "annotations": {
@@ -154,13 +154,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.",
+            "description": "Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller (listed under it, stopped with it) unless detached is true. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "agent": {
-                  "description": "Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_agents_list returns the current list.",
+                  "description": "Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get returns the current list.",
                   "minLength": 1,
                   "type": "string",
                 },
@@ -170,11 +170,11 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "detached": {
-                  "description": "Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, killed with it.",
+                  "description": "Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, stopped with it.",
                   "type": "boolean",
                 },
                 "effort": {
-                  "description": "Effort level for the new session, one of the agent's spawnOptions.effort.values in atc_agents_list. Refused when the agent takes no effort. Omit it to keep the agent's configured default.",
+                  "description": "Effort level for the new session, one of the agent's spawnOptions.effort.values in atc_spawn_options_get. Refused when the agent takes no effort. Omit it to keep the agent's configured default.",
                   "type": "string",
                 },
                 "idempotencyKey": {
@@ -184,7 +184,7 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "model": {
-                  "description": "Model for the new session: an alias or a full model name, at most 200 characters, never starting with '-'. It reaches the agent CLI as its own argument. Refused when the agent takes no model; spawnOptions.model in atc_agents_list holds each agent's support, default, and examples. Omit it to keep the agent's configured default.",
+                  "description": "Model for the new session: an alias or a full model name, at most 200 characters, never starting with '-'. It reaches the agent CLI as its own argument. Refused when the agent takes no model; spawnOptions.model in atc_spawn_options_get holds each agent's support, default, and examples. Omit it to keep the agent's configured default.",
                   "type": "string",
                 },
                 "name": {
@@ -261,7 +261,7 @@ test('it lists the fleet tools', async () => {
                   "type": "object",
                 },
                 "target": {
-                  "description": "Execution target for the new session, one of the target ids in atc_agents_list. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.",
+                  "description": "Execution target for the new session, one of the target ids in atc_spawn_options_get. Omit it to run on the default target (spawnDefaults.target). An unknown or unavailable target is refused; atc never runs the session on another target instead.",
                   "minLength": 1,
                   "type": "string",
                 },
@@ -355,16 +355,16 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Type a line of text into a running session and submit it, as if the operator typed it and pressed enter. atc submits the line the way the session's agent accepts one. Use it to answer a session that is waiting on input. atc pastes the line, so its newlines stay in it, and Claude takes a line of about 800 characters or more as pasted text, not as typed words. On a Claude session, a line that starts with a slash command and an argument, such as /goal finish the release, has the command name typed and only the argument pasted, so the command runs at any length. On an agent that needs it, such a line has the command name and the argument pasted separately, about 100 ms apart, and the session takes no other input until the line is submitted. A result of sent means atc wrote the line and its submit key to the session; it does not confirm that the agent took the line or answered it. Read the session's screen or events for that. The tool sends no raw keystrokes. Refused with permission_pending while the agent waits on a permission prompt.",
+            "description": "Type a line into a session's terminal and press Enter, as a person at the keyboard would. This tool cannot answer a menu: on a permission prompt, the folder-trust dialog or any other choice list, the text is dropped and Enter picks the highlighted option. A person answers those in the TUI. It is refused with permission_pending while the agent waits on a permission prompt. Use it for a plain-text prompt, or for an agent that takes no messages. When the agent takes messages (capabilities.message true in atc_spawn_options_get), use atc_message_send instead: it is tracked and returns the answer. Returns { written: true } once the line reaches the terminal; that does not show the agent took it, so check with atc_terminal_read or atc_events_read. A long line arrives as a paste, so the agent's input box and atc_terminal_read can show a placeholder such as [Pasted text #1] instead of the text.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
                 "session": {
-                  "description": "The atc session id",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
                 "text": {
-                  "description": "The line to submit; atc adds the submit key the session's agent expects",
+                  "description": "The line to type; atc presses Enter after it",
                   "type": "string",
                 },
               },
@@ -374,7 +374,18 @@ test('it lists the fleet tools', async () => {
               ],
               "type": "object",
             },
-            "name": "atc_session_input",
+            "name": "atc_terminal_type",
+            "outputSchema": {
+              "properties": {
+                "written": {
+                  "type": "boolean",
+                },
+              },
+              "required": [
+                "written",
+              ],
+              "type": "object",
+            },
           },
           {
             "annotations": {
@@ -382,13 +393,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read the current terminal screen of a session as plain text, without attaching to it. Use it to see what a session printed or what it is waiting on before answering it with atc_session_input. A killed session keeps its last screen.",
+            "description": "Read a session's terminal screen as plain text, as it is now. Use it to see a prompt, a menu or an error the agent printed. A stopped session keeps its last screen until it is forgotten; after a daemon restart, or for a headless session, there is no screen and the call returns session_dead.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "session": {
-                  "description": "The atc session id, from atc_session_list",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
               },
@@ -397,7 +408,7 @@ test('it lists the fleet tools', async () => {
               ],
               "type": "object",
             },
-            "name": "atc_session_screen",
+            "name": "atc_terminal_read",
           },
           {
             "annotations": {
@@ -405,7 +416,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Add worktrees, branches, or pull requests to the scope a session's record holds, as checked by atc on the session's host. Entries the record already holds change nothing, and atc never removes an entry. A session can never add to its own scope or to that of a session it is a sub-session of; ask whoever started it. Returns the record as it stands after.",
+            "description": "Add worktrees, branches or pull requests to the scope a session's record holds. atc checks each entry on the session's host and refuses an invalid one with scope_invalid. Entries already held change nothing, and nothing is ever removed. A session cannot add to its own scope or its parent's. Returns the record as it stands after.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -474,7 +485,7 @@ test('it lists the fleet tools', async () => {
                   "type": "object",
                 },
                 "session": {
-                  "description": "The atc session id, from atc_session_list",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
               },
@@ -492,7 +503,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Rename and/or pin a session. Renames stick against auto-summaries; pinned sessions lead every list. A sub-session pins with its parent, so pin the parent instead. Use this to organise the fleet: name sessions after their task.",
+            "description": "Rename or pin a session. A name set here replaces auto-summaries, but a name the agent set with /rename wins: the rename is skipped and the call still returns updated. A pinned session leads every list and cannot be forgotten. A sub-session pins with its parent, so pin the parent.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -522,13 +533,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Kill a session. A second kill on a dead session removes it from the list.",
+            "description": "Stop a session's agent process. Its live sub-sessions stop with it. On an imp the host is suspended, not destroyed, and the call fails with host_leased while something keeps the host awake. The session stays in the list as exited; atc_session_forget removes it. Stopping an exited session changes nothing.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "session": {
-                  "description": "The atc session id, from atc_session_list",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
               },
@@ -537,7 +548,19 @@ test('it lists the fleet tools', async () => {
               ],
               "type": "object",
             },
-            "name": "atc_session_kill",
+            "name": "atc_session_stop",
+            "outputSchema": {
+              "properties": {
+                "stopped": {
+                  "description": "true when the call stopped a live process; false when the session had already exited",
+                  "type": "boolean",
+                },
+              },
+              "required": [
+                "stopped",
+              ],
+              "type": "object",
+            },
           },
           {
             "annotations": {
@@ -545,7 +568,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Forget a session for good: it leaves the list. A live local sub-session of the session is not stopped: it stays alive and moves to the top level. On a target that can destroy its host (an imp), the first call changes nothing and returns { confirmToken, expiresAt }, a token good for 60 seconds; a second call with that token destroys the host and returns { forgotten: true, destroyed: true }, except that a sub-session on the imp host of its parent does not destroy that host and returns destroyed: false. On any other target one call forgets and returns { forgotten: true, destroyed: false }. A live session is refused unless stop is true, which stops it as part of the forget. A pinned session, or a sub-session of a pinned session, is refused: unpin it with atc_session_update first.",
+            "description": "Remove a session from the list for good. On an imp target this destroys the host and everything on it, so it takes two calls: the first changes nothing and returns confirmToken, valid for 60 seconds; the second, with that token, returns { forgotten: true, destroyed: true }. A sub-session that shares its parent's imp host needs the token too but keeps the host (destroyed: false). On any other target one call returns { forgotten: true, destroyed: false }. Refused: a live session unless stop is true, and a pinned session or a sub-session of one (unpin it with atc_session_update first). Live sub-sessions on a host that survives move to the top level.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -576,13 +599,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Clear a session unread flag without attaching to it.",
+            "description": "Clear a session's unread flag. Nothing else changes.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "session": {
-                  "description": "The atc session id, from atc_session_list",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
               },
@@ -591,7 +614,7 @@ test('it lists the fleet tools', async () => {
               ],
               "type": "object",
             },
-            "name": "atc_session_ack",
+            "name": "atc_session_mark_read",
           },
           {
             "annotations": {
@@ -599,37 +622,14 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Build the shell command that reopens a session outside atc (cd into its directory and claude --resume its id).",
-            "inputSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "session": {
-                  "description": "The atc session id, from atc_session_list",
-                  "type": "string",
-                },
-              },
-              "required": [
-                "session",
-              ],
-              "type": "object",
-            },
-            "name": "atc_resume_command",
-          },
-          {
-            "annotations": {
-              "destructiveHint": false,
-              "openWorldHint": false,
-              "readOnlyHint": true,
-            },
-            "description": "List directories sessions were previously spawned from, most recent first.",
+            "description": "List the directories earlier spawns used, newest first, as candidates for atc_session_spawn's cwd. Under the gateway, daemon picks whose history to read.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {},
               "type": "object",
             },
-            "name": "atc_dirs_list",
+            "name": "atc_recent_dirs_list",
           },
           {
             "annotations": {
@@ -637,43 +637,53 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "List the agents this atc host can run sessions under, plus the host itself (daemon: hostname, platform, arch, build). Each agent has its id (pass it as atc_session_spawn's agent), label, kind (the agent CLI family it runs), installed (whether its binary resolves on this host; a registered agent that is not installed cannot spawn), capabilities (spawn, readTranscript, message, attach, screen, input), models (the model names the config sets for it, or null), and spawnOptions when the daemon supports spawn options. spawnOptions holds model and effort, each with supported (whether atc passes it to the agent CLI), available (whether a spawn on this host can pass it now), values (the accepted set, or null for any alias or model name), examples (each with the provider model it resolves to, when the config maps one), default (the configured value, or null for the CLI's own), backendEffect (applied, or unverified when the backend may ignore it), and a note. atc_session_spawn accepts exactly the available options. When the daemon supports targets, it also returns targets (each with its id, provider kind, identity, available, default, and capabilities), spawnDefaults (the agent and target a spawn without either runs with; a null target means such a spawn is refused), configRevision (a digest that changes whenever the target config does), and targetErrors (config problems that leave a target, or every target, unusable; a config file that exists but cannot be read or parsed is scope config, problem config_malformed or config_unreadable, with its path and detail, and refuses every spawn, local included). It never includes credentials, environment values, or endpoints, and holds nothing about which plans or subscriptions an agent's account has.",
+            "description": "Read what atc_session_spawn accepts on this daemon: each agent (pass its id as agent) with whether it is installed, its capabilities, and the model and effort values it takes; each execution target (pass its id as target) with whether it is available; and spawnDefaults. A spawn that would fail says so in advance: an agent with installed false, a target with available false, or an entry in targetErrors, with their meanings in the output schema. Under the gateway it returns one such object per daemon. It never holds credentials, environment values or endpoints.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {},
               "type": "object",
             },
-            "name": "atc_agents_list",
+            "name": "atc_spawn_options_get",
             "outputSchema": {
               "properties": {
                 "agents": {
+                  "description": "the registered agents",
                   "items": {
                     "properties": {
                       "brokerAuth": {
+                        "description": "whether a session can sign in through a credential broker",
                         "type": "boolean",
                       },
                       "brokerRequired": {
+                        "description": "whether the agent runs only through a credential broker",
                         "type": "boolean",
                       },
                       "capabilities": {
+                        "description": "what atc can do with the agent",
                         "properties": {
                           "attach": {
+                            "description": "a person can attach to its terminal",
                             "type": "boolean",
                           },
                           "input": {
+                            "description": "atc_terminal_type can type into its terminal",
                             "type": "boolean",
                           },
                           "message": {
+                            "description": "the agent takes messages through atc_message_send",
                             "type": "boolean",
                           },
                           "readTranscript": {
+                            "description": "atc_transcript_read can read the agent's conversation log",
                             "type": "boolean",
                           },
                           "screen": {
+                            "description": "atc_terminal_read can read its screen",
                             "type": "boolean",
                           },
                           "spawn": {
+                            "description": "atc can start a session of the agent",
                             "type": "boolean",
                           },
                         },
@@ -688,34 +698,42 @@ test('it lists the fleet tools', async () => {
                         "type": "object",
                       },
                       "id": {
+                        "description": "the agent's id; pass it as agent to atc_session_spawn",
                         "type": "string",
                       },
                       "installed": {
+                        "description": "whether its binary resolves on this host; a registered agent that is not installed cannot spawn",
                         "type": "boolean",
                       },
                       "kind": {
+                        "description": "the agent CLI family it runs",
                         "type": "string",
                       },
                       "label": {
+                        "description": "the agent's display name",
                         "type": "string",
                       },
                       "models": {
                         "additionalProperties": {
                           "type": "string",
                         },
+                        "description": "the model names the config sets for the agent; null when it sets none",
                         "type": [
                           "object",
                           "null",
                         ],
                       },
                       "spawnOptions": {
+                        "description": "the model and effort options a spawn takes, present when the daemon supports them",
                         "properties": {
                           "effort": {
                             "properties": {
                               "available": {
+                                "description": "whether a spawn on this host can pass the option now",
                                 "type": "boolean",
                               },
                               "backendEffect": {
+                                "description": "applied, or unverified when the backend may ignore the option",
                                 "enum": [
                                   "applied",
                                   "unverified",
@@ -727,21 +745,25 @@ test('it lists the fleet tools', async () => {
                                 ],
                               },
                               "default": {
+                                "description": "the configured value; null for the CLI's own default",
                                 "type": [
                                   "string",
                                   "null",
                                 ],
                               },
                               "examples": {
+                                "description": "example values, each with the provider model it resolves to",
                                 "items": {
                                   "properties": {
                                     "resolvesTo": {
+                                      "description": "the provider model the value resolves to; null when the config maps none",
                                       "type": [
                                         "string",
                                         "null",
                                       ],
                                     },
                                     "value": {
+                                      "description": "a value the option takes",
                                       "type": "string",
                                     },
                                   },
@@ -754,15 +776,18 @@ test('it lists the fleet tools', async () => {
                                 "type": "array",
                               },
                               "note": {
+                                "description": "a note on the option, or null",
                                 "type": [
                                   "string",
                                   "null",
                                 ],
                               },
                               "supported": {
+                                "description": "whether atc passes this option to the agent CLI",
                                 "type": "boolean",
                               },
                               "values": {
+                                "description": "the accepted set; null for any alias or model name",
                                 "items": {
                                   "type": "string",
                                 },
@@ -786,9 +811,11 @@ test('it lists the fleet tools', async () => {
                           "model": {
                             "properties": {
                               "available": {
+                                "description": "whether a spawn on this host can pass the option now",
                                 "type": "boolean",
                               },
                               "backendEffect": {
+                                "description": "applied, or unverified when the backend may ignore the option",
                                 "enum": [
                                   "applied",
                                   "unverified",
@@ -800,21 +827,25 @@ test('it lists the fleet tools', async () => {
                                 ],
                               },
                               "default": {
+                                "description": "the configured value; null for the CLI's own default",
                                 "type": [
                                   "string",
                                   "null",
                                 ],
                               },
                               "examples": {
+                                "description": "example values, each with the provider model it resolves to",
                                 "items": {
                                   "properties": {
                                     "resolvesTo": {
+                                      "description": "the provider model the value resolves to; null when the config maps none",
                                       "type": [
                                         "string",
                                         "null",
                                       ],
                                     },
                                     "value": {
+                                      "description": "a value the option takes",
                                       "type": "string",
                                     },
                                   },
@@ -827,15 +858,18 @@ test('it lists the fleet tools', async () => {
                                 "type": "array",
                               },
                               "note": {
+                                "description": "a note on the option, or null",
                                 "type": [
                                   "string",
                                   "null",
                                 ],
                               },
                               "supported": {
+                                "description": "whether atc passes this option to the agent CLI",
                                 "type": "boolean",
                               },
                               "values": {
+                                "description": "the accepted set; null for any alias or model name",
                                 "items": {
                                   "type": "string",
                                 },
@@ -878,20 +912,26 @@ test('it lists the fleet tools', async () => {
                   "type": "array",
                 },
                 "configRevision": {
+                  "description": "a digest that changes whenever the target config does",
                   "type": "string",
                 },
                 "daemon": {
+                  "description": "the host the daemon runs on",
                   "properties": {
                     "arch": {
+                      "description": "the host's CPU architecture",
                       "type": "string",
                     },
                     "build": {
+                      "description": "the daemon's build",
                       "type": "string",
                     },
                     "hostname": {
+                      "description": "the host's name",
                       "type": "string",
                     },
                     "platform": {
+                      "description": "the host's operating system",
                       "type": "string",
                     },
                   },
@@ -903,12 +943,41 @@ test('it lists the fleet tools', async () => {
                   ],
                   "type": "object",
                 },
+                "sources": {
+                  "description": "the sources the TUI's spawn picker offers for choosing a directory or repository",
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "description": "the source's id",
+                        "type": "string",
+                      },
+                      "kind": {
+                        "description": "path for a directory on the host, git for a repository URL",
+                        "type": "string",
+                      },
+                      "label": {
+                        "description": "the source's display name",
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "label",
+                      "kind",
+                    ],
+                    "type": "object",
+                  },
+                  "type": "array",
+                },
                 "spawnDefaults": {
+                  "description": "what a spawn without agent or target runs with",
                   "properties": {
                     "agent": {
+                      "description": "the agent id a spawn without agent runs",
                       "type": "string",
                     },
                     "target": {
+                      "description": "the target id a spawn without target runs on; a null target means a spawn without target is refused",
                       "type": [
                         "string",
                         "null",
@@ -922,18 +991,23 @@ test('it lists the fleet tools', async () => {
                   "type": "object",
                 },
                 "targetErrors": {
+                  "description": "config problems that leave a target, or every target, unusable; scope config, with problem config_malformed or config_unreadable, means the config file exists but cannot be parsed or read, and refuses every spawn, local included",
                   "items": {
                     "properties": {
                       "detail": {
+                        "description": "the problem in words",
                         "type": "string",
                       },
                       "path": {
+                        "description": "the config path the problem is about",
                         "type": "string",
                       },
                       "problem": {
+                        "description": "the problem code, such as config_malformed",
                         "type": "string",
                       },
                       "scope": {
+                        "description": "what the problem affects",
                         "enum": [
                           "config",
                           "targets",
@@ -943,6 +1017,7 @@ test('it lists the fleet tools', async () => {
                         "type": "string",
                       },
                       "target": {
+                        "description": "the target the problem is about, when one",
                         "type": "string",
                       },
                     },
@@ -955,30 +1030,38 @@ test('it lists the fleet tools', async () => {
                   "type": "array",
                 },
                 "targets": {
+                  "description": "the execution targets, present when the daemon supports targets",
                   "items": {
                     "properties": {
                       "available": {
+                        "description": "whether a spawn can use the target now",
                         "type": "boolean",
                       },
                       "brokerAuth": {
+                        "description": "whether sessions on the target sign in through a credential broker",
                         "type": "boolean",
                       },
                       "capabilities": {
                         "additionalProperties": {
                           "type": "boolean",
                         },
+                        "description": "what the target can do, by capability name",
                         "type": "object",
                       },
                       "default": {
+                        "description": "whether a spawn without target runs here",
                         "type": "boolean",
                       },
                       "id": {
+                        "description": "the target's id; pass it as target to atc_session_spawn",
                         "type": "string",
                       },
                       "identity": {
+                        "description": "the target's identity",
                         "type": "string",
                       },
                       "provider": {
+                        "description": "the target's provider kind",
                         "type": "string",
                       },
                     },
@@ -1008,13 +1091,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read one session in a single call: its descriptor (state, unread flag, last activity message), the prompt it was spawned with, when it last reported activity, the prompt or question it is waiting on while it needs you (read-only; answer it with atc_session_input), and the final message of its latest finished turn.",
+            "description": "Read one session: its entry as atc_sessions_list shows it, the prompt it was spawned with, when it last reported activity, pending (the agent's notification text while it is needs_you, such as "Claude needs your permission"; never a menu's options), result (the final reply of its latest finished turn) and sessionRecord (the scope atc recorded for it). A permission prompt or other menu cannot be answered through atc; a person answers it in the TUI.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "session": {
-                  "description": "The atc session id, from atc_session_list",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
               },
@@ -1031,13 +1114,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read a session's conversation a page at a time, oldest first: user and assistant messages with tool uses summarised. Pass the returned cursor to continue where you left off; more is true when the page stopped before the end. Claude sessions only; other agents answer unsupported.",
+            "description": "Read a session's conversation log a page at a time, oldest first: user and assistant messages, with tool uses summarised. Pass the returned cursor to continue; more is true when the page stopped before the end. Claude and Claude-compatible agents only; other agents return unsupported.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "cursor": {
-                  "description": "The cursor a previous atc_session_read returned; omit to read from the start of the conversation",
+                  "description": "The cursor a previous atc_transcript_read returned; omit to read from the start of the conversation",
                   "type": "string",
                 },
                 "limit": {
@@ -1047,7 +1130,7 @@ test('it lists the fleet tools', async () => {
                   "type": "integer",
                 },
                 "session": {
-                  "description": "The atc session id, from atc_session_list",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
               },
@@ -1056,7 +1139,7 @@ test('it lists the fleet tools', async () => {
               ],
               "type": "object",
             },
-            "name": "atc_session_read",
+            "name": "atc_transcript_read",
           },
           {
             "annotations": {
@@ -1064,7 +1147,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label and a preview of its text; read the full text with atc_report_get, passing the report handle of that event when it carries one, else its cursor, or pass reportText: true to get the full text of every report in this call. With reportText, each report event also carries text and complete (false when atc kept only the preview), or textError when its text could not be read within 10 seconds; the page holds at most 64 KiB of report text and stops early, with more true, when the next report would not fit or 10 seconds of report reads have passed. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.",
+            "description": "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered, with the message id) and notes (note, with its label and full text). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more is false even when older ones exist. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character note previews. A partial read says so: complete false or textError on a note, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1079,8 +1162,8 @@ test('it lists the fleet tools', async () => {
                   "minimum": 1,
                   "type": "integer",
                 },
-                "reportText": {
-                  "description": "true adds each report's whole text to its event, so one call reads every report of the page; defaults to false",
+                "previewOnly": {
+                  "description": "true returns each note as its 600-character preview instead of its full text; defaults to false",
                   "type": "boolean",
                 },
                 "session": {
@@ -1109,6 +1192,7 @@ test('it lists the fleet tools', async () => {
                         "type": "number",
                       },
                       "complete": {
+                        "description": "false: atc kept only this note's preview, and text holds it",
                         "type": "boolean",
                       },
                       "cursor": {
@@ -1121,6 +1205,7 @@ test('it lists the fleet tools', async () => {
                         ],
                       },
                       "kind": {
+                        "description": "the event kind; the tool description lists them",
                         "type": "string",
                       },
                       "label": {
@@ -1135,9 +1220,6 @@ test('it lists the fleet tools', async () => {
                           "null",
                         ],
                       },
-                      "report": {
-                        "type": "string",
-                      },
                       "session": {
                         "type": "string",
                       },
@@ -1145,6 +1227,7 @@ test('it lists the fleet tools', async () => {
                         "type": "string",
                       },
                       "textError": {
+                        "description": "the note's text did not load within 10 seconds; detail holds the preview",
                         "type": "string",
                       },
                     },
@@ -1163,6 +1246,27 @@ test('it lists the fleet tools', async () => {
                 "more": {
                   "type": "boolean",
                 },
+                "started": {
+                  "description": "under the gateway, daemons that joined the cursor on this call, read from their latest events",
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+                "truncated": {
+                  "description": "under the gateway, those of the started daemons with older events left unread",
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+                "unavailable": {
+                  "description": "under the gateway, daemons that did not answer; each keeps its place in the cursor",
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
               },
               "required": [
                 "events",
@@ -1175,71 +1279,10 @@ test('it lists the fleet tools', async () => {
           {
             "annotations": {
               "destructiveHint": false,
-              "openWorldHint": false,
-              "readOnlyHint": true,
-            },
-            "description": "Read one report's full text without messaging the session that sent it. Pass the report handle of the report's event from atc_events_read, or the event's cursor when it carries none. Returns the report cursor, at, the session id and name, the label, the text (up to 64 KiB, as the session sent it), and complete, which is false for a report recorded before atc kept full texts: its text is then only the preview the event held. A cursor of an event that is not a report answers as an unknown report.",
-            "inputSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "report": {
-                  "description": "The report handle of the report's event from atc_events_read, or the event's cursor when it carries no report handle",
-                  "type": "string",
-                },
-              },
-              "required": [
-                "report",
-              ],
-              "type": "object",
-            },
-            "name": "atc_report_get",
-            "outputSchema": {
-              "properties": {
-                "at": {
-                  "type": "number",
-                },
-                "complete": {
-                  "type": "boolean",
-                },
-                "label": {
-                  "type": "string",
-                },
-                "name": {
-                  "type": [
-                    "string",
-                    "null",
-                  ],
-                },
-                "report": {
-                  "type": "string",
-                },
-                "session": {
-                  "type": "string",
-                },
-                "text": {
-                  "type": "string",
-                },
-              },
-              "required": [
-                "report",
-                "at",
-                "session",
-                "name",
-                "label",
-                "text",
-                "complete",
-              ],
-              "type": "object",
-            },
-          },
-          {
-            "annotations": {
-              "destructiveHint": false,
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Send a session a message and get its id back. Follow up with atc_message_get, passing waitMs so each call waits for the next status change instead of polling in a tight loop, until its status is answered; don't read the session's screen or transcript to check on it. The answer is the final output of the session turn that carried the message, and one turn can carry several messages. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (capabilities.message is false in atc_agents_list), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
+            "description": "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer comes back on the message: follow with atc_message_get and waitMs until status is answered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model) or answered. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. A message whose turn is interrupted stays delivered. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session has no live process, including one still booting after a daemon restart; no_such_session for an unknown id. A retry with the same idempotencyKey and text returns the same message.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -1254,7 +1297,7 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "session": {
-                  "description": "The atc session id, from atc_session_list",
+                  "description": "The atc session id, from atc_sessions_list",
                   "type": "string",
                 },
                 "text": {
@@ -1268,7 +1311,7 @@ test('it lists the fleet tools', async () => {
               ],
               "type": "object",
             },
-            "name": "atc_session_message",
+            "name": "atc_message_send",
             "outputSchema": {
               "properties": {
                 "message": {
@@ -1276,7 +1319,7 @@ test('it lists the fleet tools', async () => {
                 },
                 "status": {
                   "enum": [
-                    "accepted",
+                    "queued",
                     "delivered",
                     "answered",
                   ],
@@ -1296,13 +1339,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.",
+            "description": "Read one message sent with atc_message_send: status (queued, delivered or answered), the answer once answered, turn, answeredWith and timestamps. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered message returns at once. Ids and statuses persist, so call again after a timeout.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "message": {
-                  "description": "The message id atc_session_message returned",
+                  "description": "The message id atc_message_send returned",
                   "type": "string",
                 },
                 "waitMs": {
@@ -1349,7 +1392,7 @@ test('it lists the fleet tools', async () => {
                 },
                 "status": {
                   "enum": [
-                    "accepted",
+                    "queued",
                     "delivered",
                     "answered",
                   ],
@@ -1409,7 +1452,7 @@ test('it lists every tool with its three safety hints', async () => {
     result: {
       tools: [
         expect.objectContaining({
-          name: 'atc_session_list',
+          name: 'atc_sessions_list',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1425,7 +1468,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_session_input',
+          name: 'atc_terminal_type',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1433,7 +1476,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_session_screen',
+          name: 'atc_terminal_read',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1457,7 +1500,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_session_kill',
+          name: 'atc_session_stop',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1473,7 +1516,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_session_ack',
+          name: 'atc_session_mark_read',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1481,7 +1524,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_resume_command',
+          name: 'atc_recent_dirs_list',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1489,15 +1532,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_dirs_list',
-          annotations: {
-            readOnlyHint: expect.toBeBoolean(),
-            destructiveHint: expect.toBeBoolean(),
-            openWorldHint: expect.toBeBoolean(),
-          },
-        }),
-        expect.objectContaining({
-          name: 'atc_agents_list',
+          name: 'atc_spawn_options_get',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1513,7 +1548,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_session_read',
+          name: 'atc_transcript_read',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1529,15 +1564,7 @@ test('it lists every tool with its three safety hints', async () => {
           },
         }),
         expect.objectContaining({
-          name: 'atc_report_get',
-          annotations: {
-            readOnlyHint: expect.toBeBoolean(),
-            destructiveHint: expect.toBeBoolean(),
-            openWorldHint: expect.toBeBoolean(),
-          },
-        }),
-        expect.objectContaining({
-          name: 'atc_session_message',
+          name: 'atc_message_send',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),
@@ -1581,7 +1608,7 @@ test('it marks the kill tool destructive and not read-only', async () => {
   invariant(isRecord(result) && Array.isArray(result['tools']), 'tools/list returned no tools');
 
   const killTool: unknown = result['tools'].find(
-    (tool) => isRecord(tool) && tool['name'] === 'atc_session_kill',
+    (tool) => isRecord(tool) && tool['name'] === 'atc_session_stop',
   );
 
   invariant(isRecord(killTool), 'the kill tool is not listed');
@@ -1610,7 +1637,7 @@ test('it keeps answering after a failed tool call', async () => {
   );
 
   const mcp = await startMCPStdio({ home: ctx.home });
-  const failed = await mcp.sendToolCall('atc_session_kill', { session: 'nope' });
+  const failed = await mcp.sendToolCall('atc_session_stop', { session: 'nope' });
 
   expect(failed).toStrictEqual({
     isError: true,

@@ -84,7 +84,7 @@ test('it answers a method with the reply it was given and records the request', 
   const ctx = setupTest();
 
   const daemon = startStubLegacyDaemon(ctx.socketPath, {
-    replies: { 'message.get': { message: 'm-1', status: 'accepted' } },
+    replies: { 'message.get': { message: 'm-1', status: 'queued' } },
   });
 
   const client = await DaemonClient.open(ctx.socketPath);
@@ -97,7 +97,7 @@ test('it answers a method with the reply it was given and records the request', 
 
   const got = await client.sendRequest('message.get', { message: 'm-1', waitMs: 5000 });
 
-  expect(got).toStrictEqual({ message: 'm-1', status: 'accepted' });
+  expect(got).toStrictEqual({ message: 'm-1', status: 'queued' });
 
   expect(daemon.requests).toStrictEqual([
     { m: 'daemon.hello', p: { client: 'atc/test-build', auth: { scheme: 'none' } } },

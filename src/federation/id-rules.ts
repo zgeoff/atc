@@ -60,8 +60,8 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
     ['turn.session', 'id'],
   ]),
   'message.ack': new Map([['message', 'id']]),
-  'report.get': new Map([
-    ['report', 'id'],
+  'note.get': new Map([
+    ['note', 'id'],
     ['session', 'id'],
     ['text', 'opaque'],
   ]),
@@ -69,7 +69,7 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
     ['events[].session', 'id'],
     ['events[].message', 'id'],
     ['events[].parent', 'id'],
-    ['events[].report', 'id'],
+    ['events[].note', 'id'],
     ['events[].cursor', 'cursor'],
     ['cursor', 'cursor'],
   ]),

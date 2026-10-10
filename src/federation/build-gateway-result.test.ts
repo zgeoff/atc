@@ -132,10 +132,10 @@ test('it rewrites the message of a session.message answer', () => {
   expect(
     buildGatewayResult(
       'session.message',
-      { message: 'm-1', status: 'accepted' },
+      { message: 'm-1', status: 'queued' },
       { name: 'cloud', incarnation: '0f6c2a8e' },
     ),
-  ).toStrictEqual({ message: 'cloud.0f6c2a8e.m-1', status: 'accepted' });
+  ).toStrictEqual({ message: 'cloud.0f6c2a8e.m-1', status: 'queued' });
 });
 
 test('it rewrites the message of a message.ack answer', () => {

@@ -74,13 +74,15 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'session.forget',
       'session.forget.preconditions',
       'session.submit',
-      'report.get',
+      'note.get',
       'sources',
       'git.probe',
       'transport.tcp',
       'idempotency.replayOnly',
       'session.auth',
       'session.record',
+      'vocabulary.note',
+      'session.kill.stopOnly',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
@@ -201,6 +203,65 @@ test('it answers session.kill for an unknown session with no_such_session', asyn
   expect(ctx.client.sendRequest('session.kill', { session: 'nope' })).rejects.toMatchObject({
     code: 'no_such_session',
   });
+});
+
+test('it stops a live session and its sub-sessions on a stop-only kill', async () => {
+  const ctx = await setupTest();
+  const parent = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    parent,
+    cols: 80,
+    rows: 24,
+  });
+
+  const child = getRecord(spawned, 'session')['id'];
+
+  const answer = await ctx.client.sendRequest('session.kill', { session: parent, stopOnly: true });
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect(answer).toStrictEqual({ stopped: true });
+
+  expect(listed).toStrictEqual({
+    sessions: [
+      expect.objectContaining({ id: parent, alive: false }),
+      expect.objectContaining({ id: child, alive: false }),
+    ],
+  });
+});
+
+test('it leaves an exited session in the list on a stop-only kill', async () => {
+  const ctx = await setupTest();
+  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+
+  await ctx.client.sendRequest('session.kill', { session: id, stopOnly: true });
+
+  const again = await ctx.client.sendRequest('session.kill', { session: id, stopOnly: true });
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect(again).toStrictEqual({ stopped: false });
+  expect(listed).toStrictEqual({ sessions: [expect.objectContaining({ id, alive: false })] });
+});
+
+test('it removes an exited session on a second kill without stopOnly', async () => {
+  const ctx = await setupTest();
+  const id = await spawnNamedSession((m, p) => ctx.client.sendRequest(m, p), 'one', ctx.dir);
+  const first = await ctx.client.sendRequest('session.kill', { session: id });
+  const second = await ctx.client.sendRequest('session.kill', { session: id });
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect(first).toStrictEqual({});
+  expect(second).toStrictEqual({});
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
+test('it answers a stop-only kill of an unknown session with no_such_session', async () => {
+  const ctx = await setupTest();
+
+  expect(
+    ctx.client.sendRequest('session.kill', { session: 'nope', stopOnly: true }),
+  ).rejects.toMatchObject({ code: 'no_such_session' });
 });
 
 test('it answers session.ack for an unknown session with no_such_session', async () => {

@@ -22,7 +22,7 @@ test.each([
   ['session.detach', { session: 's1' }],
   ['session.input', { session: 's1', d: 'x' }],
   ['session.submit', { session: 's1', text: 'x' }],
-  ['report.get', { report: 'r1' }],
+  ['note.get', { note: 'r1' }],
   ['session.resize', { session: 's1', cols: 100, rows: 30 }],
   ['session.resumeCommand', { session: 's1' }],
   ['session.eject', { session: 's1', prompt: 'keep going' }],
@@ -303,10 +303,10 @@ test('it rejects message.get without a message', () => {
   expect(parsed).toStrictEqual({ ok: false, message: 'message.get requires a message' });
 });
 
-test('it rejects report.get without a report', () => {
-  const parsed = parseRequestParams('report.get', {});
+test('it rejects note.get without a note', () => {
+  const parsed = parseRequestParams('note.get', {});
 
-  expect(parsed).toStrictEqual({ ok: false, message: 'report.get requires a report' });
+  expect(parsed).toStrictEqual({ ok: false, message: 'note.get requires a note' });
 });
 
 test('it parses message.get with a message id', () => {

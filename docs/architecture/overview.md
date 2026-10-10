@@ -51,20 +51,20 @@ beside its schema:
   puts text in front of one sets `openWorldHint`, because the agent acts on that text outside atc's
   control.
 - One scope out of `read`, `message`, `spawn`, and `kill`, which groups the tool by the access it
-  needs. `atc_session_input` takes `spawn`, because a line typed into a session can do anything a
+  needs. `atc_terminal_type` takes `spawn`, because a line typed into a session can do anything a
   new session can. `atc_session_scope_add` takes `spawn` too, because it widens what a session may
   touch. The daemon refuses it from a caller that runs inside the target session or inside a
   sub-session of it. The stdio server serves every scope to its caller; `atc mcp --http` serves only
   the scopes a client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
 
-`atc_session_kill` takes `kill` and ends a session. `atc_session_forget` takes `kill` too and
-removes a session from the list, destroying its host on a target that can; the
-[protocol](./protocol.md#kill-and-sleep) covers its confirm token.
+`atc_session_stop` takes `kill` and stops a session's agent process, leaving the session listed as
+exited. `atc_session_forget` takes `kill` too and removes a session from the list, destroying its
+host on a target that can; the [protocol](./protocol.md#kill-and-sleep) covers its confirm token.
 
 Every tool result holds its output as text. A result that is data also holds it as
-`structuredContent`, an object, and the message, event, and report tools declare an `outputSchema`
-for it. A tool whose data is a list keeps the bare list as its text and wraps it in an object for
-`structuredContent`, so older clients read the same text.
+`structuredContent`, an object, and the typing, stop, spawn options, event, and message tools
+declare an `outputSchema` for it. A tool whose data is a list keeps the bare list as its text and
+wraps it in an object for `structuredContent`, so older clients read the same text.
 
 The server returns the client's requested protocol version from `initialize` when it supports it
 (`2025-11-25`, `2025-06-18`, or `2024-11-05`), else `2025-11-25`. The server leaves out
@@ -124,10 +124,10 @@ through `CLAUDE_CODE_PLUGIN_DIRS`. The mod connects the session to its
   session is idle and appends it to the running turn otherwise, inside an `<atc-message>` envelope
   that holds the sender and message id.
 - When a turn that carried messages ends with a reply, the mod reports every message the turn
-  carried as answered with that reply and the turn's id, in one report. An aborted or failed turn
+  carried as answered with that reply and the turn's id, in one call. An aborted or failed turn
   leaves its messages delivered.
-- It gives the model a `report` tool for progress mid-turn, which clients receive as a
-  `SessionReport` event.
+- It gives the model a `note` tool for progress mid-turn. Its `label` input is `progress` (the
+  default), `blocked`, or `decision`, and clients receive each call as a `SessionNote` event.
 
 Outside atc, with no `ATC_SESSION_ID` in its environment, the mod does nothing.
 

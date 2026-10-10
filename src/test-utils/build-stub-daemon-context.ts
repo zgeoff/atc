@@ -54,7 +54,7 @@ export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): 
     readSessionRecord: makeUnreached('readSessionRecord'),
     loadSessionTranscript: makeUnreached('loadSessionTranscript'),
     readEvents: makeUnreached('readEvents'),
-    readReport: makeUnreached('readReport'),
+    readNote: makeUnreached('readNote'),
     answerPermission: makeUnreached('answerPermission'),
     restoreFleet: makeUnreached('restoreFleet'),
     attachSession: makeUnreached('attachSession'),

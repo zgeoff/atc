@@ -33,9 +33,9 @@ test('it sends a request as the principal over the principal the request asks fo
 });
 
 test('it reports the features of the daemon behind it', () => {
-  const caller = buildStubFleetCaller({ features: ['report.get'] });
+  const caller = buildStubFleetCaller({ features: ['note.get'] });
 
   expect(buildPrincipalCaller(caller, 'client-a').readFeatures()).resolves.toStrictEqual(
-    new Set(['report.get']),
+    new Set(['note.get']),
   );
 });

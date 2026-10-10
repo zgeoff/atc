@@ -2,7 +2,7 @@ import type { AgentSessionID } from '../shared/agent-session-id';
 import type { MessageID } from '../shared/message-id';
 import type { SessionID } from '../shared/session-id';
 
-export type MessageStatus = 'accepted' | 'delivered' | 'answered';
+export type MessageStatus = 'queued' | 'delivered' | 'answered';
 
 export interface MessageRecord {
   readonly id: MessageID;

@@ -25,7 +25,7 @@ test("it sends a principal's tap that replaced the owner's during the read no me
       agentSessionID: toAgentSessionID('a-shared'),
       from: 'owner',
       text: 'secret',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 0,
     },
   ]);
@@ -55,7 +55,7 @@ test('it sends a tap that replaced the one a drain read for nothing from that dr
       atcID: toSessionID('s-shown'),
       from: 'owner',
       text: 'hello',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 0,
     },
   ]);
@@ -81,7 +81,7 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
       agentSessionID: toAgentSessionID('a-shared'),
       from: 'owner',
       text: 'secret',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 0,
     },
     {
@@ -89,7 +89,7 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
       atcID: toSessionID('s-shown'),
       from: 'owner',
       text: 'hello',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 1,
     },
   ]);

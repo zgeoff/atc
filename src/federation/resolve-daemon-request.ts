@@ -5,11 +5,11 @@ import type { GatewayRegistry, RegistryDaemon } from './types';
 // The request params that hold a gateway id, and the refusal a daemon
 // gives for an id it does not hold, which the gateway gives for an id that
 // routes nowhere.
-const ID_PARAMS: readonly (readonly [string, 'session' | 'message' | 'report'])[] = [
+const ID_PARAMS: readonly (readonly [string, 'session' | 'message' | 'note'])[] = [
   ['session', 'session'],
   ['parent', 'session'],
   ['message', 'message'],
-  ['report', 'report'],
+  ['note', 'note'],
 ];
 
 /**

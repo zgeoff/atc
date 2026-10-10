@@ -3,9 +3,9 @@ import { decodeCursor } from '../protocol/decode-cursor';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
-import { buildReportView } from './build-report-view';
+import { buildNoteView } from './build-note-view';
 
-test('it names a report by the live session holding its agent session id', () => {
+test('it names a note by the live session holding its agent session id', () => {
   const sessions = [
     buildMockSessionDescriptor({
       id: toSessionID('s-new'),
@@ -14,7 +14,7 @@ test('it names a report by the live session holding its agent session id', () =>
     }),
   ];
 
-  const view = buildReportView(
+  const view = buildNoteView(
     {
       id: 7,
       at: 1000,
@@ -28,8 +28,8 @@ test('it names a report by the live session holding its agent session id', () =>
     sessions,
   );
 
-  expect({ ...view, report: decodeCursor(view.report) }).toStrictEqual({
-    report: { kind: 'events', id: 7 },
+  expect({ ...view, note: decodeCursor(view.note) }).toStrictEqual({
+    note: { kind: 'events', id: 7 },
     at: 1000,
     session: 's-new',
     name: 'worker',
@@ -39,8 +39,8 @@ test('it names a report by the live session holding its agent session id', () =>
   });
 });
 
-test('it holds no name for a report of a session no longer listed', () => {
-  const view = buildReportView(
+test('it holds no name for a note of a session no longer listed', () => {
+  const view = buildNoteView(
     {
       id: 7,
       at: 1000,
@@ -54,8 +54,8 @@ test('it holds no name for a report of a session no longer listed', () => {
     [],
   );
 
-  expect({ ...view, report: decodeCursor(view.report) }).toStrictEqual({
-    report: { kind: 'events', id: 7 },
+  expect({ ...view, note: decodeCursor(view.note) }).toStrictEqual({
+    note: { kind: 'events', id: 7 },
     at: 1000,
     session: 's-gone',
     name: null,
@@ -65,8 +65,8 @@ test('it holds no name for a report of a session no longer listed', () => {
   });
 });
 
-test('it keeps a report on its own atc id when it may take no alias', () => {
-  const view = buildReportView(
+test('it keeps a note on its own atc id when it may take no alias', () => {
+  const view = buildNoteView(
     {
       id: 7,
       at: 1000,
@@ -86,8 +86,8 @@ test('it keeps a report on its own atc id when it may take no alias', () => {
     [],
   );
 
-  expect({ ...view, report: decodeCursor(view.report) }).toStrictEqual({
-    report: { kind: 'events', id: 7 },
+  expect({ ...view, note: decodeCursor(view.note) }).toStrictEqual({
+    note: { kind: 'events', id: 7 },
     at: 1000,
     session: 's-hidden',
     name: null,

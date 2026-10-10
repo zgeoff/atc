@@ -133,14 +133,14 @@ test('it carries the message id on a message event', () => {
   ]);
 });
 
-test('it carries the label on a report event', () => {
+test('it carries the label on a note event', () => {
   const events = buildFleetEvents(
     [
       buildMockStoredEvent({
         at: 1000,
         atcID: toSessionID('s1'),
         agentSessionID: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'need review',
         label: 'blocked',
       }),
@@ -154,7 +154,7 @@ test('it carries the label on a report event', () => {
       at: 1000,
       session: 's1',
       name: null,
-      kind: 'report',
+      kind: 'note',
       detail: 'need review',
       label: 'blocked',
     },

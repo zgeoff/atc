@@ -51,7 +51,7 @@ const EVENT_RULES: ReadonlyMap<string, IDRule> = new Map([
   ['session', 'id'],
   ['message', 'id'],
   ['parent', 'id'],
-  ['report', 'id'],
+  ['note', 'id'],
 ]);
 
 /**
@@ -66,8 +66,8 @@ const EVENT_RULES: ReadonlyMap<string, IDRule> = new Map([
  * latest events rather than skipping what it queued meanwhile. A daemon
  * that started at its newest event, or at its latest events after such a
  * gap, is listed under `started`, and under `truncated` too when older
- * events precede the latest page and went unread. A report event also
- * holds `report`, its daemon-qualified handle for `report.get`. Every event's
+ * events precede the latest page and went unread. A note event also
+ * holds `note`, its daemon-qualified handle for `note.get`. Every event's
  * ids are rewritten for its daemon, and its `cursor` is the gateway cursor
  * that resumes right after it.
  */
@@ -141,12 +141,12 @@ export function mergeEventPages(
     }
 
     const rewritten = buildRuledValue(event, EVENT_RULES, daemon);
-    const handle = findReportHandle(event, daemon);
+    const handle = findNoteHandle(event, daemon);
 
     events.push({
       ...(isRecord(rewritten) ? rewritten : event),
       cursor: encodeGatewayCursor(filter, parts),
-      ...(handle === null ? {} : { report: handle }),
+      ...(handle === null ? {} : { note: handle }),
     });
   }
 
@@ -166,16 +166,16 @@ export function mergeEventPages(
   };
 }
 
-// A report event's handle for `report.get`: the daemon's own cursor of the
-// event, which the daemon reads a report by, under the daemon's name and
+// A note event's handle for `note.get`: the daemon's own cursor of the
+// event, which the daemon reads a note by, under the daemon's name and
 // incarnation, kept apart from the merged feed cursor that replaces it.
-function findReportHandle(
+function findNoteHandle(
   event: Readonly<Record<string, unknown>>,
   daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,
 ): string | null {
   const raw = event['cursor'];
 
-  return event['kind'] === 'report' && typeof raw === 'string' ? buildGatewayID(daemon, raw) : null;
+  return event['kind'] === 'note' && typeof raw === 'string' ? buildGatewayID(daemon, raw) : null;
 }
 
 // The queue whose next event goes out next: the one with the earliest

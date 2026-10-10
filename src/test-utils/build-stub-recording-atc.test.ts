@@ -16,7 +16,7 @@ test('it records its arguments, its atc session, and its input in the log', asyn
   const ctx = setupTest();
   const atc = createStubBin(ctx.dir, 'atc', buildStubRecordingATC(join(ctx.dir, 'atc.log')));
 
-  const result = await runCommand([atc, 'report', 'note'], {
+  const result = await runCommand([atc, 'note'], {
     stdin: Buffer.from('half way'),
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
@@ -24,7 +24,7 @@ test('it records its arguments, its atc session, and its input in the log', asyn
   expect(result.exitCode).toBe(0);
 
   expect(readFileSync(join(ctx.dir, 'atc.log'), 'utf8')).toBe(
-    'args:report note\nsession:s-1\nstdin:half way\n',
+    'args:note\nsession:s-1\nstdin:half way\n',
   );
 });
 

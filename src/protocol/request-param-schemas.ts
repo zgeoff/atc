@@ -215,7 +215,12 @@ export const REQUEST_PARAM_SCHEMAS = {
       z.string().transform(toSessionID).optional(),
     ),
   }),
-  'session.kill': SESSION_DEFAULTED,
+
+  // With stopOnly, a live session stops and an exited one is left in the
+  // list as it is, where a kill without it removes an exited session.
+  'session.kill': SESSION_DEFAULTED.extend({
+    stopOnly: z.boolean({ error: 'session.kill stopOnly must be a boolean' }).optional(),
+  }),
   'session.ack': SESSION_DEFAULTED,
 
   // Without a token, a forget that destroys a host answers with one; the
@@ -311,12 +316,12 @@ export const REQUEST_PARAM_SCHEMAS = {
       waitMs: buildDefaultedWait(),
     })
     .refine((v) => v.message !== '', { message: 'message.get requires a message' }),
-  'report.get': z
+  'note.get': z
     .object({
-      // The cursor events.read returned with the report's event.
-      report: buildDefaultedString(''),
+      // The cursor events.read returned with the note's event.
+      note: buildDefaultedString(''),
     })
-    .refine((v) => v.report !== '', { message: 'report.get requires a report' }),
+    .refine((v) => v.note !== '', { message: 'note.get requires a note' }),
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
   }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),

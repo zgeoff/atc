@@ -33,12 +33,12 @@ export interface BridgeContext {
   readonly findSession: (sessionID: SessionID) => BridgeSession | undefined;
   readonly applyHookEvent: (e: HookEvent) => void;
 
-  // Applies a report under the id its reporter gave it, and settles once
-  // the report is recorded; false when the payload is no report.
-  readonly applyReport: (
+  // Applies a note under the id its reporter gave it, and settles once
+  // the note is recorded; false when the payload is no note.
+  readonly applyNote: (
     sessionID: SessionID,
     payload: Readonly<Record<string, unknown>>,
-    reportID: string,
+    noteID: string,
   ) => Promise<boolean>;
   readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
   readonly ackMessage: (
@@ -51,10 +51,25 @@ export interface BridgeContext {
 
 const REQUEST_SCHEMA = z.looseObject({ v: z.literal(1), id: z.string().min(1), op: z.string() });
 
-const REPORT_SCHEMA = z.looseObject({
-  reportID: z.string().min(1).max(128),
-  payload: z.record(z.string(), z.unknown()),
-});
+// A note's ID arrives as `noteID`, or as `reportID` from a tap or mod that
+// uses the older field name.
+const NOTE_SCHEMA = z
+  .looseObject({
+    noteID: z.string().min(1).max(128).optional(),
+    reportID: z.string().min(1).max(128).optional(),
+    payload: z.record(z.string(), z.unknown()),
+  })
+  .transform((request, ctx) => {
+    const noteID = request.noteID ?? request.reportID;
+
+    if (noteID === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'a note needs an ID' });
+
+      return z.NEVER;
+    }
+
+    return { noteID, payload: request.payload };
+  });
 
 const ACK_SCHEMA = z.looseObject({ message: z.string().min(1) });
 
@@ -67,9 +82,9 @@ type BridgeRefusal = 'forbidden' | 'stale_binding' | 'not_tapping' | 'unknown_me
  * answer line `{ id, ok }`, and the bridge's own inbox events go out as
  * protocol event lines.
  *
- * The bridge takes hooks, reports, its session's tap and acks, and its
+ * The bridge takes hooks, notes, its session's tap and acks, and its
  * session's own status, for the one session it was bound to and nothing
- * else: an unknown op, a malformed request, or a report or hook for any
+ * else: an unknown op, a malformed request, or a note or hook for any
  * other session answers `forbidden` and closes the connection. Every line
  * checks the binding against the live session first, and one that no
  * longer matches answers `stale_binding` and closes.
@@ -145,12 +160,12 @@ export function startSessionBridge(
     id: string,
     op: string,
   ) => {
-    if (op === 'report') {
-      const parsed = REPORT_SCHEMA.safeParse(request);
+    if (op === 'note' || op === 'report') {
+      const parsed = NOTE_SCHEMA.safeParse(request);
 
       if (
         !parsed.success ||
-        !(await ctx.applyReport(binding.sessionID, parsed.data.payload, parsed.data.reportID))
+        !(await ctx.applyNote(binding.sessionID, parsed.data.payload, parsed.data.noteID))
       ) {
         void answerRefusal(id, 'forbidden');
 

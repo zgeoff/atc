@@ -1424,7 +1424,7 @@ test('it answers a retried keyed message with the first message and sends once',
 
   const rows = db.query('SELECT id FROM messages').all();
 
-  expect(second).toStrictEqual({ message: first['message'], status: 'accepted' });
+  expect(second).toStrictEqual({ message: first['message'], status: 'queued' });
   expect(rows).toStrictEqual([{ id: first['message'] }]);
 });
 
@@ -1456,7 +1456,7 @@ test('it replays a retried message whose params differ only in a default and a f
     idempotencyKey: 'm-key',
   });
 
-  expect(second).toStrictEqual({ message: first['message'], status: 'accepted' });
+  expect(second).toStrictEqual({ message: first['message'], status: 'queued' });
 });
 
 test('it refuses a message key reused with different text as idempotency_conflict', async () => {
@@ -1538,7 +1538,7 @@ test('it completes an interrupted message whose row was written and replays it',
       id: toMessageID('m-written'),
       atcID: toSessionID('s-gone'),
       text: 'hello',
-      status: 'accepted',
+      status: 'queued',
     }),
   );
 
@@ -1548,7 +1548,7 @@ test('it completes an interrupted message whose row was written and replays it',
 
   const replayed = await daemon.client.sendRequest('session.message', params);
 
-  expect(replayed).toStrictEqual({ message: 'm-written', status: 'accepted' });
+  expect(replayed).toStrictEqual({ message: 'm-written', status: 'queued' });
 });
 
 test('it answers a message retried after an interrupted send with outcome_unknown', async () => {

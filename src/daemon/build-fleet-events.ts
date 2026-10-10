@@ -14,7 +14,7 @@ export interface FleetEvent {
   // The message id on a message status event, for message.get.
   readonly message?: MessageID;
 
-  // The report label on a report event.
+  // The note label on a note event.
   readonly label?: string;
 }
 

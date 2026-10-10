@@ -44,7 +44,7 @@ test('it accepts a message for a session that has not reported SessionStart', as
     from: 'alice',
   });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });
 
 test('it queues a message to a started session within the start-up grace window', async () => {
@@ -83,7 +83,7 @@ test('it queues a message to a started session within the start-up grace window'
 
   const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });
 
 test('it refuses a message once the grace window passes with no tap ever attached', async () => {
@@ -160,7 +160,7 @@ test('it accepts a message to a started session once a tap is connected', async 
 
   const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });
 
 test('it refuses a message to a session whose agent cannot take messages', async () => {
@@ -284,7 +284,7 @@ test('it queues a message for a session waiting to restore', async () => {
     text: 'hello',
   });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });
 
 test('it drains pending messages to a tap in the order they were sent', async () => {
@@ -350,7 +350,7 @@ test('it drains pending messages to a tap in the order they were sent', async ()
   });
 });
 
-test('it streams a message accepted while the tap is connected', async () => {
+test('it streams a message queued while the tap is connected', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -673,7 +673,7 @@ test('it moves a message to answered from a Report line on the reporter socket',
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: sent['message'], answer: 'done' },
   });
 
@@ -693,13 +693,13 @@ test('it moves a message to answered from a Report line on the reporter socket',
   });
 });
 
-test('it ignores an answered report from another session', async () => {
+test('it ignores an answer from another session', async () => {
   const ignored: [string, string][] = [];
 
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
-      onReportIgnored: (sessionID, kind) => {
+      onNoteIgnored: (sessionID, kind) => {
         ignored.push([sessionID, kind]);
       },
     }),
@@ -720,7 +720,7 @@ test('it ignores an answered report from another session', async () => {
 
   await daemon.sendHookLines({
     atcId: other,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: sent['message'], answer: 'bogus' },
   });
 
@@ -776,7 +776,7 @@ test('it keeps queueing messages after the tap connection drops', async () => {
 
   const queued = await daemon.client.sendRequest('session.message', { session: id, text: 'after' });
 
-  expect(queued).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
+  expect(queued).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });
 
 test('it refuses a message to a session whose process died even after a tap attached', async () => {
@@ -823,7 +823,7 @@ test('it broadcasts SessionMessage on the events socket', async () => {
       ev: 'SessionMessage',
       s: id,
       message: sent['message'],
-      status: 'accepted',
+      status: 'queued',
       from: 'unknown',
       textPreview: 'hello',
       sentAt: expect.any(Number),
@@ -837,7 +837,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       hooks: {
         SessionMessage: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
-        SessionReport: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+        SessionNote: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
       },
     }),
   });
@@ -862,7 +862,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
       ev: 'SessionMessage',
       s: id,
       message: sent['message'],
-      status: 'accepted',
+      status: 'queued',
       from: 'unknown',
       textPreview: 'hello',
       sentAt: expect.any(Number),
@@ -870,7 +870,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
   });
 });
 
-test('it broadcasts a note from the reporter socket as SessionReport', async () => {
+test('it broadcasts a note from the reporter socket as SessionNote', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -881,18 +881,18 @@ test('it broadcasts a note from the reporter socket as SessionReport', async () 
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'need review' },
   });
 
   await waitFor(() => {
     expect(daemon.events).toContainEqual({
       v: 4,
-      ev: 'SessionReport',
+      ev: 'SessionNote',
       s: id,
       kind: 'blocked',
       text: 'need review',
-      reportedAt: expect.any(Number),
+      sentAt: expect.any(Number),
     });
   });
 });
@@ -903,7 +903,7 @@ test('it ignores a note from an unknown session', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
-      onReportIgnored: (sessionID, kind) => {
+      onNoteIgnored: (sessionID, kind) => {
         ignored.push([sessionID, kind]);
       },
     }),
@@ -913,7 +913,7 @@ test('it ignores a note from an unknown session', async () => {
 
   await daemon.sendHookLines({
     atcId: 'nope',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'bogus' },
   });
 
@@ -921,10 +921,10 @@ test('it ignores a note from an unknown session', async () => {
     expect(ignored).toStrictEqual([['nope', 'note']]);
   });
 
-  expect(daemon.events.filter((e) => e.ev === 'SessionReport')).toStrictEqual([]);
+  expect(daemon.events.filter((e) => e.ev === 'SessionNote')).toStrictEqual([]);
 });
 
-test('it broadcasts SessionReport on the events socket', async () => {
+test('it broadcasts SessionNote on the events socket', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -936,12 +936,12 @@ test('it broadcasts SessionReport on the events socket', async () => {
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'progress', text: 'halfway' },
   });
 
   const line = await waitFor(() => {
-    const found = subscriber.lines.find((l) => l.includes('"ev":"SessionReport"'));
+    const found = subscriber.lines.find((l) => l.includes('"ev":"SessionNote"'));
 
     expect(found).toBeString();
 
@@ -954,22 +954,22 @@ test('it broadcasts SessionReport on the events socket', async () => {
     kind: 'event',
     msg: {
       v: 4,
-      ev: 'SessionReport',
+      ev: 'SessionNote',
       s: id,
       kind: 'progress',
       text: 'halfway',
-      reportedAt: expect.any(Number),
+      sentAt: expect.any(Number),
     },
   });
 });
 
-test('it runs SessionReport hooks with the event on stdin', async () => {
+test('it runs SessionNote hooks with the event on stdin', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
       hooks: {
         SessionMessage: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
-        SessionReport: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
+        SessionNote: [{ command: `cat >> '${join(paths.dir, 'hooks.log')}'` }],
       },
     }),
   });
@@ -978,7 +978,7 @@ test('it runs SessionReport hooks with the event on stdin', async () => {
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'decision', text: 'pick one' },
   });
 
@@ -996,11 +996,11 @@ test('it runs SessionReport hooks with the event on stdin', async () => {
     kind: 'event',
     msg: {
       v: 4,
-      ev: 'SessionReport',
+      ev: 'SessionNote',
       s: id,
       kind: 'decision',
       text: 'pick one',
-      reportedAt: expect.any(Number),
+      sentAt: expect.any(Number),
     },
   });
 });
@@ -1037,7 +1037,7 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
   expect(subscriber.lines.join('\n')).not.toInclude('InboxMessage');
 });
 
-test('it delivers pending messages to a new tap before a message accepted at the same time', async () => {
+test('it delivers pending messages to a new tap before a message queued at the same time', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -1070,7 +1070,7 @@ test('it delivers pending messages to a new tap before a message accepted at the
   });
 });
 
-test('it orders concurrently accepted messages by their sent time', async () => {
+test('it orders concurrently queued messages by their sent time', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -1100,7 +1100,7 @@ test('it orders concurrently accepted messages by their sent time', async () => 
   );
 });
 
-test('it reads an accepted message back through message.get', async () => {
+test('it reads a queued message back through message.get', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -1115,16 +1115,16 @@ test('it reads an accepted message back through message.get', async () => {
     from: 'alice',
   });
 
-  const accepted = await daemon.client.sendRequest('message.get', {
+  const queued = await daemon.client.sendRequest('message.get', {
     message: sent['message'],
   });
 
-  expect(accepted).toStrictEqual({
+  expect(queued).toStrictEqual({
     message: sent['message'],
     session: id,
     from: 'alice',
     text: 'hello',
-    status: 'accepted',
+    status: 'queued',
     sentAt: expect.any(Number),
     turn: null,
     answeredWith: [],
@@ -1188,7 +1188,7 @@ test('it reads an answered message back through message.get', async () => {
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: sent['message'], answer: 'done' },
   });
 
@@ -1229,7 +1229,7 @@ test('it returns the full text and answer through message.get while the event ca
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: sent['message'], answer },
   });
 
@@ -1264,7 +1264,7 @@ test('it caps a stored answer at the byte limit without splitting a character', 
   // falls inside one.
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: sent['message'], answer: 'é'.repeat(40_000) },
   });
 
@@ -1301,7 +1301,7 @@ test('it gives two messages one turn answered the same turn and lists each besid
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: {
       kind: 'answered',
       messages: [first['message'], second['message']],
@@ -1372,7 +1372,7 @@ test("it wakes a held read of one turn's message with the whole group already an
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: {
       kind: 'answered',
       messages: [first['message'], second['message'], third['message']],
@@ -1412,12 +1412,12 @@ test('it lists no other messages for a message its own turn answered', async () 
   await daemon.sendHookLines(
     {
       atcId: id,
-      event: 'Report',
+      event: 'Note',
       payload: { kind: 'answered', message: first['message'], answer: 'first', turn: 't-1' },
     },
     {
       atcId: id,
-      event: 'Report',
+      event: 'Note',
       payload: { kind: 'answered', message: second['message'], answer: 'second', turn: 't-2' },
     },
   );
@@ -1462,12 +1462,12 @@ test('it stores no turn for an answer reported without one', async () => {
   await daemon.sendHookLines(
     {
       atcId: id,
-      event: 'Report',
+      event: 'Note',
       payload: { kind: 'answered', message: first['message'], answer: 'both' },
     },
     {
       atcId: id,
-      event: 'Report',
+      event: 'Note',
       payload: { kind: 'answered', message: second['message'], answer: 'both' },
     },
   );
@@ -1558,7 +1558,7 @@ test('it answers a held message.get with the unchanged status once the wait ends
     session: id,
     from: 'unknown',
     text: 'hello',
-    status: 'accepted',
+    status: 'queued',
     sentAt: expect.any(Number),
     turn: null,
     answeredWith: [],
@@ -1577,7 +1577,7 @@ test('it answers message.get for an answered message at once whatever the wait',
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: sent['message'], answer: 'done' },
   });
 
@@ -1737,7 +1737,7 @@ test('it records each message status change in events.read in order', async () =
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: sent['message'], answer: 'done' },
   });
 
@@ -1756,7 +1756,7 @@ test('it records each message status change in events.read in order', async () =
         at: expect.toBeNumber(),
         session: id,
         name: 'one',
-        kind: 'message-accepted',
+        kind: 'message-queued',
         detail: 'hello',
         message: sent['message'],
       },
@@ -1811,7 +1811,7 @@ test('it records a repeated ack in the trail once', async () => {
       at: expect.toBeNumber(),
       session: id,
       name: 'one',
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'hello',
       message: sent['message'],
     },
@@ -1827,7 +1827,7 @@ test('it records a repeated ack in the trail once', async () => {
   ]);
 });
 
-test('it wakes a waiting events.read when a message is accepted', async () => {
+test('it wakes a waiting events.read when a message is queued', async () => {
   const clock = buildStubClock(0);
 
   const daemon = await startTestDaemon({
@@ -1856,7 +1856,7 @@ test('it wakes a waiting events.read when a message is accepted', async () => {
       at: expect.toBeNumber(),
       session: id,
       name: 'one',
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'hello',
       message: sent['message'],
     },
@@ -1885,7 +1885,7 @@ test("it limits events.read to one session's events", async () => {
         at: expect.toBeNumber(),
         session: two,
         name: 'two',
-        kind: 'message-accepted',
+        kind: 'message-queued',
         detail: 'to two',
         message: expect.toBeString(),
       },
@@ -1927,7 +1927,7 @@ test("it wakes a held events.read only for the filtered session's event", async 
       at: expect.toBeNumber(),
       session: two,
       name: 'two',
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'to two',
       message: sent['message'],
     },
@@ -1960,7 +1960,7 @@ test('it marks an events.read page that stopped before the end of the trail', as
         at: expect.toBeNumber(),
         session: id,
         name: 'one',
-        kind: 'message-accepted',
+        kind: 'message-queued',
         detail: 'a',
         message: a['message'],
       },
@@ -1969,7 +1969,7 @@ test('it marks an events.read page that stopped before the end of the trail', as
         at: expect.toBeNumber(),
         session: id,
         name: 'one',
-        kind: 'message-accepted',
+        kind: 'message-queued',
         detail: 'b',
         message: b['message'],
       },
@@ -2011,7 +2011,7 @@ test('it marks the events.read page that reaches the end of the trail as the las
         at: expect.toBeNumber(),
         session: id,
         name: 'one',
-        kind: 'message-accepted',
+        kind: 'message-queued',
         detail: 'c',
         message: c['message'],
       },
@@ -2032,7 +2032,7 @@ test('it records a note in events.read with its label', async () => {
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'need review' },
   });
 
@@ -2051,7 +2051,7 @@ test('it records a note in events.read with its label', async () => {
         at: expect.toBeNumber(),
         session: id,
         name: 'one',
-        kind: 'report',
+        kind: 'note',
         detail: 'need review',
         label: 'blocked',
       },
@@ -2061,7 +2061,7 @@ test('it records a note in events.read with its label', async () => {
   });
 });
 
-test("it returns a report's whole text by the cursor of its event", async () => {
+test("it returns a note's whole text by the cursor of its event", async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -2072,7 +2072,7 @@ test("it returns a report's whole text by the cursor of its event", async () => 
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'decision', text: 'y'.repeat(700) },
   });
 
@@ -2084,12 +2084,12 @@ test("it returns a report's whole text by the cursor of its event", async () => 
     return answer['events'][0];
   });
 
-  const report = await daemon.client.sendRequest('report.get', { report: event['cursor'] });
+  const note = await daemon.client.sendRequest('note.get', { note: event['cursor'] });
 
   expect(event['detail']).toBe(`${'y'.repeat(599)}…`);
 
-  expect(report).toStrictEqual({
-    report: event['cursor'],
+  expect(note).toStrictEqual({
+    note: event['cursor'],
     at: event['at'],
     session: id,
     name: 'one',
@@ -2099,7 +2099,7 @@ test("it returns a report's whole text by the cursor of its event", async () => 
   });
 });
 
-test("it returns a report's text cut at 64 KiB", async () => {
+test("it returns a note's text cut at 64 KiB", async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -2110,7 +2110,7 @@ test("it returns a report's text cut at 64 KiB", async () => {
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'evidence', text: 'z'.repeat(70_000) },
   });
 
@@ -2122,13 +2122,13 @@ test("it returns a report's text cut at 64 KiB", async () => {
     return answer['events'][0];
   });
 
-  const report = await daemon.client.sendRequest('report.get', { report: event['cursor'] });
+  const note = await daemon.client.sendRequest('note.get', { note: event['cursor'] });
 
   expect(event['detail']).toBe(`${'z'.repeat(599)}…`);
-  expect(report['text']).toBe(`${'z'.repeat(65_533)}…`);
+  expect(note['text']).toBe(`${'z'.repeat(65_533)}…`);
 });
 
-test('it refuses a cursor at no trail row as an unknown report', async () => {
+test('it refuses a cursor at no trail row as an unknown note', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -2137,13 +2137,13 @@ test('it refuses a cursor at no trail row as an unknown report', async () => {
 
   const cursor = encodeCursor({ kind: 'events', id: 999_999 });
 
-  expect(daemon.client.sendRequest('report.get', { report: cursor })).rejects.toMatchObject({
+  expect(daemon.client.sendRequest('note.get', { note: cursor })).rejects.toMatchObject({
     code: 'bad_args',
-    message: `no report '${cursor}'`,
+    message: `no note '${cursor}'`,
   });
 });
 
-test('it refuses the cursor of an event that is not a report as an unknown report', async () => {
+test('it refuses the cursor of an event that is not a note as an unknown note', async () => {
   // The Claude adapter's own hook reading marks a session started.
   const claude = new ClaudeAdapter(buildMockAgentEntry({ id: 'claude' }), {
     authProfiles: new Map(),
@@ -2175,9 +2175,10 @@ test('it refuses the cursor of an event that is not a report as an unknown repor
     return answer['events'][0];
   });
 
-  expect(
-    daemon.client.sendRequest('report.get', { report: event['cursor'] }),
-  ).rejects.toMatchObject({ code: 'bad_args', message: `no report '${String(event['cursor'])}'` });
+  expect(daemon.client.sendRequest('note.get', { note: event['cursor'] })).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `no note '${String(event['cursor'])}'`,
+  });
 });
 
 test('it leaves a note from an unknown session out of the trail', async () => {
@@ -2191,13 +2192,13 @@ test('it leaves a note from an unknown session out of the trail', async () => {
 
   await daemon.sendHookLines({
     atcId: 'nope',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'bogus' },
   });
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'valid' },
   });
 
@@ -2216,7 +2217,7 @@ test('it leaves a note from an unknown session out of the trail', async () => {
         at: expect.toBeNumber(),
         session: id,
         name: 'one',
-        kind: 'report',
+        kind: 'note',
         detail: 'valid',
         label: 'blocked',
       },
@@ -2240,12 +2241,12 @@ test("it counts a note toward the session's last activity time", async () => {
 
   await daemon.sendHookLines({
     atcId: id,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'need review' },
   });
 
   await waitFor(() => {
-    expect(daemon.events).toPartiallyContain({ ev: 'SessionReport' });
+    expect(daemon.events).toPartiallyContain({ ev: 'SessionNote' });
   });
 
   const after = await daemon.client.sendRequest('session.get', { session: id });
@@ -2369,5 +2370,5 @@ test('it queues a message to a revived session before it reports SessionStart ag
 
   const ok = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'accepted' });
+  expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });

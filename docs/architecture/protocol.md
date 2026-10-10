@@ -80,9 +80,10 @@ says to restart the daemon. The client never restarts the daemon on its own; the
                                         "message.idempotency", "spawn.target",
                                         "request.principal", "spawn.workspace", "session.forget",
                                         "session.forget.preconditions",
-                                        "session.submit", "report.get", "sources",
+                                        "session.submit", "note.get", "sources",
                                         "git.probe", "transport.tcp", "idempotency.replayOnly",
-                                        "session.auth", "session.record"],
+                                        "session.auth", "session.record",
+                                        "vocabulary.note", "session.kill.stopOnly"],
                            "idempotency": { "completedRetentionMs": 86400000 },
                            "lastUsedAgent": "claude" } }
 ```
@@ -93,17 +94,18 @@ exists, `events.read` returns `more` and takes `session`, and `message.get` retu
 returns `spawnOptions`, `daemon.hello` returns `daemonID`, every session descriptor holds a
 `locator`, `session.spawn` and `session.message` each take `idempotencyKey`, `session.spawn` takes
 `target` while `agents.list` returns `targets`, a request takes `as` while `daemon.hello` takes
-`principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, and `report.get`
+`principal`, `session.spawn` takes `workspace`, `session.forget`, `session.submit`, and `note.get`
 exist, `session.forget` takes `refusePinned` and `refuseLive` (`session.forget.preconditions`),
 `sources.list` and `sources.interpret` exist while `agents.list` returns `sources`, `git.probe`
 exists while a git `workspace` takes both `ref` and `sha`, the daemon can serve a TCP listener
 (`transport.tcp`), a keyed `session.spawn` or `session.message` takes `replayOnly`
 (`idempotency.replayOnly`), `session.auth.revoke` and `session.auth.rebind` exist (`session.auth`),
 and `session.scope.add` exists while `session.spawn` takes `scope`, `daemon.hello` takes `session`,
-and `session.get` returns `sessionRecord` (`session.record`). A daemon from before the list existed
-sends none, and it ignores the parameters it does not know. A client that outlives a daemon upgrade,
-such as `atc mcp`, reads the list rather than the build string to learn what the running daemon
-honours.
+and `session.get` returns `sessionRecord` (`session.record`), and events, notes, and messages use
+the `note` and `queued` words (`vocabulary.note`), and `session.kill` takes `stopOnly`
+(`session.kill.stopOnly`). A daemon from before the list existed sends none, and it ignores the
+parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the
+list rather than the build string to learn what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -200,7 +202,7 @@ principal.
 | `session.get`           | one session's descriptor plus its spawn prompt, last activity, pending prompt, latest result, and record as `sessionRecord` (`{ session }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `session.read`          | a Claude session's transcript, a page at a time from a cursor (`{ session, cursor?, limit? }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `events.read`           | fleet events from the hook-event trail since a cursor (`{ cursor?, limit?, waitMs?, session? }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `report.get`            | one report with its whole text, by the cursor of its event (`{ report }`). [Cursor reads](#cursor-reads) covers it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `note.get`              | one note with its whole text, by the cursor of its event (`{ note }`). [Cursor reads](#cursor-reads) covers it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `session.message`       | queue a message for a session (`{ session, from, text, idempotencyKey?, replayOnly? }`); the ok holds the message id. [Messages](#messages) covers refusals, and [idempotent requests](#idempotent-requests) covers `idempotencyKey`                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `session.tap`           | subscribe to a session's inbox; messages arrive as `InboxMessage` events                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `message.ack`           | mark a tapped message delivered (`{ session, message }`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -289,7 +291,7 @@ refusal.
 
 `SessionAdded`, `SessionState`, `SessionAttached`, `SessionDetached`, `SessionRenamed`,
 `SessionRemoved`, `SessionResized`, `SessionOutput`, `SessionDesync`, `SessionMessage`,
-`InboxMessage`, `InboxClosed`, `SessionReport`, `PermissionRequested`, `PermissionResolved`.
+`InboxMessage`, `InboxClosed`, `SessionNote`, `PermissionRequested`, `PermissionResolved`.
 
 State/lifecycle events broadcast to every client (every overlay needs them). `SessionOutput` goes
 only to clients attached to that session — an unfocused session costs a client zero bytes. Output
@@ -361,18 +363,18 @@ it received and never builds one. `limit` defaults to 50 and clamps to 1–200.
 session id and name, kind, and a short detail. The trail holds three groups of kinds:
 
 - Hook events: `started`, `prompt-submitted`, `needs-input`, `turn-done`, and `ended`.
-- Message status changes: `message-accepted`, `message-delivered`, and `message-answered`. A
-  `message` field holds the message id, which `message.get` takes. The detail previews the answer
-  once there is one, else the text.
-- Reports: `report`. A `label` field holds the report's label, and the detail holds the first 600
-  characters of its text. `report.get` returns the whole text.
+- Message status changes: `message-queued`, `message-delivered`, and `message-answered`. A `message`
+  field holds the message id, which `message.get` takes. The detail previews the answer once there
+  is one, else the text.
+- Notes: `note`. A `label` field holds the note's label, and the detail holds the first 600
+  characters of its text. `note.get` returns the whole text.
 
 Without a cursor, `events.read` returns the most recent `limit` events. `waitMs` holds the request
 open until an event arrives or the wait ends, for at most 30 seconds. The answer holds `more`, which
 is true when events past the page's last one exist; a read without a cursor returns the newest
-events, so its `more` is always false. The daemon writes a message or report event to the trail
-before it broadcasts the matching `SessionMessage` or `SessionReport`, so a client that reads the
-trail on the broadcast finds the event there.
+events, so its `more` is always false. The daemon writes a message or note event to the trail before
+it broadcasts the matching `SessionMessage` or `SessionNote`, so a client that reads the trail on
+the broadcast finds the event there.
 
 `session` limits `events.read` to one session's events. The filter matches the trail rows under that
 atc id, plus, for a live session, the rows under its agent session id, so rows written under another
@@ -380,12 +382,12 @@ atc id for the same agent session stay in the session's slice. The daemon refuse
 live session holds matches only the rows under it. Cursors are global trail positions, so a filtered
 read and an unfiltered read take each other's cursors.
 
-`report.get` takes the cursor of a report's event as `report` and returns one report: `report` (that
-cursor), `at`, `session`, `name`, `label`, `text`, and `complete`. The text is the whole text the
-session sent, cut at 64 KiB. A report recorded before the daemon kept whole texts holds only its
-preview, so `report.get` returns that preview as its text, with `complete` false. A cursor of an
-event that is not a report, or of no event at all, gets `bad_args` with `no report '<cursor>'`, the
-same refusal a report out of a principal's reach gets.
+`note.get` takes the cursor of a note's event as `note` and returns one note: `note` (that cursor),
+`at`, `session`, `name`, `label`, `text`, and `complete`. The text is the whole text the session
+sent, cut at 64 KiB. A note recorded before the daemon kept whole texts holds only its preview, so
+`note.get` returns that preview as its text, with `complete` false. A cursor of an event that is not
+a note, or of no event at all, gets `bad_args` with `no note '<cursor>'`, the same refusal a note
+out of a principal's reach gets.
 
 `session.read` returns a Claude session's transcript as user and assistant rows with tool uses
 summarised, oldest first. A page holds at most `limit` rows and about 256 KiB. Without a cursor, it
@@ -577,7 +579,7 @@ exist:
 
 - `session.list`, `fleet.list`, and `events.read` leave it out, and the daemon reads `events.read`
   filtered to it as a filter on a session the trail never held.
-- `report.get` refuses each of its reports as it refuses a cursor of no report.
+- `note.get` refuses each of its notes as it refuses a cursor of no note.
 - The daemon refuses every request that takes its session id, or the id of one of its messages, as
   it refuses one for an unknown id, with the same code, message, and `data`.
 - `agents.list` lists only the targets the principal may use, and `spawnDefaults.target` is null
@@ -589,17 +591,17 @@ exist:
   session whose tree comes back within reach is pushed as `SessionAdded`.
 - A request checks the reach again after each of its waits, before it answers or acts. A session
   whose tree leaves reach during `fleet.list`, `events.read`, `message.get`, `message.ack`,
-  `report.get`, `session.get`, `session.screen`, `session.read`, `session.adopt`, or
-  `session.message` answers as a session the daemon never held, and its message or report as an
-  unknown one. A spawn whose `parent` leaves reach before its harness starts is refused as a spawn
-  under an unknown parent. A spawn whose new session leaves reach before the answer goes out fails
-  with `target_forbidden`, as the replay of its key would.
+  `note.get`, `session.get`, `session.screen`, `session.read`, `session.adopt`, or `session.message`
+  answers as a session the daemon never held, and its message or note as an unknown one. A spawn
+  whose `parent` leaves reach before its harness starts is refused as a spawn under an unknown
+  parent. A spawn whose new session leaves reach before the answer goes out fails with
+  `target_forbidden`, as the replay of its key would.
 - Events and messages belong to the session they were recorded under. A session within reach that
   resumes the same agent session as one out of reach never shows the other's events, messages, or
   activity time. A principal's inbox tap receives only the messages sent to that session's own id,
   and its `message.ack` answers a message sent to another session as an unknown message. A
   `message.get` lists in `answeredWith` only the messages sent to sessions within reach, and an
-  event or a report is checked against the session it was recorded under, never another session that
+  event or a note is checked against the session it was recorded under, never another session that
   resumes the same agent session.
 - `dirs.list` lists only the directories of spawns on targets the principal may use. A directory
   recorded before atc recorded each spawn's target counts as a spawn on a `local` target with no
@@ -877,6 +879,11 @@ request with `clone_failed`.
 
 ## Kill and sleep
 
+`session.kill` with `stopOnly: true` (`session.kill.stopOnly`) only ever stops: a live session stops
+as below and the answer is `{ stopped: true }`, while an exited session stays in the list as it is
+and the answer is `{ stopped: false }`. Without it, a kill of an exited session removes it, as
+below.
+
 `session.kill` on a live session ends its harness and the harnesses of its live sub-sessions, and
 the session lists as exited. A second kill of a dead session forgets it: the daemon drops the
 session and its dead sub-sessions from the list and the fleet. A dead sub-session whose own target
@@ -941,12 +948,13 @@ read and the forget can miss. It needs the `kill` scope and a daemon that announ
 A `session.spawn` or `session.message` that carries an `idempotencyKey` takes effect at most once
 for that key. Retry a spawn with the same key and the same params, and the daemon answers with the
 session the first spawn created instead of spawning another; a retried message gets the first
-message's id instead of a second message. The key holds 1 to 200 characters, and the daemon keys it
-per principal and method. A request that acts as a [principal](#principals) holds its keys apart
-from every other principal's, and the daemon's owner acts as the principal `local`. The owner's
-connection may act as any principal, keys included, which is how `atc mcp --http` holds each remote
-client's keys under its client ID. On a connection that acts as a principal, every request holds its
-keys under that principal, whatever principal it acts as.
+message's id instead of a second message. The key holds 1 to 200 characters at the daemon, and 1 to
+180 from an MCP caller, whose server refuses any other length before it reaches the daemon. The
+daemon keys it per principal and method. A request that acts as a [principal](#principals) holds its
+keys apart from every other principal's, and the daemon's owner acts as the principal `local`. The
+owner's connection may act as any principal, keys included, which is how `atc mcp --http` holds each
+remote client's keys under its client ID. On a connection that acts as a principal, every request
+holds its keys under that principal, whatever principal it acts as.
 
 The daemon records the key before it checks any param. A refused request drops the key again, so a
 retry runs fresh. A spawn that fails after its process starts kills that process and drops its
@@ -1028,24 +1036,23 @@ and `atc tap` exits on it.
 
 A message moves through three statuses:
 
-- `accepted`: the message is in the inbox.
+- `queued`: the message is in the inbox.
 - `delivered`: a tap printed the message and acked it.
-- `answered`: the session reported the end of the turn that carried the message. The report arrives
-  on the reporter socket from `atc report answered`, and that turn's final text becomes the answer.
+- `answered`: the session reported the end of the turn that carried the message. The answer arrives
+  on the reporter socket from `atc answer`, and that turn's final text becomes the answer.
 
 An answer is the final output of the turn that carried the message, never a reply written to that
 message alone. A message that arrives during a running turn joins that turn, so one turn can carry
 several messages, and each of them gets the same answer. When a turn ends, the `atc-bridge` mod
-sends one report holding every message the turn answered and the turn id. The daemon marks all of
+sends one answer holding every message the turn answered and the turn id. The daemon marks all of
 them answered in one statement and stores the turn id on each, so a client that reads any of them as
 `answered` finds the whole group answered too. `message.get` returns the turn id as `turn`, null
 when the reporter sent none, and returns the other messages the same turn answered as
-`answeredWith`, empty when there are none. A report from an older mod holds no turn id, so its
+`answeredWith`, empty when there are none. An answer from an older mod holds no turn id, so its
 message stores null.
 
-A session can report progress with no message attached: `atc report note` sends a labelled free-form
-report, and the daemon broadcasts it as `SessionReport` with the session id, label (`kind`), text,
-and time.
+A session can send progress with no message attached: `atc note` sends a labelled free-form note,
+and the daemon broadcasts it as `SessionNote` with the session id, label (`kind`), text, and time.
 
 Each status change broadcasts `SessionMessage` with the message id, status, sender, timestamps, and
 short previews of the text and answer. `message.get` returns the full text and answer.
@@ -1072,12 +1079,12 @@ request line is `{ v: 1, id, op, ... }` and gets one answer, `{ id, ok: true, ..
 `{ id, ok: false, code }`. The bridge writes `InboxMessage` and `InboxClosed` events to a tap as
 protocol event lines.
 
-| Op            | Does                                                                                                   |
-| ------------- | ------------------------------------------------------------------------------------------------------ |
-| `report`      | apply `{ reportID, payload }`, a note or an answer; a resent note under the same `reportID` lands once |
-| `tap.open`    | make this connection the session's tap                                                                 |
-| `tap.ack`     | mark `{ message }` delivered, and return its `status`                                                  |
-| `status.read` | the session's own `state` and `lastMsg`                                                                |
+| Op            | Does                                                                                               |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| `note`        | apply `{ noteID, payload }`, a note or an answer; a resent note under the same `noteID` lands once |
+| `tap.open`    | make this connection the session's tap                                                             |
+| `tap.ack`     | mark `{ message }` delivered, and return its `status`                                              |
+| `status.read` | the session's own `state` and `lastMsg`                                                            |
 
 Every op acts on the session the bridge serves, and no request line holds a session id. No op
 changes the session's record. The bridge answers an unknown op, a malformed line, or a hook line for

@@ -160,11 +160,11 @@ with `--listen`:
 
 - The client protocol socket ([protocol](./protocol.md)): long-lived connections, handshake,
   request/response/event envelope.
-- The reporter socket: a one-line NDJSON dialect spoken by `hook-report`, `statusline`, and
-  `report`, short-lived processes spawned inside wrangled sessions on every hook event, statusline
-  render, and message report. Forcing them through the framed protocol would mean a handshake per
-  invocation. Hook and statusline reports feed the session state machine, which then emits
-  `SessionState` / `PermissionRequested` protocol events to clients. Message reports update the
+- The reporter socket: a one-line NDJSON dialect spoken by `hook-report`, `statusline`, `note`, and
+  `answer`, short-lived processes spawned inside wrangled sessions on every hook event, statusline
+  render, note, and message answer. Forcing them through the framed protocol would mean a handshake
+  per invocation. Hook and statusline reports feed the session state machine, which then emits
+  `SessionState` / `PermissionRequested` protocol events to clients. Message answers update the
   [inbox](./protocol.md#messages), which emits `SessionMessage`.
 - The [events socket](./protocol.md#events-socket): a read-only broadcast stream for outside
   subscribers, with no handshake and no requests.
@@ -369,10 +369,10 @@ each launch, staged beside it in `claude-config-bundle/`.
 Each harness gets a socket inside the imp under `run/`, named for its session, which `ATC_SOCKET`
 points at, with `ATC_BRIDGE=1` beside it. impd forwards each connection there to the daemon, which
 serves it as the [session bridge](./protocol.md#session-bridge); the daemon never exposes its own
-sockets to the imp. Through the bridge, the session's hooks report, `atc report` sends notes and
-answers, `atc tap` takes the session's messages, and the statusline reads the session's state. An
-agent with a sign-in check runs it inside the imp before its harness starts, and a failed check
-refuses the spawn with `auth_not_configured`.
+sockets to the imp. Through the bridge, the session's hooks report, `atc note` and `atc answer` send
+notes and answers, `atc tap` takes the session's messages, and the statusline reads the session's
+state. An agent with a sign-in check runs it inside the imp before its harness starts, and a failed
+check refuses the spawn with `auth_not_configured`.
 
 Each harness start or attach binds its bridge to the session, the target and target identity, the
 host, and a new epoch. Every line on the bridge checks that binding against the live session first,
@@ -384,12 +384,12 @@ inside the same imp.
 
 The guest tap reconnects after every dropped connection, as a sleep or a daemon restart leaves it,
 with a wait that grows to 5 seconds and never ends. Each new connection replays the messages not yet
-acked; the tap prints each message once and acks a repeat again. `atc report` keeps each report in
-an outbox beside the socket until the bridge takes it or refuses it as `forbidden`, and the tap
-sends the outbox again on every connection. The tap removes only the outbox file behind a report it
-sent on that connection, whatever id an answer holds. A resent note lands once, under the id the
-reporter gave it, and a resent answer changes nothing. A harness restart leaves delivered messages
-delivered, as a local session does.
+acked; the tap prints each message once and acks a repeat again. `atc note` and `atc answer` keep
+each note or answer in an outbox beside the socket until the bridge takes it or refuses it as
+`forbidden`, and the tap sends the outbox again on every connection. The tap removes only the outbox
+file behind a note or answer it sent on that connection, whatever id an answer holds. A resent note
+lands once, under the id the reporter gave it, and a resent answer changes nothing. A harness
+restart leaves delivered messages delivered, as a local session does.
 
 A connection that ends without an exit reconnects without waking the imp, and the session lists as
 `reattaching` until it does. Where impd carries offsets, the daemon resumes after the last byte it

@@ -17,7 +17,7 @@ interface SpawnDescriptions {
  * naming the agents the daemon registered when the tool list was built. Only
  * a registered id appears, and a registered agent whose binary is missing is
  * marked not installed. null leaves every agent unnamed, for a tool list
- * built while the daemon could not answer. Both point at `atc_agents_list`
+ * built while the daemon could not answer. Both point at `atc_spawn_options_get`
  * for the current list.
  */
 export function buildSpawnDescriptions(
@@ -29,8 +29,8 @@ export function buildSpawnDescriptions(
       : ` When this tool list was built, the host registered: ${formatRoster(agents)}.`;
 
   return {
-    tool: `Spawn a new session in a directory. Optional agent is a registered agent id; omitted agent is the host's default agent (claude when it is registered, else the first registered agent), never the TUI last-used value.${roster} atc_agents_list returns the current agents, whether each is installed, and the model and effort each takes. An unregistered agent, a registered agent that is not installed, and a model or effort the agent does not take are refused before anything spawns. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true. Returns the new session descriptor. Give it a prompt to start it working immediately.`,
-    agent: `Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent.${roster} atc_agents_list returns the current list.`,
+    tool: `Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent.${roster} atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller (listed under it, stopped with it) unless detached is true. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.`,
+    agent: `Registered agent id to spawn; defaults to claude when it is registered, else the first registered agent.${roster} atc_spawn_options_get returns the current list.`,
   };
 }
 

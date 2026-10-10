@@ -41,7 +41,7 @@ function pickStatusTime(record: MessageRecord): number {
 
 function pickMessageKind(
   status: MessageStatus,
-): 'message-accepted' | 'message-delivered' | 'message-answered' {
+): 'message-queued' | 'message-delivered' | 'message-answered' {
   if (status === 'answered') {
     return 'message-answered';
   }
@@ -50,5 +50,5 @@ function pickMessageKind(
     return 'message-delivered';
   }
 
-  return 'message-accepted';
+  return 'message-queued';
 }

@@ -194,7 +194,7 @@ test('it reports SessionStart with its session id and transcript through the rep
   });
 });
 
-test('it files the note file as a decision report', async () => {
+test('it files the note file as a decision note', async () => {
   const ctx = setupTest();
 
   writeFileSync(join(ctx.dir, 'fake-claude-note'), 'pick the second option');
@@ -223,7 +223,7 @@ test('it files the note file as a decision report', async () => {
 
   expect(JSON.parse(line ?? '')).toStrictEqual({
     atcId: 's-1',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'decision', text: 'pick the second option' },
   });
 });

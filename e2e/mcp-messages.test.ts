@@ -18,12 +18,12 @@ test('it reports a message to a session with no tap as a failed tool call', asyn
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
   await waitFor(async () => {
-    const listed = await ctx.mcp.sendToolCall('atc_session_list', {});
+    const listed = await ctx.mcp.sendToolCall('atc_sessions_list', {});
 
     expect(listed.text).toInclude('"agentSessionID": "fake-1"');
   });
 
-  const result = await ctx.mcp.sendToolCall('atc_session_message', { session, text: 'hello' });
+  const result = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
 
   expect(result).toStrictEqual({
     isError: true,
@@ -38,14 +38,14 @@ test('it sends a message to a session that has not started', async () => {
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
-  const result = await ctx.mcp.sendToolCall('atc_session_message', { session, text: 'hello' });
+  const result = await ctx.mcp.sendToolCall('atc_message_send', { session, text: 'hello' });
 
   const message = result.structured?.['message'];
 
   expect(result).toStrictEqual({
     isError: undefined,
-    text: `{\n  "message": "${String(message)}",\n  "status": "accepted"\n}`,
-    structured: { message: expect.stringMatching(/^m-[\da-f-]{36}$/u), status: 'accepted' },
+    text: `{\n  "message": "${String(message)}",\n  "status": "queued"\n}`,
+    structured: { message: expect.stringMatching(/^m-[\da-f-]{36}$/u), status: 'queued' },
   });
 });
 
@@ -56,7 +56,7 @@ test('it reads a sent message back through a tool call', async () => {
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
-  const sent = await ctx.mcp.sendToolCall('atc_session_message', {
+  const sent = await ctx.mcp.sendToolCall('atc_message_send', {
     session,
     text: 'hello',
     from: 'tester',
@@ -73,7 +73,7 @@ test('it reads a sent message back through a tool call', async () => {
     session,
     from: 'tester',
     text: 'hello',
-    status: 'accepted',
+    status: 'queued',
     sentAt: expect.toBeNumber(),
     turn: null,
     answeredWith: [],
@@ -87,7 +87,7 @@ test('it holds a message read open while its wait runs', async () => {
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
-  const sent = await ctx.mcp.sendToolCall('atc_session_message', {
+  const sent = await ctx.mcp.sendToolCall('atc_message_send', {
     session,
     text: 'hello',
     from: 'tester',
@@ -114,7 +114,7 @@ test('it answers a message read with the unanswered message once its wait ends',
 
   const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
 
-  const sent = await ctx.mcp.sendToolCall('atc_session_message', {
+  const sent = await ctx.mcp.sendToolCall('atc_message_send', {
     session,
     text: 'hello',
     from: 'tester',
@@ -129,7 +129,7 @@ test('it answers a message read with the unanswered message once its wait ends',
     session,
     from: 'tester',
     text: 'hello',
-    status: 'accepted',
+    status: 'queued',
     sentAt: expect.toBeNumber(),
     turn: null,
     answeredWith: [],
