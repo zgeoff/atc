@@ -1965,8 +1965,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       mgr.requireExecution(s, 'input');
 
-      // Typed text would confirm the prompt's highlighted option.
-      if (s.state === 'needs_you' && s.permissionPending === true) {
+      // Typed text would confirm the prompt's highlighted option. Attaching
+      // or a screen judgment changes the state while the prompt stays open,
+      // so only the flag decides.
+      if (s.permissionPending === true) {
         return Promise.resolve('permission_pending');
       }
 

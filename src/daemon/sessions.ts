@@ -125,7 +125,7 @@ export interface Session {
   lastDetail?: string;
 
   // True while the session's agent reported a permission prompt that no
-  // later event has superseded; only meaningful in the needs_you state.
+  // later event has closed. Attaching or a screen judgment leaves it set.
   permissionPending?: boolean;
   agentSessionID?: AgentSessionID;
   agent: AgentID;
@@ -2803,10 +2803,13 @@ export class SessionManager {
       void this.refreshName(s, ev.nameSource);
     }
 
-    // Any later hook event supersedes a pending permission prompt. A
-    // heartbeat is no evidence the prompt closed, so it leaves the flag alone.
-    if (ev.kind !== 'heartbeat') {
-      s.permissionPending = ev.kind === 'needs-input' && ev.permissionPending === true;
+    // A permission prompt stays pending until an event shows it closed: a
+    // prompt, a finished turn, a start, an end, or an idle notice. A heartbeat
+    // or a notice that says nothing about the prompt leaves it pending.
+    if (ev.kind === 'needs-input') {
+      s.permissionPending = ev.permissionPending ?? s.permissionPending === true;
+    } else if (ev.kind !== 'heartbeat') {
+      s.permissionPending = false;
     }
 
     switch (ev.kind) {

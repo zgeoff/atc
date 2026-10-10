@@ -122,3 +122,50 @@ test('it keeps refusing a submitted line after a statusline report', async () =>
     ctx.daemon.client.sendRequest('session.submit', { session: ctx.sessionID, text: 'no' }),
   ).rejects.toMatchObject({ code: 'permission_pending' });
 });
+
+test('it keeps refusing a submitted line after a notification of another type', async () => {
+  const ctx = await setupTest();
+
+  await ctx.sendNotification('permission_prompt', 'Claude needs your permission to use Bash');
+  await ctx.sendNotification('agent_completed', 'A background agent finished');
+
+  expect(
+    ctx.daemon.client.sendRequest('session.submit', { session: ctx.sessionID, text: 'no' }),
+  ).rejects.toMatchObject({ code: 'permission_pending' });
+});
+
+test('it keeps refusing a submitted line after a client attaches', async () => {
+  const ctx = await setupTest();
+
+  await ctx.sendNotification('permission_prompt', 'Claude needs your permission to use Bash');
+
+  await ctx.daemon.client.sendRequest('session.attach', {
+    session: ctx.sessionID,
+    cols: 80,
+    rows: 24,
+  });
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(JSON.stringify(listed)).not.toInclude('needs_you');
+  });
+
+  expect(
+    ctx.daemon.client.sendRequest('session.submit', { session: ctx.sessionID, text: 'no' }),
+  ).rejects.toMatchObject({ code: 'permission_pending' });
+});
+
+test('it takes a submitted line again after an idle notice', async () => {
+  const ctx = await setupTest();
+
+  await ctx.sendNotification('permission_prompt', 'Claude needs your permission to use Bash');
+  await ctx.sendNotification('idle_prompt', 'Claude is waiting for your input');
+
+  const submitted = await ctx.daemon.client.sendRequest('session.submit', {
+    session: ctx.sessionID,
+    text: 'go',
+  });
+
+  expect(submitted).toStrictEqual({});
+});

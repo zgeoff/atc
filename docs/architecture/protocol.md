@@ -278,11 +278,12 @@ ok means the daemon wrote the line and its submit key to the PTY, not that the a
 A Claude session whose latest notification was a permission prompt refuses `session.submit` with
 `permission_pending`. A permission menu confirms its highlighted option on the carriage return that
 ends a submitted line, so a typed answer would approve the action. Only a person answers the prompt,
-with real keys in the atc TUI, and `session.input` stays open for that. The refusal clears on the
-session's next hook event, when the session attaches, or when the screen shows the prompt gone.
+with real keys in the atc TUI, and `session.input` stays open for that. The refusal holds until a
+hook event shows the prompt closed: a submitted prompt, a finished turn, a start, an end, or an idle
+notice. Attaching, a screen judgment, a heartbeat, and any other notification leave it in place.
 Claude sends the notification after the prompt has waited about six seconds, so a line submitted
-inside that window is not refused. An idle notice and every other notification type never block a
-line.
+inside that window is not refused. An idle notice and every other notification type never start a
+refusal.
 
 ## Events
 

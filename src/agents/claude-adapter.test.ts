@@ -113,7 +113,7 @@ test('it marks a permission prompt notification as pending a permission answer',
   });
 });
 
-test('it does not mark an idle notification as pending a permission answer', () => {
+test('it marks an idle notification as closing any permission prompt', () => {
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   const ev = adapter.normalizeHook({
@@ -129,6 +129,7 @@ test('it does not mark an idle notification as pending a permission answer', () 
   expect(ev).toStrictEqual({
     kind: 'needs-input',
     agentSessionID: toAgentSessionID('c-1'),
+    permissionPending: false,
     message: 'Claude is waiting for your input',
     detail: 'Claude is waiting for your input',
   });
@@ -1709,5 +1710,22 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
       command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'claude'`,
       padding: 0,
     },
+  });
+});
+
+test('it leaves the permission field out of a notification of another type', () => {
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Notification',
+    payload: { session_id: 'c-1', message: 'Agent finished', notification_type: 'agent_completed' },
+  });
+
+  expect(ev).toStrictEqual({
+    kind: 'needs-input',
+    agentSessionID: toAgentSessionID('c-1'),
+    message: 'Agent finished',
+    detail: 'Agent finished',
   });
 });

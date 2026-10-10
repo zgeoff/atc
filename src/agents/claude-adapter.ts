@@ -463,7 +463,7 @@ export class ClaudeAdapter implements AgentAdapter {
         return {
           ...base,
           kind: 'needs-input',
-          ...(payload.notification_type === 'permission_prompt' ? { permissionPending: true } : {}),
+          ...buildPermissionPending(payload.notification_type),
           ...(message !== undefined && message !== ''
             ? { message, detail: truncateDetail(message) }
             : {}),
@@ -622,6 +622,20 @@ const CLAUDE_MODEL_ALIASES = [
   'sonnet[1m]',
   'opusplan',
 ];
+
+// A permission prompt waits on a person; an idle notice shows that no prompt
+// is open. Any other notice says neither, so it leaves the field out.
+function buildPermissionPending(type: string | undefined): { permissionPending?: boolean } {
+  if (type === 'permission_prompt') {
+    return { permissionPending: true };
+  }
+
+  if (type === 'idle_prompt') {
+    return { permissionPending: false };
+  }
+
+  return {};
+}
 
 // What a Claude spawn can override. Each default is the value the configured
 // arguments pass, or null when the CLI picks its own.
