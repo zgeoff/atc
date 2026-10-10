@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.11.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.11.1...@zgeoff/atc@3.11.2) (2026-10-10)
+
+### Bug Fixes
+
+- **geo-289:** refuse typed input while a permission prompt waits
+  ([#492](https://github.com/zgeoff/atc/issues/492))
+  ([ef965c5](https://github.com/zgeoff/atc/commit/ef965c5755fbaff70ab010e0f62b20c9103a9318))
+
 ## [3.11.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.11.0...@zgeoff/atc@3.11.1) (2026-10-10)
 
 ### Bug Fixes
