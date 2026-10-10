@@ -5,14 +5,14 @@ import { toSessionID } from '../shared/to-session-id';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 
-test('it builds an accepted entry stamped with the sent time and a text preview', () => {
+test('it builds a queued entry stamped with the sent time and a text preview', () => {
   const entry = buildMessageTrailEntry(
     toSessionID('s1'),
     toAgentSessionID('c1'),
     buildMockMessageRecord({
       id: toMessageID('m-1'),
       text: 'hello',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 1000,
     }),
   );
@@ -21,7 +21,7 @@ test('it builds an accepted entry stamped with the sent time and a text preview'
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: toAgentSessionID('c1'),
-    kind: 'message-accepted',
+    kind: 'message-queued',
     message: toMessageID('m-1'),
     detail: 'hello',
   });
@@ -83,7 +83,7 @@ test('it falls back to the agent session id the message carries', () => {
       id: toMessageID('m-1'),
       agentSessionID: toAgentSessionID('c2'),
       text: 'hello',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 1000,
     }),
   );
@@ -92,7 +92,7 @@ test('it falls back to the agent session id the message carries', () => {
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: toAgentSessionID('c2'),
-    kind: 'message-accepted',
+    kind: 'message-queued',
     message: toMessageID('m-1'),
     detail: 'hello',
   });
@@ -106,7 +106,7 @@ test('it holds no agent session id when neither the session nor the message has 
       id: toMessageID('m-1'),
       agentSessionID: undefined,
       text: 'hello',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 1000,
     }),
   );
@@ -115,7 +115,7 @@ test('it holds no agent session id when neither the session nor the message has 
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'message-accepted',
+    kind: 'message-queued',
     message: toMessageID('m-1'),
     detail: 'hello',
   });
@@ -128,7 +128,7 @@ test('it caps the detail at the preview length', () => {
     buildMockMessageRecord({
       id: toMessageID('m-1'),
       text: 'x'.repeat(700),
-      status: 'accepted',
+      status: 'queued',
       sentAt: 1000,
     }),
   );
@@ -137,7 +137,7 @@ test('it caps the detail at the preview length', () => {
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'message-accepted',
+    kind: 'message-queued',
     message: toMessageID('m-1'),
     detail: `${'x'.repeat(599)}…`,
   });

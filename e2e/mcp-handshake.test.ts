@@ -1064,7 +1064,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-accepted, message-delivered, message-answered), and reports (report) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A report event carries its label and a preview of its text; read the full text with atc_report_get, passing the report handle of that event when it carries one, else its cursor, or pass reportText: true to get the full text of every report in this call. With reportText, each report event also carries text and complete (false when atc kept only the preview), or textError when its text could not be read within 10 seconds; the page holds at most 64 KiB of report text and stops early, with more true, when the next report would not fit or 10 seconds of report reads have passed. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.",
+            "description": "Catch up on the fleet: session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered), and notes (note) since a cursor, oldest first, each with the session id and name. A message event carries the message id; read the full message with atc_message_get. A note event carries its label and a preview of its text; read the full text with atc_report_get, passing the note handle of that event when it carries one, else its cursor, or pass reportText: true to get the full text of every note in this call. With reportText, each note event also carries text and complete (false when atc kept only the preview), or textError when its text could not be read within 10 seconds; the page holds at most 64 KiB of note text and stops early, with more true, when the next note would not fit or 10 seconds of note reads have passed. Without a cursor it returns the most recent events. Pass the returned cursor next time; more is true when the page stopped before the newest event, so read again at once. session limits the read to one session. waitMs holds the call open until an event arrives; pass it instead of polling in a tight loop.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1080,7 +1080,7 @@ test('it lists the fleet tools', async () => {
                   "type": "integer",
                 },
                 "reportText": {
-                  "description": "true adds each report's whole text to its event, so one call reads every report of the page; defaults to false",
+                  "description": "true adds each note's whole text to its event, so one call reads every note of the page; defaults to false",
                   "type": "boolean",
                 },
                 "session": {
@@ -1135,7 +1135,7 @@ test('it lists the fleet tools', async () => {
                           "null",
                         ],
                       },
-                      "report": {
+                      "note": {
                         "type": "string",
                       },
                       "session": {
@@ -1178,13 +1178,13 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read one report's full text without messaging the session that sent it. Pass the report handle of the report's event from atc_events_read, or the event's cursor when it carries none. Returns the report cursor, at, the session id and name, the label, the text (up to 64 KiB, as the session sent it), and complete, which is false for a report recorded before atc kept full texts: its text is then only the preview the event held. A cursor of an event that is not a report answers as an unknown report.",
+            "description": "Read one note's full text without messaging the session that sent it. Pass the note handle of the note's event from atc_events_read, or the event's cursor when it carries none. Returns the note cursor, at, the session id and name, the label, the text (up to 64 KiB, as the session sent it), and complete, which is false for a note recorded before atc kept full texts: its text is then only the preview the event held. A cursor of an event that is not a note answers as an unknown note.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
               "properties": {
                 "report": {
-                  "description": "The report handle of the report's event from atc_events_read, or the event's cursor when it carries no report handle",
+                  "description": "The note handle of the note's event from atc_events_read, or the event's cursor when it carries no note handle",
                   "type": "string",
                 },
               },
@@ -1211,7 +1211,7 @@ test('it lists the fleet tools', async () => {
                     "null",
                   ],
                 },
-                "report": {
+                "note": {
                   "type": "string",
                 },
                 "session": {
@@ -1222,7 +1222,7 @@ test('it lists the fleet tools', async () => {
                 },
               },
               "required": [
-                "report",
+                "note",
                 "at",
                 "session",
                 "name",
@@ -1239,7 +1239,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Send a session a message and get its id back. Follow up with atc_message_get, passing waitMs so each call waits for the next status change instead of polling in a tight loop, until its status is answered; don't read the session's screen or transcript to check on it. The answer is the final output of the session turn that carried the message, and one turn can carry several messages. The message waits in the session inbox until the session takes it, and its status moves accepted, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (capabilities.message is false in atc_agents_list), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
+            "description": "Send a session a message and get its id back. Follow up with atc_message_get, passing waitMs so each call waits for the next status change instead of polling in a tight loop, until its status is answered; don't read the session's screen or transcript to check on it. The answer is the final output of the session turn that carried the message, and one turn can carry several messages. The message waits in the session inbox until the session takes it, and its status moves queued, delivered, answered. A message is refused as unsupported when the session's agent has no message tap (capabilities.message is false in atc_agents_list), or when a Claude session reported SessionStart more than 15 seconds ago and no tap has attached since. It is refused as session_dead when the session has no live process and as no_such_session for an unknown id. Otherwise it queues, including while a session restores or after its tap dropped. The message is never typed into the terminal.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -1276,7 +1276,7 @@ test('it lists the fleet tools', async () => {
                 },
                 "status": {
                   "enum": [
-                    "accepted",
+                    "queued",
                     "delivered",
                     "answered",
                   ],
@@ -1296,7 +1296,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.",
+            "description": "Read one message sent with atc_session_message: its id, session, from, text, status (queued, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1349,7 +1349,7 @@ test('it lists the fleet tools', async () => {
                 },
                 "status": {
                   "enum": [
-                    "accepted",
+                    "queued",
                     "delivered",
                     "answered",
                   ],

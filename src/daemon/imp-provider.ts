@@ -691,7 +691,7 @@ export class ImpProvider implements ExecutionProvider {
       onRelay?.(toHarnessRelay(connection));
     });
 
-    // Reports the guest has not seen answered wait in the outbox beside
+    // Notes and answers the guest has not seen answered wait in the outbox beside
     // the socket, for the next connection to send again.
     return { path, outbox: `${base}.outbox`, forward };
   }

@@ -16,7 +16,7 @@ import type { checkRepositoryAccess } from '../workspace/check-repository-access
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
-import type { ReportView } from './build-report-view';
+import type { NoteView } from './build-note-view';
 import type { TargetEntry } from './build-target-list';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
@@ -336,15 +336,15 @@ export interface DaemonContext {
     access: TargetAccess | null,
   ) => Promise<EventsPage>;
 
-  // One report by the trail id of its event, with the atc id of the session
-  // that sent it, or null for a trail id that holds no report, or whose
-  // report's session is outside the access when there is one. The view may
-  // name the report by another session; who may read it is checked against
+  // One note by the trail id of its event, with the atc id of the session
+  // that sent it, or null for a trail id that holds no note, or whose
+  // note's session is outside the access when there is one. The view may
+  // name the note by another session; who may read it is checked against
   // the sender.
-  readonly readReport: (
+  readonly readNote: (
     id: number,
     access: TargetAccess | null,
-  ) => Promise<{ readonly owner: SessionID; readonly view: ReportView } | null>;
+  ) => Promise<{ readonly owner: SessionID; readonly view: NoteView } | null>;
 
   // Answers with the `session.message` ok payload, which a keyed retry
   // replays with the message's current status, or with the refusal. Under

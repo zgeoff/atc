@@ -123,7 +123,7 @@ test('it reports the answer for the message a turn carried', async (engine, on) 
   await ctx.clock.settle();
 
   expect(ctx.ran).toStrictEqual([
-    { argv: ['atc', 'report', 'answered', '--messages', 'm-1', '--turn', 't-1'], stdin: 'done' },
+    { argv: ['atc', 'answer', '--messages', 'm-1', '--turn', 't-1'], stdin: 'done' },
   ]);
 });
 
@@ -185,7 +185,7 @@ test('it sends a report through atc', async (engine, on) => {
   expect(answered.result).toBe('Sent to the user through atc.');
 
   expect(ctx.ran).toStrictEqual([
-    { argv: ['atc', 'report', 'note', '--label', 'blocked'], stdin: 'blocked on review' },
+    { argv: ['atc', 'note', '--label', 'blocked'], stdin: 'blocked on review' },
   ]);
 });
 
@@ -245,7 +245,7 @@ test('it reports every message a queued turn carried in one report', async (engi
 
   expect(ctx.ran).toStrictEqual([
     {
-      argv: ['atc', 'report', 'answered', '--messages', 'm-1,m-2', '--turn', 't-1'],
+      argv: ['atc', 'answer', '--messages', 'm-1,m-2', '--turn', 't-1'],
       stdin: 'both',
     },
   ]);

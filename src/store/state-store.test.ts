@@ -263,7 +263,7 @@ test('it records a Grok session id from the camelCase payload key', async () => 
   ]);
 });
 
-test('it reports recency for a Grok session id', async () => {
+test('it notes recency for a Grok session id', async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordEvent({
@@ -277,7 +277,7 @@ test('it reports recency for a Grok session id', async () => {
   expect(recency).toStrictEqual(new Map([[toAgentSessionID('g1'), expect.toBeDateString()]]));
 });
 
-test('it reports the latest event timestamp per agent session', async () => {
+test('it notes the latest event timestamp per agent session', async () => {
   const ctx = await setupTest();
 
   const db = new Database(ctx.dbPath);
@@ -875,6 +875,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '025_create_runtime_auth',
     '026_add_fleet_resume_interrupted_turns',
     '027_create_published_record',
+    '028_rename_reports_to_notes_and_accepted_to_queued',
   ]);
 });
 
@@ -924,7 +925,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 27 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 28 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -1409,7 +1410,7 @@ test('it serves the last activity lookup from an index on each id', async () => 
   expect(plan).toInclude('USING INDEX events_session_id_ts');
 });
 
-test('it lists an accepted message as pending for the session it was sent to', async () => {
+test('it lists a queued message as pending for the session it was sent to', async () => {
   const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
@@ -1469,7 +1470,7 @@ test('it finds pending messages by agent session id under a new atc id', async (
   expect(pending).toStrictEqual([record]);
 });
 
-test('it moves an accepted message to delivered', async () => {
+test('it moves a queued message to delivered', async () => {
   const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
@@ -1537,7 +1538,7 @@ test('it moves a delivered message to answered with the final text', async () =>
   ]);
 });
 
-test('it answers an accepted message that was never acked', async () => {
+test('it answers a queued message that was never acked', async () => {
   const ctx = await setupTest();
 
   const record = buildMockMessageRecord();
@@ -1735,7 +1736,7 @@ test('it records a message status change into the trail with its message id', as
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: toAgentSessionID('c1'),
-    kind: 'message-accepted',
+    kind: 'message-queued',
     message: toMessageID('m-1'),
     detail: 'hello',
   });
@@ -1748,21 +1749,21 @@ test('it records a message status change into the trail with its message id', as
       at: 1000,
       atcID: toSessionID('s1'),
       agentSessionID: toAgentSessionID('c1'),
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'hello',
       message: toMessageID('m-1'),
     },
   ]);
 });
 
-test('it records a report into the trail with its label', async () => {
+test('it records a note into the trail with its label', async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'blocked',
     detail: 'need review',
     text: 'need review',
@@ -1776,36 +1777,36 @@ test('it records a report into the trail with its label', async () => {
       at: 1000,
       atcID: toSessionID('s1'),
       agentSessionID: null,
-      kind: 'report',
+      kind: 'note',
       detail: 'need review',
       label: 'blocked',
     },
   ]);
 });
 
-test('it stores a report resent under the same report id once', async () => {
+test('it stores a note resent under the same note id once', async () => {
   const ctx = await setupTest();
 
   const first = await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'blocked',
     detail: 'need review',
     text: 'need review',
-    reportID: 'r-1',
+    noteID: 'r-1',
   });
 
   const resent = await ctx.store.recordTrailEntry({
     at: 2000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'blocked',
     detail: 'need review',
     text: 'need review',
-    reportID: 'r-1',
+    noteID: 'r-1',
   });
 
   const events = await ctx.store.collectLatestEvents(10);
@@ -1819,21 +1820,21 @@ test('it stores a report resent under the same report id once', async () => {
       at: 1000,
       atcID: toSessionID('s1'),
       agentSessionID: null,
-      kind: 'report',
+      kind: 'note',
       detail: 'need review',
       label: 'blocked',
     },
   ]);
 });
 
-test('it stores every report that carries no report id', async () => {
+test('it stores every note that carries no note id', async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'blocked',
     detail: 'need review',
     text: 'need review',
@@ -1843,7 +1844,7 @@ test('it stores every report that carries no report id', async () => {
     at: 2000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'blocked',
     detail: 'need review',
     text: 'need review',
@@ -1859,7 +1860,7 @@ test('it stores every report that carries no report id', async () => {
       at: 1000,
       atcID: toSessionID('s1'),
       agentSessionID: null,
-      kind: 'report',
+      kind: 'note',
       detail: 'need review',
       label: 'blocked',
     },
@@ -1868,21 +1869,21 @@ test('it stores every report that carries no report id', async () => {
       at: 2000,
       atcID: toSessionID('s1'),
       agentSessionID: null,
-      kind: 'report',
+      kind: 'note',
       detail: 'need review',
       label: 'blocked',
     },
   ]);
 });
 
-test("it finds a report's whole text by its trail id", async () => {
+test("it finds a note's whole text by its trail id", async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: toAgentSessionID('c1'),
-    kind: 'report',
+    kind: 'note',
     label: 'decision',
     detail: 'pick one…',
     text: 'pick one of three options',
@@ -1892,9 +1893,9 @@ test("it finds a report's whole text by its trail id", async () => {
 
   invariant(event !== undefined, 'no event');
 
-  const report = await ctx.store.findReport(event.id);
+  const note = await ctx.store.findNote(event.id);
 
-  expect(report).toStrictEqual({
+  expect(note).toStrictEqual({
     id: event.id,
     at: 1000,
     atcID: toSessionID('s1'),
@@ -1905,7 +1906,7 @@ test("it finds a report's whole text by its trail id", async () => {
   });
 });
 
-test('it misses a trail id whose row is not a report', async () => {
+test('it misses a trail id whose row is not a note', async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordEvent(
@@ -1917,19 +1918,19 @@ test('it misses a trail id whose row is not a report', async () => {
 
   invariant(event !== undefined, 'no event');
 
-  const report = await ctx.store.findReport(event.id);
+  const note = await ctx.store.findNote(event.id);
 
-  expect(report).toBeNull();
+  expect(note).toBeNull();
 });
 
-test('it finds a report of a session inside the scope', async () => {
+test('it finds a note of a session inside the scope', async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'decision',
     detail: 'shown',
     text: 'shown',
@@ -1939,12 +1940,12 @@ test('it finds a report of a session inside the scope', async () => {
 
   invariant(event);
 
-  const report = await ctx.store.findReport(event.id, {
+  const note = await ctx.store.findNote(event.id, {
     atcIDs: [toSessionID('s1')],
     agentSessionIDs: [],
   });
 
-  expect(report).toStrictEqual({
+  expect(note).toStrictEqual({
     id: event.id,
     at: 1000,
     atcID: toSessionID('s1'),
@@ -1955,14 +1956,14 @@ test('it finds a report of a session inside the scope', async () => {
   });
 });
 
-test('it misses a report of a session outside the scope', async () => {
+test('it misses a note of a session outside the scope', async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'decision',
     detail: 'hidden',
     text: 'hidden',
@@ -1972,22 +1973,22 @@ test('it misses a report of a session outside the scope', async () => {
 
   invariant(event !== undefined, 'no event');
 
-  const report = await ctx.store.findReport(event.id, {
+  const note = await ctx.store.findNote(event.id, {
     atcIDs: [toSessionID('s2')],
     agentSessionIDs: [],
   });
 
-  expect(report).toBeNull();
+  expect(note).toBeNull();
 });
 
-test('it finds the preview of a report recorded without its whole text', async () => {
+test('it finds the preview of a note recorded without its whole text', async () => {
   const ctx = await setupTest();
 
   await ctx.store.recordTrailEntry({
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'decision',
     detail: 'the preview',
     text: 'the preview and the rest',
@@ -2001,7 +2002,7 @@ test('it finds the preview of a report recorded without its whole text', async (
     db.close();
   });
 
-  db.run('UPDATE events SET report_text = NULL');
+  db.run('UPDATE events SET note_text = NULL');
   db.close();
 
   const store = await StateStore.open(ctx.dbPath);
@@ -2012,9 +2013,9 @@ test('it finds the preview of a report recorded without its whole text', async (
 
   invariant(event !== undefined, 'no event');
 
-  const report = await store.findReport(event.id);
+  const note = await store.findNote(event.id);
 
-  expect(report).toStrictEqual({
+  expect(note).toStrictEqual({
     id: event.id,
     at: 1000,
     atcID: toSessionID('s1'),
@@ -2037,7 +2038,7 @@ test('it reads the trail in order across hook events and message entries', async
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'message-accepted',
+    kind: 'message-queued',
     message: toMessageID('m-1'),
     detail: 'hello',
   });
@@ -2063,7 +2064,7 @@ test('it reads the trail in order across hook events and message entries', async
       at: 1000,
       atcID: toSessionID('s1'),
       agentSessionID: null,
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'hello',
       message: toMessageID('m-1'),
     },
@@ -2085,7 +2086,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
     at: 1000,
     atcID: toSessionID('s1'),
     agentSessionID: null,
-    kind: 'message-accepted',
+    kind: 'message-queued',
     message: toMessageID('m-1'),
     detail: 'hello',
   });
@@ -2094,7 +2095,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
     at: 2000,
     atcID: toSessionID('s2'),
     agentSessionID: null,
-    kind: 'report',
+    kind: 'note',
     label: 'blocked',
     detail: 'other session',
     text: 'other session',
@@ -2110,7 +2111,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
       at: 1000,
       atcID: toSessionID('s1'),
       agentSessionID: toAgentSessionID('c1'),
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'hello',
       message: toMessageID('m-1'),
     },
@@ -2119,7 +2120,7 @@ test('it stamps trail entries recorded before the agent session id was known', a
       at: 2000,
       atcID: toSessionID('s2'),
       agentSessionID: null,
-      kind: 'report',
+      kind: 'note',
       detail: 'other session',
       label: 'blocked',
     },
@@ -2133,7 +2134,7 @@ test("it counts a trail entry toward its session's last activity time", async ()
     at: 5000,
     atcID: toSessionID('s-old'),
     agentSessionID: toAgentSessionID('c1'),
-    kind: 'report',
+    kind: 'note',
     label: 'blocked',
     detail: 'need review',
     text: 'need review',
@@ -3343,7 +3344,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-3);
+    .slice(-4, -1);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();
@@ -3855,4 +3856,91 @@ test("it removes one session's published record and keeps another's", async () =
 
   expect(gone).toBeNull();
   expect(stored).toStrictEqual(kept);
+});
+
+test('it renames reports to notes and accepted to queued in a database from before the rename', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.stop();
+
+  const older = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  older.run('DROP INDEX events_note_id');
+  older.run('ALTER TABLE events RENAME COLUMN note_id TO report_id');
+  older.run('ALTER TABLE events RENAME COLUMN note_text TO report_text');
+  older.run('CREATE UNIQUE INDEX events_report_id ON events (report_id)');
+
+  older.run(
+    "INSERT INTO events (ts, atc_id, event, message, kind, report_id, report_text) VALUES ('t1', 's1', 'SessionReport', 'progress', 'report', 'r-1', 'whole text')",
+  );
+
+  older.run(
+    "INSERT INTO events (ts, atc_id, event, message, kind) VALUES ('t2', 's1', 'SessionMessage', 'm-1', 'message-accepted')",
+  );
+
+  older.run(
+    "INSERT INTO events (ts, atc_id, event, message, kind) VALUES ('t3', 's1', 'SessionMessage', 'm-2', 'message-delivered')",
+  );
+
+  older.run(
+    "INSERT INTO messages (id, atc_id, sender, text, status, sent_at) VALUES ('m-1', 's1', 'a', 'hi', 'accepted', 1), ('m-2', 's1', 'a', 'yo', 'delivered', 2)",
+  );
+
+  older.run(
+    'INSERT INTO idempotency (principal, operation, key, payload_hash, state, effect_ref, result, created_at, updated_at) VALUES ' +
+      "('p', 'session.message', 'k-1', 'h', 'completed', 'm-1', '{\"message\":\"m-1\",\"status\":\"accepted\"}', 1, 1), " +
+      "('p', 'session.spawn', 'k-2', 'h', 'completed', 's2', '{\"session\":\"s2\"}', 1, 1)",
+  );
+
+  older.run(
+    "DELETE FROM kysely_migration WHERE name = '028_rename_reports_to_notes_and_accepted_to_queued'",
+  );
+
+  older.close();
+
+  const upgraded = await StateStore.open(ctx.dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const reader = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    reader.close();
+  });
+
+  const events = reader
+    .query<Record<string, string | null>, []>(
+      'SELECT event, kind, note_id, note_text FROM events ORDER BY id',
+    )
+    .all();
+
+  const statuses = reader
+    .query<{ status: string }, []>('SELECT status FROM messages ORDER BY id')
+    .all()
+    .map((row) => row.status);
+
+  const results = reader
+    .query<{ result: string }, []>('SELECT result FROM idempotency ORDER BY key')
+    .all()
+    .map((row) => row.result);
+
+  const indexes = reader
+    .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE name LIKE 'events_%id'")
+    .all()
+    .map((row) => row.name);
+
+  expect(events).toStrictEqual([
+    { event: 'SessionNote', kind: 'note', note_id: 'r-1', note_text: 'whole text' },
+    { event: 'SessionMessage', kind: 'message-queued', note_id: null, note_text: null },
+    { event: 'SessionMessage', kind: 'message-delivered', note_id: null, note_text: null },
+  ]);
+
+  expect(statuses).toStrictEqual(['queued', 'delivered']);
+  expect(results).toStrictEqual(['{"message":"m-1","status":"queued"}', '{"session":"s2"}']);
+  expect(indexes).toContain('events_note_id');
+  expect(indexes).not.toContain('events_report_id');
 });

@@ -45,7 +45,11 @@ test('it sends a message from a fixed sender whatever sender the call gives', as
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'session.message', p: { session: 's1', text: 'hello', from: 'dots' }, required: [] },
+    {
+      m: 'session.message',
+      p: { session: 's1', text: 'hello', from: 'dots' },
+      required: ['vocabulary.note'],
+    },
   ]);
 });
 
@@ -60,7 +64,11 @@ test('it sends a message from the sender the call gives over a default sender', 
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'session.message', p: { session: 's1', text: 'hello', from: 'reviewer' }, required: [] },
+    {
+      m: 'session.message',
+      p: { session: 's1', text: 'hello', from: 'reviewer' },
+      required: ['vocabulary.note'],
+    },
   ]);
 });
 
@@ -75,7 +83,11 @@ test('it sends a message from a default sender when the call gives none', async 
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'session.message', p: { session: 's1', text: 'hello', from: 'mcp' }, required: [] },
+    {
+      m: 'session.message',
+      p: { session: 's1', text: 'hello', from: 'mcp' },
+      required: ['vocabulary.note'],
+    },
   ]);
 });
 
@@ -90,7 +102,11 @@ test('it forwards a message wait to the daemon', async () => {
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'message.get', p: { message: 'm1', waitMs: 20_000 }, required: ['message.wait'] },
+    {
+      m: 'message.get',
+      p: { message: 'm1', waitMs: 20_000 },
+      required: ['vocabulary.note', 'message.wait'],
+    },
   ]);
 });
 
@@ -105,7 +121,11 @@ test('it forwards an events session filter to the daemon', async () => {
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'events.read', p: { waitMs: 1000, session: 's1' }, required: ['events.session'] },
+    {
+      m: 'events.read',
+      p: { waitMs: 1000, session: 's1' },
+      required: ['vocabulary.note', 'events.session'],
+    },
   ]);
 });
 
@@ -118,7 +138,7 @@ test('it reads the text of each report of an events page when the call asks for 
           at: 1,
           session: 's1',
           name: null,
-          kind: 'report',
+          kind: 'note',
           detail: 'hi',
           label: 'l',
         },
@@ -126,7 +146,7 @@ test('it reads the text of each report of an events page when the call asks for 
       cursor: 'c1',
       more: false,
     },
-    'report.get': { text: 'hi there', complete: true },
+    'note.get': { text: 'hi there', complete: true },
   };
 
   const caller = buildStubFleetCaller({ answer: (request) => answers[request.m] ?? {} });
@@ -139,8 +159,8 @@ test('it reads the text of each report of an events page when the call asks for 
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'events.read', p: { cursor: 'c0' }, required: [] },
-    { m: 'report.get', p: { report: 'c1' }, required: ['report.get'] },
+    { m: 'events.read', p: { cursor: 'c0' }, required: ['vocabulary.note'] },
+    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
   ]);
 
   expect(read.structured).toStrictEqual({
@@ -150,7 +170,7 @@ test('it reads the text of each report of an events page when the call asks for 
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'hi',
         label: 'l',
         text: 'hi there',
@@ -176,7 +196,7 @@ test('it sends a message under the key the call gives and needs a daemon that ta
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello', from: 'mcp', idempotencyKey: 'k-1' },
-      required: ['message.idempotency'],
+      required: ['vocabulary.note', 'message.idempotency'],
     },
   ]);
 });
@@ -603,7 +623,7 @@ test('it reads a report through a daemon that serves report reads', async () => 
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'report.get', p: { report: 'r1' }, required: ['report.get'] },
+    { m: 'note.get', p: { note: 'r1' }, required: ['note.get', 'vocabulary.note'] },
   ]);
 });
 
@@ -611,7 +631,7 @@ test('it refuses a report read unsent when the daemon predates report reads', ()
   const tmp = setupTempDir('atc-run-tool-');
 
   const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: DAEMON_FEATURES.filter((feature) => feature !== 'report.get'),
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'note.get'),
   });
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
@@ -679,5 +699,32 @@ test('it refuses an explicit trust decision unsent when the daemon predates clon
   );
 
   expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's trustClonedWorkspace/);
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
+test.each([
+  ['atc_events_read', {}],
+  ['atc_session_message', { session: 's1', text: 'hello' }],
+  ['atc_message_get', { message: 'm1' }],
+  ['atc_report_get', { report: 'c1' }],
+])('it refuses %s unsent when the daemon predates the note and queued words', (name, args) => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['events.more', 'events.session', 'message.wait', 'message.idempotency', 'note.get'],
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const call = runTool(caller, name, args, {
+    callerSessionID: null,
+    sender: { kind: 'default', name: 'mcp' },
+  });
+
+  expect(call).rejects.toThrow(/^daemon_outdated: .*note and queued words/);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });

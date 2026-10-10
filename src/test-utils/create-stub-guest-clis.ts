@@ -43,8 +43,8 @@ while read -r line; do
     nested\\ *) printf '{"hook_event_name":"SessionStart","session_id":"%s","source":"startup"}' "\${line#nested }" | "${atc}" hook-report --agent codex ;;
     forge\\ *) echo '{"hook_event_name":"Notification","message":"forged"}' | ATC_SESSION_ID="\${line#forge }" "${atc}" hook-report --agent claude ;;
     tap\\ *) "${atc}" tap --session "$ATC_SESSION_ID" >> "\${line#tap }" 2>&1 & ;;
-    answer\\ *) rest="\${line#answer }"; printf '%s' "\${rest#* }" | "${atc}" report answered --messages "\${rest%% *}" ;;
-    note\\ *) printf '%s' "\${line#note }" | "${atc}" report note --label progress ;;
+    answer\\ *) rest="\${line#answer }"; printf '%s' "\${rest#* }" | "${atc}" answer --messages "\${rest%% *}" ;;
+    note\\ *) printf '%s' "\${line#note }" | "${atc}" note --label progress ;;
   esac
   echo "GOT:$line"
 done

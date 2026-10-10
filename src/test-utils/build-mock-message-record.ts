@@ -19,7 +19,7 @@ export function buildMockMessageRecord(overrides: MessageRecordOverrides = {}): 
     atcID: toSessionID(faker.string.uuid()),
     from: faker.person.firstName(),
     text: faker.lorem.sentence(),
-    status: 'accepted',
+    status: 'queued',
     sentAt: faker.date.past().getTime(),
     ...Object.fromEntries(Object.entries(overrides).filter(([, value]) => value !== undefined)),
   };

@@ -10,7 +10,7 @@ const CLI_PATH = join(import.meta.dir, '..', 'cli.ts');
  * `$HOME/fake-claude-hold-start` exists, it first reports `SessionStart`
  * through the real reporter with session id `fake-1` and transcript
  * `$HOME/fake-transcript.jsonl`, and when `$HOME/fake-claude-note` exists it
- * files that file's text as a report labelled `decision`.
+ * files that file's text as a note labelled `decision`.
  */
 export function buildStubMCPClaude(): string {
   const cli = `"${process.execPath}" "${CLI_PATH}"`;
@@ -20,7 +20,7 @@ echo $$ >> "$HOME/stub-pids"
 echo "FAKE_CLAUDE_UP args: $@"
 if [ -f "$HOME/fake-claude-hold-start" ]; then exec cat; fi
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${cli} hook-report
-if [ -f "$HOME/fake-claude-note" ]; then ${cli} report note --label decision < "$HOME/fake-claude-note"; fi
+if [ -f "$HOME/fake-claude-note" ]; then ${cli} note --label decision < "$HOME/fake-claude-note"; fi
 exec cat
 `;
 }

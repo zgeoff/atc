@@ -3,7 +3,7 @@ import type { BridgeContext } from '../daemon/start-session-bridge';
 /**
  * The daemon's side of a session bridge, for tests that drive one bridge
  * without a daemon behind it: no live session, hook events that go nowhere,
- * every report recorded, every tap attached, every ack for an unknown
+ * every note recorded, every tap attached, every ack for an unknown
  * message, and detaches that do nothing. An override replaces the member it
  * names.
  */
@@ -11,7 +11,7 @@ export function buildStubBridgeContext(overrides: Partial<BridgeContext> = {}): 
   return {
     findSession: () => {},
     applyHookEvent: () => {},
-    applyReport: () => Promise.resolve(true),
+    applyNote: () => Promise.resolve(true),
     attachTap: () => 'ok',
     ackMessage: () => Promise.resolve('unknown'),
     detachTap: () => {},

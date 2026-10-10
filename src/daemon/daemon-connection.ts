@@ -917,8 +917,8 @@ export class DaemonConnection {
 
         return;
       }
-      case 'report.get': {
-        await this.applyReportGet(req, ctx);
+      case 'note.get': {
+        await this.applyNoteGet(req, ctx);
 
         return;
       }
@@ -1503,10 +1503,10 @@ export class DaemonConnection {
   }
 
   // A cursor that is not an events cursor, one at a row that holds no
-  // report, and one at a report outside the access all get one refusal, so
-  // the refusal is the same for a report out of reach and a missing one.
-  private async applyReportGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
-    const parsed = parseRequestParams('report.get', req.p);
+  // note, and one at a note outside the access all get one refusal, so
+  // the refusal is the same for a note out of reach and a missing one.
+  private async applyNoteGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('note.get', req.p);
 
     if (!parsed.ok) {
       this.sendErr(req.id, 'bad_args', parsed.message);
@@ -1514,15 +1514,15 @@ export class DaemonConnection {
       return;
     }
 
-    const decoded = decodeCursor(parsed.data.report);
+    const decoded = decodeCursor(parsed.data.note);
 
     const read =
-      decoded === null || decoded.kind !== 'events' ? null : await ctx.readReport(decoded.id, null);
+      decoded === null || decoded.kind !== 'events' ? null : await ctx.readNote(decoded.id, null);
 
-    // Reach is checked against the session that sent the report, never the
+    // Reach is checked against the session that sent the note, never the
     // session its view is named by.
     if (read === null || !ctx.isSessionVisible(read.owner)) {
-      this.sendErr(req.id, 'bad_args', `no report '${parsed.data.report}'`);
+      this.sendErr(req.id, 'bad_args', `no note '${parsed.data.note}'`);
 
       return;
     }

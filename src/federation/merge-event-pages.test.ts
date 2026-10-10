@@ -761,7 +761,7 @@ test('it lists a daemon whose latest page after a gap left older events unread a
   expect(merged.truncated).toStrictEqual(['pc']);
 });
 
-test("it gives a report event its daemon's own cursor as a qualified report handle beside the merged cursor", () => {
+test("it gives a note event its daemon's own cursor as a qualified note handle beside the merged cursor", () => {
   const merged = mergeEventPages(
     [
       {
@@ -774,7 +774,7 @@ test("it gives a report event its daemon's own cursor as a qualified report hand
               cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
               at: 1,
               session: 's1',
-              kind: 'report',
+              kind: 'note',
               label: 'decision',
               detail: 'done',
             },
@@ -794,10 +794,10 @@ test("it gives a report event its daemon's own cursor as a qualified report hand
         'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam8zZlEifX0',
       at: 1,
       session: 'pc.9a1b2c3d.s1',
-      kind: 'report',
+      kind: 'note',
       label: 'decision',
       detail: 'done',
-      report: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ',
+      note: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ',
     },
   ]);
 });

@@ -246,7 +246,7 @@ test('it delivers a message sent after a sleep and a wake to the tap that ran be
   });
 });
 
-test('it delivers a message and a report held back while the bridge was unreachable once each after it reconnects', async () => {
+test('it delivers a message and a note held back while the bridge was unreachable once each after it reconnects', async () => {
   const ctx = await setupTest();
 
   const tapLog = join(ctx.dir, 'tap.log');
@@ -304,12 +304,12 @@ test('it delivers a message and a report held back while the bridge was unreacha
 
     expect(printed).toMatchObject([{ id: first['message'] }, { id: held['message'] }]);
 
-    expect(ctx.daemon.events.filter((event) => event.ev === 'SessionReport')).toMatchObject([
+    expect(ctx.daemon.events.filter((event) => event.ev === 'SessionNote')).toMatchObject([
       { text: 'while away' },
     ]);
   });
 
-  expect(heldBefore['status']).toBe('accepted');
+  expect(heldBefore['status']).toBe('queued');
 });
 
 test('it prints a message whose ack was lost once, and acks it again when the tap reconnects', async () => {
@@ -366,5 +366,5 @@ test('it prints a message whose ack was lost once, and acks it again when the ta
     expect(printed).toMatchObject([{ id: ready['message'] }, { id: lost['message'] }]);
   });
 
-  expect(unacked['status']).toBe('accepted');
+  expect(unacked['status']).toBe('queued');
 });

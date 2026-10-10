@@ -391,31 +391,52 @@ const main = defineCommand({
           await tap.runTap(ctx.args.session);
         },
       }),
-    report: () =>
+    note: () =>
       defineCommand({
         meta: {
-          name: 'report',
-          description:
-            'Report a message answer or a note from a wrangled session to the atc socket',
+          name: 'note',
+          description: 'Send a note from a wrangled session to the atc socket',
           hidden: true,
         },
 
         // No arg is required: a citty usage error exits nonzero, and
         // reporters must always exit 0.
         args: {
-          kind: { type: 'positional', required: false, default: '' },
-          message: { type: 'string', default: '' },
           label: { type: 'string', default: '' },
+        },
+        async run(ctx) {
+          const note = await import('./note');
+
+          await note.runNote('note', {
+            message: '',
+            messages: '',
+            label: ctx.args.label,
+            turn: '',
+          });
+        },
+      }),
+    answer: () =>
+      defineCommand({
+        meta: {
+          name: 'answer',
+          description: 'Record the answer of a turn for the messages it answered',
+          hidden: true,
+        },
+
+        // No arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          message: { type: 'string', default: '' },
           messages: { type: 'string', default: '' },
           turn: { type: 'string', default: '' },
         },
         async run(ctx) {
-          const reporter = await import('./report');
+          const note = await import('./note');
 
-          await reporter.runReport(ctx.args.kind, {
+          await note.runNote('answered', {
             message: ctx.args.message,
             messages: ctx.args.messages,
-            label: ctx.args.label,
+            label: '',
             turn: ctx.args.turn,
           });
         },

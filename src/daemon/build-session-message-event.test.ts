@@ -4,14 +4,14 @@ import { toSessionID } from '../shared/to-session-id';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { buildSessionMessageEvent } from './build-session-message-event';
 
-test('it builds an accepted event without delivery or answer fields', () => {
+test('it builds a queued event without delivery or answer fields', () => {
   const event = buildSessionMessageEvent(
     toSessionID('s1'),
     buildMockMessageRecord({
       id: toMessageID('m-1'),
       from: 'alice',
       text: 'hello',
-      status: 'accepted',
+      status: 'queued',
       sentAt: 1000,
     }),
   );
@@ -21,7 +21,7 @@ test('it builds an accepted event without delivery or answer fields', () => {
     ev: 'SessionMessage',
     s: 's1',
     message: 'm-1',
-    status: 'accepted',
+    status: 'queued',
     from: 'alice',
     textPreview: 'hello',
     sentAt: 1000,

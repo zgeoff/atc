@@ -35,7 +35,7 @@ function setupTest() {
   };
 }
 
-test('it carries a message from accepted through delivered to answered', async () => {
+test('it carries a message from queued through delivered to answered', async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -89,7 +89,7 @@ test('it carries a message from accepted through delivered to answered', async (
 
   const reporter = await runATC({
     command: ctx.atc,
-    args: ['report', 'answered', '--message', messageID],
+    args: ['answer', '--message', messageID],
     home: ctx.home,
     env: { ATC_SOCKET: daemon.reporterSocketPath, ATC_SESSION_ID: id },
     stdin: 'final text',
@@ -105,7 +105,7 @@ test('it carries a message from accepted through delivered to answered', async (
   expect(getString(screen, 'text')).not.toInclude('ping from test');
 });
 
-test('it delivers a message accepted before a daemon crash to the restored session', async () => {
+test('it delivers a message queued before a daemon crash to the restored session', async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -173,7 +173,7 @@ test('it delivers a message accepted before a daemon crash to the restored sessi
   const delivered = await waitForEvent(events, { ev: 'SessionMessage', status: 'delivered' });
   const listed = await revived.sendRequest('session.list');
 
-  expect(before).toMatchObject({ status: 'accepted' });
+  expect(before).toMatchObject({ status: 'queued' });
   expect(restored).toStrictEqual({ restored: 1 });
   expect(tapped).toInclude('survive the crash');
   expect(listed).toMatchObject({ sessions: [{ id: originalID }] });
@@ -248,7 +248,7 @@ test('it names a message event from before a daemon crash by the restored sessio
     return ours;
   });
 
-  expect(before).toMatchObject({ status: 'accepted' });
+  expect(before).toMatchObject({ status: 'queued' });
 
   expect(read).toStrictEqual([
     {
@@ -256,7 +256,7 @@ test('it names a message event from before a daemon crash by the restored sessio
       at: expect.toBeNumber(),
       session: originalID,
       name: expect.toBeString(),
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'survive the crash',
       message: messageID,
     },
@@ -358,7 +358,7 @@ test('it names a message event sent before SessionStart by the restored session'
       at: expect.toBeNumber(),
       session: originalID,
       name: restored['name'],
-      kind: 'message-accepted',
+      kind: 'message-queued',
       detail: 'sent before start',
       message: messageID,
     },

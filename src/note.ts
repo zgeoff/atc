@@ -2,28 +2,28 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sendBridgeRequest } from './protocol/send-bridge-request';
+import { NOTE_KINDS } from './shared/note-kinds';
 import { sendReport } from './shared/report';
-import { REPORT_KINDS } from './shared/report-kinds';
 
-interface ReportOptions {
+interface NoteOptions {
   readonly message: string;
 
-  // Comma-separated ids of every message one turn answered, reported together.
+  // Comma-separated ids of every message one turn answered, recorded together.
   readonly messages: string;
   readonly label: string;
 
-  // The turn whose final reply an `answered` report carries; empty when unknown.
+  // The turn whose final reply an `answered` envelope carries; empty when unknown.
   readonly turn: string;
 }
 
 // Where the reporter reads its text and how it exits: stdin and the process
 // by default.
-interface ReportIO {
+interface NoteIO {
   readonly readStdin: () => Promise<string>;
   readonly exit: (code: number) => void;
 }
 
-const PROCESS_IO: ReportIO = {
+const PROCESS_IO: NoteIO = {
   readStdin: () => new Response(Bun.stdin.stream()).text(),
   exit: (code) => {
     process.exit(code);
@@ -32,18 +32,17 @@ const PROCESS_IO: ReportIO = {
 
 /**
  * Runs inside wrangled sessions: reads stdin verbatim and forwards it to the
- * atc socket as a Report envelope of the given kind. An `answered` report
+ * atc socket as a Note envelope of the given kind. An `answered` envelope
  * carries stdin as the final reply of the turn that carried the given
  * message, or every given message at once, plus that turn's id when one is
- * given; a `note` carries
- * it as text for the user under the given label, `progress` when none is
- * given. Inside a remote host it goes to the session bridge instead. Always
+ * given; a `note` carries it as text for the user under the given label,
+ * `progress` when none is given. Inside a remote host it goes to the session bridge instead. Always
  * exits 0 so it never blocks the session it reports on.
  */
-export async function runReport(
+export async function runNote(
   kind: string,
-  options: ReportOptions,
-  io: ReportIO = PROCESS_IO,
+  options: NoteOptions,
+  io: NoteIO = PROCESS_IO,
 ): Promise<void> {
   try {
     const sock = process.env['ATC_SOCKET'];
@@ -54,16 +53,16 @@ export async function runReport(
       sock !== '' &&
       atcId !== undefined &&
       atcId !== '' &&
-      REPORT_KINDS.some((known) => known === kind)
+      NOTE_KINDS.some((known) => known === kind)
     ) {
       const stdin = await io.readStdin();
 
-      const payload = buildReportPayload(kind, options, stdin);
+      const payload = buildNotePayload(kind, options, stdin);
 
       if (payload !== null && process.env['ATC_BRIDGE'] === '1') {
-        await sendBridgeReport(sock, process.env['ATC_OUTBOX'] ?? '', payload);
+        await sendBridgeNote(sock, process.env['ATC_OUTBOX'] ?? '', payload);
       } else if (payload !== null) {
-        const line = `${JSON.stringify({ atcId, event: 'Report', payload })}\n`;
+        const line = `${JSON.stringify({ atcId, event: 'Note', payload })}\n`;
 
         await sendReport(sock, line, 2000);
       }
@@ -73,26 +72,26 @@ export async function runReport(
   io.exit(0);
 }
 
-// Inside a remote host, a report goes to the session bridge under an id of
+// Inside a remote host, a note goes to the session bridge under an id of
 // its own, and waits in the outbox until the bridge takes or refuses it, so
 // the session's tap sends it again after a dropped connection. A resent
-// report lands once, and a refused one is never resent.
-async function sendBridgeReport(
+// note lands once, and a refused one is never resent.
+async function sendBridgeNote(
   sock: string,
   outbox: string,
   payload: Readonly<Record<string, string | readonly string[]>>,
 ): Promise<void> {
-  const reportID = randomUUID();
-  const file = outbox === '' ? null : join(outbox, `${reportID}.json`);
+  const noteID = randomUUID();
+  const file = outbox === '' ? null : join(outbox, `${noteID}.json`);
 
   if (file !== null) {
     try {
       mkdirSync(outbox, { recursive: true });
-      writeFileSync(file, JSON.stringify({ reportID, payload }));
+      writeFileSync(file, JSON.stringify({ noteID, payload }));
     } catch {}
   }
 
-  const answer = await sendBridgeRequest(sock, 'report', { reportID, payload }, 2000);
+  const answer = await sendBridgeRequest(sock, 'note', { noteID, payload }, 2000);
 
   const isFinal = answer?.['ok'] === true || answer?.['code'] === 'forbidden';
 
@@ -101,9 +100,9 @@ async function sendBridgeReport(
   }
 }
 
-function buildReportPayload(
+function buildNotePayload(
   kind: string,
-  options: ReportOptions,
+  options: NoteOptions,
   stdin: string,
 ): Record<string, string | readonly string[]> | null {
   if (kind === 'answered') {

@@ -12,8 +12,8 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   sentAt: z.number(),
 });
 
-const OUTBOX_REPORT_SCHEMA = z.object({
-  reportID: z.string().min(1),
+const OUTBOX_NOTE_SCHEMA = z.object({
+  noteID: z.string().min(1),
   payload: z.record(z.string(), z.unknown()),
 });
 
@@ -54,7 +54,7 @@ const PROCESS_IO: BridgeTapIO = {
  * connection, as a host's sleep or a daemon restart leaves it, reconnects
  * with a growing wait of at most 5 seconds and no end; each new connection
  * replays the messages not yet acked, and one already printed is acked
- * again and not printed twice. Each connection also sends the reports the
+ * again and not printed twice. Each connection also sends the notes the
  * outbox still holds. Exits 0 once the inbox closes and 1 when the bridge
  * refuses the tap.
  */
@@ -106,7 +106,7 @@ async function runTapConnection(
   let printing: Promise<void> = Promise.resolve();
   let socket: BridgeSocket;
 
-  // The outbox file behind each report this connection sent, by request id.
+  // The outbox file behind each note this connection sent, by request id.
   let sent = new Map<string, string>();
 
   const onLine = (line: Readonly<Record<string, unknown>>) => {
@@ -124,15 +124,15 @@ async function runTapConnection(
       }
 
       opened = true;
-      sent = sendOutboxReports(socket, outbox);
+      sent = sendOutboxNotes(socket, outbox);
 
       return;
     }
 
-    // A report the bridge took, or one it refuses outright, leaves the
+    // A note the bridge took, or one it refuses outright, leaves the
     // outbox: no resend would change the answer. Only the file this
     // connection sent under the answered id is removed.
-    if (typeof line['id'] === 'string' && line['id'].startsWith('report:')) {
+    if (typeof line['id'] === 'string' && line['id'].startsWith('note:')) {
       const path = sent.get(line['id']);
 
       if (path !== undefined && (line['ok'] === true || line['code'] === 'forbidden')) {
@@ -210,11 +210,11 @@ async function runTapConnection(
   return end;
 }
 
-// Sends every report the outbox holds, and returns the file behind each
-// request id it sent; a file that is no report is removed, since no answer
+// Sends every note the outbox holds, and returns the file behind each
+// request id it sent; a file that is no note is removed, since no answer
 // would ever clear it.
 // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket is a live handle
-function sendOutboxReports(socket: BridgeSocket, outbox: string): Map<string, string> {
+function sendOutboxNotes(socket: BridgeSocket, outbox: string): Map<string, string> {
   const sent = new Map<string, string>();
 
   let files: string[];
@@ -227,29 +227,29 @@ function sendOutboxReports(socket: BridgeSocket, outbox: string): Map<string, st
 
   for (const file of files) {
     const path = join(outbox, file);
-    let report: z.infer<typeof OUTBOX_REPORT_SCHEMA> | null = null;
+    let note: z.infer<typeof OUTBOX_NOTE_SCHEMA> | null = null;
 
     try {
-      const parsed = OUTBOX_REPORT_SCHEMA.safeParse(JSON.parse(readFileSync(path, 'utf8')));
+      const parsed = OUTBOX_NOTE_SCHEMA.safeParse(JSON.parse(readFileSync(path, 'utf8')));
 
-      report = parsed.success ? parsed.data : null;
+      note = parsed.success ? parsed.data : null;
     } catch {}
 
-    if (report === null) {
+    if (note === null) {
       rmSync(path, { force: true });
       continue;
     }
 
-    const id = `report:${report.reportID}`;
+    const id = `note:${note.noteID}`;
 
     sent.set(id, path);
 
     socket.writeLine({
       v: 1,
       id,
-      op: 'report',
-      reportID: report.reportID,
-      payload: report.payload,
+      op: 'note',
+      noteID: note.noteID,
+      payload: note.payload,
     });
   }
 

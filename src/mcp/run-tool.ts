@@ -4,7 +4,7 @@ import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { isRecord } from '../shared/report';
 import { parseIdempotencyKey } from './parse-idempotency-key';
-import { readReportTexts } from './read-report-texts';
+import { readNoteTexts } from './read-note-texts';
 import type { FleetCaller, ToolContext } from './types';
 
 /**
@@ -230,7 +230,10 @@ export function runTool(
     })
     .with('atc_events_read', async () => {
       const filtered = typeof args['session'] === 'string' && args['session'] !== '';
-      const required: DaemonFeature[] = filtered ? ['events.session'] : [];
+
+      const required: DaemonFeature[] = filtered
+        ? ['vocabulary.note', 'events.session']
+        : ['vocabulary.note'];
 
       const ok = await caller.sendRequest(
         'events.read',
@@ -243,10 +246,10 @@ export function runTool(
         required,
       );
 
-      // Each report's whole text rides the same call, so a reader catches
-      // up without one report read per report.
+      // Each note's whole text rides the same call, so a reader catches
+      // up without one note read per note.
       if (args['reportText'] === true) {
-        const withTexts = await readReportTexts(caller, ok);
+        const withTexts = await readNoteTexts(caller, ok);
 
         return buildObjectResult(withTexts);
       }
@@ -254,7 +257,10 @@ export function runTool(
       return buildObjectResult(ok);
     })
     .with('atc_report_get', async () => {
-      const ok = await caller.sendRequest('report.get', { report: args['report'] }, ['report.get']);
+      const ok = await caller.sendRequest('note.get', { note: args['report'] }, [
+        'note.get',
+        'vocabulary.note',
+      ]);
 
       return buildObjectResult(ok);
     })
@@ -267,7 +273,9 @@ export function runTool(
           : ctx.sender.name;
 
       const key = parseIdempotencyKey(args['idempotencyKey']);
-      const required: DaemonFeature[] = key === undefined ? [] : ['message.idempotency'];
+
+      const required: DaemonFeature[] =
+        key === undefined ? ['vocabulary.note'] : ['vocabulary.note', 'message.idempotency'];
 
       const ok = await caller.sendRequest(
         'session.message',
@@ -284,7 +292,10 @@ export function runTool(
     })
     .with('atc_message_get', async () => {
       const waits = typeof args['waitMs'] === 'number' && args['waitMs'] > 0;
-      const required: DaemonFeature[] = waits ? ['message.wait'] : [];
+
+      const required: DaemonFeature[] = waits
+        ? ['vocabulary.note', 'message.wait']
+        : ['vocabulary.note'];
 
       const ok = await caller.sendRequest(
         'message.get',

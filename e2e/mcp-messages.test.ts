@@ -44,8 +44,8 @@ test('it sends a message to a session that has not started', async () => {
 
   expect(result).toStrictEqual({
     isError: undefined,
-    text: `{\n  "message": "${String(message)}",\n  "status": "accepted"\n}`,
-    structured: { message: expect.stringMatching(/^m-[\da-f-]{36}$/u), status: 'accepted' },
+    text: `{\n  "message": "${String(message)}",\n  "status": "queued"\n}`,
+    structured: { message: expect.stringMatching(/^m-[\da-f-]{36}$/u), status: 'queued' },
   });
 });
 
@@ -73,7 +73,7 @@ test('it reads a sent message back through a tool call', async () => {
     session,
     from: 'tester',
     text: 'hello',
-    status: 'accepted',
+    status: 'queued',
     sentAt: expect.toBeNumber(),
     turn: null,
     answeredWith: [],
@@ -129,7 +129,7 @@ test('it answers a message read with the unanswered message once its wait ends',
     session,
     from: 'tester',
     text: 'hello',
-    status: 'accepted',
+    status: 'queued',
     sentAt: expect.toBeNumber(),
     turn: null,
     answeredWith: [],

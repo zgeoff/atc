@@ -434,7 +434,7 @@ test('it lists the message tool in its older form when the connected daemon anno
   expect(messageGet).toStrictEqual({
     name: 'atc_message_get',
     description:
-      'Read one message sent with atc_session_message: its id, session, from, text, status (accepted, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.',
+      'Read one message sent with atc_session_message: its id, session, from, text, status (queued, delivered, or answered), the answer once answered, turn, answeredWith, and the sentAt, deliveredAt, and answeredAt timestamps. The answer is the final output of the session turn that carried the message, not a reply to that message alone: when one turn carries several messages, each gets the same answer. turn is that turn id, or null when the session reported none, and answeredWith lists the other messages the same turn answered. Pass waitMs to hold the call until the status changes from what it was when you called, up to 30000 ms, instead of polling in a tight loop; an answered message returns at once. Message ids and statuses persist, so after a call ends or times out, call again with the same id.',
     inputSchema: {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       type: 'object',
@@ -551,13 +551,14 @@ test('it reads a message from an older daemon when the call asks for no wait', a
   const tmp = setupTempDir('atc-answer-rpc-');
 
   startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['vocabulary.note'],
     replies: {
       'message.get': {
         message: 'm-legacy',
         session: 's-legacy',
         from: 'tester',
         text: 'hello',
-        status: 'accepted',
+        status: 'queued',
         sentAt: 1_700_000_000_000,
       },
     },
@@ -597,7 +598,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
   "session": "s-legacy",
   "from": "tester",
   "text": "hello",
-  "status": "accepted",
+  "status": "queued",
   "sentAt": 1700000000000
 }`,
           },
@@ -607,7 +608,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
           session: 's-legacy',
           from: 'tester',
           text: 'hello',
-          status: 'accepted',
+          status: 'queued',
           sentAt: 1_700_000_000_000,
         },
       },

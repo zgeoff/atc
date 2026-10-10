@@ -4,12 +4,12 @@ import { buildStubClock } from '../test-utils/build-stub-clock';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { readReportTexts } from './read-report-texts';
+import { readNoteTexts } from './read-note-texts';
 import { ReconnectingCaller } from './reconnecting-caller';
 
-// A daemon that holds no report and a caller connected to it.
+// A daemon that holds no note and a caller connected to it.
 async function setupTest() {
-  const daemon = await startTestDaemon({ prefix: 'atc-read-report-texts-' });
+  const daemon = await startTestDaemon({ prefix: 'atc-read-note-texts-' });
 
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
@@ -20,24 +20,24 @@ async function setupTest() {
   return { caller };
 }
 
-test('it adds the whole text of each report to its event and passes the rest of the page through', async () => {
+test('it adds the whole text of each note to its event and passes the rest of the page through', async () => {
   const texts: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     c1: { text: 'whole one', complete: true },
     'pc.0a1b2c3d.c3': { text: 'preview only', complete: false },
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => texts[String(request.p?.['report'])] ?? {},
+    answer: (request) => texts[String(request.p?.['note'])] ?? {},
   });
 
-  const page = await readReportTexts(caller, {
+  const page = await readNoteTexts(caller, {
     events: [
       {
         cursor: 'c1',
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'whole',
         label: 'l',
       },
@@ -47,10 +47,10 @@ test('it adds the whole text of each report to its event and passes the rest of 
         at: 3,
         session: 's2',
         name: 'two',
-        kind: 'report',
+        kind: 'note',
         detail: 'preview only',
         label: 'l',
-        report: 'pc.0a1b2c3d.c3',
+        note: 'pc.0a1b2c3d.c3',
       },
     ],
     cursor: 'c3',
@@ -67,7 +67,7 @@ test('it adds the whole text of each report to its event and passes the rest of 
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'whole',
         label: 'l',
         text: 'whole one',
@@ -79,10 +79,10 @@ test('it adds the whole text of each report to its event and passes the rest of 
         at: 3,
         session: 's2',
         name: 'two',
-        kind: 'report',
+        kind: 'note',
         detail: 'preview only',
         label: 'l',
-        report: 'pc.0a1b2c3d.c3',
+        note: 'pc.0a1b2c3d.c3',
         text: 'preview only',
         complete: false,
       },
@@ -95,12 +95,12 @@ test('it adds the whole text of each report to its event and passes the rest of 
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'report.get', p: { report: 'c1' }, required: ['report.get'] },
-    { m: 'report.get', p: { report: 'pc.0a1b2c3d.c3' }, required: ['report.get'] },
+    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
+    { m: 'note.get', p: { note: 'pc.0a1b2c3d.c3' }, required: ['note.get'] },
   ]);
 });
 
-test('it stops the page before the first report whose text would carry it past 64 KiB', async () => {
+test('it stops the page before the first note whose text would carry it past 64 KiB', async () => {
   const texts: Readonly<Record<string, string>> = {
     c1: 'a'.repeat(40_000),
     c2: 'b'.repeat(25_536),
@@ -108,15 +108,15 @@ test('it stops the page before the first report whose text would carry it past 6
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => ({ text: texts[String(request.p?.['report'])], complete: true }),
+    answer: (request) => ({ text: texts[String(request.p?.['note'])], complete: true }),
   });
 
-  const page = await readReportTexts(caller, {
+  const page = await readNoteTexts(caller, {
     events: [
-      { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'report', detail: 'a', label: 'l' },
-      { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'report', detail: 'b', label: 'l' },
+      { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'note', detail: 'a', label: 'l' },
+      { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'note', detail: 'b', label: 'l' },
       { cursor: 'c3', at: 3, session: 's2', name: null, kind: 'turn-done', detail: null },
-      { cursor: 'c4', at: 4, session: 's1', name: null, kind: 'report', detail: 'c', label: 'l' },
+      { cursor: 'c4', at: 4, session: 's1', name: null, kind: 'note', detail: 'c', label: 'l' },
       { cursor: 'c5', at: 5, session: 's1', name: null, kind: 'turn-done', detail: null },
     ],
     cursor: 'c5',
@@ -130,7 +130,7 @@ test('it stops the page before the first report whose text would carry it past 6
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'a',
         label: 'l',
         text: 'a'.repeat(40_000),
@@ -141,7 +141,7 @@ test('it stops the page before the first report whose text would carry it past 6
         at: 2,
         session: 's2',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'b',
         label: 'l',
         text: 'b'.repeat(25_536),
@@ -154,23 +154,23 @@ test('it stops the page before the first report whose text would carry it past 6
   });
 
   expect(caller.requests).toStrictEqual([
-    { m: 'report.get', p: { report: 'c1' }, required: ['report.get'] },
-    { m: 'report.get', p: { report: 'c2' }, required: ['report.get'] },
-    { m: 'report.get', p: { report: 'c4' }, required: ['report.get'] },
+    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
+    { m: 'note.get', p: { note: 'c2' }, required: ['note.get'] },
+    { m: 'note.get', p: { note: 'c4' }, required: ['note.get'] },
   ]);
 });
 
-test('it keeps a report whose text read fails with its preview and the refusal', async () => {
+test('it keeps a note whose text read fails with its preview and the refusal', async () => {
   const ctx = await setupTest();
 
-  const page = await readReportTexts(ctx.caller, {
+  const page = await readNoteTexts(ctx.caller, {
     events: [
       {
         cursor: 'c1',
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'gone',
         label: 'l',
       },
@@ -186,10 +186,10 @@ test('it keeps a report whose text read fails with its preview and the refusal',
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'gone',
         label: 'l',
-        textError: "bad_args: no report 'c1'",
+        textError: "bad_args: no note 'c1'",
       },
     ],
     cursor: 'c1',
@@ -197,14 +197,14 @@ test('it keeps a report whose text read fails with its preview and the refusal',
   });
 });
 
-test('it gives a report whose text read outlasts the deadline a timeout and stops the page after it', async () => {
+test('it gives a note whose text read outlasts the deadline a timeout and stops the page after it', async () => {
   const clock = buildStubClock(0);
 
   const caller = buildStubFleetCaller({
     answer: () => Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
   });
 
-  const reading = readReportTexts(
+  const reading = readNoteTexts(
     caller,
     {
       events: [
@@ -213,7 +213,7 @@ test('it gives a report whose text read outlasts the deadline a timeout and stop
           at: 1,
           session: 's1',
           name: null,
-          kind: 'report',
+          kind: 'note',
           detail: 'slow',
           label: 'l',
         },
@@ -223,7 +223,7 @@ test('it gives a report whose text read outlasts the deadline a timeout and stop
           at: 3,
           session: 's1',
           name: null,
-          kind: 'report',
+          kind: 'note',
           detail: 'next',
           label: 'l',
         },
@@ -240,7 +240,7 @@ test('it gives a report whose text read outlasts the deadline a timeout and stop
   const page = await reading;
 
   expect(caller.requests).toStrictEqual([
-    { m: 'report.get', p: { report: 'c1' }, required: ['report.get'] },
+    { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
   ]);
 
   expect(page).toStrictEqual({
@@ -250,10 +250,10 @@ test('it gives a report whose text read outlasts the deadline a timeout and stop
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'slow',
         label: 'l',
-        textError: 'timeout: the report text did not arrive within 100 ms',
+        textError: 'timeout: the note text did not arrive within 100 ms',
       },
       { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'turn-done', detail: null },
     ],
@@ -262,12 +262,12 @@ test('it gives a report whose text read outlasts the deadline a timeout and stop
   });
 });
 
-test('it keeps a report text that arrives just inside the deadline', () => {
+test('it keeps a note text that arrives just inside the deadline', () => {
   const clock = buildStubClock(0);
   const held = Promise.withResolvers<Readonly<Record<string, unknown>>>();
   const caller = buildStubFleetCaller({ answer: () => held.promise });
 
-  const reading = readReportTexts(
+  const reading = readNoteTexts(
     caller,
     {
       events: [
@@ -276,7 +276,7 @@ test('it keeps a report text that arrives just inside the deadline', () => {
           at: 1,
           session: 's1',
           name: null,
-          kind: 'report',
+          kind: 'note',
           detail: 'slow',
           label: 'l',
         },
@@ -298,7 +298,7 @@ test('it keeps a report text that arrives just inside the deadline', () => {
         at: 1,
         session: 's1',
         name: null,
-        kind: 'report',
+        kind: 'note',
         detail: 'slow',
         label: 'l',
         text: 'in time',

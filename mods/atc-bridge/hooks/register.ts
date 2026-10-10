@@ -141,13 +141,10 @@ export const register: Register = (on) => {
     }
 
     try {
-      await $.process.run(
-        [...ATC_CLI, 'report', 'note', '--label', label === '' ? 'progress' : label],
-        {
-          stdin: text,
-          timeoutMs: 5000,
-        },
-      );
+      await $.process.run([...ATC_CLI, 'note', '--label', label === '' ? 'progress' : label], {
+        stdin: text,
+        timeoutMs: 5000,
+      });
     } catch (error) {
       return { deny: `atc did not take the report: ${String(error)}` };
     }
@@ -322,7 +319,7 @@ function updateTurnCompleted(
     }
   }
 
-  // One report carries every message the turn answered, so atc records the
+  // One answer carries every message the turn answered, so atc records the
   // whole group at once and no member reads as answered before the rest.
   if (answered.length > 0) {
     scheduleAnsweredReport($, state, answered, turnID, answer);
@@ -339,7 +336,7 @@ function scheduleAnsweredReport(
   state.reporting = state.reporting
     .then(async () => {
       await $.process.run(
-        [...ATC_CLI, 'report', 'answered', '--messages', messageIDs.join(','), '--turn', turnID],
+        [...ATC_CLI, 'answer', '--messages', messageIDs.join(','), '--turn', turnID],
         {
           stdin: answer,
           timeoutMs: 5000,

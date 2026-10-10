@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { MessageID } from '../shared/message-id';
 import { toMessageID } from '../shared/to-message-id';
 
-interface AnsweredReport {
+interface TurnAnswer {
   readonly kind: 'answered';
 
   // Every message the turn answered, recorded together.
@@ -14,15 +14,15 @@ interface AnsweredReport {
   readonly turn: string | null;
 }
 
-export interface NoteReport {
+export interface SentNote {
   readonly kind: 'note';
   readonly label: string;
   readonly text: string;
 }
 
-export type Report = AnsweredReport | NoteReport;
+export type Note = TurnAnswer | SentNote;
 
-// Optional, so a report from an older bridge still parses; a missing, empty,
+// Optional, so a note from an older bridge still parses; a missing, empty,
 // or wrong-typed turn reads as unknown.
 const TURN_SCHEMA = z.preprocess(
   (v) => (typeof v === 'string' && v !== '' ? v : undefined),
@@ -47,10 +47,10 @@ const REPORT_SCHEMA = z.discriminatedUnion('kind', [
 ]);
 
 /**
- * Parses a Report envelope's payload into the report its kind discriminates,
+ * Parses a Note envelope's payload into the note its kind discriminates,
  * or null when it matches no known kind.
  */
-export function parseReport(payload: Readonly<Record<string, unknown>>): Report | null {
+export function parseNote(payload: Readonly<Record<string, unknown>>): Note | null {
   const parsed = REPORT_SCHEMA.safeParse(payload);
 
   if (!parsed.success) {

@@ -56,13 +56,13 @@ test('it writes back every line the responder returns for a request', async () =
     socket.end();
   });
 
-  socket.writeLine({ v: 1, id: 'report:r1', op: 'report' });
+  socket.writeLine({ v: 1, id: 'note:r1', op: 'note' });
 
   await waitFor(() => {
-    expect(answers).toStrictEqual([{ id: 'report:r1', ok: true }, { ev: 'InboxClosed' }]);
+    expect(answers).toStrictEqual([{ id: 'note:r1', ok: true }, { ev: 'InboxClosed' }]);
   });
 
-  expect(bridge.requests).toStrictEqual([{ v: 1, id: 'report:r1', op: 'report' }]);
+  expect(bridge.requests).toStrictEqual([{ v: 1, id: 'note:r1', op: 'note' }]);
 });
 
 test('it ends the connection without an answer when the responder returns null', async () => {
@@ -78,12 +78,12 @@ test('it ends the connection without an answer when the responder returns null',
     socket.end();
   });
 
-  socket.writeLine({ v: 1, id: 'report:r1', op: 'report' });
+  socket.writeLine({ v: 1, id: 'note:r1', op: 'note' });
 
   await socket.closed;
 
   expect(answers).toStrictEqual([]);
-  expect(bridge.requests).toStrictEqual([{ v: 1, id: 'report:r1', op: 'report' }]);
+  expect(bridge.requests).toStrictEqual([{ v: 1, id: 'note:r1', op: 'note' }]);
 });
 
 test('it hands a line that is not JSON to the responder as an empty request', async () => {

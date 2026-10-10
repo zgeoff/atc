@@ -302,7 +302,7 @@ test('it reads the events of both daemons in one page', async () => {
   const page = getRecord(read, 'structuredContent');
 
   expect(page['events']).toIncludeAllPartialMembers(
-    ids.map((session) => ({ kind: 'message-accepted', session })),
+    ids.map((session) => ({ kind: 'message-queued', session })),
   );
 
   expect(page['unavailable']).toStrictEqual([]);
@@ -347,7 +347,7 @@ test('it resumes an events read after the events of its page', async () => {
   });
 
   expect(getRecord(next, 'structuredContent')['events']).toStrictEqual([
-    expect.objectContaining({ kind: 'message-accepted', session: ids[1] }),
+    expect.objectContaining({ kind: 'message-queued', session: ids[1] }),
   ]);
 });
 
@@ -577,7 +577,7 @@ test('it holds a waiting events read open until one daemon has an event and retu
   const woken = await waiting;
 
   expect(getRecord(woken, 'structuredContent')['events']).toStrictEqual([
-    expect.objectContaining({ kind: 'message-accepted', session }),
+    expect.objectContaining({ kind: 'message-queued', session }),
   ]);
 });
 
@@ -599,13 +599,13 @@ test('it reads a report from either daemon through the report handle of its even
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'from pc' },
   });
 
@@ -617,7 +617,7 @@ test('it reads a report from either daemon through the report handle of its even
 
     const found = [getRecord(read, 'structuredContent')['events']]
       .flat()
-      .filter((event) => isRecord(event) && event['kind'] === 'report');
+      .filter((event) => isRecord(event) && event['kind'] === 'note');
 
     expect(found).toHaveLength(2);
 
@@ -628,7 +628,7 @@ test('it reads a report from either daemon through the report handle of its even
     reports.map((event) =>
       sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
         name: 'atc_report_get',
-        arguments: { report: getRecord({ event }, 'event')['report'] },
+        arguments: { report: getRecord({ event }, 'event')['note'] },
       }),
     ),
   );
@@ -649,7 +649,7 @@ test('it refuses a report handle with a stale incarnation', async () => {
 
   await ctx.cloud.sendHookLines({
     atcId: String(getRecord(spawned, 'structuredContent')['id']).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
@@ -661,9 +661,9 @@ test('it refuses a report handle with a stale incarnation', async () => {
 
     const found = [getRecord(read, 'structuredContent')['events']]
       .flat()
-      .find((event) => isRecord(event) && event['kind'] === 'report');
+      .find((event) => isRecord(event) && event['kind'] === 'note');
 
-    return String(getRecord({ found }, 'found')['report']);
+    return String(getRecord({ found }, 'found')['note']);
   });
 
   const stale = report.replace(`cloud.${ctx.cloudID.slice(0, 8)}.`, 'cloud.ffffffff.');
@@ -674,7 +674,7 @@ test('it refuses a report handle with a stale incarnation', async () => {
   });
 
   expect(refused).toStrictEqual({
-    content: [{ type: 'text', text: `bad_args: no report '${stale}'` }],
+    content: [{ type: 'text', text: `bad_args: no note '${stale}'` }],
     isError: true,
   });
 });
@@ -697,13 +697,13 @@ test('it reads the whole reports of both daemons in one events read', async () =
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'p'.repeat(1000) },
   });
 
@@ -716,8 +716,8 @@ test('it reads the whole reports of both daemons in one events read', async () =
     const structured = getRecord(read, 'structuredContent');
 
     expect([structured['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
 
     return structured;
@@ -727,7 +727,7 @@ test('it reads the whole reports of both daemons in one events read', async () =
 
   expect([page['events']].flat()).toIncludeSameMembers([
     expect.objectContaining({
-      kind: 'report',
+      kind: 'note',
       session: cloudID,
       label: 'cloud',
       detail: 'from cloud',
@@ -735,7 +735,7 @@ test('it reads the whole reports of both daemons in one events read', async () =
       complete: true,
     }),
     expect.objectContaining({
-      kind: 'report',
+      kind: 'note',
       session: pcID,
       label: 'pc',
       detail: `${'p'.repeat(599)}…`,
@@ -763,13 +763,13 @@ test('it resumes a report text read after the reports of its page', async () => 
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'from pc' },
   });
 
@@ -782,8 +782,8 @@ test('it resumes a report text read after the reports of its page', async () => 
     const structured = getRecord(read, 'structuredContent');
 
     expect([structured['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
 
     return structured;
@@ -791,7 +791,7 @@ test('it resumes a report text read after the reports of its page', async () => 
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'later' },
   });
 
@@ -810,7 +810,7 @@ test('it resumes a report text read after the reports of its page', async () => 
   });
 
   expect(next['events']).toStrictEqual([
-    expect.objectContaining({ kind: 'report', session: cloudID, text: 'later', complete: true }),
+    expect.objectContaining({ kind: 'note', session: cloudID, text: 'later', complete: true }),
   ]);
 });
 
@@ -832,13 +832,13 @@ test('it reads the whole reports of the daemons that answer and lists the one th
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'from cloud' },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'from pc' },
   });
 
@@ -849,8 +849,8 @@ test('it reads the whole reports of the daemons that answer and lists the one th
     });
 
     expect([getRecord(read, 'structuredContent')['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
   });
 
@@ -867,7 +867,7 @@ test('it reads the whole reports of the daemons that answer and lists the one th
 
   expect(page['events']).toStrictEqual([
     expect.objectContaining({
-      kind: 'report',
+      kind: 'note',
       session: cloudID,
       text: 'from cloud',
       complete: true,
@@ -893,13 +893,13 @@ test('it stops a report text read across daemons at 64 KiB', async () => {
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'c'.repeat(40_000) },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'p'.repeat(30_000) },
   });
 
@@ -910,8 +910,8 @@ test('it stops a report text read across daemons at 64 KiB', async () => {
     });
 
     expect([getRecord(read, 'structuredContent')['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
   });
 
@@ -925,7 +925,7 @@ test('it stops a report text read across daemons at 64 KiB', async () => {
   expect(page['more']).toBeTrue();
 
   expect(
-    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'report'),
+    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'note'),
   ).toStrictEqual([
     expect.objectContaining({ session: cloudID, text: 'c'.repeat(40_000), complete: true }),
   ]);
@@ -949,13 +949,13 @@ test('it reads the rest of a report text read stopped at 64 KiB at its cursor', 
 
   await ctx.cloud.sendHookLines({
     atcId: String(cloudID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'cloud', text: 'c'.repeat(40_000) },
   });
 
   await ctx.pc.sendHookLines({
     atcId: String(pcID).split('.').at(-1),
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'pc', text: 'p'.repeat(30_000) },
   });
 
@@ -966,8 +966,8 @@ test('it reads the rest of a report text read stopped at 64 KiB at its cursor', 
     });
 
     expect([getRecord(read, 'structuredContent')['events']].flat()).toIncludeAllPartialMembers([
-      { kind: 'report', session: cloudID },
-      { kind: 'report', session: pcID },
+      { kind: 'note', session: cloudID },
+      { kind: 'note', session: pcID },
     ]);
   });
 
@@ -986,7 +986,7 @@ test('it reads the rest of a report text read stopped at 64 KiB at its cursor', 
   expect(page['more']).toBeFalse();
 
   expect(
-    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'report'),
+    [page['events']].flat().filter((event) => isRecord(event) && event['kind'] === 'note'),
   ).toStrictEqual([
     expect.objectContaining({ session: pcID, text: 'p'.repeat(30_000), complete: true }),
   ]);

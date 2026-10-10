@@ -46,13 +46,13 @@ interface EventsTable {
   kind: string | null;
   detail: string | null;
 
-  // The id a remote session's reporter gave a report row, unique so a
-  // resent report lands once; null on every other row.
-  report_id: string | null;
+  // The id a remote session's reporter gave a note row, unique so a
+  // resent note lands once; null on every other row.
+  note_id: string | null;
 
-  // A report row's whole text, which detail previews; null on every other
-  // row, and on a report row written before the column existed.
-  report_text: string | null;
+  // A note row's whole text, which detail previews; null on every other
+  // row, and on a note row written before the column existed.
+  note_text: string | null;
 }
 
 interface SpawnHistoryTable {
@@ -578,6 +578,46 @@ const MIGRATIONS: Record<string, Migration> = {
         .addColumn('revision', 'integer', (c) => c.notNull())
         .addColumn('updated_at', 'integer', (c) => c.notNull())
         .execute();
+    },
+  },
+  '028_rename_reports_to_notes_and_accepted_to_queued': {
+    async up(db: Kysely<StateStoreSchema>) {
+      // Each step can run again after a crash: a column renames only while
+      // it still carries the old name, and every value update matches the
+      // old value alone.
+      const columns = await sql<ColumnInfoRow>`PRAGMA table_info(events)`.execute(db);
+
+      const names = new Set(columns.rows.map((column) => column.name));
+
+      if (names.has('report_id')) {
+        await sql`ALTER TABLE events RENAME COLUMN report_id TO note_id`.execute(db);
+      }
+
+      if (names.has('report_text')) {
+        await sql`ALTER TABLE events RENAME COLUMN report_text TO note_text`.execute(db);
+      }
+
+      await sql`DROP INDEX IF EXISTS events_report_id`.execute(db);
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS events_note_id ON events (note_id)`.execute(db);
+      await sql`UPDATE events SET kind = 'note' WHERE kind = 'report'`.execute(db);
+      await sql`UPDATE events SET event = 'SessionNote' WHERE event = 'SessionReport'`.execute(db);
+
+      await sql`UPDATE events SET kind = 'message-queued' WHERE kind = 'message-accepted'`.execute(
+        db,
+      );
+
+      await sql`UPDATE messages SET status = 'queued' WHERE status = 'accepted'`.execute(db);
+
+      // A replayed message send answers with the result its first run
+      // cached, which holds the status the message was written with.
+      await sql`
+        UPDATE idempotency
+        SET result = json_set(result, '$.status', 'queued')
+        WHERE operation = 'session.message'
+          AND result IS NOT NULL
+          AND json_valid(result)
+          AND json_extract(result, '$.status') = 'accepted'
+      `.execute(db);
     },
   },
 };

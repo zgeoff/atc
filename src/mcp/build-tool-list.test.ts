@@ -45,7 +45,7 @@ test('it lists each tool with only its name, description, schemas, and annotatio
   );
 });
 
-test('it lists an output schema for the agent, message, event, and report tools', () => {
+test('it lists an output schema for the agent, message, event, and note tools', () => {
   expect(
     buildToolList(new Set(DAEMON_FEATURES), null)
       .filter((tool) => tool.outputSchema !== undefined)
@@ -63,13 +63,13 @@ test('it leaves out the agents tool for a daemon that announces no features', ()
   expect(buildToolList(new Set(), null).map((tool) => tool.name)).not.toContain('atc_agents_list');
 });
 
-test('it leaves out the report tool for a daemon that does not announce report reads', () => {
-  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'report.get'));
+test('it leaves out the note tool for a daemon that does not announce note reads', () => {
+  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'note.get'));
 
   expect(buildToolList(features, null).map((tool) => tool.name)).not.toContain('atc_report_get');
 });
 
-test('it offers report text on the events tool for a daemon that announces report reads', () => {
+test('it offers note text on the events tool for a daemon that announces note reads', () => {
   const eventsRead = buildToolList(new Set(DAEMON_FEATURES), null).find(
     (tool) => tool.name === 'atc_events_read',
   );
@@ -79,8 +79,8 @@ test('it offers report text on the events tool for a daemon that announces repor
   expect(eventsRead.inputSchema['properties']).toContainKey('reportText');
 });
 
-test('it leaves report text off the events tool for a daemon that does not announce report reads', () => {
-  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'report.get'));
+test('it leaves note text off the events tool for a daemon that does not announce note reads', () => {
+  const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'note.get'));
 
   const eventsRead = buildToolList(features, null).find((tool) => tool.name === 'atc_events_read');
 

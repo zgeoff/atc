@@ -130,7 +130,7 @@ test('it answers the message with the text for answer', async () => {
   });
 
   expect(readFileSync(log, 'utf8')).toBe(
-    'args:report answered --messages m-1\nsession:s-own\nstdin:the answer\n',
+    'args:answer --messages m-1\nsession:s-own\nstdin:the answer\n',
   );
 });
 
@@ -147,7 +147,7 @@ test('it reports a note labelled progress for note', async () => {
   });
 
   expect(readFileSync(log, 'utf8')).toBe(
-    'args:report note --label progress\nsession:s-own\nstdin:half way\n',
+    'args:note --label progress\nsession:s-own\nstdin:half way\n',
   );
 });
 

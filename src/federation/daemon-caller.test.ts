@@ -569,7 +569,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
 
   expect(waited['events']).toStrictEqual([
     expect.objectContaining({
-      kind: 'message-accepted',
+      kind: 'message-queued',
       session: getRecord(spawned, 'session')['id'],
     }),
   ]);

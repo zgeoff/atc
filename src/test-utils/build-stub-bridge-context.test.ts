@@ -7,8 +7,8 @@ test('it finds no live session', () => {
   expect(buildStubBridgeContext().findSession(toSessionID('s1'))).toBeUndefined();
 });
 
-test('it records every report', async () => {
-  const recorded = await buildStubBridgeContext().applyReport(toSessionID('s1'), {}, 'r-1');
+test('it records every note', async () => {
+  const recorded = await buildStubBridgeContext().applyNote(toSessionID('s1'), {}, 'r-1');
 
   expect(recorded).toBeTrue();
 });

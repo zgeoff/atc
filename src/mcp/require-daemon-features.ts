@@ -17,7 +17,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'spawn.idempotency': "atc_session_spawn's idempotencyKey",
   'spawn.options': "atc_session_spawn's model and effort",
   'spawn.target': "atc_session_spawn's target",
-  'report.get': 'atc_report_get',
+  'note.get': 'atc_report_get',
   'request.principal': 'the target limits of a remote MCP client',
   'spawn.workspace': "atc_session_spawn's workspace",
   'spawn.workspace.trust': "atc_session_spawn's trustClonedWorkspace",
@@ -28,6 +28,8 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'idempotency.replayOnly': 'a resend that only replays a held idempotency key',
   'session.auth': 'session.auth.revoke and session.auth.rebind',
   'session.record': "atc_session_scope_add and atc_session_spawn's scope",
+  'vocabulary.note':
+    'the note and queued words in the results of atc_events_read, atc_session_message, atc_message_get, and atc_report_get',
 };
 
 /**

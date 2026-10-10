@@ -212,7 +212,7 @@ test('it taps through the session bridge inside a remote host', async () => {
   const sock = join(tmp.dir, 'bridge.sock');
   const outbox = join(tmp.dir, 'outbox');
 
-  // The bridge closes the inbox once it answers the report the tap sends.
+  // The bridge closes the inbox once it answers the note the tap sends.
   const bridge = startStubSessionBridge(sock, (request) => [
     { id: request['id'], ok: true },
     { ev: 'InboxClosed' },
@@ -222,7 +222,7 @@ test('it taps through the session bridge inside a remote host', async () => {
 
   writeFileSync(
     join(outbox, 'r1.json'),
-    JSON.stringify({ reportID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
   );
 
   updateEnv('ATC_BRIDGE', '1');
@@ -245,9 +245,9 @@ test('it taps through the session bridge inside a remote host', async () => {
     { v: 1, id: 'tap.open', op: 'tap.open' },
     {
       v: 1,
-      id: 'report:r1',
-      op: 'report',
-      reportID: 'r1',
+      id: 'note:r1',
+      op: 'note',
+      noteID: 'r1',
       payload: { kind: 'note', label: 'progress', text: 'hi' },
     },
   ]);

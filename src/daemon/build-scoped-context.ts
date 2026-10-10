@@ -184,7 +184,7 @@ export function buildScopedContext(
 
       return ctx.readEvents(afterID, limit, waitMs, sessionID, merged);
     },
-    readReport: (id, outer) => ctx.readReport(id, mergeAccess(outer)),
+    readNote: (id, outer) => ctx.readNote(id, mergeAccess(outer)),
     writeSessionMessage: (sessionID, from, text, keyed, outer) =>
       canSee(sessionID)
         ? ctx.writeSessionMessage(

@@ -1545,7 +1545,7 @@ test("it lists a principal no message of a hidden session that one turn answered
 
   await daemon.sendHookLines({
     atcId: shown,
-    event: 'Report',
+    event: 'Note',
     payload: {
       kind: 'answered',
       messages: [toHidden['message'], toShown['message']],
@@ -2431,7 +2431,7 @@ test('it leaves the events of a session outside the principal out of an unfilter
   expect(JSON.stringify(read)).toContain(shown);
 });
 
-test('it answers a report of a session outside the principal as a report that does not exist', async () => {
+test('it answers a note of a session outside the principal as a note that does not exist', async () => {
   const harnesses: string[] = [];
 
   const daemon = await startTestDaemon({
@@ -2461,7 +2461,7 @@ test('it answers a report of a session outside the principal as a report that do
 
   await daemon.sendHookLines({
     atcId: hidden,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'l', text: 'secret plan' },
   });
 
@@ -2477,15 +2477,15 @@ test('it answers a report of a session outside the principal as a report that do
   const cursor = event.cursor;
   const missing = encodeCursor({ kind: 'events', id: 999_999 });
 
-  const owner = await daemon.client.sendRequest('report.get', { report: cursor });
+  const owner = await daemon.client.sendRequest('note.get', { note: cursor });
 
   const answered = await trySendRequest(
-    () => daemon.client.sendRequest('report.get', { report: cursor }, 'client-a'),
+    () => daemon.client.sendRequest('note.get', { note: cursor }, 'client-a'),
     cursor,
   );
 
   const unknown = await trySendRequest(
-    () => daemon.client.sendRequest('report.get', { report: missing }, 'client-a'),
+    () => daemon.client.sendRequest('note.get', { note: missing }, 'client-a'),
     missing,
   );
 
@@ -2493,7 +2493,7 @@ test('it answers a report of a session outside the principal as a report that do
   expect(answered).toStrictEqual(unknown);
 });
 
-test('it gives a principal the report of a session it may see', async () => {
+test('it gives a principal the note of a session it may see', async () => {
   const harnesses: string[] = [];
 
   const daemon = await startTestDaemon({
@@ -2523,7 +2523,7 @@ test('it gives a principal the report of a session it may see', async () => {
 
   await daemon.sendHookLines({
     atcId: shown,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'l', text: 'open plan' },
   });
 
@@ -2536,16 +2536,12 @@ test('it gives a principal the report of a session it may see', async () => {
     return eventList.parse(read).events[0];
   });
 
-  const report = await daemon.client.sendRequest(
-    'report.get',
-    { report: event.cursor },
-    'client-a',
-  );
+  const note = await daemon.client.sendRequest('note.get', { note: event.cursor }, 'client-a');
 
-  expect(report).toMatchObject({ session: shown, text: 'open plan', complete: true });
+  expect(note).toMatchObject({ session: shown, text: 'open plan', complete: true });
 });
 
-test('it reads the whole text of only the reports of sessions a principal may see in one events read', async () => {
+test('it reads the whole text of only the notes of sessions a principal may see in one events read', async () => {
   const harnesses: string[] = [];
 
   const daemon = await startTestDaemon({
@@ -2589,13 +2585,13 @@ test('it reads the whole text of only the reports of sessions a principal may se
 
   await daemon.sendHookLines({
     atcId: hidden,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'l', text: 'secret plan' },
   });
 
   await daemon.sendHookLines({
     atcId: shown,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'l', text: 'open plan' },
   });
 
@@ -2617,12 +2613,12 @@ test('it reads the whole text of only the reports of sessions a principal may se
   expect(read.text).not.toContain(hidden);
 
   expect(read.structured).toMatchObject({
-    events: [{ kind: 'report', session: shown, text: 'open plan', complete: true }],
+    events: [{ kind: 'note', session: shown, text: 'open plan', complete: true }],
     more: false,
   });
 });
 
-test('it reads the first of many large reports a principal may see while another connection never reads', async () => {
+test('it reads the first of many large notes a principal may see while another connection never reads', async () => {
   const harnesses: string[] = [];
 
   const daemon = await startTestDaemon({
@@ -2660,7 +2656,7 @@ test('it reads the first of many large reports a principal may see while another
   await daemon.sendHookLines(
     ...Array.from({ length: 50 }, (_, index) => ({
       atcId: shown,
-      event: 'Report',
+      event: 'Note',
       payload: { kind: 'note', label: 'l', text: String(index).padEnd(60_000, 'x') },
     })),
   );
@@ -2681,12 +2677,12 @@ test('it reads the first of many large reports a principal may see while another
   expect(slow.chunks).toBeArrayOfSize(1);
 
   expect(read.structured).toMatchObject({
-    events: [{ kind: 'report', session: shown, text: '0'.padEnd(60_000, 'x'), complete: true }],
+    events: [{ kind: 'note', session: shown, text: '0'.padEnd(60_000, 'x'), complete: true }],
     more: true,
   });
 });
 
-test('it names a report by the session that sent it, never a hidden session that resumes the same agent session', async () => {
+test('it names a note by the session that sent it, never a hidden session that resumes the same agent session', async () => {
   const harnesses: string[] = [];
 
   const daemon = await startTestDaemon({
@@ -2729,7 +2725,7 @@ test('it names a report by the session that sent it, never a hidden session that
 
   await daemon.sendHookLines({
     atcId: shown,
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'l', text: 'open plan' },
   });
 
@@ -2742,10 +2738,10 @@ test('it names a report by the session that sent it, never a hidden session that
     return eventList.parse(read).events[0];
   });
 
-  const report = await daemon.client.sendRequest('report.get', { report: event.cursor }, 'narrow');
+  const note = await daemon.client.sendRequest('note.get', { note: event.cursor }, 'narrow');
 
-  expect(report).toMatchObject({ session: shown, text: 'open plan' });
-  expect(JSON.stringify(report)).not.toInclude(hidden);
+  expect(note).toMatchObject({ session: shown, text: 'open plan' });
+  expect(JSON.stringify(note)).not.toInclude(hidden);
 });
 
 test('it narrows a request on an owner connection to the principal it acts as', async () => {
@@ -3854,7 +3850,7 @@ test("it keeps a hidden session's messages from a principal tapping a session th
   ]);
 
   expect(acked).toStrictEqual(unknown);
-  expect(owner).toMatchObject({ status: 'accepted' });
+  expect(owner).toMatchObject({ status: 'queued' });
 });
 
 test('it refuses a principal an adopt of a session whose tree leaves its reach while the host wakes', async () => {

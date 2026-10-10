@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { runReport } from './report';
+import { runNote } from './note';
 import { setupTempDir } from './test-utils/setup-temp-dir';
 import { startStubReporterSocket } from './test-utils/start-stub-reporter-socket';
 import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
@@ -14,14 +14,14 @@ import { updateEnv } from './test-utils/update-env';
  * The stub stops, and the directory goes, once the test finishes.
  */
 function setupTest() {
-  const tmp = setupTempDir('atc-report-');
+  const tmp = setupTempDir('atc-note-');
   const sock = join(tmp.dir, 'reporter.sock');
   const reporter = startStubReporterSocket(sock);
 
   return { sock, reporter };
 }
 
-test('it forwards an answered report with the final text from stdin', async () => {
+test('it forwards an answered envelope with the final text from stdin', async () => {
   const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
@@ -29,7 +29,7 @@ test('it forwards an answered report with the final text from stdin', async () =
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'answered',
     { message: 'm-1', messages: '', label: '', turn: '' },
     {
@@ -46,12 +46,12 @@ test('it forwards an answered report with the final text from stdin', async () =
 
   expect(JSON.parse(line) as unknown).toStrictEqual({
     atcId: 's1',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: 'm-1', answer: 'all done' },
   });
 });
 
-test('it forwards an answered report with the turn that carried the message', async () => {
+test('it forwards an answered envelope with the turn that carried the message', async () => {
   const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
@@ -59,7 +59,7 @@ test('it forwards an answered report with the turn that carried the message', as
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'answered',
     { message: 'm-1', messages: '', label: '', turn: 't-7' },
     {
@@ -76,12 +76,12 @@ test('it forwards an answered report with the turn that carried the message', as
 
   expect(JSON.parse(line) as unknown).toStrictEqual({
     atcId: 's1',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', message: 'm-1', answer: 'all done', turn: 't-7' },
   });
 });
 
-test('it forwards one answered report for every message a turn answered', async () => {
+test('it forwards one answered envelope for every message a turn answered', async () => {
   const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
@@ -89,7 +89,7 @@ test('it forwards one answered report for every message a turn answered', async 
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'answered',
     { message: '', messages: 'm-1,m-2', label: '', turn: 't-7' },
     {
@@ -106,20 +106,20 @@ test('it forwards one answered report for every message a turn answered', async 
 
   expect(JSON.parse(line) as unknown).toStrictEqual({
     atcId: 's1',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'answered', messages: ['m-1', 'm-2'], answer: 'both done', turn: 't-7' },
   });
 });
 
 test('it exits 0 when nothing listens at the socket', async () => {
-  const tmp = setupTempDir('atc-report-');
+  const tmp = setupTempDir('atc-note-');
 
   updateEnv('ATC_SOCKET', join(tmp.dir, 'none.sock'));
   updateEnv('ATC_SESSION_ID', 's1');
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'answered',
     { message: 'm-1', messages: '', label: '', turn: '' },
     {
@@ -141,7 +141,7 @@ test('it exits 0 without a message id', async () => {
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'answered',
     { message: '', messages: '', label: '', turn: '' },
     {
@@ -155,7 +155,7 @@ test('it exits 0 without a message id', async () => {
   expect(codes).toStrictEqual([0]);
 });
 
-test('it exits 0 for an unknown report kind', async () => {
+test('it exits 0 for an unknown note kind', async () => {
   const ctx = setupTest();
 
   updateEnv('ATC_SOCKET', ctx.sock);
@@ -163,7 +163,7 @@ test('it exits 0 for an unknown report kind', async () => {
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'progress',
     { message: 'm-1', messages: '', label: '', turn: '' },
     {
@@ -185,7 +185,7 @@ test('it forwards a note with its label and the text from stdin', async () => {
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'note',
     { message: '', messages: '', label: 'blocked', turn: '' },
     {
@@ -202,7 +202,7 @@ test('it forwards a note with its label and the text from stdin', async () => {
 
   expect(JSON.parse(line) as unknown).toStrictEqual({
     atcId: 's1',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'blocked', text: 'need review' },
   });
 });
@@ -215,7 +215,7 @@ test('it labels a note progress when no label is given', async () => {
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'note',
     { message: '', messages: '', label: '', turn: '' },
     {
@@ -232,7 +232,7 @@ test('it labels a note progress when no label is given', async () => {
 
   expect(JSON.parse(line) as unknown).toStrictEqual({
     atcId: 's1',
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'progress', text: 'halfway there' },
   });
 });
@@ -245,7 +245,7 @@ test('it exits 0 for a note without text', async () => {
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'note',
     { message: '', messages: '', label: 'blocked', turn: '' },
     {
@@ -259,8 +259,8 @@ test('it exits 0 for a note without text', async () => {
   expect(codes).toStrictEqual([0]);
 });
 
-test('it clears a bridge report from the outbox once the bridge refuses it as forbidden', async () => {
-  const tmp = setupTempDir('atc-report-');
+test('it clears a bridge note from the outbox once the bridge refuses it as forbidden', async () => {
+  const tmp = setupTempDir('atc-note-');
   const sock = join(tmp.dir, 'bridge.sock');
   const outbox = join(tmp.dir, 'outbox');
 
@@ -277,7 +277,7 @@ test('it clears a bridge report from the outbox once the bridge refuses it as fo
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'note',
     { message: '', messages: '', label: '', turn: '' },
     {
@@ -295,15 +295,15 @@ test('it clears a bridge report from the outbox once the bridge refuses it as fo
     {
       v: 1,
       id: expect.toBeString(),
-      op: 'report',
-      reportID: expect.toBeString(),
+      op: 'note',
+      noteID: expect.toBeString(),
       payload: { kind: 'note', label: 'progress', text: 'need review' },
     },
   ]);
 });
 
-test('it keeps a bridge report in the outbox when the bridge closes without answering', async () => {
-  const tmp = setupTempDir('atc-report-');
+test('it keeps a bridge note in the outbox when the bridge closes without answering', async () => {
+  const tmp = setupTempDir('atc-note-');
   const sock = join(tmp.dir, 'bridge.sock');
   const outbox = join(tmp.dir, 'outbox');
 
@@ -318,7 +318,7 @@ test('it keeps a bridge report in the outbox when the bridge closes without answ
 
   const codes: number[] = [];
 
-  await runReport(
+  await runNote(
     'note',
     { message: '', messages: '', label: '', turn: '' },
     {
@@ -331,9 +331,9 @@ test('it keeps a bridge report in the outbox when the bridge closes without answ
 
   const [name, ...others] = readdirSync(outbox);
 
-  invariant(name !== undefined, 'the report left the outbox');
+  invariant(name !== undefined, 'the note left the outbox');
 
-  const report: unknown = JSON.parse(readFileSync(join(outbox, name), 'utf8'));
+  const note: unknown = JSON.parse(readFileSync(join(outbox, name), 'utf8'));
 
   expect(name).toMatch(/^[\da-f-]{36}\.json$/u);
   expect(codes).toStrictEqual([0]);
@@ -343,14 +343,14 @@ test('it keeps a bridge report in the outbox when the bridge closes without answ
     {
       v: 1,
       id: expect.toBeString(),
-      op: 'report',
-      reportID: name.slice(0, -'.json'.length),
+      op: 'note',
+      noteID: name.slice(0, -'.json'.length),
       payload: { kind: 'note', label: 'progress', text: 'need review' },
     },
   ]);
 
-  expect(report).toStrictEqual({
-    reportID: name.slice(0, -'.json'.length),
+  expect(note).toStrictEqual({
+    noteID: name.slice(0, -'.json'.length),
     payload: { kind: 'note', label: 'progress', text: 'need review' },
   });
 });

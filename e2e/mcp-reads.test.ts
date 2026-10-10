@@ -82,7 +82,7 @@ test('it reads fleet events through a tool call', async () => {
   expect(read.structured?.['events']).toPartiallyContain({ kind: 'started', session });
 });
 
-test('it reads the whole text of a report its event previews through a tool call', async () => {
+test('it reads the whole text of a note its event previews through a tool call', async () => {
   const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-note'), `${'option '.repeat(150)}end`);
@@ -94,7 +94,7 @@ test('it reads the whole text of a report its event previews through a tool call
 
     const listed = read.structured?.['events'];
 
-    expect(listed).toPartiallyContain({ kind: 'report' });
+    expect(listed).toPartiallyContain({ kind: 'note' });
 
     return listed;
   });
@@ -102,17 +102,17 @@ test('it reads the whole text of a report its event previews through a tool call
   invariant(Array.isArray(events), 'the events read holds no events');
 
   const event: unknown = events.find(
-    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'report',
+    (candidate: unknown) => isRecord(candidate) && candidate['kind'] === 'note',
   );
 
-  invariant(isRecord(event), 'the events read holds no report event');
+  invariant(isRecord(event), 'the events read holds no note event');
 
   const report = await ctx.mcp.sendToolCall('atc_report_get', { report: event['cursor'] });
 
   expect(event['detail']).toBe(`${'option '.repeat(150).slice(0, 599)}…`);
 
   expect(report.structured).toStrictEqual({
-    report: event['cursor'],
+    note: event['cursor'],
     at: event['at'],
     session: event['session'],
     name: event['name'],

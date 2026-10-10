@@ -295,7 +295,7 @@ test('it has a rule for every id in a dirs.list answer', async () => {
   expect(collectUnruledIDPaths(dirs, ID_RULES['dirs.list'] ?? new Map())).toStrictEqual([]);
 });
 
-test('it has a rule for every id in a report.get answer', async () => {
+test('it has a rule for every id in a note.get answer', async () => {
   const ctx = await setupTest();
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
@@ -305,23 +305,23 @@ test('it has a rule for every id in a report.get answer', async () => {
 
   await ctx.sendHookLines({
     atcId: getRecord(spawned, 'session')['id'],
-    event: 'Report',
+    event: 'Note',
     payload: { kind: 'note', label: 'decision', text: 'done' },
   });
 
   const event = await waitFor(async () => {
     const page = await ctx.client.sendRequest('events.read', {});
 
-    const found = [page['events']].flat().find((e) => isRecord(e) && e['kind'] === 'report');
+    const found = [page['events']].flat().find((e) => isRecord(e) && e['kind'] === 'note');
 
-    invariant(isRecord(found), 'no report event yet');
+    invariant(isRecord(found), 'no note event yet');
 
     return found;
   });
 
-  const report = await ctx.client.sendRequest('report.get', { report: event['cursor'] });
+  const note = await ctx.client.sendRequest('note.get', { note: event['cursor'] });
 
-  expect(collectUnruledIDPaths(report, ID_RULES['report.get'] ?? new Map())).toStrictEqual([]);
+  expect(collectUnruledIDPaths(note, ID_RULES['note.get'] ?? new Map())).toStrictEqual([]);
 });
 
 test('it has a rule for the confirm token in a session.forget answer', () => {

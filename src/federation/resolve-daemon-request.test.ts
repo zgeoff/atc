@@ -59,33 +59,33 @@ test('it refuses a request whose ids point at two daemons', () => {
   ).toThrow(expect.objectContaining({ code: 'bad_args', message: "no message 'pc.9a1b2c3d.m-1'" }));
 });
 
-test('it routes report.get by its report handle and hands the daemon its own cursor', () => {
+test('it routes note.get by its note handle and hands the daemon its own cursor', () => {
   const pc = buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' });
 
   const resolved = resolveDaemonRequest(
-    { report: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ' },
+    { note: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ' },
     { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
   );
 
   expect(resolved).toStrictEqual({
     daemon: pc,
-    params: { report: 'eyJrIjoiZXYiLCJpIjo3fQ' },
+    params: { note: 'eyJrIjoiZXYiLCJpIjo3fQ' },
     requestIDs: new Map([['eyJrIjoiZXYiLCJpIjo3fQ', 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ']]),
   });
 });
 
-test('it refuses a report handle with a stale incarnation as an unknown report', () => {
+test('it refuses a note handle with a stale incarnation as an unknown note', () => {
   const pc = buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' });
 
   expect(() =>
     resolveDaemonRequest(
-      { report: 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ' },
+      { note: 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ' },
       { daemons: new Map([['pc', pc]]), defaultDaemon: 'pc' },
     ),
   ).toThrow(
     expect.objectContaining({
       code: 'bad_args',
-      message: "no report 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ'",
+      message: "no note 'pc.11111111.eyJrIjoiZXYiLCJpIjo3fQ'",
     }),
   );
 });

@@ -50,6 +50,6 @@ export const REQUEST_ACCESS_CLASSES: Readonly<Record<RequestMethod, RequestAcces
   'session.message': 'principal',
   'session.tap': 'principal',
   'message.get': 'principal',
-  'report.get': 'principal',
+  'note.get': 'principal',
   'message.ack': 'principal',
 };
