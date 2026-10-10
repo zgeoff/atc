@@ -51,9 +51,8 @@ export interface BridgeContext {
 
 const REQUEST_SCHEMA = z.looseObject({ v: z.literal(1), id: z.string().min(1), op: z.string() });
 
-// A note carries `noteID`; the envelope earlier releases sent carries
-// `reportID` for the same value, and a restored session's surviving tap still
-// sends it.
+// A note's ID arrives as `noteID`, or as `reportID` from a tap or mod that
+// uses the older field name.
 const NOTE_SCHEMA = z
   .looseObject({
     noteID: z.string().min(1).max(128).optional(),

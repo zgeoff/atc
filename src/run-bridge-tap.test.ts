@@ -62,7 +62,7 @@ test('it removes the outbox file of a note the bridge took', async () => {
   ]);
 });
 
-test('it sends an outbox file an earlier release wrote under its report id as a note', async () => {
+test('it sends an outbox file that holds its id as reportID as a note', async () => {
   const ctx = setupTest();
 
   const bridge = startStubSessionBridge(ctx.sock, (request) => [

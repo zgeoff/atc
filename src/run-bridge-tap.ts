@@ -12,8 +12,8 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   sentAt: z.number(),
 });
 
-// Outbox files written by earlier releases hold `reportID` for the value a
-// note file holds as `noteID`; both read as a note.
+// A note file holds its ID as `noteID`, or as `reportID` when a tap that uses
+// the older field name wrote it; both read as a note.
 const OUTBOX_NOTE_SCHEMA = z
   .object({
     noteID: z.string().min(1).optional(),
