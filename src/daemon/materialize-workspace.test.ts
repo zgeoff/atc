@@ -209,7 +209,9 @@ test('it sets the git identity in the checkout built inside the host', async () 
     [['git', 'config', '--file', '.git/config', 'user.email', 'ada@example.com'], dir],
   ]);
 
-  const email = await $`git config --get user.email`.cwd(dir).quiet().text();
+  const email = await $`git config --file ${join(dir, '.git', 'config')} --get user.email`
+    .quiet()
+    .text();
 
   expect(email.trim()).toBe('ada@example.com');
 });
@@ -241,7 +243,9 @@ test('it sets the git identity in the checkout uploaded to the host', async () =
     },
   );
 
-  const name = await $`git config --get user.name`.cwd(dir).quiet().text();
+  const name = await $`git config --file ${join(dir, '.git', 'config')} --get user.name`
+    .quiet()
+    .text();
 
   expect(name.trim()).toBe('Ada Lovelace');
 });
