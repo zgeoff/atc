@@ -2,10 +2,11 @@
 
 ## [3.10.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.2...@zgeoff/atc@3.10.3) (2026-10-10)
 
-
 ### Bug Fixes
 
-* **geo-209:** give imp workspaces the host's git identity ([#485](https://github.com/zgeoff/atc/issues/485)) ([33982fd](https://github.com/zgeoff/atc/commit/33982fdf6a0a9989427e90ee4ed5da4f50ba695b))
+- **geo-209:** give imp workspaces the host's git identity
+  ([#485](https://github.com/zgeoff/atc/issues/485))
+  ([33982fd](https://github.com/zgeoff/atc/commit/33982fdf6a0a9989427e90ee4ed5da4f50ba695b))
 
 ## [3.10.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.1...@zgeoff/atc@3.10.2) (2026-10-09)
 
