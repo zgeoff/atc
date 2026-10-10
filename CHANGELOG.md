@@ -2,14 +2,17 @@
 
 ## [4.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.11.2...@zgeoff/atc@4.0.0) (2026-10-10)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **geo-87:** the SessionReport event is SessionNote, the report event kind is note, report.get is note.get, atc report note and atc report answered are atc note and atc answer, and the accepted message status is queued.
+- **geo-87:** the SessionReport event is SessionNote, the report event kind is note, report.get is
+  note.get, atc report note and atc report answered are atc note and atc answer, and the accepted
+  message status is queued.
 
 ### Features
 
-* **geo-87:** rename and redescribe the atc mcp tools and their vocabulary ([#494](https://github.com/zgeoff/atc/issues/494)) ([88abcbd](https://github.com/zgeoff/atc/commit/88abcbd665165debe818caf9510070bcdad7c342))
+- **geo-87:** rename and redescribe the atc mcp tools and their vocabulary
+  ([#494](https://github.com/zgeoff/atc/issues/494))
+  ([88abcbd](https://github.com/zgeoff/atc/commit/88abcbd665165debe818caf9510070bcdad7c342))
 
 ## [3.11.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.11.1...@zgeoff/atc@3.11.2) (2026-10-10)
 
