@@ -12,10 +12,25 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   sentAt: z.number(),
 });
 
-const OUTBOX_NOTE_SCHEMA = z.object({
-  noteID: z.string().min(1),
-  payload: z.record(z.string(), z.unknown()),
-});
+// Outbox files written by earlier releases hold `reportID` for the value a
+// note file holds as `noteID`; both read as a note.
+const OUTBOX_NOTE_SCHEMA = z
+  .object({
+    noteID: z.string().min(1).optional(),
+    reportID: z.string().min(1).optional(),
+    payload: z.record(z.string(), z.unknown()),
+  })
+  .transform((file, ctx) => {
+    const noteID = file.noteID ?? file.reportID;
+
+    if (noteID === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'a note file needs an ID' });
+
+      return z.NEVER;
+    }
+
+    return { noteID, payload: file.payload };
+  });
 
 // The wait before the first reconnect, doubling up to the longest.
 const FIRST_RETRY_MS = 250;
@@ -227,7 +242,7 @@ function sendOutboxNotes(socket: BridgeSocket, outbox: string): Map<string, stri
 
   for (const file of files) {
     const path = join(outbox, file);
-    let note: z.infer<typeof OUTBOX_NOTE_SCHEMA> | null = null;
+    let note: z.output<typeof OUTBOX_NOTE_SCHEMA> | null = null;
 
     try {
       const parsed = OUTBOX_NOTE_SCHEMA.safeParse(JSON.parse(readFileSync(path, 'utf8')));

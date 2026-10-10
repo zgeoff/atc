@@ -62,6 +62,36 @@ test('it removes the outbox file of a note the bridge took', async () => {
   ]);
 });
 
+test('it sends an outbox file an earlier release wrote under its report id as a note', async () => {
+  const ctx = setupTest();
+
+  const bridge = startStubSessionBridge(ctx.sock, (request) => [
+    { id: request['id'], ok: true },
+    { ev: 'InboxClosed' },
+  ]);
+
+  writeFileSync(
+    join(ctx.outbox, 'r1.json'),
+    JSON.stringify({ reportID: 'r1', payload: { kind: 'note', text: 'hi' } }),
+  );
+
+  await runBridgeTap(ctx.sock, ctx.outbox, {
+    writeStdout: () => Promise.resolve(),
+    printError: () => {},
+    exit: () => {},
+  });
+
+  expect(existsSync(join(ctx.outbox, 'r1.json'))).toBe(false);
+
+  expect(bridge.requests).toContainEqual({
+    v: 1,
+    id: 'note:r1',
+    op: 'note',
+    noteID: 'r1',
+    payload: { kind: 'note', text: 'hi' },
+  });
+});
+
 test('it removes no file for an answer to a note id it never sent', async () => {
   const ctx = setupTest();
 

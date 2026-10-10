@@ -261,3 +261,49 @@ test("it answers forbidden and closes for a request to add to its own session's 
 
   expect(ctx.stub.written).toStrictEqual([{ id: 'r1', ok: false, code: 'forbidden' }]);
 });
+
+test('it applies a note sent in the legacy report envelope under its report id', async () => {
+  const ctx = setupTest();
+  const applyNote = mock<BridgeContext['applyNote']>(() => Promise.resolve(true));
+
+  const daemon = buildStubBridgeContext({
+    findSession: (sessionID) => ctx.sessions.get(sessionID),
+    applyNote,
+  });
+
+  ctx.sessions.set(toSessionID('s1'), {
+    id: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:a',
+    hostKey: toSessionID('s1'),
+    bridgeEpoch: 3,
+    state: 'running',
+    lastMsg: 'started',
+  });
+
+  startSessionBridge(
+    ctx.stub.relay,
+    {
+      sessionID: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:a',
+      hostKey: toSessionID('s1'),
+      epoch: 3,
+    },
+    daemon,
+  );
+
+  ctx.stub.sendLine({
+    v: 1,
+    id: 'report:r1',
+    op: 'report',
+    reportID: 'r1',
+    payload: { kind: 'note', text: 'hi' },
+  });
+
+  await waitFor(() => {
+    expect(ctx.stub.written).toStrictEqual([{ id: 'report:r1', ok: true }]);
+  });
+
+  expect(applyNote).toHaveBeenCalledWith(toSessionID('s1'), { kind: 'note', text: 'hi' }, 'r1');
+});

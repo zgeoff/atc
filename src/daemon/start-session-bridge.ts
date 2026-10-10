@@ -51,10 +51,26 @@ export interface BridgeContext {
 
 const REQUEST_SCHEMA = z.looseObject({ v: z.literal(1), id: z.string().min(1), op: z.string() });
 
-const REPORT_SCHEMA = z.looseObject({
-  noteID: z.string().min(1).max(128),
-  payload: z.record(z.string(), z.unknown()),
-});
+// A note carries `noteID`; the envelope earlier releases sent carries
+// `reportID` for the same value, and a restored session's surviving tap still
+// sends it.
+const NOTE_SCHEMA = z
+  .looseObject({
+    noteID: z.string().min(1).max(128).optional(),
+    reportID: z.string().min(1).max(128).optional(),
+    payload: z.record(z.string(), z.unknown()),
+  })
+  .transform((request, ctx) => {
+    const noteID = request.noteID ?? request.reportID;
+
+    if (noteID === undefined) {
+      ctx.addIssue({ code: 'custom', message: 'a note needs an ID' });
+
+      return z.NEVER;
+    }
+
+    return { noteID, payload: request.payload };
+  });
 
 const ACK_SCHEMA = z.looseObject({ message: z.string().min(1) });
 
@@ -145,8 +161,8 @@ export function startSessionBridge(
     id: string,
     op: string,
   ) => {
-    if (op === 'note') {
-      const parsed = REPORT_SCHEMA.safeParse(request);
+    if (op === 'note' || op === 'report') {
+      const parsed = NOTE_SCHEMA.safeParse(request);
 
       if (
         !parsed.success ||
