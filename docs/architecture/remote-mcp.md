@@ -352,19 +352,19 @@ id and `answeredWith`. Pass `waitMs` to `atc_message_get` and `atc_events_read` 
 in a tight loop: each holds the request for up to 30 seconds, under the server's 60-second idle
 limit.
 
-## Reading reports
+## Reading notes
 
-A report is a short update a session sends through its `report` tool, which the
-[atc-bridge mod](./overview.md#agent-integration) gives every Claude session. atc keeps each report
-with its label and up to 64 KiB of its text. `atc_events_read` returns a report as a `report` event
+A note is a short update a session sends through its `report` tool, which the
+[atc-bridge mod](./overview.md#agent-integration) gives every Claude session. atc keeps each note
+with its label and up to 64 KiB of its text. `atc_events_read` returns a note as a `note` event
 among the fleet's other events, with its label and a 600-character preview of its text in `detail`.
-`atc_report_get` takes the report handle of that event, or the event's cursor when it holds none,
-and returns the whole text without messaging the session that sent it. Both tools need only `read`,
-and both reach only the sessions the client's principal reaches.
+`atc_report_get` takes the note handle of that event, or the event's cursor when it holds none, and
+returns the whole text without messaging the session that sent it. Both tools need only `read`, and
+both reach only the sessions the client's principal reaches.
 
-To read every report since your last read in one call:
+To read every note since your last read in one call:
 
-1. Call `atc_events_read` with `reportText: true` and no cursor. Each report event holds `text`, the
+1. Call `atc_events_read` with `reportText: true` and no cursor. Each note event holds `text`, the
    whole text, and `complete`.
 2. Keep the `cursor` of the answer, and pass it with `reportText: true` on the next call. That
    answer holds only the events after the cursor, from every session, including sessions you never
@@ -372,33 +372,35 @@ To read every report since your last read in one call:
 3. While `more` is true, call again at once with the latest cursor. Pass `waitMs` to hold a call
    open until an event arrives instead of polling.
 
-Each report event holds the session id and name of the session that sent it, and its label. Under
-the gateway, a session id starts with the name of the daemon that hosts it. `atc_session_get`
-returns the session's target and working directory. `name` is null when the session has no name or
-the daemon no longer lists it.
+Each note event holds the session id and name of the session that sent it, and its label. Under the
+gateway, a session id starts with the name of the daemon that hosts it. `atc_session_get` returns
+the session's target and working directory. `name` is null when the session has no name or the
+daemon no longer lists it.
 
-A page read with `reportText` holds at most 64 KiB of report text and takes at most 10 s of report
-reads. The server reads the reports one at a time in page order. It stops the page before the first
-report that does not fit, or that it would start reading after the 10 s have passed. The stopped
-page holds `more` true and the cursor of the last event it keeps, so the next call starts at that
-report. One report holds at most 64 KiB, so every page holds its first report.
+A page read with `reportText` holds at most 64 KiB of note text and takes at most 10 s of note
+reads. The server reads the notes one at a time in page order. It stops the page before the first
+note that does not fit, or that it would start reading after the 10 s have passed. The stopped page
+holds `more` true and the cursor of the last event it keeps, so the next call starts at that note.
+One note holds at most 64 KiB, so every page holds its first note.
 
 The answer marks what the server could not read:
 
-- `complete` false: atc kept only the preview of that report, and `text` holds the preview.
-- `textError`: the error code and message of a report whose text the server could not read, such as
-  one whose daemon stopped answering. `detail` holds the preview. A report whose text has not
-  arrived when the 10 s pass holds a `timeout` error.
+- `complete` false: atc kept only the preview of that note, and `text` holds the preview.
+- `textError`: the error code and message of a note whose text the server could not read, such as
+  one whose daemon stopped answering. `detail` holds the preview. A note whose text has not arrived
+  when the 10 s pass holds a `timeout` error.
 - `unavailable`: under the gateway, the daemons that did not answer. Each keeps its place in the
   cursor, so the next call reads its events from where the last one stopped.
 - `started` and `truncated`: under the gateway, `started` lists the daemons that joined the cursor
   on this call, which the call reads from their latest events. `truncated` lists those of them known
   to hold older events that went unread.
 
-Against a daemon that does not announce `report.get`, the server leaves `atc_report_get` and the
+Against a daemon that does not announce `note.get`, the server leaves `atc_report_get` and the
 `reportText` input out of `tools/list`. It refuses a call to `atc_report_get` with
-`daemon_outdated`, sending the daemon nothing, and gives each report of a `reportText` read a
-`textError` instead.
+`daemon_outdated`, sending the daemon nothing, and gives each note of a `reportText` read a
+`textError` instead. A daemon that does not announce `vocabulary.note` still uses the earlier
+`report` and `accepted` words, so the server refuses every call to `atc_events_read`,
+`atc_session_message`, `atc_message_get`, and `atc_report_get` against it with `daemon_outdated`.
 
 ## Request checks
 

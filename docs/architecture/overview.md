@@ -62,8 +62,8 @@ removes a session from the list, destroying its host on a target that can; the
 [protocol](./protocol.md#kill-and-sleep) covers its confirm token.
 
 Every tool result holds its output as text. A result that is data also holds it as
-`structuredContent`, an object, and the message, event, and report tools declare an `outputSchema`
-for it. A tool whose data is a list keeps the bare list as its text and wraps it in an object for
+`structuredContent`, an object, and the message, event, and note tools declare an `outputSchema` for
+it. A tool whose data is a list keeps the bare list as its text and wraps it in an object for
 `structuredContent`, so older clients read the same text.
 
 The server returns the client's requested protocol version from `initialize` when it supports it
@@ -124,10 +124,10 @@ through `CLAUDE_CODE_PLUGIN_DIRS`. The mod connects the session to its
   session is idle and appends it to the running turn otherwise, inside an `<atc-message>` envelope
   that holds the sender and message id.
 - When a turn that carried messages ends with a reply, the mod reports every message the turn
-  carried as answered with that reply and the turn's id, in one report. An aborted or failed turn
+  carried as answered with that reply and the turn's id, in one call. An aborted or failed turn
   leaves its messages delivered.
-- It gives the model a `report` tool for progress mid-turn, which clients receive as a
-  `SessionReport` event.
+- It gives the model a `report` tool for progress mid-turn, which clients receive as a `SessionNote`
+  event.
 
 Outside atc, with no `ATC_SESSION_ID` in its environment, the mod does nothing.
 
