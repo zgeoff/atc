@@ -441,6 +441,35 @@ const main = defineCommand({
           });
         },
       }),
+    report: () =>
+      defineCommand({
+        meta: {
+          name: 'report',
+          description:
+            'Compatibility form of note and answer for sessions that loaded an older mod',
+          hidden: true,
+        },
+
+        // No arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          kind: { type: 'positional', required: false, default: '' },
+          message: { type: 'string', default: '' },
+          label: { type: 'string', default: '' },
+          messages: { type: 'string', default: '' },
+          turn: { type: 'string', default: '' },
+        },
+        async run(ctx) {
+          const note = await import('./note');
+
+          await note.runNote(ctx.args.kind, {
+            message: ctx.args.message,
+            messages: ctx.args.messages,
+            label: ctx.args.label,
+            turn: ctx.args.turn,
+          });
+        },
+      }),
     statusline: () =>
       defineCommand({
         meta: {
