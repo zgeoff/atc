@@ -135,7 +135,7 @@ Before it polls, the worker reads the agent ids in the new daemon's config with 
 listed row without a live terminal whose agent the config no longer holds fails at once, since no
 wait gives it a terminal. Once every other row is restored, the restart exits 1 without waiting out
 the deadline. A row whose agent is in the config but not installed yet keeps the wait. When the
-daemon predates `agents.list`, every row keeps the wait.
+daemon predates `agents.list` or leaves it unanswered for 5 s, every row keeps the wait.
 
 ### One restart at a time
 

@@ -251,6 +251,36 @@ test('it keeps waiting on every row when the daemon predates the agent list', as
   });
 });
 
+test('it lists the rows within the deadline when the agent list gets no answer', async () => {
+  const ctx = await setupTest();
+
+  const clock = buildStubClock(0);
+
+  const verdict = verifyRestoredFleet(
+    ctx.client,
+    60,
+    [buildMockStoredRow({ id: 's-good', name: 'good' })],
+    clock,
+  );
+
+  // Nothing is queued, so the daemon withholds the agent list, which only
+  // its own time limit ends.
+  await waitFor(() => {
+    expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'agents.list']);
+    expect(clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  ctx.daemon.lists.push({
+    sessions: [buildMockSessionDescriptor({ id: toSessionID('s-good'), kind: 'pty', alive: true })],
+  });
+
+  clock.advance(5000);
+
+  const outcome = await verdict;
+
+  expect(outcome).toStrictEqual({ total: 1, failed: [] });
+});
+
 test('it rejects when the first list gets no answer before the deadline', async () => {
   const ctx = await setupTest();
 

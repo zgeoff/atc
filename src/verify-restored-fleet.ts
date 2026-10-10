@@ -137,10 +137,14 @@ async function tryRestore(
   }
 }
 
+// How long the agent list may take, so a daemon that withholds it still
+// leaves the rest of the deadline to list the rows.
+const AGENTS_READ_MS = 5000;
+
 /**
  * Reads the ids of the agents in the new daemon's config, or returns null
- * when the daemon predates the agent list or does not answer before the
- * deadline, so every row stays one that waiting can still revive.
+ * when the daemon predates the agent list or does not answer within its
+ * time limit, so every row stays one that waiting can still revive.
  */
 async function tryReadAgentIDs(
   client: Pick<DaemonClient, 'sendRequest'>,
@@ -148,7 +152,11 @@ async function tryReadAgentIDs(
   clock: Clock,
 ): Promise<ReadonlySet<string> | null> {
   try {
-    const listed = await sendBounded(() => client.sendRequest('agents.list'), deadline, clock);
+    const listed = await sendBounded(
+      () => client.sendRequest('agents.list'),
+      Math.min(deadline, clock.now() + AGENTS_READ_MS),
+      clock,
+    );
 
     const agents = Array.isArray(listed['agents']) ? listed['agents'].filter(isRecord) : [];
 
