@@ -147,7 +147,10 @@ installs in detail.
 - A Claude session takes messages from other tools. `atc_session_message` queues one, and the
   session reads it in a new turn, or inside the turn it is running. `atc_message_get` returns that
   turn's final output once the turn ends, and waits for the next status change when given `waitMs`.
-  The [protocol](./docs/architecture/protocol.md#messages) covers the details.
+  Claude Code shows the agent a relayed message as one a plugin sent, not as your own prompt, so
+  name every write an unattended session must make, such as a push or a pull request, in its launch
+  prompt, where its auto-mode classifier reads your request. The
+  [protocol](./docs/architecture/protocol.md#messages) covers the details.
 - `atc events` prints every fleet event as one NDJSON line. The same stream is on a unix socket, and
   `config.json` hooks run your own commands on events. The [events guide](./docs/guides/events.md)
   covers all three.

@@ -11,6 +11,7 @@ import { checkURLCredentials } from '../workspace/check-url-credentials';
 import { createWorkspaceClone } from '../workspace/create-workspace-clone';
 import { expandGitShorthand } from '../workspace/expand-git-shorthand';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
+import type { GitIdentity } from '../workspace/read-host-git-identity';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 import { resolveGitURL } from '../workspace/resolve-git-url';
@@ -80,6 +81,10 @@ interface MaterializeDeps {
   // Whether a git source is cloned inside the host the workspace lands on,
   // rather than cloned on the daemon's host and transferred there.
   readonly cloneOnTarget?: boolean;
+
+  // The git identity written into the checkout's own config, for a host that
+  // holds none of its own; unset or null writes nothing.
+  readonly gitIdentity?: GitIdentity | null;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -310,6 +315,12 @@ async function runMaterialization(
     transports,
     timer,
   );
+
+  if (deps.gitIdentity !== undefined && deps.gitIdentity !== null) {
+    const identity = deps.gitIdentity;
+
+    await timer.withStep('identity', () => writeGitIdentity(deps, landing, identity));
+  }
 
   await recordPhase(request, deps, updateProgress, 'verifying', { sha: cloned.sha });
 
@@ -781,6 +792,38 @@ function toDaemonError(error: unknown, code: ErrorCode, phase: MaterializationPh
   const reason = error instanceof Error ? error.message : String(error);
 
   return new DaemonError(code, reason, { phase });
+}
+
+// Writes the identity into the checkout's own config file, passing each
+// value as its own argument so no shell reads it.
+async function writeGitIdentity(
+  deps: MaterializeDeps,
+  landing: Landing,
+  identity: GitIdentity,
+): Promise<void> {
+  const entries = [
+    ['user.name', identity.name],
+    ['user.email', identity.email],
+  ] as const;
+
+  for (const [key, value] of entries) {
+    // Sequential: both writes lock the same config file.
+    const written = await deps.requireProvider('run').runCommand({
+      argv: ['git', 'config', '--file', '.git/config', key, value],
+      cwd: landing.dir,
+      host: landing.host,
+    });
+
+    if (written.exitCode !== 0) {
+      const reason = written.stderr.trim().split('\n')[0] ?? '';
+
+      throw new DaemonError(
+        'transfer_failed',
+        `cannot set ${key} in the checkout on its target: ${reason}`,
+        { phase: 'cloning' },
+      );
+    }
+  }
 }
 
 // The provider runs commands in its own environment, so the verify unsets

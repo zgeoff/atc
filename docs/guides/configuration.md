@@ -234,6 +234,9 @@ covers the lifecycle. Its options:
 | `guestATC`             | unset      | An atc binary installed in the image, which hooks run when it prints the daemon's version.           |
 | `trustClonedWorkspace` | `false`    | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust). |
 
+A workspace on an imp gets the daemon host's git `user.name` and `user.email` in its own
+`.git/config`, since the image holds no git identity. A host that has no value for both sets none.
+
 Set at most one of `tokenEnv` and `tokenFile`. A target that sets both is a config error, and each
 spawn on it fails with `target_config_invalid`. A target with neither calls impd with no token.
 
