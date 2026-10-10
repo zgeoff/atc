@@ -251,6 +251,51 @@ test('it keeps waiting on every row when the daemon predates the agent list', as
   });
 });
 
+test('it keeps waiting on every row when the agent list answer holds no agents', async () => {
+  const ctx = await setupTest();
+
+  const clock = buildStubClock(0);
+
+  ctx.daemon.lists.push(
+    {},
+    {
+      sessions: [
+        buildMockSessionDescriptor({
+          id: toSessionID('s-booting'),
+          agent: 'claude',
+          kind: 'headless',
+          alive: false,
+          state: 'running',
+          lastMsg: 'booting',
+        }),
+      ],
+    },
+  );
+
+  const verdict = verifyRestoredFleet(
+    ctx.client,
+    60,
+    [buildMockStoredRow({ id: 's-booting', name: 'booting' })],
+    clock,
+  );
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([250]);
+  });
+
+  ctx.daemon.lists.push({
+    sessions: [
+      buildMockSessionDescriptor({ id: toSessionID('s-booting'), kind: 'pty', alive: true }),
+    ],
+  });
+
+  clock.advance(250);
+
+  const outcome = await verdict;
+
+  expect(outcome).toStrictEqual({ total: 1, failed: [] });
+});
+
 test('it lists the rows within the deadline when the agent list gets no answer', async () => {
   const ctx = await setupTest();
 

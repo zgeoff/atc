@@ -143,8 +143,8 @@ const AGENTS_READ_MS = 5000;
 
 /**
  * Reads the ids of the agents in the new daemon's config, or returns null
- * when the daemon predates the agent list or does not answer within its
- * time limit, so every row stays one that waiting can still revive.
+ * when the daemon predates the agent list, answers without one, or does
+ * not answer within its time limit, so every row stays one that waiting can still revive.
  */
 async function tryReadAgentIDs(
   client: Pick<DaemonClient, 'sendRequest'>,
@@ -158,9 +158,13 @@ async function tryReadAgentIDs(
       clock,
     );
 
-    const agents = Array.isArray(listed['agents']) ? listed['agents'].filter(isRecord) : [];
+    const agents = listed['agents'];
 
-    return new Set(agents.map((agent) => String(agent['id'])));
+    if (!Array.isArray(agents)) {
+      return null;
+    }
+
+    return new Set(agents.filter((agent) => isRecord(agent)).map((agent) => String(agent['id'])));
   } catch {
     return null;
   }
