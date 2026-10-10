@@ -462,6 +462,11 @@ the daemon records each phase in it before the phase starts:
 | `ready`        | starts the session in `cwd`                                                                                                                                |
 | `failed`       | holds the refusal code, after removing a `cwd` the materialization created                                                                                 |
 
+On an imp target, once the checkout exists and before `verifying`, the daemon writes the daemon
+host's git `user.name` and `user.email` into the checkout's `.git/config` through `run`, since the
+image holds no git identity. A host that has no value for both sets none, and a failed write refuses
+the materialization with `transfer_failed`.
+
 An imp clones a git source over its own network, so no repository bytes cross the daemon's link. The
 daemon pins the ref to a commit with `git ls-remote`, then runs one command in the imp that makes a
 blobless clone (`--filter=blob:none`) of that commit in `cwd`, checks it for submodules and Git LFS

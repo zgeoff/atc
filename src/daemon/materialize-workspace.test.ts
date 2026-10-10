@@ -161,3 +161,185 @@ test('it holds the phase a refusal failed in when the refusal carries none', asy
     data: { phase: 'resolving' },
   });
 });
+
+const IDENTITY = { name: 'Ada Lovelace', email: 'ada@example.com' };
+
+test('it sets the git identity in the checkout built inside the host', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
+
+  const host = buildStubExecutionProvider();
+  const dir = join(ctx.scratch, 'ws');
+  const commands: CommandSpec[] = [];
+
+  const provider = {
+    ...host,
+    runCommand: (spec: CommandSpec) => {
+      commands.push(spec);
+
+      return host.runCommand(spec);
+    },
+  };
+
+  await materializeWorkspace(
+    {
+      sessionID: toSessionID('s-1'),
+      target: 'box',
+      dir,
+      source: { kind: 'git', url: git.upstream, ref: 'main' },
+      inPlace: false,
+    },
+    {
+      requireProvider: () => provider,
+      store: ctx.store,
+      log: () => {},
+      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      removeClaim: () => Promise.resolve(true),
+      stagingRoot: ctx.scratch,
+      gitTransports: ['file'],
+      cloneOnTarget: true,
+      gitIdentity: IDENTITY,
+    },
+  );
+
+  expect(
+    commands.filter((spec) => spec.argv.includes('--file')).map((spec) => [spec.argv, spec.cwd]),
+  ).toStrictEqual([
+    [['git', 'config', '--file', '.git/config', 'user.name', 'Ada Lovelace'], dir],
+    [['git', 'config', '--file', '.git/config', 'user.email', 'ada@example.com'], dir],
+  ]);
+
+  const email = await $`git config --get user.email`.cwd(dir).quiet().text();
+
+  expect(email.trim()).toBe('ada@example.com');
+});
+
+test('it sets the git identity in the checkout uploaded to the host', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
+
+  const provider = buildStubExecutionProvider();
+  const dir = join(ctx.scratch, 'ws');
+
+  await materializeWorkspace(
+    {
+      sessionID: toSessionID('s-1'),
+      target: 'box',
+      dir,
+      source: { kind: 'git', url: git.upstream, ref: 'main' },
+      inPlace: false,
+    },
+    {
+      requireProvider: () => provider,
+      store: ctx.store,
+      log: () => {},
+      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      removeClaim: () => Promise.resolve(true),
+      stagingRoot: ctx.scratch,
+      gitTransports: ['file'],
+      gitIdentity: IDENTITY,
+    },
+  );
+
+  const name = await $`git config --get user.name`.cwd(dir).quiet().text();
+
+  expect(name.trim()).toBe('Ada Lovelace');
+});
+
+test('it runs no git identity command when the host has no identity', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
+
+  const host = buildStubExecutionProvider();
+  const dir = join(ctx.scratch, 'ws');
+  const commands: CommandSpec[] = [];
+
+  const provider = {
+    ...host,
+    runCommand: (spec: CommandSpec) => {
+      commands.push(spec);
+
+      return host.runCommand(spec);
+    },
+  };
+
+  await materializeWorkspace(
+    {
+      sessionID: toSessionID('s-1'),
+      target: 'box',
+      dir,
+      source: { kind: 'git', url: git.upstream, ref: 'main' },
+      inPlace: false,
+    },
+    {
+      requireProvider: () => provider,
+      store: ctx.store,
+      log: () => {},
+      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      removeClaim: () => Promise.resolve(true),
+      stagingRoot: ctx.scratch,
+      gitTransports: ['file'],
+      gitIdentity: null,
+    },
+  );
+
+  expect(commands.filter((spec) => spec.argv.includes('--file'))).toStrictEqual([]);
+});
+
+test('it refuses and removes the claimed directory when the git identity cannot be set', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-materialize-git-' });
+
+  const host = buildStubExecutionProvider();
+  const dir = join(ctx.scratch, 'ws');
+  const removed: string[] = [];
+
+  const provider = {
+    ...host,
+    runCommand: (spec: CommandSpec) => {
+      if (!spec.argv.includes('--file')) {
+        return host.runCommand(spec);
+      }
+
+      return Promise.resolve({
+        exitCode: 1,
+        stdout: '',
+        stderr: 'error: could not lock config file .git/config\nsecond line\n',
+      });
+    },
+  };
+
+  const materialized = materializeWorkspace(
+    {
+      sessionID: toSessionID('s-1'),
+      target: 'box',
+      dir,
+      source: { kind: 'git', url: git.upstream, ref: 'main' },
+      inPlace: false,
+    },
+    {
+      requireProvider: () => provider,
+      store: ctx.store,
+      log: () => {},
+      readyHost: () => Promise.resolve({ host: 'h', dir }),
+      removeClaim: (claimed) => {
+        removed.push(claimed);
+
+        return Promise.resolve(true);
+      },
+      stagingRoot: ctx.scratch,
+      gitTransports: ['file'],
+      gitIdentity: IDENTITY,
+    },
+  );
+
+  expect(materialized).rejects.toMatchObject({
+    code: 'transfer_failed',
+    message: expect.toInclude('could not lock config file .git/config'),
+    data: { phase: 'cloning' },
+  });
+
+  await materialized.catch(() => {});
+
+  expect(removed).toStrictEqual([dir]);
+});

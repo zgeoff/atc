@@ -36,6 +36,7 @@ import type { EventScope } from '../store/state-store';
 import type { TrailEntry } from '../store/trail-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
+import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
@@ -1147,7 +1148,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // Materializes a spawn's workspace on the host its spawn readies once the
   // source resolves, under the target identity the spawn bound, and every
   // provider call passes the execution gate against that binding.
-  const materializeSpawnWorkspace = (
+  const materializeSpawnWorkspace = async (
     p: SpawnParams,
     id: SessionID,
     source: SpawnWorkspaceSource,
@@ -1185,6 +1186,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         // An imp fetches from the repository host over its own network,
         // so its workspace never crosses the daemon's link.
         cloneOnTarget: bound.provider.kind === 'imp',
+
+        // An imp image holds no git identity, so its checkout takes the
+        // daemon host's; a local target reads the user's own config.
+        ...(bound.provider.kind === 'imp' ? { gitIdentity: await readHostGitIdentity() } : {}),
       },
     );
   };
