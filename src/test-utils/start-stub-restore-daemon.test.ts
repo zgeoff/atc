@@ -70,6 +70,30 @@ test('it withholds the answer to a session list once no reply is left', async ()
   expect(Bun.peek.status(listed)).toBe('pending');
 });
 
+test('it refuses a method the test marks unknown the way a daemon that predates it does', async () => {
+  const ctx = setupTest();
+
+  const client = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  ctx.daemon.unknown.add('agents.list');
+  ctx.daemon.lists.push({ sessions: [] });
+
+  const refused = client.sendRequest('agents.list');
+
+  const listed = await client.sendRequest('session.list');
+
+  expect(refused).rejects.toMatchObject({
+    code: 'unknown_method',
+    message: "unknown method 'agents.list'",
+  });
+
+  expect(listed).toStrictEqual({ sessions: [] });
+});
+
 test('it records the method of each request in order', async () => {
   const ctx = setupTest();
 

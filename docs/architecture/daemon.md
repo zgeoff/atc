@@ -131,6 +131,12 @@ row that is not exited is listed with a live terminal, or until the deadline pas
 default) plus 30 s. An exited row counts as restored when it is listed. A stored row that is not
 listed failed to restore, and a listed row without a live terminal at the deadline failed to revive.
 
+Before it polls, the worker reads the agent ids in the new daemon's config with `agents.list`. A
+listed row without a live terminal whose agent the config no longer holds fails at once, since no
+wait gives it a terminal. Once every other row is restored, the restart exits 1 without waiting out
+the deadline. A row whose agent is in the config but not installed yet keeps the wait. When the
+daemon predates `agents.list`, every row keeps the wait.
+
 ### One restart at a time
 
 The worker takes an exclusive `flock` on `daemon-restart.lock` in the state directory. A worker that

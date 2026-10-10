@@ -7,13 +7,18 @@ import { registerTestCleanup } from './register-test-cleanup';
  * to a fleet restore check: it answers every `fleet.restore` with an empty
  * result, answers each other request with the next reply the test pushes
  * onto `lists`, and withholds the answer to any request that finds `lists`
- * empty. `methods` holds the method of each request it took, in order.
- * The listener stops once the current test finishes, so it must run inside
- * a test; `stop` stops it sooner, and a second stop does nothing.
+ * empty. It refuses a method the test adds to `unknown` with the
+ * `unknown_method` error a daemon that predates the method returns, and
+ * takes no reply from `lists` for it. `methods` holds the method of each
+ * request it took, in order. The listener stops once the current test
+ * finishes, so it must run inside a test; `stop` stops it sooner, and a
+ * second stop does nothing.
  */
 export function startStubRestoreDaemon(socketPath: string) {
   const lists: Readonly<Record<string, unknown>>[] = [];
   const methods: string[] = [];
+
+  const unknown = new Set<string>();
 
   // Each connection gets a decoder of its own, so a partial line from one
   // client never joins a line from another.
@@ -32,6 +37,18 @@ export function startStubRestoreDaemon(socketPath: string) {
         for (const request of requests) {
           methods.push(request.msg.m);
 
+          if (unknown.has(request.msg.m)) {
+            socket.write(
+              encodeMessage({
+                v: PROTOCOL_V,
+                id: request.msg.id,
+                err: { code: 'unknown_method', msg: `unknown method '${request.msg.m}'` },
+              }),
+            );
+
+            continue;
+          }
+
           const ok = request.msg.m === 'fleet.restore' ? {} : lists.shift();
 
           if (ok !== undefined) {
@@ -49,6 +66,7 @@ export function startStubRestoreDaemon(socketPath: string) {
   return {
     lists,
     methods,
+    unknown,
     stop,
   };
 }
