@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { expect, onTestFinished, test } from 'bun:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { updateEnv } from '../test-utils/update-env';
@@ -46,4 +46,35 @@ test('it resolves to null when the global git config holds no name', async () =>
   const identity = await readHostGitIdentity();
 
   expect(identity).toBeNull();
+});
+
+test('it ignores the identity of the repository the daemon runs in', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.config, '[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n');
+
+  const repo = setupTempDir('atc-host-identity-repo-');
+  const gitDir = join(repo.dir, '.git');
+
+  mkdirSync(join(gitDir, 'objects'), { recursive: true });
+  mkdirSync(join(gitDir, 'refs'));
+  writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n');
+
+  writeFileSync(
+    join(gitDir, 'config'),
+    '[user]\n\tname = Local Person\n\temail = local@example.com\n',
+  );
+
+  const previous = process.cwd();
+
+  process.chdir(repo.dir);
+
+  onTestFinished(() => process.chdir(previous));
+
+  const identity = await readHostGitIdentity();
+
+  expect(identity).toStrictEqual({
+    name: 'Ada Lovelace',
+    email: 'ada@example.com',
+  });
 });
