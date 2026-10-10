@@ -83,7 +83,7 @@ says to restart the daemon. The client never restarts the daemon on its own; the
                                         "session.submit", "note.get", "sources",
                                         "git.probe", "transport.tcp", "idempotency.replayOnly",
                                         "session.auth", "session.record",
-                                        "vocabulary.note"],
+                                        "vocabulary.note", "session.kill.stopOnly"],
                            "idempotency": { "completedRetentionMs": 86400000 },
                            "lastUsedAgent": "claude" } }
 ```
@@ -102,9 +102,10 @@ exists while a git `workspace` takes both `ref` and `sha`, the daemon can serve 
 (`idempotency.replayOnly`), `session.auth.revoke` and `session.auth.rebind` exist (`session.auth`),
 and `session.scope.add` exists while `session.spawn` takes `scope`, `daemon.hello` takes `session`,
 and `session.get` returns `sessionRecord` (`session.record`), and events, notes, and messages use
-the `note` and `queued` words (`vocabulary.note`). A daemon from before the list existed sends none,
-and it ignores the parameters it does not know. A client that outlives a daemon upgrade, such as
-`atc mcp`, reads the list rather than the build string to learn what the running daemon honours.
+the `note` and `queued` words (`vocabulary.note`), and `session.kill` takes `stopOnly`
+(`session.kill.stopOnly`). A daemon from before the list existed sends none, and it ignores the
+parameters it does not know. A client that outlives a daemon upgrade, such as `atc mcp`, reads the
+list rather than the build string to learn what the running daemon honours.
 
 `daemonID` is the id the daemon minted into its state store the first time it opened it, so it stays
 the same across daemon restarts. Every session descriptor holds a `locator` of
@@ -877,6 +878,11 @@ the https form of an ssh URL. A `git ls-remote` that runs longer than 20 s is st
 request with `clone_failed`.
 
 ## Kill and sleep
+
+`session.kill` with `stopOnly: true` (`session.kill.stopOnly`) only ever stops: a live session stops
+as below and the answer is `{ stopped: true }`, while an exited session stays in the list as it is
+and the answer is `{ stopped: false }`. Without it, a kill of an exited session removes it, as
+below.
 
 `session.kill` on a live session ends its harness and the harnesses of its live sub-sessions, and
 the session lists as exited. A second kill of a dead session forgets it: the daemon drops the

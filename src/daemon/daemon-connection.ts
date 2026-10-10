@@ -642,7 +642,7 @@ export class DaemonConnection {
         return;
       }
       case 'session.kill': {
-        await this.applySessionVerb(req, 'session.kill', ctx.killSession);
+        await this.applyKill(req, ctx);
 
         return;
       }
@@ -1693,9 +1693,33 @@ export class DaemonConnection {
     this.sendOk(req.id, { message: result.id, status: result.status });
   }
 
+  private async applyKill(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('session.kill', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const stopOnly = parsed.data.stopOnly === true;
+
+    const outcome = await ctx.killSession(parsed.data.session, stopOnly);
+
+    if (outcome === 'missing') {
+      this.sendErr(req.id, 'no_such_session', `no session '${parsed.data.session}'`);
+
+      return;
+    }
+
+    const answer = stopOnly ? { stopped: outcome === 'stopped' } : {};
+
+    this.sendOk(req.id, answer);
+  }
+
   private async applySessionVerb(
     req: RequestMsg,
-    method: 'session.kill' | 'session.ack',
+    method: 'session.ack',
     verb: (id: SessionID) => boolean | Promise<boolean>,
   ): Promise<void> {
     const parsed = parseRequestParams(method, req.p);

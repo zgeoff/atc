@@ -215,7 +215,12 @@ export const REQUEST_PARAM_SCHEMAS = {
       z.string().transform(toSessionID).optional(),
     ),
   }),
-  'session.kill': SESSION_DEFAULTED,
+
+  // With stopOnly, a live session stops and an exited one is left in the
+  // list as it is, where a kill without it removes an exited session.
+  'session.kill': SESSION_DEFAULTED.extend({
+    stopOnly: z.boolean({ error: 'session.kill stopOnly must be a boolean' }).optional(),
+  }),
   'session.ack': SESSION_DEFAULTED,
 
   // Without a token, a forget that destroys a host answers with one; the

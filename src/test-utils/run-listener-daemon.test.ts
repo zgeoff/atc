@@ -98,6 +98,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
       'session.auth',
       'session.record',
       'vocabulary.note',
+      'session.kill.stopOnly',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
