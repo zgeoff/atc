@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.11.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.11.0...@zgeoff/atc@3.11.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **geo-189:** fail restart at once on a row whose agent is gone ([#491](https://github.com/zgeoff/atc/issues/491)) ([80f9260](https://github.com/zgeoff/atc/commit/80f9260d382a9c7a4e9a14cb07d3b792dd37d8fe))
+
 ## [3.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.10.3...@zgeoff/atc@3.11.0) (2026-10-10)
 
 ### Features
