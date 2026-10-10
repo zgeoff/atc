@@ -9,6 +9,10 @@ export interface AdapterEvent {
   agentSessionID?: AgentSessionID;
   message?: string;
 
+  // True when a needs-input event is a permission prompt that only a person
+  // can answer, as opposed to an idle or other notice. Absent otherwise.
+  permissionPending?: boolean;
+
   // Fuller activity text than message: what the agent last said or was
   // asked, for briefing. Bounded by the adapter.
   detail?: string;

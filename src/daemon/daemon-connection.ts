@@ -1301,8 +1301,18 @@ export class DaemonConnection {
   private sendInputResult(
     req: RequestMsg,
     sessionID: SessionID,
-    result: 'busy' | 'ok' | 'missing' | 'dead',
+    result: 'busy' | 'ok' | 'missing' | 'dead' | 'permission_pending',
   ): void {
+    if (result === 'permission_pending') {
+      this.sendErr(
+        req.id,
+        'permission_pending',
+        `session '${sessionID}' is waiting on a permission prompt; only a person can answer it in the atc TUI`,
+      );
+
+      return;
+    }
+
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
 

@@ -1965,6 +1965,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       mgr.requireExecution(s, 'input');
 
+      // Typed text would confirm the prompt's highlighted option.
+      if (s.state === 'needs_you' && s.permissionPending === true) {
+        return Promise.resolve('permission_pending');
+      }
+
       const runtime = getRuntime(sessionID);
       const bracketedPaste = runtime.screen?.hasBracketedPaste() ?? false;
       const adapter = mgr.findAdapter(s.agent);

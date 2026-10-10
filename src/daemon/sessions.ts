@@ -123,6 +123,10 @@ export interface Session {
   unread: boolean;
   lastMsg: string;
   lastDetail?: string;
+
+  // True while the session's agent reported a permission prompt that no
+  // later event has superseded; only meaningful in the needs_you state.
+  permissionPending?: boolean;
   agentSessionID?: AgentSessionID;
   agent: AgentID;
   transcriptSource?: string;
@@ -2798,6 +2802,9 @@ export class SessionManager {
     if (ev.nameSource !== undefined) {
       void this.refreshName(s, ev.nameSource);
     }
+
+    // Any later hook event supersedes a pending permission prompt.
+    s.permissionPending = ev.kind === 'needs-input' && ev.permissionPending === true;
 
     switch (ev.kind) {
       // Clearing or resuming inside a live terminal ends the old agent session

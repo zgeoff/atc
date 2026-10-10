@@ -91,6 +91,49 @@ test('it carries the whole last assistant message of a finished turn as its resu
   });
 });
 
+test('it marks a permission prompt notification as pending a permission answer', () => {
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Notification',
+    payload: {
+      session_id: 'c-1',
+      message: 'Claude needs your permission to use Bash',
+      notification_type: 'permission_prompt',
+    },
+  });
+
+  expect(ev).toStrictEqual({
+    kind: 'needs-input',
+    agentSessionID: toAgentSessionID('c-1'),
+    permissionPending: true,
+    message: 'Claude needs your permission to use Bash',
+    detail: 'Claude needs your permission to use Bash',
+  });
+});
+
+test('it does not mark an idle notification as pending a permission answer', () => {
+  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+
+  const ev = adapter.normalizeHook({
+    atcId: toSessionID('s1'),
+    event: 'Notification',
+    payload: {
+      session_id: 'c-1',
+      message: 'Claude is waiting for your input',
+      notification_type: 'idle_prompt',
+    },
+  });
+
+  expect(ev).toStrictEqual({
+    kind: 'needs-input',
+    agentSessionID: toAgentSessionID('c-1'),
+    message: 'Claude is waiting for your input',
+    detail: 'Claude is waiting for your input',
+  });
+});
+
 test('it takes inbox messages', () => {
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 

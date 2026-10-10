@@ -63,6 +63,7 @@ const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
   session_id: buildOptionalString(),
   transcript_path: buildOptionalString(),
   message: buildOptionalString(),
+  notification_type: buildOptionalString(),
   last_assistant_message: buildOptionalString(),
   prompt: buildOptionalString(),
 });
@@ -462,6 +463,7 @@ export class ClaudeAdapter implements AgentAdapter {
         return {
           ...base,
           kind: 'needs-input',
+          ...(payload.notification_type === 'permission_prompt' ? { permissionPending: true } : {}),
           ...(message !== undefined && message !== ''
             ? { message, detail: truncateDetail(message) }
             : {}),
