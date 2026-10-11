@@ -90,15 +90,22 @@ const SEEN_OFFER_ADD_SED = [
 // place.
 const SEEN_OFFER_STEP = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude.json" || { (umask 077 && if grep -q '"${SEEN_OFFER_KEY}"' "$1/.claude.json"; then sed -e '${SEEN_OFFER_SET_SED}' "$1/.claude.json"; else sed -e '${SEEN_OFFER_ADD_SED}' "$1/.claude.json"; fi > "$1/.claude.json.atc") && mv "$1/.claude.json.atc" "$1/.claude.json"; }; }`;
 
+// A config the merge could not mark, such as one whose object does not
+// open on its first line, still starts the CLI, with a warning that says
+// the offer may wait for an answer.
+const SEEN_OFFER_CHECK = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude.json" || echo "atc: could not mark the outside-read offer seen in $1/.claude.json, so Claude may stop to ask once" >&2; }`;
+
 // The arguments are the config folder, the seed, the folder bundles stage
 // in, this launch's staged bundle, the scratch folder, and the CLI's own
 // command line. The removed entries are every top-level entry a bundle can
 // hold, so one the host dropped leaves the config folder too.
 const SEED_CONFIG_SCRIPT = [
   'mkdir -p "$1"',
-  'mkdir -p -m 700 "$5"',
+  'mkdir -p "$5"',
+  'chmod 700 "$5"',
   '{ [ -e "$1/.claude.json" ] || cp "$2" "$1/.claude.json"; }',
   SEEN_OFFER_STEP,
+  SEEN_OFFER_CHECK,
   '{ [ ! -d "$4" ] || { rm -rf "$1/CLAUDE.md" "$1/settings.json" "$1/statusline.sh" "$1/agents" "$1/output-styles" "$1/skills" && cp -R "$4/." "$1/" && rm -rf "$3"; }; }',
   'shift 5',
   'exec "$@"',

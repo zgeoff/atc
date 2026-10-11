@@ -18,4 +18,4 @@ export function buildScratchLaunch(
 }
 
 // The arguments are the scratch folder and the CLI's own command line.
-const SCRATCH_SCRIPT = 'mkdir -p -m 700 "$1" && shift && exec "$@"';
+const SCRATCH_SCRIPT = 'mkdir -p "$1" && chmod 700 "$1" && shift && exec "$@"';

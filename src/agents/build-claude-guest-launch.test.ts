@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand } from '../test-utils/run-command';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -102,6 +102,39 @@ test('it creates the scratch folder, readable by its owner alone, before the CLI
 
   expect(run.exitCode).toBe(0);
   expect(statSync(scratch).mode & 0o777).toBe(0o700);
+});
+
+test('it takes an existing scratch folder back to its owner alone', async () => {
+  const ctx = setupTest();
+  const scratch = join(ctx.dir, 'scratch');
+  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
+
+  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  mkdirSync(scratch);
+  chmodSync(scratch, 0o755);
+
+  const run = await runCommand([launch.bin, ...launch.args]);
+
+  expect(run.exitCode).toBe(0);
+  expect(statSync(scratch).mode & 0o777).toBe(0o700);
+});
+
+test('it starts the CLI with a warning when it cannot mark the outside-read offer seen', async () => {
+  const ctx = setupTest();
+  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
+  const config = join(ctx.dir, 'claude-config');
+
+  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  mkdirSync(config);
+  writeFileSync(join(config, '.claude.json'), '\n{"numStartups":1}\n');
+
+  const run = await runCommand([launch.bin, ...launch.args]);
+
+  expect(run.exitCode).toBe(0);
+
+  expect(run.stderr).toBe(
+    `atc: could not mark the outside-read offer seen in ${config}/.claude.json, so Claude may stop to ask once\n`,
+  );
 });
 
 test('it gives the CLI the scratch folder as its temporary folder and the config folder as its own', () => {

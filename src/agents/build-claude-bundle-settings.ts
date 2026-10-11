@@ -92,7 +92,13 @@ function buildBundleStatusLine(
   return { ...statusLine, command };
 }
 
+// A deny rule takes an absolute path after `//`, so a relative config
+// folder would give a rule that matches nothing.
 function buildBundlePermissions(permissions: unknown, guestDir: string): Record<string, unknown> {
+  if (!guestDir.startsWith('/')) {
+    throw new Error(`guest config folder ${guestDir} is not an absolute path`);
+  }
+
   const {
     blockReadsOutsideWorkingDirectories: _blocked,
     deny,

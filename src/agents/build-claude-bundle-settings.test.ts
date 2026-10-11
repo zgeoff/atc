@@ -101,6 +101,12 @@ test("it keeps the host's permission rules and sets auto mode over its own defau
   });
 });
 
+test('it refuses a guest config folder that is not an absolute path', () => {
+  expect(() => buildClaudeBundleSettings({}, ['/home/me/.claude'], 'guest/claude-config')).toThrow(
+    'guest config folder guest/claude-config is not an absolute path',
+  );
+});
+
 test('it drops the block on reads outside the working directories when the host sets it', () => {
   const settings = buildClaudeBundleSettings(
     { permissions: { blockReadsOutsideWorkingDirectories: true, allow: ['Bash(ls)'] } },

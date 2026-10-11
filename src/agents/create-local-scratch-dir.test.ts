@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '../shared/to-session-id';
 import { setupTempDir } from '../test-utils/setup-temp-dir';
@@ -28,4 +28,16 @@ test('it keeps what an earlier launch left in the scratch folder', () => {
   const scratch = createLocalScratchDir(toSessionID('s1'), ctx.dir);
 
   expect(readFileSync(join(scratch, 'notes.md'), 'utf8')).toBe('kept');
+});
+
+test('it takes an existing scratch folder back to its owner alone', () => {
+  const ctx = setupTest();
+  const existing = join(ctx.dir, 'sessions', 's1', 'scratch');
+
+  mkdirSync(existing, { recursive: true });
+  chmodSync(existing, 0o755);
+
+  const scratch = createLocalScratchDir(toSessionID('s1'), ctx.dir);
+
+  expect(statSync(scratch).mode & 0o777).toBe(0o700);
 });
