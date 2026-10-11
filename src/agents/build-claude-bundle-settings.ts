@@ -99,7 +99,7 @@ function buildBundlePermissions(permissions: unknown, guestDir: string): Record<
     ...kept
   } = isRecord(permissions) ? permissions : {};
 
-  const hostDeny = Array.isArray(deny) ? deny : [];
+  const hostDeny: readonly unknown[] = Array.isArray(deny) ? deny : [];
 
   const signInDeny = [
     `Read(/${guestDir}/.claude.json)`,
