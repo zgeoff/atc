@@ -200,7 +200,7 @@ test('it keeps the configured model and effort when a claude spawn sets neither'
     return read;
   });
 
-  expect(screen['text']).toInclude('args: --model opus --effort low --settings');
+  expect(screen['text']).toInclude('args: --model opus --effort low --add-dir ');
 });
 
 test('it keeps the configured model and effort when a gateway spawn sets neither', async () => {
@@ -238,7 +238,7 @@ test('it keeps the configured model and effort when a gateway spawn sets neither
     return read;
   });
 
-  expect(screen['text']).toInclude('args: --model opus --effort low --settings');
+  expect(screen['text']).toInclude('args: --model opus --effort low --add-dir ');
 });
 
 test("it replaces the configured model with a claude spawn's model override", async () => {
@@ -275,7 +275,7 @@ test("it replaces the configured model with a claude spawn's model override", as
     return read;
   });
 
-  expect(screen['text']).toInclude('args: --effort low --model sonnet --settings');
+  expect(screen['text']).toInclude('args: --effort low --model sonnet --add-dir ');
 });
 
 test("it replaces the configured model and effort with a gateway spawn's overrides", async () => {
@@ -315,7 +315,7 @@ test("it replaces the configured model and effort with a gateway spawn's overrid
     return read;
   });
 
-  expect(screen['text']).toInclude('args: --model haiku --effort max --settings');
+  expect(screen['text']).toInclude('args: --model haiku --effort max --add-dir ');
 });
 
 test('it restores the stored fleet by itself when the config leaves restoreFleetOnRestart unset', async () => {

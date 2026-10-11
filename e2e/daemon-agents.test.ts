@@ -451,6 +451,6 @@ test("it runs and stores a resume request's own model and effort", async () => {
     return listed;
   });
 
-  expect(screen['text']).toInclude('args: --model haiku --effort medium --settings');
+  expect(screen['text']).toInclude('args: --model haiku --effort medium --add-dir ');
   expect(fleet).toMatchObject({ fleet: [{ model: 'haiku', effort: 'medium' }] });
 });

@@ -56,7 +56,7 @@ test('it passes the model and effort of a spawn to the agent CLI', async () => {
     return result.text;
   });
 
-  expect(screen).toStartWith('FAKE_CLAUDE_UP args: --model opus --effort high --settings');
+  expect(screen).toStartWith('FAKE_CLAUDE_UP args: --model opus --effort high --add-dir ');
 });
 
 test('it reports an unregistered agent id as a failed tool call', async () => {
