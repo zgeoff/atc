@@ -2,7 +2,8 @@
 name: docs-writing
 description:
   Prose rules for everything committed to the repo — docs/, READMEs, AGENTS.md and agents/ partials,
-  and doc comments. Use when writing, editing, or reviewing any repo prose.
+  and doc comments — plus the README and docs/ contracts and the scripts that check them. Use when
+  writing, editing, or reviewing any repo prose.
 ---
 
 # Docs writing
@@ -34,20 +35,28 @@ knife.
   checked…") belongs in the commit or PR body — state the finding itself. A citation of an agent's
   private memory file is a reference no other reader can resolve — cite the source file the memory
   points at, or omit.
-- **The point test.** A point is a fact plus its rationale, however many sentences it takes to
-  state. Cover the point; if a reader with the file open would know and do everything the same,
-  delete the whole point. This test judges whole points, never single sentences — a sentence that
-  orients, names a referent, or summarizes is kept or cut on how it reads, not on whether it carries
-  a point.
+- **Cut anything the reader could get from the code.** A point is a fact plus its rationale, however
+  many sentences it takes to state. Cover the point; if a reader with the source file open would
+  know and do everything the same, delete the whole point. This is the point test. This test judges
+  whole points, never single sentences — a sentence that orients, names a referent, or summarizes is
+  kept or cut on how it reads, not on whether it carries a point.
 - **No defensive points.** A paragraph defending a decision against unlikely scenarios — enumerated
   edge cases requiring external tampering, "in case someone", scope-defending re-statements — is a
   point that fails the point test. A paragraph past 8 lines is the audit trigger: most ballooning is
   over-explaining decisions that don't need defending.
+- **A bug fix rarely needs a doc change.** When a PR changes behavior, reread the doc that owns the
+  behavior and rewrite the sentence the change made false. A new failure case, a tuned value, a
+  renamed function, a new metric, or an operator procedure adds no paragraph: each lives in the
+  code, in a registry the code defines, or in a runbook. A doc that grows a paragraph per fix turns
+  into a changelog.
 - **One owner per fact.** Each fact is explained in one place — its owner — across the whole docs
   tree, not just within one document. Any section that needs a fact it doesn't own states it in at
   most one sentence and links to the owner, and the rationale appears at the owner only. When two
   docs disagree, the owner is right: fix the other doc against it, then check the owner against the
   tree. An index restates owned facts at one line each — orientation is its job.
+- **Don't copy what the code owns.** A copy of anything the code defines goes stale on the next
+  change, with no signal. Describe it instead. Four kinds of copy recur: rosters, values, names, and
+  code.
 - **The tree owns its rosters.** A list, count, or mapping derivable from the repo — the packages
   under a directory, the apps in a manifest, which app reads which env key (its env schema) — is
   stated as the rule that derives it, never transcribed member by member. Name a member only where
@@ -63,12 +72,117 @@ knife.
   - a derivable set keying a table whose other columns carry facts the tree does not hold — the
     roster is then the key, not the payload
 
+- **The code owns its values.** A timeout, threshold, retry limit, schedule, cap, or byte length
+  stays out of the doc; state the rule the value serves.
+  - Bad: "`idle_timeout` (240 s) closes a pooled connection before Neon's 300 s suspend closes it."
+  - Good: "An idle pooled connection closes before Neon's suspend closes it from the server side."
+
+  A number belongs in a doc only when the code doesn't decide it: a period a protocol fixes, a cap a
+  design defines, a count that is the point ("three classes"), or a measurement with its source. An
+  architecture doc states even those as the rule they serve ("the keepalive period the protocol
+  fixes"), and the guide or runbook that needs the number states it. `check-prose.sh` fails on a
+  value with a unit under `docs/architecture/` outside code.
+
+- **The code owns its names.** A function, option, column, env var, package name, or file path in
+  prose breaks silently on a rename. Name the role instead: "the admission handler", "the database
+  factory".
+  - Bad: "`runBoundedAttempts` (`apps/web/src/lib/rpc/`) retries a GET up to three times."
+  - Good: "The bounded-attempt policy resends a GET when an attempt hits its bound."
+
+  Three kinds of identifier stay: an error code or wire field a client switches on, a domain term
+  the doc defines that is also an identifier, and a command, key, or path the reader types.
+
 - **Facts follow the reader's task.** A doc serves one reader task. A fact earns its place only if
   that reader acts on it mid-task; a fact serving a different task lives in that task's doc, linked
   from this one. The opening describes the subject, never who should read the doc or when to — no
   "read this when…", no "this doc is for…", no naming of the reader. A pass-through system (a deploy
   pipeline, config plumbing) documents its mechanism once and never the semantics of each value it
   carries — those belong to the owning feature's doc.
+
+## The docs/ tree — which doc a point lives in
+
+One architecture doc covers one subsystem, and one guide covers one user task. The repo has no total
+line budget: the total follows from the doc list.
+
+| Folder               | Holds                                                                     |
+| -------------------- | ------------------------------------------------------------------------- |
+| `docs/README.md`     | the index                                                                 |
+| `docs/architecture/` | the intended design and its constraints, one doc per subsystem            |
+| `docs/guides/`       | the steps a user does, one doc per user task                              |
+| `docs/runbooks/`     | operator and contributor procedures, development and releasing included   |
+| `docs/reference/`    | generated reference only, such as the config JSON schema                  |
+| `docs/decisions/`    | numbered decision records: the choice, the rejected alternatives, and why |
+| `docs/design/`       | a design for big speculative work, opened by the owner and temporary      |
+
+Group `docs/architecture/` in subfolders by area once it holds more than about 6 docs. The index
+links `docs/reference/` once.
+
+- **Architecture docs describe structure and invariants.** Structure is the parts, the boundaries
+  between them, and which part owns each piece of state. An invariant is a rule that holds whatever
+  a caller does: state it in at most three sentences (the rule, what it guarantees, one exception),
+  with one `**Why:**` line. A walkthrough of a mechanism stays out, since the code shows it; so does
+  a defense of a decision.
+- **A doc may contain** the intended design, design constraints and invariants, facts that cross
+  files and are invisible from reading one file, user reference for what a user touches (keys,
+  session states, commands), and guides and runbooks for steps a user does.
+- **A doc may not contain** reference for internals (one entry per protocol method, config key, or
+  module), a walkthrough of a mechanism the code shows, or values and names the code owns.
+  Evaluations, research write-ups, plans, diagnoses, and history stay out of `docs/` outside
+  `docs/design/`. A finding that is still a constraint becomes one line in the architecture doc; the
+  rest goes to the issue tracker or is deleted.
+- **The code owns its reference.** Config keys, flags, and MCP tools are described in the code: the
+  config schema (one `.describe()` per key, generated into `docs/reference/`), `--help`, and the
+  tool descriptions. A configuration guide covers where config lives, worked examples, and a link to
+  the schema.
+- **A doc stays under 250 lines; a runbook under 300.** Past the cap, cut points first, then split
+  at a real code boundary. When the doc is still over, say so in the PR body. Never compress
+  sentences, never move the overflow into a README or code comments, and never split where the code
+  has no boundary. `check-length.sh` warns on a doc over its cap.
+- **A design lives in `docs/design/<work>/`** while its code is unbuilt, with any spikes as runnable
+  packages in `docs/design/<work>/spikes/<name>/`. A plan for work about to be built is no design:
+  it lives in its issue or PR. When the work lands, the built part moves into `docs/architecture/`
+  and the design folder is deleted.
+- **A decision record is permanent.** It states the choice, never how the system works now; the
+  architecture doc owns that. A changed decision gets a new record that supersedes the old one.
+- **Development and releasing live in runbooks.** `docs/runbooks/development.md` holds the
+  contributor setup; `docs/runbooks/releasing.md` holds only the steps the release tooling doesn't
+  do, and is deleted when none remain. A folder README that documents its own folder stays beside
+  it.
+
+## READMEs — the pitch, the install, and the capabilities
+
+A README reader wants three things, in order: the pitch, the install, and the capabilities with
+their configuration. Everything else lives in a guide in `docs/`, in `--help`, or in the config
+schema.
+
+A package README (one for a published package, classified as the table below states) has six
+sections, in this order:
+
+1. Hero: the logo or title, badges, and at most 3 links.
+2. Pitch: 1 to 2 short paragraphs and the demo, when one exists. The pitch names the 2 or 3 actions
+   that get a first session working.
+3. Install: one command and its prerequisites. Other install paths link to a guide.
+4. Capabilities: one section per capability axis, such as "Supported agents" (one line per agent)
+   and "Features" (a short list, one line and one link per feature).
+5. Configuration: one paragraph and a link.
+6. Documentation: one line linking `docs/`.
+
+A plain repo README (a repo that publishes no package) has one paragraph, then Quick start, Checks,
+Layout, and Documentation. A sub-package or folder README documents its own folder.
+
+`check-length.sh` classifies each README outside `docs/` and `.claude/`, and fails the run above its
+limit:
+
+| README      | Classified by                                                | Target | Limit |
+| ----------- | ------------------------------------------------------------ | ------ | ----- |
+| Package     | a package.json beside it that is not private, or `--package` | 120    | 130   |
+| Plain repo  | the root README of a repo that isn't a package               | 50     | 60    |
+| Sub-package | any other README outside `docs/`                             | 60     | 70    |
+
+A README never holds flags, exit codes, config keys, per-agent or per-platform install variants,
+edge cases inside table rows, key or state tables, dated "checked" stamps, or person names. A
+feature PR rewrites only a README sentence the feature made false. A PR that adds a README sentence
+is a README PR, and the repo owner reviews it.
 
 ## Sentences — how a surviving point reads
 
@@ -98,6 +212,10 @@ knife.
   yourself", "call `seed()`"). A how-to written without a reader reads as a spec. Declarative voice
   stays for reference and design prose, where the doc states what the system is rather than what the
   reader does. Choose voice per section, not per sentence, and hold the choice through it.
+- **Actions are not definitions.** "A schema review is a rewrite" hides "when you review a schema,
+  you rewrite it". A chain of abstract nouns with nobody in it ("the escalation path for consumers
+  on diverging versions") stays opaque however precise it is; rewrite it as a clause with a subject
+  and a verb ("who to call when a client is on an older version than the server").
 - **No agentless artifact-subjects.** A sentence whose subject is a category of artifact and whose
   verb hands it a property ("a change you can see gets a screenshot") has no actor, and the missing
   actor is the defect. To pick the rewrite, open the sentence with an imperative verb: when the
@@ -121,6 +239,8 @@ knife.
   is. The same rule covers definite nouns: where the doc has more than one cap, filter, or budget,
   the bare form ("the cap") is legal only after the qualified form ("the cardinality cap") earlier
   in the same paragraph.
+- **Name the whole first.** When a noun names a part of something, name the whole the first time:
+  "activity start", not "start"; "chain head", not "head".
 - **First use defines.** Spell an acronym out where it first appears ("Content Security Policy
   (CSP)"); a term of art gets a one-line definition or a link to its owner.
 - **Same term for the same thing.** Varying a term to dodge repetition ("the runner… the executor…
@@ -151,7 +271,7 @@ knife.
 ## Words — what to cut on sight
 
 - **Throat-clearing.** Filler that adds no information — find and cull: "naturally", "organically",
-  "cleanly", "honestly", "trivially", "earns its complexity", "lays foundation for", "cheap
+  "cleanly", "honestly", "trivially", "just", "earns its complexity", "lays foundation for", "cheap
   insurance", "the right level". "Easy", "simple", and "quick" pressure the reader and read as
   marketing — describe the thing instead ("one command", "on by default"). `Mitigation:` as a label
   — drop the label, state the mitigation.
@@ -218,6 +338,11 @@ knife.
   shape. Resolve in order: point at the tree file that owns the mapping; render as a nested list;
   re-cut the table's axes. A decision table's prose column — a discriminator plus its trade-off or
   when to reach for it — is the shape doing its job, not a mis-cut.
+- **Diagrams for pipelines, state machines, and topologies.** A section whose subject is one of the
+  three opens with one mermaid diagram of that shape; a rule, a contract, or a set of parallel facts
+  gets none. The prose under the diagram holds only what the diagram can't show: the invariant on
+  each edge, the owner of each state, the exception. The diagram uses the prose's names and adds no
+  node, number, or identifier the prose doesn't use.
 - **Procedures are numbered steps.** Actions the reader performs in order render as a numbered list,
   one action per step; a step needing its own explanation gets a sentence under the step, not a
   longer step. A fenced code block inside a step is indented to the step — indentation is layout,
@@ -277,23 +402,42 @@ knife.
 
 ## Review workflow
 
-Before committing docs, run this sequence over the files you touched:
+Before committing docs, review each file you touched in four passes. A review subagent runs the same
+passes with this skill as its only reference.
 
 1. Selection pass: cover each point and apply the point test; check each fact against its owner
-   elsewhere in the tree.
+   elsewhere in the tree, and each doc against the docs/ tree and README rules.
 2. Rendering pass: reread each surviving paragraph against Sentences, Words, Structure, and Stance.
-3. Run the scripted checks from the repo root:
+3. Run the scripted checks from the repo root; CI runs the same two commands:
 
    ```bash
-   bash .claude/skills/docs-writing/scripts/check-prose.sh <path>...
+   bash .claude/skills/docs-writing/scripts/check-length.sh
+   bash .claude/skills/docs-writing/scripts/check-links.sh
    ```
 
-   The script greps the given paths for process residue, greppable banned words, formatting
-   violations, and untagged code fences, and exits non-zero on any hit. It then prints candidate
-   matches — filler with term-of-art uses, speech verbs on data artifacts, delta-framing words,
-   headings written as claims — which need judgment, not automatic fixing, and never fail the run.
+   `check-length.sh` prints each README against its limit and each docs/ file over its cap, then
+   runs `check-prose.sh` over the READMEs and the Markdown under `docs/`. It fails on a README over
+   its limit or on a prose violation. Pass `--package <readme>` for a package README whose
+   package.json is private. `check-links.sh` checks every relative link and anchor in the READMEs
+   and `docs/` (outside `.claude/`), and fails on a broken one. Pass paths to check other Markdown.
+   To check other prose, such as a skill or AGENTS.md, run `check-prose.sh <path>...` on it.
+
+   `check-prose.sh` fails on process residue, greppable banned words, values with units under
+   `docs/architecture/`, formatting violations, and untagged code fences. It then prints candidate
+   matches (filler with term-of-art uses, speech verbs on data artifacts, delta-framing words,
+   headings written as claims), which need judgment, not automatic fixing, and never fail the run.
    It skips this skill's own directory, which documents the forbidden patterns and contains them as
    examples.
 
 4. Visual audit: walk each changed section's links and confirm every link's text still matches its
    target heading.
+
+A review report is a list of findings followed by a verdict. Each finding is one line:
+
+```text
+path:line — rule — "the quoted text" — the proposed fix
+```
+
+The rule is the bold lead of the rule the finding breaks. The proposed fix is a rewritten sentence
+or "delete". Group findings by pass, and end with `clean`, or `fail` and the count. A reviewer
+proposes and never edits; the writer fixes each finding by rewriting from the facts.
