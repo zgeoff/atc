@@ -319,8 +319,8 @@ interface HarnessAuthSetup extends HarnessAuth {
 }
 
 // A harness as its setup plans it: the agent's spawn, and the variables
-// the agent's guest plan starts the harness with, which no variable atc
-// adds overrides.
+// the agent's plan starts the harness with, which no variable atc adds
+// overrides.
 interface HarnessPlan extends SpawnPlan {
   readonly env: Readonly<Record<string, string>>;
 
@@ -2285,8 +2285,10 @@ export class SessionManager {
         timer,
       });
 
+      const local = adapter.planSpawn(options, id);
+
       return {
-        plan: { ...adapter.planSpawn(options), env: {}, admission: null },
+        plan: { bin: local.bin, args: local.args, env: local.env ?? {}, admission: null },
         attemptID: null,
       };
     }

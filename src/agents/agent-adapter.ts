@@ -33,9 +33,14 @@ export interface SpawnOverrides {
   readonly effort?: string;
 }
 
+/**
+ * A spawn: the binary, its arguments, and the variables the harness
+ * process starts with on top of what it inherits.
+ */
 export interface SpawnPlan {
   bin: string;
   args: string[];
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -293,7 +298,11 @@ export interface AgentAdapter {
 
   // Absent on a stand-in adapter, which `agents.list` reports as not installed.
   readonly profile?: AgentProfile;
-  readonly planSpawn: (opts: SpawnOptions) => SpawnPlan;
+
+  // Plans a spawn on the daemon's machine. With `session`, the session the
+  // spawn starts, an agent that gives each session a scratch folder of its
+  // own creates it; without one it plans no scratch folder.
+  readonly planSpawn: (opts: SpawnOptions, session?: SessionID) => SpawnPlan;
 
   // Plans a spawn on a remote host; null when this agent cannot run there,
   // such as one whose instrumentation needs atc on a host without it.

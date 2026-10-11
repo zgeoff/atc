@@ -447,6 +447,16 @@ registry has an entry with that id, and the first entry otherwise. With an empty
 `agents.list` still reports `claude` as the default, and the spawn fails because no adapter is
 registered for it.
 
+### Claude scratch folder
+
+Each Claude session, a gateway's included, gets a scratch folder of its own:
+`~/.local/state/atc/sessions/<session_id>/scratch` on the daemon's machine, and `scratch` in the
+session's guest folder on an imp. The launch creates the folder, readable by its owner alone, and
+passes it to Claude Code with `--add-dir`, so the agent reads and writes there without a prompt. The
+session's `TMPDIR` points at the folder too, so a temporary file the agent or one of its tools makes
+lands inside the session's working directories rather than in `/tmp`. atc keeps the folder after the
+session ends.
+
 ## Gateways
 
 A Claude entry with a `baseURL` is a gateway: it runs the Claude CLI against a Claude-compatible
@@ -680,13 +690,15 @@ target, the session takes the broker's credential, and the helper never reaches 
 On an imp target, the session's guest folder holds a settings file for its binding revision and a
 Claude config folder of its own. The settings file points the CLI at `baseURL` with the placeholder
 and holds no credential helper. atc seeds the config folder with first-run onboarding state only
-when `.claude.json` does not exist. Each start names a permission mode: the one the launch's
+when `.claude.json` does not exist. Each launch marks Claude Code's one-time offer to block reads
+outside the working directories as seen in `.claude.json`, so an unattended session never waits on
+that offer. The mark leaves the block off. Each start names a permission mode: the one the launch's
 arguments set, which are `auth.args` when it is set and `args` otherwise, else the one the gateway's
 `settings` set, else Claude's manual `default` mode.
 
 With [clone trust](#clone-trust) on an imp target, atc seeds trust for the clone's resolved root in
-that session's isolated guest config, never in the user's Claude config. atc preserves an existing
-guest `.claude.json` byte for byte, so its trust decision takes precedence.
+that session's isolated guest config, never in the user's Claude config. atc keeps an existing guest
+`.claude.json` and adds only the outside-read offer mark, so its trust decision takes precedence.
 
 The placeholders must include `ANTHROPIC_AUTH_TOKEN`, and the profile for the `baseURL` host must
 set a bearer `authorization` header, since that is the header Claude sends the variable in. Any
@@ -777,10 +789,11 @@ for `api.anthropic.com`.
 
 On an imp target, each session gets the same guest folder a brokered gateway gets: a settings file
 for its binding revision that holds the placeholder, and a Claude config folder of its own that atc
-seeds with first-run onboarding state, plus folder trust with [clone trust](#clone-trust). atc fills
-that folder with the [Claude config bundle](#claude-config-bundle). The CLI starts without
-`--permission-mode`, and atc drops one from the entry's `args`, so the auto mode the bundle sets
-applies. A headless turn is refused there, as on every imp session.
+seeds with first-run onboarding state and the outside-read offer mark, plus folder trust with
+[clone trust](#clone-trust). atc fills that folder with the
+[Claude config bundle](#claude-config-bundle). The CLI starts without `--permission-mode`, and atc
+drops one from the entry's `args`, so the auto mode the bundle sets applies. A headless turn is
+refused there, as on every imp session.
 
 Three kinds of variable keep Claude Code from sending the subscription token to the Anthropic API:
 `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` outrank it, `ANTHROPIC_BASE_URL` moves the endpoint,
@@ -888,6 +901,9 @@ The bundle's `settings.json` holds these keys of the host's settings when they a
 `permissions`, `statusLine`, and `env`. atc changes three of them on the way:
 
 - `permissions.defaultMode` is always `auto`. Claude Code honours that mode only in user settings.
+  `permissions.blockReadsOutsideWorkingDirectories` never ships, since it refuses reads an
+  unattended session needs. `permissions.deny` gains `Read` rules for the session's own
+  `.claude.json` and for `~/.claude/.credentials.json`, after the host's own rules.
 - `statusLine.command` points at the guest copy of a script the bundle ships. For `~/.claude`, atc
   also rewrites the `~/.claude` and `$HOME/.claude` spellings. atc's own statusline runs that
   command first, as it does on the host.

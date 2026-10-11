@@ -230,7 +230,9 @@ program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude
   `Stop`, `UserPromptSubmit`, `SessionEnd`) and a chained statusline, and the `atc-bridge` mod
   passed as `--plugin-dir`. A session that signs in through impd's broker on an imp also gets a
   Claude config folder of its own in its guest folder, passed as `CLAUDE_CONFIG_DIR` and seeded with
-  onboarding state and clone trust. Stock Claude's folder also takes an allow-listed copy of the
+  onboarding state, the seen mark of the one-time offer to block reads outside the working
+  directories, and clone trust. Every Claude session gets a scratch folder of its own, passed as
+  `--add-dir` and as `TMPDIR`. Stock Claude's folder also takes an allow-listed copy of the
   daemon host's own Claude config at each launch; atc reads that config and never writes it.
 - The `atc-bridge` mod's source lives in `mods/atc-bridge/`. `bun run build:atc-bridge` regenerates
   its embedded copy in `src/agents/atc-bridge-files.ts`, which compiled binaries write out. The mods

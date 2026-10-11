@@ -3,8 +3,13 @@ import { isRecord } from '../shared/report';
 /**
  * The user settings a session's own Claude config folder starts with, from
  * the host's own `settings.json`: the keys on the allow-list alone, an
- * `env` block cut to its own allow-list, and a permission default of auto
- * mode, which Claude Code honours at user scope only. Any other key stays on
+ * `env` block cut to its own allow-list, and the host's permissions with a
+ * default of auto mode, which Claude Code honours at user scope only. The
+ * permissions never block reads outside the working directories, which
+ * would refuse a read an unattended session needs, and deny the session's
+ * file tools the guest's sign-in state: the global config in the config
+ * folder `guestDir` and the credentials file under the home's default
+ * config folder. Any other key stays on
  * the host, so a setting that holds a credential, a plugin, or a host path
  * never reaches a guest unless it is listed here. The statusline command
  * reads the guest's copy of a script under the host's config folder: a path
@@ -32,10 +37,7 @@ export function buildClaudeBundleSettings(
     ...shipped,
     ...(env === null ? {} : { env }),
     ...(statusLine === null ? {} : { statusLine }),
-    permissions: {
-      ...(isRecord(source['permissions']) ? source['permissions'] : {}),
-      defaultMode: 'auto',
-    },
+    permissions: buildBundlePermissions(source['permissions'], guestDir),
   };
 }
 
@@ -88,4 +90,21 @@ function buildBundleStatusLine(
   );
 
   return { ...statusLine, command };
+}
+
+function buildBundlePermissions(permissions: unknown, guestDir: string): Record<string, unknown> {
+  const {
+    blockReadsOutsideWorkingDirectories: _blocked,
+    deny,
+    ...kept
+  } = isRecord(permissions) ? permissions : {};
+
+  const hostDeny = Array.isArray(deny) ? deny : [];
+
+  const signInDeny = [
+    `Read(/${guestDir}/.claude.json)`,
+    'Read(~/.claude/.credentials.json)',
+  ].filter((rule) => !hostDeny.includes(rule));
+
+  return { ...kept, deny: [...hostDeny, ...signInDeny], defaultMode: 'auto' };
 }

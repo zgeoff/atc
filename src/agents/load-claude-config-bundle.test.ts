@@ -37,7 +37,13 @@ test('it ships the allow-listed files and folders of the host config folder', ()
     'agents/locator.md': Buffer.from('locator'),
     'output-styles/ste-direct.md': Buffer.from('style'),
     'settings.json': JSON.stringify(
-      { model: 'opus', permissions: { defaultMode: 'auto' } },
+      {
+        model: 'opus',
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
+      },
       null,
       2,
     ),
@@ -75,7 +81,10 @@ test('it never ships credentials, account state, or a secret the host env block 
     'settings.json': JSON.stringify(
       {
         env: { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' },
-        permissions: { defaultMode: 'auto' },
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
       },
       null,
       2,
@@ -100,7 +109,16 @@ test('it copies a symlinked skill and leaves out a skills folder without a SKILL
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
   expect(bundle).toStrictEqual({
-    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'settings.json': JSON.stringify(
+      {
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
+      },
+      null,
+      2,
+    ),
     'skills/gh-stack/SKILL.md': Buffer.from('stack'),
     'skills/gh-stack/references/commands.md': Buffer.from('commands'),
   });
@@ -127,7 +145,16 @@ test('it never ships a symlink that resolves to credentials, account state, or t
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
   expect(bundle).toStrictEqual({
-    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'settings.json': JSON.stringify(
+      {
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
+      },
+      null,
+      2,
+    ),
     'skills/leaky/SKILL.md': Buffer.from('leaky'),
     'skills/leaky/notes.md': Buffer.from('shared notes'),
   });
@@ -145,7 +172,16 @@ test('it ends a symlink that loops back up a skill folder', () => {
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
   expect(bundle).toStrictEqual({
-    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'settings.json': JSON.stringify(
+      {
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
+      },
+      null,
+      2,
+    ),
     'skills/looped/SKILL.md': Buffer.from('looped'),
   });
 });
@@ -164,7 +200,16 @@ test('it ships an executable file with an executable mode and any other file as 
   const bundle = loadClaudeConfigBundle(host, '/guest/claude-config', join(ctx.dir, 'home'));
 
   expect(bundle).toStrictEqual({
-    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'settings.json': JSON.stringify(
+      {
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
+      },
+      null,
+      2,
+    ),
     'statusline.sh': { content: Buffer.from('echo status'), mode: 0o755 },
     'skills/tool/SKILL.md': Buffer.from('tool'),
     'skills/tool/scripts/run.sh': { content: Buffer.from('echo run'), mode: 0o755 },
@@ -188,7 +233,10 @@ test("it points a home-relative statusline at the guest when the host folder is 
     'settings.json': JSON.stringify(
       {
         statusLine: { type: 'command', command: 'bash /guest/claude-config/statusline.sh' },
-        permissions: { defaultMode: 'auto' },
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
       },
       null,
       2,
@@ -206,6 +254,15 @@ test('it ships auto mode alone when the host has no Claude config folder', () =>
   );
 
   expect(bundle).toStrictEqual({
-    'settings.json': JSON.stringify({ permissions: { defaultMode: 'auto' } }, null, 2),
+    'settings.json': JSON.stringify(
+      {
+        permissions: {
+          deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+          defaultMode: 'auto',
+        },
+      },
+      null,
+      2,
+    ),
   });
 });

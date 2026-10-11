@@ -121,7 +121,14 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
   expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
     expect.objectContaining({
       argv: [
+        'sh',
+        '-c',
         expect.any(String),
+        'sh',
+        join(dir, 'scratch'),
+        expect.any(String),
+        '--add-dir',
+        join(dir, 'scratch'),
         '--settings',
         join(dir, 'settings.json'),
         '--plugin-dir',
