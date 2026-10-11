@@ -27,7 +27,7 @@
         "@tsconfig/strictest": "2.0.8",
         "@types/bun": "1.4.2",
         "@zgeoff/bun-test-extended": "0.0.4",
-        "@zgeoff/format-codemod": "0.0.8",
+        "@zgeoff/format-codemod": "0.1.0",
         "@zgeoff/oxlint-config": "0.2.0",
         "knip": "6.24.0",
         "lefthook": "2.1.10",
@@ -446,7 +446,7 @@
 
     "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.0.4", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.4.1" } }, "sha512-wvayMrCNIq4lqu71thA5nsTMaAwMuK0mLW1+RNrlfS+874Ut/+/DPv9GQ3tM8MazGv2b/KO95ZYbXQZ1KYDy9g=="],
 
-    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.0.8", "", { "dependencies": { "oxc-parser": "0.137.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-McQm4/N+49SqpRdcoTKV8sGkYmB7BGtECvSgbuoPK22lsgaUCwQ+E1bO5Llyo7izO990xXPNkzMqlOdhttO4gg=="],
+    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.1.0", "", { "dependencies": { "oxc-parser": "0.137.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-WVP6d3iuuaKuYrGIuHLkTxjI3W2IQzeAq6TtUiZiz+uw4f2AF2q4GgKQ6czpz/89qgZXauvhl1Pcef1/NZl4Rg=="],
 
     "@zgeoff/imp-client": ["@zgeoff/imp-client@0.39.0", "", { "dependencies": { "@orpc/client": "^1.14.15", "@orpc/contract": "^1.14.15", "zod": "^4.4.3" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-Ix/OxeGYpXJdjzws4N2UPRIwFsLMamLNocZeQuyafHvZ+Rx3WLRcC2yXoXQtagz0hk8NioF8E+R6mE6B3Lbulg=="],
 
