@@ -68,6 +68,31 @@ test('it reads a github profile into its secret reference alone, since impd fixe
   });
 });
 
+test('it reads a profile whose rule sets a raw x-api-key header', () => {
+  expect(
+    collectAuthProfiles({
+      muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
+    }),
+  ).toStrictEqual({
+    profiles: new Map([
+      [
+        'muse',
+        {
+          name: 'muse',
+          secret: 'muse',
+          kind: 'custom',
+          host: 'api.meta.ai',
+          header: 'x-api-key',
+          scheme: 'raw',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+    errors: [],
+  });
+});
+
 test('it reads an oauth profile with the same rule as a custom one', () => {
   expect(
     collectAuthProfiles({
@@ -104,7 +129,7 @@ test.each([
     { host: undefined },
     'authProfiles.p: host must be a lowercase hostname such as api.example.com',
   ],
-  [{ scheme: 'raw' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
+  [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer or raw, the schemes atc binds'],
   [
     { header: 'Authorization' },
     'authProfiles.p: header must be a lowercase header name such as authorization',
@@ -164,8 +189,7 @@ test.each([
     { kind: 'anthropic' },
     'authProfiles.p: kind must be custom, oauth, or github, the kinds atc binds',
   ],
-  [{ scheme: 'raw' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
-  [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer, the one scheme atc binds'],
+  [{ scheme: 'basic' }, 'authProfiles.p: scheme must be bearer or raw, the schemes atc binds'],
   [
     { user: 'me' },
     'authProfiles.p: user pairs only with the basic scheme, which atc does not bind',

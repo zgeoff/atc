@@ -206,6 +206,8 @@ export class GatewayAdapter implements AgentAdapter {
   // state an earlier run left. The launch takes the auth's own arguments
   // when it sets them, and never the credential helper, which runs on the
   // daemon's machine alone. A gateway without auth never runs remotely.
+  // When the placeholder is the API key variable, the seed approves it and
+  // the shell refuses to start under a host that sets the bearer variable.
   planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
     if (this.gateway.auth === undefined) {
       return null;
@@ -253,24 +255,30 @@ export class GatewayAdapter implements AgentAdapter {
     );
 
     const args = this.gateway.auth.args ?? this.gateway.args;
+    const approvedAPIKey = findAPIKeyPlaceholder(guest.auth.env);
+    const refusedEnv = approvedAPIKey === null ? [] : [BEARER_PAIRING.variable];
 
-    const launch = buildClaudeGuestLaunch(guest.dir, [
-      this.gateway.bin,
-      ...this.buildArgs(
-        args,
-        opts,
-        this.buildGuestModeArgs(args),
-        `${guest.dir}/${settingsPath}`,
-        `${guest.dir}/atc-bridge`,
-      ),
-    ]);
+    const launch = buildClaudeGuestLaunch(
+      guest.dir,
+      [
+        this.gateway.bin,
+        ...this.buildArgs(
+          args,
+          opts,
+          this.buildGuestModeArgs(args),
+          `${guest.dir}/${settingsPath}`,
+          `${guest.dir}/atc-bridge`,
+        ),
+      ],
+      refusedEnv,
+    );
 
     return {
       bin: launch.bin,
       args: launch.args,
       files: {
         [settingsPath]: JSON.stringify(settings, null, 2),
-        ...buildClaudeConfigSeed(null),
+        ...buildClaudeConfigSeed(null, approvedAPIKey),
         ...Object.fromEntries(bridge),
       },
       env: { ...launch.env, ...guest.auth.profileEnv, ...guest.auth.env },
@@ -282,7 +290,9 @@ export class GatewayAdapter implements AgentAdapter {
       return null;
     }
 
-    return buildClaudeConfigSeed(root);
+    const approvedAPIKey = findAPIKeyPlaceholder(this.gateway.auth.placeholderEnv);
+
+    return buildClaudeConfigSeed(root, approvedAPIKey);
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {
@@ -372,24 +382,33 @@ export class GatewayAdapter implements AgentAdapter {
     );
   }
 
-  // The Claude CLI sends ANTHROPIC_AUTH_TOKEN as a bearer authorization
-  // header, the one pairing atc binds, so the placeholders must include that
-  // variable, holding the placeholder, for a profile whose rule on the base
-  // URL's host sets that header. Any other variable passes through to the
-  // session for a tool in it, whose own host a selected profile covers,
-  // except a variable the CLI reads as its own credential, which would
-  // compete with the bearer variable and put the placeholder in a header
-  // the broker never fills, and the variable that names the session's
-  // Claude config folder, which atc sets itself.
+  // The Claude CLI sends one of two variables as its credential, each in
+  // its own header: ANTHROPIC_AUTH_TOKEN as a bearer authorization header,
+  // and ANTHROPIC_API_KEY as a raw x-api-key header. The placeholders must
+  // include exactly one of them, holding the placeholder, for a profile
+  // whose rule on the base URL's host sets that variable's header. Any
+  // other variable passes through to the session for a tool in it, whose
+  // own host a selected profile covers, except the other credential
+  // variables the CLI reads, which would put a second credential header on
+  // the request that the broker never fills, and the variable that names
+  // the session's Claude config folder, which atc sets itself.
   private findPlaceholderRefusal(
     env: Readonly<Record<string, string>>,
     profiles: readonly string[],
   ): DaemonError | null {
     const keys = Object.keys(env);
+    const pairings = CREDENTIAL_PAIRINGS.filter((p) => keys.includes(p.variable));
+    const [pairing] = pairings;
 
-    if (!keys.includes(BEARER_VARIABLE)) {
+    if (pairing === undefined) {
       return this.buildPlaceholderRefusal(
-        `needs ${BEARER_VARIABLE} among its placeholder variables, which the broker fills as a bearer authorization header; it has ${keys.length === 0 ? 'none' : keys.join(', ')}`,
+        `needs ${BEARER_PAIRING.variable} or ${API_KEY_PAIRING.variable} among its placeholder variables, which the broker fills as a bearer authorization header or a raw x-api-key header; it has ${keys.length === 0 ? 'none' : keys.join(', ')}`,
+      );
+    }
+
+    if (pairings.length > 1) {
+      return this.buildPlaceholderRefusal(
+        `cannot set both ${BEARER_PAIRING.variable} and ${API_KEY_PAIRING.variable} as placeholder variables, since the Claude CLI would send both headers and the broker fills one`,
       );
     }
 
@@ -397,12 +416,12 @@ export class GatewayAdapter implements AgentAdapter {
 
     if (competing !== undefined) {
       return this.buildPlaceholderRefusal(
-        `cannot use ${competing} as a placeholder variable, since the Claude CLI reads it as its own credential or config folder beside ${BEARER_VARIABLE}`,
+        `cannot use ${competing} as a placeholder variable, since the Claude CLI reads it as its own credential or config folder beside ${pairing.variable}`,
       );
     }
 
-    if (env[BEARER_VARIABLE] !== PLACEHOLDER) {
-      return this.buildPlaceholderRefusal(`needs ${BEARER_VARIABLE} to hold ${PLACEHOLDER}`);
+    if (env[pairing.variable] !== PLACEHOLDER) {
+      return this.buildPlaceholderRefusal(`needs ${pairing.variable} to hold ${PLACEHOLDER}`);
     }
 
     const resolution = resolveAuthProfiles(this.config.authProfiles, profiles);
@@ -414,9 +433,9 @@ export class GatewayAdapter implements AgentAdapter {
         ? resolution.resolved.secrets.flatMap((s) => s.rules).find((r) => r.host === host)
         : undefined;
 
-    if (rule?.header !== 'authorization' || rule.scheme !== 'bearer') {
+    if (rule?.header !== pairing.header || rule.scheme !== pairing.scheme) {
       return this.buildPlaceholderRefusal(
-        `needs a profile that sets a bearer authorization header for ${host}, the header ${BEARER_VARIABLE} fills`,
+        `needs a profile that sets ${pairing.description} for ${host}, the header ${pairing.variable} fills`,
       );
     }
 
@@ -482,16 +501,49 @@ function isBrokerOnlyGateway(gateway: GatewayConfig): boolean {
   return gateway.auth !== undefined && gateway.apiKeyHelper === undefined;
 }
 
-// The variable the Claude CLI sends as a bearer authorization header, and
-// the value impd's broker replaces with the credential on the host's side.
-const BEARER_VARIABLE = 'ANTHROPIC_AUTH_TOKEN';
+// The value impd's broker replaces with the credential on the host's side.
 const PLACEHOLDER = 'imp-broker-placeholder';
 
-// Variables the Claude CLI reads as its own credential beside the bearer
-// variable, plus the one that points it at the session's config folder,
-// whose launch value a placeholder would overwrite.
+/**
+ * A variable the Claude CLI sends as its credential, and the header and
+ * scheme impd's broker must set for the base URL's host to fill it.
+ */
+interface CredentialPairing {
+  readonly variable: string;
+  readonly header: string;
+  readonly scheme: 'bearer' | 'raw';
+  readonly description: string;
+}
+
+const BEARER_PAIRING: CredentialPairing = {
+  variable: 'ANTHROPIC_AUTH_TOKEN',
+  header: 'authorization',
+  scheme: 'bearer',
+  description: 'a bearer authorization header',
+};
+
+const API_KEY_PAIRING: CredentialPairing = {
+  variable: 'ANTHROPIC_API_KEY',
+  header: 'x-api-key',
+  scheme: 'raw',
+  description: 'a raw x-api-key header',
+};
+
+const CREDENTIAL_PAIRINGS: readonly CredentialPairing[] = [BEARER_PAIRING, API_KEY_PAIRING];
+
+// The placeholder a session sends as an x-api-key header, or null when it
+// sends a bearer header. The CLI asks a person whether to use that
+// variable unless its config approves it, and a bearer variable set by the
+// host would put a second credential header beside it, which the backend
+// refuses.
+function findAPIKeyPlaceholder(env: Readonly<Record<string, string>>): string | null {
+  return env[API_KEY_PAIRING.variable] ?? null;
+}
+
+// Variables the Claude CLI reads as its own credential beside either
+// pairing's variable, plus the one that points it at the session's config
+// folder, whose launch value a placeholder would overwrite.
 const COMPETING_CREDENTIAL_VARIABLES: ReadonlySet<string> = new Set([
-  'ANTHROPIC_API_KEY',
   'CLAUDE_CODE_OAUTH_TOKEN',
   'CLAUDE_CONFIG_DIR',
 ]);
