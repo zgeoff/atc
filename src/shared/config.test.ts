@@ -474,7 +474,7 @@ test('#parseConfig reads the auth profiles a config sets and registers a claude 
 test('#parseConfig refuses a gateway whose auth selects a profile the config refused, and reports both', () => {
   const config = parseConfig({
     authProfiles: {
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'raw' },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'basic' },
     },
     agents: {
       glm: {
@@ -501,7 +501,7 @@ test('#parseConfig refuses a gateway whose auth selects a profile the config ref
       targetRoots: new Map(),
     },
     authProfiles: new Map(),
-    authProfileErrors: ['authProfiles.glm: scheme must be bearer, the one scheme atc binds'],
+    authProfileErrors: ['authProfiles.glm: scheme must be bearer or raw, the schemes atc binds'],
     hooks: {},
     leader: { code: 0, label: '^Space' },
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],
@@ -529,7 +529,7 @@ test('#parseConfig translates the old agent keys into agents in a fixed order an
         header: 'authorization',
         scheme: 'bearer',
       },
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'raw' },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'basic' },
     },
     gateways: {
       inherits: { baseURL: 'https://one.example.com' },
@@ -618,7 +618,7 @@ test('#parseConfig translates the old agent keys into agents in a fixed order an
         },
       ],
     ]),
-    authProfileErrors: ['authProfiles.glm: scheme must be bearer, the one scheme atc binds'],
+    authProfileErrors: ['authProfiles.glm: scheme must be bearer or raw, the schemes atc binds'],
     hooks: {},
     leader: { code: 0, label: '^Space' },
     targets: [{ id: 'local', provider: 'local-pty', options: {} }],

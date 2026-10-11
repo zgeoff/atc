@@ -559,7 +559,7 @@ with it:
 | `secret`       | The name of the secret in impd, under impd's secret name rule.                            |
 | `host`         | The exact host impd adds the credential for: lowercase, no port, no wildcard, no IP.      |
 | `header`       | The lowercase header impd sets, such as `authorization`.                                  |
-| `scheme`       | How impd renders the value. atc binds `bearer` only.                                      |
+| `scheme`       | How impd renders the value: `bearer`, or `raw` for the value alone. atc binds these two.  |
 | `kind`         | The kind of secret impd holds: `custom`, the default, `oauth`, or `github`.               |
 | `env`          | Variables a `custom` profile sets in a session that reaches it. See below.                |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
@@ -688,15 +688,22 @@ With [clone trust](#clone-trust) on an imp target, atc seeds trust for the clone
 that session's isolated guest config, never in the user's Claude config. atc preserves an existing
 guest `.claude.json` byte for byte, so its trust decision takes precedence.
 
-The placeholders must include `ANTHROPIC_AUTH_TOKEN`, and the profile for the `baseURL` host must
-set a bearer `authorization` header, since that is the header Claude sends the variable in. Any
-other placeholder variable reaches the session as it is, for a tool that runs in it, and a selected
-profile for that tool's host lets impd's broker fill it. `ANTHROPIC_API_KEY`,
-`CLAUDE_CODE_OAUTH_TOKEN`, and `CLAUDE_CONFIG_DIR` are the exception: Claude reads the first two as
-its own credential beside `ANTHROPIC_AUTH_TOKEN`, and the broker never fills the header they feed,
-while atc sets the third to the session's own config folder. Any other pairing fails with
-`auth_placeholder_unsupported`, on every target and before anything is prepared, and `agents.list`
-lists the gateway as unable to spawn.
+The placeholders must include exactly one of the two variables Claude sends as its credential, and
+the profile for the `baseURL` host must set the header Claude sends that variable in:
+
+| Placeholder            | Header Claude sends             | Profile `header` | Profile `scheme` |
+| ---------------------- | ------------------------------- | ---------------- | ---------------- |
+| `ANTHROPIC_AUTH_TOKEN` | `Authorization: Bearer <value>` | `authorization`  | `bearer`         |
+| `ANTHROPIC_API_KEY`    | `x-api-key: <value>`            | `x-api-key`      | `raw`            |
+
+Any other placeholder variable reaches the session as it is, for a tool that runs in it, and a
+selected profile for that tool's host lets impd's broker fill it. `CLAUDE_CODE_OAUTH_TOKEN` and
+`CLAUDE_CONFIG_DIR` are the exception: Claude reads the first as its own credential beside the
+pairing's variable, and the broker never fills the header it feeds, while atc sets the second to the
+session's own config folder. Both pairing variables at once, a placeholder whose profile sets the
+other pairing's header or scheme, and any other pairing fail with `auth_placeholder_unsupported`, on
+every target and before anything is prepared, and `agents.list` lists the gateway as unable to
+spawn.
 
 A gateway that runs the auto-mode mod on the daemon's machine with a local key, and on an imp with
 its keys held by impd, looks like this:
@@ -733,6 +740,47 @@ its keys held by impd, looks like this:
 
 Add the key to impd with `imp secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai`, and
 list `jev-imp-agents` in the `--grantable` list of the target's token.
+
+#### API key header
+
+Some backends take the key only in an `x-api-key` header and refuse a request that also carries an
+`Authorization` header. Pair such a backend with `ANTHROPIC_API_KEY`, and leave
+`ANTHROPIC_AUTH_TOKEN` out, so Claude sends no `Authorization` header. For example, Meta's
+`api.meta.ai`:
+
+1. Add the key to impd with a rule that sets the raw value in `x-api-key`:
+
+   ```sh
+   imp secret add muse --kind=custom --hosts=api.meta.ai --header=x-api-key --scheme=raw
+   ```
+
+   impd reads the key from stdin or a prompt. List `muse` in the `--grantable` list of the target's
+   token.
+
+2. Add the profile and the gateway entry:
+
+   ```json
+   {
+     "authProfiles": {
+       "muse": { "secret": "muse", "host": "api.meta.ai", "header": "x-api-key", "scheme": "raw" }
+     },
+     "agents": {
+       "muse": {
+         "kind": "claude",
+         "baseURL": "https://api.meta.ai",
+         "auth": {
+           "profiles": ["muse"],
+           "placeholderEnv": { "ANTHROPIC_API_KEY": "imp-broker-placeholder" }
+         }
+       }
+     }
+   }
+   ```
+
+Claude asks a person whether to use an `ANTHROPIC_API_KEY` it has not seen before, so atc seeds the
+session's config folder with the placeholder approved. A host whose environment sets
+`ANTHROPIC_AUTH_TOKEN` would add an `Authorization` header beside the key, so the launch exits with
+code 78 on such a host, with an error that names the variable.
 
 ### Claude subscription on imps
 

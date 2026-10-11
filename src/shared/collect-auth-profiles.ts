@@ -6,7 +6,8 @@ import { isRecord } from './report';
  * A named reference to a credential impd holds: the secret's name, never
  * its value, and the profiles a session selecting this one needs beside
  * it. A `custom` profile holds the one rule impd applies when a request
- * reaches its host, always a bearer header. An `oauth` profile holds the
+ * reaches its host: a bearer header, or a raw one that holds the value
+ * alone, as an `x-api-key` header does. An `oauth` profile holds the
  * same rule for a secret whose access token impd renews from a refresh
  * token. A `github` profile holds no rule: impd's `github` kind fixes its
  * hosts and headers.
@@ -19,7 +20,7 @@ interface CustomAuthProfile {
   readonly kind: 'custom' | 'oauth';
   readonly host: string;
   readonly header: string;
-  readonly scheme: 'bearer';
+  readonly scheme: 'bearer' | 'raw';
   readonly env: Readonly<Record<string, string>>;
   readonly dependencies: readonly string[];
 }
@@ -133,8 +134,8 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     return 'header must be a lowercase header name such as authorization';
   }
 
-  if (scheme !== 'bearer') {
-    return 'scheme must be bearer, the one scheme atc binds';
+  if (scheme !== 'bearer' && scheme !== 'raw') {
+    return 'scheme must be bearer or raw, the schemes atc binds';
   }
 
   if (entry['user'] !== undefined) {

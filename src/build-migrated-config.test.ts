@@ -63,7 +63,7 @@ test('it writes a gateway that inherited the claude bin and args with them', () 
 test('it leaves out a dropped gateway and notes the reason without a value', () => {
   const result = buildMigratedConfig({
     authProfiles: {
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'raw' },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'basic' },
     },
     gateways: {
       noURL: { label: 'x' },
