@@ -2,10 +2,11 @@
 
 ## [4.1.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.0.0...@zgeoff/atc@4.1.0) (2026-10-11)
 
-
 ### Features
 
-* **geo-450:** pair a brokered gateway with an x-api-key placeholder ([#502](https://github.com/zgeoff/atc/issues/502)) ([ee4a197](https://github.com/zgeoff/atc/commit/ee4a19730a4efbb7f1385101df7ec26f88ed83b8))
+- **geo-450:** pair a brokered gateway with an x-api-key placeholder
+  ([#502](https://github.com/zgeoff/atc/issues/502))
+  ([ee4a197](https://github.com/zgeoff/atc/commit/ee4a19730a4efbb7f1385101df7ec26f88ed83b8))
 
 ## [4.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@3.11.2...@zgeoff/atc@4.0.0) (2026-10-10)
 
