@@ -62,7 +62,7 @@ the rest, and `?` for every other key.
   ([gateway](./docs/guides/gateway.md)).
 - **Sessions on imps.** A session can run in its own VM, sleeping when you kill it and waking where
   it left off ([targets](./docs/guides/configuration.md#targets)).
-- **Fleet events.** `atc events` prints every fleet event, and `config.json` hooks run your own
+- **Event stream.** `atc events` prints every fleet event, and `config.json` hooks run your own
   commands on them ([events](./docs/guides/events.md)).
 
 ## Configuration

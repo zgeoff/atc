@@ -3,8 +3,9 @@
 atc is a terminal control tower for coding-agent sessions (Claude Code, Grok Build, and Codex CLI):
 a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over an
 NDJSON protocol behind a keyboard-driven session list with hook-driven attention routing. No panes,
-no tiling, no mouse. See `docs/architecture/overview.md` for how the pieces fit; the README
-documents install and keys, and `docs/guides/configuration.md` documents config.
+no tiling, no mouse. `docs/README.md` indexes the docs: `docs/architecture/overview.md` covers how
+the pieces fit, `docs/guides/using-atc.md` the keys, `docs/guides/configuration.md` the config, and
+`docs/runbooks/development.md` running a checkout.
 
 ## Required reading
 

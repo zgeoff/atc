@@ -31,6 +31,33 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 | `workspaces`            | see above        | Where workspaces come from and land. The [git transports](#git-transports) and [workspace destinations](#workspace-destinations) sections cover it. |
 | `restoreFleetOnRestart` | `true`           | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                             |
 
+## Contents
+
+- [Leader](#leader)
+- [Fleet restore](#fleet-restore)
+- [Directories](#directories)
+- [Git transports](#git-transports)
+- [Workspace destinations](#workspace-destinations)
+- [Targets](#targets)
+  - [Clone trust](#clone-trust)
+  - [imp targets](#imp-targets)
+- [Principals](#principals)
+- [Agents](#agents)
+  - [Several entries per harness](#several-entries-per-harness)
+  - [Picker order and the default agent](#picker-order-and-the-default-agent)
+  - [Claude scratch folder](#claude-scratch-folder)
+- [Gateways](#gateways)
+  - [Extra session settings](#extra-session-settings)
+  - [Brokered credentials](#brokered-credentials)
+  - [Claude subscription on imps](#claude-subscription-on-imps)
+  - [Codex subscription on imps](#codex-subscription-on-imps)
+- [Migrating from the old keys](#migrating-from-the-old-keys)
+- [Attention hooks (Grok and Codex)](#attention-hooks-grok-and-codex)
+  - [Nested harnesses](#nested-harnesses)
+- [Remote MCP](#remote-mcp)
+- [State locations](#state-locations)
+- [Environment](#environment)
+
 ## Leader
 
 Pick a different leader when `Ctrl-Space` is taken on your machine — Raycast on macOS claims it, and
