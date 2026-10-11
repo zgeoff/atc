@@ -30,7 +30,9 @@ The formula lives in a second repository, `<owner>/homebrew-tap`, under `Formula
 1. Create the `homebrew-tap` repository, and install the release App on it.
 2. Add the Actions variable `HOMEBREW_TAP`, set to `homebrew-tap`, the repository name alone.
 
-With either missing, the release job leaves the formula alone and runs every other step.
+Install the App on the tap before you set the variable: with the variable set and the App missing
+there, the release job fails when it mints the tap token. With the variable unset, the release job
+leaves the formula alone and runs every other step.
 
 ### The agent image pin
 

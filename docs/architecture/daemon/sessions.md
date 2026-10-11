@@ -11,9 +11,10 @@ is `pty`, a terminal, or `headless`, a structured Agent SDK run with no terminal
 
 ## Attention
 
-A session's attention comes from its agent's hook reports and from nothing else. The agent's hooks
-report each turn's start, end and pending prompt on the reporter socket, the adapter maps each
-report to one of a closed set of kinds, and the session core applies it:
+A session's attention comes from its agent's hook reports, never from reading its screen. Two of the
+owner's own actions change it too: attaching and submitting a prompt. The agent's hooks report each
+turn's start, end and pending prompt on the reporter socket, the adapter maps each report to one of
+a closed set of kinds, and the session core applies it:
 
 ```mermaid
 stateDiagram-v2

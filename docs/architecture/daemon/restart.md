@@ -64,4 +64,6 @@ is the final line of the run log and the content of `restarts/last.json`.
 The worker takes an exclusive `flock` on a restart lock in the state directory. A second worker that
 finds the lock held joins the restart in flight: it waits for the lock, then reports the result the
 finished restart wrote and exits with that result's code. A joined worker never stops or starts a
-daemon and never asks for a restore, so two restarts requested at once restore the fleet once.
+daemon and never asks for a restore, so two restarts requested at once restore the fleet once. A
+joined worker fails instead of reporting when its wait for the lock runs out, or when the finished
+restart left no result.

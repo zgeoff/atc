@@ -64,7 +64,7 @@ A grant ID can start with a dash, which the `=` form always passes as the value.
 ## Running under systemd
 
 Run the daemon and `atc mcp --http` as two user units, with the MCP unit ordered after the daemon
-unit. Replace `<tailnet_address>` and `<public_host>` with your own values:
+unit. Replace `<public_host>` with your own value:
 
 ```ini
 # ~/.config/systemd/user/atc-daemon.service
@@ -72,7 +72,7 @@ unit. Replace `<tailnet_address>` and `<public_host>` with your own values:
 Description=atc daemon
 
 [Service]
-ExecStart=%h/.local/bin/atc daemon --listen <tailnet_address>:8415 --token-file %h/.config/atc/daemon-token
+ExecStart=%h/.local/bin/atc daemon
 Restart=always
 RestartSec=10
 
@@ -97,11 +97,12 @@ RestartSec=5
 WantedBy=default.target
 ```
 
-The `--listen` and `--token-file` flags serve atc-gateway; leave both out when no gateway reaches
-this daemon. `--wait-for-daemon` stops the MCP server from booting a daemon of its own. Without it,
-an MCP unit that finds no daemon boots one without `--listen`, which takes the state lock, so the
-daemon unit fails on every restart. With it, the server waits up to 30 s for a daemon, then exits 1,
-and `Restart=always` starts it again.
+A daemon that atc-gateway reaches also takes `--listen` and `--token-file` in its `ExecStart`, as
+the [gateway guide](./gateway.md#the-daemon-listener) describes. `--wait-for-daemon` stops the MCP
+server from booting a daemon of its own. Without it, an MCP unit that finds no daemon boots one
+outside the daemon unit, which takes the state lock, so the daemon unit fails on every restart and
+its flags never apply. With it, the server waits up to 30 s for a daemon, then exits 1, and
+`Restart=always` starts it again.
 
 `After=` orders the MCP unit after the daemon process starts, not after its socket accepts
 connections, which is the gap the wait covers. `Requires=` makes a stop or restart of the daemon

@@ -43,11 +43,12 @@ method, a rule says which fields of the request and the answer hold ids, and the
 method that has no rule, so a new daemon method never passes through with its ids unrewritten.
 
 A call goes to the daemon its ids name, then to the daemon its params name, then to the default
-daemon. A call never fails over to another daemon. Listings of sessions and agents fan out to every
-daemon and report each daemon's state beside the merged answer: up, down, unauthorized, refused,
-outdated, or changed when its identity no longer matches the registry. An event read merges every
-daemon's trail under one gateway cursor that keeps each daemon's place, so a daemon that did not
-answer resumes from where it stopped on the next call.
+daemon. A call whose ids and params name two different daemons is refused with `bad_args`. A call
+never fails over to another daemon. Listings of sessions and agents fan out to every daemon and
+report each daemon's state beside the merged answer: up, down, unauthorized, refused, outdated, or
+changed when its identity no longer matches the registry. An event read merges every daemon's trail
+under one gateway cursor that keeps each daemon's place, so a daemon that did not answer resumes
+from where it stopped on the next call.
 
 The gateway carries no terminal stream. It serves a screen read, a transcript read and a submitted
 line, and no attach or raw input, because an MCP tool call has nowhere to put a live stream.
@@ -66,6 +67,7 @@ that cannot double its effect is retried once on a fresh one:
   `outcome_unknown`.
 
 The gateway binds each keyed request to its daemon in its own database before it sends it, and marks
-the binding sent just before each write. A retry after a gateway restart therefore replays on the
-same daemon instead of running again, and a key whose daemon's identity changed fails with
-`daemon_unavailable` and the reason `daemon_changed`, rather than moving to another daemon.
+the binding sent just before each write. A retry after a gateway restart of a request marked sent
+therefore replays on the same daemon instead of running again, while one the gateway never sent goes
+out as a first send, and a key whose daemon's identity changed fails with `daemon_unavailable` and
+the reason `daemon_changed`, rather than moving to another daemon.

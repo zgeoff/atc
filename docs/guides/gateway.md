@@ -81,7 +81,9 @@ atc-gateway serve --host 0.0.0.0 --port 8414 --public-url https://atc.example.co
 | `--registry`   | the registry file                                        | required                 |
 | `--state-dir`  | the directory for `gateway.db` and `mcp-auth.db`         | `$ATC_GATEWAY_STATE_DIR` |
 
-A host other than loopback needs an https public URL. The gateway prints the same startup line as
+The gateway speaks plain HTTP: `--public-url` names the https origin clients use and enables no TLS.
+A host other than loopback, as in this example, needs an https public URL and a TLS-terminating
+proxy or tunnel in front of the gateway. The gateway prints the same startup line as
 `atc mcp --http`, with `atc-gateway:` in place of `atc mcp --http:`. Without a state directory it
 exits 1, since it has no default under a home directory. It also exits 1 before it opens a database
 when two `--state-dir` flags disagree, when a flag it does not know appears, or when a flag's
