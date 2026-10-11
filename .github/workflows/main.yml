@@ -127,7 +127,7 @@ jobs:
       #
       # The App token exists because GITHUB_TOKEN events don't trigger
       # workflows — a GITHUB_TOKEN merge of the release PR would never start
-      # run 2. With no App configured (see RELEASING.md), release PRs are
+      # run 2. With no App configured (see docs/runbooks/releasing.md), release PRs are
       # left open to merge by hand and the chain continues from there.
       - name: Mint GitHub App token
         id: app-token
@@ -270,7 +270,7 @@ jobs:
 
       # The tap is a second repository, so the release App has to be
       # installed on it as well and HOMEBREW_TAP set to its name (see
-      # RELEASING.md). With either missing, the formula is left alone.
+      # docs/runbooks/releasing.md). With either missing, the formula is left alone.
       - name: Mint tap token
         id: tap-token
         if:

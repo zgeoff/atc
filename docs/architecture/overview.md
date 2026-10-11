@@ -1,203 +1,123 @@
 # Architecture overview
 
-atc multiplexes Claude Code, Grok Build, and Codex CLI sessions without a tiling layout engine: one
-focused session owns the whole terminal, and every other session is reached through a
-keyboard-driven overlay. The design bet is that the pain of many-session work is attention routing,
-not window management. A per-user daemon hosts the sessions; disposable TUI clients drive them over
-the [wire protocol](./protocol.md). Everything specific to one agent CLI lives in an adapter behind
-the `AgentAdapter` interface, so a new agent CLI is an adapter, not a refactor.
+atc runs many coding-agent sessions behind one terminal. Each session is a stock agent CLI, such as
+Claude Code, Grok Build or Codex CLI, running in a pseudo-terminal that a per-user daemon hosts. A
+thin TUI client shows one session at a time on the whole terminal, and a keyboard overlay lists the
+rest, sorted by which one needs the owner. The bet is that the hard part of running many agents is
+knowing which one is waiting, not arranging windows, so atc has no panes and no layout engine.
 
-## Process model
+The daemon owns everything that must outlive a client: the sessions, their screens, the fleet it
+restores after a restart, and every message and event. Clients are disposable. Everything specific
+to one agent CLI sits in that agent's adapter, so the daemon's session core works the same for every
+agent.
 
-```text
-atc (client TUI) ── NDJSON protocol ──> atcd (atc daemon)
-                                         ├── PTY per session ──> claude --settings <generated>
-                                         │                    or grok --no-leader, or codex
-                                         ├── reporter socket (hook + statusline reports)
-                                         ├── events socket (read-only NDJSON event stream)
-                                         └── SQLite state in ~/.local/state/atc/
+## The path of a keystroke
+
+A key the owner presses travels from the TUI to the session's pseudo-terminal, and the agent's
+output travels back the same way.
+
+```mermaid
+flowchart LR
+    T["TUI client"] -->|"session.input<br>(NDJSON socket)"| D["daemon"]
+    D -->|writes| P["pseudo-terminal"]
+    P --> A["agent CLI"]
+    A -->|output| P
+    P -->|every byte| S["screen model"]
+    D -->|"SessionOutput"| T
+    A -->|"hook reports"| R["reporter socket"]
+    R --> D
 ```
 
-- The daemon owns the sessions; the first `atc` invocation boots it if its socket is absent, then
-  connects as a thin client. Clients are disposable — quitting or crashing one leaves the fleet
-  running. The [daemon architecture](./daemon.md) covers the internals.
-- Each session is a `claude`, `grok`, or `codex` child process on its own PTY (`bun-pty`) inside the
-  daemon. Attached clients receive the session's output as sequenced events; a slow client desyncs
-  and resynchronizes rather than stalling the PTY or other clients.
-- A per-session vt state machine (`@xterm/headless`) consumes every PTY byte continuously, so
-  attaching is an instant serialized-screen replay — no reliance on the hosted agent repainting
-  itself.
-- `src/daemon/sessions.ts` is the state machine: session states are `running`, `needs_you`, `done`,
-  `exited`, each with an `unread` attention flag.
+1. The TUI sends each key event or paste as one request on the
+   [client protocol](./protocol/protocol.md), a newline-delimited JSON dialect over a unix socket.
+2. The daemon writes the input to the session's pseudo-terminal whole, so input from two clients
+   never interleaves inside one payload.
+3. The daemon reads every byte the agent prints, attached or not, and feeds it to the session's
+   screen model, a headless terminal emulator. It forwards the output only to the clients attached
+   to that session ([terminals](./daemon/terminals.md)).
+4. The agent's hooks report each turn's start, end and pending prompt on a separate reporter socket.
+   The daemon turns those reports into the session's attention state, which every client sees
+   ([sessions](./daemon/sessions.md)).
 
-## Sub-sessions
+## Topology
 
-A sub-session is a session spawned from inside another session through the MCP server, which reads
-the calling session's id from its environment. The sub-session lists indented under its parent and
-sorts among its siblings alone, so its attention never moves the parent's row. It pins with its
-parent, and a kill of the parent kills its live sub-sessions with it. The fleet table persists the
-link by the parent's atc session id, and a restore brings every session back under the id its row
-holds, so the set comes back intact. A spawn with `detached: true` makes a top-level session from
-inside a session.
+One daemon runs per state directory, and a kernel lock enforces it
+([the daemon](./daemon/daemon.md)). Every other atc process is a client of that daemon or a helper
+that runs inside a session.
 
-## MCP server
+```mermaid
+flowchart TB
+    subgraph host["the daemon's machine"]
+        TUI["TUI clients"] --> D["daemon"]
+        MCP["atc mcp (stdio)"] --> D
+        HTTP["atc mcp --http"] --> D
+        H["session helpers"] -->|reporter socket| D
+        E["atc events, outside tools"] -->|events socket| D
+        D --> L["local sessions"]
+    end
+    G["atc-gateway"] -->|"TCP listener"| D
+    D -->|"imp provider"| I["imp sessions"]
+```
 
-`atc mcp` is a stdio MCP server and a client of the daemon: each tool call becomes one protocol
-request. The tool definitions live in `src/mcp/mcp-tools.ts`, and each tool declares two things
-beside its schema:
+- **The daemon** hosts every session. A local session runs as a child process of the daemon. A
+  session on an [execution target](./execution/targets.md) such as an imp runs on a remote host that
+  the daemon reaches through that target's provider.
+- **Clients** speak the client protocol over the daemon's socket: the TUI, the stdio MCP server, the
+  HTTP MCP server and `atc tap`. Any of them boots the daemon when none answers, unless a service
+  manager owns the daemon.
+- **Session helpers** run inside a session on every hook event, statusline render, note and answer.
+  They speak a one-line dialect on the reporter socket, so a helper needs no handshake.
+- **atc-gateway** is a separate binary that serves the MCP tools for several daemons over HTTP and
+  routes each call to one daemon over that daemon's TCP listener
+  ([the gateway](./remote/gateway.md)).
 
-- Safety annotations, which `tools/list` returns. A read-scoped tool sets `readOnlyHint`. A tool
-  that can end a session or type into one sets `destructiveHint`. A tool that starts an agent or
-  puts text in front of one sets `openWorldHint`, because the agent acts on that text outside atc's
-  control.
-- One scope out of `read`, `message`, `spawn`, and `kill`, which groups the tool by the access it
-  needs. `atc_terminal_type` takes `spawn`, because a line typed into a session can do anything a
-  new session can. `atc_session_scope_add` takes `spawn` too, because it widens what a session may
-  touch. The daemon refuses it from a caller that runs inside the target session or inside a
-  sub-session of it. The stdio server serves every scope to its caller; `atc mcp --http` serves only
-  the scopes a client's grant holds, as [Remote MCP](./remote-mcp.md) describes.
+"Gateway" names two things in atc. A **gateway agent** is a Claude Code entry pointed at a
+Claude-compatible backend, which [adapters](./agents/adapters.md) covers. **atc-gateway** is the
+federation binary. The docs always say which one.
 
-`atc_session_stop` takes `kill` and stops a session's agent process, leaving the session listed as
-exited. `atc_session_forget` takes `kill` too and removes a session from the list, destroying its
-host on a target that can; the [protocol](./protocol.md#kill-and-sleep) covers its confirm token.
+## Data
 
-Every tool result holds its output as text. A result that is data also holds it as
-`structuredContent`, an object, and the typing, stop, spawn options, event, and message tools
-declare an `outputSchema` for it. A tool whose data is a list keeps the bare list as its text and
-wraps it in an object for `structuredContent`, so older clients read the same text.
+The daemon keeps its state in one SQLite file, `atc.db`, in the state directory, behind one
+connection that orders every query ([fleet and restore](./daemon/fleet-and-restore.md)).
 
-The server returns the client's requested protocol version from `initialize` when it supports it
-(`2025-11-25`, `2025-06-18`, or `2024-11-05`), else `2025-11-25`. The server leaves out
-`2025-03-26`, which requires JSON-RPC batching that atc does not implement.
+- **The fleet** holds one row per session the daemon can restore: its ids, agent, target, directory,
+  spawn prompt, model and latest result.
+- **The event trail** holds every hook event, message status change and note, in order, for cursor
+  reads ([events](./protocol/events.md)).
+- **The inbox** holds each message sent to a session and its status
+  ([messages](./protocol/messages.md)).
+- **Idempotency keys** hold what each keyed spawn or message did
+  ([idempotency](./protocol/idempotency.md)).
+- **Workspace rows** and **runtime auth bindings** hold the progress of each
+  [workspace](./execution/workspaces.md) and the broker grants of each imp
+  ([runtime auth](./execution/runtime-auth.md)).
+- **Session records** hold what atc vouches for about each session
+  ([session record](./execution/session-record.md)).
 
-## Agents and gateways
+Three things sit beside `atc.db`. `status.json` holds the fleet's counts for the statusline, and
+stays a plain file because a statusline helper reads it without speaking the protocol. `mcp-auth.db`
+holds the OAuth state of `atc mcp --http`, which the daemon never opens
+([OAuth](./remote/oauth.md)). The `records/` folder holds a read-only copy of each local session's
+record. Terminal output is never stored: each screen model lives in memory, and the agent's own
+transcript on disk is the durable copy of a session.
 
-A session records which agent it runs under as an id, and the daemon keys its adapter registry by
-that id. The config's `agents` map holds exactly the agents atc offers, one adapter per entry in
-file order, and an entry of kind `claude`, `codex`, or `grok` picks the CLI it drives. Several
-entries may share a kind. A Claude entry with a `baseURL` is a gateway: the Claude CLI against a
-Claude-compatible backend, with its own picker row, its own generated settings file, and its own
-fleet rows. That settings file is passed to the terminal spawn and to a headless turn alike, so
-ejecting a gateway session keeps it on its backend. A fleet row whose id has no registered adapter
-keeps its place and refuses to revive, so a backend dropped from the config never comes back as
-Claude.
+## Cross-cutting rules
 
-`n` and `r` open an agent picker first. The picker resolves each agent's configured binary as it
-opens and lists only the ones that resolve, so every row is a session that can start — an
-uninstalled agent would otherwise show up three steps later as a PTY that dies on exec. A menu with
-no rows at all names the `agents` key to set. A menu with one row is no choice, so the flow takes
-that agent without showing the picker; Esc from the step that follows leaves the flow.
-
-The target step follows the same rule. It counts only the targets that can run the chosen source: a
-repository needs a target that takes a workspace, and a directory also runs on an available local
-target. One such target is taken without a picker. When the daemon lists targets but none can run
-the source, the step opens with the reason in place of the hint.
-
-The picker's opening selection is the last-used agent, advertised on `daemon.hello` and written on
-the SessionStart of a deliberate spawn. A fleet restore does not stamp it, and MCP spawn ignores it
-and defaults to Claude. An uninstalled last-used agent gives up the opening selection to the first
-installed one.
-
-## Agent integration
-
-Claude sessions are instrumented via a generated settings file passed as `claude --settings`:
-
-- Hooks (`SessionStart`, `Notification`, `Stop`, `UserPromptSubmit`, `SessionEnd`) run
-  `atc hook-report --agent <agent id>`, which forwards the event JSON to atc's unix socket. The
-  daemon drops a report whose agent differs from the session's, so a harness nested inside a session
-  never reports as that session ([nested harnesses](../guides/configuration.md#nested-harnesses)).
-  `SessionStart` carries the agent session id at spawn/resume time, which is what makes the fleet
-  restorable before any interaction.
-- The statusline command (`atc statusline`) chains the user's own configured statusline, read from
-  `settings.json` in `$CLAUDE_CONFIG_DIR` or `~/.claude`, then appends the fleet segment read from
-  `status.json`, so fleet state renders inside Claude Code's own status line while attached. Its
-  stdin JSON is also heartbeated to the socket as a second id-capture path.
-- Session names are pulled from Claude's transcripts (`custom-title` lines from `/rename`, `summary`
-  lines as fallback) — atc is not the naming authority.
-
-Claude sessions also load the `atc-bridge` mod, a Claude Code plugin of function hooks. atc writes
-it to `~/.local/state/atc/atc-bridge/` and passes it as `--plugin-dir`, and headless runs get it
-through `CLAUDE_CODE_PLUGIN_DIRS`. The mod connects the session to its
-[inbox](./protocol.md#messages):
-
-- At session start it runs `atc tap` for the session. It submits each message as a new turn when the
-  session is idle and appends it to the running turn otherwise, inside an `<atc-message>` envelope
-  that holds the sender and message id.
-- When a turn that carried messages ends with a reply, the mod reports every message the turn
-  carried as answered with that reply and the turn's id, in one call. An aborted or failed turn
-  leaves its messages delivered.
-- It gives the model a `note` tool for progress mid-turn. Its `label` input is `progress` (the
-  default), `blocked`, or `decision`, and clients receive each call as a `SessionNote` event.
-
-Outside atc, with no `ATC_SESSION_ID` in its environment, the mod does nothing.
-
-Grok sessions take their hooks from a self-installed file at `$GROK_HOME/hooks/atc-reporter.json`;
-the reporter forwards Grok's camelCase envelopes to the same socket. Grok names come from
-`summary.json`. atc always appends `--no-leader` to the Grok spawn so the hosted TUI never swallows
-the leader key.
-
-Codex sessions take their hooks from self-installed entries in `$CODEX_HOME/hooks.json`, trusted
-once in the Codex TUI. A Codex session that signs in through impd's broker on an imp gets those
-entries in a Codex home of its own that atc writes. Codex names come from `session_index.jsonl`. The
-[configuration guide](../guides/configuration.md#attention-hooks-grok-and-codex) covers the install
-steps for both.
-
-Headless handoff (eject a PTY session into a headless Agent SDK run and adopt it back) is
-Claude-only: the Agent SDK and the CLI share the session store, and the handoff is sequential, so
-the two never run the same session concurrently. Grok and Codex have no headless handoff — the
-overlay hides `H` on their rows, and `session.eject` is `unsupported`.
-
-The daemon writes a headless turn to the event trail itself, because the run has no terminal hooks:
-`prompt-submitted` when the run starts, then `turn-done` or `needs-input` when it ends. The run's
-whole final message becomes the session's latest result, the same as a terminal turn's. Hook reports
-that arrive for a headless session stay out of the trail, so a gateway run's own hooks never
-duplicate these events.
-
-## State
-
-All in `~/.local/state/atc/`:
-
-| File          | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `atc.db`      | SQLite: the restorable fleet (rewritten on deliberate kills only; killed sessions persist as exited entries; each row holds the spawn prompt, model, effort, latest result, and transcript path), the hook-event trail, the message inbox, the workspace materializations, each session's record, the spawn-directory history for the picker, and last-used agent (written on a deliberate-spawn SessionStart, advertised on `daemon.hello`). |
-| `status.json` | Counts + most urgent session, read by the injected statusline on each render — a plain file because reporters read it without speaking the protocol.                                                                                                                                                                                                                                                                                          |
-| `mcp-auth.db` | SQLite: the OAuth state of `atc mcp --http` (clients, consent, token hashes), owned by that process and by `atc clients` and `atc grants`; the daemon never opens it. [Remote MCP](./remote-mcp.md) covers it.                                                                                                                                                                                                                                |
-| `records/`    | One read-only JSON copy of each local session's [record](./session-record.md), at the path in the session's `ATC_SESSION_RECORD`; `atc.db` holds the record itself.                                                                                                                                                                                                                                                                           |
-
-`daemon.lock` is the lock that keeps one daemon per state directory, and `daemon.json` holds the
-running daemon's pid, socket paths, and TCP listener port, so a client whose environment computes
-other socket paths still finds it; the
-[daemon architecture](./daemon.md#one-daemon-per-state-directory) covers both. The daemon also
-writes its pid file (`atc-daemon.pid`) beside its sockets in `$XDG_RUNTIME_DIR`.
-
-## Recovery model
-
-A client crash costs nothing — the daemon keeps hosting the fleet. If the daemon itself dies, its
-children die with it (PTY close → SIGHUP), but each agent streams transcripts to disk continuously,
-so sessions are data, not processes. Restore reconstructs each row with the matching CLI
-(`claude --resume <id>`, `grok --resume <id>`, or `codex resume <id>`); the fleet table makes that a
-single keypress (`R`) after a cold boot. The same mechanism powers adopt (`r`) and yank/eject
-(`y`/`Y`). A session killed before its first exchange has nothing on disk yet, so revive (`P`)
-reports that in the overlay's message column instead of resuming.
-
-A session keeps one atc session id for its whole life. The daemon mints a random UUID at spawn, the
-fleet row keeps it, and every restore brings the session back under it, so a client that held the id
-before a daemon restart still reaches the same session after it. A session whose agent never
-reported its own session id persists too, and a restore lists it as exited: there is nothing to
-resume. A restore that finds a stored session still listed, with its process dead, revives that
-session in place instead of listing the id twice.
-
-Reviving a whole fleet is incremental but visible from the start. Every fleet entry registers as a
-session without a terminal before any process boots — each broadcasts `SessionAdded`, so clients
-list the full incoming fleet immediately, marked "waiting to restore". Terminals then attach one at
-a time in recency order (latest hook event in the trail first, from the events table): the first
-attaches at once so the caller can attach, and each later one waits for the previous session to
-report its `SessionStart` hook, so an update-triggered restart does not boot a dozen agent processes
-in the same instant and stall the machine. A per-session cap (`restoreBootTimeoutMs`) keeps a
-session that never reports — or dies mid-resume — from holding up the rest.
-
-A daemon started with `restoreFleetOnRestart` on (the default) runs this restore itself once it is
-listening, when its store holds sessions, at 80x24 until the first attach resizes each terminal. The
-daemon keeps one restore in flight: a `fleet.restore` that arrives while its stagger runs joins it
-and returns its count. After the stagger finishes, `fleet.restore` runs a real restore again, which
-skips every live session and revives one that died since.
+- **Sessions are data, not processes.** A daemon that stops takes its local sessions with it, and
+  the next daemon resumes each one from the agent's transcript under the same atc session id
+  ([fleet and restore](./daemon/fleet-and-restore.md)).
+- **Additive evolution.** Client and daemon must speak the same protocol version. Within one
+  version, the daemon lists the features it serves, so a client that outlives an upgrade asks only
+  for what the running daemon honours ([protocol](./protocol/protocol.md#versions-and-features)).
+- **Principals.** A request on the owner's unix socket acts as the owner. A request can act as a
+  named principal, which narrows it to the targets that principal may use, and every request on the
+  TCP listener must ([principals](./protocol/principals.md)).
+- **Grant scopes.** Each MCP tool needs one of four grant scopes, and a remote MCP client calls only
+  the tools its grant holds ([MCP](./remote/mcp.md)). A grant scope differs from a session record's
+  scope, which lists the worktrees and branches a session may touch.
+- **Execution checks.** Every request that starts work on a session asks one check whether the
+  session's target can run it, so no path falls back to another machine
+  ([targets](./execution/targets.md)).
+- **Adapters own the agent.** The session core never sees past the adapter interface
+  ([adapters](./agents/adapters.md)), and atc never writes into an agent's own config
+  ([agent integration](./agents/agent-integration.md)).
