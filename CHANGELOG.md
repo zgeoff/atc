@@ -2,10 +2,11 @@
 
 ## [4.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.1.0...@zgeoff/atc@4.2.0) (2026-10-11)
 
-
 ### Features
 
-* **geo-406:** give each session a scratch folder, skip the read offer ([#500](https://github.com/zgeoff/atc/issues/500)) ([1950266](https://github.com/zgeoff/atc/commit/1950266afeeb56e221c9cfe37481140d5a5effda))
+- **geo-406:** give each session a scratch folder, skip the read offer
+  ([#500](https://github.com/zgeoff/atc/issues/500))
+  ([1950266](https://github.com/zgeoff/atc/commit/1950266afeeb56e221c9cfe37481140d5a5effda))
 
 ## [4.1.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.0.0...@zgeoff/atc@4.1.0) (2026-10-11)
 
