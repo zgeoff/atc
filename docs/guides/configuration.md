@@ -778,9 +778,11 @@ Some backends take the key only in an `x-api-key` header and refuse a request th
    ```
 
 Claude asks a person whether to use an `ANTHROPIC_API_KEY` it has not seen before, so atc seeds the
-session's config folder with the placeholder approved. A host whose environment sets
-`ANTHROPIC_AUTH_TOKEN` would add an `Authorization` header beside the key, so the launch exits with
-code 78 on such a host, with an error that names the variable.
+session's config folder with the placeholder approved. atc seeds a config folder only when it holds
+no `.claude.json`, so a session that started under the bearer pairing asks once when it resumes:
+answer yes. A host whose environment sets `ANTHROPIC_AUTH_TOKEN` would add an `Authorization` header
+beside the key, so the launch exits with code 78 on such a host, with an error that names the
+variable.
 
 ### Claude subscription on imps
 
