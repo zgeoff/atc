@@ -75,7 +75,8 @@ jobs:
       - name: Doc links
         run: bash .claude/skills/docs-writing/scripts/check-links.sh
 
-      # Advisory until this repo's docs rebuild brings its READMEs and docs/ within the limits.
+      # Some READMEs and docs/ pages fail the shared length or prose rules, so this step reports
+      # its findings without failing the run.
       - name: Doc length and prose
         continue-on-error: true
         run: bash .claude/skills/docs-writing/scripts/check-length.sh
