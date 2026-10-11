@@ -1,3 +1,4 @@
+// oxlint-disable zgeoff/test-beside-module -- tests run-tool.ts; GEO-433 moves it beside its module
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
