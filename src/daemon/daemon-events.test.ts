@@ -1,3 +1,4 @@
+// oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { decodeMessage } from '../protocol/protocol';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';

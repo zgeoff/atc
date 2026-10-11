@@ -1,3 +1,4 @@
+// oxlint-disable zgeoff/test-beside-module -- tests the knip config behind the deadcode script; GEO-433 gives it a module
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
