@@ -457,6 +457,11 @@ session's `TMPDIR` points at the folder too, so a temporary file the agent or on
 lands inside the session's working directories rather than in `/tmp`. atc keeps the folder after the
 session ends.
 
+In auto mode, Claude Code offers once to block reads outside the working directories, and the offer
+waits for an answer. atc marks it seen only in an imp session's own config folder. Elsewhere, set
+`"hasSeenAutoModeOutsideReadPrompt": true` in the `.claude.json` the session reads, such as
+`~/.claude.json` or the imp image's.
+
 ## Gateways
 
 A Claude entry with a `baseURL` is a gateway: it runs the Claude CLI against a Claude-compatible
