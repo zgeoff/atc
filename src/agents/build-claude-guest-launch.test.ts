@@ -182,6 +182,24 @@ test('it turns a false outside-read offer mark true in the config an earlier run
   );
 });
 
+test('it turns a false outside-read offer mark true when a space precedes its colon', async () => {
+  const ctx = setupTest();
+  const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
+  const config = join(ctx.dir, 'claude-config');
+
+  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+  mkdirSync(config);
+  writeFileSync(join(config, '.claude.json'), '{"hasSeenAutoModeOutsideReadPrompt" : false}');
+
+  const run = await runCommand([launch.bin, ...launch.args]);
+
+  expect(run.exitCode).toBe(0);
+
+  expect(readFileSync(join(config, '.claude.json'), 'utf8')).toBe(
+    '{"hasSeenAutoModeOutsideReadPrompt": true}',
+  );
+});
+
 test("it adds the outside-read offer's seen mark to an empty config an earlier run left", async () => {
   const ctx = setupTest();
   const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);

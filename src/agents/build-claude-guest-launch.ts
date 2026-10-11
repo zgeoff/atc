@@ -71,8 +71,11 @@ const CLAUDE_CONFIG_FOLDER = 'claude-config';
 // reads outside the working directories was seen.
 const SEEN_OFFER_KEY = 'hasSeenAutoModeOutsideReadPrompt';
 
+// The space a JSON writer may put on either side of a key's colon.
+const COLON = '[[:space:]]*:[[:space:]]*';
+
 // Sets the key to true in a config that holds it as false.
-const SEEN_OFFER_SET_SED = `s/"${SEEN_OFFER_KEY}": *false/"${SEEN_OFFER_KEY}": true/`;
+const SEEN_OFFER_SET_SED = `s/"${SEEN_OFFER_KEY}"${COLON}false/"${SEEN_OFFER_KEY}": true/`;
 
 // Adds the key at the start of the config's top-level object, which the
 // CLI opens on the file's first line, empty or not.
@@ -85,7 +88,7 @@ const SEEN_OFFER_ADD_SED = [
 // A config that holds the key as true stays as it is. Any other one is
 // rewritten beside itself, readable by its owner alone, and moved into
 // place.
-const SEEN_OFFER_STEP = `{ grep -q '"${SEEN_OFFER_KEY}": *true' "$1/.claude.json" || { (umask 077 && if grep -q '"${SEEN_OFFER_KEY}"' "$1/.claude.json"; then sed -e '${SEEN_OFFER_SET_SED}' "$1/.claude.json"; else sed -e '${SEEN_OFFER_ADD_SED}' "$1/.claude.json"; fi > "$1/.claude.json.atc") && mv "$1/.claude.json.atc" "$1/.claude.json"; }; }`;
+const SEEN_OFFER_STEP = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude.json" || { (umask 077 && if grep -q '"${SEEN_OFFER_KEY}"' "$1/.claude.json"; then sed -e '${SEEN_OFFER_SET_SED}' "$1/.claude.json"; else sed -e '${SEEN_OFFER_ADD_SED}' "$1/.claude.json"; fi > "$1/.claude.json.atc") && mv "$1/.claude.json.atc" "$1/.claude.json"; }; }`;
 
 // The arguments are the config folder, the seed, the folder bundles stage
 // in, this launch's staged bundle, the scratch folder, and the CLI's own
