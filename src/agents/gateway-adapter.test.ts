@@ -1867,7 +1867,7 @@ test('it allows the start of a gateway with auth whose placeholder pairs with th
   expect(adapter.findSpawnRefusal()).toBeNull();
 });
 
-test('it refuses every start of a gateway with auth whose placeholder is not the bearer variable', () => {
+test('it refuses every start of a gateway with auth whose API key placeholder meets a bearer authorization rule', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({
       id: 'glm',
@@ -1890,6 +1890,212 @@ test('it refuses every start of a gateway with auth whose placeholder is not the
     data: { agent: 'glm' },
   });
 });
+
+test('it allows the start of a gateway with auth whose API key placeholder pairs with a raw x-api-key header', () => {
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'muse',
+      bin: 'claude',
+      baseURL: 'https://api.meta.ai',
+      auth: {
+        profiles: ['muse'],
+        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+      },
+    }),
+    parseConfig({
+      authProfiles: {
+        muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
+      },
+    }),
+  );
+
+  expect(adapter.findSpawnRefusal()).toBeNull();
+});
+
+test.each([
+  [{ ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' }, { header: 'x-api-key', scheme: 'raw' }],
+  [{ ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' }, { header: 'authorization', scheme: 'raw' }],
+  [{ ANTHROPIC_API_KEY: 'imp-broker-placeholder' }, { header: 'x-api-key', scheme: 'bearer' }],
+  [{ ANTHROPIC_API_KEY: 'imp-broker-placeholder' }, { header: 'authorization', scheme: 'raw' }],
+  [
+    { ANTHROPIC_API_KEY: 'imp-broker-placeholder', ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+    { header: 'x-api-key', scheme: 'raw' },
+  ],
+  [{ ANTHROPIC_API_KEY: 'sk-real' }, { header: 'x-api-key', scheme: 'raw' }],
+  [
+    {
+      ANTHROPIC_API_KEY: 'imp-broker-placeholder',
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    },
+    { header: 'x-api-key', scheme: 'raw' },
+  ],
+])(
+  'it refuses every start of a gateway with auth whose placeholders %p meet the rule %p',
+  (placeholderEnv, rule) => {
+    const adapter = new GatewayAdapter(
+      buildMockGatewayConfig({
+        id: 'muse',
+        bin: 'claude',
+        baseURL: 'https://api.meta.ai',
+        auth: { profiles: ['muse'], placeholderEnv },
+      }),
+      parseConfig({
+        authProfiles: { muse: { secret: 'muse', host: 'api.meta.ai', ...rule } },
+      }),
+    );
+
+    expect(adapter.findSpawnRefusal()).toMatchObject({
+      code: 'auth_placeholder_unsupported',
+      data: { agent: 'muse' },
+    });
+  },
+);
+
+test('it plans a brokered guest spawn of an API key gateway that sends only the x-api-key placeholder, approved in its seed', () => {
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'muse',
+      bin: 'claude',
+      baseURL: 'https://api.meta.ai',
+      auth: {
+        profiles: ['muse'],
+        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+      },
+    }),
+    parseConfig({
+      authProfiles: {
+        muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
+      },
+    }),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: { revision: 1, env: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' }, profileEnv: {} },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  const settingsFile = plan.files['auth-r1/settings.json'];
+  const seedFile = plan.files['claude-config-seed.json'];
+
+  invariant(typeof settingsFile === 'string', 'expected the revision settings file');
+  invariant(typeof seedFile === 'string', 'expected the seed file');
+
+  const settings: unknown = JSON.parse(settingsFile);
+  const seed: unknown = JSON.parse(seedFile);
+
+  expect(plan.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
+    ANTHROPIC_API_KEY: 'imp-broker-placeholder',
+  });
+
+  expect(settings).toMatchObject({
+    env: {
+      ANTHROPIC_BASE_URL: 'https://api.meta.ai',
+      ANTHROPIC_API_KEY: 'imp-broker-placeholder',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    },
+  });
+
+  expect(settings).not.toHaveProperty(['env', 'ANTHROPIC_AUTH_TOKEN']);
+
+  expect(seed).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+    customApiKeyResponses: { approved: ['p-broker-placeholder'], rejected: [] },
+  });
+});
+
+test('it seeds the approval of the API key placeholder beside the clone trust of an API key gateway', () => {
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'muse',
+      bin: 'claude',
+      baseURL: 'https://api.meta.ai',
+      auth: {
+        profiles: ['muse'],
+        placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+      },
+    }),
+    parseConfig({
+      authProfiles: {
+        muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
+      },
+    }),
+  );
+
+  const seedFile = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
+
+  invariant(typeof seedFile === 'string', 'expected the seed file');
+
+  expect(JSON.parse(seedFile)).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+    customApiKeyResponses: { approved: ['p-broker-placeholder'], rejected: [] },
+    projects: {
+      '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
+    },
+  });
+});
+
+test.each([
+  [{ ANTHROPIC_AUTH_TOKEN: 'sk-host' }, 78],
+  [{}, 0],
+])(
+  'it starts a brokered guest of an API key gateway under the host environment %p with exit code %p',
+  async (hostEnv, exitCode) => {
+    const ctx = setupTest();
+
+    const adapter = new GatewayAdapter(
+      buildMockGatewayConfig({
+        id: 'muse',
+        bin: 'true',
+        baseURL: 'https://api.meta.ai',
+        auth: {
+          profiles: ['muse'],
+          placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+        },
+      }),
+      parseConfig({
+        authProfiles: {
+          muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
+        },
+      }),
+    );
+
+    const plan = adapter.planGuestSpawn(
+      { prompt: '', resume: false },
+      {
+        atc: '/opt/atc/bin/atc',
+        dir: ctx.dir,
+        auth: {
+          revision: 1,
+          env: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
+          profileEnv: {},
+        },
+      },
+    );
+
+    invariant(plan !== null, 'expected a guest spawn plan');
+
+    const seed = plan.files['claude-config-seed.json'];
+
+    invariant(typeof seed === 'string', 'expected the seed file');
+    writeFileSync(join(ctx.dir, 'claude-config-seed.json'), seed);
+
+    const run = await runCommand([plan.bin, ...plan.args], {
+      env: { PATH: process.env['PATH'], ...hostEnv, ...plan.env },
+    });
+
+    expect(run.exitCode).toBe(exitCode);
+  },
+);
 
 test('it refuses every start of a gateway with auth whose env sets a proxy variable', () => {
   const adapter = new GatewayAdapter(

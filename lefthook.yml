@@ -1,6 +1,6 @@
 # Git hooks. pre-commit fixes staged files only (fast); pre-push checks what
 # the branch changes, plus the cheap whole-tree gates. CI runs every
-# whole-tree check: type-aware lint, dead code, and the full test suite.
+# whole-tree check: type-aware lint (lint:full), dead code, and the full test suite.
 
 pre-commit:
   piped: true

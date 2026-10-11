@@ -356,7 +356,7 @@ limit.
 
 ## Reading notes
 
-A note is a short update a session sends through its `report` tool, which the
+A note is a short update a session sends through its `note` tool, which the
 [atc-bridge mod](./overview.md#agent-integration) gives every Claude session. atc keeps each note
 with its label and up to 64 KiB of its text. `atc_events_read` returns a note as a `note` event
 among the fleet's other events, with its label and the whole text in `text`. The tool needs only

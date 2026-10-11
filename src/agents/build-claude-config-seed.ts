@@ -10,15 +10,27 @@ import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
  * waits on the CLI's approval prompt. It holds no account: the placeholder
  * credential is what keeps the CLI from asking for a login. Without a
  * trusted root the CLI asks a person to trust the workspace, and to approve
- * the clone's MCP servers, on its first start.
+ * the clone's MCP servers, on its first start. `approvedAPIKey`, when
+ * given, is a placeholder the session reads as its API key variable: the
+ * seed approves it the way the CLI records a person's approval, by its
+ * last 20 characters, since the CLI otherwise asks whether to use it.
  */
 export function buildClaudeConfigSeed(
   trustedRoot: string | null,
+  approvedAPIKey: string | null = null,
 ): Readonly<Record<string, string>> {
-  const seed =
-    trustedRoot === null
-      ? ONBOARDED_CONFIG
-      : { ...ONBOARDED_CONFIG, projects: { [trustedRoot]: TRUSTED_PROJECT } };
+  const seed = {
+    ...ONBOARDED_CONFIG,
+    ...(approvedAPIKey === null
+      ? {}
+      : {
+          customApiKeyResponses: {
+            approved: [approvedAPIKey.trim().slice(-API_KEY_SUFFIX_LENGTH)],
+            rejected: [],
+          },
+        }),
+    ...(trustedRoot === null ? {} : { projects: { [trustedRoot]: TRUSTED_PROJECT } }),
+  };
 
   return { [CLAUDE_CONFIG_SEED_FILE]: JSON.stringify(seed, null, 2) };
 }
@@ -26,4 +38,8 @@ export function buildClaudeConfigSeed(
 // Marking the offer as seen never turns the block on, so a read outside
 // the working directories still goes through the session's permission mode.
 const ONBOARDED_CONFIG = { hasCompletedOnboarding: true, hasSeenAutoModeOutsideReadPrompt: true };
+
+// How many trailing characters of an API key the CLI keeps to record a
+// person's answer about it.
+const API_KEY_SUFFIX_LENGTH = 20;
 const TRUSTED_PROJECT = { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true };

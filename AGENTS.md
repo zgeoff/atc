@@ -1,12 +1,25 @@
-<!-- Generated file — do not edit. Edit agents/project.md here, or agents/shared.md in zgeoff/tools. -->
-
 # Agent Guidelines
+
+atc is a terminal control tower for coding-agent sessions (Claude Code, Grok Build, and Codex CLI):
+a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over an
+NDJSON protocol behind a keyboard-driven session list with hook-driven attention routing. No panes,
+no tiling, no mouse. See `docs/architecture/overview.md` for how the pieces fit; the README
+documents install and keys, and `docs/guides/configuration.md` documents config.
+
+## Required reading
+
+The rules a task needs are not repeated here. Load the skill for the work before starting it.
+
+| Skill             | Load before                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `code-style`      | writing, reviewing, or renaming any TypeScript — the function-verb taxonomy and comment rules |
+| `testing`         | designing, writing, or reviewing tests                                                        |
+| `project-testing` | the same, beside `testing` — atc's test home and PTY harness                                  |
+| `docs-writing`    | writing or editing any committed prose: `docs/`, READMEs, this file, skills                   |
+| `tool-contract`   | adding, renaming, or redescribing an `atc mcp` tool or an atc-bridge tool                     |
 
 ## Operations
 
-- AGENTS.md is generated from `agents/shared.md` and `agents/project.md` — edit the partials, never
-  AGENTS.md itself. The shared partial is synced from
-  [zgeoff/tools](https://github.com/zgeoff/tools); cross-project rule changes belong there.
 - Perform all work on a branch in a git worktree under `.worktrees/` (e.g.
   `git worktree add .worktrees/<branch> -b <branch>`) — never commit directly on `main`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) for all commit messages.
@@ -20,140 +33,27 @@
 - After pushing, link the PR URL in your response.
 - A PR is ready only when its checks are green: watch CI (`gh pr checks <n> --watch`) after opening
   or updating, and report a failure with what you're doing about it.
-
-## Code style
-
-Mechanically enforced rules (oxfmt, oxlint, format-codemod) aren't repeated here — this file covers
-what tooling can't check.
-
-- One primary export per file, and the file name kebab-cases that export (`with-jest-context.ts`
-  exports `withJestContext`). Exceptions: `index.ts` entrypoints, `types.ts` for a package's shared
-  types, and side-effect-only modules, which are named for what they do (`augment-bun-test.ts`).
-- Module order: imports, the primary export, then private helpers in composition order (depth-first)
-  — never helpers first. Supporting declarations (consts, interfaces, type aliases) sit directly
-  above their first use, never below it and never leading the file; types for the primary export's
-  signature may sit just above it.
-- Acronyms stay uppercase in identifiers (`runCLI`, `parseCLIArgs`, `ASTNode`, `pkgURL`,
-  `isPackageJSON`) — except when one starts a camelCase name, where it lowercases whole (`cliPath`,
-  `astNode`). ID counts as an acronym: `userID`, `sessionID` — never `userId` — and `idToken` when
-  it starts a name. File names are unaffected: kebab-case lowercases everything (`parse-cli-args.ts`
-  exports `parseCLIArgs`).
-
-### Function naming
-
-Every function name starts with a prefix from the closed list below: pick from it, or extend this
-file in the same PR that introduces the new verb. The prefix is a contract — a reader should know
-the function's shape without opening it.
-
-**Predicates** — return boolean, no side effects:
-
-| Prefix   | Contract                | Example          |
-| -------- | ----------------------- | ---------------- |
-| `is`     | type or state test      | `isVarDecl`      |
-| `has`    | containment, possession | `hasBlankLine`   |
-| `can`    | capability              | `canResize`      |
-| `should` | policy decision         | `shouldSkipFile` |
-| `needs`  | requirement             | `needsBlankLine` |
-
-**Pure producers** — result comes from arguments alone, no side effects:
-
-| Prefix                        | Contract                                                                  | Example             |
-| ----------------------------- | ------------------------------------------------------------------------- | ------------------- |
-| `build<Result>[From<Source>]` | default constructor for values; drop `From<Source>` when no single source | `buildEditsFromAST` |
-| `define<X>`                   | identity; its only job is compile-time constraint of its literal argument | `defineErrors`      |
-| `parse`                       | unstructured input → structure, invalid input reported                    | `parseSource`       |
-| `encode`                      | structure → its defined compact or wire form, reversed by `decode`        | `encodeState`       |
-| `decode`                      | `encode`'s output → the original structure, malformed input reported      | `decodeState`       |
-| `derive`                      | one-way cryptographic derivation from secret material                     | `deriveAvatarKey`   |
-| `plan`                        | compute an action without performing it                                   | `planGapEdit`       |
-| `pick`                        | select among known alternatives                                           | `pickMode`          |
-| `find`                        | search that can miss — null/undefined on miss                             | `findPrevious`      |
-| `get`                         | cheap access that cannot miss (throwing on a broken invariant is fine)    | `getNodeEnd`        |
-| `collect`                     | gather from a traversal or scan                                           | `collectChildNodes` |
-| `count`                       | how many                                                                  | `countNewlines`     |
-| `split`                       | one value → parts                                                         | `splitLines`        |
-| `merge`                       | parts → one value                                                         | `mergeWindows`      |
-| `sort`                        | reorder                                                                   | `sortEdits`         |
-| `format`                      | value → human-readable string                                             | `formatRange`       |
-| `render`                      | structure → output text or markup                                         | `renderHunk`        |
-| `normalize`                   | variant forms → the canonical form                                        | `normalizePath`     |
-| `resolve`                     | follow indirection to a concrete value                                    | `resolveBinPath`    |
-| `expand`                      | compact form → full form                                                  | `expandInputs`      |
-| `compress`                    | value → its reversible compact encoding                                   | `compressGraph`     |
-| `decompress`                  | reverse a `compress` encoding (non-encoded shorthand is `expand`)         | `decompressGraph`   |
-| `to<Result>`                  | cheap representation change                                               | `toPosixPath`       |
-| `transform`                   | a package's own source→source operation                                   | `transform`         |
-
-**Effectful** — touches the world (filesystem, streams, processes, registries):
-
-| Prefix         | Contract                                                                                                                                | Example            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `apply`        | perform previously planned changes                                                                                                      | `applyEdits`       |
-| `create`       | bring a resource into existence (file, directory, process)                                                                              | `createWorkDir`    |
-| `claim`        | atomically take exclusive ownership of a work item or resource; ownership ends at commit or an explicit release                         | `claimNextChain`   |
-| `read`         | pull raw content from filesystem or network into memory                                                                                 | `readSource`       |
-| `load`         | read **and** parse into a ready structure                                                                                               | `loadConfig`       |
-| `write`        | persist to the filesystem                                                                                                               | `writeOutput`      |
-| `remove`       | delete a resource                                                                                                                       | `removeStaleDist`  |
-| `update`       | mutate existing state or resource in place                                                                                              | `updateIndex`      |
-| `upsert`       | single-statement insert-or-update keyed by a natural or composite key, refreshing the conflicting row's columns in place                | `upsertUser`       |
-| `set`          | assign a store's named state slice wholesale — the store-setter idiom; partial mutation is `update`                                     | `setSelectedNode`  |
-| `toggle<Flag>` | invert a boolean state slice                                                                                                            | `toggleDevCamera`  |
-| `reset`        | return state to its initial value                                                                                                       | `resetCombatState` |
-| `print`        | write to stdout/stderr                                                                                                                  | `printHelp`        |
-| `run`          | execute a subprocess, task, or whole pipeline                                                                                           | `runCLI`           |
-| `check`        | evaluate and report findings; effects allowed per mode                                                                                  | `checkFile`        |
-| `try<X>`       | X with failures captured as a value instead of a throw                                                                                  | `tryCheckFile`     |
-| `register`     | add to a registry the caller doesn't own                                                                                                | `registerMatcher`  |
-| `subscribe`    | attach a listener to an event source, returning or enabling detachment                                                                  | `subscribeToTicks` |
-| `unsubscribe`  | detach what `subscribe` attached                                                                                                        | `unsubscribe`      |
-| `assert`       | throw when an invariant doesn't hold                                                                                                    | `assertSpan`       |
-| `require`      | throw unless a runtime condition holds — a guard real input can trip (`assert` covers invariants)                                       | `requireAuth`      |
-| `verify`       | test a claim or credential against evidence, rejecting on mismatch                                                                      | `verifySession`    |
-| `emit`         | dispatch an event or notification                                                                                                       | `emitProgress`     |
-| `send`         | transmit a payload to a remote receiver (fire-and-forget or RPC — no resource semantics; REST mutations are `create`/`update`/`remove`) | `sendWebhook`      |
-| `wait`         | block until an event or condition resolves; may return the awaited value                                                                | `waitForMessage`   |
-| `setup`        | prepare the environment or fixture the following code assumes; `teardown` reverses it                                                   | `setupTest`        |
-| `teardown`     | release what `setup` prepared                                                                                                           | `teardownTest`     |
-| `start`        | put a long-running resource into service (server, worker, poll loop); `stop` reverses it                                                | `startQueues`      |
-| `stop`         | take a long-running resource out of service, releasing what `start` acquired                                                            | `stopWorker`       |
-| `drain`        | consume a pending backlog until empty                                                                                                   | `drainJobs`        |
-
-**Wrappers and factories** — the result is behaviour, not data:
-
-| Prefix    | Contract                                  | Example           |
-| --------- | ----------------------------------------- | ----------------- |
-| `with<X>` | HOF that runs a callback inside a context | `withJestContext` |
-| `make<X>` | factory whose result is itself a function | `makeExcluder`    |
-
-**Framework conventions** — where the ecosystem's prefix is load-bearing, it wins:
-
-| Prefix                   | Contract                                                                                                                | Example          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `use<X>`                 | React hook — the prefix drives rules-of-hooks linting; helpers inside a hook follow the normal taxonomy                 | `useDebounce`    |
-| `on<Event>`              | event-callback prop or parameter                                                                                        | `onRowClick`     |
-| `handle<Event>`          | local implementation passed to an `on<Event>` prop — the idiomatic React pair; the `handle` ban applies everywhere else | `handleRowClick` |
-| `handle<LifecycleEvent>` | implementation of an engine lifecycle callback, keyed by the engine's lifecycle-event enum                              | `handleTick`     |
-
-**Banned** — each is a vaguer or synonymous form of a listed verb; use that one instead: `handle`
-(except the `handle<Event>` framework conventions), `process`, `manage`, `do`, `perform` (say what
-it does), `execute` (→ `run`), `compute` (→ `build`), `fetch` (→ `read`), `save`/`store` (→
-`write`), `delete` (→ `remove`), `search`/`lookup` (→ `find`/`get`).
-
-Algorithm-native vocabulary (`walk`, `backtrack`, `slideDiagonal`) is allowed inside the module
-implementing that algorithm — forcing list verbs onto textbook terms hides the algorithm.
+- Light linting, formatting, and other checks run via lefthook's pre-commit and pre-push hooks.
+  Defer to CI for larger checks, as the environment you're operating in may have conservative memory
+  constraints.
+- `bun run lint` is plain oxlint. `bun run lint:full` adds the type-aware pass and the type check,
+  and is CI-only: never run it locally.
 
 ## Dependencies
 
 - Pin exact versions — no `^`/`~` ranges. (`bun add` saves exact automatically via `exact = true` in
-  bunfig.toml — the rule applies to hand-written edits.)
+  bunfig.toml — the rule applies to hand-written edits.) The 7-day `minimumReleaseAge` gate applies.
+  When the latest version is younger than the gate, pin the newest version that passes — don't add
+  exclusions for convenience.
+- A dependency knip can't see gets its `knip.json` ignore entry in the same PR that introduces it,
+  with the reason in the PR description.
 
 ## Review bots
 
 CodeRabbit reviews every PR. Its shared config lives in the zgeoff/coderabbit repo, and a repo-root
 `.coderabbit.yaml` with `inheritance: true` layers repo-specific settings on top. CodeRabbit reads
-this file as its guidelines. A repo that runs another review bot names it and its config in
-`agents/project.md`, and these rules cover that bot too.
+this file as its guidelines. A review bot added later is named here with its config, and these rules
+cover it too.
 
 - A PR is ready only after every bot review is read and every finding is answered: a fixed finding's
   reply cites the commit that fixed it; a declined finding's reply states the reason — when a
@@ -169,14 +69,6 @@ this file as its guidelines. A repo that runs another review bot names it and it
 - Bots review a PR once, at open; an agent invokes a re-review only when asked. The exception is a
   PR that got no review at all, such as one opened before the bot was installed: request it once
   with that bot's documented trigger, such as `@coderabbitai review` for CodeRabbit.
-
-# atc
-
-atc is a terminal control tower for coding-agent sessions (Claude Code, Grok Build, and Codex CLI):
-a daemon (`atc daemon`) hosts stock agent CLIs in PTYs, and thin TUI clients drive them over an
-NDJSON protocol behind a keyboard-driven session list with hook-driven attention routing. No panes,
-no tiling, no mouse. See `docs/architecture/overview.md` for how the pieces fit; the README
-documents install and keys, and `docs/guides/configuration.md` documents config.
 
 ## Layout
 
@@ -269,66 +161,26 @@ program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude
   restorable fleet; killed sessions persist as exited entries until a second kill removes them,
   except on a target that can destroy its host, where only a confirmed `session.forget` removes one.
 
-## Function naming — project verbs
+## MCP and bridge tools
 
-Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
-`.oxlintrc.json`): `ack`, `acquire`, `adopt`, `advance`, `answer`, `attach`, `boot`, `copy`,
-`destroy`, `detach`, `dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`,
-`open`, `quit`, `reconcile`, `record`, `refresh`, `release`, `renew`, `restart`, `restore`,
-`revoke`, `sanitize`, `schedule`, `spawn`, `suspend`, `transfer`, `truncate`, `yank`.
+The `tool-contract` skill holds the rules for every `atc mcp` tool and every atc-bridge tool, each
+with an example from the current tools; load it before you add, rename, or redescribe one. An agent
+picks a tool from its name and description alone, so the rules start there:
 
-`advance` moves an injected clock forward by a duration and runs what falls due on the way
-(`advanceClock`), as opposed to `update`, which makes no promise about what runs.
-
-`acquire`, `renew`, and `release` take, extend, and give back a lease that keeps a remote host awake
-(`acquireLease`), as opposed to `claim`, which takes exclusive ownership.
-
-`destroy` deletes an execution host and everything on it, which nothing brings back (`destroyHost`),
-as opposed to `remove`, which deletes one record or file.
-
-`dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
-safe to call more than once.
-
-`materialize` builds a resource on an execution target from a source held elsewhere, through the
-target's provider operations, and checks the result before it counts as ready
-(`materializeWorkspace`).
-
-`forget` drops a session from the fleet for good (`forgetSession`), destroying its host where its
-target can, as opposed to `remove`, which deletes one record without touching what it describes.
-
-`mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
-`to<Brand>`, which trusts an id that arrived from outside atc.
-
-`reconcile` settles stored state that a stopped daemon left mid-change against the evidence the
-change leaves behind (`reconcileIdempotencyKeys`).
-
-`revoke` withdraws a credential atc issued so it no longer authorizes anything (`revokeGrant`), as
-opposed to `remove`, which deletes a resource outright.
-
-`sanitize` strips a resource of credentials and executable configuration in place and checks that
-none remain (`sanitizeWorkspaceClone`), as opposed to `update`, which makes no promise about what is
-left.
-
-`suspend` puts an execution host to sleep with its processes kept inside it, so a later wake finds
-them as they were (`suspendHost`), as opposed to `kill`, which ends a process.
-
-`transfer` moves content into an execution provider's host (`transferArchive`), as opposed to
-`write`, which persists to the daemon's own filesystem.
-
-Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
-`main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.
-
-`init`, `acquireConnection`, `beginTransaction`, `commitTransaction`, `rollbackTransaction`, and
-`releaseConnection` are also exempt: kysely's `Driver` interface fixes these method names, so the
-state store's driver implements them under the names the library requires.
-
-## Comments
-
-- JSDoc is always multi-line, never single-line `/** … */`.
-- No history or project state in comments — a comment describes the code as it is, never how it got
-  that way or what is planned.
-- Comments never name other declarations: renames strand the reference. Describe the behavior
-  instead.
+- Name an `atc mcp` tool `atc_<noun>_<verb>`, where the noun is the channel it reaches
+  (`atc_terminal_type`, `atc_message_send`); a bridge tool takes a single verb or noun inside the
+  `mcp__atc-bridge__` namespace (`note`). Never imply a capability the tool lacks.
+- Write the description in order: what the tool does and on which channel, when to use another tool
+  instead, what the result means, then the limits.
+- Say only what a result shows (written, queued, delivered, answered), and name the read that shows
+  more.
+- State what the tool cannot do, what it destroys, its defaults, and what a retry does.
+- Put field meanings in output-schema property descriptions, never an `enum`, and keep one sentence
+  in the description that states where a partial or failing result is flagged.
+- State a known bug without an issue reference, and remove the clause with the fix.
+- Check each claim against the code or a live run on a dev daemon, never from memory.
+- Rename with a breaking change and no alias; an old daemon gets `daemon_outdated`.
+- Use one word per concept across tools, events, CLI, and docs: note, never report.
 
 ## Writing
 
@@ -352,11 +204,3 @@ test home and the PTY harness); load both. Two rules worth restating here: never
 changes to the integration contract), and every gate is invoked as a root package script. One
 exception to the first rule: `test:atc-bridge` runs `claude plugin validate` and
 `claude plugin test` on the mod, and neither starts a session.
-
-## Dependencies
-
-- Exact pins only (bunfig `exact = true`); the 7-day `minimumReleaseAge` gate applies. When the
-  latest version is younger than the gate, pin the newest version that passes — don't add exclusions
-  for convenience.
-- A dependency knip can't see gets its `knip.json` ignore entry in the same PR that introduces it,
-  with the reason in the PR description.

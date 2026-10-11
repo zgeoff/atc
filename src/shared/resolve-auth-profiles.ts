@@ -7,7 +7,7 @@ import type { AuthProfile } from './collect-auth-profiles';
 interface AuthRule {
   readonly host: string;
   readonly header: string;
-  readonly scheme: 'basic' | 'bearer';
+  readonly scheme: 'basic' | 'bearer' | 'raw';
   readonly user?: string;
 }
 
