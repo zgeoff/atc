@@ -267,6 +267,26 @@ program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude
   restorable fleet; killed sessions persist as exited entries until a second kill removes them,
   except on a target that can destroy its host, where only a confirmed `session.forget` removes one.
 
+## MCP and bridge tools
+
+The `tool-contract` skill holds the rules for every `atc mcp` tool and every atc-bridge tool, each
+with an example from the current tools; load it before you add, rename, or redescribe one. An agent
+picks a tool from its name and description alone, so the rules start there:
+
+- Name a tool `atc_<noun>_<verb>`, where the noun is the channel it reaches (`atc_terminal_type`,
+  `atc_message_send`), and never imply a capability the tool lacks.
+- Write the description in order: what the tool does and on which channel, when to use another tool
+  instead, what the result means, then the limits.
+- Say only what a result shows (written, queued, delivered, answered), and name the read that shows
+  more.
+- State what the tool cannot do, what it destroys, its defaults, and what a retry does.
+- Put field meanings in output-schema property descriptions, never an `enum`, and keep one sentence
+  in the description that states where a partial or failing result is flagged.
+- State a known bug without an issue reference, and remove the clause with the fix.
+- Check each claim against the code or a live run on a dev daemon, never from memory.
+- Rename with a breaking change and no alias; an old daemon gets `daemon_outdated`.
+- Use one word per concept across tools, events, CLI, and docs: note, never report.
+
 ## Function naming — project verbs
 
 Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
