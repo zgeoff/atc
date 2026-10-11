@@ -33,20 +33,21 @@ Every connection has a bounded outbound queue, and the queue never cuts a line i
 write accepts only part of a buffer when the kernel is full, so the queue holds the rest and flushes
 it when the socket drains. What happens on overflow depends on what overflows:
 
-- **Terminal output is droppable.** When a client's queued output overflows, the daemon discards
-  that session's backlog for that client and counts the bytes. Once the queue drains, it sends a
-  desync event with the count, then a full repaint from the screen model. A lagging client wants the
+- **Terminal output is droppable.** When a chunk of a session's output does not fit in a client's
+  queue, the daemon drops it and every later chunk of that session for that client, and counts the
+  bytes. The queue still sends the output it holds. Once the queue drains, the daemon sends a desync
+  event with the count, then a full repaint from the screen model. A lagging client wants the
   current screen, not the backlog it missed, and the repaint replaces every dropped chunk, so a
   stream cut in the middle of an escape sequence never corrupts the client's terminal.
 - **Control is not droppable.** A response or a state event that overflows the queue means a bug or
   a hostile peer, so the daemon closes the connection.
-- **Headless output is never dropped.** Structured messages are not idempotent screen state, so a
-  headless attach whose queue overflows fails with `too_slow`. The transcript on disk is the durable
-  copy, and the socket is no durability layer.
+- **A headless session has no stream to attach to.** The daemon refuses an attach to a session with
+  no pseudo-terminal, so a caller reads a headless run through its transcript and its latest result.
+  The transcript on disk is the durable copy, and the socket is no durability layer.
 
 Control and output share one ordered socket, so ordering between input, resize and output holds by
-construction. The daemon splits large output into bounded chunks, so a response queued behind output
-waits for at most one chunk.
+construction. The daemon splits large output into chunks under the line cap, and a response waits
+behind every chunk queued before it.
 
 ## Several clients on one session
 

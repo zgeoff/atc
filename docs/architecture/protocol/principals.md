@@ -72,9 +72,11 @@ fails several handshakes in a short window waits before its next one is checked,
 bounds how many such waits run at once, refusing the overflow at once. After the handshake, a second
 hello closes the connection, so a connection never changes its principal.
 
-Every request on a TCP connection must carry `as` with a principal the config lists. A TCP
-connection starts with no reach at all, so it receives no event of any session until its handshake
-gives a principal. The listener logs each refusal to stderr as one line for a journal alert to
-match, and the [gateway guide](../../guides/gateway.md#the-daemon-listener) covers the lines and the
-token rotation steps. No line holds a token or any part of one, and the listener's writes to stderr
-never block the daemon.
+On a TCP connection the two fields do different jobs. The handshake's `principal` decides which
+events the connection receives: a TCP connection starts with no reach at all, so it receives no
+event of any session until its handshake gives a principal. Every request must still carry `as` with
+a principal the config lists, and a request without one gets `unauthorized`. The listener logs each
+refusal to stderr as one line for a journal alert to match, and the
+[gateway guide](../../guides/gateway.md#the-daemon-listener) covers the lines and the token rotation
+steps. No line holds a token or any part of one, and the listener's writes to stderr never block the
+daemon.

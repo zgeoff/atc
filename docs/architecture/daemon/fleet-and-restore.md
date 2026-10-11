@@ -70,9 +70,9 @@ backend dropped from the config never comes back as plain Claude. A row whose ta
 restores as exited, and a revive answers with the target's refusal. One row that fails to register
 or revive is logged and skipped, so it never keeps the rest of the fleet down.
 
-Between registering and getting its terminal, a session holds no pseudo-terminal and lists as a
-running headless session. Input sent to it in that window starts a headless turn rather than waiting
-for the terminal.
+Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
+"waiting to restore", and its descriptor reads as a running headless session. Input sent to a Claude
+Code session in that window starts a headless turn rather than waiting for the terminal.
 
 ## What each failure costs
 

@@ -31,7 +31,9 @@ took and leaves the imp.
 Each harness is an impd session named after its atc session, and the daemon is its one attacher.
 When the daemon stops, it closes its connections and gives its leases back but leaves every harness
 running, so an idle imp goes to sleep with its sessions inside. The next daemon's revive wakes the
-imp from memory and attaches to each harness again.
+imp from memory and attaches to each harness again. A daemon that crashes cannot give its leases
+back, so each one lapses when its length runs out, and the next daemon takes its leases under the
+same label, since the label holds the daemon id the store keeps.
 
 ## The guest folder
 

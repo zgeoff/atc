@@ -56,14 +56,17 @@ talk to a daemon that predates principals.
 
 ## Reconnecting
 
-When the daemon restarts, the server reconnects on its next request. A call in flight at that moment
-is retried once on the fresh connection only when a retry cannot double its effect:
+The stdio server holds one daemon connection for its whole life, so once the daemon restarts, its
+calls fail until the agent starts it again. `atc mcp --http` reconnects on its next request instead.
+A call in flight at that moment is retried once on the fresh connection only when a retry cannot
+double its effect:
 
 - A read-only call is retried.
-- A spawn or a message is retried when the daemon supports idempotency keys. The server sends the
-  call under a key, the one the caller passed or one it mints, and resends it as a replay-only
-  request under the same key, so the daemon runs it at most once
-  ([idempotency](../protocol/idempotency.md#replay-only-resends)).
+- A spawn or a message is retried when the fresh daemon supports idempotency keys. The server sends
+  the call under a key, the one the caller passed or one it mints, and resends it unchanged under
+  the same key, so the daemon answers a key it holds from the key and runs a key it never received
+  once ([idempotency](../protocol/idempotency.md)). atc-gateway resends as replay-only instead
+  ([the gateway](./gateway.md#lost-answers)).
 - Any other call fails, because it must not run twice.
 
 ## Reading notes

@@ -51,8 +51,8 @@ An installed `atc-daemon.service` user unit reserves daemon startup for systemd,
 unit is in. A client that finds the unit file waits for the daemon without a deadline and starts
 none, so two daemons never compete for one state directory. The check reads the unit search
 directories rather than asking systemd, so it holds while the service manager is unreachable.
-`atc mcp --http --wait-for-daemon` makes the same choice for one process: it waits for a daemon,
-then exits, so a service manager restarts it.
+`atc mcp --http --wait-for-daemon` makes the same choice for one process: it waits for a daemon and
+serves once one answers, and exits when none does, so a service manager starts it again.
 
 ## Builds and protocol versions
 
@@ -84,9 +84,10 @@ The daemon serves several peers that speak different dialects, and each gets its
   the daemon starts with one ([principals](../protocol/principals.md#the-tcp-listener)).
 
 The daemon sets no mode on its unix sockets. They sit in `$XDG_RUNTIME_DIR`, which belongs to the
-user alone, and a connection on the client socket acts as the owner with no credential. A session on
-a remote host never reaches these sockets: it reaches the daemon through its
-[session bridge](../execution/imp-provider.md#the-session-bridge).
+user alone, or under the state directory when that variable is unset, where the directory's own mode
+and the umask decide who can reach them. A connection on the client socket acts as the owner with no
+credential. A session on a remote host never reaches these sockets: it reaches the daemon through
+its [session bridge](../execution/imp-provider.md#the-session-bridge).
 
 ## Clients and stopping
 

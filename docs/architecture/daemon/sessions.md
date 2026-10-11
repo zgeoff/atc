@@ -27,12 +27,12 @@ stateDiagram-v2
     done --> exited: harness ends
 ```
 
-A session lists as `exited` whenever its harness is not running, and otherwise with the attention
-its hooks last reported. An end report from a live terminal never marks the session exited, because
-resuming inside Claude Code ends one agent session and starts another in the same process: only the
-pseudo-terminal closing does. Attaching to a session that needs the owner moves it back to
-`running`, since the owner is now looking, and the agent's next notification flags it again when the
-prompt still waits.
+A session lists as `exited` whenever its harness is not running, a harness suspended inside a
+sleeping host included, and otherwise with the attention its hooks last reported. An end report from
+a live terminal never marks the session exited, because resuming inside Claude Code ends one agent
+session and starts another in the same process: only the pseudo-terminal closing does. Attaching to
+a session that needs the owner moves it back to `running`, since the owner is now looking, and the
+agent's next notification flags it again when the prompt still waits.
 
 A needs-input or turn-done report marks the session unread, and attaching, an acknowledgement or a
 submitted prompt clears it. The overlay sorts unread sessions that need the owner first, which is
@@ -73,9 +73,11 @@ whose connection dropped while the daemon reconnects to it
 
 ## Sub-sessions
 
-A sub-session is a session spawned through `atc mcp` from inside another session. The MCP server
-reads the calling session's id from its environment and passes it as the parent, and a spawn can opt
-out to make a top-level session instead. The parent link holds a set of sessions together:
+A sub-session is a session spawned with a parent. `atc mcp` started inside a local session reads
+that session's id from its environment and passes it as the parent, and a spawn can opt out to make
+a top-level session instead. A session inside an imp reaches no daemon socket, so it cannot start
+`atc mcp` against the daemon, and its sub-sessions come only from a client that names it as the
+parent. The parent link holds a set of sessions together:
 
 - A sub-session lists under its parent and sorts among its siblings alone, so its attention never
   moves the parent's row.

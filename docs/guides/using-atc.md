@@ -37,9 +37,10 @@ mark, and the sessions that need you sort to the top:
 | `q`          | quit the client; sessions keep running       |
 | `?`          | every other key                              |
 
-`K` on a live session ends it, and the session stays listed as exited. `K` again forgets it. On a
-target where forgetting destroys the session's host, such as an imp, atc asks once more before it
-forgets.
+`K` on a live session ends it, and the session stays listed as exited. On an imp, `K` puts the imp
+to sleep instead, with the agent inside, and a revive wakes it where it left off. `K` again forgets
+it. On a target where forgetting destroys the session's host, such as an imp, atc asks once more
+before it forgets.
 
 Inside a Claude Code session, your statusline gains a fleet segment, so `● 2 need you: auth-bug`
 shows without opening the list.

@@ -64,8 +64,8 @@ the key exactly as it answers any retry, and a key it does not hold, never used 
 `idempotency_key_unknown` with nothing run. The flag is left out of the params hash, so a
 replay-only resend matches the first send.
 
-A caller that resends because the first answer never arrived sends every resend as replay-only, so a
-resend only ever replays. When the first send never reached the daemon, the resend gets
-`idempotency_key_unknown`, and the request ends as `outcome_unknown`: the caller checks what the
-daemon did instead of sending it again. A daemon that does not announce replay-only resends gets no
-resend at all.
+atc-gateway, which resends because the first answer never arrived, sends every resend as
+replay-only, so a resend only ever replays. When the first send never reached the daemon, the resend
+gets `idempotency_key_unknown`, and the request ends as `outcome_unknown`: the caller checks what
+the daemon did instead of sending it again. A daemon that does not announce replay-only resends gets
+no resend from the gateway at all.
