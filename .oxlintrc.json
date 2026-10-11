@@ -9,8 +9,8 @@
     // every file that tripped this needed an exemption rather than a change,
     // so the count was never the thing worth holding down
     "import/max-dependencies": "off",
-    // atc's comments are written to the rules of the shared config before
-    // these two existed; adopting them is a rewrite of its own
+    // atc's comments predate these two rules of the shared config; GEO-463
+    // adopts them
     "zgeoff/no-jsdoc": "off",
     "zgeoff/max-consecutive-line-comments": "off",
     "zgeoff/function-verb": [
