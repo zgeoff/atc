@@ -1,0 +1,110 @@
+# Remote MCP
+
+`atc mcp --http` serves atc's MCP tools over HTTP behind OAuth, so a hosted assistant such as
+ChatGPT or Claude.ai can reach your sessions with the grant scopes you approve. Nothing listens on
+HTTP unless you run it, and Ctrl-C ends remote access. [OAuth](../architecture/remote/oauth.md)
+covers how the server works.
+
+## Starting the server
+
+```bash
+atc mcp --http --public-url https://<public_host>
+```
+
+The server binds `127.0.0.1:8414` unless `--host`, `--port` or the config's `mcpHTTP` block sets
+another address, and `--port 0` takes a free port. Once it accepts requests, it prints its startup
+line as the first line on stdout:
+
+```text
+atc mcp --http: serving <origin>/mcp, listening on http://<host>:<port>
+```
+
+atc speaks plain HTTP. Put the server behind a TLS-terminating proxy or tunnel, or reach it only
+over an encrypted network. A server bound beyond loopback refuses to start without an https public
+URL. To serve a tailnet, keep the loopback bind and let the tailnet's own TLS front end, such as
+`tailscale serve`, carry the https origin.
+
+## Adding a client
+
+Add each assistant once, with the redirect URI its connector uses:
+
+```bash
+atc clients add ChatGPT --redirect-uri https://chatgpt.com/connector_platform_oauth_redirect
+atc clients add Claude --redirect-uri https://claude.ai/api/mcp/auth_callback --redirect-uri https://claude.com/api/mcp/auth_callback
+```
+
+Each command prints the client ID. Enter it in the connector's OAuth settings with no secret.
+`atc clients` lists the clients, and `atc clients remove <client_id>` removes one with every token
+and consent it holds.
+
+## Approving a connection
+
+1. Connect the assistant. The server prints a line such as
+   `Approve Claude (returns to claude.ai) with code K7QM-2XRT. Requested from 203.0.113.7 …` in its
+   terminal, and the browser shows the approval code page.
+2. Check the client, the requester's address and the user agent. An approval you did not start is
+   someone else's: do not type its code.
+3. Type the code on the page. Five wrong codes end the request, and a code expires after 10 minutes.
+4. Tick the scopes to grant on the consent page. Only `read` is ticked to start. `message` lets the
+   client instruct your agents, which can run commands.
+
+The client then holds a grant. To widen it, connect again and approve the larger set.
+
+## Grants
+
+```bash
+atc grants
+atc grants --revoke=<grant_id>
+```
+
+`atc grants` lists the live grants with their client, grant scopes and last use. `--revoke` deletes
+a grant's tokens and the consent its client holds, and the client loses access on its next request.
+A grant ID can start with a dash, which the `=` form always passes as the value.
+
+## Running under systemd
+
+Run the daemon and `atc mcp --http` as two user units, with the MCP unit ordered after the daemon
+unit. Replace `<tailnet_address>` and `<public_host>` with your own values:
+
+```ini
+# ~/.config/systemd/user/atc-daemon.service
+[Unit]
+Description=atc daemon
+
+[Service]
+ExecStart=%h/.local/bin/atc daemon --listen <tailnet_address>:8415 --token-file %h/.config/atc/daemon-token
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+```
+
+```ini
+# ~/.config/systemd/user/atc-mcp-http.service
+[Unit]
+Description=atc mcp --http
+After=atc-daemon.service
+Requires=atc-daemon.service
+
+[Service]
+Type=exec
+ExecStart=%h/.local/bin/atc mcp --http --wait-for-daemon --public-url https://<public_host>
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+The `--listen` and `--token-file` flags serve atc-gateway; leave both out when no gateway reaches
+this daemon. `--wait-for-daemon` stops the MCP server from booting a daemon of its own. Without it,
+an MCP unit that finds no daemon boots one without `--listen`, which takes the state lock, so the
+daemon unit fails on every restart. With it, the server waits up to 30 s for a daemon, then exits 1,
+and `Restart=always` starts it again.
+
+`After=` orders the MCP unit after the daemon process starts, not after its socket accepts
+connections, which is the gap the wait covers. `Requires=` makes a stop or restart of the daemon
+unit stop or restart the MCP unit too, which ends approvals in progress and keeps grants.
+`atc daemon` exits 0 on SIGTERM, so the daemon unit takes `Restart=always`: under
+`Restart=on-failure`, a daemon that something outside systemd stopped stays down.

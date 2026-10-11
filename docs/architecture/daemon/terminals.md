@@ -1,0 +1,98 @@
+# Terminals
+
+Each pty session's agent runs on a pseudo-terminal the daemon owns, and the daemon reads every byte
+the agent prints, whether or not a client is attached. Those bytes feed a screen model per session,
+a headless terminal emulator (`@xterm/headless`) that holds the current screen and a short
+scrollback. The screen model is what makes attaching instant: a client that attaches gets the screen
+as it stands, without waiting for the agent to repaint itself. A slow client never stalls the
+pseudo-terminal reader or any other client.
+
+[Sessions](./sessions.md) covers what a session is, and the [protocol](../protocol/protocol.md)
+covers the connection the output rides.
+
+## Attaching
+
+A client attaches to one session at a time, its focused session, and only attached clients receive
+that session's output, so an unfocused session costs a client nothing.
+
+1. The client sends its terminal size with the attach. The daemon applies the session's new
+   effective size first, so the replay renders at the size the client will see.
+2. The daemon waits for the screen model to finish parsing the output it holds, then sends a replay:
+   a screen clear, the serialized visible screen, and the input modes the agent turned on, such as
+   mouse reporting and the keyboard protocol.
+3. Live output follows the replay. The replay goes out as ordinary output events, so the client
+   cannot tell replay from live output and needs no separate path for it.
+
+Output events carry a sequence number per session, so a client can detect a gap. The screen model
+lives in memory only. A session that ends keeps its last screen until the daemon drops the session,
+so a caller can still read what a dead session last showed, as plain text through a screen read.
+
+## Backpressure
+
+Every connection has a bounded outbound queue, and the queue never cuts a line in half. Bun's socket
+write accepts only part of a buffer when the kernel is full, so the queue holds the rest and flushes
+it when the socket drains. What happens on overflow depends on what overflows:
+
+- **Terminal output is droppable.** When a client's queued output overflows, the daemon discards
+  that session's backlog for that client and counts the bytes. Once the queue drains, it sends a
+  desync event with the count, then a full repaint from the screen model. A lagging client wants the
+  current screen, not the backlog it missed, and the repaint replaces every dropped chunk, so a
+  stream cut in the middle of an escape sequence never corrupts the client's terminal.
+- **Control is not droppable.** A response or a state event that overflows the queue means a bug or
+  a hostile peer, so the daemon closes the connection.
+- **Headless output is never dropped.** Structured messages are not idempotent screen state, so a
+  headless attach whose queue overflows fails with `too_slow`. The transcript on disk is the durable
+  copy, and the socket is no durability layer.
+
+Control and output share one ordered socket, so ordering between input, resize and output holds by
+construction. The daemon splits large output into bounded chunks, so a response queued behind output
+waits for at most one chunk.
+
+## Several clients on one session
+
+Any number of clients can attach to one session and type into it. Three rules cover the conflicts
+that occur in practice, without a write-lock protocol:
+
+- **Input atomicity.** A client sends one complete key event or paste per input request, and the
+  daemon writes each payload to the pseudo-terminal whole. The daemon decodes each client's input
+  separately, so a multi-byte character split across reads survives.
+- **Effective size.** The session's terminal size is the smallest width and height across its
+  attached clients. The daemon debounces size changes and skips a resize that leaves the size as it
+  is, so two clients resizing in opposite directions cannot cause a storm of window-change signals.
+- **Line atomicity.** A typed line and its submit key go out in order with no other input between
+  them, as the next section describes.
+
+A host without the resize capability keeps its terminal at the size it started with, while the
+session's screen model follows the attached clients.
+
+## Submitting a line
+
+Raw input goes to the pseudo-terminal exactly as sent. Submitting a line instead types text as one
+line and submits it the way the session's agent accepts a line, which the agent's adapter plans. The
+plan differs per agent because every agent CLI treats a newline that arrives inside a burst of input
+as part of the text, so a line typed with its own newline stays unsent in the composer:
+
+- **Claude Code and gateway agents** get the text between bracketed paste markers, then a carriage
+  return as a second write. The markers make the text one paste, so the carriage return reads as
+  Enter however the writes arrive. A line that opens with a slash command and an argument goes out
+  as typed keys for the command name and a paste for the argument, because Claude Code takes a long
+  paste as pasted text, and a slash command pasted whole would reach the model as a message.
+- **Codex** gets the command name and the argument as separate pastes with a pause between them,
+  because Codex drops keys typed just before a paste, shows a long paste as a placeholder, and stops
+  reading its terminal after a read that completes an input event.
+- **Grok** gets every line pasted whole, since it runs a long pasted slash command as a command.
+
+The daemon strips paste markers from the text, so the text cannot end its own paste. It reads from
+the screen model whether the agent has turned bracketed paste on. Until it has, the text goes
+unmarked and can merge with its carriage return into one burst, so the daemon cannot promise the
+line is submitted. While a line waits out a pause its agent needs, the daemon queues the session's
+other input and writes it after the line's submit key.
+
+A Claude Code session whose latest report shows a permission prompt refuses a submitted line with
+`permission_pending`, because a permission menu confirms its highlighted option on the carriage
+return that ends the line. Only a person answers the prompt, with real keys. The refusal starts only
+when Claude Code sends its notification, which comes some seconds after the prompt opens, so a line
+submitted inside that window is not refused.
+
+A submitted line's answer means the daemon wrote the line and its submit key, not that the agent
+took it. A headless session takes the line as the prompt of its next turn.

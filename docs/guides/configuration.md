@@ -175,8 +175,8 @@ During fleet restore, atc checks a session with an unversioned imp identity agai
 current credentials. It accepts the connection identity only when the existing imp is present and
 the credentials permit execution on it. A missing or unreachable imp stays refused; this check
 creates no imp. An unconfirmed binding lists as `target '<target_id>' binding unverified`; check
-impd access and retry fleet restore. The [protocol](../architecture/protocol.md#targets) defines the
-identity format.
+impd access and retry fleet restore. The
+[protocol](../architecture/execution/targets.md#the-one-check) defines the identity format.
 
 ### Clone trust
 
@@ -219,7 +219,7 @@ other target options do; existing sessions remain bound to the previous target c
 
 An `imp` target runs each top-level session in an imp of its own, a VM that impd hosts, and keeps
 each sub-session in its parent's imp. A kill of the top-level session puts its imp to sleep, and
-`session.forget` destroys it. The [daemon architecture](../architecture/daemon.md#the-imp-provider)
+`session.forget` destroys it. The [daemon architecture](../architecture/execution/imp-provider.md)
 covers the lifecycle. Its options:
 
 | Key                    | Default    | What it does                                                                                         |
@@ -281,8 +281,8 @@ A Claude session on an imp target reports through an atc inside the imp. With `g
 daemon uses the image's atc when it prints the daemon's version, and otherwise a compiled atc daemon
 on Linux copies itself in, so a new atc release works on imps before you rebuild the image. A daemon
 run from source has no binary to copy: it refuses the spawn when `guestATC` is unset, missing, or
-prints another version. The [imp provider](../architecture/daemon.md#the-imp-provider) covers how
-the daemon readies that atc.
+prints another version. The [imp provider](../architecture/execution/imp-provider.md) covers how the
+daemon readies that atc.
 
 A target config that is set but wrong fails closed. atc keeps running, the targets it can read keep
 working, and every spawn that resolves through the problem fails with `target_config_invalid`, whose
@@ -335,8 +335,9 @@ Without a `principals` key, every principal may use the implicit `local` target 
 named `local` whose provider is `local-pty` with no options. Such a principal never reaches another
 target, nor a `local` that now holds another provider or other options. Its spawn without a target
 fails with `target_forbidden` when `defaultTarget` is another target. A request over the daemon's
-[TCP listener](../architecture/daemon.md#the-tcp-listener) never gets these rights: it may act only
-as a principal the `principals` key lists, so a config without the key admits no TCP request.
+[TCP listener](../architecture/protocol/principals.md#the-tcp-listener) never gets these rights: it
+may act only as a principal the `principals` key lists, so a config without the key admits no TCP
+request.
 
 These legacy rights need a config that atc can read, or no config file at all. An existing
 config.json that atc cannot use, because it is not valid JSON, its root is not an object, or atc
@@ -484,9 +485,9 @@ backend, under its own agent id. Claude and GLM sessions then sit side by side i
 ```
 
 A spawn through `atc_session_spawn` or `session.spawn` can pick a model and an effort per session;
-the [protocol](../architecture/protocol.md#spawn-options) lists what each agent takes. A gateway
-offers each tier its `env` maps as a model, and passes an effort on to the CLI, which its provider
-may ignore.
+the [protocol](../architecture/agents/adapters.md#spawn-options) lists what each agent takes. A
+gateway offers each tier its `env` maps as a model, and passes an effort on to the CLI, which its
+provider may ignore.
 
 atc writes one settings file per id and passes it as `--settings`, on the terminal spawn and on a
 headless turn alike, so a gateway session reaches its own backend rather than whatever the terminal
@@ -1173,15 +1174,14 @@ Clients are not config: add each one with `atc clients add`, which prints the cl
 connector needs, and the [principals](#principals) key matches. ChatGPT returns to
 `https://chatgpt.com/connector_platform_oauth_redirect`, and Claude returns to
 `https://claude.ai/api/mcp/auth_callback` or `https://claude.com/api/mcp/auth_callback`.
-[Remote MCP](../architecture/remote-mcp.md#clients) covers clients, the approval flow, and the
-checks.
+[Remote MCP](./remote-mcp.md#adding-a-client) covers clients, the approval flow, and the checks.
 
 ## State locations
 
 Daemon state lives in `~/.local/state/atc/` — the
-[architecture overview](../architecture/overview.md#state) covers the files. The daemon's sockets
-and pid file sit in `$XDG_RUNTIME_DIR`, and `daemon.json` in the state directory holds their paths
-for a client whose environment lacks that variable.
+[architecture overview](../architecture/overview.md#data) covers the files. The daemon's sockets and
+pid file sit in `$XDG_RUNTIME_DIR`, and `daemon.json` in the state directory holds their paths for a
+client whose environment lacks that variable.
 
 ## Environment
 

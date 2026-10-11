@@ -11,8 +11,8 @@
 
   <p>
     <a href="./docs/README.md">Documentation</a> •
-    <a href="./docs/guides/configuration.md">Configuration</a> •
-    <a href="./docs/architecture/overview.md">Architecture</a>
+    <a href="./docs/guides/using-atc.md">Using atc</a> •
+    <a href="./docs/guides/configuration.md">Configuration</a>
   </p>
 </div>
 
@@ -27,143 +27,50 @@ that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sess
 
 ## Install
 
-Homebrew:
-
 ```sh
 brew install zgeoff/tap/atc
 ```
 
-Or download a binary:
+atc needs at least one of the `claude`, `grok`, or `codex` CLIs on your PATH. The
+[install guide](./docs/guides/install.md) covers the install script, npm, and the prebuilt binaries
+for macOS and Linux.
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/zgeoff/atc/main/install.sh | sh
-```
+Then run `atc`. The first run starts the daemon. Press `n` to spawn a session, `Ctrl-Space` to see
+the rest, and `?` for every other key.
 
-Prebuilt binaries cover macOS and Linux, arm64 and x64. The install script puts `atc` in
-`~/.local/bin`; set `ATC_INSTALL_DIR` to change that. Checksums are on the
-[releases page](https://github.com/zgeoff/atc/releases).
+## Supported agents
 
-From source, with [Bun](https://bun.sh):
+- **Claude Code** reports its state on its own, through a settings file atc passes at spawn, and
+  takes messages from other tools.
+- **Grok Build** and **Codex CLI** take a one-time hook install that atc prints for you
+  ([Grok and Codex hooks](./docs/guides/using-atc.md#grok-and-codex-hooks)).
+- **A Claude-compatible backend** runs as its own agent in the same fleet
+  ([gateways](./docs/guides/configuration.md#gateways)).
 
-```sh
-bun add -g @zgeoff/atc
-```
+## Features
 
-atc needs at least one of the `claude`, `grok`, or `codex` CLIs on your PATH. The agent picker lists
-the ones it finds, and opens only when it finds more than one.
-
-## Use
-
-```sh
-atc
-```
-
-The first run starts the daemon. Press `n` to spawn a session: pick an agent, pick a directory, give
-it a name, and type a first prompt if you have one. The session takes the whole screen and you work
-in it as you would in a plain terminal.
-
-`Ctrl-Space` opens the session list over whatever you are attached to. Each row carries a state
-mark:
-
-| Mark | State                                 |
-| ---- | ------------------------------------- |
-| `●`  | needs you: a prompt or question waits |
-| `◐`  | running                               |
-| `✓`  | turn done                             |
-| `✗`  | exited                                |
-
-Sessions that need you sort to the top, so the one you want is nearly always first.
-
-| Key          | Action                                                                                                                  |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `Ctrl-Space` | open or close the list                                                                                                  |
-| `Tab`        | attach the session that needs you most                                                                                  |
-| `Enter`      | attach the selected session                                                                                             |
-| `/`          | filter by name or directory                                                                                             |
-| `a`          | acknowledge a notification without attaching                                                                            |
-| `K`          | kill the selected session; on a host atc can destroy, a dead session asks once more before forgetting destroys the host |
-| `q`          | quit the client; sessions keep running                                                                                  |
-| `?`          | every other key                                                                                                         |
-
-The directory picker lists the directory you ran `atc` from, atc's own spawn history, every project
-under the roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide) list when
-zoxide is installed. A typed path such as `~/pro` completes like a shell. Inside a Claude session
-your statusline gains a fleet segment, so `● 2 need you: auth-bug` is visible without opening the
-list.
-
-When the daemon restarts, it restores the fleet by itself and every session respawns from its
-transcript; set `restoreFleetOnRestart` to `false` to wait for `R` on the home screen instead. After
-you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and restores the
-fleet when you are ready. The bar shows `⟳ restarting daemon` until the restart finishes. When the
-running daemon speaks another protocol version, `atc` asks before it restarts the daemon, since the
-restart ends every session the daemon hosts.
-
-`atc daemon restart` does the same from a script or from inside a session: it stops the daemon,
-starts one in its place, restores the fleet, and exits 0 only when every stored row came back.
-`atc daemon restart --dry-run` prints what the restart would stop and which sessions are mid-turn.
-[Daemon architecture](./docs/architecture/daemon.md#restarting-the-daemon) covers the handoff and
-the exit codes.
-
-atc runs inside zellij or tmux. Give the pane locked mode so the leader key reaches atc.
-
-## Grok and Codex
-
-Claude sessions report attention on their own: atc passes a generated settings file at spawn time
-and never edits your Claude config. Grok and Codex take a one-time hook install. atc prints the
-hooks and leaves the install to you:
-
-```sh
-# Grok
-mkdir -p ~/.grok/hooks
-atc grok-hooks > ~/.grok/hooks/atc-reporter.json
-
-# Codex: merge the output into ~/.codex/hooks.json, then trust it once in the codex TUI
-atc codex-hooks
-```
-
-The [configuration guide](./docs/guides/configuration.md#attention-hooks-grok-and-codex) covers both
-installs in detail.
-
-## Beyond the keyboard
-
-- `atc mcp` exposes the fleet as MCP tools, so an agent can spawn, drive, and read other agents. A
-  session spawned this way lists under the session that spawned it and is killed with it. Each agent
-  keeps its own MCP config, so register the server once per agent you run:
-
-  ```bash
-  claude mcp add --scope user atc -- atc mcp
-  codex mcp add atc -- atc mcp
-  grok mcp add atc -- atc mcp
-  ```
-
-  A Claude or Codex session that is already running loads the server only after it restarts. A
-  running Grok session loads it when you press `r` in its `/mcps` list.
-
-- `atc mcp --http` serves the same tools over HTTP behind OAuth, so a hosted assistant such as
-  ChatGPT or Claude.ai can reach your sessions with the scopes you approve. Add each assistant with
-  `atc clients add`, approve each connection with the code printed in the server's terminal, and
-  list or revoke grants with `atc grants`. [Remote MCP](./docs/architecture/remote-mcp.md) covers
-  it.
-- A Claude session takes messages from other tools. `atc_message_send` queues one, and the session
-  reads it in a new turn, or inside the turn it is running. `atc_message_get` returns that turn's
-  final output once the turn ends, and waits for the next status change when given `waitMs`. Claude
-  Code shows the agent a relayed message as one a plugin sent, not as your own prompt, so name every
-  write an unattended session must make, such as a push or a pull request, in its launch prompt,
-  where its auto-mode classifier reads your request. The
-  [protocol](./docs/architecture/protocol.md#messages) covers the details.
-- `atc events` prints every fleet event as one NDJSON line. The same stream is on a unix socket, and
-  `config.json` hooks run your own commands on events. The [events guide](./docs/guides/events.md)
-  covers all three.
-- A Claude-compatible backend runs as its own agent in the same fleet. The
-  [gateways](./docs/guides/configuration.md#gateways) section covers the setup.
+- **Attention routing.** Sessions that need you sort to the top, and a Claude session's statusline
+  shows who's waiting ([using atc](./docs/guides/using-atc.md)).
+- **Sessions outlive the daemon.** A restart, or an upgrade with `u`, brings every session back from
+  its transcript ([restarting](./docs/guides/using-atc.md#restarting-the-daemon)).
+- **Agents that drive agents.** `atc mcp` hands any agent the fleet as MCP tools, so it can spawn,
+  read, and message other sessions
+  ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
+- **Hosted assistants.** `atc mcp --http` serves the same tools to ChatGPT or Claude.ai behind
+  OAuth, with the scopes you approve ([remote MCP](./docs/guides/remote-mcp.md)).
+- **Several machines.** atc-gateway serves the fleets of several daemons through one connector
+  ([gateway](./docs/guides/gateway.md)).
+- **Sessions on imps.** A session can run in its own VM, sleeping when you kill it and waking where
+  it left off ([targets](./docs/guides/configuration.md#targets)).
+- **Fleet events.** `atc events` prints every fleet event, and `config.json` hooks run your own
+  commands on them ([events](./docs/guides/events.md)).
 
 ## Configuration
 
 atc creates `~/.config/atc/config.json` on first run. The
-[configuration guide](./docs/guides/configuration.md) covers every field: agent binaries and
-arguments, the leader key, gateways, and hooks, and how `atc config migrate` moves an old config to
-the `agents` map.
+[configuration guide](./docs/guides/configuration.md) covers every field: the agents and their
+arguments, the leader key, targets, gateways, principals, and hooks.
 
 ## Documentation
 
-[docs/](./docs/README.md) covers the architecture, the daemon, and the wire protocol.
+[docs/](./docs/README.md) covers how atc works, the guides, and the runbooks.

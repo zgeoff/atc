@@ -1,9 +1,9 @@
 # Session record
 
 atc publishes one record for each session it runs. The record holds what atc vouches for about the
-session. Its first field is scope: the workspace the session runs in and the worktrees, branches,
-and pull requests a trusted caller declared. atc owns the record's format, and the session never
-writes it. A reader inside the session finds the record at the path in `ATC_SESSION_RECORD`.
+session. Its first field is the record scope: the workspace the session runs in and the worktrees,
+branches, and pull requests a trusted caller declared. atc owns the record's format, and the session
+never writes it. A reader inside the session finds the record at the path in `ATC_SESSION_RECORD`.
 
 ## Format
 
@@ -109,8 +109,9 @@ Only atc writes the record, and only a trusted caller adds scope through it:
   `daemon.hello`. The daemon refuses `session.scope.add` with `unauthorized` when the target is that
   session or a session it is a sub-session of. A session may add scope to its own sub-sessions.
 - A session on an imp reaches the daemon only through its
-  [session bridge](./protocol.md#session-bridge), which takes no request that changes a record.
-- A [principal](./protocol.md#principals) adds scope only to sessions within its reach.
+  [session bridge](./imp-provider.md#the-session-bridge), which takes no request that changes a
+  record.
+- A [principal](../protocol/principals.md) adds scope only to sessions within its reach.
 
 On the daemon's own machine, the session runs as the daemon's user. A process there that drops
 `ATC_SESSION_ID` before it connects reaches the daemon as its owner, and the same user can change
