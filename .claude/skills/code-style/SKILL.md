@@ -1,27 +1,15 @@
-# Agent Guidelines
+---
+name: code-style
+description:
+  Load before writing, reviewing, or renaming any TypeScript in this repo — every function name must
+  start with a verb from the taxonomy here, and the lint rule enforcing it reads the same list.
+  Covers module layout and file naming, the function-verb taxonomy with atc's own verbs, the exempt
+  names, and comments.
+---
 
-## Operations
+# Code style
 
-- AGENTS.md is generated from `agents/shared.md` and `agents/project.md` — edit the partials, never
-  AGENTS.md itself. The shared partial is synced from
-  [zgeoff/tools](https://github.com/zgeoff/tools); cross-project rule changes belong there.
-- Perform all work on a branch in a git worktree under `.worktrees/` (e.g.
-  `git worktree add .worktrees/<branch> -b <branch>`) — never commit directly on `main`.
-- Use [Conventional Commits](https://www.conventionalcommits.org/) for all commit messages.
-- A squash merge makes the PR title the commit subject, so a PR title is a Conventional Commit too.
-  `feat(#412): add the retry budget` is a title; `add the retry budget` is not.
-- Commit subjects and PR titles use the imperative mood ("add X", never "added X" or a bare noun
-  phrase).
-- Open PRs against `main` using the PR template (`.github/PULL_REQUEST_TEMPLATE.md`). Descriptions
-  are condensed: lead paragraph ≤2 sentences, one-line bullets, ≤150 words — write the short version
-  first, don't draft long and trim.
-- After pushing, link the PR URL in your response.
-- A PR is ready only when its checks are green: watch CI (`gh pr checks <n> --watch`) after opening
-  or updating, and report a failure with what you're doing about it.
-
-## Code style
-
-Mechanically enforced rules (oxfmt, oxlint, format-codemod) aren't repeated here — this file covers
+Mechanically enforced rules (oxfmt, oxlint, format-codemod) aren't repeated here — this skill covers
 what tooling can't check.
 
 - One primary export per file, and the file name kebab-cases that export (`with-jest-context.ts`
@@ -37,10 +25,10 @@ what tooling can't check.
   it starts a name. File names are unaffected: kebab-case lowercases everything (`parse-cli-args.ts`
   exports `parseCLIArgs`).
 
-### Function naming
+## Function naming
 
 Every function name starts with a prefix from the closed list below: pick from it, or extend this
-file in the same PR that introduces the new verb. The prefix is a contract — a reader should know
+skill in the same PR that introduces the new verb. The prefix is a contract — a reader should know
 the function's shape without opening it.
 
 **Predicates** — return boolean, no side effects:
@@ -124,7 +112,7 @@ the function's shape without opening it.
 | `with<X>` | HOF that runs a callback inside a context | `withJestContext` |
 | `make<X>` | factory whose result is itself a function | `makeExcluder`    |
 
-**Framework conventions** — where the ecosystem's prefix is load-bearing, it wins:
+**Framework conventions** — where the ecosystem's prefix is required, it wins:
 
 | Prefix                   | Contract                                                                                                                | Example          |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------- |
@@ -141,29 +129,65 @@ it does), `execute` (→ `run`), `compute` (→ `build`), `fetch` (→ `read`), 
 Algorithm-native vocabulary (`walk`, `backtrack`, `slideDiagonal`) is allowed inside the module
 implementing that algorithm — forcing list verbs onto textbook terms hides the algorithm.
 
-## Dependencies
+### Project verbs
 
-- Pin exact versions — no `^`/`~` ranges. (`bun add` saves exact automatically via `exact = true` in
-  bunfig.toml — the rule applies to hand-written edits.)
+Project additions to the shared taxonomy (keep in sync with `zgeoff/function-verb` in
+`.oxlintrc.json`): `ack`, `acquire`, `adopt`, `advance`, `answer`, `attach`, `boot`, `copy`,
+`destroy`, `detach`, `dispose`, `draw`, `forget`, `jiggle`, `kill`, `log`, `materialize`, `mint`,
+`open`, `quit`, `reconcile`, `record`, `refresh`, `release`, `renew`, `restart`, `restore`,
+`revoke`, `sanitize`, `schedule`, `spawn`, `suspend`, `transfer`, `truncate`, `yank`.
 
-## Review bots
+`advance` moves an injected clock forward by a duration and runs what falls due on the way
+(`advanceClock`), as opposed to `update`, which makes no promise about what runs.
 
-CodeRabbit reviews every PR. Its shared config lives in the zgeoff/coderabbit repo, and a repo-root
-`.coderabbit.yaml` with `inheritance: true` layers repo-specific settings on top. CodeRabbit reads
-this file as its guidelines. A repo that runs another review bot names it and its config in
-`agents/project.md`, and these rules cover that bot too.
+`acquire`, `renew`, and `release` take, extend, and give back a lease that keeps a remote host awake
+(`acquireLease`), as opposed to `claim`, which takes exclusive ownership.
 
-- A PR is ready only after every bot review is read and every finding is answered: a fixed finding's
-  reply cites the commit that fixed it; a declined finding's reply states the reason — when a
-  finding contradicts this file, this file wins and the reply names the rule. Reviews land within a
-  few minutes of opening; read them with `gh pr view <n> --comments` and
-  `gh api repos/<owner>/<repo>/pulls/<n>/comments`. A finding outside the diff arrives in the review
-  body, not as a thread, so its answer is a PR comment.
-- Resolve a thread once its reply is posted, fixed and declined alike (GraphQL
-  `resolveReviewThread`). A finding the agent cannot confidently judge is escalation, not
-  disposition: reply saying so and leave the thread open for a human.
-- Never teach a bot through chat (`@coderabbitai` learnings and the like) — a correction to bot
-  behaviour is an edit to its config, reviewed in a PR.
-- Bots review a PR once, at open; an agent invokes a re-review only when asked. The exception is a
-  PR that got no review at all, such as one opened before the bot was installed: request it once
-  with that bot's documented trigger, such as `@coderabbitai review` for CodeRabbit.
+`destroy` deletes an execution host and everything on it, which nothing brings back (`destroyHost`),
+as opposed to `remove`, which deletes one record or file.
+
+`dispose` releases every resource an object holds in one call (`SessionRuntime.dispose`), and is
+safe to call more than once.
+
+`materialize` builds a resource on an execution target from a source held elsewhere, through the
+target's provider operations, and checks the result before it counts as ready
+(`materializeWorkspace`).
+
+`forget` drops a session from the fleet for good (`forgetSession`), destroying its host where its
+target can, as opposed to `remove`, which deletes one record without touching what it describes.
+
+`mint` generates a new id that atc itself is the sole authority for (`mintSessionID`), as opposed to
+`to<Brand>`, which trusts an id that arrived from outside atc.
+
+`reconcile` settles stored state that a stopped daemon left mid-change against the evidence the
+change leaves behind (`reconcileIdempotencyKeys`).
+
+`revoke` withdraws a credential atc issued so it no longer authorizes anything (`revokeGrant`), as
+opposed to `remove`, which deletes a resource outright.
+
+`sanitize` strips a resource of credentials and executable configuration in place and checks that
+none remain (`sanitizeWorkspaceClone`), as opposed to `update`, which makes no promise about what is
+left.
+
+`suspend` puts an execution host to sleep with its processes kept inside it, so a later wake finds
+them as they were (`suspendHost`), as opposed to `kill`, which ends a process.
+
+`transfer` moves content into an execution provider's host (`transferArchive`), as opposed to
+`write`, which persists to the daemon's own filesystem.
+
+### Exempt names
+
+Exempt names (tiny geometry/row helpers and script entrypoints): `cols`, `rows`, `ptyRows`, `out`,
+`main`, `boxTop`, `boxDivider`, `boxBottom`, `boxRow`, `dimRow`.
+
+`init`, `acquireConnection`, `beginTransaction`, `commitTransaction`, `rollbackTransaction`, and
+`releaseConnection` are also exempt: kysely's `Driver` interface fixes these method names, so the
+state store's driver implements them under the names the library requires.
+
+## Comments
+
+- JSDoc is always multi-line, never single-line `/** … */`.
+- No history or project state in comments — a comment describes the code as it is, never how it got
+  that way or what is planned.
+- Comments never name other declarations: renames strand the reference. Describe the behavior
+  instead.
