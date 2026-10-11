@@ -101,8 +101,9 @@ The `tool-contract` skill holds the rules for every `atc mcp` tool and every atc
 with an example from the current tools; load it before you add, rename, or redescribe one. An agent
 picks a tool from its name and description alone, so the rules start there:
 
-- Name a tool `atc_<noun>_<verb>`, where the noun is the channel it reaches (`atc_terminal_type`,
-  `atc_message_send`), and never imply a capability the tool lacks.
+- Name an `atc mcp` tool `atc_<noun>_<verb>`, where the noun is the channel it reaches
+  (`atc_terminal_type`, `atc_message_send`); a bridge tool takes a single verb or noun inside the
+  `mcp__atc-bridge__` namespace (`note`). Never imply a capability the tool lacks.
 - Write the description in order: what the tool does and on which channel, when to use another tool
   instead, what the result means, then the limits.
 - Say only what a result shows (written, queued, delivered, answered), and name the read that shows

@@ -52,11 +52,15 @@ Every rule below carries one example quoted from the current tools.
 
 ### 1. Name the channel, then the verb
 
-A tool name is `atc_<noun>_<verb>`, and the noun is the channel the call reaches. A noun or verb of
-two words joins them with an underscore (`atc_spawn_options_get`, `atc_session_mark_read`).
-`atc_terminal_type` types into the session's terminal, `atc_message_send` sends into the agent's
-conversation, and `atc_transcript_read` reads the conversation log, so the name alone separates
-three ways to reach one session.
+An `atc mcp` tool name is `atc_<noun>_<verb>`, and the noun is the channel the call reaches. A noun
+or verb of two words joins them with an underscore (`atc_spawn_options_get`,
+`atc_session_mark_read`). `atc_terminal_type` types into the session's terminal, `atc_message_send`
+sends into the agent's conversation, and `atc_transcript_read` reads the conversation log, so the
+name alone separates three ways to reach one session.
+
+A bridge tool takes a single verb or noun, because Claude Code already puts it in the bridge's own
+`mcp__atc-bridge__` namespace: the bridge's tool is `note`, which the model calls as
+`mcp__atc-bridge__note`.
 
 A name never implies a capability the tool lacks. `atc_session_stop` stops the process and keeps the
 session listed; removal has its own name, `atc_session_forget`.
