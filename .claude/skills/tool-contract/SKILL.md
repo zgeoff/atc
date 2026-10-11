@@ -136,10 +136,12 @@ holds it.
 
 ### 9. Rename with a break, never an alias
 
-A tool rename is a breaking change with no alias in code: the old name returns `unknown tool`. A
-tool that depends on a daemon feature refuses a daemon without it, and never translates an old
-daemon's words. [`require-daemon-features.ts`](../../../src/mcp/require-daemon-features.ts) throws
-that refusal:
+A tool rename is a breaking change with no alias in code. The old name is refused: `unknown tool` on
+stdio, or a missing-scope refusal for a remote client without the `kill` scope, since a name atc
+does not know needs the strictest scope. A tool that depends on a daemon feature refuses a daemon
+without it, and never translates an old daemon's words.
+[`require-daemon-features.ts`](../../../src/mcp/require-daemon-features.ts) throws that refusal,
+which reads for the `vocabulary.note` feature:
 
 > daemon_outdated: the running atc daemon is older than this atc and does not support the note and
 > queued words in the results of atc_events_read, atc_message_send, and atc_message_get. …
@@ -148,9 +150,10 @@ that refusal:
 
 One concept keeps one word across the tools, the event kinds, the CLI, the wire protocol, and the
 docs. A rename of the concept covers all of them in one change. A session's progress message is a
-note in every place: the bridge `note` tool, the `atc note` command, the `note` event kind, and
+note in the bridge `note` tool, the `atc note` command, the `note` event kind, and
 `atc_events_read`'s "notes (note, with its label and full text)". A message waiting in atc's inbox
-is `queued` in the status, the `message-queued` event, and the docs.
+is `queued` in the status, the `message-queued` event, and the docs. One exception: the hidden
+`atc report` command takes notes and answers from sessions that loaded an older mod.
 
 ## Checking a change
 
