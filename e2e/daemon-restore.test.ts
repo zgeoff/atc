@@ -680,7 +680,7 @@ test("it revives a restored session with the spawn's model and effort", async ()
     return read;
   });
 
-  expect(screen['text']).toInclude('args: --model opus[1m] --effort xhigh --settings');
+  expect(screen['text']).toInclude('args: --model opus[1m] --effort xhigh --add-dir ');
   expect(screen['text']).toInclude('--resume fake-1');
 });
 
@@ -743,6 +743,6 @@ test('it revives a restored session that has no model or effort without either f
   invariant(entry !== undefined, 'the stored fleet holds no entry');
 
   expect(entry).not.toContainAnyKeys(['model', 'effort']);
-  expect(screen['text']).toInclude('args: --settings');
+  expect(screen['text']).toInclude('args: --add-dir ');
   expect(screen['text']).toInclude('--resume fake-1');
 });

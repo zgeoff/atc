@@ -337,7 +337,7 @@ test('it starts a Claude session with the atc-bridge mod folder', async () => {
   const bridgeDir = join(daemon.stateDir, 'atc-bridge');
 
   // Wide enough that the echoed args line never wraps mid-path.
-  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 400, rows: 24 });
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 600, rows: 24 });
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
@@ -384,7 +384,7 @@ test('it starts a gateway session with the atc-bridge mod folder', async () => {
   const ok = await client.sendRequest('session.spawn', {
     cwd: ctx.home,
     agent: 'zai',
-    cols: 400,
+    cols: 600,
     rows: 24,
   });
 
@@ -451,6 +451,6 @@ test("it runs and stores a resume request's own model and effort", async () => {
     return listed;
   });
 
-  expect(screen['text']).toInclude('args: --model haiku --effort medium --settings');
+  expect(screen['text']).toInclude('args: --model haiku --effort medium --add-dir ');
   expect(fleet).toMatchObject({ fleet: [{ model: 'haiku', effort: 'medium' }] });
 });

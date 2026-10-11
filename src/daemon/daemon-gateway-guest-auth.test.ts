@@ -135,7 +135,11 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
 
   expect(settings).toHaveProperty('env.ANTHROPIC_AUTH_TOKEN', 'imp-broker-placeholder');
   expect(settings).not.toHaveProperty('apiKeyHelper');
-  expect(seeded).toStrictEqual({ hasCompletedOnboarding: true });
+
+  expect(seeded).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
 });
 
 test('it revives a rebound session under the settings file of the next revision', async () => {

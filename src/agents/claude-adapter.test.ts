@@ -286,6 +286,37 @@ test('it restores a stock session in the mode its settings set', () => {
   });
 });
 
+test('it gives a local session a scratch folder of its own as a working directory and its temporary folder', () => {
+  const ctx = setupTest();
+  const config = parseConfig({});
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    null,
+    join(ctx.dir, 'atc-bridge'),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+  );
+
+  const plan = adapter.planSpawn({ prompt: 'hi', resume: false }, toSessionID('s1'));
+
+  expect(plan).toStrictEqual({
+    bin: 'claude',
+    args: [
+      '--add-dir',
+      join(ctx.dir, 'state', 'sessions', 's1', 'scratch'),
+      '--settings',
+      join(ctx.dir, 'state', 'hook-settings-claude.json'),
+      '--plugin-dir',
+      join(ctx.dir, 'atc-bridge'),
+      'hi',
+    ],
+    env: { TMPDIR: join(ctx.dir, 'state', 'sessions', 's1', 'scratch') },
+  });
+
+  expect(existsSync(join(ctx.dir, 'state', 'sessions', 's1', 'scratch'))).toBeTrue();
+});
+
 test('it restores an unbrokered remote session in the mode its settings set', () => {
   const config = parseConfig({
     agents: { claude: { settings: { permissions: { defaultMode: 'plan' } } } },
@@ -299,10 +330,17 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
   );
 
   expect(plan).toStrictEqual({
-    bin: 'claude',
+    bin: 'sh',
     args: [
+      '-c',
+      expect.toBeString(),
+      'sh',
+      '/tmp/atc/sessions/s1/scratch',
+      'claude',
       '--permission-mode',
       'plan',
+      '--add-dir',
+      '/tmp/atc/sessions/s1/scratch',
       '--settings',
       '/tmp/atc/sessions/s1/settings.json',
       '--plugin-dir',
@@ -310,6 +348,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
       '--resume',
       'sess-1',
     ],
+    env: { TMPDIR: '/tmp/atc/sessions/s1/scratch' },
     files: {
       'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
       'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
@@ -402,15 +441,23 @@ test('it plans a remote spawn in the permission mode its configured arguments se
   );
 
   expect(plan).toStrictEqual({
-    bin: 'claude',
+    bin: 'sh',
     args: [
+      '-c',
+      expect.toBeString(),
+      'sh',
+      '/tmp/atc/sessions/s1/scratch',
+      'claude',
       '--permission-mode',
       'plan',
+      '--add-dir',
+      '/tmp/atc/sessions/s1/scratch',
       '--settings',
       '/tmp/atc/sessions/s1/settings.json',
       '--plugin-dir',
       '/tmp/atc/sessions/s1/atc-bridge',
     ],
+    env: { TMPDIR: '/tmp/atc/sessions/s1/scratch' },
     files: {
       'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
       'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
@@ -729,8 +776,11 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
       '/tmp/atc/sessions/s1/claude-config-seed.json',
       '/tmp/atc/sessions/s1/claude-config-bundle',
       expect.stringMatching(/^\/tmp\/atc\/sessions\/s1\/claude-config-bundle\/[\da-f-]{36}$/u),
+      '/tmp/atc/sessions/s1/scratch',
       'claude',
       '--verbose',
+      '--add-dir',
+      '/tmp/atc/sessions/s1/scratch',
       '--settings',
       '/tmp/atc/sessions/s1/auth-r2/settings.json',
       '--plugin-dir',
@@ -739,6 +789,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     ],
     env: {
       CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      TMPDIR: '/tmp/atc/sessions/s1/scratch',
       CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
     },
   });
@@ -816,7 +867,10 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
 
   invariant(typeof seed === 'string', 'expected a seed file');
 
-  expect(JSON.parse(seed)).toStrictEqual({ hasCompletedOnboarding: true });
+  expect(JSON.parse(seed)).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
 });
 
 test("it ships the host's Claude config as the session's user settings and keeps it out of the --settings file", () => {
@@ -888,7 +942,13 @@ test("it ships the host's Claude config as the session's user settings and keeps
       command: 'bash "/tmp/atc/sessions/s1/claude-config/statusline.sh"',
       padding: 2,
     },
-    permissions: { defaultMode: 'auto' },
+    permissions: {
+      deny: [
+        'Read(//tmp/atc/sessions/s1/claude-config/.claude.json)',
+        'Read(~/.claude/.credentials.json)',
+      ],
+      defaultMode: 'auto',
+    },
   });
 
   expect(JSON.parse(flagSettings)).toStrictEqual({
@@ -1035,9 +1095,12 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     '/tmp/atc/sessions/s1/claude-config-seed.json',
     '/tmp/atc/sessions/s1/claude-config-bundle',
     expect.stringMatching(/^\/tmp\/atc\/sessions\/s1\/claude-config-bundle\/[\da-f-]{36}$/u),
+    '/tmp/atc/sessions/s1/scratch',
     'claude',
     '--mcp-config',
     '/tmp/atc/sessions/s1/auth-r3/mcp.json',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
     '--settings',
     '/tmp/atc/sessions/s1/auth-r3/settings.json',
     '--plugin-dir',
@@ -1077,13 +1140,21 @@ test('it plans a guest spawn without a broker binding in the config of the host 
   );
 
   expect(plan).toStrictEqual({
-    bin: 'claude',
+    bin: 'sh',
     args: [
+      '-c',
+      expect.toBeString(),
+      'sh',
+      '/tmp/atc/sessions/s1/scratch',
+      'claude',
+      '--add-dir',
+      '/tmp/atc/sessions/s1/scratch',
       '--settings',
       '/tmp/atc/sessions/s1/settings.json',
       '--plugin-dir',
       '/tmp/atc/sessions/s1/atc-bridge',
     ],
+    env: { TMPDIR: '/tmp/atc/sessions/s1/scratch' },
     files: {
       'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
       'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
@@ -1436,7 +1507,11 @@ test('it starts a subscription session with a seeded config folder in a host who
   const seeded = readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8');
 
   expect(run.exitCode).toBe(0);
-  expect(JSON.parse(seeded)).toStrictEqual({ hasCompletedOnboarding: true });
+
+  expect(JSON.parse(seeded)).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
 });
 
 test("it seeds folder trust and approval of the clone's own MCP servers for the exact clone root of a subscription session", () => {
@@ -1460,6 +1535,7 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
 
   expect(JSON.parse(seed)).toStrictEqual({
     hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
     projects: { '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
   });
 });
@@ -1520,6 +1596,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
 
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
     OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
     OP_CONNECT_TOKEN: 'imp-broker-placeholder',
     CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',

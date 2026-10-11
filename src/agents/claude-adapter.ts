@@ -12,6 +12,7 @@ import type { Config } from '../shared/config';
 import { isSubscriptionOverrideVariable } from '../shared/is-subscription-override-variable';
 import { OUTRANKING_VARIABLES } from '../shared/outranking-variables';
 import { isRecord } from '../shared/report';
+import type { SessionID } from '../shared/session-id';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toShellArg } from '../shared/to-shell-arg';
 import { truncateDetail } from '../shared/truncate-detail';
@@ -40,8 +41,10 @@ import { buildClaudeProjectSettingsCheck } from './build-claude-project-settings
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
+import { buildScratchLaunch } from './build-scratch-launch';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
@@ -52,6 +55,7 @@ import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
 import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
+import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
 import { updateClaudeProjectTrust } from './update-claude-project-trust';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
@@ -144,9 +148,14 @@ export class ClaudeAdapter implements AgentAdapter {
           });
   }
 
-  planSpawn(opts: SpawnOptions): SpawnPlan {
+  // A session's scratch folder lies under its own folder in atc's state
+  // folder, and is its temporary folder too.
+  planSpawn(opts: SpawnOptions, session?: SessionID): SpawnPlan {
     const modeArgs =
       opts.resume === false ? [] : buildRestoreModeArgs(this.entry.args, this.entry.settings);
+
+    const scratch =
+      session === undefined ? null : createLocalScratchDir(session, this.hostPaths.stateDir);
 
     return {
       bin: this.entry.bin,
@@ -154,9 +163,11 @@ export class ClaudeAdapter implements AgentAdapter {
         this.entry.args,
         opts,
         modeArgs,
+        scratch,
         this.writeSettings(),
         this.writeBridge(),
       ),
+      ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
     };
   }
 
@@ -183,9 +194,11 @@ export class ClaudeAdapter implements AgentAdapter {
 
   // A remote session reports through the atc inside its host, so without
   // one it has no instrumentation and cannot run there. Its settings and
-  // its copy of the mod travel with it, and it has no statusline. A
-  // session that signs in through impd's broker runs with a config folder
-  // of its own and the placeholder in place of the token.
+  // its copy of the mod travel with it, and it has no statusline. Its
+  // scratch folder lies in its guest folder, which a shell creates before
+  // it runs the CLI. A session that signs in through impd's broker runs
+  // with a config folder of its own and the placeholder in place of the
+  // token.
   planGuestSpawn(opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null {
     if (guest.atc === null) {
       return null;
@@ -204,15 +217,22 @@ export class ClaudeAdapter implements AgentAdapter {
       return this.planSubscriptionGuestSpawn(opts, guest.dir, guest.auth, argv, bridge);
     }
 
-    return {
-      bin: this.entry.bin,
-      args: this.buildArgs(
+    const scratch = `${guest.dir}/${SESSION_SCRATCH_FOLDER}`;
+
+    const launch = buildScratchLaunch(scratch, [
+      this.entry.bin,
+      ...this.buildArgs(
         this.entry.args,
         opts,
         modeArgs,
+        scratch,
         `${guest.dir}/settings.json`,
         `${guest.dir}/atc-bridge`,
       ),
+    ]);
+
+    return {
+      ...launch,
       files: {
         'settings.json': JSON.stringify(
           buildHookSettings(this.buildSettingsProfile({}), 0, argv),
@@ -250,9 +270,9 @@ export class ClaudeAdapter implements AgentAdapter {
   // configured settings, or in the host's environment, would keep the CLI
   // from sending the placeholder, so either refuses the start. The entry's
   // MCP servers reach the CLI through an MCP config file of the binding
-  // revision, each with the placeholder in its header. Their flag sits
-  // ahead of the settings flag, so the variadic flag never takes the
-  // prompt as one of its values.
+  // revision, each with the placeholder in its header. Their flag and the
+  // scratch folder's sit ahead of the settings flag, so neither variadic
+  // flag takes the prompt as one of its values.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
@@ -280,6 +300,7 @@ export class ClaudeAdapter implements AgentAdapter {
           buildArgsWithoutFlags(this.entry.args, ['--permission-mode']),
           opts,
           mcpArgs,
+          `${dir}/${SESSION_SCRATCH_FOLDER}`,
           `${dir}/${settingsPath}`,
           `${dir}/atc-bridge`,
         ),
@@ -393,16 +414,20 @@ export class ClaudeAdapter implements AgentAdapter {
     };
   }
 
+  // The scratch folder is a working directory of the session's own, so the
+  // CLI reads and writes there without a prompt.
   private buildArgs(
     configured: readonly string[],
     opts: SpawnOptions,
     leadArgs: readonly string[],
+    scratch: string | null,
     settings: string,
     pluginDir: string,
   ): string[] {
     return [
       ...buildClaudeOverrideArgs(configured, opts),
       ...leadArgs,
+      ...(scratch === null ? [] : ['--add-dir', scratch]),
       '--settings',
       settings,
       '--plugin-dir',

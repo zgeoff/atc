@@ -153,6 +153,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
 
   expect(config).toStrictEqual({
     hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
     projects: { [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
   });
 
@@ -239,7 +240,10 @@ test.each([
     readFileSync(join(ctx.guestDir, 'sessions', id, 'claude-config', '.claude.json'), 'utf8'),
   );
 
-  expect(config).toStrictEqual({ hasCompletedOnboarding: true });
+  expect(config).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
 });
 
 test('it refuses trust for an existing folder before touching the imp', async () => {
@@ -400,7 +404,10 @@ test.each([
       readFileSync(join(ctx.guestDir, 'sessions', id, 'claude-config-seed.json'), 'utf8'),
     );
 
-    expect(seed).toStrictEqual({ hasCompletedOnboarding: true });
+    expect(seed).toStrictEqual({
+      hasCompletedOnboarding: true,
+      hasSeenAutoModeOutsideReadPrompt: true,
+    });
   },
 );
 
@@ -646,7 +653,7 @@ test.each([
   ['unset', 'true', {}, { trustClonedWorkspace: true }],
   ['true', 'unset', { trustClonedWorkspace: true }, {}],
 ])(
-  'it preserves an existing guest config byte for byte during an opted-in clone launch with target %s and launch %s',
+  "it keeps an existing guest config's state, adding only the outside-read offer mark, during an opted-in clone launch with target %s and launch %s",
   async (_targetLabel, _launchLabel, targetOptions, launch) => {
     const ctx = await setupTest();
 
@@ -743,7 +750,9 @@ test.each([
       expect(existsSync(ctx.starts)).toBeTrue();
     });
 
-    expect(readFileSync(join(configDir, '.claude.json'), 'utf8')).toBe(existing);
+    expect(readFileSync(join(configDir, '.claude.json'), 'utf8')).toBe(
+      '{"hasSeenAutoModeOutsideReadPrompt": true,"hasCompletedOnboarding":true,"projects":{"/previous":{"hasTrustDialogAccepted":false}},"custom":"preserve"}\n',
+    );
   },
 );
 
@@ -1076,7 +1085,10 @@ test.each([
       readFileSync(join(ctx.guestDir, 'sessions', id, 'claude-config', '.claude.json'), 'utf8'),
     );
 
-    expect(config).toStrictEqual({ hasCompletedOnboarding: true });
+    expect(config).toStrictEqual({
+      hasCompletedOnboarding: true,
+      hasSeenAutoModeOutsideReadPrompt: true,
+    });
   },
 );
 
@@ -1169,6 +1181,7 @@ test.each([
 
     expect(config).toStrictEqual({
       hasCompletedOnboarding: true,
+      hasSeenAutoModeOutsideReadPrompt: true,
       projects: { [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
     });
   },
@@ -1392,5 +1405,8 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
     readFileSync(join(ctx.guestDir, 'sessions', id, 'claude-config', '.claude.json'), 'utf8'),
   );
 
-  expect(config).toStrictEqual({ hasCompletedOnboarding: true });
+  expect(config).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
 });

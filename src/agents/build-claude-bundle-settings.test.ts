@@ -40,7 +40,10 @@ test('it ships the allow-listed settings and leaves every other key on the host'
     skipWorkflowUsageWarning: true,
     editorMode: 'vim',
     tui: 'fullscreen',
-    permissions: { defaultMode: 'auto' },
+    permissions: {
+      deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+      defaultMode: 'auto',
+    },
   });
 });
 
@@ -60,7 +63,10 @@ test('it ships the allow-listed environment variables alone', () => {
 
   expect(settings).toStrictEqual({
     env: { CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1' },
-    permissions: { defaultMode: 'auto' },
+    permissions: {
+      deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+      defaultMode: 'auto',
+    },
   });
 });
 
@@ -71,7 +77,12 @@ test('it drops an env block that holds no allow-listed variable', () => {
     '/guest/claude-config',
   );
 
-  expect(settings).toStrictEqual({ permissions: { defaultMode: 'auto' } });
+  expect(settings).toStrictEqual({
+    permissions: {
+      deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+      defaultMode: 'auto',
+    },
+  });
 });
 
 test("it keeps the host's permission rules and sets auto mode over its own default", () => {
@@ -82,7 +93,52 @@ test("it keeps the host's permission rules and sets auto mode over its own defau
   );
 
   expect(settings).toStrictEqual({
-    permissions: { allow: ['Bash(git status)'], defaultMode: 'auto' },
+    permissions: {
+      allow: ['Bash(git status)'],
+      deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+      defaultMode: 'auto',
+    },
+  });
+});
+
+test('it refuses a guest config folder that is not an absolute path', () => {
+  expect(() => buildClaudeBundleSettings({}, ['/home/me/.claude'], 'guest/claude-config')).toThrow(
+    'guest config folder guest/claude-config is not an absolute path',
+  );
+});
+
+test('it drops the block on reads outside the working directories when the host sets it', () => {
+  const settings = buildClaudeBundleSettings(
+    { permissions: { blockReadsOutsideWorkingDirectories: true, allow: ['Bash(ls)'] } },
+    ['/home/me/.claude'],
+    '/guest/claude-config',
+  );
+
+  expect(settings).toStrictEqual({
+    permissions: {
+      allow: ['Bash(ls)'],
+      deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+      defaultMode: 'auto',
+    },
+  });
+});
+
+test("it denies reads of the guest's sign-in state after the host's own deny rules, once each", () => {
+  const settings = buildClaudeBundleSettings(
+    { permissions: { deny: ['Read(./.env)', 'Read(~/.claude/.credentials.json)'] } },
+    ['/home/me/.claude'],
+    '/guest/claude-config',
+  );
+
+  expect(settings).toStrictEqual({
+    permissions: {
+      deny: [
+        'Read(./.env)',
+        'Read(~/.claude/.credentials.json)',
+        'Read(//guest/claude-config/.claude.json)',
+      ],
+      defaultMode: 'auto',
+    },
   });
 });
 
@@ -105,7 +161,10 @@ test("it points the statusline at the guest's copy of a script under the host's 
       command: 'bash "/guest/claude-config/statusline.sh" /home/me/.claude-other/x',
       padding: 2,
     },
-    permissions: { defaultMode: 'auto' },
+    permissions: {
+      deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+      defaultMode: 'auto',
+    },
   });
 });
 
@@ -126,7 +185,10 @@ test('it points the statusline at the guest for each spelling of the host config
       type: 'command',
       command: 'bash /guest/claude-config/a.sh; bash /guest/claude-config/b.sh',
     },
-    permissions: { defaultMode: 'auto' },
+    permissions: {
+      deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+      defaultMode: 'auto',
+    },
   });
 });
 
@@ -135,6 +197,11 @@ test.each([[null], ['not settings'], [{ statusLine: 'echo hi' }]])(
   (input) => {
     expect(
       buildClaudeBundleSettings(input, ['/home/me/.claude'], '/guest/claude-config'),
-    ).toStrictEqual({ permissions: { defaultMode: 'auto' } });
+    ).toStrictEqual({
+      permissions: {
+        deny: ['Read(//guest/claude-config/.claude.json)', 'Read(~/.claude/.credentials.json)'],
+        defaultMode: 'auto',
+      },
+    });
   },
 );

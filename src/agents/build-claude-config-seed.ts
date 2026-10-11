@@ -3,7 +3,8 @@ import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
 /**
  * The guest file that seeds a session's own Claude config folder with the
  * state the CLI reads from `.claude.json` to start without its first-run
- * onboarding, and with folder trust for `trustedRoot`, the exact root of a
+ * onboarding and its one-time offer to block reads outside the working
+ * directories, and with folder trust for `trustedRoot`, the exact root of a
  * verified clone, when one is given. Trust also approves every MCP server
  * the clone's own `.mcp.json` declares, so an unattended session never
  * waits on the CLI's approval prompt. It holds no account: the placeholder
@@ -34,7 +35,9 @@ export function buildClaudeConfigSeed(
   return { [CLAUDE_CONFIG_SEED_FILE]: JSON.stringify(seed, null, 2) };
 }
 
-const ONBOARDED_CONFIG = { hasCompletedOnboarding: true };
+// Marking the offer as seen never turns the block on, so a read outside
+// the working directories still goes through the session's permission mode.
+const ONBOARDED_CONFIG = { hasCompletedOnboarding: true, hasSeenAutoModeOutsideReadPrompt: true };
 
 // How many trailing characters of an API key the CLI keeps to record a
 // person's answer about it.

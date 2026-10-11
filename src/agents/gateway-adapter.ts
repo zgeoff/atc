@@ -8,6 +8,7 @@ import type { Config } from '../shared/config';
 import { isBrokerVariable } from '../shared/is-broker-variable';
 import { isRecord } from '../shared/report';
 import { resolveAuthProfiles } from '../shared/resolve-auth-profiles';
+import type { SessionID } from '../shared/session-id';
 import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AgentAdapter,
@@ -33,6 +34,7 @@ import { buildHookSettings } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
@@ -40,6 +42,7 @@ import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
+import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
 import { writeATCBridge } from './write-atc-bridge';
 import { writeHookSettings } from './write-hook-settings';
 
@@ -176,8 +179,10 @@ export class GatewayAdapter implements AgentAdapter {
   // A gateway whose credential comes through impd's broker alone never
   // starts on the daemon's machine: started without the broker, the CLI
   // would send whatever credential it holds to the gateway's host. One
-  // with a credential helper as well starts there under that helper.
-  planSpawn(opts: SpawnOptions): SpawnPlan {
+  // with a credential helper as well starts there under that helper. A
+  // session's scratch folder lies under its own folder in atc's state
+  // folder, and is its temporary folder too.
+  planSpawn(opts: SpawnOptions, session?: SessionID): SpawnPlan {
     if (isBrokerOnlyGateway(this.gateway)) {
       throw this.buildBrokerRefusal('which only an imp target can give it');
     }
@@ -185,15 +190,20 @@ export class GatewayAdapter implements AgentAdapter {
     const modeArgs =
       opts.resume === false ? [] : buildRestoreModeArgs(this.gateway.args, this.gateway.settings);
 
+    const scratch =
+      session === undefined ? null : createLocalScratchDir(session, this.hostPaths.stateDir);
+
     return {
       bin: this.gateway.bin,
       args: this.buildArgs(
         this.gateway.args,
         opts,
         modeArgs,
+        scratch,
         this.writeSettings(),
         this.writeBridge(),
       ),
+      ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
     };
   }
 
@@ -203,7 +213,8 @@ export class GatewayAdapter implements AgentAdapter {
   // and placeholders in place of the credential, which the broker swaps
   // for the real one on the host's side. A shell seeds the config folder
   // before it runs the CLI, since a transferred file would replace the
-  // state an earlier run left. The launch takes the auth's own arguments
+  // state an earlier run left, and creates the session's scratch folder,
+  // its temporary folder too. The launch takes the auth's own arguments
   // when it sets them, and never the credential helper, which runs on the
   // daemon's machine alone. A gateway without auth never runs remotely.
   // When the placeholder is the API key variable, the seed approves it and
@@ -266,6 +277,7 @@ export class GatewayAdapter implements AgentAdapter {
           args,
           opts,
           this.buildGuestModeArgs(args),
+          `${guest.dir}/${SESSION_SCRATCH_FOLDER}`,
           `${guest.dir}/${settingsPath}`,
           `${guest.dir}/atc-bridge`,
         ),
@@ -332,16 +344,21 @@ export class GatewayAdapter implements AgentAdapter {
     return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings} --resume${resume}`;
   }
 
+  // The scratch folder is a working directory of the session's own, so the
+  // CLI reads and writes there without a prompt. Its variadic flag sits
+  // ahead of the settings flag, so it never takes the prompt as a value.
   private buildArgs(
     args: readonly string[],
     opts: SpawnOptions,
     modeArgs: readonly string[],
+    scratch: string | null,
     settings: string,
     pluginDir: string,
   ): string[] {
     return [
       ...buildClaudeOverrideArgs(args, opts),
       ...modeArgs,
+      ...(scratch === null ? [] : ['--add-dir', scratch]),
       '--settings',
       settings,
       '--plugin-dir',

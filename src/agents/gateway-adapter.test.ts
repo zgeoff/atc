@@ -810,11 +810,14 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
     '/tmp/atc/sessions/s1/claude-config-seed.json',
     '/tmp/atc/sessions/s1/claude-config-bundle',
     '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    '/tmp/atc/sessions/s1/scratch',
     'claude',
     '--plugin-dir',
     '/opt/auto-mode/mods/auto-mode',
     '--permission-mode',
     'acceptEdits',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
     '--settings',
     '/tmp/atc/sessions/s1/auth-r1/settings.json',
     '--plugin-dir',
@@ -883,9 +886,12 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
       '/tmp/atc/sessions/s1/claude-config-seed.json',
       '/tmp/atc/sessions/s1/claude-config-bundle',
       '/tmp/atc/sessions/s1/claude-config-bundle/none',
+      '/tmp/atc/sessions/s1/scratch',
       'claude',
       '--permission-mode',
       'default',
+      '--add-dir',
+      '/tmp/atc/sessions/s1/scratch',
       '--settings',
       '/tmp/atc/sessions/s1/auth-r3/settings.json',
       '--plugin-dir',
@@ -893,6 +899,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     ],
     env: {
       CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      TMPDIR: '/tmp/atc/sessions/s1/scratch',
       ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
     },
   });
@@ -968,7 +975,10 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     },
   });
 
-  expect(onboarding).toStrictEqual({ hasCompletedOnboarding: true });
+  expect(onboarding).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
 
   expect(plan.files).toStrictEqual({
     'auth-r3/settings.json': settingsFile,
@@ -1036,9 +1046,12 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
     '/tmp/atc/sessions/s1/claude-config-seed.json',
     '/tmp/atc/sessions/s1/claude-config-bundle',
     '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    '/tmp/atc/sessions/s1/scratch',
     'claude',
     '--permission-mode',
     'default',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
     '--settings',
     '/tmp/atc/sessions/s1/auth-r1/settings.json',
     '--plugin-dir',
@@ -1255,11 +1268,14 @@ test('it carries an extra placeholder variable and the gateway args into a broke
     '/tmp/atc/sessions/s1/claude-config-seed.json',
     '/tmp/atc/sessions/s1/claude-config-bundle',
     '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    '/tmp/atc/sessions/s1/scratch',
     'claude',
     '--plugin-dir',
     '/opt/auto-mode/mods/auto-mode',
     '--permission-mode',
     'default',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
     '--settings',
     '/tmp/atc/sessions/s1/auth-r1/settings.json',
     '--plugin-dir',
@@ -1268,6 +1284,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
 
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
     ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
     TYPESAFE_API_KEY: 'imp-broker-placeholder',
   });
@@ -1554,10 +1571,14 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
   const seeded = readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8');
 
   expect(run.exitCode).toBe(0);
-  expect(JSON.parse(seeded)).toStrictEqual({ hasCompletedOnboarding: true });
+
+  expect(JSON.parse(seeded)).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
 });
 
-test("it keeps the state an earlier run left in a brokered guest's Claude config, an accepted folder trust included", async () => {
+test("it keeps the state an earlier run left in a brokered guest's Claude config and marks the outside-read offer seen", async () => {
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1608,8 +1629,15 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
 
   const run = await runCommand([plan.bin, ...plan.args]);
 
+  const merged = readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8');
+
   expect(run.exitCode).toBe(0);
-  expect(readFileSync(join(ctx.dir, 'claude-config', '.claude.json'), 'utf8')).toBe(earlier);
+
+  expect(JSON.parse(merged)).toStrictEqual({
+    hasSeenAutoModeOutsideReadPrompt: true,
+    hasCompletedOnboarding: true,
+    projects: { '/work': { hasTrustDialogAccepted: true } },
+  });
 });
 
 test('it starts a brokered guest in the permission mode its configured arguments set', () => {
@@ -1652,9 +1680,12 @@ test('it starts a brokered guest in the permission mode its configured arguments
     '/tmp/atc/sessions/s1/claude-config-seed.json',
     '/tmp/atc/sessions/s1/claude-config-bundle',
     '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    '/tmp/atc/sessions/s1/scratch',
     'claude',
     '--permission-mode',
     'plan',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
     '--settings',
     '/tmp/atc/sessions/s1/auth-r1/settings.json',
     '--plugin-dir',
@@ -1701,9 +1732,12 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
     '/tmp/atc/sessions/s1/claude-config-seed.json',
     '/tmp/atc/sessions/s1/claude-config-bundle',
     '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    '/tmp/atc/sessions/s1/scratch',
     'claude',
     '--permission-mode',
     'default',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
     '--settings',
     '/tmp/atc/sessions/s1/auth-r1/settings.json',
     '--plugin-dir',
@@ -1750,9 +1784,12 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
     '/tmp/atc/sessions/s1/claude-config-seed.json',
     '/tmp/atc/sessions/s1/claude-config-bundle',
     '/tmp/atc/sessions/s1/claude-config-bundle/none',
+    '/tmp/atc/sessions/s1/scratch',
     'claude',
     '--permission-mode',
     'default',
+    '--add-dir',
+    '/tmp/atc/sessions/s1/scratch',
     '--settings',
     '/tmp/atc/sessions/s1/auth-r1/settings.json',
     '--plugin-dir',
@@ -1954,6 +1991,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
 
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
     ANTHROPIC_API_KEY: 'imp-broker-placeholder',
   });
 
@@ -1969,6 +2007,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
 
   expect(seed).toStrictEqual({
     hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
     customApiKeyResponses: { approved: ['p-broker-placeholder'], rejected: [] },
   });
 });
@@ -1997,6 +2036,7 @@ test('it seeds the approval of the API key placeholder beside the clone trust of
 
   expect(JSON.parse(seedFile)).toStrictEqual({
     hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
     customApiKeyResponses: { approved: ['p-broker-placeholder'], rejected: [] },
     projects: {
       '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
@@ -2146,6 +2186,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
 
   expect(plan.env).toStrictEqual({
     CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
     OP_CONNECT_HOST: 'https://op-connect.geoff.cloud',
     OP_CONNECT_TOKEN: 'imp-broker-placeholder',
     ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder',
