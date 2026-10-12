@@ -6,6 +6,7 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@better-auth/mcp": "catalog:",

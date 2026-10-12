@@ -1,5 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import type { InvalidGitTransports } from '@atc/config/collect-workspaces-config';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import type { StepTimer } from '@atc/core/create-step-timer';
 import type { SessionID } from '@atc/core/session-id';
@@ -9,7 +10,6 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import type { ErrorCode } from '@atc/protocol/protocol';
 import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
-import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
 import type { StateStore } from '../store/state-store';
 import type { MaterializationPhase } from '../store/workspace-materialization';
 import { checkURLCredentials } from '../workspace/check-url-credentials';

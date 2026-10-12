@@ -1,4 +1,4 @@
-import type { AgentEntry } from '../shared/collect-agents';
+import type { AgentEntry } from '@atc/config/collect-agents';
 import type { Config } from '../shared/config';
 
 /**

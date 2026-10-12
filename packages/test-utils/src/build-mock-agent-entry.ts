@@ -1,7 +1,7 @@
+import type { AgentEntry } from '@atc/config/collect-agents';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
-import type { AgentEntry } from '../shared/collect-agents';
 
 /**
  * The fields the defaults set; every other field is absent until an

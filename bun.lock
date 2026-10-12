@@ -31,6 +31,7 @@
       "version": "4.2.0",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "catalog:",
+        "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@better-auth/mcp": "catalog:",
@@ -57,6 +58,16 @@
         "tiny-invariant": "catalog:",
       },
     },
+    "packages/config": {
+      "name": "@atc/config",
+      "dependencies": {
+        "@atc/core": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+      },
+    },
     "packages/core": {
       "name": "@atc/core",
       "dependencies": {
@@ -81,6 +92,7 @@
     "packages/test-utils": {
       "name": "@atc/test-utils",
       "dependencies": {
+        "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@faker-js/faker": "catalog:",
@@ -168,6 +180,8 @@
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.115.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-BJrFIVyjNuU8lfDyIJTvlRYzgQg+zEl78BxE7fq8esULsGz9IRQvGtW5spq3tydmtjQb/GFdooKGdGsetpx+lQ=="],
 
     "@atc/app": ["@atc/app@workspace:packages/app"],
+
+    "@atc/config": ["@atc/config@workspace:packages/config"],
 
     "@atc/core": ["@atc/core@workspace:packages/core"],
 

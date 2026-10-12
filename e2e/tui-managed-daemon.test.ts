@@ -6,7 +6,7 @@ import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon'
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
-import { getBuild } from '../packages/app/src/shared/get-build';
+import { getATCBuild } from '../packages/app/src/shared/get-atc-build';
 import { buildMockAgentAdapter } from '../packages/app/src/test-utils/build-mock-agent-adapter';
 
 function setupTest() {
@@ -32,7 +32,7 @@ test('it waits for a managed daemon instead of starting one while the unit is do
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getBuild(),
+    build: getATCBuild(),
     adapter: buildMockAgentAdapter(),
   });
 
@@ -58,7 +58,7 @@ test('it reconnects a client after a managed daemon restarts without starting a 
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getBuild(),
+    build: getATCBuild(),
     adapter: buildMockAgentAdapter(),
   };
 
@@ -118,7 +118,7 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getBuild(),
+    build: getATCBuild(),
     adapter: buildMockAgentAdapter(),
   };
 
@@ -170,7 +170,7 @@ test('it keeps help open when a managed daemon returns', async () => {
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getBuild(),
+    build: getATCBuild(),
     adapter: buildMockAgentAdapter(),
   };
 

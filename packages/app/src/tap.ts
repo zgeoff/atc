@@ -4,7 +4,7 @@ import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { z } from 'zod';
 import { runBridgeTap } from './run-bridge-tap';
 import { daemonSocketPath } from './shared/config';
-import { getBuild } from './shared/get-build';
+import { getATCBuild } from './shared/get-atc-build';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
   message: z.string(),
@@ -114,7 +114,7 @@ export async function runTap(
   };
 
   try {
-    await client.sendHello(getBuild(), { session: readSessionEnv(process.env).sessionID });
+    await client.sendHello(getATCBuild(), { session: readSessionEnv(process.env).sessionID });
     await client.sendRequest('session.tap', { session });
   } catch (error) {
     io.printError(`atc tap: ${formatError(error)}`);

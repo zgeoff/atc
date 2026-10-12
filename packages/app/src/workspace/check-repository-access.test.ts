@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
 import { buildStubRecordingGit } from '@atc/test-utils/build-stub-recording-git';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
@@ -9,7 +10,6 @@ import { startStubSilentServer } from '@atc/test-utils/start-stub-silent-server'
 import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
-import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { checkRepositoryAccess } from './check-repository-access';
 
 // A bare upstream holding one pushed commit and a work clone of it.

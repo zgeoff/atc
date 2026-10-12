@@ -16,7 +16,7 @@ import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { findPidFilePID } from '../shared/find-pid-file-pid';
-import { getBuild } from '../shared/get-build';
+import { getATCBuild } from '../shared/get-atc-build';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
 import { restartManagedDaemon } from '../shared/restart-managed-daemon';
@@ -128,7 +128,7 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
         };
 
   for (let attempt = 0; attempt < 2; ) {
-    const build = getBuild();
+    const build = getATCBuild();
 
     const opened =
       wait === null

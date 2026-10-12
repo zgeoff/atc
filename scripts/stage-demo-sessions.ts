@@ -4,13 +4,13 @@
 import { isRecord } from '@atc/core/is-record';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { daemonSocketPath } from '../packages/app/src/shared/config';
-import { getBuild } from '../packages/app/src/shared/get-build';
+import { getATCBuild } from '../packages/app/src/shared/get-atc-build';
 
 const [mode, cwd, name = '', prompt = ''] = process.argv.slice(2);
 
 const client = await DaemonClient.open(daemonSocketPath);
 
-await client.sendHello(getBuild());
+await client.sendHello(getATCBuild());
 
 if (mode === 'spawn' && cwd !== undefined) {
   const ok = await client.sendRequest('session.spawn', { cwd, name, prompt, cols: 98, rows: 28 });

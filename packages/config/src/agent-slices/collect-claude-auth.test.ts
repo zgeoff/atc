@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildMockAuthProfile } from '../test-utils/build-mock-auth-profile';
-import type { AuthProfile } from './collect-auth-profiles';
+import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
+import type { AuthProfile } from '../collect-auth-profiles';
 import { collectClaudeAuth } from './collect-claude-auth';
 
 test('it reads a selection whose profiles send a bearer authorization header to the Anthropic API', () => {

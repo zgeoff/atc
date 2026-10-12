@@ -1,5 +1,6 @@
 import { realpathSync, writeFileSync } from 'node:fs';
 import { posix } from 'node:path';
+import type { TargetConfigError } from '@atc/config/collect-targets';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import { buildTarArchive } from '@atc/core/build-tar-archive';
@@ -32,7 +33,6 @@ import type {
   SpawnOverrides,
   SpawnPlan,
 } from '../agents/agent-adapter';
-import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';

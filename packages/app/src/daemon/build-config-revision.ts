@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { TargetConfigError } from '../shared/collect-targets';
+import type { TargetConfigError } from '@atc/config/collect-targets';
 import type { ExecutionTarget } from './build-execution-targets';
 
 /**

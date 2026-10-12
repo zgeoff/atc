@@ -409,6 +409,7 @@ src/shared/find-pid-file-pid.ts	lifecycle		packages/lifecycle/src/find-pid-file-
 src/shared/format-home-path.ts	core		packages/core/src/format-home-path.ts	new in ticket 3
 src/shared/format-json-kind.ts	config		packages/config/src/format-json-kind.ts	
 src/shared/format-mixed-agent-keys.ts	config		packages/config/src/format-mixed-agent-keys.ts	
+src/shared/get-atc-build.ts	app		packages/app/src/shared/get-atc-build.ts	new in ticket 5
 src/shared/get-build.ts	config		packages/config/src/get-build.ts	drop both defaults: app passes the version and the scan root (workspace packages/ in source mode, execPath in a binary); no ../../package.json import
 src/shared/get-record.ts	test-utils		packages/test-utils/src/get-record.ts	
 src/shared/grant-scope.ts	mcp	auth	packages/mcp/src/auth/grant-scope.ts	

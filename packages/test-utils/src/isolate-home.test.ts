@@ -87,7 +87,7 @@ test("it resolves the grok and codex homes inside the run's own home", async () 
     fixture,
     `import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'resolve-agent-home')}';
+import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'config', 'src', 'resolve-agent-home')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home');
 
@@ -120,7 +120,7 @@ test("it resolves the Claude config folder inside the run's own home", async () 
     fixture,
     `import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'resolve-agent-home')}';
+import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'config', 'src', 'resolve-agent-home')}';
 
 test('it resolves the Claude config folder under the home', () => {
   expect(resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude')).toBe(

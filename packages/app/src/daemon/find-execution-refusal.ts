@@ -1,5 +1,5 @@
+import type { TargetConfigError } from '@atc/config/collect-targets';
 import { DaemonError } from '@atc/protocol/daemon-error';
-import type { TargetConfigError } from '../shared/collect-targets';
 import type { ExecutionTarget } from './build-execution-targets';
 import type { ExecutionCapability } from './execution-provider';
 

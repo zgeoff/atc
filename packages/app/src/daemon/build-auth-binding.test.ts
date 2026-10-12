@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
 import invariant from 'tiny-invariant';
-import { buildMockAuthProfile } from '../test-utils/build-mock-auth-profile';
 import { buildAuthBinding } from './build-auth-binding';
 
 test('it plans a binding of the resolved secrets, the placeholders and the base URL', () => {

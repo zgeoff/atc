@@ -1,7 +1,7 @@
+import type { AuthProfile } from '@atc/config/collect-auth-profiles';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
-import type { AuthProfile } from '../shared/collect-auth-profiles';
 
 /**
  * The auth profile kinds that inject a header for a broker host.

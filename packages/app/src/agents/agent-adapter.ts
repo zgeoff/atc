@@ -1,3 +1,6 @@
+import type { GatewayAuth } from '@atc/config/agent-slices/check-gateway-auth';
+import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
+import type { AuthProfile } from '@atc/config/collect-auth-profiles';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { SessionID } from '@atc/core/session-id';
@@ -6,9 +9,6 @@ import type { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
 import type { TranscriptRow } from '@atc/protocol/transcript-row';
-import type { GatewayAuth } from '../shared/check-gateway-auth';
-import type { AuthProfile } from '../shared/collect-auth-profiles';
-import type { GatewayConfig } from '../shared/collect-gateways';
 
 export interface SpawnOptions {
   readonly prompt: string;

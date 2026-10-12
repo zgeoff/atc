@@ -1,10 +1,10 @@
+import type { AgentEntry } from '@atc/config/collect-agents';
+import { formatJSONKind } from '@atc/config/format-json-kind';
+import { formatMixedAgentKeys } from '@atc/config/format-mixed-agent-keys';
+import { LEGACY_AGENT_KEYS } from '@atc/config/legacy-agent-keys';
+import { REMOVED_CONFIG_KEYS } from '@atc/config/removed-config-keys';
 import { isRecord } from '@atc/core/is-record';
-import type { AgentEntry } from './shared/collect-agents';
 import { parseConfig } from './shared/config';
-import { formatJSONKind } from './shared/format-json-kind';
-import { formatMixedAgentKeys } from './shared/format-mixed-agent-keys';
-import { LEGACY_AGENT_KEYS } from './shared/legacy-agent-keys';
-import { REMOVED_CONFIG_KEYS } from './shared/removed-config-keys';
 
 /**
  * What `atc config migrate` makes of a config.json's decoded value: the file

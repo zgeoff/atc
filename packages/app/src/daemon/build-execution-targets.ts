@@ -1,4 +1,4 @@
-import type { TargetConfig, TargetConfigError } from '../shared/collect-targets';
+import type { TargetConfig, TargetConfigError } from '@atc/config/collect-targets';
 import { buildImpProvider } from './build-imp-provider';
 import { buildTargetIdentity } from './build-target-identity';
 import type { ExecutionProvider } from './execution-provider';

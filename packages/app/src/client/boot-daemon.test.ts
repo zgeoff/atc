@@ -8,7 +8,7 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
 import { startStubUnansweringUnixListener } from '@atc/test-utils/start-stub-unanswering-unix-listener';
 import { startDaemon } from '../daemon/daemon';
-import { getBuild } from '../shared/get-build';
+import { getATCBuild } from '../shared/get-atc-build';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
@@ -78,7 +78,7 @@ console.log('connected');
     reporterSocketPath: join(ctx.dir, 'atc.sock'),
     dbPath: join(ctx.stateDir, 'atc.db'),
     statusPath: join(ctx.stateDir, 'status.json'),
-    build: getBuild(),
+    build: getATCBuild(),
     adapter: buildMockAgentAdapter(),
   });
 
@@ -243,8 +243,8 @@ process.exit(0);
   expect(JSON.parse(stdout)).toStrictEqual({
     code: 'protocol_mismatch',
     message: [
-      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, ${getBuild()} on protocol v${PROTOCOL_V}.`,
-      `The daemon answered: ${getBuild()} speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, ${getATCBuild()} on protocol v${PROTOCOL_V}.`,
+      `The daemon answered: ${getATCBuild()} speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
     ].join('\n'),

@@ -1,5 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { AgentEntry } from '@atc/config/collect-agents';
+import { resolveAgentHome } from '@atc/config/resolve-agent-home';
+import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import { buildOptionalString } from '@atc/core/build-optional-string';
@@ -11,9 +14,7 @@ import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { z } from 'zod';
-import type { AgentEntry } from '../shared/collect-agents';
 import type { Config } from '../shared/config';
-import { resolveAuthProfiles } from '../shared/resolve-auth-profiles';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -35,7 +36,6 @@ import { buildCodexHookFile } from './build-codex-hook-file';
 import { buildCodexTrustSeed } from './build-codex-trust-seed';
 import { findFlagValue } from './find-flag-value';
 import { planCodexLineInput } from './plan-codex-line-input';
-import { resolveAgentHome } from './resolve-agent-home';
 
 // Codex's hook payload keys, snake_case. An absent or wrong-typed field
 // parses to undefined rather than failing the payload, so a broken reporter

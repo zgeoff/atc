@@ -1,5 +1,5 @@
+import type { InvalidGitTransports } from '@atc/config/collect-workspaces-config';
 import { DaemonError } from '@atc/protocol/daemon-error';
-import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
 
 /**
  * The transports git may fetch over, or the refusal of a git operation

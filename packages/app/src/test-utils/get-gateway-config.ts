@@ -1,4 +1,4 @@
-import type { GatewayConfig } from '../shared/collect-gateways';
+import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
 import type { Config } from '../shared/config';
 import { getAgentEntry } from './get-agent-entry';
 

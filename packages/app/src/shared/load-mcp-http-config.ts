@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { collectMCPHTTPConfig } from '@atc/config/collect-mcp-http-config';
+import type { MCPHTTPConfig } from '@atc/config/collect-mcp-http-config';
 import { isRecord } from '@atc/core/is-record';
-import { collectMCPHTTPConfig } from './collect-mcp-http-config';
-import type { MCPHTTPConfig } from './collect-mcp-http-config';
 import { configFile } from './config';
 
 /**

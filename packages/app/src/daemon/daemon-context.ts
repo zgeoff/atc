@@ -1,3 +1,4 @@
+import type { TargetConfigError } from '@atc/config/collect-targets';
 import type { AgentID } from '@atc/core/agent-id';
 import type { DaemonID } from '@atc/core/daemon-id';
 import type { MessageID } from '@atc/core/message-id';
@@ -9,7 +10,6 @@ import type { PublishedRecord } from '@atc/protocol/published-record';
 import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
 import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
 import type { AgentAdapter, SpawnOptions, SpawnOverrides } from '../agents/agent-adapter';
-import type { TargetConfigError } from '../shared/collect-targets';
 import type { SourceKind, SourceProvider } from '../sources/types';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';

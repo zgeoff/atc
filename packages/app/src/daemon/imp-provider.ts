@@ -1,5 +1,6 @@
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
+import { isCompiledBinary } from '@atc/config/is-compiled-binary';
 import { buildTarArchive } from '@atc/core/build-tar-archive';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
@@ -8,7 +9,6 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import { LineDecoder } from '@atc/protocol/line-decoder';
 import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
 import pkg from '../../package.json';
-import { isCompiledBinary } from '../shared/is-compiled-binary';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildImpName } from './build-imp-name';
 import { EffectRemainsError } from './effect-remains-error';

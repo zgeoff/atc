@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from './collect-auth-profiles';
-import { resolveAuthProfiles } from './resolve-auth-profiles';
+import type { AuthProfile } from '../collect-auth-profiles';
+import { resolveAuthProfiles } from '../resolve-auth-profiles';
 
 /**
  * An MCP server a stock Claude session on a target that reaches impd's

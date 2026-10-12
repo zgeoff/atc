@@ -1,5 +1,5 @@
+import { isCompiledBinary } from '@atc/config/is-compiled-binary';
 import { truncateSummary } from '@atc/core/truncate-summary';
-import { isCompiledBinary } from '../shared/is-compiled-binary';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 import { renderSDKMessage } from './render-sdk-message';
