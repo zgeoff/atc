@@ -43,52 +43,29 @@ test('it runs no headless turn when the daemon gave it no runner', () => {
   expect(adapter.headlessRunner).toBeNull();
 });
 
-test('it reads a session id and transcript out of a Claude hook payload', () => {
+test("it reads a session's hook lines as Claude's, with no state across them", () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig(),
     parseConfig({}),
     buildMockHostServices(),
   );
 
-  expect(
-    adapter.normalizeHook({
-      atcId: toSessionID('s1'),
-      event: 'SessionStart',
-      payload: { session_id: 'z-1', transcript_path: '/tmp/t.jsonl' },
-    }),
-  ).toStrictEqual({
-    kind: 'started',
-    agentSessionID: toAgentSessionID('z-1'),
-    nameSource: '/tmp/t.jsonl',
-    transcriptSource: '/tmp/t.jsonl',
+  const plan = adapter.planHookEvents({
+    atcId: toSessionID('s1'),
+    event: 'SessionStart',
+    payload: { session_id: 'z-1', transcript_path: '/tmp/t.jsonl' },
   });
-});
 
-test('it resumes while the reported transcript is still on disk', () => {
-  const ctx = setupTest();
-  const transcript = join(ctx.dir, 'transcript.jsonl');
-
-  writeFileSync(transcript, '');
-
-  const adapter = new GatewayAdapter(
-    buildMockGatewayConfig(),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  expect(adapter.canResume({ transcriptSource: transcript })).toBeTrue();
-});
-
-test('it does not resume once the reported transcript is gone', () => {
-  const ctx = setupTest();
-
-  const adapter = new GatewayAdapter(
-    buildMockGatewayConfig(),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
+  expect(plan).toStrictEqual({
+    events: [
+      {
+        kind: 'started',
+        agentSessionID: toAgentSessionID('z-1'),
+        nameSource: '/tmp/t.jsonl',
+        transcriptSource: '/tmp/t.jsonl',
+      },
+    ],
+  });
 });
 
 test('it takes inbox messages', () => {

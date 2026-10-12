@@ -23,147 +23,21 @@ function setupTest() {
   return { dir: tmp.dir };
 }
 
-test('it resumes when no transcript was reported', () => {
+test("it reads a session's hook lines as Claude's, with no state across them", () => {
   const adapter = new ClaudeAdapter(
     getAgentEntry(parseConfig({}), 'claude'),
     parseConfig({}),
     buildMockHostServices(),
   );
 
-  expect(adapter.canResume({})).toBeTrue();
-});
-
-test('it resumes when the reported transcript exists', () => {
-  const ctx = setupTest();
-  const transcript = join(ctx.dir, 'transcript.jsonl');
-
-  writeFileSync(transcript, '');
-
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  expect(adapter.canResume({ transcriptSource: transcript })).toBeTrue();
-});
-
-test('it does not resume when the reported transcript is gone', () => {
-  const ctx = setupTest();
-
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
-});
-
-test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  const ev = adapter.normalizeHook({
+  const plan = adapter.planHookEvents({
     atcId: toSessionID('s1'),
-    event: 'Stop',
-
-    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a non-object payload that the hook event's declared shape rules out but a hostile or buggy reporter could still send
-    payload: 'garbage' as unknown as Record<string, unknown>,
+    event: 'SessionEnd',
+    payload: { session_id: 'c-1' },
   });
 
-  expect(ev).toStrictEqual({ kind: 'turn-done' });
-});
-
-test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Stop',
-    payload: { session_id: 42, transcript_path: null, last_assistant_message: ['pong'] },
-  });
-
-  expect(ev).toStrictEqual({ kind: 'turn-done' });
-});
-
-test('it carries the whole last assistant message of a finished turn as its result', () => {
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Stop',
-    payload: { session_id: 'c-1', last_assistant_message: 'x'.repeat(700) },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'turn-done',
-    agentSessionID: toAgentSessionID('c-1'),
-    detail: `${'x'.repeat(599)}…`,
-    result: 'x'.repeat(700),
-  });
-});
-
-test('it marks a permission prompt notification as pending a permission answer', () => {
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Notification',
-    payload: {
-      session_id: 'c-1',
-      message: 'Claude needs your permission to use Bash',
-      notification_type: 'permission_prompt',
-    },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'needs-input',
-    agentSessionID: toAgentSessionID('c-1'),
-    permissionPending: true,
-    message: 'Claude needs your permission to use Bash',
-    detail: 'Claude needs your permission to use Bash',
-  });
-});
-
-test('it marks an idle notification as closing any permission prompt', () => {
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Notification',
-    payload: {
-      session_id: 'c-1',
-      message: 'Claude is waiting for your input',
-      notification_type: 'idle_prompt',
-    },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'needs-input',
-    agentSessionID: toAgentSessionID('c-1'),
-    permissionPending: false,
-    message: 'Claude is waiting for your input',
-    detail: 'Claude is waiting for your input',
+  expect(plan).toStrictEqual({
+    events: [{ kind: 'ended', agentSessionID: toAgentSessionID('c-1') }],
   });
 });
 
@@ -1935,26 +1809,5 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
       command: `"/opt/atc/bin/atc" statusline --agent 'claude'`,
       padding: 0,
     },
-  });
-});
-
-test('it leaves the permission field out of a notification of another type', () => {
-  const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
-    buildMockHostServices(),
-  );
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Notification',
-    payload: { session_id: 'c-1', message: 'Agent finished', notification_type: 'agent_completed' },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'needs-input',
-    agentSessionID: toAgentSessionID('c-1'),
-    message: 'Agent finished',
-    detail: 'Agent finished',
   });
 });
