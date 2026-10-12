@@ -48,9 +48,9 @@ there. Install the release App on `cloud`. cloud's `docs/runbooks/agent-image.md
 
 ## Recovering a release
 
-- **The release PR has no checks.** The App token step failed or the App is not configured, so
-  release-please opened the PR with `GITHUB_TOKEN`, which starts no workflow. Fix the App setup,
-  then close and reopen the PR, which starts its checks.
+- **The release PR has no checks.** `RELEASE_APP_ID` is unset, so the release job skipped the App
+  token step, and release-please opened the PR with `GITHUB_TOKEN`, which starts no workflow. Set up
+  the App, then close and reopen the PR to start its checks.
 - **The release is tagged, but its binaries, formula or pin PR are missing.** Run the release steps
   again for the current version:
 
