@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { buildStubGH } from '@atc/test-utils/build-stub-gh';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { checkSessionScope } from './check-session-scope';
-import { LocalPTYProvider } from './local-pty-provider';
 
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-scope-check-' });

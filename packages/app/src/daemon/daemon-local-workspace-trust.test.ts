@@ -3,6 +3,8 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { buildStubPTYProvider } from '@atc/execution-local/testing/build-stub-pty-provider';
 import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
@@ -11,9 +13,7 @@ import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { buildStubPTYProvider } from '../test-utils/build-stub-pty-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * What a local clone launch needs before its daemon starts: a git fixture

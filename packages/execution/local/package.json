@@ -1,0 +1,20 @@
+{
+  "name": "@atc/execution-local",
+  "private": true,
+  "description": "The local execution provider: sessions run in PTYs on the daemon's own machine, with stub providers for tests under ./testing",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "bun-pty": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "tiny-invariant": "catalog:"
+  }
+}

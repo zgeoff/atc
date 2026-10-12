@@ -3,6 +3,8 @@ import { expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
@@ -15,9 +17,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
 
 // A real daemon whose one target `box` runs on the imp provider over a
 // stub imp port, with the daemon id its lease labels carry.

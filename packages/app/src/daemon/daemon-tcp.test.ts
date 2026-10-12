@@ -5,6 +5,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { collectTargets } from '@atc/config/collect-targets';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { claimDaemonLock } from '@atc/lifecycle/claim-daemon-lock';
 import type { EventMsg } from '@atc/protocol/protocol';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
@@ -17,7 +18,6 @@ import { tryCreateListeners } from '@atc/test-utils/try-create-listeners';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { startDaemon } from './daemon';
-import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * A temp directory for a test that starts its daemon itself, with the paths

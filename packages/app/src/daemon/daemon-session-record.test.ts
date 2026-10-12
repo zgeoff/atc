@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildStubDirProvider } from '@atc/execution-local/testing/build-stub-dir-provider';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
@@ -15,7 +16,6 @@ import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
-import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**

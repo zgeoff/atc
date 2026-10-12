@@ -2,6 +2,8 @@
 import { expect, test } from 'bun:test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { buildStubDirProvider } from '@atc/execution-local/testing/build-stub-dir-provider';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubGH } from '@atc/test-utils/build-stub-gh';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
@@ -10,9 +12,7 @@ import { updateEnv } from '@atc/test-utils/update-env';
 import { buildDirsSource } from '../sources/dirs/build-dirs-source';
 import { buildGitSource } from '../sources/git/build-git-source';
 import { buildGitHubSource } from '../sources/github/build-github-source';
-import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { LocalPTYProvider } from './local-pty-provider';
 
 test('it lists the sources it offers in order in agents.list', async () => {
   const daemon = await startTestDaemon({

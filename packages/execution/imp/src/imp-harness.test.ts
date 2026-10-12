@@ -7,9 +7,9 @@ import { createStubHarnessGuest } from '@atc/test-utils/create-stub-harness-gues
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { ImpHarness } from './imp-harness';
+import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
+import { createStubImpPort } from './testing/create-stub-imp-port';
 
 /**
  * A stub imp port and a temp directory of the test's own.

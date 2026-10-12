@@ -8,7 +8,7 @@ import type {
   HarnessHandle,
   HarnessSpec,
 } from '@atc/plugin-api/execution-provider';
-import { LocalPTYProvider } from '../daemon/local-pty-provider';
+import { LocalPTYProvider } from '../local-pty-provider';
 
 // One provider operation, in the order the daemon called it.
 type StubDirCall =

@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildStubHeldProvider } from '@atc/execution-local/testing/build-stub-held-provider';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
@@ -10,7 +11,6 @@ import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter'
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { buildStubHeldProvider } from '../test-utils/build-stub-held-provider';
 import { restoreFleet } from './restore-fleet';
 import type { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';

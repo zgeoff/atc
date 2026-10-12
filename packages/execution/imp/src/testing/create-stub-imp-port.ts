@@ -29,8 +29,8 @@ import type {
   ImpView,
   PreviousGeneration,
   ResumeResult,
-} from '../daemon/imp-port';
-import { ImpPortError } from '../daemon/imp-port-error';
+} from '../imp-port';
+import { ImpPortError } from '../imp-port-error';
 
 /**
  * Creates an in-process stand-in for impd behind the imp port, calling impd

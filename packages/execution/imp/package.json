@@ -1,0 +1,22 @@
+{
+  "name": "@atc/execution-imp",
+  "private": true,
+  "description": "The imp execution provider: sessions run on imp hosts that impd manages, with its harness, its port to impd, and its credential broker",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@zgeoff/imp-client": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:",
+    "bun-pty": "catalog:",
+    "tiny-invariant": "catalog:"
+  }
+}

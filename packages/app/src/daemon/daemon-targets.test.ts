@@ -2,6 +2,7 @@
 import { expect, test } from 'bun:test';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
@@ -9,7 +10,6 @@ import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-run
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { ImpIdentity } from '../daemon/imp-port';
+import type { ImpIdentity } from '../imp-port';
 
 /**
  * An impd token identity with an arbitrary name that manages the imps

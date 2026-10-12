@@ -101,19 +101,25 @@ test.each([
     'bun-pty outside its owner',
     'packages/daemon/src/a.ts',
     'bun-pty',
-    'bun-pty belongs to @atc/execution-local, @atc/app.',
+    'bun-pty belongs to @atc/execution-local.',
   ],
   [
     'bun-pty in a test helper that is no exception',
     'packages/test-utils/src/start-stub-terminal.ts',
     'bun-pty',
-    'bun-pty belongs to @atc/execution-local, @atc/app.',
+    'bun-pty belongs to @atc/execution-local.',
+  ],
+  [
+    'bun-pty in the app, which no longer owns it',
+    'packages/app/src/a.ts',
+    'bun-pty',
+    'bun-pty belongs to @atc/execution-local.',
   ],
   [
     'the imp client outside its owner',
     'packages/daemon/src/a.ts',
     '@zgeoff/imp-client',
-    '@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app.',
+    '@zgeoff/imp-client belongs to @atc/execution-imp.',
   ],
   [
     'the Claude SDK outside its owner',
@@ -209,7 +215,7 @@ test.each([
     'proper-lockfile',
   ],
   ['bun:sqlite in an e2e journey', 'e2e/a.test.ts', 'bun:sqlite'],
-  ['a confined package in the app that still owns it', 'packages/app/src/a.ts', 'bun-pty'],
+  ['a confined package in the app that still owns it', 'packages/app/src/a.ts', 'kysely'],
 ])('it allows %s', async (_label, file, specifier) => {
   const ctx = setupTest();
 

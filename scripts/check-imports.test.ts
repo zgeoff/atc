@@ -238,7 +238,7 @@ test('it fails on a confined package imported outside the file that owns it', as
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/daemon/local-pty-provider.ts'),
+    join(ctx.dir, 'packages/execution/local/src/local-pty-provider.ts'),
     "import { spawn } from 'bun-pty';\n\nexport const SPAWN = spawn;\n",
   );
 
@@ -259,9 +259,9 @@ test('it fails on a confined package imported outside the file that owns it', as
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
+    stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
     stderr:
-      'confined package: packages/app/src/daemon/imp-provider.ts imports bun-pty, allowed only in packages/app/src/daemon/local-pty-provider.ts, packages/app/src/test-utils/create-stub-imp-port.ts, packages/test-utils/src/start-tui-harness.ts, packages/test-utils/src/create-stub-composer.test.ts\n',
+      'confined package: packages/app/src/daemon/imp-provider.ts imports bun-pty, allowed only in packages/execution/local/src/local-pty-provider.ts, packages/execution/imp/src/testing/create-stub-imp-port.ts, packages/test-utils/src/start-tui-harness.ts, packages/test-utils/src/create-stub-composer.test.ts\n',
   });
 });
 
@@ -269,7 +269,7 @@ test('it fails on a confined package imported outside the source root', async ()
   const ctx = setupTest();
 
   await Bun.write(
-    join(ctx.dir, 'packages/app/src/daemon/imp-client-port.ts'),
+    join(ctx.dir, 'packages/execution/imp/src/imp-client-port.ts'),
     "import { ImpClient } from '@zgeoff/imp-client';\n\nexport const CLIENT = ImpClient;\n",
   );
 
@@ -305,11 +305,11 @@ test('it fails on a confined package imported outside the source root', async ()
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-imports: 4 files, 0 cycles, 3 other findings\n',
+    stdout: 'check-imports: 3 files, 0 cycles, 3 other findings\n',
     stderr: [
-      'confined package: e2e/imp.test.ts imports @zgeoff/imp-client, allowed only in packages/app/src/daemon/imp-client-port.ts',
-      'confined package: scripts/probe.mjs imports @zgeoff/imp-client, allowed only in packages/app/src/daemon/imp-client-port.ts',
-      'confined package: mods/bridge/hooks/register.tsx imports @zgeoff/imp-client, allowed only in packages/app/src/daemon/imp-client-port.ts',
+      'confined package: e2e/imp.test.ts imports @zgeoff/imp-client, allowed only in packages/execution/imp/src/imp-client-port.ts',
+      'confined package: scripts/probe.mjs imports @zgeoff/imp-client, allowed only in packages/execution/imp/src/imp-client-port.ts',
+      'confined package: mods/bridge/hooks/register.tsx imports @zgeoff/imp-client, allowed only in packages/execution/imp/src/imp-client-port.ts',
       '',
     ].join('\n'),
   });

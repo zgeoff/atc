@@ -6,9 +6,9 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubImpd } from '@atc/test-utils/start-stub-impd';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
 import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
+import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
 
 /**
  * An impd stand-in on a real HTTP port.

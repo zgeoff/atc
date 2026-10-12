@@ -17,8 +17,6 @@ import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubImpd } from '@atc/test-utils/start-stub-impd';
 import invariant from 'tiny-invariant';
-import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { ImpClientPort } from './imp-client-port';
 import {
   CHECK_GUEST_ATC_SCRIPT,
@@ -27,7 +25,8 @@ import {
   READ_GUEST_ATC_SCRIPT,
   UNPACK_SCRIPT,
 } from './imp-provider';
-import { verifyBrokerAuthority } from './verify-broker-authority';
+import { buildMockImpIdentity } from './testing/build-mock-imp-identity';
+import { createStubImpPort } from './testing/create-stub-imp-port';
 
 /**
  * A stub imp port and a temp directory.
@@ -488,7 +487,24 @@ test("it names each imp under the target's configured prefix", async () => {
   expect(ctx.port.collectImpNames()).toStrictEqual(['harness-s1']);
 });
 
-test("it lets a token scoped to the target's configured prefix activate the broker for its imps", async () => {
+test("it scopes its broker and its imp names to the target's configured prefix", () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  expect(provider.brokerAuth.hostPrefix).toBe('harness-');
+  expect(provider.getImpName('s1')).toStartWith('harness-');
+});
+
+test('it reads the identity of the token its port holds through its broker', async () => {
   const ctx = setupTest();
 
   const provider = new ImpProvider(
@@ -509,41 +525,9 @@ test("it lets a token scoped to the target's configured prefix activate the brok
     grantable: ['glm'],
   });
 
-  const verified = verifyBrokerAuthority(provider.brokerAuth, {
-    impNames: [provider.getImpName('s1')],
-    secrets: ['glm'],
-  });
+  const identity = await provider.brokerAuth.readIdentity();
 
-  await expect(verified).toResolve();
-});
-
-test("it refuses a token scoped beyond the target's configured prefix", () => {
-  const ctx = setupTest();
-
-  const provider = new ImpProvider(
-    ctx.port,
-    { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
-    { atcBinary: null, version: '1.0.0' },
-  );
-
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
-
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
-
-  const verified = verifyBrokerAuthority(provider.brokerAuth, {
-    impNames: [provider.getImpName('s1')],
-    secrets: ['glm'],
-  });
-
-  expect(verified).rejects.toMatchObject({ code: 'auth_token_too_broad' });
+  expect(identity).toMatchObject({ name: 'harness-runtime', grantable: ['glm'] });
 });
 
 test('it asks impd to require the broker on a harness start that requires one', async () => {

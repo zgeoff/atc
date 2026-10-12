@@ -4,6 +4,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildStubSoftKillProvider } from '@atc/execution-local/testing/build-stub-soft-kill-provider';
 import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
 import { StateStore } from '@atc/store/state-store';
@@ -16,7 +17,6 @@ import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { buildStubSoftKillProvider } from '../test-utils/build-stub-soft-kill-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildPayloadHash } from './build-payload-hash';
 

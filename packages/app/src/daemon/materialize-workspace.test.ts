@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
 import type { CommandSpec } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { StateStore } from '@atc/store/state-store';
@@ -11,7 +12,6 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
-import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { CLAIM_DIR_SCRIPT, VERIFY_SCRIPT, materializeWorkspace } from './materialize-workspace';
 
 async function setupTest() {

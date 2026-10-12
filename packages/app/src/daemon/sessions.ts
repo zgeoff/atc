@@ -14,6 +14,7 @@ import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import type {
   AgentAdapter,
   GuestPaths,
@@ -56,7 +57,6 @@ import { buildSessionLifecycle } from './build-session-lifecycle';
 import { findExecutionRefusal } from './find-execution-refusal';
 import type { BridgeBinding } from './is-binding-current';
 import { loadOAuthStates } from './load-oauth-states';
-import { LocalPTYProvider } from './local-pty-provider';
 import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
 import type { PublishedRecords } from './published-records';

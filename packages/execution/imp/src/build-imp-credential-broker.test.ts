@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { startStubImpdInfo } from '@atc/test-utils/start-stub-impd-info';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { ImpClientPort } from './imp-client-port';
-import { verifyBrokerAuthority } from './verify-broker-authority';
+import { createStubImpPort } from './testing/create-stub-imp-port';
 
 // A broker over a stub imp port that names each host `atc-<key>`, creates
 // it as a plain imp, and destroys it through the port.
@@ -126,7 +125,7 @@ test.each([
   ['false', { sessionOffsets: true, leases: true, grantableTokens: false, secretRebind: false }],
   ['strings', { sessionOffsets: true, leases: true, grantableTokens: 'true', secretRebind: 'yes' }],
 ])(
-  'it refuses an impd whose grant flags are %s after one system info call',
+  'it reads grant flags that are %s as unsupported after one system info call',
   async (_kind, sent) => {
     // An impd stand-in on a real HTTP port that answers every call with
     // system info, for the real client to read.
@@ -143,11 +142,9 @@ test.each([
       destroyImp: (hostKey) => port.destroyImp(`atc-${hostKey}`),
     });
 
-    const refusal = verifyBrokerAuthority(broker, { impNames: ['atc-s1'], secrets: ['glm'] });
+    const features = await broker.readFeatures();
 
-    await Promise.allSettled([refusal]);
-
-    expect(refusal).rejects.toMatchObject({ code: 'auth_impd_too_old' });
+    expect(features).toMatchObject({ grantableTokens: false, secretRebind: false });
     expect(impd.paths).toStrictEqual(['/rpc/system/info']);
   },
 );

@@ -98,12 +98,12 @@ const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
   // harness runs the real client in one, as a terminal does, and the stub
   // composer's raw-mode reads need a real terminal to run in
   'bun-pty': [
-    'packages/app/src/daemon/local-pty-provider.ts',
-    'packages/app/src/test-utils/create-stub-imp-port.ts',
+    'packages/execution/local/src/local-pty-provider.ts',
+    'packages/execution/imp/src/testing/create-stub-imp-port.ts',
     'packages/test-utils/src/start-tui-harness.ts',
     'packages/test-utils/src/create-stub-composer.test.ts',
   ],
-  '@zgeoff/imp-client': ['packages/app/src/daemon/imp-client-port.ts'],
+  '@zgeoff/imp-client': ['packages/execution/imp/src/imp-client-port.ts'],
   '@anthropic-ai/claude-agent-sdk': [
     'packages/harnesses/claude/src/headless/build-claude-query-options.ts',
     'packages/harnesses/claude/src/headless/start-claude-headless-run.ts',

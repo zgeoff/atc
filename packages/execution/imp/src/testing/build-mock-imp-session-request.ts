@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { ImpSessionRequest } from '../daemon/imp-port';
+import type { ImpSessionRequest } from '../imp-port';
 
 /**
  * The request that starts a process on an imp.

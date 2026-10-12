@@ -1,7 +1,7 @@
 import type { TargetConfig } from '@atc/config/collect-targets';
+import { buildStubPTYProvider } from '@atc/execution-local/testing/build-stub-pty-provider';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import type { ExecutionTarget } from '../daemon/build-execution-targets';
-import { buildStubPTYProvider } from './build-stub-pty-provider';
 
 // What a target's provider does in place of the local one's: the
 // capabilities it adds and the host preparation, sleep, and destroy it runs.

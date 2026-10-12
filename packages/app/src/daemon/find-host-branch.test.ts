@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
-import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { findHostBranch } from './find-host-branch';
-import { LocalPTYProvider } from './local-pty-provider';
 
 test('it finds the branch a directory has checked out', async () => {
   const fixture = await createGitFixture({ prefix: 'atc-host-branch-' });

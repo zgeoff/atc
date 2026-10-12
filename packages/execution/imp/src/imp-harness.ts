@@ -8,7 +8,6 @@ import type {
   LaunchTicket,
 } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
-import { sanitizeDetail } from '../shared/sanitize-detail';
 import type {
   ImpExecRequirement,
   ImpPort,
@@ -19,6 +18,7 @@ import type {
   ImpSessionStarted,
   PreviousGeneration,
 } from './imp-port';
+import { sanitizeDetail } from './sanitize-detail';
 
 // What the harness asks of the provider that started it.
 interface ImpHarnessHost {

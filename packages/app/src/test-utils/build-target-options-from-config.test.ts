@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
 import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import { buildStubExecutionProvider } from './build-stub-execution-provider';
 import { buildTargetOptionsFromConfig } from './build-target-options-from-config';
 
 test('it gives each parsed target the provider its kind builds for its id', () => {

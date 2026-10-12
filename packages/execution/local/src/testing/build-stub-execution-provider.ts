@@ -3,7 +3,7 @@ import type {
   ExecutionProvider,
   HarnessSpec,
 } from '@atc/plugin-api/execution-provider';
-import { LocalPTYProvider } from '../daemon/local-pty-provider';
+import { LocalPTYProvider } from '../local-pty-provider';
 
 interface StubExecutionProviderConfig {
   // The provider kind the daemon reports for the target.
