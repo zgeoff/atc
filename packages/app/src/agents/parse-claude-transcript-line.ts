@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core/is-record';
 import { truncate } from '@atc/core/truncate';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
-import type { TranscriptRow, TranscriptToolUse } from './agent-adapter';
+import type { TranscriptRow } from '@atc/protocol/transcript-row';
 
 // One row must stay far under the protocol's line cap.
 const MAX_ROW_TEXT_BYTES = 16_384;
@@ -37,7 +37,7 @@ export function parseClaudeTranscriptLine(line: string): TranscriptRow | null {
 
   const content = message['content'];
   const texts: string[] = [];
-  const tools: TranscriptToolUse[] = [];
+  const tools: TranscriptRow['tools'][number][] = [];
 
   if (typeof content === 'string') {
     texts.push(content);

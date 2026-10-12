@@ -1,4 +1,5 @@
 import type { SessionID } from '@atc/core/session-id';
+import { buildSessionEnv } from '@atc/protocol/build-session-env';
 import { collectCleanEnv } from '../shared/collect-clean-env';
 
 interface HeadlessEnvParams {
@@ -23,10 +24,12 @@ export function buildHeadlessEnv(params: HeadlessEnvParams): Record<string, stri
   return collectCleanEnv(
     {
       ...(params.pluginDir === undefined ? {} : { CLAUDE_CODE_PLUGIN_DIRS: params.pluginDir }),
-      ...(params.sessionID === undefined
-        ? {}
-        : { ATC_SESSION_ID: params.sessionID, ATC_SOCKET: params.socketPath }),
-      ...(params.recordPath === undefined ? {} : { ATC_SESSION_RECORD: params.recordPath }),
+      ...buildSessionEnv({
+        ...(params.sessionID === undefined
+          ? {}
+          : { sessionID: params.sessionID, socket: params.socketPath }),
+        ...(params.recordPath === undefined ? {} : { sessionRecord: params.recordPath }),
+      }),
     },
     params.withheldEnv,
   );

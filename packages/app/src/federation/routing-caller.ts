@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
 import { match } from 'ts-pattern';
-import { DaemonError } from '../protocol/daemon-error';
-import type { DaemonFeature } from '../protocol/daemon-features';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { buildGatewayError } from './build-gateway-error';
 import { buildGatewayResult } from './build-gateway-result';
@@ -34,9 +35,6 @@ interface RoutingCallerOptions {
 }
 
 const FAN_OUT_TIMEOUT_MS = 5000;
-
-// The requests a daemon runs at most once under an idempotency key.
-const KEYED_METHODS: ReadonlySet<string> = new Set(['session.spawn', 'session.message']);
 
 // One routed request as it leaves for its daemon; `key` is null for an
 // unkeyed request.
@@ -204,7 +202,9 @@ export class RoutingCaller {
 
     const picked = route.daemon ?? named ?? this.getDefaultDaemon();
     const rawKey = route.params['idempotencyKey'];
-    const key = typeof rawKey === 'string' && KEYED_METHODS.has(m) ? rawKey : null;
+
+    const key =
+      typeof rawKey === 'string' && PROCEDURE_TRAITS.get(m)?.keyed === true ? rawKey : null;
 
     if (key === null) {
       return this.sendToRoute({ m, route, daemon: picked, required, principal, key: null });

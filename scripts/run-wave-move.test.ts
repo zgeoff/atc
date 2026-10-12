@@ -31,7 +31,7 @@ test('it moves the wave files and points their importers at the package entry', 
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/test-utils/wait-for.ts'),
-    "import { BOOT } from '../daemon/boot';\n\nexport const waitFor = BOOT;\n",
+    'export const waitFor = 1;\n',
   );
 
   await Bun.write(join(ctx.dir, 'packages/app/src/daemon/boot.ts'), 'export const BOOT = 1;\n');
@@ -50,14 +50,14 @@ test('it moves the wave files and points their importers at the package entry', 
 
   expect({ exitCode: moved.exitCode, stdout: moved.stdout, stderr: moved.stderr }).toStrictEqual({
     exitCode: 0,
-    stdout: 'run-wave-move: wave 2, 1 files moved, 2 files rewritten\n',
+    stdout: 'run-wave-move: wave 2, 1 files moved, 1 files rewritten\n',
     stderr: '',
   });
 
   expect(existsSync(join(ctx.dir, 'packages/app/src/test-utils/wait-for.ts'))).toBe(false);
 
   expect(readFileSync(join(ctx.dir, 'packages/test-utils/src/wait-for.ts'), 'utf8')).toBe(
-    "import { BOOT } from '../../app/src/daemon/boot';\n\nexport const waitFor = BOOT;\n",
+    'export const waitFor = 1;\n',
   );
 
   expect(readFileSync(join(ctx.dir, 'packages/app/src/daemon/boot.test.ts'), 'utf8')).toBe(
@@ -203,6 +203,54 @@ test('it moves only the files that land in a package the run names', async () =>
 
   expect(existsSync(join(ctx.dir, 'packages/core/src/session-id.test.ts'))).toBe(true);
   expect(existsSync(join(ctx.dir, 'packages/app/src/shared/config.ts'))).toBe(true);
+});
+
+test('it holds a file that imports a module staying in the app, and each file importing it', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave2\tpath_wave3\nsrc/test-utils/build-mock-entry.ts\ttest-utils\tpackages/app/src/test-utils/build-mock-entry.ts\tpackages/test-utils/src/build-mock-entry.ts\nsrc/test-utils/get-entry.ts\ttest-utils\tpackages/app/src/test-utils/get-entry.ts\tpackages/test-utils/src/get-entry.ts\nsrc/test-utils/read-record.ts\ttest-utils\tpackages/app/src/test-utils/read-record.ts\tpackages/test-utils/src/read-record.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-testmap.tsv'),
+    'test\tpath_wave2\tpath_wave3\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/shared/config.ts'), 'export const CONFIG = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/test-utils/build-mock-entry.ts'),
+    "import { CONFIG } from '../shared/config';\n\nexport const ENTRY = CONFIG;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/test-utils/get-entry.ts'),
+    "import { ENTRY } from './build-mock-entry';\n\nexport const GET = ENTRY;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/test-utils/read-record.ts'),
+    'export const READ = 1;\n',
+  );
+
+  const moved = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'run-wave-move.ts'),
+    '3',
+    ctx.dir,
+  ]);
+
+  expect({ exitCode: moved.exitCode, stdout: moved.stdout, stderr: moved.stderr }).toStrictEqual({
+    exitCode: 0,
+    stdout:
+      'run-wave-move: wave 3, 1 files moved, 0 files rewritten\nheld: packages/app/src/test-utils/build-mock-entry.ts imports a module that stays in packages/app\nheld: packages/app/src/test-utils/get-entry.ts imports a module that stays in packages/app\n',
+    stderr: '',
+  });
+
+  expect(existsSync(join(ctx.dir, 'packages/test-utils/src/read-record.ts'))).toBe(true);
+  expect(existsSync(join(ctx.dir, 'packages/app/src/test-utils/get-entry.ts'))).toBe(true);
 });
 
 test('it refuses a package name the package rules do not hold', async () => {

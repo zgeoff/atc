@@ -1,5 +1,5 @@
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { z } from 'zod';
-import { DaemonError } from '../protocol/daemon-error';
 
 /**
  * The idempotency key a spawn or message tool call may carry, as its input

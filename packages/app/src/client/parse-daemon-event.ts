@@ -1,6 +1,6 @@
+import type { EventMsg } from '@atc/protocol/protocol';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
-import type { EventMsg } from '../protocol/protocol';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 

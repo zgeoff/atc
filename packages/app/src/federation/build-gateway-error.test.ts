@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { buildGatewayError } from './build-gateway-error';
 
 test('it rewrites the effectRef of an uncertain spawn and the id its message quotes', () => {

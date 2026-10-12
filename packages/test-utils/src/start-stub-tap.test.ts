@@ -1,0 +1,78 @@
+import { expect, test } from 'bun:test';
+import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
+import { startStubTap } from '@atc/test-utils/start-stub-tap';
+import { waitFor } from '@atc/test-utils/wait-for';
+import { buildMockAgentAdapter } from '../../app/src/test-utils/build-mock-agent-adapter';
+import { startTestDaemon } from '../../app/src/test-utils/start-test-daemon';
+
+// A daemon whose agent takes messages, one session on it, and a second
+// client to make that session's tap.
+async function setupTest() {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const sessionID = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'one',
+    daemon.dir,
+  );
+
+  const tapClient = await daemon.openClient();
+
+  return { daemon, sessionID, tapClient };
+}
+
+test('it takes every pending message in the order the daemon accepted them', async () => {
+  const ctx = await setupTest();
+
+  const first = await ctx.daemon.client.sendRequest('session.message', {
+    session: ctx.sessionID,
+    text: 'one',
+  });
+
+  const second = await ctx.daemon.client.sendRequest('session.message', {
+    session: ctx.sessionID,
+    text: 'two',
+  });
+
+  const tap = await startStubTap(ctx.tapClient, ctx.sessionID);
+
+  await waitFor(() => {
+    expect(tap.messages.map((event) => event['message'])).toStrictEqual([
+      first['message'],
+      second['message'],
+    ]);
+  });
+});
+
+test('it acks each message it takes', async () => {
+  const ctx = await setupTest();
+
+  const sent = await ctx.daemon.client.sendRequest('session.message', {
+    session: ctx.sessionID,
+    text: 'one',
+  });
+
+  await startStubTap(ctx.tapClient, ctx.sessionID);
+
+  await waitFor(async () => {
+    const got = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(got['status']).toBe('delivered');
+  });
+});
+
+test('it records the end of its subscription', async () => {
+  const ctx = await setupTest();
+  const tap = await startStubTap(ctx.tapClient, ctx.sessionID);
+  const replacement = await ctx.daemon.openClient();
+
+  await replacement.sendRequest('session.tap', { session: ctx.sessionID });
+
+  await waitFor(() => {
+    expect(tap.closed).toStrictEqual([
+      { v: 4, ev: 'InboxClosed', s: ctx.sessionID, reason: 'replaced' },
+    ]);
+  });
+});

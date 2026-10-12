@@ -8,10 +8,12 @@
   },
   "dependencies": {
     "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
     "@faker-js/faker": "catalog:",
     "bun-pty": "catalog:",
     "kysely": "catalog:",
-    "type-fest": "catalog:"
+    "type-fest": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "better-auth": "catalog:",

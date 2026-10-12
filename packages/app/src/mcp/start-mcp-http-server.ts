@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core/is-record';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
-import { MAX_LINE } from '../protocol/protocol';
+import { MAX_LINE } from '@atc/protocol/protocol';
 import { answerAuthorizeRequest } from './answer-authorize-request';
 import { answerConsentRequest } from './answer-consent-request';
 import { answerLoginRequest } from './answer-login-request';

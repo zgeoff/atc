@@ -2,7 +2,7 @@
 // demo recording. `spawn <cwd> <name> <prompt>` starts one session and prints
 // its id; `kill-all` kills every session the daemon hosts.
 import { isRecord } from '@atc/core/is-record';
-import { DaemonClient } from '../packages/app/src/client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { daemonSocketPath } from '../packages/app/src/shared/config';
 import { getBuild } from '../packages/app/src/shared/get-build';
 

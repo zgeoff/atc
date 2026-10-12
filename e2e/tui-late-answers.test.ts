@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { buildStubHeldGH } from '@atc/test-utils/build-stub-held-gh';
 import { buildStubHeldZoxide } from '@atc/test-utils/build-stub-held-zoxide';
 import { buildStubSignedOutGH } from '@atc/test-utils/build-stub-signed-out-gh';
@@ -13,7 +14,6 @@ import { startGitHTTPServer } from '@atc/test-utils/start-git-http-server';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
-import { DaemonClient } from '../packages/app/src/client/daemon-client';
 
 function setupTest() {
   return startTUIHarness();

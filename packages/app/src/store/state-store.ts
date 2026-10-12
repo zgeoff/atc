@@ -12,6 +12,11 @@ import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toDaemonID } from '@atc/core/to-daemon-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import type { PublishedRecord } from '@atc/protocol/published-record';
+import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
 import type {
   CompiledQuery,
@@ -21,10 +26,6 @@ import type {
   SqlBool,
   Transaction,
 } from 'kysely';
-import type { AdapterEvent } from '../protocol/adapter-event';
-import { DaemonError } from '../protocol/daemon-error';
-import type { HookEvent } from '../protocol/hook-event';
-import type { PublishedRecord } from '../protocol/published-record';
 import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
@@ -40,11 +41,7 @@ import type {
   RuntimeAuthGrant,
 } from './runtime-auth-binding';
 import type { TrailEntry } from './trail-entry';
-import type {
-  MaterializationUpdate,
-  SessionWorkspace,
-  WorkspaceMaterialization,
-} from './workspace-materialization';
+import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
 
 // Spelled as the partial index's predicate so SQLite can match them.
 const TRAIL_FILTER = sql<boolean>`kind IS NOT NULL AND kind != 'heartbeat'`;

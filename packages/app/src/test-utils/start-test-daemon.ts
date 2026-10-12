@@ -1,11 +1,13 @@
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import type { EventMsg } from '@atc/protocol/protocol';
+import { assertContractAnswer } from '@atc/test-utils/assert-contract-answer';
+import { assertContractEvent } from '@atc/test-utils/assert-contract-event';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { Socket } from 'bun';
-import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle, DaemonOptions } from '../daemon/daemon';
-import type { EventMsg } from '../protocol/protocol';
 
 /**
  * Where a test daemon keeps its sockets and state, all inside one temp
@@ -133,6 +135,8 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   const openClient = async (hello: Readonly<Record<string, unknown>> = {}) => {
     const client = await DaemonClient.open(paths.socketPath);
 
+    client.onAnswer = assertContractAnswer;
+
     clients.add(client);
 
     await client.sendRequest('daemon.hello', {
@@ -157,6 +161,16 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
 
     await stopping?.stop();
   };
+
+  // An event outside the contract fails the test once the daemon stops. A
+  // throw inside the socket's read would drop the lines after the event.
+  const contractErrors: string[] = [];
+
+  stack.defer(() => {
+    if (contractErrors.length > 0) {
+      throw new Error(contractErrors.join('\n'));
+    }
+  });
 
   stack.defer(stop);
 
@@ -186,6 +200,12 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
 
     client.onEvent = (event) => {
       events.push(event);
+
+      try {
+        assertContractEvent(event);
+      } catch (error) {
+        contractErrors.push(String(error));
+      }
     };
 
     return { daemon, client };
@@ -223,6 +243,8 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
       }
 
       const client = await DaemonClient.open({ hostname: '127.0.0.1', port });
+
+      client.onAnswer = assertContractAnswer;
 
       clients.add(client);
 

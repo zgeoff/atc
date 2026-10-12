@@ -1,6 +1,7 @@
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { z } from 'zod';
-import { DaemonClient } from './client/daemon-client';
-import { DaemonError } from './protocol/daemon-error';
 import { runBridgeTap } from './run-bridge-tap';
 import { daemonSocketPath } from './shared/config';
 import { getBuild } from './shared/get-build';
@@ -52,12 +53,12 @@ export async function runTap(
   socketPath: string = daemonSocketPath,
   io: TapIO = PROCESS_IO,
 ): Promise<void> {
-  const bridge = process.env['ATC_SOCKET'];
+  const inherited = readSessionEnv(process.env);
 
   // Inside a remote host the daemon's own socket is out of reach, and the
   // session bridge serves the tap instead.
-  if (process.env['ATC_BRIDGE'] === '1' && bridge !== undefined && bridge !== '') {
-    await runBridgeTap(bridge, process.env['ATC_OUTBOX'] ?? '', io);
+  if (inherited.bridge === true && inherited.socket !== undefined) {
+    await runBridgeTap(inherited.socket, inherited.outbox ?? '', io);
 
     return;
   }
@@ -113,7 +114,7 @@ export async function runTap(
   };
 
   try {
-    await client.sendHello(getBuild());
+    await client.sendHello(getBuild(), { session: readSessionEnv(process.env).sessionID });
     await client.sendRequest('session.tap', { session });
   } catch (error) {
     io.printError(`atc tap: ${formatError(error)}`);

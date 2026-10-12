@@ -3,10 +3,10 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { startStubImpd } from '@atc/test-utils/start-stub-impd';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
-import { startStubImpd } from '../test-utils/start-stub-impd';
 import { ImpClientPort } from './imp-client-port';
 import { readImpToken } from './read-imp-token';
 

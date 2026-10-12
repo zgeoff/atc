@@ -1,5 +1,6 @@
+import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
+import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
 import { z } from 'zod';
-import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import type { GrantScope } from '../shared/grant-scope';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import { IDEMPOTENCY_KEY_FIELD } from './parse-idempotency-key';
@@ -72,7 +73,7 @@ const SCOPE_FIELD = z
       ),
   })
   .describe(
-    "Worktrees, branches, and pull requests the session may touch beyond its own workspace. atc checks each entry on the session's host, refuses an invalid or unknown entry with scope_invalid naming it, and records the rest in the session's record, which the session reads at $ATC_SESSION_RECORD.",
+    `Worktrees, branches, and pull requests the session may touch beyond its own workspace. atc checks each entry on the session's host, refuses an invalid or unknown entry with scope_invalid naming it, and records the rest in the session's record, which the session reads at $${SESSION_ENV_NAMES.sessionRecord}.`,
   );
 
 const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(

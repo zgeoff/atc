@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { buildStubPeerSocket } from '@atc/test-utils/build-stub-peer-socket';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { PROTOCOL_V } from '../protocol/protocol';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { DaemonConnection } from './daemon-connection';
 

@@ -1,5 +1,6 @@
 import { isRecord } from '@atc/core/is-record';
-import { normalizeHookEventName } from './agents/normalize-hook-event';
+import { normalizeHookEventName } from '@atc/protocol/normalize-hook-event';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { sendReport } from './shared/report';
 
 // Where the reporter reads its event and how it exits: stdin and the
@@ -25,10 +26,11 @@ const PROCESS_IO: HookReportIO = {
  * on.
  */
 export async function runHookReport(agent: string, io: HookReportIO = PROCESS_IO): Promise<void> {
-  const sock = process.env['ATC_SOCKET'];
-  const atcId = process.env['ATC_SESSION_ID'];
+  const session = readSessionEnv(process.env);
+  const sock = session.socket;
+  const atcId = session.sessionID;
 
-  if (sock !== undefined && sock !== '' && atcId !== undefined && atcId !== '') {
+  if (sock !== undefined && atcId !== undefined) {
     const raw = await io.readStdin();
 
     let payload: Record<string, unknown> = {};

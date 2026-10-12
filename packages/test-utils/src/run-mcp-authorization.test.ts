@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '../../app/src/client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../../app/src/mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';

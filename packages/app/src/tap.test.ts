@@ -1,17 +1,17 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
+import { startStubSessionBridge } from '@atc/test-utils/start-stub-session-bridge';
 import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { DaemonClient } from './client/daemon-client';
 import { startDaemon } from './daemon/daemon';
-import type { EventMsg } from './protocol/protocol';
 import { runTap } from './tap';
 import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
-import { spawnNamedSession } from './test-utils/spawn-named-session';
-import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
 
 /**
  * A real daemon listening in a temp directory, and a client that has sent

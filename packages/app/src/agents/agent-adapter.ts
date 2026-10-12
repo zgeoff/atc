@@ -1,9 +1,11 @@
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { SessionID } from '@atc/core/session-id';
-import type { AdapterEvent } from '../protocol/adapter-event';
-import type { DaemonError } from '../protocol/daemon-error';
-import type { HookEvent } from '../protocol/hook-event';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import type { DaemonError } from '@atc/protocol/daemon-error';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
+import type { TranscriptRow } from '@atc/protocol/transcript-row';
 import type { GatewayAuth } from '../shared/check-gateway-auth';
 import type { AuthProfile } from '../shared/collect-auth-profiles';
 import type { GatewayConfig } from '../shared/collect-gateways';
@@ -124,20 +126,6 @@ export interface ProjectSettingsCheck {
   readonly findRefusal: (path: string, content: string) => DaemonError | null;
 }
 
-export interface TranscriptToolUse {
-  readonly name: string;
-  readonly input: string;
-}
-
-export interface TranscriptRow {
-  readonly role: 'user' | 'assistant';
-  readonly text: string;
-  readonly tools: readonly TranscriptToolUse[];
-
-  // Epoch ms from the line's timestamp.
-  readonly at: number | null;
-}
-
 export interface NameUpdate {
   name: string;
   namedBy?: 'agent';
@@ -176,7 +164,7 @@ export interface HeadlessRunRequest {
   readonly withheldEnv?: readonly string[];
 
   // Where the session's published record lies, which the run's process
-  // reads from ATC_SESSION_RECORD.
+  // reads from its session environment.
   readonly recordPath?: string;
 }
 
@@ -212,31 +200,6 @@ export interface AgentProfile {
 
   // The per-session overrides a spawn can pass this agent's CLI.
   readonly spawnOptions: SpawnOptionSpecs;
-}
-
-/**
- * A value worth offering for a spawn option, with the provider model it
- * maps to when the config holds that mapping.
- */
-interface SpawnOptionExample {
-  readonly value: string;
-  readonly resolvesTo: string | null;
-}
-
-/**
- * Whether the agent's CLI takes one spawn option, and which values it does.
- * `values` holds the closed set a value must come from; null takes any
- * well-formed value. `backendEffect` is `applied` when the CLI applies the
- * value itself and `unverified` when the backend behind the CLI may ignore
- * it; null for an option the agent does not take.
- */
-export interface SpawnOptionSpec {
-  readonly supported: boolean;
-  readonly values: readonly string[] | null;
-  readonly examples: readonly SpawnOptionExample[];
-  readonly default: string | null;
-  readonly backendEffect: 'applied' | 'unverified' | null;
-  readonly note: string | null;
 }
 
 export interface SpawnOptionSpecs {

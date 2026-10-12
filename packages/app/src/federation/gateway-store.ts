@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 
 /**
  * The last outcome the gateway saw for a keyed request: `pending` until an

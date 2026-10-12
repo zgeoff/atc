@@ -1,4 +1,4 @@
-import { DaemonError } from '../../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import type { SourceProvider } from '../types';
 import { collectGitHubRepos } from './collect-github-repos';
 import { findGitHubAlternateURL } from './find-github-alternate-url';

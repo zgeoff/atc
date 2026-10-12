@@ -7,6 +7,7 @@ import { toSessionID } from '@atc/core/to-session-id';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
 import { createStubSystemd } from '@atc/test-utils/create-stub-systemd';
+import { getRecords } from '@atc/test-utils/get-records';
 import { getString } from '@atc/test-utils/get-string';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
@@ -17,7 +18,6 @@ import invariant from 'tiny-invariant';
 import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
 import { StateStore } from '../packages/app/src/store/state-store';
 import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
-import { getRecords } from '../packages/app/src/test-utils/get-records';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**
@@ -554,15 +554,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(
-        import.meta.dir,
-        '..',
-        'packages',
-        'app',
-        'src',
-        'test-utils',
-        'run-stub-legacy-daemon.ts',
-      ),
+      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       daemon.socketPath,
       daemon.stateDir,
     ],

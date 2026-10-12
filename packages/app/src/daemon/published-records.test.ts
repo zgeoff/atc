@@ -3,14 +3,14 @@ import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { getRecord } from '@atc/test-utils/get-record';
+import { readJSONRecord } from '@atc/test-utils/read-json-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
-import { getRecord } from '../shared/get-record';
 import { parsePublishedRecord } from '../store/parse-published-record';
 import { StateStore } from '../store/state-store';
-import { readJSONRecord } from '../test-utils/read-json-record';
 import { LocalPTYProvider } from './local-pty-provider';
 import { PLACE_COPY, PublishedRecords } from './published-records';
 

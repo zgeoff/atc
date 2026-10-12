@@ -1,8 +1,10 @@
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '../protocol/daemon-error';
-import type { DaemonFeature } from '../protocol/daemon-features';
-import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { KEYED_METHOD_FEATURES } from '@atc/protocol/keyed-method-features';
+import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
+import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
 import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import { GatewayError } from './gateway-error';
 import type { RegistryDaemon } from './types';
@@ -63,26 +65,6 @@ interface OpenConnection {
 export type ParamsPreparer = (
   params: Readonly<Record<string, unknown>>,
 ) => Readonly<Record<string, unknown>>;
-
-// The requests that only read, so a second run is harmless.
-const READ_ONLY_METHODS: ReadonlySet<string> = new Set([
-  'agents.list',
-  'dirs.list',
-  'events.read',
-  'message.get',
-  'session.get',
-  'session.list',
-  'session.read',
-  'session.resumeCommand',
-  'session.screen',
-]);
-
-// The requests a daemon runs at most once under an idempotency key, and the
-// feature a daemon announces when it does.
-const KEYED_METHODS: ReadonlyMap<string, DaemonFeature> = new Map<string, DaemonFeature>([
-  ['session.spawn', 'spawn.idempotency'],
-  ['session.message', 'message.idempotency'],
-]);
 
 const CONNECT_TIMEOUT_MS = 10_000;
 const RESPONSE_TIMEOUT_MS = 30_000;
@@ -154,8 +136,10 @@ export class DaemonCaller {
       return first.ok;
     }
 
-    const keyFeature = typeof p['idempotencyKey'] === 'string' ? KEYED_METHODS.get(m) : undefined;
-    const repeatable = READ_ONLY_METHODS.has(m) || keyFeature !== undefined;
+    const keyFeature =
+      typeof p['idempotencyKey'] === 'string' ? KEYED_METHOD_FEATURES.get(m) : undefined;
+
+    const repeatable = PROCEDURE_TRAITS.get(m)?.readOnly === true || keyFeature !== undefined;
 
     if (!repeatable) {
       throw this.buildOutcomeUnknown(m);

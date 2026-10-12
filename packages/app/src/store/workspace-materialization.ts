@@ -60,15 +60,3 @@ export interface MaterializationUpdate {
   readonly errorCode?: string;
   readonly materializedAt?: number;
 }
-
-/**
- * What a session's ready workspace was built from: the token-free
- * repository URL, the commit checked out, the branch or tag it came from,
- * and when it became ready.
- */
-export interface SessionWorkspace {
-  readonly repoURL: string;
-  readonly sha: string;
-  readonly ref?: string;
-  readonly materializedAt: number;
-}

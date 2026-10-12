@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
+import type { BridgeSocket } from '@atc/protocol/open-bridge-socket';
 import { z } from 'zod';
-import { openBridgeSocket } from './protocol/open-bridge-socket';
-import type { BridgeSocket } from './protocol/open-bridge-socket';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
   ev: z.literal('InboxMessage'),

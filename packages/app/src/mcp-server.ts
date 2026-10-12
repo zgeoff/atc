@@ -1,8 +1,9 @@
+import { LineDecoder } from '@atc/protocol/line-decoder';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { bootDaemonClient } from './client/boot-daemon';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
 import { requireDaemonFeatures } from './mcp/require-daemon-features';
 import type { FleetCaller, ToolContext } from './mcp/types';
-import { LineDecoder } from './protocol/line-decoder';
 
 /**
  * An MCP server over stdio bridging to the atc daemon: any MCP client —
@@ -27,8 +28,7 @@ export async function runMCPServer(build: string): Promise<void> {
 
   // The server inherits the calling session's id from its environment, so a
   // spawn from inside a session nests under it by default.
-  const inherited = process.env['ATC_SESSION_ID'];
-  const callerSessionID = inherited === undefined || inherited === '' ? null : inherited;
+  const callerSessionID = readSessionEnv(process.env).sessionID ?? null;
 
   const toolContext: ToolContext = {
     callerSessionID,

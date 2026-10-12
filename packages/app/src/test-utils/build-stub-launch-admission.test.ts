@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import type { LaunchTicket } from '../daemon/execution-provider';
-import { DaemonError } from '../protocol/daemon-error';
 import { buildStubLaunchAdmission } from './build-stub-launch-admission';
 
 test('it hands send one ticket before the admission settles', () => {

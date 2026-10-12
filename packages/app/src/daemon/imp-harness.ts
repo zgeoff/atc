@@ -1,7 +1,7 @@
 import { ansi } from '@atc/core/ansi';
 import { isRecord } from '@atc/core/is-record';
 import { truncateSummary } from '@atc/core/truncate-summary';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { sanitizeDetail } from '../shared/sanitize-detail';
 import type {
   HarnessAttachment,

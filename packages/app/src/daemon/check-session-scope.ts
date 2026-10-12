@@ -1,11 +1,11 @@
-import { z } from 'zod';
-import { DaemonError } from '../protocol/daemon-error';
-import type { DeclaredScope } from '../protocol/parse-declared-scope';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
 import type {
   RecordedBranch,
   RecordedPullRequest,
   RecordedWorktree,
-} from '../protocol/published-record';
+} from '@atc/protocol/published-record';
+import { z } from 'zod';
 import { runGH } from '../sources/github/run-gh';
 import type { ExecutionProvider } from './execution-provider';
 import { findHostBranch } from './find-host-branch';

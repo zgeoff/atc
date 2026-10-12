@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildMockPublishedRecord } from '@atc/test-utils/build-mock-published-record';
 import { readQueryPlan } from '@atc/test-utils/read-query-plan';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -13,7 +14,6 @@ import invariant from 'tiny-invariant';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
-import { buildMockPublishedRecord } from '../test-utils/build-mock-published-record';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { StateStore } from './state-store';
 

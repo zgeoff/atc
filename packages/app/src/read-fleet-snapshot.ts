@@ -1,4 +1,5 @@
-import { DaemonClient } from './client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { readStoredRows } from './read-stored-rows';
 import type { StoredRow } from './read-stored-rows';
 import { getBuild } from './shared/get-build';
@@ -24,7 +25,7 @@ export async function readFleetSnapshot(socketPath: string): Promise<StoredRow[]
   }, SNAPSHOT_DEADLINE_MS);
 
   try {
-    await client.sendHello(getBuild());
+    await client.sendHello(getBuild(), { session: readSessionEnv(process.env).sessionID });
 
     return await readStoredRows(client);
   } catch {

@@ -2,11 +2,13 @@ import type { AgentID } from '@atc/core/agent-id';
 import type { DaemonID } from '@atc/core/daemon-id';
 import type { MessageID } from '@atc/core/message-id';
 import type { SessionID } from '@atc/core/session-id';
+import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
+import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
+import type { EventMsg } from '@atc/protocol/protocol';
+import type { PublishedRecord } from '@atc/protocol/published-record';
+import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
+import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
 import type { AgentAdapter, SpawnOptions, SpawnOverrides } from '../agents/agent-adapter';
-import type { DeclaredScope } from '../protocol/parse-declared-scope';
-import type { EventMsg } from '../protocol/protocol';
-import type { PublishedRecord } from '../protocol/published-record';
-import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { TargetConfigError } from '../shared/collect-targets';
 import type { SourceKind, SourceProvider } from '../sources/types';
 import type { FleetEntry } from '../store/fleet-entry';
@@ -22,7 +24,6 @@ import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
-import type { SessionDescriptor } from './sessions';
 import type { TargetAccess, TargetGrant } from './target-access';
 
 export interface SpawnParams {
@@ -244,7 +245,7 @@ export interface DaemonContext {
     plan: () => SpawnParams,
     keyed: KeyedRequest | null,
     access: TargetAccess | null,
-  ) => Promise<Readonly<Record<string, unknown>>>;
+  ) => Promise<DaemonAnswer<'session.spawn'>>;
 
   // Kills a session, or with stopOnly stops one that is live and leaves an
   // exited one alone. Answers what happened to it.
@@ -365,7 +366,7 @@ export interface DaemonContext {
     text: string,
     keyed: KeyedRequest | null,
     access: TargetAccess | null,
-  ) => Promise<Readonly<Record<string, unknown>> | MessageRefusal>;
+  ) => Promise<DaemonAnswer<'session.message'> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
 
   // Makes the client the session's inbox tap. Under an access, the tap

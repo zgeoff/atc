@@ -3,35 +3,37 @@ import type { AgentID } from '@atc/core/agent-id';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
-import { CONTROL_CHARACTER } from '../protocol/control-character';
-import { DaemonError } from '../protocol/daemon-error';
-import { DAEMON_FEATURES } from '../protocol/daemon-features';
-import { decodeCursor } from '../protocol/decode-cursor';
-import { encodeCursor } from '../protocol/encode-cursor';
-import { LineDecoder } from '../protocol/line-decoder';
-import { OutboundQueue } from '../protocol/outbound-queue';
-import type { SocketWriter } from '../protocol/outbound-queue';
-import { parseDeclaredScope } from '../protocol/parse-declared-scope';
-import type { DeclaredScope } from '../protocol/parse-declared-scope';
-import { parseRequestParams } from '../protocol/parse-request-params';
-import type { RequestMethod } from '../protocol/parse-request-params';
+import { CONTROL_CHARACTER } from '@atc/protocol/control-character';
+import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
+import { decodeCursor } from '@atc/protocol/decode-cursor';
+import { encodeCursor } from '@atc/protocol/encode-cursor';
+import { LineDecoder } from '@atc/protocol/line-decoder';
+import { OutboundQueue } from '@atc/protocol/outbound-queue';
+import type { SocketWriter } from '@atc/protocol/outbound-queue';
+import { parseDeclaredScope } from '@atc/protocol/parse-declared-scope';
+import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
+import { parseRequestParams } from '@atc/protocol/parse-request-params';
+import type { RequestMethod } from '@atc/protocol/parse-request-params';
 import {
   MAX_CHUNK,
   MAX_LINE,
   PROTOCOL_V,
   decodeMessage,
   encodeMessage,
-} from '../protocol/protocol';
-import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
+} from '@atc/protocol/protocol';
+import type { ErrorCode, EventMsg, RequestMsg } from '@atc/protocol/protocol';
+import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
 import type { SourceProvider, SourceRequest } from '../sources/types';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from './daemon-context';
 import type { KeyedRequest } from './idempotency-ledger';
+import { isOwnerOnlyMethod } from './is-owner-only-method';
 import type { TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
-import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
 import { TargetAccess } from './target-access';
 
 // The targets a request may use and the namespace of its idempotency keys.
@@ -558,29 +560,29 @@ export class DaemonConnection {
 
     switch (req.m) {
       case 'daemon.ping': {
-        this.sendOk(req.id, {});
+        this.sendOk(req.id, 'daemon.ping', {});
 
         return;
       }
       case 'session.list': {
-        this.sendOk(req.id, { sessions: ctx.collectSessions() });
+        this.sendOk(req.id, 'session.list', { sessions: ctx.collectSessions() });
 
         return;
       }
       case 'agents.list': {
-        this.sendOk(req.id, { ...ctx.collectAgents() });
+        this.sendOk(req.id, 'agents.list', { ...ctx.collectAgents() });
 
         return;
       }
       case 'dirs.list': {
-        this.sendOk(req.id, { dirs: await ctx.collectSpawnDirs(null) });
+        this.sendOk(req.id, 'dirs.list', { dirs: await ctx.collectSpawnDirs(null) });
 
         return;
       }
       case 'fleet.list': {
         const fleet = await ctx.collectFleet();
 
-        this.sendOk(req.id, {
+        this.sendOk(req.id, 'fleet.list', {
           fleet: fleet.filter((entry) => ctx.isSessionVisible(entry.sessionID)),
         });
 
@@ -607,7 +609,7 @@ export class DaemonConnection {
         return;
       }
       case 'daemon.quit': {
-        this.sendOk(req.id, {});
+        this.sendOk(req.id, 'daemon.quit', {});
         ctx.quitDaemon();
 
         return;
@@ -631,7 +633,7 @@ export class DaemonConnection {
             `session '${sessionID}' is a sub-session and takes its pin from its parent`,
           );
         } else if (updated) {
-          this.sendOk(req.id, {});
+          this.sendOk(req.id, 'session.update', {});
         } else {
           this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
         }
@@ -672,7 +674,7 @@ export class DaemonConnection {
         if (forgotten === 'missing') {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else {
-          this.sendOk(req.id, { ...forgotten });
+          this.sendOk(req.id, 'session.forget', { ...forgotten });
         }
 
         return;
@@ -691,7 +693,7 @@ export class DaemonConnection {
         const revoked = await ctx.revokeSessionAuth(id);
 
         if (revoked) {
-          this.sendOk(req.id, { revoked: true });
+          this.sendOk(req.id, 'session.auth.revoke', { revoked: true });
         } else {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         }
@@ -714,7 +716,7 @@ export class DaemonConnection {
         if (revision === null) {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else {
-          this.sendOk(req.id, { revision });
+          this.sendOk(req.id, 'session.auth.rebind', { revision });
         }
 
         return;
@@ -734,7 +736,7 @@ export class DaemonConnection {
         if (command === null) {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else {
-          this.sendOk(req.id, { command });
+          this.sendOk(req.id, 'session.resumeCommand', { command });
         }
 
         return;
@@ -757,7 +759,7 @@ export class DaemonConnection {
         } else if (screen === 'no_screen') {
           this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
         } else {
-          this.sendOk(req.id, { ...screen });
+          this.sendOk(req.id, 'session.screen', { ...screen });
         }
 
         return;
@@ -775,7 +777,7 @@ export class DaemonConnection {
         const result = ctx.ejectSession(sessionID, parsed.data.prompt);
 
         if (result === 'ok') {
-          this.sendOk(req.id, {});
+          this.sendOk(req.id, 'session.eject', {});
         } else if (result === 'unsupported') {
           this.sendErr(req.id, 'unsupported', "this session's agent has no headless handoff");
         } else if (result === 'no_transcript') {
@@ -809,7 +811,7 @@ export class DaemonConnection {
         );
 
         if (adoptResult === 'ok') {
-          this.sendOk(req.id, {});
+          this.sendOk(req.id, 'session.adopt', {});
         } else if (adoptResult === 'no_transcript') {
           this.sendNoTranscript(req.id);
         } else {
@@ -837,7 +839,7 @@ export class DaemonConnection {
         }
 
         ctx.detachSession(this, parsed.data.session);
-        this.sendOk(req.id, {});
+        this.sendOk(req.id, 'session.detach', {});
 
         return;
       }
@@ -890,7 +892,7 @@ export class DaemonConnection {
           return;
         }
 
-        this.sendOk(req.id, {
+        this.sendOk(req.id, 'fleet.restore', {
           restored: await ctx.restoreFleet(parsed.data.cols, parsed.data.rows),
         });
 
@@ -964,7 +966,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, { record });
+    this.sendOk(req.id, 'session.scope.add', { record });
   }
 
   private async applySpawn(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -1103,22 +1105,18 @@ export class DaemonConnection {
 
     const spawned = await ctx.spawnSession(plan, keyed, null);
 
-    const session = spawned['session'];
-
-    const sessionID =
-      isRecord(session) && typeof session['id'] === 'string' ? toSessionID(session['id']) : null;
-
-    const grant = sessionID === null ? null : ctx.findSessionGrant(sessionID);
+    const sessionID = toSessionID(spawned.session.id);
+    const grant = ctx.findSessionGrant(sessionID);
 
     // A live session whose tree left the view before the answer goes out
     // gets the refusal a replay out of reach gets, holding no part of it.
     // A replayed session no longer live was checked against its fleet row
     // by the replay itself.
-    if (sessionID !== null && grant !== null && !ctx.isSessionVisible(sessionID)) {
+    if (grant !== null && !ctx.isSessionVisible(sessionID)) {
       throw buildTargetForbiddenError(grant.target);
     }
 
-    this.sendOk(req.id, spawned);
+    this.sendOk(req.id, 'session.spawn', spawned);
   }
 
   // Lists one source's candidates for a spawn to the request's target.
@@ -1142,7 +1140,11 @@ export class DaemonConnection {
       resolved.request,
     );
 
-    this.sendOk(req.id, { source: source.id, scope: listed.scope, candidates: listed.candidates });
+    this.sendOk(req.id, 'sources.list', {
+      source: source.id,
+      scope: listed.scope,
+      candidates: listed.candidates,
+    });
   }
 
   // Reads typed input through one source for a spawn to the request's
@@ -1160,7 +1162,7 @@ export class DaemonConnection {
 
     const interpretation = await resolved.source.interpret(parsed.data.input, resolved.request);
 
-    this.sendOk(req.id, { ...interpretation });
+    this.sendOk(req.id, 'sources.interpret', { ...interpretation });
   }
 
   // The source a request asks for and the request it serves, so a principal
@@ -1214,7 +1216,7 @@ export class DaemonConnection {
       throw new DaemonError(access.code, access.message, detail);
     }
 
-    this.sendOk(req.id, {
+    this.sendOk(req.id, 'git.probe', {
       url: access.url,
       head: access.head,
       refs: access.refs,
@@ -1252,7 +1254,7 @@ export class DaemonConnection {
 
     const dims = ctx.getEffectiveDims(sessionID);
 
-    this.sendOk(req.id, { cols: dims.cols, rows: dims.rows });
+    this.sendOk(req.id, 'session.attach', { cols: dims.cols, rows: dims.rows });
   }
 
   private applyInput(req: RequestMsg, ctx: DaemonContext): void {
@@ -1266,7 +1268,12 @@ export class DaemonConnection {
 
     const sessionID = parsed.data.session;
 
-    this.sendInputResult(req, sessionID, ctx.writeSessionInput(sessionID, parsed.data.d));
+    this.sendInputResult(
+      req,
+      'session.input',
+      sessionID,
+      ctx.writeSessionInput(sessionID, parsed.data.d),
+    );
   }
 
   private async applySubmit(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -1282,11 +1289,12 @@ export class DaemonConnection {
 
     const result = await ctx.writeSessionLine(sessionID, parsed.data.text);
 
-    this.sendInputResult(req, sessionID, result);
+    this.sendInputResult(req, 'session.submit', sessionID, result);
   }
 
   private sendInputResult(
     req: RequestMsg,
+    method: 'session.input' | 'session.submit',
     sessionID: SessionID,
     result: 'busy' | 'ok' | 'missing' | 'dead' | 'permission_pending',
   ): void {
@@ -1322,7 +1330,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, {});
+    this.sendOk(req.id, method, {});
   }
 
   private applyResize(req: RequestMsg, ctx: DaemonContext): void {
@@ -1342,7 +1350,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, {});
+    this.sendOk(req.id, 'session.resize', {});
   }
 
   private applyPermissionRespond(req: RequestMsg, ctx: DaemonContext): void {
@@ -1360,7 +1368,7 @@ export class DaemonConnection {
 
     switch (result) {
       case 'ok': {
-        this.sendOk(req.id, {});
+        this.sendOk(req.id, 'permission.respond', {});
 
         return;
       }
@@ -1399,7 +1407,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, { ...record });
+    this.sendOk(req.id, 'session.get', { ...record });
   }
 
   private async applySessionRead(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -1437,7 +1445,7 @@ export class DaemonConnection {
         `session '${id}' runs an agent whose transcript atc cannot read`,
       );
     } else {
-      this.sendOk(req.id, {
+      this.sendOk(req.id, 'session.read', {
         rows: read.page.rows,
         cursor: encodeCursor({ kind: 'transcript', path: read.path, offset: read.page.offset }),
         more: read.page.more,
@@ -1482,7 +1490,7 @@ export class DaemonConnection {
     const last = events.at(-1);
 
     // A cursor always comes back so a client can long-poll from an empty trail.
-    this.sendOk(req.id, {
+    this.sendOk(req.id, 'events.read', {
       events,
       cursor: last === undefined ? encodeCursor({ kind: 'events', id: afterID ?? 0 }) : last.cursor,
       more: page.more,
@@ -1514,7 +1522,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, { ...read.view });
+    this.sendOk(req.id, 'note.get', { ...read.view });
   }
 
   private async applySessionMessage(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -1572,7 +1580,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, result);
+    this.sendOk(req.id, 'session.message', result);
   }
 
   private applyTap(req: RequestMsg, ctx: DaemonContext): void {
@@ -1599,7 +1607,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, {});
+    this.sendOk(req.id, 'session.tap', {});
   }
 
   private async applyMessageGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -1629,7 +1637,7 @@ export class DaemonConnection {
       .filter((sibling) => ctx.isSessionVisible(sibling.atcID))
       .map((sibling) => sibling.id);
 
-    this.sendOk(req.id, {
+    this.sendOk(req.id, 'message.get', {
       message: record.id,
       session: view.session,
       from: record.from,
@@ -1670,7 +1678,7 @@ export class DaemonConnection {
       return;
     }
 
-    this.sendOk(req.id, { message: result.id, status: result.status });
+    this.sendOk(req.id, 'message.ack', { message: result.id, status: result.status });
   }
 
   private async applyKill(req: RequestMsg, ctx: DaemonContext): Promise<void> {
@@ -1694,7 +1702,7 @@ export class DaemonConnection {
 
     const answer = stopOnly ? { stopped: outcome === 'stopped' } : {};
 
-    this.sendOk(req.id, answer);
+    this.sendOk(req.id, 'session.kill', answer);
   }
 
   private async applySessionVerb(
@@ -1715,7 +1723,7 @@ export class DaemonConnection {
     const ok = await verb(id);
 
     if (ok) {
-      this.sendOk(req.id, {});
+      this.sendOk(req.id, method, {});
     } else {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
     }
@@ -1848,7 +1856,7 @@ export class DaemonConnection {
   }
 
   private async sendHelloOk(id: number): Promise<void> {
-    this.sendOk(id, {
+    this.sendOk(id, 'daemon.hello', {
       daemon: this.ctx.build,
       daemonID: this.ctx.daemonID,
       limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
@@ -1861,7 +1869,7 @@ export class DaemonConnection {
   // An answer the full queue refuses ends the connection, as an event does,
   // so the client sees its request fail rather than wait for an answer
   // that never comes.
-  private sendOk(id: number, ok: Readonly<Record<string, unknown>>): void {
+  private sendOk<M extends RequestMethod>(id: number, _method: M, ok: DaemonAnswer<M>): void {
     if (!this.queue.send(encodeMessage({ v: PROTOCOL_V, id, ok }))) {
       this.peer.end();
     }
@@ -1892,15 +1900,8 @@ export class DaemonConnection {
   }
 }
 
-// Whether a request method is open to the daemon's owner alone. A method
-// the protocol does not define is not: it runs as no request and is
-// answered as unknown.
-function isOwnerOnlyMethod(method: string): boolean {
-  return isRequestMethod(method) && REQUEST_ACCESS_CLASSES[method] === 'owner';
-}
-
 function isRequestMethod(method: string): method is RequestMethod {
-  return Object.hasOwn(REQUEST_ACCESS_CLASSES, method);
+  return Object.hasOwn(REQUEST_PARAM_SCHEMAS, method);
 }
 
 // The token of a handshake's `auth: { scheme: "bearer", token }`, or null

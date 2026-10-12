@@ -7,6 +7,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
     "@better-auth/mcp": "catalog:",
     "@better-auth/oauth-provider": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",

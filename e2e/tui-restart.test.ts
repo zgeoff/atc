@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
-import { PROTOCOL_V } from '../packages/app/src/protocol/protocol';
 import { StateStore } from '../packages/app/src/store/state-store';
 import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
 
@@ -40,15 +40,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(
-        import.meta.dir,
-        '..',
-        'packages',
-        'app',
-        'src',
-        'test-utils',
-        'run-stub-legacy-daemon.ts',
-      ),
+      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       socketPath,
       stateDir,
     ],

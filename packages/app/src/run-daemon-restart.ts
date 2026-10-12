@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { collectRestartEnv } from './collect-restart-env';
 import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
@@ -45,7 +46,7 @@ export async function runDaemonRestart(
   options: DaemonRestartOptions,
   clock: Clock = systemClock,
 ): Promise<number> {
-  const callerSession = process.env['ATC_SESSION_ID'] ?? null;
+  const callerSession = readSessionEnv(process.env).sessionID ?? null;
 
   const plan = await collectRestartPlan(callerSession, clock);
 

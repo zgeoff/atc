@@ -1,4 +1,4 @@
-import type { EventMsg } from '../protocol/protocol';
+import type { EventMsg } from '@atc/protocol/protocol';
 import type { HookEntry, HooksConfig } from '../shared/collect-hooks';
 
 /**

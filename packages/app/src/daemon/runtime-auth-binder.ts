@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import type { SessionID } from '@atc/core/session-id';
 import { systemClock } from '@atc/core/system-clock';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import type { RuntimeAuthBinding, RuntimeAuthGrant } from '../store/runtime-auth-binding';
 import type { StateStore } from '../store/state-store';
 import type { BrokerAuthHost } from './broker-auth-host';

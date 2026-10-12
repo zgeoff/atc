@@ -7,8 +7,8 @@ import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
 import { toAgentID } from '@atc/core/to-agent-id';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { z } from 'zod';
-import type { SessionWorkspace } from './workspace-materialization';
 
 // One fleet row. The atc session id keys it and stays the same for the
 // session's whole life, across daemon restarts and fleet restores.

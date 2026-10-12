@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { readJSONRecord } from '@atc/test-utils/read-json-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
 import { startStubUnansweringUnixListener } from '@atc/test-utils/start-stub-unanswering-unix-listener';
 import { startDaemon } from '../daemon/daemon';
-import { PROTOCOL_V } from '../protocol/protocol';
 import { getBuild } from '../shared/get-build';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { readJSONRecord } from '../test-utils/read-json-record';
-import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { bootDaemonClient } from './boot-daemon';
 
 /**
@@ -188,7 +188,7 @@ test('it leaves a daemon on another protocol running and rejects with both build
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
+      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -257,7 +257,7 @@ test('it stops a daemon on another protocol and boots its own build when the cal
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
+      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -315,7 +315,7 @@ test('it leaves a daemon on another protocol running and rejects when the caller
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
+      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -382,7 +382,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
+      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],

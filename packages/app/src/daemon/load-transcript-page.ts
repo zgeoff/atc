@@ -1,4 +1,4 @@
-import type { TranscriptRow } from '../agents/agent-adapter';
+import type { TranscriptRow } from '@atc/protocol/transcript-row';
 
 export interface TranscriptPosition {
   readonly path: string;

@@ -16,8 +16,7 @@
         "src/gateway.ts",
         "src/**/*.test.ts",
         "src/test-utils/run-stub-source-daemon.ts",
-        "src/test-utils/run-listener-daemon.ts",
-        "src/test-utils/run-stub-legacy-daemon.ts"
+        "src/test-utils/run-listener-daemon.ts"
       ],
       "project": ["src/**/*.ts"]
     },

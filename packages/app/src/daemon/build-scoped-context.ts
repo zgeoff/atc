@@ -1,6 +1,6 @@
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import type { DaemonContext } from './daemon-context';

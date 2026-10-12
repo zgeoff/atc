@@ -1,4 +1,5 @@
-import { DaemonClient } from './client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { daemonRecordFile, daemonSocketPath } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 
@@ -39,7 +40,7 @@ async function tryReadDaemonID(socketPath: string, build: string): Promise<strin
   }
 
   try {
-    const hello = await client.sendHello(build);
+    const hello = await client.sendHello(build, { session: readSessionEnv(process.env).sessionID });
 
     const daemonID = hello['daemonID'];
 

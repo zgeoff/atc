@@ -1,5 +1,5 @@
+import type { PublishedRecord } from '@atc/protocol/published-record';
 import { z } from 'zod';
-import type { PublishedRecord } from '../protocol/published-record';
 
 const NULLABLE_STRING = z.string().nullable();
 

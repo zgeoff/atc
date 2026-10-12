@@ -1,4 +1,4 @@
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 

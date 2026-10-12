@@ -6,6 +6,7 @@
       "name": "atc",
       "devDependencies": {
         "@atc/core": "workspace:*",
+        "@atc/protocol": "workspace:*",
         "@atc/test-utils": "workspace:*",
         "@commitlint/cli": "catalog:",
         "@stylistic/eslint-plugin": "catalog:",
@@ -31,6 +32,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "catalog:",
         "@atc/core": "workspace:*",
+        "@atc/protocol": "workspace:*",
         "@better-auth/mcp": "catalog:",
         "@better-auth/oauth-provider": "catalog:",
         "@modelcontextprotocol/sdk": "catalog:",
@@ -65,14 +67,27 @@
         "@atc/test-utils": "workspace:*",
       },
     },
+    "packages/protocol": {
+      "name": "@atc/protocol",
+      "dependencies": {
+        "@atc/core": "workspace:*",
+        "@orpc/contract": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+      },
+    },
     "packages/test-utils": {
       "name": "@atc/test-utils",
       "dependencies": {
         "@atc/core": "workspace:*",
+        "@atc/protocol": "workspace:*",
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
         "kysely": "catalog:",
         "type-fest": "catalog:",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "better-auth": "catalog:",
@@ -101,6 +116,7 @@
     "@commitlint/cli": "21.2.0",
     "@faker-js/faker": "10.6.0",
     "@modelcontextprotocol/sdk": "1.31.0",
+    "@orpc/contract": "1.15.4",
     "@stylistic/eslint-plugin": "5.10.0",
     "@tsconfig/strictest": "2.0.8",
     "@types/bun": "1.4.2",
@@ -154,6 +170,8 @@
     "@atc/app": ["@atc/app@workspace:packages/app"],
 
     "@atc/core": ["@atc/core@workspace:packages/core"],
+
+    "@atc/protocol": ["@atc/protocol@workspace:packages/protocol"],
 
     "@atc/test-utils": ["@atc/test-utils@workspace:packages/test-utils"],
 

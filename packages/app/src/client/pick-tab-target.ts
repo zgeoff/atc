@@ -1,5 +1,5 @@
-import type { SessionState } from '../protocol/session-state';
-import { sortSessionViews } from '../protocol/sort-session-views';
+import type { SessionState } from '@atc/protocol/session-state';
+import { sortSessionViews } from '@atc/protocol/sort-session-views';
 
 interface TabCandidate {
   readonly id: string;

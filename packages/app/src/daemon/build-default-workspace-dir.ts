@@ -1,8 +1,8 @@
 import { posix } from 'node:path';
 import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
 import { isHomeRelative } from '@atc/core/is-home-relative';
-import { DaemonError } from '../protocol/daemon-error';
-import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
 
 type GitWorkspaceSource = Extract<SpawnWorkspaceSource, { kind: 'git' }>;
 

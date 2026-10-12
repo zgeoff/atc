@@ -1,4 +1,4 @@
-import type { RecordedScope } from '../protocol/published-record';
+import type { RecordedScope } from '@atc/protocol/published-record';
 import type { CheckedScope } from './check-session-scope';
 
 /**

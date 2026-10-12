@@ -8,20 +8,20 @@ import type { SessionID } from '@atc/core/session-id';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
 import { truncateDetail } from '@atc/core/truncate-detail';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import { normalizeHookEventName } from '@atc/protocol/normalize-hook-event';
+import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
 import { z } from 'zod';
-import type { AdapterEvent } from '../protocol/adapter-event';
-import type { HookEvent } from '../protocol/hook-event';
 import type { AgentEntry } from '../shared/collect-agents';
 import type {
   AgentAdapter,
   AgentProfile,
   NameUpdate,
   ResumeCheck,
-  SpawnOptionSpec,
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';
-import { normalizeHookEventName } from './normalize-hook-event';
 import { planPastedLineInput } from './plan-pasted-line-input';
 import { resolveAgentHome } from './resolve-agent-home';
 

@@ -1,6 +1,17 @@
 import { expect, test } from 'bun:test';
 import { collectRestartEnv } from './collect-restart-env';
 
+test('it drops the bridge flag and the outbox of a session inside a remote host', () => {
+  const env = collectRestartEnv({
+    HOME: '/home/u',
+    ATC_SOCKET: '/run/bridge.sock',
+    ATC_BRIDGE: '1',
+    ATC_OUTBOX: '/run/outbox',
+  });
+
+  expect(env).toStrictEqual({ HOME: '/home/u' });
+});
+
 test('it drops the session, record, and socket variables and the entries without a value', () => {
   const env = collectRestartEnv({
     HOME: '/home/u',

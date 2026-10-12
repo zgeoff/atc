@@ -1,6 +1,6 @@
-import { encodeCursor } from '../protocol/encode-cursor';
+import { encodeCursor } from '@atc/protocol/encode-cursor';
+import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
 import type { StoredNote } from '../store/state-store';
-import type { SessionDescriptor } from './sessions';
 
 /**
  * One note as `note.get` returns it: the cursor of its event, when it

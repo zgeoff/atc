@@ -2,22 +2,22 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubCodex } from '@atc/test-utils/create-stub-codex';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
 import { createStubGrok } from '@atc/test-utils/create-stub-grok';
+import { getRecord } from '@atc/test-utils/get-record';
 import { getString } from '@atc/test-utils/get-string';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import type { EventMsg } from '../packages/app/src/protocol/protocol';
-import { getRecord } from '../packages/app/src/shared/get-record';
+import { waitForEvent } from '@atc/test-utils/wait-for-event';
 import { StateStore } from '../packages/app/src/store/state-store';
 import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
-import { waitForEvent } from '../packages/app/src/test-utils/wait-for-event';
 
 /**
  * A home with stub Claude, Grok, and Codex CLIs and an empty config

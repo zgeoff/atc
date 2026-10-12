@@ -1,7 +1,7 @@
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import type { EffectTarget, IdempotencyRecord } from '../store/idempotency-record';
 import type { StateStore } from '../store/state-store';
 import { EffectRemainsError } from './effect-remains-error';

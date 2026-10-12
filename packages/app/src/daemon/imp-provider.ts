@@ -3,9 +3,11 @@ import { gzip } from 'node:zlib';
 import { buildTarArchive } from '@atc/core/build-tar-archive';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
+import { buildSessionEnv } from '@atc/protocol/build-session-env';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { LineDecoder } from '@atc/protocol/line-decoder';
+import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
 import pkg from '../../package.json';
-import { DaemonError } from '../protocol/daemon-error';
-import { LineDecoder } from '../protocol/line-decoder';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildImpName } from './build-imp-name';
@@ -354,7 +356,7 @@ export class ImpProvider implements ExecutionProvider {
           ...buildGuestEnv(spec.env),
           ...(reporter === null
             ? {}
-            : { ATC_SOCKET: reporter.path, ATC_BRIDGE: '1', ATC_OUTBOX: reporter.outbox }),
+            : buildSessionEnv({ socket: reporter.path, bridge: true, outbox: reporter.outbox })),
         },
         cwd: spec.cwd,
         cols: spec.cols,
@@ -882,7 +884,9 @@ function findOwnLinuxBinary(): string | null {
 // terminal, locale, and PATH, never the daemon's environment. The daemon's
 // reporter socket path means nothing inside the imp.
 function buildGuestEnv(env: Readonly<Record<string, string>>): Record<string, string> {
-  const own = Object.fromEntries(Object.entries(env).filter(([key]) => key !== 'ATC_SOCKET'));
+  const own = Object.fromEntries(
+    Object.entries(env).filter(([key]) => key !== SESSION_ENV_NAMES.socket),
+  );
 
   return { TERM: 'xterm-256color', LANG: 'C.UTF-8', PATH: GUEST_PATH, ...own };
 }
