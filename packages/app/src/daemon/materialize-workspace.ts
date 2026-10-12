@@ -15,7 +15,7 @@ import { expandGitShorthand } from '../workspace/expand-git-shorthand';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
 import type { GitIdentity } from '../workspace/read-host-git-identity';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
-import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { resolveRemoteRef } from '../workspace/resolve-remote-ref';
@@ -828,7 +828,6 @@ async function writeGitIdentity(
 
 // The provider runs commands in its own environment, so the verify unsets
 // every variable that could point git at another repository first.
-const VERIFY_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
 
 // Prints the commit HEAD resolves to and a NUL, then lists every tracked
 // file whose content differs from HEAD, so a file the unpack left out or
@@ -843,7 +842,7 @@ async function verifyTargetHead(
   sha: string,
 ): Promise<void> {
   const verified = await deps.requireProvider('run').runCommand({
-    argv: [...VERIFY_ENV, 'sh', '-c', VERIFY_SCRIPT],
+    argv: [...REPOSITORY_ENV_UNSET_ARGV, 'sh', '-c', VERIFY_SCRIPT],
     cwd: landing.dir,
     host: landing.host,
   });

@@ -32,7 +32,7 @@ import { socketPath, statusFile } from '../shared/config';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
-import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
@@ -281,7 +281,6 @@ const ABSENT_DIR_EXIT = 3;
 
 // Runs git on the directory it starts in, whatever repository the daemon's
 // environment pins git to.
-const GIT_ENV_ARGV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
 const MAX_SETTINGS_BYTES = 1_048_576;
 
 // A readied host's harness plan, and the auth attempt that provisioned the
@@ -2518,7 +2517,7 @@ export class SessionManager {
 
     const found = await provider.runCommand({
       argv: [
-        ...GIT_ENV_ARGV,
+        ...REPOSITORY_ENV_UNSET_ARGV,
         'sh',
         '-c',
         READ_PROJECT_SETTINGS_SCRIPT,

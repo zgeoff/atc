@@ -1,3 +1,4 @@
+import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 import type { CommandResult, ExecutionProvider } from './execution-provider';
 
@@ -8,7 +9,6 @@ const GIT_OPTIONS = ['-c', 'safe.directory=*', '-c', 'core.fsmonitor=false'];
 
 // A remote host runs git without the variables that would point it at
 // another repository than the directory it is given.
-const CLEAN_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
 
 /**
  * Runs git against a directory on a session's host and returns what it
@@ -24,7 +24,7 @@ export async function runHostGit(
 ): Promise<CommandResult> {
   if (provider.remote) {
     return provider.runCommand({
-      argv: [...CLEAN_ENV, 'git', ...GIT_OPTIONS, '-C', dir, ...args],
+      argv: [...REPOSITORY_ENV_UNSET_ARGV, 'git', ...GIT_OPTIONS, '-C', dir, ...args],
       cwd: '/',
       host,
     });
