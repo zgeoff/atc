@@ -4,10 +4,10 @@ import { sql } from 'kysely';
 import type { Generated, Kysely } from 'kysely';
 import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
 import type { Migration, MigrationProvider, MigrationResultSet } from 'kysely/migration';
-import type { IdempotencyState } from './idempotency-record';
-import type { MessageStatus } from './message-record';
-import type { RuntimeAuthBindingState, RuntimeAuthGrantPhase } from './runtime-auth-binding';
-import type { MaterializationPhase } from './workspace-materialization';
+import type { IdempotencyState } from '../idempotency-record';
+import type { MessageStatus } from '../message-record';
+import type { RuntimeAuthBindingState, RuntimeAuthGrantPhase } from '../runtime-auth-binding';
+import type { MaterializationPhase } from '../workspace-materialization';
 
 interface FleetTable {
   session_id: string;

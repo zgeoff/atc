@@ -27,6 +27,8 @@ import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
 import type { SessionState } from '@atc/protocol/session-state';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { sortSessionViews } from '@atc/protocol/sort-session-views';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import type { FleetEntry, FleetEntryUpdate, FleetStore } from '@atc/store/fleet-entry';
 import type {
   AgentAdapter,
   GuestPaths,
@@ -36,14 +38,12 @@ import type {
   SpawnPlan,
 } from '../agents/agent-adapter';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
-import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
-import { buildTargetIdentity } from './build-target-identity';
 import { EffectRemainsError } from './effect-remains-error';
 import type {
   ExecutionCapability,

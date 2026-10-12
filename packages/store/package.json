@@ -1,0 +1,20 @@
+{
+  "name": "@atc/store",
+  "private": true,
+  "description": "atc's SQLite state: the Kysely driver and opener, the migration ladder, and the stores over the state database",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "kysely": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:",
+    "tiny-invariant": "catalog:"
+  }
+}

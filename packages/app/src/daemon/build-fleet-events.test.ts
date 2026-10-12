@@ -3,9 +3,9 @@ import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { decodeCursor } from '@atc/protocol/decode-cursor';
+import { buildMockStoredEvent } from '@atc/store/testing/build-mock-stored-event';
 import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
 import invariant from 'tiny-invariant';
-import { buildMockStoredEvent } from '../test-utils/build-mock-stored-event';
 import { buildFleetEvents } from './build-fleet-events';
 
 test('it names an event by the live session holding its agent session id', () => {

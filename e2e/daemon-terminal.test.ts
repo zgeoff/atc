@@ -3,6 +3,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubCodex } from '@atc/test-utils/create-stub-codex';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
@@ -15,8 +17,6 @@ import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { waitForEvent } from '@atc/test-utils/wait-for-event';
-import { StateStore } from '../packages/app/src/store/state-store';
-import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**

@@ -1,6 +1,6 @@
 import { toSessionID } from '@atc/core/to-session-id';
 import { faker } from '@faker-js/faker';
-import type { StoredEvent } from '../store/state-store';
+import type { StoredEvent } from '../state-store';
 
 /**
  * A row of the event trail as the store reads it back: a `turn-done` event

@@ -26,20 +26,20 @@ import type {
   SqlBool,
   Transaction,
 } from 'kysely';
-import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
 import { parsePublishedRecord } from './parse-published-record';
-import { runMigrations } from './run-migrations';
-import type { StateStoreSchema } from './run-migrations';
 import type {
   RuntimeAuthBinding,
   RuntimeAuthBindingUpdate,
   RuntimeAuthGrant,
 } from './runtime-auth-binding';
+import { BunSqliteDriver } from './sqlite/bun-sqlite-driver';
+import { runMigrations } from './sqlite/run-migrations';
+import type { StateStoreSchema } from './sqlite/run-migrations';
 import type { TrailEntry } from './trail-entry';
 import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
 

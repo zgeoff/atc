@@ -11,11 +11,11 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { CompiledQuery } from 'kysely';
 import invariant from 'tiny-invariant';
-import { buildTargetIdentity } from '../daemon/build-target-identity';
-import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
-import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
-import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { buildTargetIdentity } from './build-target-identity';
 import { StateStore } from './state-store';
+import { buildMockFleetEntry } from './testing/build-mock-fleet-entry';
+import { buildMockMessageRecord } from './testing/build-mock-message-record';
+import { createMigratedStateDB } from './testing/create-migrated-state-db';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-store-');

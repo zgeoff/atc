@@ -1,7 +1,7 @@
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { faker } from '@faker-js/faker';
-import type { MessageRecord } from '../store/message-record';
+import type { MessageRecord } from '../message-record';
 
 type MessageRecordOverrides = {
   readonly [K in keyof MessageRecord]?: MessageRecord[K] | undefined;

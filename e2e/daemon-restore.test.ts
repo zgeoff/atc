@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
 import { createStubGrok } from '@atc/test-utils/create-stub-grok';
@@ -19,8 +21,6 @@ import { waitFor } from '@atc/test-utils/wait-for';
 import { waitForEvent } from '@atc/test-utils/wait-for-event';
 import invariant from 'tiny-invariant';
 import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
-import { StateStore } from '../packages/app/src/store/state-store';
-import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**

@@ -2,14 +2,14 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
 import { buildStubLog } from '@atc/test-utils/build-stub-log';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { AgentAdapter } from '../agents/agent-adapter';
-import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
-import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { ImpProvider } from './imp-provider';
 import { restoreFleet } from './restore-fleet';

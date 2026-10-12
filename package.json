@@ -90,6 +90,7 @@
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atc/store": "workspace:*",
     "@atc/test-utils": "workspace:*",
     "@commitlint/cli": "catalog:",
     "@stylistic/eslint-plugin": "catalog:",

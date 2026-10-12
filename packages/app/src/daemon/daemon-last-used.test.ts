@@ -2,13 +2,13 @@
 import { expect, test } from 'bun:test';
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { faker } from '@faker-js/faker';
-import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it keeps the last-used agent when a restored session reports its start', async () => {

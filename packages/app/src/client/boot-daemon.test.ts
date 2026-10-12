@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { StateStore } from '@atc/store/state-store';
 import { readJSONRecord } from '@atc/test-utils/read-json-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -9,7 +10,6 @@ import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon'
 import { startStubUnansweringUnixListener } from '@atc/test-utils/start-stub-unanswering-unix-listener';
 import { startDaemon } from '../daemon/daemon';
 import { getATCBuild } from '../shared/get-atc-build';
-import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 

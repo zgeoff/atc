@@ -3,19 +3,19 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
 import { buildStubLog } from '@atc/test-utils/build-stub-log';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
-import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHostProvider } from '../test-utils/build-stub-host-provider';
-import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
-import { buildTargetIdentity } from './build-target-identity';
 import { LocalPTYProvider } from './local-pty-provider';
 import {
   READ_PROJECT_SETTINGS_SCRIPT,

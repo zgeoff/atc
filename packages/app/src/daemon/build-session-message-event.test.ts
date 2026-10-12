@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
-import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
+import { buildMockMessageRecord } from '@atc/store/testing/build-mock-message-record';
 import { buildSessionMessageEvent } from './build-session-message-event';
 
 test('it builds a queued event without delivery or answer fields', () => {

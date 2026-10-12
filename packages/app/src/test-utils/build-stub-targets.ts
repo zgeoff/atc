@@ -1,6 +1,6 @@
 import type { TargetConfig } from '@atc/config/collect-targets';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import type { ExecutionTarget } from '../daemon/build-execution-targets';
-import { buildTargetIdentity } from '../daemon/build-target-identity';
 import { buildStubPTYProvider } from './build-stub-pty-provider';
 
 // What a target's provider does in place of the local one's: the

@@ -2,9 +2,9 @@ import { isRecord } from '@atc/core/is-record';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import type { DaemonClient } from '@atc/protocol/client/daemon-client';
+import type { StoredRow } from '@atc/store/snapshot/read-stored-rows';
+import { readStoredRows } from '@atc/store/snapshot/read-stored-rows';
 import type { RestartFailedRow } from './parse-restart-result';
-import type { StoredRow } from './read-stored-rows';
-import { readStoredRows } from './read-stored-rows';
 
 interface FleetVerdict {
   // The rows the daemon stored, exited ones included.

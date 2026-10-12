@@ -1,6 +1,6 @@
 import { LOCAL_TARGET } from '@atc/config/local-target';
-import type { FleetEntry } from '../store/fleet-entry';
-import { buildTargetIdentity } from './build-target-identity';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import type { FleetEntry } from '@atc/store/fleet-entry';
 import type { TargetGrant } from './target-access';
 
 /**

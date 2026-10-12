@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
-import { buildMockMessageRecord } from './build-mock-message-record';
+import { buildMockMessageRecord } from '@atc/store/testing/build-mock-message-record';
 import { buildStubHeldInboxSource } from './build-stub-held-inbox-source';
 
 test('it starts with no tap in its registry', () => {

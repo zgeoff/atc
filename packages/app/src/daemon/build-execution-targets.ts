@@ -1,6 +1,6 @@
 import type { TargetConfig, TargetConfigError } from '@atc/config/collect-targets';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import { buildImpProvider } from './build-imp-provider';
-import { buildTargetIdentity } from './build-target-identity';
 import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 

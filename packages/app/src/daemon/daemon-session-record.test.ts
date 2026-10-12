@@ -4,6 +4,8 @@ import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { getRecord } from '@atc/test-utils/get-record';
 import { readJSONRecord } from '@atc/test-utils/read-json-record';
@@ -11,10 +13,8 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
-import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

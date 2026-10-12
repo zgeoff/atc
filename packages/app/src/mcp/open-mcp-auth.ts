@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, closeSync, openSync } from 'node:fs';
+import { BunSqliteDriver } from '@atc/store/sqlite/bun-sqlite-driver';
 import { mcp } from '@better-auth/mcp';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import type { OAuthOptions, Scope } from '@better-auth/oauth-provider';
@@ -8,7 +9,6 @@ import { betterAuth } from 'better-auth';
 import type { BetterAuthPlugin } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
-import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildOwnerPlugin } from './build-owner-plugin';
