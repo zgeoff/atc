@@ -1,4 +1,5 @@
 import { normalizeClientName } from '../shared/normalize-client-name';
+import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildPageResponse } from './build-page-response';
 import { findClientName } from './find-client-name';
 import type { HTTPServerContext } from './types';
@@ -91,7 +92,7 @@ export async function answerAuthorizeRequest(
   const userAgent = normalizeClientName(requester.userAgent, 'none', 60);
 
   ctx.printApproval(
-    `Approve ${clientName} (returns to ${new URL(redirectURI).host}) with code ${code}. Requested from ${from}, user agent "${userAgent}". The code expires in 10 minutes.`,
+    `Approve ${clientName} (returns to ${new URL(redirectURI).host}) with code ${code}. Requested from ${from}, user agent "${userAgent}". The code expires in ${String(APPROVAL_WINDOW_SECONDS / 60)} minutes.`,
   );
 
   return response;
