@@ -176,7 +176,7 @@ export interface HeadlessRunRequest {
   readonly withheldEnv?: readonly string[];
 
   // Where the session's published record lies, which the run's process
-  // reads from ATC_SESSION_RECORD.
+  // reads from its session environment.
   readonly recordPath?: string;
 }
 

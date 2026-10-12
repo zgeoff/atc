@@ -126,7 +126,7 @@ test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['sessio
 
     const client = await daemon.openTCPClient();
 
-    await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+    await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
     expect(client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
       code: 'unauthorized',
@@ -363,7 +363,7 @@ test.each([
 
   const client = await daemon.openTCPClient();
 
-  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
   expect(client.sendRequest(method, {}, 'gw')).resolves.toStrictEqual(reply);
 });
@@ -387,7 +387,7 @@ test('it admits agents.list over TCP from a principal', async () => {
 
   const client = await daemon.openTCPClient();
 
-  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
   expect(client.sendRequest('agents.list', {}, 'gw')).resolves.toStrictEqual({
     daemon: {
@@ -483,7 +483,7 @@ test('it admits events.read over TCP from a principal', async () => {
 
   const client = await daemon.openTCPClient();
 
-  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
   expect(client.sendRequest('events.read', {}, 'gw')).resolves.toStrictEqual({
     events: [],
@@ -536,7 +536,7 @@ test.each([
 
   const client = await daemon.openTCPClient();
 
-  await client.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
   expect(client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({ code });
 });

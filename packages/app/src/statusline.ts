@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
 import { resolveAgentHome } from './agents/resolve-agent-home';
 import { statusFile } from './shared/config';
@@ -17,10 +18,11 @@ import { sendReport } from './shared/report';
 export async function runStatusline(agent: string): Promise<void> {
   const raw = await new Response(Bun.stdin.stream()).text();
 
-  const sock = process.env['ATC_SOCKET'];
-  const atcId = process.env['ATC_SESSION_ID'];
+  const session = readSessionEnv(process.env);
+  const sock = session.socket;
+  const atcId = session.sessionID;
 
-  if (sock !== undefined && sock !== '' && atcId !== undefined && atcId !== '') {
+  if (sock !== undefined && atcId !== undefined) {
     let payload: Record<string, unknown> = {};
 
     try {
@@ -65,9 +67,7 @@ export async function runStatusline(agent: string): Promise<void> {
   } catch {}
 
   const segment =
-    process.env['ATC_BRIDGE'] === '1' && sock !== undefined && sock !== ''
-      ? await readOwnSegment(sock)
-      : readFleetSegment();
+    session.bridge === true && sock !== undefined ? await readOwnSegment(sock) : readFleetSegment();
 
   const line = [chained, segment].filter((part) => part !== '').join(' \u001B[90m▏\u001B[0m ');
 

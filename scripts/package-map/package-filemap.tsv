@@ -298,6 +298,7 @@ src/parse-port.ts	app	cli	packages/app/src/cli/parse-port.ts
 src/parse-restart-result.ts	lifecycle		packages/lifecycle/src/parse-restart-result.ts	
 src/parse-systemd-unit.ts	lifecycle		packages/lifecycle/src/parse-systemd-unit.ts	
 src/protocol/adapter-event.ts	protocol		packages/protocol/src/adapter-event.ts	
+src/protocol/build-session-env.ts	protocol		packages/protocol/src/build-session-env.ts	new in ticket 4
 src/protocol/control-character.ts	protocol		packages/protocol/src/control-character.ts	
 src/protocol/count-session-states.ts	protocol		packages/protocol/src/count-session-states.ts	
 src/protocol/daemon-channel.ts	protocol		packages/protocol/src/daemon-channel.ts	
@@ -315,8 +316,11 @@ src/protocol/parse-request-params.ts	protocol		packages/protocol/src/parse-reque
 src/protocol/pinned-group-key.ts	protocol		packages/protocol/src/pinned-group-key.ts	
 src/protocol/protocol.ts	protocol		packages/protocol/src/protocol.ts	
 src/protocol/published-record.ts	protocol		packages/protocol/src/published-record.ts	
+src/protocol/read-session-env.ts	protocol		packages/protocol/src/read-session-env.ts	new in ticket 4
 src/protocol/request-param-schemas.ts	protocol		packages/protocol/src/request-param-schemas.ts	
 src/protocol/send-bridge-request.ts	protocol		packages/protocol/src/send-bridge-request.ts	
+src/protocol/session-env-names.ts	protocol		packages/protocol/src/session-env-names.ts	new in ticket 4
+src/protocol/session-env.ts	protocol		packages/protocol/src/session-env.ts	new in ticket 4
 src/protocol/session-state.ts	protocol		packages/protocol/src/session-state.ts	
 src/protocol/sort-grouped-session-views.ts	protocol		packages/protocol/src/sort-grouped-session-views.ts	
 src/protocol/sort-session-views.ts	protocol		packages/protocol/src/sort-session-views.ts	

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NOTE_KINDS } from '@atc/protocol/note-kinds';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
 import { sendReport } from './shared/report';
 
@@ -45,22 +46,17 @@ export async function runNote(
   io: NoteIO = PROCESS_IO,
 ): Promise<void> {
   try {
-    const sock = process.env['ATC_SOCKET'];
-    const atcId = process.env['ATC_SESSION_ID'];
+    const session = readSessionEnv(process.env);
+    const sock = session.socket;
+    const atcId = session.sessionID;
 
-    if (
-      sock !== undefined &&
-      sock !== '' &&
-      atcId !== undefined &&
-      atcId !== '' &&
-      NOTE_KINDS.some((known) => known === kind)
-    ) {
+    if (sock !== undefined && atcId !== undefined && NOTE_KINDS.some((known) => known === kind)) {
       const stdin = await io.readStdin();
 
       const payload = buildNotePayload(kind, options, stdin);
 
-      if (payload !== null && process.env['ATC_BRIDGE'] === '1') {
-        await sendBridgeNote(sock, process.env['ATC_OUTBOX'] ?? '', payload);
+      if (payload !== null && session.bridge === true) {
+        await sendBridgeNote(sock, session.outbox ?? '', payload);
       } else if (payload !== null) {
         const line = `${JSON.stringify({ atcId, event: 'Note', payload })}\n`;
 

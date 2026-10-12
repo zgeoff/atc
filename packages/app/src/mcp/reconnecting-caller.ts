@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DaemonChannel } from '@atc/protocol/daemon-channel';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { requireDaemonFeatures } from './require-daemon-features';
 import type { FleetCaller } from './types';
 
@@ -168,7 +169,9 @@ export class ReconnectingCaller implements FleetCaller {
     let hello: Readonly<Record<string, unknown>>;
 
     try {
-      hello = await client.sendHello(this.build);
+      hello = await client.sendHello(this.build, {
+        session: readSessionEnv(process.env).sessionID,
+      });
     } catch (error) {
       client.stop();
 

@@ -12,6 +12,7 @@ import type { Clock } from '@atc/core/system-clock';
 import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { buildSessionEnv } from '@atc/protocol/build-session-env';
 import { countSessionStates } from '@atc/protocol/count-session-states';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
@@ -802,9 +803,11 @@ export class SessionManager {
       cwd: s.cwd,
       env: {
         ...plan.env,
-        ATC_SESSION_ID: s.id,
-        ATC_SOCKET: socketPath,
-        ...(recordPath === null ? {} : { ATC_SESSION_RECORD: recordPath }),
+        ...buildSessionEnv({
+          sessionID: s.id,
+          socket: socketPath,
+          ...(recordPath === null ? {} : { sessionRecord: recordPath }),
+        }),
       },
       withheldEnv: s.withheldEnv,
       cols,
@@ -1304,9 +1307,11 @@ export class SessionManager {
         cwd: dir,
         env: {
           ...plan.env,
-          ATC_SESSION_ID: id,
-          ATC_SOCKET: socketPath,
-          ...(published.path === null ? {} : { ATC_SESSION_RECORD: published.path }),
+          ...buildSessionEnv({
+            sessionID: id,
+            socket: socketPath,
+            ...(published.path === null ? {} : { sessionRecord: published.path }),
+          }),
         },
         withheldEnv: materialized?.withheldEnv ?? [],
         cols,

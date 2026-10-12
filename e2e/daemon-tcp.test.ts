@@ -58,7 +58,7 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
     closed.resolve();
   };
 
-  await tcp.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await tcp.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
   writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
 
@@ -107,7 +107,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
     reloaded.resolve();
   };
 
-  await removed.sendHello('atc/test-gateway', 'a'.repeat(32));
+  await removed.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
   writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
 
@@ -122,7 +122,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
     kept.stop();
   });
 
-  const hello = await kept.sendHello('atc/test-gateway', 'b'.repeat(32));
+  const hello = await kept.sendHello('atc/test-gateway', { token: 'b'.repeat(32) });
 
   expect(hello).toStrictEqual({
     // The build string differs between this checkout and a compiled binary.

@@ -1,10 +1,12 @@
+import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
+
 // The variables atc sets for the harness of a session it hosts.
-const SESSION_VARIABLES = new Set(['ATC_SESSION_ID', 'ATC_SOCKET', 'ATC_SESSION_RECORD']);
+const SESSION_VARIABLES: ReadonlySet<string> = new Set(Object.values(SESSION_ENV_NAMES));
 
 /**
- * Copies an environment without the variables that name the session, its
- * record, or the socket of whoever runs the restart, so the daemon it starts never mistakes
- * itself for a hosted session. Entries with no value drop out.
+ * Copies an environment without the session environment of whoever runs
+ * the restart, so the daemon it starts never mistakes itself for a hosted
+ * session. Entries with no value drop out.
  */
 export function collectRestartEnv(
   env: Readonly<Record<string, string | undefined>>,

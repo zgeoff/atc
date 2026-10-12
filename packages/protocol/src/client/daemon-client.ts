@@ -1,5 +1,5 @@
 import type { SocketHandler } from 'bun';
-import type { DaemonChannel } from '../daemon-channel';
+import type { DaemonChannel, HelloOptions } from '../daemon-channel';
 import { DaemonError } from '../daemon-error';
 import { LineDecoder } from '../line-decoder';
 import { OutboundQueue } from '../outbound-queue';
@@ -75,13 +75,14 @@ export class DaemonClient implements DaemonChannel {
   // listener requires. A client started inside an atc session gives that
   // session, so the daemon never takes a change to the session's own record
   // from it.
-  sendHello(build: string, token?: string): Promise<Readonly<Record<string, unknown>>> {
-    const session = process.env['ATC_SESSION_ID'];
-
+  sendHello(build: string, options: HelloOptions = {}): Promise<Readonly<Record<string, unknown>>> {
     return this.sendRequest('daemon.hello', {
       client: build,
-      auth: token === undefined ? { scheme: 'none' } : { scheme: 'bearer', token },
-      ...(session === undefined || session === '' ? {} : { session }),
+      auth:
+        options.token === undefined
+          ? { scheme: 'none' }
+          : { scheme: 'bearer', token: options.token },
+      ...(options.session === undefined ? {} : { session: options.session }),
     });
   }
 

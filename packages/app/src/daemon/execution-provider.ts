@@ -178,7 +178,7 @@ export interface HarnessSpec {
 
   // Takes each connection a process of the harness opens to the daemon. A
   // remote provider relays them from a socket inside the host that serves
-  // this harness alone, and points the harness's ATC_SOCKET at it.
+  // this harness alone, and points the harness's reporter socket at it.
   readonly onRelay?: (relay: HarnessRelay) => void;
 }
 

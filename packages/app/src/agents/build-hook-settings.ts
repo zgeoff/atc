@@ -20,8 +20,9 @@ export interface HookSettingsProfile {
 /**
  * The settings object injected into wrangled sessions via
  * `claude --settings`. The user's own settings are untouched; these hooks
- * only exist in sessions atc spawns, and identify themselves via
- * ATC_SESSION_ID in the env and the agent id on their command line. A
+ * only exist in sessions atc spawns, and identify themselves via the
+ * session id in their session environment and the agent id on their
+ * command line. A
  * nested harness inherits the env but not the command line, so the agent id
  * keeps its reports from passing as the session's own.
  *

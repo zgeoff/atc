@@ -12,6 +12,7 @@ import { formatProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
 import type { ProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { findPidFilePID } from '../shared/find-pid-file-pid';
@@ -139,8 +140,11 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
     try {
       const hello =
         wait === null
-          ? await client.sendHello(build)
-          : await waitForHello(() => client.sendHello(build), wait);
+          ? await client.sendHello(build, { session: readSessionEnv(process.env).sessionID })
+          : await waitForHello(
+              () => client.sendHello(build, { session: readSessionEnv(process.env).sessionID }),
+              wait,
+            );
 
       return {
         client,

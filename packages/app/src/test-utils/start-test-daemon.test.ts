@@ -92,7 +92,7 @@ test('it serves a TCP handshake on the listener the options ask for', async () =
   const client = await harness.openTCPClient();
 
   expect(
-    client.sendHello('atc/test-gateway', 'a-gateway-token-of-at-least-32-bytes'),
+    client.sendHello('atc/test-gateway', { token: 'a-gateway-token-of-at-least-32-bytes' }),
   ).resolves.toContainKey('daemonID');
 });
 
