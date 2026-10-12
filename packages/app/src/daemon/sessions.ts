@@ -218,7 +218,7 @@ type SpawnMaterializer = (
   targetIdentity: string,
 ) => Promise<MaterializedSpawn | null>;
 
-interface SpawnHostAccess {
+export interface SpawnHostAccess {
   readonly readyHost: (
     attempt: number,
   ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
