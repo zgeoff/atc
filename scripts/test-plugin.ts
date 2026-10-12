@@ -1,6 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { PACKAGE_RULES } from './package-rules';
 import type { PackageRule } from './package-rules';
 
@@ -155,9 +156,8 @@ function createPluginWorkspace(
 // patches that only that tooling needs, and the internal packages the
 // workspace leaves out.
 function writeWorkspaceManifest(dir: string, packages: readonly PackageRule[]): void {
-  const manifest: Record<string, unknown> = JSON.parse(
-    readFileSync(join(repo, 'package.json'), 'utf8'),
-  );
+  const text = readFileSync(join(repo, 'package.json'), 'utf8');
+  const manifest = z.record(z.string(), z.unknown()).parse(JSON.parse(text));
 
   const copied = new Set(packages.map((rule) => `@atc/${rule.name}`));
 
