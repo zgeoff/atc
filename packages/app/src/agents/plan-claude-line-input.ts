@@ -1,9 +1,8 @@
 import type { TerminalInputModes } from './agent-adapter';
+import { buildUnmarkedText } from './build-unmarked-text';
 import { findSlashCommand } from './find-slash-command';
+import { PASTE_MARKERS } from './paste-markers';
 import { planPastedLineInput } from './plan-pasted-line-input';
-
-const PASTE_START = '\u001B[200~';
-const PASTE_END = '\u001B[201~';
 
 /**
  * Pastes a line into the Claude TUI and submits it, as the pasted line
@@ -15,12 +14,12 @@ const PASTE_END = '\u001B[201~';
  * bracketed paste on gets every line as the pasted line planner writes it.
  */
 export function planClaudeLineInput(text: string, modes: TerminalInputModes): readonly string[] {
-  const unmarked = text.replaceAll(PASTE_START, '').replaceAll(PASTE_END, '');
+  const unmarked = buildUnmarkedText(text);
   const command = modes.bracketedPaste ? findSlashCommand(unmarked) : null;
 
   if (command === null) {
     return planPastedLineInput(text, modes);
   }
 
-  return [command.name, `${PASTE_START}${command.argument}${PASTE_END}`, '\r'];
+  return [command.name, `${PASTE_MARKERS.start}${command.argument}${PASTE_MARKERS.end}`, '\r'];
 }

@@ -1,9 +1,8 @@
 import type { LineInputStep, TerminalInputModes } from './agent-adapter';
+import { buildUnmarkedText } from './build-unmarked-text';
 import { findSlashCommand } from './find-slash-command';
+import { PASTE_MARKERS } from './paste-markers';
 import { planPastedLineInput } from './plan-pasted-line-input';
-
-const PASTE_START = '\u001B[200~';
-const PASTE_END = '\u001B[201~';
 
 // Long enough for Codex to read the command name between frames of a busy
 // session, short enough that input held behind the line waits unnoticed.
@@ -30,7 +29,7 @@ export function planCodexLineInput(
   text: string,
   modes: TerminalInputModes,
 ): readonly LineInputStep[] {
-  const unmarked = text.replaceAll(PASTE_START, '').replaceAll(PASTE_END, '');
+  const unmarked = buildUnmarkedText(text);
   const command = modes.bracketedPaste ? findSlashCommand(unmarked) : null;
 
   if (command === null) {
@@ -38,9 +37,9 @@ export function planCodexLineInput(
   }
 
   return [
-    `${PASTE_START}${command.name}${PASTE_END}`,
+    `${PASTE_MARKERS.start}${command.name}${PASTE_MARKERS.end}`,
     { pauseMs: COMMAND_NAME_PAUSE_MS },
-    `${PASTE_START}${command.argument}${PASTE_END}`,
+    `${PASTE_MARKERS.start}${command.argument}${PASTE_MARKERS.end}`,
     '\r',
   ];
 }
