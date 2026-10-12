@@ -1,4 +1,4 @@
-import { parseJSONStrings } from '@atc/store/sqlite/parse-json-strings';
+import { parseJSONStrings } from '@atc/core/parse-json-strings';
 import type { Kysely } from 'kysely';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 

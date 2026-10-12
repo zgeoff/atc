@@ -102,6 +102,7 @@ const main = defineCommand({
           }
 
           const http = await import('./mcp-http-server');
+          const database = await import('./open-mcp-auth-database');
 
           await http.runMCPHTTPServer(
             invocation.readBuild(),
@@ -111,7 +112,10 @@ const main = defineCommand({
               publicURL: ctx.args['public-url'] ?? null,
               waitForDaemon: ctx.args['wait-for-daemon'],
             },
-            (options) => boot.bootDaemonClient(invocation, options),
+            {
+              bootDaemon: (options) => boot.bootDaemonClient(invocation, options),
+              openAuthDatabase: database.openMCPAuthDatabase,
+            },
           );
         },
       }),

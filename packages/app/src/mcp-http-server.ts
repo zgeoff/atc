@@ -8,6 +8,7 @@ import type { DaemonBoot } from '@atc/protocol/daemon-boot';
 import type { DaemonBootOptions } from '@atc/protocol/daemon-boot-options';
 import type { DaemonPaths } from '@atc/protocol/daemon-paths';
 import { collectClients } from './mcp/collect-clients';
+import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
@@ -54,6 +55,13 @@ const PROCESS_IO: MCPHTTPServerIO = {
   },
 };
 
+// What the entry wires in: the daemon boot and the opener of the
+// authorization database.
+interface MCPHTTPServerHost {
+  readonly bootDaemon: (options: DaemonBootOptions) => Promise<DaemonBoot>;
+  readonly openAuthDatabase: (path: string) => MCPAuthDatabase;
+}
+
 // How long `--wait-for-daemon` waits before it exits. A service manager's
 // restart covers a daemon that takes longer.
 const DAEMON_WAIT_MS = 30_000;
@@ -61,14 +69,14 @@ const DAEMON_WAIT_MS = 30_000;
 /**
  * Runs `atc mcp --http` in the foreground: boots the daemon when it is down,
  * or with `--wait-for-daemon` waits for one and exits when none answers, and
- * serves MCP over HTTP until Ctrl-C, through the boot the entry wires in.
- * Approval codes print here, so the terminal running it is where the
- * operator approves a client.
+ * serves MCP over HTTP until Ctrl-C, through the daemon boot and the
+ * database opener the entry wires in. Approval codes print here, so the
+ * terminal running it is where the operator approves a client.
  */
 export async function runMCPHTTPServer(
   build: string,
   flags: MCPHTTPFlags,
-  bootDaemon: (options: DaemonBootOptions) => Promise<DaemonBoot>,
+  host: MCPHTTPServerHost,
   io: MCPHTTPServerIO = PROCESS_IO,
 ): Promise<void> {
   const config = io.loadConfig();
@@ -90,7 +98,7 @@ export async function runMCPHTTPServer(
   let boot: DaemonBoot;
 
   try {
-    boot = await bootDaemon(bootOptions);
+    boot = await host.bootDaemon(bootOptions);
   } catch (error) {
     io.printError(`atc mcp --http: ${error instanceof Error ? error.message : String(error)}`);
     io.exit(1);
@@ -112,6 +120,7 @@ export async function runMCPHTTPServer(
     publicURL: flags.publicURL ?? config.publicURL,
     allowedHosts: config.allowedHosts,
     dbPath: io.dbPath,
+    openAuthDatabase: host.openAuthDatabase,
 
     // The line carries a client's name, so control and format characters
     // are dropped before it reaches the operator's terminal.
@@ -138,7 +147,12 @@ export async function runMCPHTTPServer(
   io.registerSignal('SIGTERM', stopServing);
   io.print(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.listening}`);
 
-  const admin = await openMCPAuth({ dbPath: io.dbPath, origin: null });
+  const admin = await openMCPAuth({
+    dbPath: io.dbPath,
+    openDatabase: host.openAuthDatabase,
+    origin: null,
+  });
+
   const clients = await collectClients(admin.db);
 
   await admin.close();

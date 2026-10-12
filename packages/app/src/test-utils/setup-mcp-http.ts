@@ -8,6 +8,7 @@ import type { DaemonHandle } from '../daemon/daemon';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
+import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 interface MCPHTTPSetupOptions {
@@ -79,6 +80,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     publicURL: null,
     allowedHosts: options.allowedHosts ?? [],
     dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: (line) => {
       approvals.push(line);
     },
@@ -89,7 +91,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   stack.defer(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
   stack.defer(() => store.close());
 

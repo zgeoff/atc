@@ -10,6 +10,7 @@ import { ApprovalState } from './approval-state';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildPageResponse } from './build-page-response';
 import { isLoopbackHost } from './is-loopback-host';
+import type { MCPAuthDatabase } from './mcp-auth-database';
 import { normalizePublicURL } from './normalize-public-url';
 import { openMCPAuth } from './open-mcp-auth';
 import { pickErrorMessage } from './pick-error-message';
@@ -29,8 +30,10 @@ interface MCPHTTPServerOptions {
   // Further Host header values to accept, for a proxy that rewrites Host.
   readonly allowedHosts: readonly string[];
 
-  // The authorization server's SQLite database.
+  // The authorization server's SQLite database, and the opener the entry
+  // wires in for it.
   readonly dbPath: string;
+  readonly openAuthDatabase: (path: string) => MCPAuthDatabase;
   readonly printApproval: (line: string) => void;
 
   // Receives one line per request the server answers.
@@ -160,6 +163,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   try {
     store = await openMCPAuth({
       dbPath: options.dbPath,
+      openDatabase: options.openAuthDatabase,
       origin,
       ...(options.refreshReuseSeconds === undefined
         ? {}

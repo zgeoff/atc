@@ -2,13 +2,18 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { collectClients } from './collect-clients';
 import { openMCPAuth } from './open-mcp-auth';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-collect-clients-');
 
-  const store = await openMCPAuth({ dbPath: join(tmp.dir, 'mcp-auth.db'), origin: null });
+  const store = await openMCPAuth({
+    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
 
   registerTestCleanup(() => store.close());
 

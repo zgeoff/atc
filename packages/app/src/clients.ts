@@ -4,6 +4,7 @@ import { collectClients } from './mcp/collect-clients';
 import { isAllowedRedirectURI } from './mcp/is-allowed-redirect-uri';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { removeClient } from './mcp/remove-client';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { normalizeClientName } from './shared/normalize-client-name';
 
 type ClientsAction =
@@ -72,7 +73,11 @@ export async function runClients(
 
   mkdirSync(dirname(target.dbPath), { recursive: true });
 
-  const store = await openMCPAuth({ dbPath: target.dbPath, origin: null });
+  const store = await openMCPAuth({
+    dbPath: target.dbPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
 
   try {
     if (action.kind === 'add') {

@@ -273,7 +273,7 @@ src/mcp/build-spawn-descriptions.ts	mcp	tools	packages/mcp/src/tools/build-spawn
 src/mcp/build-tool-list.ts	mcp	tools	packages/mcp/src/tools/build-tool-list.ts	
 src/mcp/collect-clients.ts	mcp	auth	packages/mcp/src/auth/collect-clients.ts	
 src/mcp/collect-grants.ts	mcp	auth	packages/mcp/src/auth/collect-grants.ts	
-src/mcp/collect-json-strings.ts	store	sqlite	packages/store/src/sqlite/parse-json-strings.ts	
+src/mcp/collect-json-strings.ts	core		packages/core/src/parse-json-strings.ts	
 src/mcp/derive-token-hash.ts	mcp	auth	packages/mcp/src/auth/derive-token-hash.ts	
 src/mcp/find-client-name.ts	mcp	auth	packages/mcp/src/auth/find-client-name.ts	
 src/mcp/find-owner-session-id.ts	mcp	tools	packages/mcp/src/tools/find-owner-session-id.ts	
@@ -281,6 +281,7 @@ src/mcp/format-tool-error.ts	mcp	tools	packages/mcp/src/tools/format-tool-error.
 src/mcp/is-allowed-redirect-uri.ts	mcp	auth	packages/mcp/src/auth/is-allowed-redirect-uri.ts	
 src/mcp/is-loopback-host.ts	mcp	http	packages/mcp/src/http/is-loopback-host.ts	
 src/mcp/is-supported-protocol-version.ts	mcp	tools	packages/mcp/src/tools/is-supported-protocol-version.ts	
+src/mcp/mcp-auth-database.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-database.ts	
 src/mcp/mcp-auth-schema.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-schema.ts	
 src/mcp/mcp-tools.ts	mcp	tools	packages/mcp/src/tools/mcp-tools.ts	
 src/mcp/mint-approval-code.ts	mcp	auth	packages/mcp/src/auth/mint-approval-code.ts	
@@ -304,6 +305,7 @@ src/mcp/types.ts	mcp	tools	packages/mcp/src/tools/types.ts
 src/mcp/verify-oauth-query.ts	mcp	auth	packages/mcp/src/auth/verify-oauth-query.ts	
 src/normalize-cli-args.ts	app	cli	packages/app/src/cli/normalize-cli-args.ts	
 src/note.ts	reporters		packages/reporters/src/note.ts	
+src/open-mcp-auth-database.ts	app		packages/app/src/open-mcp-auth-database.ts	
 src/parse-daemon-flags.ts	lifecycle		packages/lifecycle/src/parse-daemon-flags.ts	
 src/parse-gateway-state-dir.ts	app	cli	packages/app/src/cli/parse-gateway-state-dir.ts	
 src/parse-mismatch-build.ts	lifecycle		packages/lifecycle/src/parse-mismatch-build.ts	
