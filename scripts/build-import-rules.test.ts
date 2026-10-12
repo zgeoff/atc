@@ -152,6 +152,12 @@ test.each([
     'No file imports @modelcontextprotocol/sdk.',
   ],
   [
+    'proper-lockfile in the Claude config lock itself',
+    'packages/app/src/agents/with-claude-config-lock.ts',
+    'proper-lockfile',
+    'No file imports proper-lockfile.',
+  ],
+  [
     'proper-lockfile in an e2e journey',
     'e2e/a.test.ts',
     'proper-lockfile',
@@ -197,6 +203,11 @@ test.each([
   ['bun:test in a core test', 'packages/core/src/a.test.ts', 'bun:test'],
   ['kysely in its owner', 'packages/store/src/a.ts', 'kysely'],
   ['bun-pty in a listed exception', 'packages/test-utils/src/start-tui-harness.ts', 'bun-pty'],
+  [
+    'proper-lockfile in the Claude config lock test',
+    'packages/app/src/agents/with-claude-config-lock.test.ts',
+    'proper-lockfile',
+  ],
   ['bun:sqlite in an e2e journey', 'e2e/a.test.ts', 'bun:sqlite'],
   ['a confined package in the app that still owns it', 'packages/app/src/a.ts', 'bun-pty'],
 ])('it allows %s', async (_label, file, specifier) => {

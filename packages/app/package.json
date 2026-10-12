@@ -24,6 +24,8 @@
   "devDependencies": {
     "@atc/test-utils": "workspace:*",
     "@faker-js/faker": "catalog:",
+    "@types/proper-lockfile": "catalog:",
+    "proper-lockfile": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

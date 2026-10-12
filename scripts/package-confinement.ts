@@ -46,7 +46,12 @@ export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
   { specifier: '@better-auth', owners: ['mcp', 'app'], inTests: false, exceptions: [] },
 
   // the Claude SDK's peer, and the lock library the Claude config lock is
-  // checked against
+  // checked against, which only that check imports
   { specifier: '@modelcontextprotocol/sdk', owners: [], inTests: true, exceptions: [] },
-  { specifier: 'proper-lockfile', owners: [], inTests: true, exceptions: [] },
+  {
+    specifier: 'proper-lockfile',
+    owners: [],
+    inTests: true,
+    exceptions: ['packages/app/src/agents/with-claude-config-lock.test.ts'],
+  },
 ];
