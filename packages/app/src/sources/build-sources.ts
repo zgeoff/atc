@@ -1,4 +1,4 @@
-import type { SourceProvider } from './types';
+import type { SourceProvider } from '@atc/plugin-api/types';
 
 // The order sources take when the config gives none.
 const DEFAULT_SOURCE_ORDER = ['dirs', 'github', 'git'];

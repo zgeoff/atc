@@ -1,9 +1,9 @@
+import type { GuestOAuthState } from '@atc/plugin-api/agent-adapter';
+import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
+import { CredentialBrokerError } from '@atc/plugin-api/credential-broker-error';
 import { DaemonError } from '@atc/protocol/daemon-error';
-import type { GuestOAuthState } from '../agents/agent-adapter';
-import type { BrokerAuthHost } from './broker-auth-host';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
-import { ImpPortError } from './imp-port-error';
 
 /**
  * The sign-in state impd lists for each secret a binding holds as kind
@@ -14,7 +14,7 @@ import { ImpPortError } from './imp-port-error';
  * with the codes the binding's own gate would give.
  */
 export async function loadOAuthStates(
-  host: BrokerAuthHost,
+  host: CredentialBroker,
   binding: AuthBinding,
 ): Promise<Readonly<Record<string, GuestOAuthState>> | undefined> {
   const expected = binding.secrets.filter((secret) => secret.kind === 'oauth');
@@ -24,7 +24,7 @@ export async function loadOAuthStates(
   }
 
   try {
-    const features = await host.port.readFeatures();
+    const features = await host.readFeatures();
 
     if (!features.oauthSecrets) {
       throw new DaemonError(
@@ -34,7 +34,7 @@ export async function loadOAuthStates(
       );
     }
 
-    const held = await host.port.readSecrets();
+    const held = await host.readSecrets();
 
     const mismatches = collectSecretRuleMismatches(expected, held);
 
@@ -54,11 +54,11 @@ export async function loadOAuthStates(
       ),
     );
   } catch (error) {
-    if (error instanceof ImpPortError) {
+    if (error instanceof CredentialBrokerError) {
       throw new DaemonError(
         'host_unavailable',
         `impd refused a runtime auth call: ${error.message}`,
-        { provider: 'imp', problem: error.code.toLowerCase() },
+        { provider: 'imp', problem: error.brokerCode.toLowerCase() },
       );
     }
 

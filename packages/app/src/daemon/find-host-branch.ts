@@ -1,4 +1,4 @@
-import type { ExecutionProvider } from './execution-provider';
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { runHostGit } from './run-host-git';
 
 /**

@@ -1,7 +1,8 @@
 import type { AgentID } from '@atc/core/agent-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
+import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
 import { z } from 'zod';
-import { buildCLICommand } from './build-cli-command';
+import { buildCLIArgv } from './build-cli-argv';
 
 /**
  * What one agent id needs on top of the shared instrumentation. The
@@ -37,14 +38,14 @@ export interface HookSettingsProfile {
 export function buildHookSettings(
   profile: HookSettingsProfile,
   statuslinePadding: number,
-  cliArgv?: readonly string[],
+  cliArgv: readonly string[] = buildCLIArgv(),
 ): Record<string, unknown> {
   const entry = [
     {
       hooks: [
         {
           type: 'command',
-          command: buildCLICommand(`hook-report --agent ${toShellArg(profile.id)}`, cliArgv),
+          command: buildHookCommand(`hook-report --agent ${toShellArg(profile.id)}`, cliArgv),
           timeout: 5,
         },
       ],
@@ -71,7 +72,7 @@ export function buildHookSettings(
     // padding.
     statusLine: {
       type: 'command',
-      command: buildCLICommand(`statusline --agent ${toShellArg(profile.id)}`, cliArgv),
+      command: buildHookCommand(`statusline --agent ${toShellArg(profile.id)}`, cliArgv),
       padding: statuslinePadding,
     },
     ...(profile.env === undefined || Object.keys(profile.env).length === 0

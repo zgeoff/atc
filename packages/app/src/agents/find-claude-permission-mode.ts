@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core/is-record';
-import { findFlagValue } from './find-flag-value';
+import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
 
 /**
  * The permission mode a Claude CLI agent's configuration sets: an explicit

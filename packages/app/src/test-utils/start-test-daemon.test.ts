@@ -5,10 +5,10 @@ import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 import { startTestDaemon } from './start-test-daemon';
 
 test('it answers a request on the main client without another handshake', async () => {
@@ -256,10 +256,10 @@ test('it delivers hook lines to the session they report on', async () => {
   const harness = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
-        normalizeHook: (event) => {
+        planHookEvents: (event) => {
           seen.push(event);
 
-          return { kind: 'heartbeat' };
+          return { events: [{ kind: 'heartbeat' }] };
         },
       }),
     }),
@@ -290,10 +290,10 @@ test('it delivers every hook line of a large batch', async () => {
   const harness = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
-        normalizeHook: (event) => {
+        planHookEvents: (event) => {
           seen.push(event);
 
-          return { kind: 'heartbeat' };
+          return { events: [{ kind: 'heartbeat' }] };
         },
       }),
     }),

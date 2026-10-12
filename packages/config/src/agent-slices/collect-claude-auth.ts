@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from '../collect-auth-profiles';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 import { resolveAuthProfiles } from '../resolve-auth-profiles';
 
 /**

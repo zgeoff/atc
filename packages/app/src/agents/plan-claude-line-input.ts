@@ -1,8 +1,8 @@
-import type { TerminalInputModes } from './agent-adapter';
-import { buildUnmarkedText } from './build-unmarked-text';
-import { findSlashCommand } from './find-slash-command';
-import { PASTE_MARKERS } from './paste-markers';
-import { planPastedLineInput } from './plan-pasted-line-input';
+import type { TerminalInputModes } from '@atc/plugin-api/agent-adapter';
+import { buildUnmarkedText } from '@atc/plugin-api/harness/build-unmarked-text';
+import { findSlashCommand } from '@atc/plugin-api/harness/find-slash-command';
+import { PASTE_MARKERS } from '@atc/plugin-api/harness/paste-markers';
+import { planPastedLineInput } from '@atc/plugin-api/harness/plan-pasted-line-input';
 
 /**
  * Pastes a line into the Claude TUI and submits it, as the pasted line

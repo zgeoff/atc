@@ -4,14 +4,8 @@ import { isCompiledBinary } from '@atc/config/is-compiled-binary';
 import { buildTarArchive } from '@atc/core/build-tar-archive';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
-import { buildSessionEnv } from '@atc/protocol/build-session-env';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { LineDecoder } from '@atc/protocol/line-decoder';
-import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
-import pkg from '../../package.json';
-import type { BrokerAuthHost } from './broker-auth-host';
-import { buildImpName } from './build-imp-name';
-import { EffectRemainsError } from './effect-remains-error';
+import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
+import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
 import type {
   CommandResult,
   CommandSpec,
@@ -22,11 +16,18 @@ import type {
   HarnessRelay,
   HarnessSpec,
   HostRequest,
-} from './execution-provider';
+} from '@atc/plugin-api/execution-provider';
+import { isHostNameAllowed } from '@atc/plugin-api/is-host-name-allowed';
+import { buildSessionEnv } from '@atc/protocol/build-session-env';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { LineDecoder } from '@atc/protocol/line-decoder';
+import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
+import pkg from '../../package.json';
+import { buildImpCredentialBroker } from './build-imp-credential-broker';
+import { buildImpName } from './build-imp-name';
 import { ImpHarness } from './imp-harness';
 import type { ImpPort, ImpRelayConnection } from './imp-port';
 import { ImpPortError } from './imp-port-error';
-import { isImpNameAllowed } from './is-imp-name-allowed';
 
 /**
  * The options an `imp` target takes beside its provider: the image a new
@@ -145,7 +146,7 @@ export class ImpProvider implements ExecutionProvider {
   // namespace an impd token's imp patterns are checked against.
   readonly impPrefix: string;
 
-  readonly brokerAuth: BrokerAuthHost;
+  readonly brokerAuth: CredentialBroker;
 
   private readonly port: ImpPort;
 
@@ -200,9 +201,8 @@ export class ImpProvider implements ExecutionProvider {
       atc: target.guestATC === undefined && this.atcBinary === null ? null : `${dir}/bin/atc`,
     };
 
-    this.brokerAuth = {
+    this.brokerAuth = buildImpCredentialBroker(port, {
       impPrefix: this.impPrefix,
-      port,
       getImpName: (hostKey) => this.getImpName(hostKey),
       createImp: (hostKey) =>
         port.createImp({
@@ -211,7 +211,7 @@ export class ImpProvider implements ExecutionProvider {
           ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
         }),
       destroyImp: (hostKey) => this.destroyHost(hostKey),
-    };
+    });
   }
 
   // The imp a host key runs on, under this provider's prefix.
@@ -227,7 +227,7 @@ export class ImpProvider implements ExecutionProvider {
 
       if (
         identity.scope === 'read' ||
-        (identity.imps !== null && !isImpNameAllowed(identity.imps, name))
+        (identity.imps !== null && !isHostNameAllowed(identity.imps, name))
       ) {
         return false;
       }

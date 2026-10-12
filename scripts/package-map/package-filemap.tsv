@@ -15,6 +15,7 @@ scripts/run-related-tests.ts	(scripts, root)		scripts/run-related-tests.ts
 scripts/stage-demo-sessions.ts	(scripts, root)		scripts/stage-demo-sessions.ts	
 src/agents/agent-adapter.ts	plugin-api		packages/plugin-api/src/agent-adapter.ts	contract: adapter context generic over the plugin config slice; AuthProfile type to plugin-api; TerminalInputModes stays here
 src/agents/atc-bridge-files.ts	harness-claude	bridge	packages/harnesses/claude/src/bridge/atc-bridge-files.ts	
+src/agents/auth-profile.ts	plugin-api		packages/plugin-api/src/auth-profile.ts	new in ticket 7
 src/agents/build-agent-adapters.ts	app	plugins	packages/app/src/plugins/build-agent-adapters.ts	registry: becomes the app plugin list plus a daemon loop over it
 src/agents/build-args-without-flags.ts	plugin-api	harness	packages/plugin-api/src/harness/build-args-without-flags.ts	
 src/agents/build-atc-bridge-files.ts	harness-claude	bridge	packages/harnesses/claude/src/bridge/build-atc-bridge-files.ts	
@@ -45,11 +46,14 @@ src/agents/claude-host-paths.ts	harness-claude		packages/harnesses/claude/src/cl
 src/agents/codex-adapter.ts	harness-codex		packages/harnesses/codex/src/codex-adapter.ts	
 src/agents/codex-trust-seed-file.ts	harness-codex		packages/harnesses/codex/src/codex-trust-seed-file.ts	
 src/agents/create-local-scratch-dir.ts	harness-claude		packages/harnesses/claude/src/create-local-scratch-dir.ts	
+src/agents/define-plugin.ts	plugin-api		packages/plugin-api/src/define-plugin.ts	new in ticket 7
 src/agents/find-claude-permission-mode.ts	harness-claude		packages/harnesses/claude/src/find-claude-permission-mode.ts	
 src/agents/find-flag-value.ts	plugin-api	harness	packages/plugin-api/src/harness/find-flag-value.ts	
 src/agents/find-slash-command.ts	plugin-api	harness	packages/plugin-api/src/harness/find-slash-command.ts	
 src/agents/gateway-adapter.ts	harness-claude	gateway	packages/harnesses/claude/src/gateway/gateway-adapter.ts	
+src/agents/gateway-auth.ts	plugin-api		packages/plugin-api/src/gateway-auth.ts	new in ticket 7
 src/agents/grok-adapter.ts	harness-grok		packages/harnesses/grok/src/grok-adapter.ts	
+src/agents/host-services.ts	plugin-api		packages/plugin-api/src/host-services.ts	new in ticket 7
 src/agents/load-claude-config-bundle.ts	harness-claude	guest	packages/harnesses/claude/src/guest/load-claude-config-bundle.ts	
 src/agents/make-claude-headless-runner.ts	harness-claude	headless	packages/harnesses/claude/src/headless/make-claude-headless-runner.ts	
 src/agents/normalize-hook-event.ts	protocol		packages/protocol/src/normalize-hook-event.ts	
@@ -131,6 +135,7 @@ src/daemon/build-execution-targets.ts	daemon	fleet	packages/daemon/src/fleet/bui
 src/daemon/build-fleet-events.ts	daemon	fleet	packages/daemon/src/fleet/build-fleet-events.ts	
 src/daemon/build-grant-from-fleet-entry.ts	daemon	auth	packages/daemon/src/auth/build-grant-from-fleet-entry.ts	
 src/daemon/build-harness-argv.ts	execution-local		packages/execution/local/src/build-harness-argv.ts	
+src/daemon/build-imp-credential-broker.ts	execution-imp		packages/execution/imp/src/build-imp-credential-broker.ts	new in ticket 7: maps ImpPort to the CredentialBroker
 src/daemon/build-imp-name.ts	execution-imp		packages/execution/imp/src/build-imp-name.ts	
 src/daemon/build-imp-provider.ts	execution-imp		packages/execution/imp/src/build-imp-provider.ts	
 src/daemon/build-message-trail-entry.ts	daemon	sessions	packages/daemon/src/sessions/build-message-trail-entry.ts	
@@ -152,6 +157,7 @@ src/daemon/collect-secret-rule-mismatches.ts	daemon	auth	packages/daemon/src/aut
 src/daemon/create-guest-clone.ts	daemon	workspace	packages/daemon/src/workspace/create-guest-clone.ts	
 src/daemon/create-non-blocking-log.ts	daemon		packages/daemon/src/create-non-blocking-log.ts	
 src/daemon/create-step-timer.ts	core		packages/core/src/create-step-timer.ts	core owns StepTimer and createStepTimer; plugin-api imports the StepTimer type from core
+src/daemon/credential-broker-error.ts	plugin-api		packages/plugin-api/src/credential-broker-error.ts	new in ticket 7
 src/daemon/daemon-connection.ts	daemon	transport	packages/daemon/src/transport/daemon-connection.ts	split: connection and hello stay in transport; request handler table per folder
 src/daemon/daemon-context.ts	daemon		packages/daemon/src/daemon-context.ts	
 src/daemon/daemon.ts	daemon		packages/daemon/src/daemon.ts	split per audit startDaemon finding: composition root in daemon/, services into the four folders; plugin list arrives as a parameter
@@ -173,7 +179,7 @@ src/daemon/imp-port.ts	execution-imp		packages/execution/imp/src/imp-port.ts	sta
 src/daemon/imp-provider.ts	execution-imp		packages/execution/imp/src/imp-provider.ts	version comes from HostServices, not ../../package.json
 src/daemon/is-allowed-listen-host.ts	config	listen	packages/config/src/listen/is-allowed-listen-host.ts	
 src/daemon/is-binding-current.ts	daemon	auth	packages/daemon/src/auth/is-binding-current.ts	
-src/daemon/is-imp-name-allowed.ts	execution-imp		packages/execution/imp/src/is-imp-name-allowed.ts	execution-imp only; daemon/auth asks the CredentialBroker whether it owns a host name
+src/daemon/is-imp-name-allowed.ts	plugin-api		packages/plugin-api/src/is-host-name-allowed.ts	the broker contract defines host patterns, so daemon/auth and execution-imp both match them through plugin-api
 src/daemon/is-own-hook-event.ts	daemon	sessions	packages/daemon/src/sessions/is-own-hook-event.ts	
 src/daemon/is-owner-only-method.ts	daemon	auth	packages/daemon/src/auth/is-owner-only-method.ts	
 src/daemon/is-tree-in-reach.ts	daemon	auth	packages/daemon/src/auth/is-tree-in-reach.ts	
@@ -542,6 +548,7 @@ src/test-utils/build-stub-channel-opener.ts	test-utils		packages/test-utils/src/
 src/test-utils/build-stub-claude-headless-run.ts	harness-claude	testing	packages/harnesses/claude/src/testing/build-stub-claude-headless-run.ts	
 src/test-utils/build-stub-client-screens.ts	tui	testing	packages/tui/src/testing/build-stub-client-screens.ts	
 src/test-utils/build-stub-clock.ts	test-utils		packages/test-utils/src/build-stub-clock.ts	
+src/test-utils/build-stub-credential-broker.ts	test-utils		packages/test-utils/src/build-stub-credential-broker.ts	new in ticket 7: the fake CredentialBroker
 src/test-utils/build-stub-daemon-context.ts	daemon	testing	packages/daemon/src/testing/build-stub-daemon-context.ts	
 src/test-utils/build-stub-daemon-requests.ts	test-utils		packages/test-utils/src/build-stub-daemon-requests.ts	
 src/test-utils/build-stub-dir-provider.ts	execution-local	testing	packages/execution/local/src/testing/build-stub-dir-provider.ts	

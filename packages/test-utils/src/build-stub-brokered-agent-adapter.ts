@@ -1,4 +1,4 @@
-import type { AgentAdapter } from '../agents/agent-adapter';
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 interface StubBrokeredAgentAdapterConfig {

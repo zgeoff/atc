@@ -1,5 +1,5 @@
+import type { BrokerHost, CredentialBroker } from '@atc/plugin-api/credential-broker';
 import { BrokerAuthorityError } from './broker-authority-error';
-import type { ImpPort, ImpView } from './imp-port';
 import { verifyTokenImpAuthority } from './verify-token-imp-authority';
 
 // The imp a binding recorded when atc made it.
@@ -20,17 +20,16 @@ interface RecordedImp {
  * cleanup; an imp with another id rejects.
  */
 export async function verifyCleanupAuthority(
-  port: Pick<ImpPort, 'readIdentity' | 'readImp'>,
+  broker: Pick<CredentialBroker, 'hostPrefix' | 'readIdentity' | 'readHost'>,
   recorded: RecordedImp,
-  impPrefix: string,
-): Promise<ImpView | null> {
-  const identity = await port.readIdentity();
+): Promise<BrokerHost | null> {
+  const identity = await broker.readIdentity();
 
   // Checked first, so impd's answer for the name comes from a token that
   // can see the imp, and a missing imp means it is gone.
-  verifyTokenImpAuthority(identity, [recorded.name], impPrefix);
+  verifyTokenImpAuthority(identity, [recorded.name], broker.hostPrefix);
 
-  const imp = await port.readImp(recorded.name);
+  const imp = await broker.readHost(recorded.name);
 
   if (imp !== null && imp.id !== recorded.id) {
     throw new BrokerAuthorityError(

@@ -1,5 +1,5 @@
 import { isGitURL } from '@atc/core/is-git-url';
-import type { SourceInterpretation, SourceProvider } from '../types';
+import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api/types';
 
 /**
  * A git repository at a typed URL, which needs nothing installed beyond

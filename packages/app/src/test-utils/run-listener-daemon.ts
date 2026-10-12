@@ -1,6 +1,6 @@
 import { join } from 'node:path';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { startDaemon } from '../daemon/daemon';
-import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 /**
  * Runs a daemon with a TCP listener on a kernel-chosen loopback port, its
@@ -18,7 +18,7 @@ async function main() {
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter({
       takesMessages: true,
-      normalizeHook: () => ({ kind: 'prompt-submitted' }),
+      planHookEvents: () => ({ events: [{ kind: 'prompt-submitted' }] }),
       buildResumeCommand: () => 'claude --resume',
     }),
     dbPath: join(dir, 'state.db'),

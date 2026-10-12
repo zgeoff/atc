@@ -14,6 +14,24 @@ import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
+import type {
+  AgentAdapter,
+  GuestPaths,
+  GuestSpawnPlan,
+  HookPlan,
+  SpawnOptions,
+  SpawnOverrides,
+  SpawnPlan,
+} from '@atc/plugin-api/agent-adapter';
+import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
+import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
+import type {
+  ExecutionCapability,
+  ExecutionProvider,
+  HarnessHandle,
+  HarnessRelay,
+  HarnessSpec,
+} from '@atc/plugin-api/execution-provider';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { buildSessionEnv } from '@atc/protocol/build-session-env';
 import { countSessionStates } from '@atc/protocol/count-session-states';
@@ -29,29 +47,12 @@ import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { sortSessionViews } from '@atc/protocol/sort-session-views';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '@atc/store/fleet-entry';
-import type {
-  AgentAdapter,
-  GuestPaths,
-  GuestSpawnPlan,
-  SpawnOptions,
-  SpawnOverrides,
-  SpawnPlan,
-} from '../agents/agent-adapter';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
-import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
-import { EffectRemainsError } from './effect-remains-error';
-import type {
-  ExecutionCapability,
-  ExecutionProvider,
-  HarnessHandle,
-  HarnessRelay,
-  HarnessSpec,
-} from './execution-provider';
 import { findExecutionRefusal } from './find-execution-refusal';
 import type { BridgeBinding } from './is-binding-current';
 import { loadOAuthStates } from './load-oauth-states';
@@ -265,7 +266,7 @@ const FAILED_SPAWN_EXIT_WAIT_MS = 2000;
 // How a harness takes its credential from impd's broker: the broker the
 // provider reaches, and the binding the agent's selection resolves to now.
 interface HarnessAuth {
-  readonly host: BrokerAuthHost;
+  readonly host: CredentialBroker;
   readonly binding: AuthBinding;
 }
 
@@ -2719,9 +2720,12 @@ export class SessionManager {
     return this.sessions.filter((s) => s.parent === id);
   }
 
-  // Returns the normalized event so the caller can key lifecycle bookkeeping
-  // and the event trail on it, or null when no session or adapter matches.
-  applyHook(e: HookEvent): AdapterEvent | null {
+  // Applies one hook line to its session: the adapter plans the line's
+  // events from the state it returned for the session's previous line, and
+  // the session takes each event in order. Returns the plan, so the caller
+  // can key lifecycle bookkeeping and the event trail on its events and
+  // keep its next state, or null when no session or adapter matches.
+  applyHook(e: HookEvent, prev?: unknown): HookPlan | null {
     const s = this.sessions.find((x) => x.id === e.atcId);
 
     if (!s) {
@@ -2734,12 +2738,20 @@ export class SessionManager {
       return null;
     }
 
-    const ev = adapter.normalizeHook(e);
+    const plan = adapter.planHookEvents(e, prev);
 
+    for (const ev of plan.events) {
+      this.applyAdapterEvent(s, ev);
+    }
+
+    return plan;
+  }
+
+  private applyAdapterEvent(s: Session, ev: AdapterEvent): void {
     // Reporters belong to the terminal process; once a session is headless,
     // late reports from the dying terminal must not clobber its state.
     if (s.kind === 'headless') {
-      return ev;
+      return;
     }
 
     const focused = this.focusedId === s.id;
@@ -2856,8 +2868,6 @@ export class SessionManager {
       this.onEvent('state', s);
       this.emitChange();
     }
-
-    return ev;
   }
 
   private async refreshName(s: Session, source: string) {

@@ -11,6 +11,7 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import { encodeCursor } from '@atc/protocol/encode-cursor';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { buildStubAttentionAdapter } from '@atc/test-utils/build-stub-attention-adapter';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { buildStubHostHold } from '@atc/test-utils/build-stub-host-hold';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -23,7 +24,6 @@ import { z } from 'zod';
 import { buildPrincipalCaller } from '../mcp/build-principal-caller';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { runTool } from '../mcp/run-tool';
-import { buildStubAttentionAdapter } from '../test-utils/build-stub-attention-adapter';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

@@ -1,5 +1,5 @@
+import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
 import { BrokerAuthorityError } from './broker-authority-error';
-import type { ImpPort } from './imp-port';
 import { verifyTokenImpAuthority } from './verify-token-imp-authority';
 
 /**
@@ -25,11 +25,10 @@ interface BrokerActivation {
  * Whether each secret's rules match the binding is a separate comparison.
  */
 export async function verifyBrokerAuthority(
-  port: Pick<ImpPort, 'readFeatures' | 'readIdentity'>,
+  broker: Pick<CredentialBroker, 'hostPrefix' | 'readFeatures' | 'readIdentity'>,
   activation: BrokerActivation,
-  impPrefix: string,
 ): Promise<void> {
-  const features = await port.readFeatures();
+  const features = await broker.readFeatures();
 
   if (!features.grantableTokens || !features.secretRebind || !features.execRequire) {
     throw new BrokerAuthorityError(
@@ -53,9 +52,9 @@ export async function verifyBrokerAuthority(
     );
   }
 
-  const identity = await port.readIdentity();
+  const identity = await broker.readIdentity();
 
-  verifyTokenImpAuthority(identity, activation.impNames, impPrefix);
+  verifyTokenImpAuthority(identity, activation.impNames, broker.hostPrefix);
 
   const missing = activation.secrets.filter((secret) => !identity.grantable.includes(secret));
 

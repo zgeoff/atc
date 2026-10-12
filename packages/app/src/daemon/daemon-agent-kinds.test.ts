@@ -1,6 +1,6 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it lists an agent atc has no code for with the kind and label its adapter declares', async () => {

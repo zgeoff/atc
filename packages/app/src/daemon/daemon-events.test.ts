@@ -1,9 +1,9 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { decodeMessage } from '@atc/protocol/protocol';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
 import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // Events-socket tests: snapshot-then-stream and read-only behavior. The

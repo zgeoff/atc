@@ -1,10 +1,10 @@
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
+import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { EffectTarget, IdempotencyRecord } from '@atc/store/idempotency-record';
 import type { StateStore } from '@atc/store/state-store';
-import { EffectRemainsError } from './effect-remains-error';
 
 // A request's idempotency key, the hash of the payload it came with, the
 // principal the request acts as when it is not the ledger's own, and

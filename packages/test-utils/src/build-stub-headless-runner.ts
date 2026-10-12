@@ -2,7 +2,7 @@ import type {
   HeadlessRunEvents,
   HeadlessRunRequest,
   HeadlessRunner,
-} from '../agents/agent-adapter';
+} from '@atc/plugin-api/agent-adapter';
 
 interface StubHeadlessRun {
   readonly request: HeadlessRunRequest;

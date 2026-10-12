@@ -2,17 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import type { SessionID } from '@atc/core/session-id';
 import { systemClock } from '@atc/core/system-clock';
+import type { BrokerHost, CredentialBroker } from '@atc/plugin-api/credential-broker';
+import { CredentialBrokerError } from '@atc/plugin-api/credential-broker-error';
+import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
+import type { LaunchTicket } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { RuntimeAuthBinding, RuntimeAuthGrant } from '@atc/store/runtime-auth-binding';
 import type { StateStore } from '@atc/store/state-store';
-import type { BrokerAuthHost } from './broker-auth-host';
 import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
-import { EffectRemainsError } from './effect-remains-error';
-import type { LaunchTicket } from './execution-provider';
-import type { ImpView } from './imp-port';
-import { ImpPortError } from './imp-port-error';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
@@ -95,9 +94,9 @@ export class RuntimeAuthBinder {
    * attempt made before it rejects, and a take-back that cannot be
    * confirmed rejects with an effect that remains.
    */
-  createBinding(host: BrokerAuthHost, request: BindingRequest): Promise<string> {
+  createBinding(host: CredentialBroker, request: BindingRequest): Promise<string> {
     return this.withHostLock(request.hostKey, async () => {
-      const impName = host.getImpName(request.hostKey);
+      const impName = host.getHostName(request.hostKey);
       const binding = request.binding;
 
       try {
@@ -156,7 +155,7 @@ export class RuntimeAuthBinder {
    * Resolves to the binding.
    */
   verifyBinding(
-    host: BrokerAuthHost,
+    host: CredentialBroker,
     hostKey: SessionID,
     binding: AuthBinding,
   ): Promise<RuntimeAuthBinding> {
@@ -195,7 +194,7 @@ export class RuntimeAuthBinder {
 
       const imp = await tryReadImp(host, row.impName);
 
-      if (imp === null || imp.id !== row.impID || row.impName !== host.getImpName(hostKey)) {
+      if (imp === null || imp.id !== row.impID || row.impName !== host.getHostName(hostKey)) {
         throw new DaemonError(
           'auth_runtime_mismatch',
           `imp ${row.impName} is no longer the imp host ${hostKey} was bound to`,
@@ -331,7 +330,11 @@ export class RuntimeAuthBinder {
    * given. Rejects with an effect that remains when it cannot confirm the
    * imp gone, leaving the binding pending its take-back.
    */
-  async removeAttempt(host: BrokerAuthHost, hostKey: SessionID, attemptID: string): Promise<void> {
+  async removeAttempt(
+    host: CredentialBroker,
+    hostKey: SessionID,
+    attemptID: string,
+  ): Promise<void> {
     await this.withHostLock(hostKey, () => this.removeAttemptLocked(host, hostKey, attemptID));
   }
 
@@ -342,7 +345,7 @@ export class RuntimeAuthBinder {
    * impd fails its later requests. Rejects with `auth_revocation_pending`
    * when any grant cannot be confirmed gone.
    */
-  async revokeBinding(host: BrokerAuthHost | null, hostKey: SessionID): Promise<void> {
+  async revokeBinding(host: CredentialBroker | null, hostKey: SessionID): Promise<void> {
     await this.withHostLock(hostKey, async () => {
       this.revokeAdmissions(hostKey, 'revocation_pending');
 
@@ -371,7 +374,7 @@ export class RuntimeAuthBinder {
    * binding at its old revision, blocked as a failed rebind until a retry.
    * Resolves to the new revision.
    */
-  updateBinding(host: BrokerAuthHost, hostKey: SessionID, binding: AuthBinding): Promise<number> {
+  updateBinding(host: CredentialBroker, hostKey: SessionID, binding: AuthBinding): Promise<number> {
     return this.withHostLock(hostKey, async () => {
       this.revokeAdmissions(hostKey, 'provisioning');
 
@@ -406,11 +409,7 @@ export class RuntimeAuthBinder {
       try {
         await verifyGate(host, row.impName, binding);
 
-        const imp = await verifyCleanupAuthority(
-          host.port,
-          { name: row.impName, id: row.impID },
-          host.impPrefix,
-        );
+        const imp = await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
 
         if (imp === null) {
           throw new BrokerAuthorityError(
@@ -469,7 +468,7 @@ export class RuntimeAuthBinder {
    * shows under the recorded id is destroyed, and the record goes once
    * impd shows no imp under the name. Never deletes a secret.
    */
-  forgetBinding(host: BrokerAuthHost | null, hostKey: SessionID): Promise<boolean> {
+  forgetBinding(host: CredentialBroker | null, hostKey: SessionID): Promise<boolean> {
     return this.withHostLock(hostKey, async () => {
       this.revokeAdmissions(hostKey, 'revocation_pending');
 
@@ -491,11 +490,7 @@ export class RuntimeAuthBinder {
         const imp =
           row.impID === null
             ? await tryReadImp(host, row.impName)
-            : await verifyCleanupAuthority(
-                host.port,
-                { name: row.impName, id: row.impID },
-                host.impPrefix,
-              );
+            : await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
 
         if (imp !== null && row.impID === null) {
           throw new BrokerAuthorityError(
@@ -506,7 +501,7 @@ export class RuntimeAuthBinder {
         }
 
         if (imp !== null) {
-          await host.destroyImp(hostKey);
+          await host.destroyHost(hostKey);
         }
 
         if ((await tryReadImp(host, row.impName)) !== null) {
@@ -532,7 +527,7 @@ export class RuntimeAuthBinder {
    * reported and leave the binding blocked for the next start.
    */
   async reconcileBindings(
-    findHost: (target: string) => BrokerAuthHost | null,
+    findHost: (target: string) => CredentialBroker | null,
     listedHostKeys: ReadonlySet<SessionID>,
     log: (line: string) => void,
   ): Promise<void> {
@@ -567,13 +562,13 @@ export class RuntimeAuthBinder {
   // grant on it, then each grant, each one recorded as granting before impd
   // is asked and as granted after.
   private async createImpAndGrants(
-    host: BrokerAuthHost,
+    host: CredentialBroker,
     hostKey: SessionID,
     impName: string,
     binding: AuthBinding,
     attemptID: string,
   ): Promise<void> {
-    const existing = await host.port.readImp(impName);
+    const existing = await host.readHost(impName);
 
     if (existing !== null) {
       await this.store.removeAuthBinding(hostKey);
@@ -585,15 +580,15 @@ export class RuntimeAuthBinder {
       );
     }
 
-    let imp: ImpView;
+    let imp: BrokerHost;
 
     try {
-      imp = await host.createImp(hostKey);
+      imp = await host.createHost(hostKey);
     } catch (error) {
       // A create impd refused made nothing, so the record goes with it. One
       // that never answered may have made an imp, which the take-back
       // settles by what impd shows under the name.
-      if (error instanceof ImpPortError && error.code !== 'UNREACHABLE') {
+      if (error instanceof CredentialBrokerError && error.code !== 'unreachable') {
         await this.store.removeAuthBinding(hostKey);
       }
 
@@ -606,7 +601,7 @@ export class RuntimeAuthBinder {
       this.now(),
     );
 
-    const held = await host.port.readGrants(impName);
+    const held = await host.readGrants(impName);
 
     if (held.length > 0) {
       throw new DaemonError(
@@ -626,13 +621,13 @@ export class RuntimeAuthBinder {
       };
 
       await this.store.upsertAuthGrant({ ...grant, phase: 'granting' }, this.now());
-      await host.port.createGrant(impName, secret.secret);
+      await host.createGrant(impName, secret.secret);
       await this.store.upsertAuthGrant({ ...grant, phase: 'granted' }, this.now());
     }
   }
 
   private async removeAttemptLocked(
-    host: BrokerAuthHost,
+    host: CredentialBroker,
     hostKey: SessionID,
     attemptID: string,
   ): Promise<void> {
@@ -654,14 +649,10 @@ export class RuntimeAuthBinder {
       } else {
         assertRecordedImpName(host, row);
 
-        const imp = await verifyCleanupAuthority(
-          host.port,
-          { name: row.impName, id: row.impID },
-          host.impPrefix,
-        );
+        const imp = await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
 
         if (imp !== null) {
-          await host.destroyImp(hostKey);
+          await host.destroyHost(hostKey);
         }
 
         if ((await tryReadImp(host, row.impName)) !== null) {
@@ -697,7 +688,7 @@ export class RuntimeAuthBinder {
   // Revokes each bound or recorded grant and returns the secrets it could
   // not confirm gone. An imp impd shows gone took every grant with it.
   private async revokeGrants(
-    host: BrokerAuthHost | null,
+    host: CredentialBroker | null,
     row: RuntimeAuthBinding,
   ): Promise<string[]> {
     const grants = await this.store.collectAuthGrants(row.hostKey);
@@ -711,10 +702,10 @@ export class RuntimeAuthBinder {
     }
 
     const recorded = { name: row.impName, id: row.impID };
-    let imp: ImpView | null;
+    let imp: BrokerHost | null;
 
     try {
-      imp = await verifyCleanupAuthority(host.port, recorded, host.impPrefix);
+      imp = await verifyCleanupAuthority(host, recorded);
     } catch {
       await this.updateGrantPhases(row, grants, secrets, 'revocation_pending');
 
@@ -773,13 +764,13 @@ export class RuntimeAuthBinder {
   // already holds as preexisting, then revokes each held grant the new
   // binding drops.
   private async applyRebindGrants(
-    host: BrokerAuthHost,
+    host: CredentialBroker,
     row: RuntimeAuthBinding,
     binding: AuthBinding,
     revision: number,
     attemptID: string,
   ): Promise<void> {
-    const held = await host.port.readGrants(row.impName);
+    const held = await host.readGrants(row.impName);
 
     const bound = binding.secrets.map((secret) => secret.secret);
 
@@ -797,7 +788,7 @@ export class RuntimeAuthBinder {
           this.now(),
         );
 
-        await host.port.createGrant(row.impName, secret);
+        await host.createGrant(row.impName, secret);
 
         await this.store.upsertAuthGrant(
           { ...grant, preexisting: false, phase: 'granted' },
@@ -834,7 +825,7 @@ export class RuntimeAuthBinder {
   // Revokes each grant a rebind attempt added, which only it can have
   // made, and records each it could not confirm gone as pending.
   private async removeRebindGrants(
-    host: BrokerAuthHost | null,
+    host: CredentialBroker | null,
     hostKey: SessionID,
     impName: string,
     attemptID: string,
@@ -867,7 +858,7 @@ export class RuntimeAuthBinder {
   // tried again on each start. Nothing changes unless the binding still
   // holds the same imp, revision, and rebind attempt under the host's lock.
   private async reconcileRebind(
-    host: BrokerAuthHost | null,
+    host: CredentialBroker | null,
     row: RuntimeAuthBinding,
   ): Promise<void> {
     const rebind = row.rebind;
@@ -898,11 +889,7 @@ export class RuntimeAuthBinder {
 
       assertRecordedImpName(host, row);
 
-      const imp = await verifyCleanupAuthority(
-        host.port,
-        { name: row.impName, id: impID },
-        host.impPrefix,
-      );
+      const imp = await verifyCleanupAuthority(host, { name: row.impName, id: impID });
 
       if (imp !== null) {
         await this.removeRebindGrants(host, row.hostKey, row.impName, rebind.attemptID);
@@ -914,8 +901,8 @@ export class RuntimeAuthBinder {
 // Refuses a provider whose name for the host is not the imp the binding
 // recorded, such as after the target's imp name prefix changed, so a
 // destroy by host key never reaches another imp.
-function assertRecordedImpName(host: BrokerAuthHost, row: RuntimeAuthBinding): void {
-  const name = host.getImpName(row.hostKey);
+function assertRecordedImpName(host: CredentialBroker, row: RuntimeAuthBinding): void {
+  const name = host.getHostName(row.hostKey);
 
   if (name !== row.impName) {
     throw new BrokerAuthorityError(
@@ -929,7 +916,7 @@ function assertRecordedImpName(host: BrokerAuthHost, row: RuntimeAuthBinding): v
 // The full gate on a binding: impd's features and the token's authority
 // over the imp and every bound secret, then each secret's kind and rules.
 async function verifyGate(
-  host: BrokerAuthHost,
+  host: CredentialBroker,
   impName: string,
   binding: AuthBinding,
 ): Promise<void> {
@@ -939,13 +926,9 @@ async function verifyGate(
     .filter((secret) => secret.kind === 'oauth')
     .map((secret) => secret.secret);
 
-  await verifyBrokerAuthority(
-    host.port,
-    { impNames: [impName], secrets, oauthSecrets },
-    host.impPrefix,
-  );
+  await verifyBrokerAuthority(host, { impNames: [impName], secrets, oauthSecrets });
 
-  const held = await host.port.readSecrets();
+  const held = await host.readSecrets();
 
   const mismatches = collectSecretRuleMismatches(binding.secrets, held);
 
@@ -958,17 +941,17 @@ async function verifyGate(
   }
 }
 
-async function tryReadImp(host: BrokerAuthHost, name: string) {
+async function tryReadImp(host: CredentialBroker, name: string) {
   try {
-    return await host.port.readImp(name);
+    return await host.readHost(name);
   } catch (error) {
     throw toAuthRefusal(error);
   }
 }
 
-async function tryReadGrants(host: BrokerAuthHost, name: string): Promise<readonly string[]> {
+async function tryReadGrants(host: CredentialBroker, name: string): Promise<readonly string[]> {
   try {
-    return await host.port.readGrants(name);
+    return await host.readGrants(name);
   } catch (error) {
     throw toAuthRefusal(error);
   }
@@ -977,30 +960,30 @@ async function tryReadGrants(host: BrokerAuthHost, name: string): Promise<readon
 // Whether a grant is gone: revoked now, already gone, its imp or secret
 // gone, or, when impd forbids the revoke, absent from the imp's grants.
 async function tryRevokeGrant(
-  host: BrokerAuthHost,
+  host: CredentialBroker,
   impName: string,
   secret: string,
 ): Promise<boolean> {
   try {
-    await host.port.removeGrant(impName, secret);
+    await host.removeGrant(impName, secret);
 
     return true;
   } catch (error) {
-    if (error instanceof ImpPortError && error.code === 'NOT_FOUND') {
+    if (error instanceof CredentialBrokerError && error.code === 'not_found') {
       return true;
     }
 
-    if (!(error instanceof ImpPortError && error.code === 'FORBIDDEN')) {
+    if (!(error instanceof CredentialBrokerError && error.code === 'forbidden')) {
       return false;
     }
   }
 
   try {
-    const held = await host.port.readGrants(impName);
+    const held = await host.readGrants(impName);
 
     return !held.includes(secret);
   } catch (error) {
-    return error instanceof ImpPortError && error.code === 'NOT_FOUND';
+    return error instanceof CredentialBrokerError && error.code === 'not_found';
   }
 }
 
@@ -1055,13 +1038,13 @@ function toAuthRefusal(error: unknown): unknown {
     return new DaemonError(error.code, error.message, error.data);
   }
 
-  if (error instanceof ImpPortError) {
+  if (error instanceof CredentialBrokerError) {
     return new DaemonError(
       'host_unavailable',
       `impd refused a runtime auth call: ${error.message}`,
       {
         provider: 'imp',
-        problem: error.code.toLowerCase(),
+        problem: error.brokerCode.toLowerCase(),
       },
     );
   }

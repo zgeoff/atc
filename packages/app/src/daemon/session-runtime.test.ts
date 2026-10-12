@@ -2,6 +2,20 @@ import { expect, jest, mock, onTestFinished, spyOn, test } from 'bun:test';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 
+test('it starts with no hook state', () => {
+  expect(new SessionRuntime().harnessState).toBeUndefined();
+});
+
+test('it drops the hook state of the previous terminal when a new one boots', () => {
+  const runtime = new SessionRuntime();
+
+  runtime.harnessState = { latestPromptID: 'p-1' };
+
+  runtime.resetBoot({ cols: 80, rows: 24 });
+
+  expect(runtime.harnessState).toBeUndefined();
+});
+
 test('it stops its screen model on dispose', () => {
   const runtime = new SessionRuntime();
   const model = new ScreenModel(20, 5);

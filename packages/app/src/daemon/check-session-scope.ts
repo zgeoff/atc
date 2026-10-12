@@ -1,3 +1,4 @@
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
 import type {
@@ -7,7 +8,6 @@ import type {
 } from '@atc/protocol/published-record';
 import { z } from 'zod';
 import { runGH } from '../sources/github/run-gh';
-import type { ExecutionProvider } from './execution-provider';
 import { findHostBranch } from './find-host-branch';
 import { runHostGit } from './run-host-git';
 

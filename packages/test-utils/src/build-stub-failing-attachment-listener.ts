@@ -1,4 +1,4 @@
-import type { HarnessAttachment } from '../daemon/execution-provider';
+import type { HarnessAttachment } from '@atc/plugin-api/execution-provider';
 
 /**
  * An attachment listener that fails as a listener whose write to a closed

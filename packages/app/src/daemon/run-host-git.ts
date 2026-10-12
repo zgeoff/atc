@@ -1,6 +1,6 @@
+import type { CommandResult, ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
-import type { CommandResult, ExecutionProvider } from './execution-provider';
 
 // The git options every check runs with: every directory counts as safe,
 // since a host's files may belong to another user than the one the command

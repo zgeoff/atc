@@ -2,22 +2,10 @@ import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
 import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
 import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from '../collect-auth-profiles';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { GatewayAuth } from '@atc/plugin-api/gateway-auth';
 import { collectProfileEnvProblems } from '../collect-profile-env-problems';
 import { resolveAuthProfiles } from '../resolve-auth-profiles';
-
-/**
- * The auth profiles a gateway's sessions are bound to through impd's
- * broker, and the variables each session gets in place of a credential,
- * every value the fixed placeholder. `args`, when set, replaces the
- * gateway's arguments on a launch behind the broker, whose host lays out
- * its files apart from the daemon's.
- */
-export interface GatewayAuth {
-  readonly profiles: readonly string[];
-  readonly placeholderEnv: Readonly<Record<string, string>>;
-  readonly args?: readonly string[];
-}
 
 /**
  * The fields of a gateway entry that its auth is checked against.

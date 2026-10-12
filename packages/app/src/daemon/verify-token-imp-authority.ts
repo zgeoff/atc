@@ -1,6 +1,6 @@
+import type { BrokerIdentity } from '@atc/plugin-api/credential-broker';
+import { isHostNameAllowed } from '@atc/plugin-api/is-host-name-allowed';
 import { BrokerAuthorityError } from './broker-authority-error';
-import type { ImpIdentity } from './imp-port';
-import { isImpNameAllowed } from './is-imp-name-allowed';
 
 /**
  * Rejects unless the token may manage every named imp and reaches no imp
@@ -14,7 +14,7 @@ import { isImpNameAllowed } from './is-imp-name-allowed';
  * and the names are the imps the call touches under those built names.
  */
 export function verifyTokenImpAuthority(
-  identity: ImpIdentity,
+  identity: BrokerIdentity,
   impNames: readonly string[],
   impPrefix: string,
 ): void {
@@ -31,7 +31,7 @@ export function verifyTokenImpAuthority(
     );
   }
 
-  const patterns = identity.imps;
+  const patterns = identity.hosts;
 
   if (patterns === null || !patterns.every((pattern) => isPatternContained(pattern, impPrefix))) {
     throw new BrokerAuthorityError(
@@ -48,7 +48,7 @@ export function verifyTokenImpAuthority(
     );
   }
 
-  const outside = impNames.filter((name) => !isImpNameAllowed(patterns, name));
+  const outside = impNames.filter((name) => !isHostNameAllowed(patterns, name));
 
   if (outside.length > 0) {
     throw new BrokerAuthorityError(

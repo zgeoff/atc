@@ -1,8 +1,8 @@
-import type { LineInputStep, TerminalInputModes } from './agent-adapter';
-import { buildUnmarkedText } from './build-unmarked-text';
-import { findSlashCommand } from './find-slash-command';
-import { PASTE_MARKERS } from './paste-markers';
-import { planPastedLineInput } from './plan-pasted-line-input';
+import type { LineInputStep, TerminalInputModes } from '@atc/plugin-api/agent-adapter';
+import { buildUnmarkedText } from '@atc/plugin-api/harness/build-unmarked-text';
+import { findSlashCommand } from '@atc/plugin-api/harness/find-slash-command';
+import { PASTE_MARKERS } from '@atc/plugin-api/harness/paste-markers';
+import { planPastedLineInput } from '@atc/plugin-api/harness/plan-pasted-line-input';
 
 // Long enough for Codex to read the command name between frames of a busy
 // session, short enough that input held behind the line waits unnoticed.

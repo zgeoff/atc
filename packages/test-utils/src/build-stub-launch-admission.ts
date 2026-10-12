@@ -1,5 +1,5 @@
+import type { LaunchTicket } from '@atc/plugin-api/execution-provider';
 import type { DaemonError } from '@atc/protocol/daemon-error';
-import type { LaunchTicket } from '../daemon/execution-provider';
 
 /**
  * A runtime auth binder's launch admission for a harness behind the

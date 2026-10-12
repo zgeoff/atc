@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import type { RequiredKeysOf } from 'type-fest';
-import type { AgentAdapter } from '../agents/agent-adapter';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 test('it builds a default agent adapter', () => {
@@ -12,7 +12,7 @@ test('it builds a default agent adapter', () => {
     screenDetector: null,
     takesMessages: false,
     planSpawn: expect.toBeFunction(),
-    normalizeHook: expect.toBeFunction(),
+    planHookEvents: expect.toBeFunction(),
     loadName: expect.toBeFunction(),
     canResume: expect.toBeFunction(),
     buildResumeCommand: expect.toBeFunction(),
@@ -26,7 +26,7 @@ test('it applies overrides on top of the defaults', () => {
     screenDetector: null,
     takesMessages: true,
     planSpawn: expect.toBeFunction(),
-    normalizeHook: expect.toBeFunction(),
+    planHookEvents: expect.toBeFunction(),
     loadName: expect.toBeFunction(),
     canResume: expect.toBeFunction(),
     buildResumeCommand: expect.toBeFunction(),
@@ -40,7 +40,7 @@ test('it sets exactly the members the adapter interface requires', () => {
     screenDetector: true,
     takesMessages: true,
     planSpawn: true,
-    normalizeHook: true,
+    planHookEvents: true,
     loadName: true,
     canResume: true,
     buildResumeCommand: true,
@@ -56,14 +56,17 @@ test('it plans every spawn as a sleep that outlives the test', () => {
   });
 });
 
-test('it reads every hook as a heartbeat', () => {
+test('it reads every hook as one heartbeat that keeps no state', () => {
   expect(
-    buildMockAgentAdapter().normalizeHook({
-      atcId: toSessionID('s-1'),
-      event: 'SessionStart',
-      payload: { session_id: 'c-1' },
-    }),
-  ).toStrictEqual({ kind: 'heartbeat' });
+    buildMockAgentAdapter().planHookEvents(
+      {
+        atcId: toSessionID('s-1'),
+        event: 'SessionStart',
+        payload: { session_id: 'c-1' },
+      },
+      undefined,
+    ),
+  ).toStrictEqual({ events: [{ kind: 'heartbeat' }] });
 });
 
 test('it loads no name for a session', () => {

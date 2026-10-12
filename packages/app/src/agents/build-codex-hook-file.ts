@@ -1,5 +1,5 @@
+import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
 import { buildCLIArgv } from './build-cli-argv';
-import { buildCLICommand } from './build-cli-command';
 
 const CODEX_HOOK_EVENTS = [
   'SessionStart',
@@ -14,7 +14,7 @@ const CODEX_HOOK_EVENTS = [
  * default, or the atc inside a remote host.
  */
 export function buildCodexHookFile(argv: readonly string[] = buildCLIArgv()): string {
-  const cmd = buildCLICommand('hook-report --agent codex', argv);
+  const cmd = buildHookCommand('hook-report --agent codex', argv);
   const buildEntry = (timeout: number) => [{ hooks: [{ type: 'command', command: cmd, timeout }] }];
   const hooks = Object.fromEntries(CODEX_HOOK_EVENTS.map((event) => [event, buildEntry(5)]));
 

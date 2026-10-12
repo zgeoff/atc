@@ -3,6 +3,7 @@ import type { AgentID } from '@atc/core/agent-id';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import type { SourceProvider, SourceRequest } from '@atc/plugin-api/types';
 import { CONTROL_CHARACTER } from '@atc/protocol/control-character';
 import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
 import { DaemonError } from '@atc/protocol/daemon-error';
@@ -25,7 +26,6 @@ import {
 } from '@atc/protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '@atc/protocol/protocol';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
-import type { SourceProvider, SourceRequest } from '../sources/types';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';

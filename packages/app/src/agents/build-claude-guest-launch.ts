@@ -1,4 +1,4 @@
-import type { SpawnPlan } from './agent-adapter';
+import type { SpawnPlan } from '@atc/plugin-api/agent-adapter';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
 import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';

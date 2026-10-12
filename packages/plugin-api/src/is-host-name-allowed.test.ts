@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { isImpNameAllowed } from './is-imp-name-allowed';
+import { isHostNameAllowed } from './is-host-name-allowed';
 
 test.each([
   [['atc-*'], 'atc-s1', true],
@@ -15,6 +15,6 @@ test.each([
   [['ab*ba'], 'aba', false],
   [['dev-*', 'atc-*'], 'atc-s1', true],
   [[], 'atc-s1', false],
-])('it matches patterns %p against imp %s as %p', (patterns, name, allowed) => {
-  expect(isImpNameAllowed(patterns, name)).toBe(allowed);
+])('it matches patterns %p against host %s as %p', (patterns, name, allowed) => {
+  expect(isHostNameAllowed(patterns, name)).toBe(allowed);
 });

@@ -20,6 +20,16 @@ requirement. That refusal is `broker_not_ready`. An impd too old to understand t
 ignore it, so the daemon reads impd's features first and refuses to launch on such an impd with
 `auth_impd_too_old`.
 
+## What the broker guarantees
+
+The daemon reaches impd's broker through the credential broker contract that the imp provider
+implements in atc's own terms, so the binding logic depends on three guarantees and on nothing else
+about impd. A host's id proves that it is the host atc made: a host made again under the same name
+gets a new id, so the daemon never grants to or destroys a host whose id differs from the recorded
+one. Removing a grant the host no longer holds changes nothing, so a revoke that runs twice, or one
+that finds a grant already gone, ends where one complete revoke ends. Destroying a host that is
+already gone counts as done, so a forget that finds no host drops the binding.
+
 ## Spawning
 
 A spawn checks everything before it writes anything, so a refused spawn leaves no binding, no imp

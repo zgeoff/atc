@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { isRecord } from '@atc/core/is-record';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { decodeGatewayCursor } from './decode-gateway-cursor';

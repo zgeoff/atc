@@ -1,4 +1,4 @@
-import type { HarnessRelay } from '../daemon/execution-provider';
+import type { HarnessRelay } from '@atc/plugin-api/execution-provider';
 
 /**
  * A harness relay held in memory, as a provider hands one to the daemon for

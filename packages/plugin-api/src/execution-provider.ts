@@ -1,6 +1,6 @@
 import type { StepTimer } from '@atc/core/create-step-timer';
 import type { DaemonError } from '@atc/protocol/daemon-error';
-import type { BrokerAuthHost } from './broker-auth-host';
+import type { CredentialBroker } from './credential-broker';
 
 /**
  * The host a session's harness runs on: it starts a process in a
@@ -10,6 +10,13 @@ import type { BrokerAuthHost } from './broker-auth-host';
  * change to the session code. The daemon checks a capability before it
  * calls the operation behind it, and a request needing one the provider
  * lacks fails with `unsupported_operation`.
+ *
+ * An operation that fails after its effect began, and cannot confirm it
+ * took the effect back, throws an effect-remains error carrying the
+ * refusal as its cause. The daemon's idempotency ledger then keeps the
+ * request's key as an unknown outcome and never runs the effect again
+ * under it. Any other failure means the effect did not happen, and the
+ * key is released for a retry.
  */
 export interface ExecutionProvider {
   // The provider kind a target's config selects, such as `local-pty`.
@@ -29,11 +36,14 @@ export interface ExecutionProvider {
   // How a harness here can take its credential from impd's broker instead
   // of holding it. Absent on a host with no broker, which never starts a
   // session that needs one.
-  readonly brokerAuth?: BrokerAuthHost;
+  readonly brokerAuth?: CredentialBroker;
 
   // Readies the host a harness is about to start on: a remote host is
   // created when missing, woken when asleep, and held awake while its
-  // harnesses run. Rejects with the refusal before any harness starts.
+  // harnesses run. Rejects with the refusal before any harness starts. A
+  // readying that fails after it created something, and cannot take that
+  // back, rejects with an effect-remains error instead of the refusal, so a
+  // retry under the same idempotency key never creates a second host.
   readonly prepareHost: (request: HostRequest) => Promise<void>;
 
   // Checks that an existing host is reachable with this provider's current
@@ -183,11 +193,6 @@ export interface HarnessSpec {
 }
 
 /**
- * One connection from a process inside a harness's host to the daemon, in
- * lines: each line the process writes arrives whole, and each line the
- * daemon writes reaches the process in order.
- */
-/**
  * One admitted request of a harness behind the broker. check runs just
  * before the request goes out and returns the refusal that stops it
  * unsent, or null to let it go; release gives the admission up once its
@@ -199,6 +204,11 @@ export interface LaunchTicket {
   readonly release: () => void;
 }
 
+/**
+ * One connection from a process inside a harness's host to the daemon, in
+ * lines: each line the process writes arrives whole, and each line the
+ * daemon writes reaches the process in order.
+ */
 export interface HarnessRelay {
   readonly onLine: (listener: (line: string) => void) => void;
   readonly onClose: (listener: () => void) => void;

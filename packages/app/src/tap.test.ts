@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
@@ -11,7 +12,6 @@ import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { startDaemon } from './daemon/daemon';
 import { runTap } from './tap';
-import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
 
 /**
  * A real daemon listening in a temp directory, and a client that has sent

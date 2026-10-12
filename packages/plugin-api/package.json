@@ -1,0 +1,17 @@
+{
+  "name": "@atc/plugin-api",
+  "private": true,
+  "description": "The contracts a harness, execution, or source plugin implements, the host services atc gives it, and the helpers harnesses share",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*"
+  }
+}

@@ -1,10 +1,59 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config/config';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
+
+test("it passes each session's hook state back for that session alone, starting each at none", async () => {
+  const seen: { readonly session: unknown; readonly prev: unknown }[] = [];
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-hook-agent-',
+    options: () => ({
+      // A harness whose state for a session is the hook events it has read
+      // for that session, in order.
+      adapter: buildMockAgentAdapter({
+        planHookEvents: (event, prev) => {
+          seen.push({ session: event.atcId, prev });
+
+          return {
+            events: [{ kind: 'heartbeat' }],
+            next: [...(Array.isArray(prev) ? prev : []), event.event],
+          };
+        },
+      }),
+    }),
+  });
+
+  const first = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, name: 'a' });
+  const second = await daemon.client.sendRequest('session.spawn', { cwd: daemon.dir, name: 'b' });
+
+  const a = getRecord(first, 'session')['id'];
+  const b = getRecord(second, 'session')['id'];
+
+  await daemon.sendHookLines(
+    { atcId: a, event: 'SessionStart', payload: {} },
+    { atcId: b, event: 'SessionStart', payload: {} },
+    { atcId: a, event: 'UserPromptSubmit', payload: {} },
+    { atcId: b, event: 'Stop', payload: {} },
+    { atcId: a, event: 'Stop', payload: {} },
+  );
+
+  await waitFor(() => {
+    expect(seen).toHaveLength(5);
+  });
+
+  expect(seen).toStrictEqual([
+    { session: a, prev: undefined },
+    { session: b, prev: undefined },
+    { session: a, prev: ['SessionStart'] },
+    { session: b, prev: ['SessionStart'] },
+    { session: a, prev: ['SessionStart', 'UserPromptSubmit'] },
+  ]);
+});
 
 test('it accepts a hook line carrying the kind for a second codex entry', async () => {
   const daemon = await startTestDaemon({

@@ -1,4 +1,8 @@
-import type { ExecutionProvider, HarnessSpec, HostRequest } from '../daemon/execution-provider';
+import type {
+  ExecutionProvider,
+  HarnessSpec,
+  HostRequest,
+} from '@atc/plugin-api/execution-provider';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 
 /**

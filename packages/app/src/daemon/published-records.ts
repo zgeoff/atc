@@ -3,12 +3,12 @@ import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import type { SessionID } from '@atc/core/session-id';
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
 import type { PublishedRecord, RecordedScope } from '@atc/protocol/published-record';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { checkSessionScope } from './check-session-scope';
 import type { CheckedScope } from './check-session-scope';
-import type { ExecutionProvider } from './execution-provider';
 import { findHostBranch } from './find-host-branch';
 import { mergeRecordedScope } from './merge-recorded-scope';
 

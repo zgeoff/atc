@@ -503,11 +503,10 @@ test("it lets a token scoped to the target's configured prefix activate the brok
     grantable: ['glm'],
   });
 
-  const verified = verifyBrokerAuthority(
-    ctx.port,
-    { impNames: [provider.getImpName('s1')], secrets: ['glm'] },
-    provider.impPrefix,
-  );
+  const verified = verifyBrokerAuthority(provider.brokerAuth, {
+    impNames: [provider.getImpName('s1')],
+    secrets: ['glm'],
+  });
 
   await expect(verified).toResolve();
 });
@@ -533,11 +532,10 @@ test("it refuses a token scoped beyond the target's configured prefix", () => {
     grantable: ['glm'],
   });
 
-  const verified = verifyBrokerAuthority(
-    ctx.port,
-    { impNames: [provider.getImpName('s1')], secrets: ['glm'] },
-    provider.impPrefix,
-  );
+  const verified = verifyBrokerAuthority(provider.brokerAuth, {
+    impNames: [provider.getImpName('s1')],
+    secrets: ['glm'],
+  });
 
   expect(verified).rejects.toMatchObject({ code: 'auth_token_too_broad' });
 });
@@ -745,16 +743,9 @@ test("it creates a host's imp for the broker with the target's image and memory"
     provider.dispose();
   });
 
-  const created = await provider.brokerAuth.createImp('s1');
+  const created = await provider.brokerAuth.createHost('s1');
 
-  expect(created).toStrictEqual({
-    id: expect.toBeString(),
-    name: 'atc-s1',
-    state: 'running',
-    leases: [],
-    otherLeaseCount: 0,
-  });
-
+  expect(created).toStrictEqual({ id: expect.toBeString(), name: 'atc-s1' });
   expect(ctx.port.calls).toStrictEqual(['imps.create atc-s1']);
   expect(ctx.port.createSpecs).toStrictEqual([{ name: 'atc-s1', image: 'base', memoryMib: 512 }]);
 });

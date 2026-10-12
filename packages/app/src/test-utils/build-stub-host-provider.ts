@@ -1,4 +1,4 @@
-import type { ExecutionProvider } from '../daemon/execution-provider';
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 
 /**

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { bootDaemonClient } from '@atc/lifecycle/boot-daemon';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing/build-mock-lifecycle-host';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
@@ -9,7 +10,6 @@ import { startDaemon } from './daemon/daemon';
 import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
-import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
 
 /**
  * A real daemon listening in a temp directory, the files the server's boot

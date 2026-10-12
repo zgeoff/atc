@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { posix } from 'node:path';
 import { isBrokerVariable } from '@atc/core/is-broker-variable';
+import { isHostNameAllowed } from '@atc/plugin-api/is-host-name-allowed';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import type { Subprocess } from 'bun';
 import { spawn } from 'bun-pty';
@@ -30,7 +31,6 @@ import type {
   ResumeResult,
 } from '../daemon/imp-port';
 import { ImpPortError } from '../daemon/imp-port-error';
-import { isImpNameAllowed } from '../daemon/is-imp-name-allowed';
 
 /**
  * Creates an in-process stand-in for impd behind the imp port, calling impd
@@ -1391,7 +1391,7 @@ class StubImpPort implements ImpPort {
       return new ImpPortError('FORBIDDEN', 'the caller cannot manage grants', { reason: 'scope' });
     }
 
-    if (patterns !== null && !isImpNameAllowed(patterns, name)) {
+    if (patterns !== null && !isHostNameAllowed(patterns, name)) {
       return new ImpPortError('FORBIDDEN', `imp ${name} is outside the caller's patterns`, {
         reason: 'imp_out_of_scope',
       });

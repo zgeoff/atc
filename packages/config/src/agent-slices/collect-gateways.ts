@@ -2,10 +2,10 @@ import type { AgentID } from '@atc/core/agent-id';
 import { buildOptionalNonEmptyString } from '@atc/core/build-optional-non-empty-string';
 import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
 import { isRecord } from '@atc/core/is-record';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { GatewayAuth } from '@atc/plugin-api/gateway-auth';
 import { z } from 'zod';
-import type { AuthProfile } from '../collect-auth-profiles';
 import { checkGatewayAuth } from './check-gateway-auth';
-import type { GatewayAuth } from './check-gateway-auth';
 
 /**
  * A Claude-compatible backend the Claude CLI is pointed at: its own agent id,

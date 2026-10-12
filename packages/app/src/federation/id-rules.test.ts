@@ -5,13 +5,13 @@ import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
 import { StateStore } from '@atc/store/state-store';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { parseClaudeTranscriptLine } from '../agents/parse-claude-transcript-line';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { collectUnruledIDPaths } from './collect-unruled-id-paths';
 import { ERROR_DATA_RULES, ID_RULES } from './id-rules';
@@ -209,9 +209,8 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
         parseTranscriptLine: parseClaudeTranscriptLine,
 
         // Every hook starts the session on the transcript in the directory.
-        normalizeHook: () => ({
-          kind: 'started',
-          transcriptSource: join(paths.dir, 'transcript.jsonl'),
+        planHookEvents: () => ({
+          events: [{ kind: 'started', transcriptSource: join(paths.dir, 'transcript.jsonl') }],
         }),
       }),
     }),

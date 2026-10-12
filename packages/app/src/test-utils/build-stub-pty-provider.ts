@@ -2,7 +2,7 @@ import type {
   ExecutionCapabilities,
   ExecutionProvider,
   HarnessSpec,
-} from '../daemon/execution-provider';
+} from '@atc/plugin-api/execution-provider';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 
 interface StubPTYProviderConfig {

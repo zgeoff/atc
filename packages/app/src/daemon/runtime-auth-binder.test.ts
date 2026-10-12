@@ -1,23 +1,25 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
+import type { LaunchTicket } from '@atc/plugin-api/execution-provider';
 import { StateStore } from '@atc/store/state-store';
 import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
+import { buildStubCredentialBroker } from '@atc/test-utils/build-stub-credential-broker';
+import { buildStubPregrantedBrokerHost } from '@atc/test-utils/build-stub-pregranted-broker-host';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
-import { buildStubPregrantedBrokerHost } from '../test-utils/build-stub-pregranted-broker-host';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { EffectRemainsError } from './effect-remains-error';
-import type { LaunchTicket } from './execution-provider';
 import { ImpHarness } from './imp-harness';
 import { ImpProvider } from './imp-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
-// A binder over a real state store, and an imp provider's broker host over
-// a stub imp port, which the test prepares as an operator prepares impd.
+// A binder over a real state store, an imp provider's broker over a stub
+// imp port, which the test prepares as an operator prepares impd, and a
+// broker stand-in with no imp behind it for the contract's own guarantees.
 async function setupTest() {
   const tmp = setupTempDir('atc-auth-binder-');
   const dbPath = join(tmp.dir, 'state.db');
@@ -41,6 +43,7 @@ async function setupTest() {
     store,
     port,
     host: provider.brokerAuth,
+    broker: buildStubCredentialBroker('atc-'),
     binder: new RuntimeAuthBinder(store),
   };
 }
@@ -2695,4 +2698,201 @@ test('it fails a rebind that cannot revoke a secret the new binding drops as rev
   const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
 
   expect(binding).toMatchObject({ state: 'rebind_failed', revision: 1, bindingHash: 'h1' });
+});
+
+test('it revokes a host whose grants an earlier revoke already removed, as revoked again', async () => {
+  const ctx = await setupTest();
+
+  ctx.broker.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.broker.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.broker, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'broker:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+  await ctx.binder.revokeBinding(ctx.broker, toSessionID('s1'));
+
+  ctx.broker.calls.length = 0;
+
+  await ctx.binder.revokeBinding(ctx.broker, toSessionID('s1'));
+
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+  const rows = await ctx.store.collectAuthGrants(toSessionID('s1'));
+
+  expect(ctx.broker.calls).toStrictEqual([
+    'readIdentity',
+    'readHost atc-s1',
+    'removeGrant atc-s1 glm',
+  ]);
+
+  expect(binding).toMatchObject({ state: 'revoked' });
+  expect(rows).toMatchObject([{ secret: 'glm', phase: 'revoked' }]);
+});
+
+test('it forgets a bound host by destroying it through the broker and dropping the record', async () => {
+  const ctx = await setupTest();
+
+  ctx.broker.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.broker.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.broker, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'broker:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  ctx.broker.calls.length = 0;
+
+  const forgotten = await ctx.binder.forgetBinding(ctx.broker, toSessionID('s1'));
+
+  const calls = [...ctx.broker.calls];
+
+  const host = await ctx.broker.readHost('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(forgotten).toBeTrue();
+
+  expect(calls).toStrictEqual([
+    'readIdentity',
+    'readHost atc-s1',
+    'destroyHost atc-s1',
+    'readHost atc-s1',
+  ]);
+
+  expect(host).toBeNull();
+  expect(binding).toBeNull();
+});
+
+test('it forgets a bound host that the broker no longer holds as done, destroying nothing', async () => {
+  const ctx = await setupTest();
+
+  ctx.broker.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.broker.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.broker, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'broker:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+  await ctx.broker.destroyHost('s1');
+
+  ctx.broker.calls.length = 0;
+
+  const forgotten = await ctx.binder.forgetBinding(ctx.broker, toSessionID('s1'));
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(forgotten).toBeTrue();
+  expect(ctx.broker.calls).toStrictEqual(['readIdentity', 'readHost atc-s1', 'readHost atc-s1']);
+  expect(binding).toBeNull();
+});
+
+test('it refuses to forget a host the broker made again under the recorded name and leaves it alone', async () => {
+  const ctx = await setupTest();
+
+  ctx.broker.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.broker.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.broker, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'broker:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+  await ctx.broker.destroyHost('s1');
+
+  const remade = await ctx.broker.createHost('s1');
+
+  const forgotten = ctx.binder.forgetBinding(ctx.broker, toSessionID('s1'));
+
+  expect(forgotten).rejects.toMatchObject({ code: 'auth_revocation_pending' });
+
+  const host = await ctx.broker.readHost('atc-s1');
+  const binding = await ctx.store.findAuthBinding(toSessionID('s1'));
+
+  expect(host).toStrictEqual(remade);
+  expect(binding).toMatchObject({ state: 'revocation_pending' });
 });

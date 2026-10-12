@@ -1,5 +1,5 @@
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
-import type { AgentAdapter } from '../agents/agent-adapter';
 
 interface AgentCapabilities {
   // Only an installed agent whose starts are not all refused can start a

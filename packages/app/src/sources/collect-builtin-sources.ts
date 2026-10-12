@@ -1,7 +1,7 @@
+import type { SourceProvider } from '@atc/plugin-api/types';
 import { buildDirsSource } from './dirs/build-dirs-source';
 import { buildGitSource } from './git/build-git-source';
 import { buildGitHubSource } from './github/build-github-source';
-import type { SourceProvider } from './types';
 
 interface BuiltinSourceOptions {
   // The configured directory roots.
