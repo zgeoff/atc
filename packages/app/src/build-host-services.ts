@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { getBuild } from '@atc/config/get-build';
 import { systemClock } from '@atc/core/system-clock';
@@ -7,7 +7,8 @@ import type { HostServices } from '@atc/plugin-api/host-services';
 import pkg from '../package.json';
 import { buildCLIArgv } from './agents/build-cli-argv';
 
-// The packages folder of this checkout, each package's src tree under it.
+// The packages folder of this checkout. Each package's src tree sits under
+// it, one folder deep or, for a package in a group folder, two.
 const PACKAGES_DIR = join(import.meta.dir, '..', '..');
 
 /**
@@ -37,7 +38,13 @@ export function buildHostServices(
 
 function collectSourceRoots(): string[] {
   try {
-    return readdirSync(PACKAGES_DIR).map((name) => join(PACKAGES_DIR, name, 'src'));
+    return readdirSync(PACKAGES_DIR).flatMap((name) => {
+      const dir = join(PACKAGES_DIR, name);
+
+      return existsSync(join(dir, 'package.json'))
+        ? [join(dir, 'src')]
+        : readdirSync(dir).map((child) => join(dir, child, 'src'));
+    });
   } catch {
     return [];
   }
