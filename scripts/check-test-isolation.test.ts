@@ -1,67 +1,67 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, symlinkSync } from 'node:fs';
-import { type } from 'node:os';
 import { join } from 'node:path';
 import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import invariant from 'tiny-invariant';
 
-/**
- * A temp directory for the stand-in tool directory a test builds.
- */
-function setupTest() {
-  const tmp = setupTempDir('atc-isolation-bin-');
+test('it passes a gate that leaves the synthetic home alone', async () => {
+  const run = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-test-isolation.ts'),
+    'true',
+  ]);
 
-  return { dir: tmp.dir };
-}
+  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'test isolation: 14 canaries unchanged and unread after: true\n',
+    stderr: '',
+  });
+});
 
-test.if(process.platform === 'linux')(
-  'it stops with a clear message when GNU stat is not on the PATH',
-  async () => {
-    const ctx = setupTest();
-    const bin = join(ctx.dir, 'bin');
+test('it fails a gate that reads a canary', async () => {
+  const run = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-test-isolation.ts'),
+    'sh',
+    '-c',
+    'cat "$HOME/.claude.json" > /dev/null',
+  ]);
 
-    mkdirSync(bin);
+  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
+    exitCode: 1,
+    stderr: expect.stringMatching(
+      /^test isolation: the gate reached the synthetic live home:\n< \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n> \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n$/,
+    ),
+  });
+});
 
-    for (const tool of ['uname', 'grep', 'touch', 'sha256sum', 'dirname']) {
-      const path = Bun.which(tool);
+test('it fails a gate that creates a file in the atc state directory', async () => {
+  const run = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-test-isolation.ts'),
+    'sh',
+    '-c',
+    'touch "$XDG_STATE_HOME/atc/stray"',
+  ]);
 
-      invariant(path !== null, `${tool} is missing from this host`);
-      symlinkSync(path, join(bin, tool));
-    }
+  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
+    exitCode: 1,
+    stderr: expect.stringMatching(
+      /^test isolation: the gate reached the synthetic live home:\n> \S+\/home\/\.local\/state\/atc\/stray\n$/,
+    ),
+  });
+});
 
-    const bash = Bun.which('bash');
+test('it exits with the code of a gate that fails', async () => {
+  const run = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-test-isolation.ts'),
+    'sh',
+    '-c',
+    'exit 3',
+  ]);
 
-    invariant(bash !== null, 'bash is missing from this host');
-
-    const run = await runCommand([bash, 'scripts/check-test-isolation.sh', 'true'], {
-      cwd: join(import.meta.dir, '..'),
-      env: { ...process.env, PATH: bin },
-    });
-
-    expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
-      exitCode: 2,
-      stderr: 'test isolation: needs GNU coreutils: stat is missing or not the GNU build\n',
-    });
-  },
-);
-
-// The platform check runs before any tool check, so this run needs only the
-// host's own bash and uname, never a GNU tool.
-test.if(process.platform !== 'linux')(
-  'it stops with a clear message on a platform other than Linux',
-  async () => {
-    const bash = Bun.which('bash');
-
-    invariant(bash !== null, 'bash is missing from this host');
-
-    const run = await runCommand([bash, 'scripts/check-test-isolation.sh', 'true'], {
-      cwd: join(import.meta.dir, '..'),
-    });
-
-    expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
-      exitCode: 2,
-      stderr: `test isolation: runs on Linux only, not ${type()}\n`,
-    });
-  },
-);
+  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
+    exitCode: 3,
+    stdout: '',
+    stderr: '',
+  });
+});

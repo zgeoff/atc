@@ -79,7 +79,7 @@
     "test:binary": "bash scripts/with-test-home.sh bun test --timeout 20000 e2e/daemon-*.test.ts",
     "test:gateway-binary": "bash scripts/with-test-home.sh bun test --timeout 20000 e2e/gateway-*.test.ts",
     "test:atc-bridge": "bash scripts/with-test-home.sh sh -c 'claude plugin validate --strict mods/atc-bridge && claude plugin test mods/atc-bridge'",
-    "test:isolation": "bash scripts/check-test-isolation.sh",
+    "test:isolation": "bun scripts/check-test-isolation.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "oxfmt . && format-codemod --quiet .",
     "format:check": "oxfmt --check . && format-codemod --check --quiet .",
