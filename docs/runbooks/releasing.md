@@ -1,17 +1,18 @@
 # Releasing
 
-Releases run on their own from `main`. release-please opens and merges the release PR, and the merge
-tags the release, attaches the compiled binaries, pushes the Homebrew formula and opens the agent
-image pin PR in zgeoff/cloud. `main.yml` holds every step. This runbook covers what the automation
-does not: its one-time setup and the recoveries a failed release needs.
+A release happens when someone merges the release PR by hand. release-please keeps one release PR
+open on `main`, and each releasable commit that lands updates its version bump and changelog. No
+workflow merges that PR. Its merge tags the release, attaches the compiled binaries, pushes the
+Homebrew formula and opens the agent image pin PR in zgeoff/cloud. `main.yml` holds every step. This
+runbook covers what the automation does not: its one-time setup, cutting a release, and the
+recoveries a failed release needs.
 
 ## One-time setup
 
 ### The release App
 
-A pull request that `GITHUB_TOKEN` creates starts no workflow, so a release PR it opened would get
-no CI, and its merge would never start the release run. The workflow therefore uses a GitHub App
-token.
+A pull request that `GITHUB_TOKEN` creates or pushes to starts no workflow, so a release PR it
+opened would get no CI. The workflow therefore uses a GitHub App token.
 
 1. Create a GitHub App, or reuse `zgeoff-release`, with any homepage URL and the webhook off.
 2. Give it read and write access to Contents and to Pull requests, then install it on `zgeoff/atc`.
@@ -20,7 +21,7 @@ token.
    - the Actions secret `RELEASE_APP_PRIVATE_KEY`, set to the `.pem` contents
 4. In the repo's Actions settings, allow GitHub Actions to create and approve pull requests.
 
-Without the App, release PRs still open but must be merged by hand.
+Without the App, the release PR still opens, but no CI runs on it.
 
 ### The Homebrew tap
 
@@ -38,10 +39,15 @@ leaves the formula alone and runs every other step.
 The imp agent image in zgeoff/cloud bakes in atc, and each release opens or updates one pin PR
 there. Install the release App on `cloud`. cloud's `docs/runbooks/agent-image.md` covers the rest.
 
+## Cutting a release
+
+1. Open the release PR, the one release-please opened from the
+   `release-please--branches--main--components--@zgeoff/atc` branch, and wait for its checks to
+   pass.
+2. Squash-merge it. The merge starts the release run on `main`.
+
 ## Recovering a release
 
-- **A release PR is open, but no release exists.** The App is not configured, or its token step
-  failed, so the PR did not merge on its own. Merge it by hand, which starts the release run.
 - **The release is tagged, but its binaries, formula or pin PR are missing.** Run the release steps
   again for the current version:
 
