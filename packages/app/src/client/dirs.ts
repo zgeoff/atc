@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { basename } from 'node:path';
+import { formatHomePath } from '@atc/core/format-home-path';
 import { collectRootDirs } from '../shared/collect-root-dirs';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
 
 /**
  * Every source the picker lists, merged in the order the reader expects
@@ -37,7 +38,7 @@ export function collectDirs(sources: DirSources): string[] {
   }
 
   if (found.length === 0) {
-    found.push(sources.home ?? homedir());
+    found.push(sources.home ?? resolveHomeDir());
   }
 
   return found;
@@ -66,9 +67,7 @@ export function pickMatches(items: readonly string[], filter: string): string[] 
 }
 
 export function formatDir(d: string): string {
-  const home = homedir();
-
-  return d.startsWith(home) ? `~${d.slice(home.length)}` : d;
+  return formatHomePath(d, resolveHomeDir());
 }
 
 /**

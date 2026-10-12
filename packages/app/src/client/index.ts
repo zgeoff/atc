@@ -10,6 +10,7 @@ import { sortGroupedSessionViews } from '../protocol/sort-grouped-session-views'
 import { sortSessionViews } from '../protocol/sort-session-views';
 import { configFile, loadConfig } from '../shared/config';
 import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { restartManagedDaemon } from '../shared/restart-managed-daemon';
 import { bootDaemonClient } from './boot-daemon';
 import type { DaemonBoot } from './boot-daemon';
@@ -350,6 +351,7 @@ const picker = new SpawnPicker<MirrorSession>({
     process.stdout.write(chunk);
   },
   cwd: process.cwd(),
+  home: resolveHomeDir(),
   configPath: configFile,
   onDropAnswer: (kind) => {
     logClientEvent(`dropped ${kind} answer`);

@@ -1,4 +1,6 @@
 import { resolve } from 'node:path';
+import { expandHome } from '@atc/core/expand-home';
+import { isHomeRelative } from '@atc/core/is-home-relative';
 
 /**
  * Where the picker looks a typed path up: `~` and `~/…` under the home
@@ -7,8 +9,8 @@ import { resolve } from 'node:path';
  * list, not a path, and resolves to null.
  */
 export function resolvePathInput(input: string, cwd: string, home: string): string | null {
-  if (input === '~' || input.startsWith('~/')) {
-    return resolve(home, input.slice(2));
+  if (isHomeRelative(input)) {
+    return resolve(expandHome(input, home));
   }
 
   if (input.startsWith('/') || isRelativePathInput(input)) {

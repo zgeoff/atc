@@ -1,8 +1,9 @@
-import { homedir } from 'node:os';
 import type { AgentID } from '@atc/core/agent-id';
 import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
 import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
+import { expandHome } from '@atc/core/expand-home';
 import { isGitURL } from '@atc/core/is-git-url';
+import { isHomeRelative } from '@atc/core/is-home-relative';
 import { isRecord } from '@atc/core/is-record';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
@@ -10,7 +11,6 @@ import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { loadConfig } from '../shared/config';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectPathCompletions } from './collect-path-completions';
@@ -69,6 +69,9 @@ export interface SpawnPickerDeps<TMirror> {
 
   // The client's own directory, which the directory step lists first.
   readonly cwd: string;
+
+  // The client's home directory, which a typed `~` expands to.
+  readonly home: string;
 
   // The config file the flow reads its agents, roots, and workspaces from
   // each time it opens.
@@ -961,7 +964,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const typed = this.input.trim();
 
     const chosen =
-      this.collectDirItems()[this.selected] ?? resolvePathInput(typed, this.deps.cwd, homedir());
+      this.collectDirItems()[this.selected] ??
+      resolvePathInput(typed, this.deps.cwd, this.deps.home);
 
     if (chosen !== null) {
       this.applyDir(chosen);
@@ -1028,9 +1032,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
    * else fuzzy-filters the merged list.
    */
   private collectDirItems(): string[] {
-    return resolvePathInput(this.input, this.deps.cwd, homedir()) === null
+    return resolvePathInput(this.input, this.deps.cwd, this.deps.home) === null
       ? pickMatches(this.dirs, this.input)
-      : collectPathCompletions(this.input, this.deps.cwd, homedir());
+      : collectPathCompletions(this.input, this.deps.cwd, this.deps.home);
   }
 
   // The git source step's rows: the other URL form after a failed probe,
@@ -1714,7 +1718,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     return (
       this.deps.hasDaemonFeature('spawn.workspace.autoDir') &&
-      (configured === null || configured === '~' || configured.startsWith('~/'))
+      (configured === null || isHomeRelative(configured))
     );
   }
 
@@ -1731,11 +1735,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     const inPlace = this.findEffectiveTarget()?.inPlace ?? true;
-
-    const dir =
-      inPlace && (typed === '~' || typed.startsWith('~/'))
-        ? `${resolveHomeDir()}${typed.slice(1)}`
-        : typed;
+    const dir = inPlace ? expandHome(typed, this.deps.home) : typed;
 
     if (!dir.startsWith('/')) {
       this.refusal = inPlace

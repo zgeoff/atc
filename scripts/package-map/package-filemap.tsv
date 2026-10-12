@@ -367,8 +367,10 @@ src/shared/commit-id-pattern.ts	core		packages/core/src/commit-id-pattern.ts	new
 src/shared/config.ts	config		packages/config/src/config.ts	split: config/paths (resolvePaths) and config/load envelope; per-plugin sections move to plugins
 src/shared/daemon-id.ts	core		packages/core/src/daemon-id.ts	
 src/shared/default-git-transports.ts	config		packages/config/src/default-git-transports.ts	
+src/shared/expand-home.ts	core		packages/core/src/expand-home.ts	new in ticket 3
 src/shared/find-daemon-record.ts	lifecycle		packages/lifecycle/src/find-daemon-record.ts	
 src/shared/find-pid-file-pid.ts	lifecycle		packages/lifecycle/src/find-pid-file-pid.ts	
+src/shared/format-home-path.ts	core		packages/core/src/format-home-path.ts	new in ticket 3
 src/shared/format-json-kind.ts	config		packages/config/src/format-json-kind.ts	
 src/shared/format-mixed-agent-keys.ts	config		packages/config/src/format-mixed-agent-keys.ts	
 src/shared/get-build.ts	config		packages/config/src/get-build.ts	drop both defaults: app passes the version and the scan root (workspace packages/ in source mode, execPath in a binary); no ../../package.json import
@@ -377,6 +379,7 @@ src/shared/grant-scope.ts	mcp	auth	packages/mcp/src/auth/grant-scope.ts
 src/shared/is-broker-variable.ts	core		packages/core/src/is-broker-variable.ts	
 src/shared/is-compiled-binary.ts	config		packages/config/src/is-compiled-binary.ts	
 src/shared/is-git-url.ts	core		packages/core/src/is-git-url.ts	
+src/shared/is-home-relative.ts	core		packages/core/src/is-home-relative.ts	new in ticket 3
 src/shared/is-process-alive.ts	lifecycle		packages/lifecycle/src/is-process-alive.ts	
 src/shared/is-record.ts	core		packages/core/src/is-record.ts	new in ticket 3
 src/shared/is-subscription-override-variable.ts	core		packages/core/src/is-subscription-override-variable.ts	

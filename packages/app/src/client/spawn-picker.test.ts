@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildStubDaemonRequests } from '@atc/test-utils/build-stub-daemon-requests';
 import { buildStubTerminal } from '@atc/test-utils/build-stub-terminal';
 import { KEYS } from '@atc/test-utils/keys';
+import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
 import { SpawnPicker } from './spawn-picker';
@@ -44,6 +45,7 @@ function setupTest() {
     upsertMirror: () => {},
     write: terminal.write,
     cwd,
+    home: resolveHomeDir(),
     configPath,
     onDropAnswer: host.onDropAnswer,
   };
