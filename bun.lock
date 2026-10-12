@@ -92,6 +92,7 @@
         "@atc/protocol": "workspace:*",
         "@zgeoff/imp-client": "catalog:",
         "ts-pattern": "catalog:",
+        "xstate": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
