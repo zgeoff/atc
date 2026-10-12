@@ -19,8 +19,12 @@ export interface HostServices {
   // file of a checkout, or with the compiled binary.
   readonly build: string;
 
-  // Runs a command on the daemon's machine with no input, to its exit.
-  readonly runCommand: (argv: readonly string[]) => Promise<HostCommandResult>;
+  // Runs a command on the daemon's machine with no input, to its exit or
+  // until the options' signal aborts.
+  readonly runCommand: (
+    argv: readonly string[],
+    options?: HostCommandOptions,
+  ) => Promise<HostCommandResult>;
   readonly clock: Clock;
 
   // Writes one line to the daemon's log.
@@ -28,11 +32,23 @@ export interface HostServices {
 }
 
 /**
+ * How a command runs: the variables it gets over the daemon's own
+ * environment, and a signal whose abort kills the command's whole process
+ * group, so nothing the command started outlives it.
+ */
+export interface HostCommandOptions {
+  readonly env?: Readonly<Record<string, string>>;
+  readonly signal?: AbortSignal;
+}
+
+/**
  * How a command ended: its exit code, which is 127 for a command that
- * could not start, and its output, each trimmed.
+ * could not start, and its output, each trimmed. An aborted command has
+ * exit code -1 and no output.
  */
 export interface HostCommandResult {
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;
+  readonly aborted: boolean;
 }

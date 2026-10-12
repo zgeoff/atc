@@ -621,8 +621,9 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       roots: cfg.dirs.roots,
       githubOwner: cfg.workspaces.githubOwner,
       ghBin: 'gh',
+      runCommand: hostServices.runCommand,
       homeDir: home.resolveHomeDir(),
-      collectZoxideDirs: zoxide.collectZoxideDirs,
+      collectZoxideDirs: () => zoxide.collectZoxideDirs(hostServices.runCommand),
     }),
     cfg.workspaces.sources,
   );

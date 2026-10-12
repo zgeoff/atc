@@ -52,6 +52,7 @@ test('it runs a command on the machine and returns its exit code and trimmed out
     code: 3,
     stdout: 'out',
     stderr: 'err',
+    aborted: false,
   });
 });
 

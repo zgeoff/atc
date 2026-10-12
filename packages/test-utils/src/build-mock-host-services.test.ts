@@ -37,5 +37,6 @@ test('it finds no command to run by default', async () => {
     code: 127,
     stdout: '',
     stderr: 'impd: command not found',
+    aborted: false,
   });
 });

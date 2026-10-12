@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { buildStubDirProvider } from '@atc/execution-local/testing/build-stub-dir-provider';
+import { runCommand } from '@atc/lifecycle/run-command';
 import { buildDirsSource } from '@atc/source-dirs/build-dirs-source';
 import { buildGitSource } from '@atc/source-git/build-git-source';
 import { buildGitHubSource } from '@atc/source-github/build-github-source';
@@ -28,7 +29,7 @@ test('it lists the sources it offers in order in agents.list', async () => {
           collectZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
-        buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
         buildGitSource(),
       ],
     }),
@@ -211,7 +212,7 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: 'acme' })],
+      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: 'acme' })],
     }),
   });
 
@@ -257,7 +258,7 @@ test('it lists the scope a request holds over the configured owner, at https URL
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: 'acme' })],
+      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: 'acme' })],
     }),
   });
 
@@ -305,7 +306,7 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null })],
+      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null })],
     }),
   });
 
@@ -339,7 +340,7 @@ test('it refuses a GitHub listing on a host without gh as github_unavailable', a
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null })],
+      sources: [buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null })],
     }),
   });
 
@@ -520,7 +521,7 @@ test.each([
           collectZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.dir,
         }),
-        buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
         buildGitSource(),
       ],
     }),
@@ -688,7 +689,10 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }), buildGitSource()],
+      sources: [
+        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitSource(),
+      ],
     }),
   });
 
@@ -717,7 +721,10 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitHubSource({ bin: join(paths.dir, 'gh'), owner: null }), buildGitSource()],
+      sources: [
+        buildGitHubSource({ run: runCommand, bin: join(paths.dir, 'gh'), owner: null }),
+        buildGitSource(),
+      ],
     }),
   });
 

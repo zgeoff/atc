@@ -12,7 +12,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*",
-    "tiny-invariant": "catalog:"
+    "@atc/test-utils": "workspace:*"
   }
 }

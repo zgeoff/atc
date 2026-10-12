@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { buildDirsSource } from '@atc/source-dirs/build-dirs-source';
 import { buildGitSource } from '@atc/source-git/build-git-source';
 import { buildGitHubSource } from '@atc/source-github/build-github-source';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { buildSources } from './build-sources';
 
 test('it offers the available sources in the default order when the config gives none', () => {
@@ -13,7 +14,12 @@ test('it offers the available sources in the default order when the config gives
     homeDir: '/home/tester',
   });
 
-  const github = buildGitHubSource({ bin: 'gh', owner: null });
+  const github = buildGitHubSource({
+    run: buildMockHostServices().runCommand,
+    bin: 'gh',
+    owner: null,
+  });
+
   const built = buildSources([git, dirs, github], null);
 
   expect(built).toStrictEqual({ sources: [dirs, github, git], missing: [] });
@@ -35,7 +41,12 @@ test('it offers only the configured sources in the configured order and reports 
     homeDir: '/home/tester',
   });
 
-  const github = buildGitHubSource({ bin: 'gh', owner: null });
+  const github = buildGitHubSource({
+    run: buildMockHostServices().runCommand,
+    bin: 'gh',
+    owner: null,
+  });
+
   const built = buildSources([git, dirs, github], ['git', 'gitlab', 'dirs', 'git']);
 
   expect(built).toStrictEqual({ sources: [git, dirs], missing: ['gitlab'] });

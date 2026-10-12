@@ -56,5 +56,6 @@ test('it reads the test build, no installed unit, and a missing systemctl by def
     code: 127,
     stdout: '',
     stderr: 'systemctl: command not found',
+    aborted: false,
   });
 });

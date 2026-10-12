@@ -1,40 +1,19 @@
 import { expect, test } from 'bun:test';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { buildStubGH } from '@atc/test-utils/build-stub-gh';
-import { buildStubSignedOutGH } from '@atc/test-utils/build-stub-signed-out-gh';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { buildStubGHCommand } from '@atc/test-utils/build-stub-gh-command';
 import { collectGitHubRepos } from './collect-github-repos';
 
-// A directory for a stand-in gh and the arguments it records.
-function setupTest() {
-  const tmp = setupTempDir('atc-gh-repos-');
-
-  return { dir: tmp.dir };
-}
-
 test("it lists the requested owner's repositories with the gh clone protocol", async () => {
-  const ctx = setupTest();
-  const argvFile = join(ctx.dir, 'argv');
-
-  const gh = createStubBin(
-    ctx.dir,
-    'gh',
-    buildStubGH({
-      replies: {
-        config: { stdout: 'ssh\n' },
-        repo: {
-          stdout:
-            '[{"nameWithOwner":"acme/app","description":null,"isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git","isFork":false}]\n',
-        },
+  const gh = buildStubGHCommand({
+    replies: {
+      config: { stdout: 'ssh\n' },
+      repo: {
+        stdout:
+          '[{"nameWithOwner":"acme/app","description":null,"isPrivate":true,"url":"https://github.com/acme/app","sshUrl":"git@github.com:acme/app.git","isFork":false}]\n',
       },
-      argvFile,
-    }),
-  );
+    },
+  });
 
-  const listed = await collectGitHubRepos({ bin: gh, owner: 'acme' });
-  const argv = await readFile(argvFile, 'utf8');
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'acme' });
 
   expect(listed).toStrictEqual({
     ok: true,
@@ -51,32 +30,33 @@ test("it lists the requested owner's repositories with the gh clone protocol", a
     gitProtocol: 'ssh',
   });
 
-  expect(argv).toBe(
-    'repo list acme --limit 500 --json nameWithOwner,description,isPrivate,url,sshUrl\nconfig get git_protocol\n',
-  );
+  expect(gh.calls).toStrictEqual([
+    [
+      'gh',
+      'repo',
+      'list',
+      'acme',
+      '--limit',
+      '500',
+      '--json',
+      'nameWithOwner,description,isPrivate,url,sshUrl',
+    ],
+    ['gh', 'config', 'get', 'git_protocol'],
+  ]);
 });
 
 test("it lists the gh account's own repositories without an owner, reading the owner from them", async () => {
-  const ctx = setupTest();
-  const argvFile = join(ctx.dir, 'argv');
-
-  const gh = createStubBin(
-    ctx.dir,
-    'gh',
-    buildStubGH({
-      replies: {
-        config: { stdout: 'https\n' },
-        repo: {
-          stdout:
-            '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]\n',
-        },
+  const gh = buildStubGHCommand({
+    replies: {
+      config: { stdout: 'https\n' },
+      repo: {
+        stdout:
+          '[{"nameWithOwner":"me/dots","description":"dotfiles","isPrivate":false,"url":"https://github.com/me/dots","sshUrl":"git@github.com:me/dots.git"}]\n',
       },
-      argvFile,
-    }),
-  );
+    },
+  });
 
-  const listed = await collectGitHubRepos({ bin: gh, owner: null });
-  const argv = await readFile(argvFile, 'utf8');
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: true,
@@ -93,30 +73,47 @@ test("it lists the gh account's own repositories without an owner, reading the o
     gitProtocol: 'https',
   });
 
-  expect(argv).toBe(
-    'repo list --limit 500 --json nameWithOwner,description,isPrivate,url,sshUrl\nconfig get git_protocol\n',
-  );
+  expect(gh.calls).toStrictEqual([
+    [
+      'gh',
+      'repo',
+      'list',
+      '--limit',
+      '500',
+      '--json',
+      'nameWithOwner,description,isPrivate,url,sshUrl',
+    ],
+    ['gh', 'config', 'get', 'git_protocol'],
+  ]);
 });
 
-test('it refuses a host without gh as not installed', async () => {
-  const ctx = setupTest();
-  const gh = join(ctx.dir, 'gh');
+test('it refuses a host where gh cannot start as not installed', async () => {
+  const gh = buildStubGHCommand({
+    replies: { repo: { stderr: 'Executable not found in $PATH: "/opt/gh"', exitCode: 127 } },
+  });
 
-  const listed = await collectGitHubRepos({ bin: gh, owner: null });
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: '/opt/gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: false,
     code: 'github_unavailable',
     problem: 'not_installed',
-    message: `gh is not installed on the daemon host (no '${gh}' on PATH)`,
+    message: "gh is not installed on the daemon host (no '/opt/gh' on PATH)",
   });
 });
 
 test('it refuses a gh that is signed out as not authenticated', async () => {
-  const ctx = setupTest();
-  const gh = createStubBin(ctx.dir, 'gh', buildStubSignedOutGH());
+  const gh = buildStubGHCommand({
+    replies: {
+      repo: {
+        stderr:
+          'To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n',
+        exitCode: 4,
+      },
+    },
+  });
 
-  const listed = await collectGitHubRepos({ bin: gh, owner: null });
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -128,22 +125,16 @@ test('it refuses a gh that is signed out as not authenticated', async () => {
 });
 
 test("it refuses a gh listing that fails with gh's own message", async () => {
-  const ctx = setupTest();
-
-  const gh = createStubBin(
-    ctx.dir,
-    'gh',
-    buildStubGH({
-      replies: {
-        repo: {
-          stderr: 'GraphQL: Could not resolve to a User with the login of nobody.\n',
-          exitCode: 1,
-        },
+  const gh = buildStubGHCommand({
+    replies: {
+      repo: {
+        stderr: 'GraphQL: Could not resolve to a User with the login of nobody.\n',
+        exitCode: 1,
       },
-    }),
-  );
+    },
+  });
 
-  const listed = await collectGitHubRepos({ bin: gh, owner: 'nobody' });
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'nobody' });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -154,15 +145,9 @@ test("it refuses a gh listing that fails with gh's own message", async () => {
 });
 
 test('it refuses a gh listing that prints no repository list', async () => {
-  const ctx = setupTest();
+  const gh = buildStubGHCommand({ replies: { repo: { stdout: 'not json\n' } } });
 
-  const gh = createStubBin(
-    ctx.dir,
-    'gh',
-    buildStubGH({ replies: { repo: { stdout: 'not json\n' } } }),
-  );
-
-  const listed = await collectGitHubRepos({ bin: gh, owner: null });
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -173,10 +158,14 @@ test('it refuses a gh listing that prints no repository list', async () => {
 });
 
 test('it refuses a gh listing that does not answer within its time limit', async () => {
-  const ctx = setupTest();
-  const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: { repo: 'hang' } }));
+  const gh = buildStubGHCommand({ replies: { repo: 'hang' } });
 
-  const listed = await collectGitHubRepos({ bin: gh, owner: null, timeoutMs: 300 });
+  const listed = await collectGitHubRepos({
+    run: gh.runCommand,
+    bin: 'gh',
+    owner: null,
+    timeoutMs: 300,
+  });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -187,10 +176,9 @@ test('it refuses a gh listing that does not answer within its time limit', async
 });
 
 test('it refuses a gh listing that fails silently with its exit code', async () => {
-  const ctx = setupTest();
-  const gh = createStubBin(ctx.dir, 'gh', buildStubGH({ replies: { repo: { exitCode: 3 } } }));
+  const gh = buildStubGHCommand({ replies: { repo: { exitCode: 3 } } });
 
-  const listed = await collectGitHubRepos({ bin: gh, owner: 'acme' });
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: 'acme' });
 
   expect(listed).toStrictEqual({
     ok: false,
@@ -201,15 +189,11 @@ test('it refuses a gh listing that fails silently with its exit code', async () 
 });
 
 test("it lists no owner when the gh account's own list is empty", async () => {
-  const ctx = setupTest();
+  const gh = buildStubGHCommand({
+    replies: { config: { stdout: 'https\n' }, repo: { stdout: '[]\n' } },
+  });
 
-  const gh = createStubBin(
-    ctx.dir,
-    'gh',
-    buildStubGH({ replies: { config: { stdout: 'https\n' }, repo: { stdout: '[]\n' } } }),
-  );
-
-  const listed = await collectGitHubRepos({ bin: gh, owner: null });
+  const listed = await collectGitHubRepos({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(listed).toStrictEqual({ ok: true, owner: null, repos: [], gitProtocol: 'https' });
 });

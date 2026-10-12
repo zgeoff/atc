@@ -10,6 +10,7 @@ import { expandHome } from '@atc/core/expand-home';
 import { isGitURL } from '@atc/core/is-git-url';
 import { isHomeRelative } from '@atc/core/is-home-relative';
 import { isRecord } from '@atc/core/is-record';
+import { runCommand } from '@atc/lifecycle/run-command';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { GIT_REF_SCHEMA } from '@atc/protocol/git-ref';
@@ -1880,7 +1881,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
     } catch {}
 
-    const zoxide = await collectZoxideDirs();
+    const zoxide = await collectZoxideDirs(runCommand);
 
     if (this.isStale(generation)) {
       this.deps.onDropAnswer?.('local directory listing');

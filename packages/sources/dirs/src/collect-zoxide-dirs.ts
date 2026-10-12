@@ -1,15 +1,12 @@
+import type { HostServices } from '@atc/plugin-api/host-services';
+
 /**
- * zoxide's frecency list, most visited first. An absent zoxide or a failed
- * query contributes nothing, so the picker never depends on it.
+ * zoxide's frecency list, most visited first, through the host's command
+ * runner. An absent zoxide or a failed query contributes nothing, so the
+ * picker never depends on it.
  */
-export async function collectZoxideDirs(): Promise<string[]> {
-  try {
-    const proc = Bun.spawn(['zoxide', 'query', '-l'], { stdout: 'pipe', stderr: 'ignore' });
+export async function collectZoxideDirs(run: HostServices['runCommand']): Promise<string[]> {
+  const listed = await run(['zoxide', 'query', '-l']);
 
-    const text = await new Response(proc.stdout).text();
-
-    return text.split('\n').filter((line) => line !== '');
-  } catch {
-    return [];
-  }
+  return listed.code === 0 ? listed.stdout.split('\n').filter((line) => line !== '') : [];
 }

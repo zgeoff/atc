@@ -1,3 +1,4 @@
+import type { HostServices } from '@atc/plugin-api/host-services';
 import type { SourceProvider } from '@atc/plugin-api/types';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { collectGitHubRepos } from './collect-github-repos';
@@ -5,6 +6,9 @@ import { findGitHubAlternateURL } from './find-github-alternate-url';
 import { readGitProtocol } from './read-git-protocol';
 
 interface GitHubSourceOptions {
+  // The host's command runner, which runs gh.
+  readonly run: HostServices['runCommand'];
+
   // The gh executable: a name looked up on PATH, or a path.
   readonly bin: string;
 
@@ -51,7 +55,12 @@ export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider 
         throw new DaemonError('bad_args', 'scope must be a GitHub account or organization');
       }
 
-      const listed = await collectGitHubRepos({ bin: options.bin, owner, timeoutMs });
+      const listed = await collectGitHubRepos({
+        run: options.run,
+        bin: options.bin,
+        owner,
+        timeoutMs,
+      });
 
       if (!listed.ok) {
         throw new DaemonError(listed.code, listed.message, { problem: listed.problem });
@@ -92,7 +101,7 @@ export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider 
 
       const name = `${repo['owner']}/${repo['repo']}`;
 
-      const protocol = await readGitProtocol(options.bin, timeoutMs);
+      const protocol = await readGitProtocol(options.run, options.bin, timeoutMs);
 
       return {
         kind: 'git',

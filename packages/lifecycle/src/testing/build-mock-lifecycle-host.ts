@@ -25,7 +25,12 @@ export function buildMockLifecycleHost(
       restoreBootTimeoutMs: 15_000,
       findManagedUnit: () => null,
       runSystemctl: () =>
-        Promise.resolve({ code: 127, stdout: '', stderr: 'systemctl: command not found' }),
+        Promise.resolve({
+          code: 127,
+          stdout: '',
+          stderr: 'systemctl: command not found',
+          aborted: false,
+        }),
     },
     overrides,
   );

@@ -31,15 +31,17 @@ import { collectBuiltinSources } from '../sources/collect-builtin-sources';
  */
 async function main() {
   const config = loadConfig();
-  const adapters = buildAgentAdapters(config, buildHostServices(), startClaudeHeadlessRun);
+  const hostServices = buildHostServices();
+  const adapters = buildAgentAdapters(config, hostServices, startClaudeHeadlessRun);
 
   const builtin = buildSources(
     collectBuiltinSources({
       roots: config.dirs.roots,
       githubOwner: config.workspaces.githubOwner,
       ghBin: 'gh',
+      runCommand: hostServices.runCommand,
       homeDir: resolveHomeDir(),
-      collectZoxideDirs,
+      collectZoxideDirs: () => collectZoxideDirs(hostServices.runCommand),
     }),
     config.workspaces.sources,
   ).sources;
