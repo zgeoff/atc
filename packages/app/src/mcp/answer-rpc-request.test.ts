@@ -190,7 +190,7 @@ test('it returns a tool result object as structured content beside its JSON text
   expect(JSON.parse(content[0]['text'])).toStrictEqual(result['structuredContent']);
 });
 
-test('it lists every tool to a caller with one scope', async () => {
+test('it lists every tool but the owner-only scope tool to a caller with one scope', async () => {
   const ctx = await setupTest();
 
   const outcome = await answerRPCRequest(
@@ -214,7 +214,6 @@ test('it lists every tool to a caller with one scope', async () => {
           expect.objectContaining({ name: 'atc_session_spawn' }),
           expect.objectContaining({ name: 'atc_terminal_type' }),
           expect.objectContaining({ name: 'atc_terminal_read' }),
-          expect.objectContaining({ name: 'atc_session_scope_add' }),
           expect.objectContaining({ name: 'atc_session_update' }),
           expect.objectContaining({ name: 'atc_session_stop' }),
           expect.objectContaining({ name: 'atc_session_forget' }),
@@ -227,6 +226,67 @@ test('it lists every tool to a caller with one scope', async () => {
           expect.objectContaining({ name: 'atc_message_send' }),
           expect.objectContaining({ name: 'atc_message_get' }),
         ],
+      },
+    },
+  });
+});
+
+test('it lists the scope tool to a caller without a grant', async () => {
+  const ctx = await setupTest();
+
+  const outcome = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    {
+      caller: ctx.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    },
+  );
+
+  expect(outcome).toMatchObject({
+    kind: 'reply',
+    body: {
+      result: {
+        tools: expect.arrayContaining([expect.objectContaining({ name: 'atc_session_scope_add' })]),
+      },
+    },
+  });
+});
+
+test('it refuses a scope addition from a caller holding the spawn scope before it reaches the daemon', async () => {
+  const ctx = await setupTest();
+
+  const outcome = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/call',
+      params: {
+        name: 'atc_session_scope_add',
+        arguments: { session: 'worker', scope: { branches: [{ name: 'main' }] } },
+      },
+    },
+    {
+      caller: ctx.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      scopes: ['read', 'message', 'spawn', 'kill'],
+    },
+  );
+
+  expect(outcome).toStrictEqual({
+    kind: 'reply',
+    body: {
+      jsonrpc: '2.0',
+      id: 3,
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: "unauthorized: atc_session_scope_add is open to the daemon's owner only",
+          },
+        ],
+        isError: true,
       },
     },
   });

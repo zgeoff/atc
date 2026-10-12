@@ -16,7 +16,8 @@ interface RPCDeps {
   readonly build: string;
   readonly toolContext: ToolContext;
 
-  // The scopes the caller holds; absent means every tool is allowed.
+  // The scopes a remote client's grant holds; absent for a local caller,
+  // which may call every tool.
   readonly scopes?: readonly GrantScope[];
 }
 
@@ -65,12 +66,28 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
 
       const agents = features.has('agents.list') ? await tryReadAgents(deps) : null;
 
-      return {
-        kind: 'reply' as const,
-        body: buildRPCResult(id, { tools: buildToolList(features, agents) }),
-      };
+      const tools = buildToolList(features, agents).filter(
+        (tool) => deps.scopes === undefined || !isOwnerOnlyTool(tool.name),
+      );
+
+      return { kind: 'reply' as const, body: buildRPCResult(id, { tools }) };
     })
     .with('tools/call', async () => {
+      if (deps.scopes !== undefined && isOwnerOnlyTool(params['name'])) {
+        return {
+          kind: 'reply' as const,
+          body: buildRPCResult(id, {
+            content: [
+              {
+                type: 'text',
+                text: `unauthorized: ${String(params['name'])} is open to the daemon's owner only`,
+              },
+            ],
+            isError: true,
+          }),
+        };
+      }
+
       const result = await answerToolCall(deps, params);
 
       return { kind: 'reply' as const, body: buildRPCResult(id, result) };
@@ -123,6 +140,13 @@ async function tryReadAgents(deps: RPCDeps): Promise<RegisteredAgent[] | null> {
   } catch {
     return null;
   }
+}
+
+// Whether the named tool is closed to a remote client. The daemon refuses
+// the request behind it too; refusing here keeps the call from an older
+// daemon that would run it.
+function isOwnerOnlyTool(name: unknown): boolean {
+  return MCP_TOOLS.find((candidate) => candidate.name === name)?.ownerOnly === true;
 }
 
 async function answerToolCall(

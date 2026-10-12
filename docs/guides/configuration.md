@@ -346,7 +346,8 @@ identity the session is bound to. To the principal, every other session does not
 the event trail leave it out, and a request for it gets the answer a session that never existed
 gets. The spawn directory list leaves out the directories of spawns on targets the principal may not
 use. A spawn to a target the principal may not use fails with `target_forbidden`. A principal may
-not stop the daemon or restore the fleet.
+not stop the daemon, restore the fleet, or add to the scope of a session that already runs; it
+declares scope when it spawns the session.
 
 A principal sees a session tree, a top-level session with its sub-sessions, only when it may use the
 target of every session in it. Adding a sub-session on a target the principal may not use removes

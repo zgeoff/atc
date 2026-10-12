@@ -10,7 +10,7 @@ test('it holds a procedure for every request method, plus the completion and the
   ]);
 });
 
-test('it keeps the daemon-wide and credential methods, and only those, owner-only', () => {
+test('it keeps the daemon-wide, credential and scope methods, and only those, owner-only', () => {
   const owned = [...PROCEDURE_TRAITS]
     .filter(([, traits]) => traits.access === 'owner')
     .map(([method]) => method);
@@ -20,6 +20,7 @@ test('it keeps the daemon-wide and credential methods, and only those, owner-onl
     'fleet.restore',
     'session.auth.revoke',
     'session.auth.rebind',
+    'session.scope.add',
   ]);
 });
 

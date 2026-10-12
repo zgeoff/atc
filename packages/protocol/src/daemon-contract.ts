@@ -124,8 +124,14 @@ export const DAEMON_CONTRACT = {
         .output(z.object({ revision: z.number() })),
     },
     update: base.input(P['session.update']).output(EMPTY),
+
+    // A principal is a bearer grant the daemon cannot tie to a session, so
+    // the session that holds it may be the target: only the owner adds scope.
     scope: {
-      add: base.input(P['session.scope.add']).output(z.object({ record: PUBLISHED_RECORD_SCHEMA })),
+      add: base
+        .meta(OWNER)
+        .input(P['session.scope.add'])
+        .output(z.object({ record: PUBLISHED_RECORD_SCHEMA })),
     },
     attach: base
       .input(P['session.attach'])

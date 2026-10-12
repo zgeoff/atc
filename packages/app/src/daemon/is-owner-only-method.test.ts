@@ -21,6 +21,7 @@ test.each([
   ['fleet.restore', true],
   ['session.auth.revoke', true],
   ['session.auth.rebind', true],
+  ['session.scope.add', true],
   ['session.list', false],
   ['session.spawn', false],
   ['events.subscribe', false],
@@ -29,69 +30,78 @@ test.each([
   expect(isOwnerOnlyMethod(method)).toBe(ownerOnly);
 });
 
-test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
-  'it refuses %s from a principal connection as owner-only',
-  async (method) => {
-    const ctx = setupTest();
+test.each([
+  ['daemon.quit'],
+  ['fleet.restore'],
+  ['session.auth.revoke'],
+  ['session.auth.rebind'],
+  ['session.scope.add'],
+])('it refuses %s from a principal connection as owner-only', async (method) => {
+  const ctx = setupTest();
 
-    const daemon = await startTestDaemon({
-      options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
-    });
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
 
-    const client = await daemon.openClient({ principal: 'gw' });
+  const client = await daemon.openClient({ principal: 'gw' });
 
-    expect(client.sendRequest(method, {})).rejects.toMatchObject({
-      code: 'unauthorized',
-      message: `${method} is open to the daemon's owner only`,
-    });
-  },
-);
+  expect(client.sendRequest(method, {})).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: `${method} is open to the daemon's owner only`,
+  });
+});
 
-test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
-  'it refuses %s from the owner acting as a principal as owner-only',
-  async (method) => {
-    const ctx = setupTest();
+test.each([
+  ['daemon.quit'],
+  ['fleet.restore'],
+  ['session.auth.revoke'],
+  ['session.auth.rebind'],
+  ['session.scope.add'],
+])('it refuses %s from the owner acting as a principal as owner-only', async (method) => {
+  const ctx = setupTest();
 
-    const daemon = await startTestDaemon({
-      options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
-    });
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: ctx.adapter, principals: new Map([['gw', ['local']]]) }),
+  });
 
-    expect(daemon.client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
-      code: 'unauthorized',
-      message: `${method} is open to the daemon's owner only`,
-    });
-  },
-);
+  expect(daemon.client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: `${method} is open to the daemon's owner only`,
+  });
+});
 
-test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
-  'it refuses %s over TCP as owner-only',
-  async (method) => {
-    const ctx = setupTest();
+test.each([
+  ['daemon.quit'],
+  ['fleet.restore'],
+  ['session.auth.revoke'],
+  ['session.auth.rebind'],
+  ['session.scope.add'],
+])('it refuses %s over TCP as owner-only', async (method) => {
+  const ctx = setupTest();
 
-    const daemon = await startTestDaemon({
-      options: (paths) => {
-        const tokenFile = join(paths.dir, 'gateway-token');
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      const tokenFile = join(paths.dir, 'gateway-token');
 
-        writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+      writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
-        return {
-          adapter: ctx.adapter,
-          principals: new Map([['gw', ['local']]]),
-          listen: { host: '127.0.0.1', port: 0, tokenFile },
-        };
-      },
-    });
+      return {
+        adapter: ctx.adapter,
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile },
+      };
+    },
+  });
 
-    const client = await daemon.openTCPClient();
+  const client = await daemon.openTCPClient();
 
-    await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
+  await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
-    expect(client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
-      code: 'unauthorized',
-      message: `${method} is open to the daemon's owner only`,
-    });
-  },
-);
+  expect(client.sendRequest(method, {}, 'gw')).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: `${method} is open to the daemon's owner only`,
+  });
+});
 
 test('it keeps answering the owner after it refuses an owner-only method to a principal', async () => {
   const ctx = setupTest();
@@ -131,6 +141,7 @@ test('it admits fleet.restore from the owner', async () => {
 test.each([
   ['session.auth.revoke', 'no_such_session'],
   ['session.auth.rebind', 'no_such_session'],
+  ['session.scope.add', 'bad_args'],
 ])('it admits %s from the owner, which answers it with %s', async (method, code) => {
   const ctx = setupTest();
 

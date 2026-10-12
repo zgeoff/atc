@@ -524,6 +524,11 @@ interface MCPToolDefinition {
     readonly inputs?: Readonly<Record<string, FleetFeature>>;
   };
   readonly scope: GrantScope;
+
+  // Whether the tool is closed to every remote client, whatever scopes its
+  // grant holds: such a client neither sees the tool listed nor reaches the
+  // daemon with a call to it.
+  readonly ownerOnly?: true;
 }
 
 const READ_ONLY: MCPToolAnnotations = {
@@ -619,6 +624,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       "Add worktrees, branches or pull requests to the scope a session's record holds. atc checks each entry on the session's host and refuses an invalid one with scope_invalid. Entries already held change nothing, and nothing is ever removed. A session cannot add to its own scope or its parent's. Returns the record as it stands after.",
     inputSchema: SCOPE_ADD_INPUT,
     requires: { tool: 'session.record' },
+    ownerOnly: true,
   },
   {
     name: 'atc_session_update',

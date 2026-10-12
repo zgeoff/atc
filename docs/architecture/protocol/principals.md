@@ -47,8 +47,10 @@ reach that resumes the same agent session as one out of reach never shows the ot
 messages or activity.
 
 Four requests act on the whole daemon or on a host's credentials rather than on one session: quit,
-fleet restore, and the two runtime auth requests. A principal gets `unauthorized` for each. The
-events socket has no handshake and streams every event, so it is a local socket for the owner alone.
+fleet restore, and the two runtime auth requests. A principal gets `unauthorized` for each. A
+principal also gets `unauthorized` when it adds scope to a session that already runs, as
+[the session record](../execution/session-record.md#who-may-change-the-record) explains. The events
+socket has no handshake and streams every event, so it is a local socket for the owner alone.
 
 ## The TCP listener
 

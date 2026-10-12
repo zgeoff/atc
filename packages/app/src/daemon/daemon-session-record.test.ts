@@ -21,30 +21,41 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 /**
  * A git fixture whose work clone the sessions run in, and a daemon whose
  * one target, `box`, starts each harness on the daemon's machine and keeps
- * the spec it started it with.
+ * the spec it started it with. The daemon listens on TCP for a gateway
+ * holding `gatewayToken`, and lists the principal `gw` with `box`, so a
+ * request through either path reaches the sessions.
  */
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
 
   const box = buildStubDirProvider();
+  const gatewayToken = 'a'.repeat(32);
 
   const daemon = await startTestDaemon({
     prefix: 'atc-session-record-daemon-',
-    options: () => ({
-      adapter: buildMockAgentAdapter(),
-      targets: [
-        buildMockExecutionTarget({
-          id: 'box',
-          kind: box.kind,
-          identity: 'test:box',
-          provider: box,
-        }),
-      ],
-      defaultTarget: 'box',
-    }),
+    options: (paths) => {
+      const tokenFile = join(paths.dir, 'gateway-token');
+
+      writeFileSync(tokenFile, `${gatewayToken}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['box']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile },
+        targets: [
+          buildMockExecutionTarget({
+            id: 'box',
+            kind: box.kind,
+            identity: 'test:box',
+            provider: box,
+          }),
+        ],
+        defaultTarget: 'box',
+      };
+    },
   });
 
-  return { fixture, box, daemon, records: join(daemon.dir, 'records') };
+  return { fixture, box, daemon, gatewayToken, records: join(daemon.dir, 'records') };
 }
 
 test('it publishes a record of the workspace and each checked entry and gives the session its path', async () => {
@@ -226,6 +237,44 @@ test('it refuses an addition from a client inside the session itself', async () 
   ).rejects.toMatchObject({ code: 'unauthorized' });
 
   const copy = await readJSONRecord(Bun.file(path));
+
+  expect(copy).toStrictEqual(before);
+});
+
+test('it refuses an addition from a gateway acting as a principal that reaches the session', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.fixture.work,
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const path = join(ctx.records, `${id}.json`);
+
+  const before = await readJSONRecord(Bun.file(path));
+  const gateway = await ctx.daemon.openTCPClient();
+
+  await gateway.sendHello('atc/test-gateway', { token: ctx.gatewayToken });
+
+  const reached = await gateway.sendRequest('session.get', { session: id }, 'gw');
+
+  const refused = gateway.sendRequest(
+    'session.scope.add',
+    { session: id, scope: { branches: [{ name: 'main' }] } },
+    'gw',
+  );
+
+  await Promise.allSettled([refused]);
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  expect(getRecord(reached, 'session')['id']).toBe(id);
+
+  expect(refused).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "session.scope.add is open to the daemon's owner only",
+  });
 
   expect(copy).toStrictEqual(before);
 });

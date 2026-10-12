@@ -111,7 +111,11 @@ Only atc writes the record, and only a trusted caller adds scope through it:
 - A session on an imp reaches the daemon only through its
   [session bridge](./imp-provider.md#the-session-bridge), which takes no request that changes a
   record.
-- A [principal](../protocol/principals.md) adds scope only to sessions within its reach.
+- A [principal](../protocol/principals.md), the caller behind `atc mcp --http` and atc-gateway,
+  never adds scope after spawn. The daemon cannot tell which session holds a principal's grant, so
+  it refuses `session.scope.add` from every principal with `unauthorized`, and the remote MCP tool
+  list leaves the scope tool out. A principal declares scope in `session.spawn`, for sessions within
+  its reach.
 
 On the daemon's own machine, the session runs as the daemon's user. A process there that drops
 `ATC_SESSION_ID` before it connects reaches the daemon as its owner, and the same user can change
