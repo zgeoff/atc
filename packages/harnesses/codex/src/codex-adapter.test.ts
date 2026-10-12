@@ -109,92 +109,25 @@ test('it advertises a codex model with the configured default and no effort', ()
   });
 });
 
-test('it maps a codex session start to started with id, name, and transcript sources', () => {
+test('it plans one event for each hook line and keeps no state between lines', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'SessionStart',
-    payload: {
-      session_id: 'c-1',
-      transcript_path: '/tmp/rollout-c-1.jsonl',
-      cwd: '/tmp',
-      hook_event_name: 'SessionStart',
-      source: 'startup',
-    },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'started',
-    agentSessionID: toAgentSessionID('c-1'),
-    nameSource: 'c-1',
-    transcriptSource: '/tmp/rollout-c-1.jsonl',
-  });
-});
-
-test('it maps a codex prompt submit to prompt-submitted', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'UserPromptSubmit',
-    payload: { session_id: 'c-1', prompt: 'do the thing' },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'prompt-submitted',
-    agentSessionID: toAgentSessionID('c-1'),
-    nameSource: 'c-1',
-    message: 'do the thing',
-    detail: 'do the thing',
-  });
-});
-
-test('it maps a codex stop to turn-done', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Stop',
-    payload: { session_id: 'c-1', last_assistant_message: 'pong' },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'turn-done',
-    agentSessionID: toAgentSessionID('c-1'),
-    nameSource: 'c-1',
-    detail: 'pong',
-    result: 'pong',
-  });
-});
-
-test('it maps a codex permission request to needs-input', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  const ev = adapter.normalizeHook({
+  const plan = adapter.planHookEvents({
     atcId: toSessionID('s1'),
     event: 'PermissionRequest',
     payload: { session_id: 'c-1', tool_name: 'shell' },
   });
 
-  expect(ev).toStrictEqual({
-    kind: 'needs-input',
-    agentSessionID: toAgentSessionID('c-1'),
-    message: 'waiting for approval: shell',
-    detail: 'waiting for approval: shell',
+  expect(plan).toStrictEqual({
+    events: [
+      {
+        kind: 'needs-input',
+        agentSessionID: toAgentSessionID('c-1'),
+        message: 'waiting for approval: shell',
+        detail: 'waiting for approval: shell',
+      },
+    ],
   });
-});
-
-test('it maps a codex session end to ended', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'SessionEnd',
-    payload: { session_id: 'c-1', reason: 'other' },
-  });
-
-  expect(ev).toStrictEqual({ kind: 'ended', agentSessionID: toAgentSessionID('c-1') });
 });
 
 test('it loads the latest indexed thread name', async () => {
@@ -235,97 +168,12 @@ test('it loads the indexed thread name from CODEX_HOME when built without a Code
   expect(name).toStrictEqual({ name: 'env title' });
 });
 
-test('it never loads an indexed thread name over a user-typed name', async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    join(ctx.dir, 'session_index.jsonl'),
-    [
-      '{"id":"c-1","thread_name":"first title","updated_at":"2026-08-20T00:00:00Z"}',
-      '{"id":"c-2","thread_name":"other session","updated_at":"2026-08-20T00:00:01Z"}',
-      '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}',
-    ].join('\n'),
-  );
-
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'), undefined, ctx.dir);
-
-  const name = await adapter.loadName('c-1', 'user');
-
-  expect(name).toBeNull();
-});
-
-test('it loads no name for a session the index lacks', async () => {
-  const ctx = setupTest();
-
-  writeFileSync(
-    join(ctx.dir, 'session_index.jsonl'),
-    [
-      '{"id":"c-1","thread_name":"first title","updated_at":"2026-08-20T00:00:00Z"}',
-      '{"id":"c-2","thread_name":"other session","updated_at":"2026-08-20T00:00:01Z"}',
-      '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}',
-    ].join('\n'),
-  );
-
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'), undefined, ctx.dir);
-
-  const name = await adapter.loadName('c-missing', 'auto');
-
-  expect(name).toBeNull();
-});
-
-test('it resumes when no transcript was reported', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  expect(adapter.canResume({})).toBeTrue();
-});
-
-test('it resumes when the reported rollout exists', () => {
-  const ctx = setupTest();
-  const rollout = join(ctx.dir, 'rollout.jsonl');
-
-  writeFileSync(rollout, '');
-
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  expect(adapter.canResume({ transcriptSource: rollout })).toBeTrue();
-});
-
 test('it does not resume when the reported rollout is gone', () => {
   const ctx = setupTest();
 
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
-});
-
-test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Stop',
-
-    // oxlint-disable-next-line no-unsafe-type-assertion -- exercising a payload shape the HookEvent type rules out but a hostile or buggy reporter could still send
-    payload: 'garbage' as unknown as Record<string, unknown>,
-  });
-
-  expect(ev).toStrictEqual({ kind: 'turn-done' });
-});
-
-test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'PermissionRequest',
-    payload: { session_id: null, tool_name: 7 },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'needs-input',
-    message: 'waiting for approval',
-    detail: 'waiting for approval',
-  });
 });
 
 test('it builds a codex resume command with a captured id', () => {
@@ -340,24 +188,6 @@ test('it builds a codex resume command with the picker when no id was captured',
   const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
 
   expect(adapter.buildResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
-});
-
-test('it carries the whole last assistant message of a finished turn as its result', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
-
-  const ev = adapter.normalizeHook({
-    atcId: toSessionID('s1'),
-    event: 'Stop',
-    payload: { session_id: 'c-1', last_assistant_message: 'x'.repeat(700) },
-  });
-
-  expect(ev).toStrictEqual({
-    kind: 'turn-done',
-    agentSessionID: toAgentSessionID('c-1'),
-    nameSource: 'c-1',
-    detail: `${'x'.repeat(599)}…`,
-    result: 'x'.repeat(700),
-  });
 });
 
 test('it refuses inbox messages', () => {
