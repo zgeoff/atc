@@ -234,42 +234,6 @@ test('it lets the composition root and a test file import any directory', async 
   });
 });
 
-test('it fails on a gateway entry that reaches an agent adapter through an allowed edge', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/agents/claude-adapter.ts'),
-    'export const CLAUDE = 1;\n',
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/run-gateway.ts'),
-    "import { CLAUDE } from './agents/claude-adapter';\n\nexport const GATEWAY = CLAUDE;\n",
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/gateway.ts'),
-    "const gateway = await import('./run-gateway');\n\nexport const LOADED = gateway;\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.dir,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 3 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/agents/claude-adapter.ts\n',
-  });
-});
-
 test('it fails on a confined package imported outside the file that owns it', async () => {
   const ctx = setupTest();
 

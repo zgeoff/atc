@@ -35,6 +35,10 @@ pre-push:
       run: bun run format:check
     - name: check:imports
       run: bun run check:imports
+    - name: check:manifests
+      run: bun run check:manifests
+    - name: check:disable-baseline
+      run: bun run check:disable-baseline
     - name: lint
       files: bun run --silent files:branch
       glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'

@@ -1,19 +1,18 @@
 // Checks the import graph under the app's source root, packages/app/src/: no
 // cycles (type-only imports count), each directory imports only the
 // directories its row allows, and the packages that belong to one owner are
-// imported nowhere else. Modules at the source root have a row of their own. The composition root may import any
-// directory, and test files are exempt from the direction rules. An import
-// or module reference whose specifier is not a literal is a finding, since no
-// rule can check it. Imports are read from the TypeScript scanner's tokens, so
-// comments, strings, and template literals never hide or invent one. The
-// tokens before a slash decide whether it starts a regular expression, so a
-// slash right after a class body or a function expression's closing brace can
-// be misread. The packages that belong to one owner are also checked in
-// e2e/, scripts/, and mods/, outside node_modules, whose modules follow no
-// other rule here. Prints every finding and exits 1 when there is one.
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+// imported nowhere else. Modules at the source root have a row of their own.
+// The composition root may import any directory, and test files are exempt
+// from the direction rules. An import or module reference whose specifier is
+// not a literal is a finding, since no rule can check it. The packages that
+// belong to one owner are also checked in e2e/, scripts/, and mods/, outside
+// node_modules, whose modules follow no other rule here. What the gateway
+// entry may reach is check-reach's job. Prints every finding and exits 1 when
+// there is one.
+import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { SyntaxKind, createScanner, tokenIsIdentifierOrKeyword } from 'typescript/unstable/ast';
+import { collectImports } from './collect-imports';
+import { collectSourceFiles } from './collect-source-files';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -55,8 +54,6 @@ function main(): void {
     findings.push(...checkDirection(file, targets));
   }
 
-  findings.push(...checkReach(graph));
-
   const cycles = collectCycles(graph);
 
   for (const cycle of cycles) {
@@ -83,303 +80,6 @@ const SOURCE_ROOT = 'packages/app/src';
 // The directories outside the source root whose modules the confinement rule
 // covers.
 const OUTSIDE_DIRS = ['e2e', 'scripts', 'mods'];
-const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
-
-// Every source module under the directory, in sorted order, skipping
-// installed packages; a directory that does not exist holds none.
-function collectSourceFiles(root: string, dir: string): string[] {
-  const files: string[] = [];
-
-  if (!existsSync(join(root, dir))) {
-    return files;
-  }
-
-  for (const entry of readdirSync(join(root, dir)).toSorted()) {
-    const path = `${dir}/${entry}`;
-
-    if (entry === 'node_modules') {
-      continue;
-    }
-
-    if (statSync(join(root, path)).isDirectory()) {
-      files.push(...collectSourceFiles(root, path));
-    } else if (SOURCE_EXTENSIONS.some((extension) => path.endsWith(extension))) {
-      files.push(path);
-    }
-  }
-
-  return files;
-}
-
-// What a module imports: every literal specifier, and the line of each
-// module reference whose specifier is computed.
-interface ImportList {
-  readonly specifiers: readonly string[];
-  readonly nonLiteralLines: readonly number[];
-}
-
-// Static imports and re-exports, type-only ones included, side-effect
-// imports, and every call that loads or resolves a module: `import(...)`,
-// import types among them, `require(...)` and `import x = require(...)`,
-// `import.meta.resolve(...)`, `Bun.resolve(...)` and `Bun.resolveSync(...)`,
-// and `new URL(..., import.meta.url)`.
-function collectImports(source: string): ImportList {
-  const tokens = collectTokens(source);
-
-  const specifiers = new Set<string>();
-
-  const nonLiteralLines: number[] = [];
-
-  for (const [i, token] of tokens.entries()) {
-    const next = tokens[i + 1];
-    const open = findLoadParen(tokens, i);
-
-    if (
-      (token.kind === SyntaxKind.FromKeyword || token.kind === SyntaxKind.ImportKeyword) &&
-      next?.kind === SyntaxKind.StringLiteral
-    ) {
-      specifiers.add(next.value);
-    } else if (open !== null) {
-      const argument = tokens[open + 1];
-      const after = tokens[open + 2];
-
-      const isLiteral =
-        (argument?.kind === SyntaxKind.StringLiteral ||
-          argument?.kind === SyntaxKind.NoSubstitutionTemplateLiteral) &&
-        (after?.kind === SyntaxKind.CloseParenToken || after?.kind === SyntaxKind.CommaToken);
-
-      if (isLiteral) {
-        specifiers.add(argument.value);
-      } else {
-        nonLiteralLines.push(getLineNumber(source, token.start));
-      }
-    }
-  }
-
-  return { specifiers: [...specifiers], nonLiteralLines };
-}
-
-interface Token {
-  readonly kind: SyntaxKind;
-  readonly text: string;
-  readonly value: string;
-  readonly start: number;
-}
-
-// What an open brace began: a block, an object literal or type, or a
-// template substitution.
-type BraceKind = 'block' | 'object' | 'substitution';
-
-// Keywords whose parenthesized condition a statement follows, so a slash
-// after the closing parenthesis starts a regular expression.
-const CONTROL_KEYWORDS: ReadonlySet<SyntaxKind> = new Set([
-  SyntaxKind.ForKeyword,
-  SyntaxKind.IfKeyword,
-  SyntaxKind.WhileKeyword,
-  SyntaxKind.WithKeyword,
-]);
-
-// Tokens after which an open brace begins a block rather than an object.
-const BLOCK_OPENERS: ReadonlySet<SyntaxKind> = new Set([
-  SyntaxKind.CloseBraceToken,
-  SyntaxKind.CloseParenToken,
-  SyntaxKind.DoKeyword,
-  SyntaxKind.ElseKeyword,
-  SyntaxKind.EqualsGreaterThanToken,
-  SyntaxKind.FinallyKeyword,
-  SyntaxKind.OpenBraceToken,
-  SyntaxKind.SemicolonToken,
-  SyntaxKind.TryKeyword,
-]);
-
-// The module's tokens, with the two context-dependent ones settled the way
-// the parser settles them: a slash where an expression can start begins a
-// regular expression, and the brace that closes a template substitution
-// continues the template.
-function collectTokens(source: string): Token[] {
-  const scanner = createScanner(true, undefined, source);
-  const tokens: Token[] = [];
-
-  // whether each open parenthesis holds a control statement's condition
-  const parens: boolean[] = [];
-  const braces: BraceKind[] = [];
-  let slashStartsRegex = true;
-
-  for (let kind = scanner.scan(); kind !== SyntaxKind.EndOfFile; kind = scanner.scan()) {
-    const previous = tokens.at(-1)?.kind;
-    let closedControl = false;
-    let closedBlock = false;
-
-    if (
-      (kind === SyntaxKind.SlashToken || kind === SyntaxKind.SlashEqualsToken) &&
-      slashStartsRegex
-    ) {
-      kind = scanner.reScanSlashToken();
-    } else if (kind === SyntaxKind.OpenParenToken) {
-      parens.push(previous !== undefined && CONTROL_KEYWORDS.has(previous));
-    } else if (kind === SyntaxKind.CloseParenToken) {
-      closedControl = parens.pop() ?? false;
-    } else if (kind === SyntaxKind.OpenBraceToken) {
-      const opened: BraceKind =
-        previous === undefined || BLOCK_OPENERS.has(previous) ? 'block' : 'object';
-
-      braces.push(opened);
-    } else if (kind === SyntaxKind.CloseBraceToken) {
-      const closed = braces.pop();
-
-      closedBlock = closed === 'block';
-
-      if (closed === 'substitution') {
-        kind = scanner.reScanTemplateToken(false);
-      }
-    }
-
-    if (kind === SyntaxKind.TemplateHead || kind === SyntaxKind.TemplateMiddle) {
-      braces.push('substitution');
-    }
-
-    tokens.push({
-      kind,
-      text: scanner.getTokenText(),
-      value: scanner.getTokenValue(),
-      start: scanner.getTokenStart(),
-    });
-
-    if (kind === SyntaxKind.CloseParenToken) {
-      slashStartsRegex = closedControl;
-    } else if (kind === SyntaxKind.CloseBraceToken) {
-      slashStartsRegex = closedBlock;
-    } else {
-      slashStartsRegex = canStartRegex(kind);
-    }
-  }
-
-  return tokens;
-}
-
-// Keywords an expression can follow, so a slash after one starts a regular
-// expression rather than dividing.
-const EXPRESSION_KEYWORDS: ReadonlySet<SyntaxKind> = new Set([
-  SyntaxKind.AwaitKeyword,
-  SyntaxKind.CaseKeyword,
-  SyntaxKind.DeleteKeyword,
-  SyntaxKind.DoKeyword,
-  SyntaxKind.ElseKeyword,
-  SyntaxKind.InKeyword,
-  SyntaxKind.InstanceOfKeyword,
-  SyntaxKind.NewKeyword,
-  SyntaxKind.OfKeyword,
-  SyntaxKind.ReturnKeyword,
-  SyntaxKind.ThrowKeyword,
-  SyntaxKind.TypeOfKeyword,
-  SyntaxKind.VoidKeyword,
-  SyntaxKind.YieldKeyword,
-]);
-
-// Tokens other than closing brackets of statements that end a value, so a
-// slash after one divides.
-const VALUE_ENDS: ReadonlySet<SyntaxKind> = new Set([
-  SyntaxKind.BigIntLiteral,
-  SyntaxKind.CloseBracketToken,
-  SyntaxKind.MinusMinusToken,
-  SyntaxKind.NoSubstitutionTemplateLiteral,
-  SyntaxKind.NumericLiteral,
-  SyntaxKind.PlusPlusToken,
-  SyntaxKind.RegularExpressionLiteral,
-  SyntaxKind.StringLiteral,
-  SyntaxKind.TemplateTail,
-]);
-
-function canStartRegex(previous: SyntaxKind): boolean {
-  if (tokenIsIdentifierOrKeyword(previous)) {
-    return EXPRESSION_KEYWORDS.has(previous);
-  }
-
-  return !VALUE_ENDS.has(previous);
-}
-
-/**
- * The index of the parenthesis that opens a module-loading call starting at
- * token i, or null when none starts there. A property such as
- * `module.require(` is not one, and a `new URL(` counts only when its
- * arguments hold `import.meta.url`.
- */
-function findLoadParen(tokens: readonly Token[], i: number): number | null {
-  const token = tokens[i];
-  const previous = tokens[i - 1]?.kind;
-
-  if (
-    token === undefined ||
-    previous === SyntaxKind.DotToken ||
-    previous === SyntaxKind.QuestionDotToken
-  ) {
-    return null;
-  }
-
-  if (token.kind === SyntaxKind.ImportKeyword) {
-    if (tokens[i + 1]?.kind === SyntaxKind.OpenParenToken) {
-      return i + 1;
-    }
-
-    return hasTexts(tokens, i + 1, ['.', 'meta', '.', 'resolve', '(']) ? i + 5 : null;
-  }
-
-  if (token.kind === SyntaxKind.RequireKeyword) {
-    return tokens[i + 1]?.kind === SyntaxKind.OpenParenToken ? i + 1 : null;
-  }
-
-  if (
-    token.text === 'Bun' &&
-    (hasTexts(tokens, i + 1, ['.', 'resolveSync', '(']) ||
-      hasTexts(tokens, i + 1, ['.', 'resolve', '(']))
-  ) {
-    return i + 3;
-  }
-
-  if (token.kind === SyntaxKind.NewKeyword && hasTexts(tokens, i + 1, ['URL', '('])) {
-    const close = findCloseParen(tokens, i + 2);
-
-    for (let j = i + 3; j < close; j += 1) {
-      if (hasTexts(tokens, j, ['import', '.', 'meta', '.', 'url'])) {
-        return i + 2;
-      }
-    }
-  }
-
-  return null;
-}
-
-function hasTexts(tokens: readonly Token[], start: number, texts: readonly string[]): boolean {
-  return texts.every((text, offset) => tokens[start + offset]?.text === text);
-}
-
-/**
- * The index of the parenthesis that closes the one at `open`, or the token
- * count when the module ends first.
- */
-function findCloseParen(tokens: readonly Token[], open: number): number {
-  let depth = 0;
-
-  for (let j = open; j < tokens.length; j += 1) {
-    const kind = tokens[j]?.kind;
-
-    if (kind === SyntaxKind.OpenParenToken) {
-      depth += 1;
-    } else if (kind === SyntaxKind.CloseParenToken) {
-      depth -= 1;
-
-      if (depth === 0) {
-        return j;
-      }
-    }
-  }
-
-  return tokens.length;
-}
-
-function getLineNumber(source: string, offset: number): number {
-  return source.slice(0, offset).split('\n').length;
-}
 
 function resolveImport(file: string, specifier: string, known: ReadonlySet<string>): string | null {
   const base = relative('.', join(dirname(file), specifier.replace(/\.js$/, '')));
@@ -502,49 +202,6 @@ function getLayer(file: string): string {
   const parts = relative(SOURCE_ROOT, file).split('/');
 
   return parts.length > 1 ? (parts[0] ?? 'root') : 'root';
-}
-
-// The entrypoints whose binary must never run a daemon or a session on its
-// own machine, and the path prefixes nothing they import may reach, however
-// indirectly.
-const UNREACHABLE: Readonly<Record<string, readonly string[]>> = {
-  'packages/app/src/gateway.ts': [
-    'packages/app/src/cli.ts',
-    'packages/app/src/daemon/',
-    'packages/app/src/agents/',
-    'packages/app/src/store/',
-    'packages/app/src/workspace/',
-    'packages/app/src/sources/',
-    'packages/app/src/client/boot-daemon.ts',
-    'packages/app/src/client/index.ts',
-  ],
-};
-
-function checkReach(graph: ReadonlyMap<string, readonly string[]>): string[] {
-  const findings: string[] = [];
-
-  for (const [entry, prefixes] of Object.entries(UNREACHABLE)) {
-    const seen = new Set<string>();
-
-    const pending = [entry];
-
-    for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
-      for (const target of graph.get(file) ?? []) {
-        if (!seen.has(target)) {
-          seen.add(target);
-          pending.push(target);
-        }
-      }
-    }
-
-    for (const file of [...seen].toSorted()) {
-      if (prefixes.some((prefix) => file.startsWith(prefix))) {
-        findings.push(`unreachable module: ${entry} reaches ${file}`);
-      }
-    }
-  }
-
-  return findings;
 }
 
 /**

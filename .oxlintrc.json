@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": ["./node_modules/@zgeoff/oxlint-config/oxlintrc.json"],
+  // the generated package import rules (bun run build:import-rules)
+  "extends": ["./node_modules/@zgeoff/oxlint-config/oxlintrc.json", "./.oxlintrc.imports.json"],
   "env": {
     "node": true,
     "es2024": true

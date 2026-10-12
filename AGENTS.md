@@ -89,7 +89,16 @@ binary, which must never reach `daemon/`, `agents/`, or any module that starts a
 that exists only to back one of its subcommands stays beside it at the app's `src/` root, while the
 `tui` and `daemon` subcommands load their subsystems from `client/` and `daemon/`.
 `bun run check:imports` fails on an import cycle and on an import a directory's rule forbids; the
-rules live in `scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and request handling
+rules live in `scripts/check-imports.ts`. `scripts/package-rules.ts` holds the packages and the
+internal packages each may depend on, and three gates read it. The oxlint overrides in
+`.oxlintrc.imports.json`, which `bun run build:import-rules` generates, refuse an import outside a
+package's row, a deep import into another package's `src/`, a test helper in production code, and a
+confined external package outside its owner. `bun run check:manifests` fails on an import the
+manifest does not declare, on a relative path into another package, and on a module load whose
+specifier is a template literal, which the oxlint overrides cannot read. `bun run check:reach` fails
+when the gateway entry reaches a module the gateway must never load.
+`bun run check:disable-baseline` fails when more directives switch off an import rule than
+`scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool definitions and request handling
 that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
 authorization server and its pages. `federation/` holds the gateway's daemon registry, per-daemon
 callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. `test-utils/`

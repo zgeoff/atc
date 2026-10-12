@@ -17,12 +17,12 @@
     "citty": "catalog:",
     "kysely": "catalog:",
     "ts-pattern": "catalog:",
+    "type-fest": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
-    "tiny-invariant": "catalog:",
-    "type-fest": "catalog:"
+    "tiny-invariant": "catalog:"
   }
 }
