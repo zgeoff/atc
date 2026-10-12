@@ -65,7 +65,7 @@
     "deadcode": "knip",
     "files:branch": "bun scripts/collect-branch-files.ts",
     "lint": "oxlint",
-    "lint:files": "oxlint --report-unused-disable-directives-severity error",
+    "lint:files": "oxlint",
     "lint:fix": "oxlint --fix",
     "lint:full": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error",
     "test": "bash scripts/with-test-home.sh bun test --parallel --timings=bun-test-timings.json",
