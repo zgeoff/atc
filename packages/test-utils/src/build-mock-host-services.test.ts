@@ -7,7 +7,7 @@ test('it builds default host services', () => {
 
   expect(host).toStrictEqual({
     atcArgv: [expect.toStartWith('/')],
-    version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+    version: expect.toSatisfy((value: string) => /^\d+\.\d+\.\d+$/u.test(value)),
     build: expect.toStartWith(`${host.version}+bin.`),
     runCommand: expect.toBeFunction(),
     clock: systemClock,
@@ -21,7 +21,7 @@ test('it applies overrides on top of the defaults', () => {
   expect(host).toStrictEqual({
     atcArgv: ['/usr/local/bin/atc'],
     version: '4.2.0',
-    build: expect.stringMatching(/^\d+\.\d+\.\d+\+bin\./),
+    build: expect.toSatisfy((value: string) => /^\d+\.\d+\.\d+\+bin\./u.test(value)),
     runCommand: expect.toBeFunction(),
     clock: systemClock,
     log: expect.toBeFunction(),

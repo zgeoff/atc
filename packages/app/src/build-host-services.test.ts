@@ -43,7 +43,7 @@ test('it tells the time by the wall clock', () => {
 });
 
 test('it writes each log line through the log it is given', () => {
-  const log = mock();
+  const log = mock<(line: string) => void>();
 
   buildHostServices(log).log('daemon up');
 
