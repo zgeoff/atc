@@ -1,0 +1,20 @@
+{
+  "name": "@atc/harness-codex",
+  "private": true,
+  "description": "The Codex CLI harness: the adapter, its hook file, guest launches, and the sign-in and trust files a brokered session starts with",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "tiny-invariant": "catalog:"
+  }
+}

@@ -36,6 +36,7 @@
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/harness-claude": "workspace:*",
+        "@atc/harness-codex": "workspace:*",
         "@atc/lifecycle": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
@@ -98,6 +99,20 @@
         "@faker-js/faker": "catalog:",
         "@types/proper-lockfile": "catalog:",
         "proper-lockfile": "catalog:",
+        "tiny-invariant": "catalog:",
+      },
+    },
+    "packages/harnesses/codex": {
+      "name": "@atc/harness-codex",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
         "tiny-invariant": "catalog:",
       },
     },
@@ -251,6 +266,8 @@
     "@atc/core": ["@atc/core@workspace:packages/core"],
 
     "@atc/harness-claude": ["@atc/harness-claude@workspace:packages/harnesses/claude"],
+
+    "@atc/harness-codex": ["@atc/harness-codex@workspace:packages/harnesses/codex"],
 
     "@atc/lifecycle": ["@atc/lifecycle@workspace:packages/lifecycle"],
 
