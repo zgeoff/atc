@@ -120,6 +120,7 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "ts-pattern": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {

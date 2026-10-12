@@ -1,45 +1,30 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stateDir } from '@atc/config/config';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
-import { isRecord } from '@atc/core/is-record';
+import { loadClaudeStatusLine } from '@atc/config/load-claude-statusline';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 
 /**
  * Writes the settings file passed to a wrangled session as
  * `claude --settings`, one per agent id, into the folder `dir`, and returns
- * its path. Its hooks run the atc CLI that `cliArgv` runs. The statusline
- * padding comes from the Claude settings in the user's home `homeDir`.
+ * its path. Its hooks run the atc CLI that `cliArgv` runs. Its statusline
+ * takes the padding of the person's own statusline, from the Claude config
+ * folder of the home `homeDir`, which atc's statusline chains, so the two
+ * line up.
  */
 export function writeHookSettings(
   profile: HookSettingsProfile,
   cliArgv: readonly string[],
   dir: string = stateDir,
-  homeDir: string = resolveHomeDir(),
+  homeDir?: string,
 ): string {
   const file = join(dir, `hook-settings-${profile.id}.json`);
-  const settings = buildHookSettings(profile, readStatuslinePadding(homeDir), cliArgv);
+  const padding = loadClaudeStatusLine(homeDir).padding ?? 0;
+  const settings = buildHookSettings(profile, padding, cliArgv);
 
   mkdirSync(dir, { recursive: true });
   writeFileSync(file, JSON.stringify(settings, null, 2));
 
   return file;
-}
-
-/**
- * The padding on the user's own statusline, so the chained one lines up with
- * it. An unreadable or unconfigured setting is no padding.
- */
-function readStatuslinePadding(homeDir: string): number {
-  try {
-    const raw = readFileSync(join(homeDir, '.claude', 'settings.json'), 'utf8');
-    const user: unknown = JSON.parse(raw);
-    const statusLine = isRecord(user) ? user['statusLine'] : undefined;
-    const padding = isRecord(statusLine) ? statusLine['padding'] : undefined;
-
-    return typeof padding === 'number' ? padding : 0;
-  } catch {
-    return 0;
-  }
 }
