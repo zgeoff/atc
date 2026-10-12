@@ -27,8 +27,6 @@ function buildErrorMap(): DaemonErrorMap {
   return map;
 }
 
-function hasEveryCode(
-  map: Partial<Record<ErrorCode, { readonly data: typeof ERROR_DATA_SCHEMA }>>,
-): map is DaemonErrorMap {
-  return ERROR_CODES.every((code) => map[code] !== undefined);
+function hasEveryCode(map: object): map is DaemonErrorMap {
+  return ERROR_CODES.every((code) => Object.hasOwn(map, code));
 }

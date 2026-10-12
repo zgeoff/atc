@@ -1105,18 +1105,14 @@ export class DaemonConnection {
 
     const spawned = await ctx.spawnSession(plan, keyed, null);
 
-    const session = spawned['session'];
-
-    const sessionID =
-      isRecord(session) && typeof session['id'] === 'string' ? toSessionID(session['id']) : null;
-
-    const grant = sessionID === null ? null : ctx.findSessionGrant(sessionID);
+    const sessionID = toSessionID(spawned.session.id);
+    const grant = ctx.findSessionGrant(sessionID);
 
     // A live session whose tree left the view before the answer goes out
     // gets the refusal a replay out of reach gets, holding no part of it.
     // A replayed session no longer live was checked against its fleet row
     // by the replay itself.
-    if (sessionID !== null && grant !== null && !ctx.isSessionVisible(sessionID)) {
+    if (grant !== null && !ctx.isSessionVisible(sessionID)) {
       throw buildTargetForbiddenError(grant.target);
     }
 

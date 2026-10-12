@@ -11,6 +11,7 @@ import { truncateDetail } from '@atc/core/truncate-detail';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { normalizeHookEventName } from '@atc/protocol/normalize-hook-event';
+import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
 import { z } from 'zod';
 import type { AgentEntry } from '../shared/collect-agents';
 import type {
@@ -18,7 +19,6 @@ import type {
   AgentProfile,
   NameUpdate,
   ResumeCheck,
-  SpawnOptionSpec,
   SpawnOptions,
   SpawnPlan,
 } from './agent-adapter';

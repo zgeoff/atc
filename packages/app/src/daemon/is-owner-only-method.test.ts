@@ -4,6 +4,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { isOwnerOnlyMethod } from './is-owner-only-method';
 
 /**
  * A mock agent adapter for the daemon to boot with. It takes messages, so
@@ -14,6 +15,19 @@ function setupTest() {
 
   return { adapter };
 }
+
+test.each([
+  ['daemon.quit', true],
+  ['fleet.restore', true],
+  ['session.auth.revoke', true],
+  ['session.auth.rebind', true],
+  ['session.list', false],
+  ['session.spawn', false],
+  ['events.subscribe', false],
+  ['daemon.nuke', false],
+])('it reads %s as owner-only: %p', (method, ownerOnly) => {
+  expect(isOwnerOnlyMethod(method)).toBe(ownerOnly);
+});
 
 test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
   'it refuses %s from a principal connection as owner-only',

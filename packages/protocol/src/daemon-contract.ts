@@ -41,9 +41,8 @@ const P = REQUEST_PARAM_SCHEMAS;
 /**
  * The daemon's procedures: each one's params, its answer, its traits, and
  * the errors it can answer with. A procedure's path joined with dots is its
- * request method, such as `session.auth.revoke`. `sources.complete` and
- * `events.subscribe` have no request method yet: the dirs source and the
- * subscription arrive with their own implementations.
+ * request method, such as `session.auth.revoke`. No request method
+ * dispatches `sources.complete` or `events.subscribe`.
  */
 export const DAEMON_CONTRACT = {
   daemon: {
