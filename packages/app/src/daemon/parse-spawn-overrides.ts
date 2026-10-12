@@ -1,4 +1,5 @@
 import type { SpawnOverrides } from '../agents/agent-adapter';
+import { CONTROL_CHARACTER } from '../protocol/control-character';
 import type { AgentEntry, SpawnOptionEntry } from './build-agent-list';
 
 interface RequestedOverrides {
@@ -50,9 +51,6 @@ export function parseSpawnOverrides(
 }
 
 const MAX_VALUE_LENGTH = 200;
-
-// oxlint-disable-next-line no-control-regex -- control characters are what a value is refused for
-const CONTROL_CHARACTER = /[\u0000-\u001F\u007F]/u;
 
 function findOptionRefusal(
   agentID: string,
