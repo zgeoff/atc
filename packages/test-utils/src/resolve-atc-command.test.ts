@@ -7,11 +7,11 @@ import { runCommand } from './run-command';
 import { updateEnv } from './update-env';
 
 test('it runs the source entry under the test bun when no binary is set', () => {
-  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+  const appRoot = dirname(fileURLToPath(import.meta.resolve('../../app/package.json')));
 
   updateEnv('ATC_BIN', undefined);
 
-  expect(resolveATCCommand()).toStrictEqual([process.execPath, join(repoRoot, 'src/cli.ts')]);
+  expect(resolveATCCommand()).toStrictEqual([process.execPath, join(appRoot, 'src/cli.ts')]);
 });
 
 test('it runs the compiled binary the environment points at', () => {
@@ -23,7 +23,10 @@ test('it runs the compiled binary the environment points at', () => {
 test('it runs a source entry that prints the package version', async () => {
   updateEnv('ATC_BIN', undefined);
 
-  const pkg: unknown = await Bun.file(join(import.meta.dir, '..', '..', 'package.json')).json();
+  const pkg: unknown = await Bun.file(
+    join(import.meta.dir, '..', '..', 'app', 'package.json'),
+  ).json();
+
   const printed = await runCommand([...resolveATCCommand(), '--version']);
 
   invariant(

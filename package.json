@@ -81,6 +81,7 @@
     "prepare": "command -v git > /dev/null 2>&1 && lefthook install --force || true"
   },
   "devDependencies": {
+    "@atc/test-utils": "workspace:*",
     "@commitlint/cli": "catalog:",
     "@stylistic/eslint-plugin": "catalog:",
     "@tsconfig/strictest": "catalog:",

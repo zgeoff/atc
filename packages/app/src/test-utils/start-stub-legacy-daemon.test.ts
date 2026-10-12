@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
-import { registerTestCleanup } from './register-test-cleanup';
-import { setupTempDir } from './setup-temp-dir';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
-import { waitFor } from './wait-for';
 
 // A temp directory to hold the daemon's socket.
 function setupTest() {

@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { updateEnv } from '../test-utils/update-env';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/test-utils/update-env';
 import { readHostGitIdentity } from './read-host-git-identity';
 
 function setupTest() {

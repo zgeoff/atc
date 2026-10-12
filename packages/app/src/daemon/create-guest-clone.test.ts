@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { $ } from 'bun';
-import { createGitFixture } from '../test-utils/create-git-fixture';
 import { createGuestClone } from './create-guest-clone';
 import { LocalPTYProvider } from './local-pty-provider';
 

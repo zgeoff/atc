@@ -2,14 +2,14 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { buildStubRecordingFilter } from '@atc/test-utils/build-stub-recording-filter';
+import { collectProcessTree } from '@atc/test-utils/collect-process-tree';
+import type { TreeProcess } from '@atc/test-utils/collect-process-tree';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { startGitHTTPServer } from '@atc/test-utils/start-git-http-server';
+import { updateEnv } from '@atc/test-utils/update-env';
 import { $ } from 'bun';
-import { buildStubRecordingFilter } from '../test-utils/build-stub-recording-filter';
-import { collectProcessTree } from '../test-utils/collect-process-tree';
-import type { TreeProcess } from '../test-utils/collect-process-tree';
-import { createGitFixture } from '../test-utils/create-git-fixture';
-import { createStubBin } from '../test-utils/create-stub-bin';
-import { startGitHTTPServer } from '../test-utils/start-git-http-server';
-import { updateEnv } from '../test-utils/update-env';
 import { createWorkspaceClone } from './create-workspace-clone';
 
 // A bare upstream holding one pushed commit and a work clone of it.

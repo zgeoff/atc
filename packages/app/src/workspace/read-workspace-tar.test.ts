@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { lstat, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { $ } from 'bun';
-import { createGitFixture } from '../test-utils/create-git-fixture';
 import { readWorkspaceTar } from './read-workspace-tar';
 
 // A work clone holding one commit, for the archive to stream.

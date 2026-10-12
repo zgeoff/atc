@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createGitFixture } from '../packages/app/src/test-utils/create-git-fixture';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { setupMCPHome } from '../packages/app/src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../packages/app/src/test-utils/start-mcp-stdio';
 

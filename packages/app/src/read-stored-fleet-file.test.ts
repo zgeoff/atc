@@ -1,9 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { readStoredFleetFile } from './read-stored-fleet-file';
-import { registerTestCleanup } from './test-utils/register-test-cleanup';
-import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
  * A path for the state database in a fresh temp directory, which each test

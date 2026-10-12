@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubSignedInGH } from '@atc/test-utils/build-stub-signed-in-gh';
+import { buildStubSignedOutGH } from '@atc/test-utils/build-stub-signed-out-gh';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { KEYS } from '@atc/test-utils/keys';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { $ } from 'bun';
 import { DaemonClient } from '../packages/app/src/client/daemon-client';
-import { buildStubSignedInGH } from '../packages/app/src/test-utils/build-stub-signed-in-gh';
-import { buildStubSignedOutGH } from '../packages/app/src/test-utils/build-stub-signed-out-gh';
-import { createGitFixture } from '../packages/app/src/test-utils/create-git-fixture';
-import { createStubBin } from '../packages/app/src/test-utils/create-stub-bin';
-import { KEYS } from '../packages/app/src/test-utils/keys';
-import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
 import { startStubSourceDaemon } from '../packages/app/src/test-utils/start-stub-source-daemon';
-import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
 
 function setupTest() {
   return startTUIHarness();

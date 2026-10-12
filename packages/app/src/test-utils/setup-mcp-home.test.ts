@@ -2,12 +2,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { isProcessAlive } from '../shared/is-process-alive';
-import { registerTestCleanup } from './register-test-cleanup';
 import { setupMCPHome } from './setup-mcp-home';
-import { setupTempDir } from './setup-temp-dir';
-import { waitFor } from './wait-for';
 
 test('it writes a config that registers the stand-in agents', async () => {
   const mcpHome = setupMCPHome();

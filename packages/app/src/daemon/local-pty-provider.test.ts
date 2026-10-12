@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/test-utils/update-env';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { updateEnv } from '../test-utils/update-env';
-import { waitFor } from '../test-utils/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**

@@ -1,11 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubDaemonRequests } from '@atc/test-utils/build-stub-daemon-requests';
+import { buildStubTerminal } from '@atc/test-utils/build-stub-terminal';
+import { KEYS } from '@atc/test-utils/keys';
 import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
-import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-requests';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
-import { buildStubTerminal } from '../test-utils/build-stub-terminal';
-import { KEYS } from '../test-utils/keys';
 import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
 

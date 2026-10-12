@@ -1,6 +1,6 @@
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { LineDecoder } from '../protocol/line-decoder';
 import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol/protocol';
-import { registerTestCleanup } from './register-test-cleanup';
 
 /**
  * A daemon stand-in on a unix socket path that speaks the real wire format

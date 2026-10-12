@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { DaemonClient } from '../client/daemon-client';
-import { registerTestCleanup } from './register-test-cleanup';
 import { startStubTCPDaemon } from './start-stub-tcp-daemon';
-import { waitFor } from './wait-for';
 
 test('it answers a request with an ok that holds its method', async () => {
   const daemon = startStubTCPDaemon();

@@ -2,6 +2,9 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { readQueryPlan } from '@atc/test-utils/read-query-plan';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { CompiledQuery } from 'kysely';
 import invariant from 'tiny-invariant';
 import { buildTargetIdentity } from '../daemon/build-target-identity';
@@ -12,9 +15,6 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { buildMockPublishedRecord } from '../test-utils/build-mock-published-record';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
-import { readQueryPlan } from '../test-utils/read-query-plan';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { StateStore } from './state-store';
 
 async function setupTest() {

@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '../test-utils/run-command';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 
 // The guest folder a launch stages its bundle under and runs in.

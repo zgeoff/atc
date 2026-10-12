@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { ImpProvider } from '../daemon/imp-provider';
 import { buildStubPregrantedBrokerHost } from './build-stub-pregranted-broker-host';
 import { createStubImpPort } from './create-stub-imp-port';
-import { registerTestCleanup } from './register-test-cleanup';
 
 function setupTest() {
   const port = createStubImpPort();

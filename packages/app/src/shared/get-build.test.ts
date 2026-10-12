@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { getBuild } from './get-build';
 
 function setupTest() {

@@ -1,5 +1,5 @@
-import { join } from 'node:path';
 import { createStubBin } from './create-stub-bin';
+import { getSourceEntry } from './get-source-entry';
 
 /**
  * Creates the command-line tools a remote host runs for a session, as
@@ -23,7 +23,7 @@ import { createStubBin } from './create-stub-bin';
  * Returns each tool's path.
  */
 export function createStubGuestCLIs(dir: string) {
-  const cliPath = join(import.meta.dir, '..', 'cli.ts');
+  const cliPath = getSourceEntry('atc');
 
   const atc = createStubBin(
     dir,

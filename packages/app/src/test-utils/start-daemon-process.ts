@@ -1,10 +1,10 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/test-utils/wait-for';
 import type { Subprocess } from 'bun';
 import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
-import { registerTestCleanup } from './register-test-cleanup';
-import { waitFor } from './wait-for';
 
 interface DaemonProcessConfig {
   // The command atc runs as, such as the source entry under bun or a

@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubGH } from '@atc/test-utils/build-stub-gh';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
-import { buildStubGH } from '../test-utils/build-stub-gh';
-import { createGitFixture } from '../test-utils/create-git-fixture';
-import { createStubBin } from '../test-utils/create-stub-bin';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { checkSessionScope } from './check-session-scope';
 import { LocalPTYProvider } from './local-pty-provider';
 

@@ -2,6 +2,15 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubClaude } from '@atc/test-utils/create-stub-claude';
+import { createStubComposer } from '@atc/test-utils/create-stub-composer';
+import { createStubGrok } from '@atc/test-utils/create-stub-grok';
+import { getString } from '@atc/test-utils/get-string';
+import { KEYS } from '@atc/test-utils/keys';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import type { EventMsg } from '../packages/app/src/protocol/protocol';
 import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
@@ -10,17 +19,8 @@ import { toAgentSessionID } from '../packages/app/src/shared/to-agent-session-id
 import { toSessionID } from '../packages/app/src/shared/to-session-id';
 import { StateStore } from '../packages/app/src/store/state-store';
 import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
-import { createStubClaude } from '../packages/app/src/test-utils/create-stub-claude';
-import { createStubComposer } from '../packages/app/src/test-utils/create-stub-composer';
-import { createStubGrok } from '../packages/app/src/test-utils/create-stub-grok';
 import { getRecords } from '../packages/app/src/test-utils/get-records';
-import { getString } from '../packages/app/src/test-utils/get-string';
-import { KEYS } from '../packages/app/src/test-utils/keys';
-import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
-import { waitFor } from '../packages/app/src/test-utils/wait-for';
 import { waitForEvent } from '../packages/app/src/test-utils/wait-for-event';
 
 /**

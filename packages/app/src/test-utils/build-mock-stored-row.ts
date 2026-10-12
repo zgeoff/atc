@@ -1,7 +1,7 @@
+import { mergeDeep } from '@atc/test-utils/merge-deep';
+import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import type { StoredRow } from '../read-stored-rows';
-import { mergeDeep } from './merge-deep';
-import type { MockOverrides } from './mock-overrides';
 
 /**
  * A fleet row a daemon has stored, for a live session with a fresh id, an

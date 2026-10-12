@@ -1,6 +1,6 @@
 import { createConnection } from 'node:net';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { PROTOCOL_V, encodeMessage } from '../protocol/protocol';
-import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubStalledClient {
   // Each chunk the client has read off its connection, in order.

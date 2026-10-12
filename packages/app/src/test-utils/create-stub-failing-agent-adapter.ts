@@ -1,6 +1,6 @@
+import { runCommand } from '@atc/test-utils/run-command';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
-import { runCommand } from './run-command';
 
 interface Plan {
   readonly bin: string;

@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { buildTargetList } from './build-target-list';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';

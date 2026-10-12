@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { HarnessSpec } from '../daemon/execution-provider';
 import { buildStubHeldProvider } from './build-stub-held-provider';
-import { registerTestCleanup } from './register-test-cleanup';
-import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
   const tmp = setupTempDir('atc-stub-held-provider-');

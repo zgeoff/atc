@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { buildStubClock } from '../test-utils/build-stub-clock';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { claimDaemonLock } from './claim-daemon-lock';
 
 function setupTest() {

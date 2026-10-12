@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { DaemonClient } from '../client/daemon-client';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { readNoteTexts } from './read-note-texts';
 import { ReconnectingCaller } from './reconnecting-caller';

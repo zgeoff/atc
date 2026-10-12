@@ -1,9 +1,9 @@
+import { mergeDeep } from '@atc/test-utils/merge-deep';
+import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
-import { mergeDeep } from './merge-deep';
-import type { MockOverrides } from './mock-overrides';
 
 /**
  * The fields the defaults set; every other field is absent until an

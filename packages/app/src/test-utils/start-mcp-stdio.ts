@@ -1,8 +1,8 @@
-import { join } from 'node:path';
+import { getSourceEntry } from '@atc/test-utils/get-source-entry';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { isRecord } from '../shared/report';
-import { registerTestCleanup } from './register-test-cleanup';
 
-const CLI_PATH = join(import.meta.dir, '..', 'cli.ts');
+const CLI_PATH = getSourceEntry('atc');
 
 interface MCPStdioOptions {
   // The home the server runs with, as its `HOME` and `XDG_RUNTIME_DIR`.

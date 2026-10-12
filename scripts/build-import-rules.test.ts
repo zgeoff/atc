@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { z } from 'zod';
-import { runCommand } from '../packages/app/src/test-utils/run-command';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 import { IMPORT_RULES_FILE, buildImportRules } from './build-import-rules';
 
 // A temp tree standing in for the repo root, whose oxlint config extends the

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { buildStubHostProvider } from './build-stub-host-provider';
-import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
   const tmp = setupTempDir('atc-stub-host-');

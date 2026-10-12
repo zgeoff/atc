@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { registerTestCleanup } from './register-test-cleanup';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { startStubImpd } from './start-stub-impd';
-import { waitFor } from './wait-for';
 
 test('it answers a call as system info until the caller sets an answer for its path', async () => {
   const impd = startStubImpd();

@@ -101,8 +101,8 @@ const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
   'bun-pty': [
     'packages/app/src/daemon/local-pty-provider.ts',
     'packages/app/src/test-utils/create-stub-imp-port.ts',
-    'packages/app/src/test-utils/start-tui-harness.ts',
-    'packages/app/src/test-utils/create-stub-composer.test.ts',
+    'packages/test-utils/src/start-tui-harness.ts',
+    'packages/test-utils/src/create-stub-composer.test.ts',
     'scripts/probe-pty-env.ts',
   ],
   '@zgeoff/imp-client': ['packages/app/src/daemon/imp-client-port.ts'],

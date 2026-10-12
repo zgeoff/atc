@@ -5,6 +5,7 @@ import type { IDisposable, IPty } from 'bun-pty';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
 import { createStubBin } from './create-stub-bin';
+import { getSourceEntry } from './get-source-entry';
 import { mergeDeep } from './merge-deep';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
@@ -16,7 +17,7 @@ import { waitFor } from './wait-for';
  */
 export type TUIHarness = ReturnType<typeof startTUIHarness>;
 
-const cliPath = join(import.meta.dir, '..', 'cli.ts');
+const cliPath = getSourceEntry('atc');
 
 interface TUIHarnessOptions {
   // How long a wait gives the client to draw its first byte; 9 seconds

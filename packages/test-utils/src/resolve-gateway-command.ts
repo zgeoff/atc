@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { getSourceEntry } from './get-source-entry';
 
 /**
  * The command a test runs `atc-gateway` as: the compiled binary at the given
@@ -7,7 +7,5 @@ import { join } from 'node:path';
  * bun, so one gateway suite proves both.
  */
 export function resolveGatewayCommand(binary: string | undefined): readonly string[] {
-  return binary === undefined
-    ? [process.execPath, join(import.meta.dir, '..', 'gateway.ts')]
-    : [binary];
+  return binary === undefined ? [process.execPath, getSourceEntry('atc-gateway')] : [binary];
 }

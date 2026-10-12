@@ -1,17 +1,17 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubClaude } from '@atc/test-utils/create-stub-claude';
+import { createStubCodex } from '@atc/test-utils/create-stub-codex';
+import { createStubComposer } from '@atc/test-utils/create-stub-composer';
+import { createStubGrok } from '@atc/test-utils/create-stub-grok';
+import { getString } from '@atc/test-utils/get-string';
+import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import type { EventMsg } from '../packages/app/src/protocol/protocol';
 import { getRecord } from '../packages/app/src/shared/get-record';
-import { createStubClaude } from '../packages/app/src/test-utils/create-stub-claude';
-import { createStubCodex } from '../packages/app/src/test-utils/create-stub-codex';
-import { createStubComposer } from '../packages/app/src/test-utils/create-stub-composer';
-import { createStubGrok } from '../packages/app/src/test-utils/create-stub-grok';
-import { getString } from '../packages/app/src/test-utils/get-string';
-import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
-import { waitFor } from '../packages/app/src/test-utils/wait-for';
 import { waitForEvent } from '../packages/app/src/test-utils/wait-for-event';
 
 /**

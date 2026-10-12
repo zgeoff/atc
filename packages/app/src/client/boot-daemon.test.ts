@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { startStubUnansweringUnixListener } from '@atc/test-utils/start-stub-unanswering-unix-listener';
 import { startDaemon } from '../daemon/daemon';
 import { PROTOCOL_V } from '../protocol/protocol';
 import { getBuild } from '../shared/get-build';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { readJSONRecord } from '../test-utils/read-json-record';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
-import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
 import { bootDaemonClient } from './boot-daemon';
 
 /**
@@ -455,7 +455,7 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
-import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 const notices = [];
 const booting = bootDaemonClient({
@@ -522,7 +522,7 @@ test('it rejects when a socket takes the connection but never answers the handsh
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
-import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 const booting = bootDaemonClient({ waitForDaemonMs: 300, clock });
 const step = await waitFor(() => {
@@ -574,7 +574,7 @@ test('it reports the start of a wait once across every poll of that wait', async
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
-import { waitFor } from '${join(import.meta.dir, '..', 'test-utils', 'wait-for.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 let waits = 0;
 const booting = bootDaemonClient({ waitForDaemonMs: 500, clock, onWaitForDaemon: () => { waits += 1; } });

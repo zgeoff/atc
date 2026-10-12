@@ -22,7 +22,7 @@ pathIgnorePatterns = ["mods/**"]
 # isolates every test run from the real home and runtime directories, seeds
 # faker once, then registers jest-extended matchers for `bun test`
 preload = [
-  "./packages/app/src/test-utils/isolate-home.ts",
-  "./packages/app/src/test-utils/seed-faker.ts",
+  "./packages/test-utils/src/isolate-home.ts",
+  "./packages/test-utils/src/seed-faker.ts",
   "@zgeoff/bun-test-extended",
 ]

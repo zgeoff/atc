@@ -1,15 +1,15 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import type { HookEvent } from '../protocol/hook-event';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 import { buildMockFleetEntry } from './build-mock-fleet-entry';
-import { registerTestCleanup } from './register-test-cleanup';
 import { startTestDaemon } from './start-test-daemon';
-import { waitFor } from './wait-for';
 
 test('it answers a request on the main client without another handshake', async () => {
   const harness = await startTestDaemon();

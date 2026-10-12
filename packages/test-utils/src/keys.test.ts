@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { planPastedLineInput } from '../agents/plan-pasted-line-input';
-import { buildLeaderChords } from '../client/build-leader-chords';
-import { KEY, planTextEdit } from '../client/keys';
-import type { TextEdit } from '../client/keys';
+import { planPastedLineInput } from '../../app/src/agents/plan-pasted-line-input';
+import { buildLeaderChords } from '../../app/src/client/build-leader-chords';
+import { KEY, planTextEdit } from '../../app/src/client/keys';
+import type { TextEdit } from '../../app/src/client/keys';
 import { KEYS } from './keys';
 
 test('it freezes the key table', () => {

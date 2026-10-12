@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubClock } from './build-stub-clock';
+import { buildStubClock } from '../../app/src/test-utils/build-stub-clock';
 import { buildStubDaemonRequests } from './build-stub-daemon-requests';
 
 test('it collects the params of every request sent under a method in the order they were sent', () => {

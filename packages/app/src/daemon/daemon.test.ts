@@ -2,6 +2,8 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { DaemonClient } from '../client/daemon-client';
@@ -12,11 +14,9 @@ import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { spawnNamedSession } from '../test-utils/spawn-named-session';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
-import { waitFor } from '../test-utils/wait-for';
 
 // A test that leaves every connection to itself turns the main client off.
 interface DaemonTestConfig {

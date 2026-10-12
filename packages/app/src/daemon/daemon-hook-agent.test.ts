@@ -1,10 +1,10 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 
 test('it accepts a hook line carrying the kind for a second codex entry', async () => {
   const daemon = await startTestDaemon({

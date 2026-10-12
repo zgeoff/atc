@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveGatewayCommand } from '@atc/test-utils/resolve-gateway-command';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
-import { resolveGatewayCommand } from '../packages/app/src/test-utils/resolve-gateway-command';
-import { runCommand } from '../packages/app/src/test-utils/run-command';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 
 /**
  * A temp directory to run the gateway in, so a relative path lands there,

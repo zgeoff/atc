@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
+import { buildStubPeerSocket } from '@atc/test-utils/build-stub-peer-socket';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { PROTOCOL_V } from '../protocol/protocol';
 import type { SessionID } from '../shared/session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
-import { buildStubPeerSocket } from '../test-utils/build-stub-peer-socket';
-import { waitFor } from '../test-utils/wait-for';
 import { DaemonConnection } from './daemon-connection';
 
 test('it drops an overflowing session backlog and reports the dropped bytes on drain', () => {

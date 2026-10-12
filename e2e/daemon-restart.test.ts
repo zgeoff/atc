@@ -1,6 +1,15 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubClaude } from '@atc/test-utils/create-stub-claude';
+import { createStubComposer } from '@atc/test-utils/create-stub-composer';
+import { createStubSystemd } from '@atc/test-utils/create-stub-systemd';
+import { getString } from '@atc/test-utils/get-string';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
+import { runATC } from '@atc/test-utils/run-atc';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
 import { isRecord } from '../packages/app/src/shared/report';
@@ -8,17 +17,8 @@ import { toAgentID } from '../packages/app/src/shared/to-agent-id';
 import { toSessionID } from '../packages/app/src/shared/to-session-id';
 import { StateStore } from '../packages/app/src/store/state-store';
 import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
-import { createStubClaude } from '../packages/app/src/test-utils/create-stub-claude';
-import { createStubComposer } from '../packages/app/src/test-utils/create-stub-composer';
-import { createStubSystemd } from '../packages/app/src/test-utils/create-stub-systemd';
 import { getRecords } from '../packages/app/src/test-utils/get-records';
-import { getString } from '../packages/app/src/test-utils/get-string';
-import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
-import { runATC } from '../packages/app/src/test-utils/run-atc';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
-import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 /**
  * A home with a stub Claude CLI and an empty config directory, and a fake

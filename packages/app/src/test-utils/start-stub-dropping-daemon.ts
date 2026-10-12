@@ -1,3 +1,4 @@
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import {
   MAX_CHUNK,
@@ -6,7 +7,6 @@ import {
   decodeMessage,
   encodeMessage,
 } from '../protocol/protocol';
-import { registerTestCleanup } from './register-test-cleanup';
 
 interface DroppingDaemonOptions {
   // The features the first handshake announces.

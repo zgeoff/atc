@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { $ } from 'bun';
-import { createGitFixture } from '../test-utils/create-git-fixture';
 import { checkURLCredentials } from './check-url-credentials';
 
 // A repository whose own config holds the rewrites a test adds.

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmdirSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { buildStubClock } from '../test-utils/build-stub-clock';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { waitFor } from '../test-utils/wait-for';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 
 function setupTest() {

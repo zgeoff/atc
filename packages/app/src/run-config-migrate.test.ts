@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { runConfigMigrate } from './run-config-migrate';
-import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
  * A temp directory for the config file under migration. The directory goes

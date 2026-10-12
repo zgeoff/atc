@@ -5,6 +5,7 @@
     "": {
       "name": "atc",
       "devDependencies": {
+        "@atc/test-utils": "workspace:*",
         "@commitlint/cli": "catalog:",
         "@stylistic/eslint-plugin": "catalog:",
         "@tsconfig/strictest": "catalog:",
@@ -44,7 +45,21 @@
         "zod": "catalog:",
       },
       "devDependencies": {
+        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
+        "tiny-invariant": "catalog:",
+      },
+    },
+    "packages/test-utils": {
+      "name": "@atc/test-utils",
+      "dependencies": {
+        "@faker-js/faker": "catalog:",
+        "bun-pty": "catalog:",
+        "kysely": "catalog:",
+        "type-fest": "catalog:",
+      },
+      "devDependencies": {
+        "better-auth": "catalog:",
         "tiny-invariant": "catalog:",
       },
     },
@@ -118,6 +133,8 @@
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.115.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-BJrFIVyjNuU8lfDyIJTvlRYzgQg+zEl78BxE7fq8esULsGz9IRQvGtW5spq3tydmtjQb/GFdooKGdGsetpx+lQ=="],
 
     "@atc/app": ["@atc/app@workspace:packages/app"],
+
+    "@atc/test-utils": ["@atc/test-utils@workspace:packages/test-utils"],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 

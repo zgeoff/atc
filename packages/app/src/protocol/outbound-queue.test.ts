@@ -2,10 +2,10 @@ import { expect, test } from 'bun:test';
 import { once } from 'node:events';
 import { connect } from 'node:net';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import type { Socket } from 'bun';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { waitFor } from '../test-utils/wait-for';
 import { OutboundQueue } from './outbound-queue';
 
 // A Unix socket server and a paused client connected to it. The server's

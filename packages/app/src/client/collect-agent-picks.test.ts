@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/test-utils/update-env';
 import { parseConfig } from '../shared/config';
-import { createStubBin } from '../test-utils/create-stub-bin';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { updateEnv } from '../test-utils/update-env';
 import { collectAgentPicks } from './collect-agent-picks';
 
 function setupTest() {

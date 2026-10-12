@@ -1,9 +1,9 @@
+import { mergeDeep } from '@atc/test-utils/merge-deep';
+import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import type { SessionDescriptor } from '../daemon/sessions';
 import { toDaemonID } from '../shared/to-daemon-id';
 import { toSessionID } from '../shared/to-session-id';
-import { mergeDeep } from './merge-deep';
-import type { MockOverrides } from './mock-overrides';
 
 /**
  * The fields the defaults set; every other field is absent until an

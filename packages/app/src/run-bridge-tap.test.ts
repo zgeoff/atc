@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { runBridgeTap } from './run-bridge-tap';
-import { setupTempDir } from './test-utils/setup-temp-dir';
 import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
 
 /**

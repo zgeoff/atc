@@ -1,19 +1,19 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubHeldGH } from '@atc/test-utils/build-stub-held-gh';
+import { buildStubHeldZoxide } from '@atc/test-utils/build-stub-held-zoxide';
+import { buildStubSignedOutGH } from '@atc/test-utils/build-stub-signed-out-gh';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { KEYS } from '@atc/test-utils/keys';
+import { openRepoStep } from '@atc/test-utils/open-repo-step';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { startGitHTTPServer } from '@atc/test-utils/start-git-http-server';
+import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import { DaemonClient } from '../packages/app/src/client/daemon-client';
-import { buildStubHeldGH } from '../packages/app/src/test-utils/build-stub-held-gh';
-import { buildStubHeldZoxide } from '../packages/app/src/test-utils/build-stub-held-zoxide';
-import { buildStubSignedOutGH } from '../packages/app/src/test-utils/build-stub-signed-out-gh';
-import { createGitFixture } from '../packages/app/src/test-utils/create-git-fixture';
-import { createStubBin } from '../packages/app/src/test-utils/create-stub-bin';
-import { KEYS } from '../packages/app/src/test-utils/keys';
-import { openRepoStep } from '../packages/app/src/test-utils/open-repo-step';
-import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
-import { startGitHTTPServer } from '../packages/app/src/test-utils/start-git-http-server';
-import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
-import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 function setupTest() {
   return startTUIHarness();

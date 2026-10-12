@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { posix } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import type { Subprocess } from 'bun';
 import { spawn } from 'bun-pty';
 import type { IPty } from 'bun-pty';
@@ -30,7 +31,6 @@ import type {
 import { ImpPortError } from '../daemon/imp-port-error';
 import { isImpNameAllowed } from '../daemon/is-imp-name-allowed';
 import { isBrokerVariable } from '../shared/is-broker-variable';
-import { registerTestCleanup } from './register-test-cleanup';
 
 /**
  * Creates an in-process stand-in for impd behind the imp port, calling impd

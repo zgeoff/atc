@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { startStubTelemetryCollector } from '../test-utils/start-stub-telemetry-collector';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { startStubTelemetryCollector } from '@atc/test-utils/start-stub-telemetry-collector';
 import { openMCPAuth } from './open-mcp-auth';
 
 // A temp directory for the store.

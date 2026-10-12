@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { KEYS } from '../packages/app/src/test-utils/keys';
-import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
+import { KEYS } from '@atc/test-utils/keys';
+import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 
 function setupTest() {
   return startTUIHarness();

@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { closeSync, constants, createReadStream, openSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { runCommand } from '@atc/test-utils/run-command';
+import { sendLinesBeforeHandshake } from '@atc/test-utils/send-lines-before-handshake';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { DaemonClient } from '../client/daemon-client';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { runCommand } from '../test-utils/run-command';
-import { sendLinesBeforeHandshake } from '../test-utils/send-lines-before-handshake';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { waitFor } from '../test-utils/wait-for';
 
 /**
  * A daemon in a process of its own whose TCP listener logs every refusal

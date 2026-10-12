@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '../packages/app/src/test-utils/run-command';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -261,7 +261,7 @@ test('it fails on a confined package imported outside the file that owns it', as
     exitCode: 1,
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
-      'confined package: packages/app/src/daemon/imp-provider.ts imports bun-pty, allowed only in packages/app/src/daemon/local-pty-provider.ts, packages/app/src/test-utils/create-stub-imp-port.ts, packages/app/src/test-utils/start-tui-harness.ts, packages/app/src/test-utils/create-stub-composer.test.ts, scripts/probe-pty-env.ts\n',
+      'confined package: packages/app/src/daemon/imp-provider.ts imports bun-pty, allowed only in packages/app/src/daemon/local-pty-provider.ts, packages/app/src/test-utils/create-stub-imp-port.ts, packages/test-utils/src/start-tui-harness.ts, packages/test-utils/src/create-stub-composer.test.ts, scripts/probe-pty-env.ts\n',
   });
 });
 

@@ -2,16 +2,16 @@
 import { expect, test } from 'bun:test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { buildStubGH } from '@atc/test-utils/build-stub-gh';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { updateEnv } from '@atc/test-utils/update-env';
 import { buildDirsSource } from '../sources/dirs/build-dirs-source';
 import { buildGitSource } from '../sources/git/build-git-source';
 import { buildGitHubSource } from '../sources/github/build-github-source';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
-import { buildStubGH } from '../test-utils/build-stub-gh';
-import { createGitFixture } from '../test-utils/create-git-fixture';
-import { createStubBin } from '../test-utils/create-stub-bin';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { updateEnv } from '../test-utils/update-env';
 import { LocalPTYProvider } from './local-pty-provider';
 
 test('it lists the sources it offers in order in agents.list', async () => {

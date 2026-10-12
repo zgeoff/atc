@@ -10,12 +10,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
-import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubImpd } from '../test-utils/start-stub-impd';
 import { buildTarArchive } from './build-tar-archive';
 import { ImpClientPort } from './imp-client-port';
