@@ -1,6 +1,7 @@
-import { isRecord } from '@atc/core/is-record';
 import { createImpClient, openExecSession, openReverseForward } from '@zgeoff/imp-client';
 import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@zgeoff/imp-client';
+import { match } from 'ts-pattern';
+import { z } from 'zod';
 import type {
   ImpCommand,
   ImpCommandResult,
@@ -109,8 +110,7 @@ export class ImpClientPort implements ImpPort {
       if (
         error instanceof ImpPortError &&
         error.code === 'NOT_FOUND' &&
-        isRecord(error.data) &&
-        error.data['kind'] === 'grant'
+        isMissingGrant(error.data)
       ) {
         return false;
       }
@@ -318,6 +318,14 @@ export class ImpClientPort implements ImpPort {
   }
 }
 
+// The data of impd's refusal to remove a grant it does not hold, as against
+// a missing imp or secret.
+const MISSING_GRANT_SCHEMA = z.object({ kind: z.literal('grant') });
+
+function isMissingGrant(data: unknown): boolean {
+  return MISSING_GRANT_SCHEMA.safeParse(data).success;
+}
+
 // A secret as the client lists it.
 type ClientSecret = Awaited<ReturnType<ImpClient['secrets']['list']>>[number];
 
@@ -420,18 +428,14 @@ function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
 async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<ImpSessionOutcome> {
   const ended = await outcome;
 
-  if (ended.kind === 'local_error') {
-    return {
+  return match(ended)
+    .returnType<ImpSessionOutcome>()
+    .with({ kind: 'local_error' }, (failed) => ({
       kind: 'local_error',
-      detail: ended.error instanceof Error ? ended.error.message : String(ended.error),
-    };
-  }
-
-  if (ended.kind === 'unauthorized') {
-    return { kind: 'unauthorized' };
-  }
-
-  return ended;
+      detail: failed.error instanceof Error ? failed.error.message : String(failed.error),
+    }))
+    .with({ kind: 'unauthorized' }, () => ({ kind: 'unauthorized' }))
+    .otherwise((other) => other);
 }
 
 // impd takes no WebSocket message over its size limit and closes the exec

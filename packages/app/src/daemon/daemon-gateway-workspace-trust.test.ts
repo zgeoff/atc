@@ -11,6 +11,9 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
@@ -24,10 +27,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 
 // The fixed parts every test's daemon runs on: a stub imp port behind
 // the imp provider `box` serves, a local provider, and a git repository a

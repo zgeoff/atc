@@ -1,8 +1,8 @@
 import type { TargetConfig, TargetConfigError } from '@atc/config/collect-targets';
+import { buildImpProvider } from '@atc/execution-imp/build-imp-provider';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { buildImpProvider } from './build-imp-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * A configured place sessions run, with the provider that serves it. The

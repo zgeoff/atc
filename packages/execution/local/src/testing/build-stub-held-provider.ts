@@ -3,7 +3,7 @@ import type {
   HarnessSpec,
   HostRequest,
 } from '@atc/plugin-api/execution-provider';
-import { LocalPTYProvider } from '../daemon/local-pty-provider';
+import { LocalPTYProvider } from '../local-pty-provider';
 
 /**
  * An execution provider that runs on this machine as the local

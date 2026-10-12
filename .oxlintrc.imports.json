@@ -41,11 +41,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -109,11 +109,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -169,11 +169,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -237,11 +237,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -297,11 +297,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -365,11 +365,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -425,11 +425,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -493,11 +493,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -553,11 +553,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -613,11 +613,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -673,11 +673,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -741,11 +741,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -801,11 +801,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -869,11 +869,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -929,11 +929,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -996,11 +996,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -1052,11 +1052,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1123,11 +1123,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1183,11 +1183,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1254,11 +1254,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1314,7 +1314,7 @@
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1381,7 +1381,7 @@
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1437,7 +1437,7 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1501,7 +1501,7 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1557,11 +1557,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1625,11 +1625,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1685,11 +1685,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1756,11 +1756,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1816,11 +1816,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1884,11 +1884,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -1944,11 +1944,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2016,11 +2016,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2076,11 +2076,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2140,11 +2140,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2200,11 +2200,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2272,11 +2272,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2332,11 +2332,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2404,11 +2404,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2456,11 +2456,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2508,11 +2508,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2563,6 +2563,14 @@
                 "message": "Production code never imports a testing entry or a testing/ folder."
               },
               {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+              },
+              {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
                 "message": "No file imports @modelcontextprotocol/sdk."
               },
@@ -2601,6 +2609,14 @@
               {
                 "regex": "^@atc/[^/]+/src(/|$)",
                 "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -2688,7 +2704,7 @@
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2736,7 +2752,7 @@
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
@@ -2784,11 +2800,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -2824,11 +2840,11 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+                "message": "bun-pty belongs to @atc/execution-local."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",

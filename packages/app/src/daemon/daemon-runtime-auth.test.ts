@@ -3,6 +3,10 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { getOnlyImpName } from '@atc/execution-imp/testing/get-only-imp-name';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredAgentAdapter } from '@atc/test-utils/build-stub-brokered-agent-adapter';
@@ -12,11 +16,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { getOnlyImpName } from '../test-utils/get-only-imp-name';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
 /**
@@ -113,7 +113,7 @@ test('it provisions the host of a spawn before readying it and starts the harnes
     'system.info',
     `imps.get ${imp}`,
     expect.toStartWith(`leases.acquire ${imp} `),
-    expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
+    expect.toInclude('mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }'),
     expect.toStartWith(`exec.run ${imp} sh -c umask 022 && mkdir -p "$1" && printf`),
     expect.toStartWith(`reverse ${imp} `),
     'system.info',
@@ -2301,7 +2301,7 @@ test('it revives a slept session after verifying its binding, granting nothing a
     'system.info',
     `imps.get ${imp}`,
     expect.toStartWith(`leases.acquire ${imp} `),
-    expect.toStartWith(`exec.run ${imp} sh -c mkdir`),
+    expect.toInclude('mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }'),
     expect.toStartWith(`exec.run ${imp} sh -c umask 022 && mkdir -p "$1" && printf`),
     expect.toStartWith(`reverse ${imp} `),
     'system.info',

@@ -3,6 +3,8 @@ import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
@@ -12,9 +14,7 @@ import { getRecord } from '@atc/test-utils/get-record';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildHostServices } from '../build-host-services';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
 
 // The fixed parts every imp guest test shares: the stub guest tools and the
 // guest folder under a temp directory, and a stub imp port.

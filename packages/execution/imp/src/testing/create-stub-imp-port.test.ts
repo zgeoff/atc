@@ -1,7 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
@@ -9,7 +8,7 @@ import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import type { ImpSessionStarted } from '../daemon/imp-port';
+import type { ImpSessionStarted } from '../imp-port';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubImpPort } from './create-stub-imp-port';
 
@@ -1286,7 +1285,7 @@ test('it ends a command whose child holds its output open once the port stops', 
   // run can settle a moment before the child is gone.
   await waitFor(
     () => {
-      expect(isProcessAlive(child)).toBeFalse();
+      expect(() => process.kill(child, 0)).toThrow();
     },
     { timeoutMs: 2000 },
   );
@@ -3697,7 +3696,7 @@ test('it closes a live connection and kills its process when the imp is destroye
   const outcome = await connection.outcome;
 
   await waitFor(() => {
-    expect(isProcessAlive(Number(pid))).toBeFalse();
+    expect(() => process.kill(Number(pid), 0)).toThrow();
   });
 
   expect(outcome).toStrictEqual({ kind: 'closed', reason: 'imp destroyed', closeCode: 1000 });

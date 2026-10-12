@@ -15,6 +15,9 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { buildStubDirProvider } from '@atc/execution-local/testing/build-stub-dir-provider';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
 import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { StateStore } from '@atc/store/state-store';
@@ -30,10 +33,7 @@ import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
-import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
-import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * A git fixture in `dir`, a bare upstream at `upstream` and a clone of it

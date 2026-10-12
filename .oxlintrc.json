@@ -196,7 +196,8 @@
   },
   "overrides": [
     {
-      // the system clock itself, tests, test helpers, and tooling read the
+      // the system clock itself, tests, test helpers (a package's testing
+      // folder among them), and tooling read the
       // wall clock directly; an override replaces the rule's options, so it
       // repeats the spawn entry
       "files": [
@@ -204,6 +205,8 @@
         "**/*.test.ts",
         "packages/test-utils/**",
         "packages/app/src/test-utils/**",
+        "packages/*/src/testing/**",
+        "packages/*/*/src/testing/**",
         "e2e/**",
         "scripts/**"
       ],

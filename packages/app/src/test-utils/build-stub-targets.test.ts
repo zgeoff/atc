@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { buildStubTargets } from './build-stub-targets';
 
 function setupTest() {

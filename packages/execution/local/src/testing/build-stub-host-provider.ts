@@ -1,5 +1,5 @@
 import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import { LocalPTYProvider } from '../daemon/local-pty-provider';
+import { LocalPTYProvider } from '../local-pty-provider';
 
 /**
  * An execution provider of kind `imp-like` whose hosts can be put to sleep

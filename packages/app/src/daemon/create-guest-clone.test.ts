@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { $ } from 'bun';
 import { GUEST_CLONE_SCRIPT, createGuestClone } from './create-guest-clone';
-import { LocalPTYProvider } from './local-pty-provider';
 
 // A bare upstream holding one pushed commit, and the empty directory a
 // clone lands in, on this machine standing in for the host.

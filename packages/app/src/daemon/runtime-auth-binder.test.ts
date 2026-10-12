@@ -1,6 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ImpHarness } from '@atc/execution-imp/imp-harness';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
 import type { LaunchTicket } from '@atc/plugin-api/execution-provider';
 import { StateStore } from '@atc/store/state-store';
@@ -12,9 +15,6 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { ImpHarness } from './imp-harness';
-import { ImpProvider } from './imp-provider';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
 // A binder over a real state store, an imp provider's broker over a stub

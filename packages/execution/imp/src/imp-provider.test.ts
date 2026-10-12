@@ -17,17 +17,16 @@ import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubImpd } from '@atc/test-utils/start-stub-impd';
 import invariant from 'tiny-invariant';
-import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpClientPort } from './imp-client-port';
-import {
-  CHECK_GUEST_ATC_SCRIPT,
-  ImpProvider,
-  LINK_GUEST_ATC_SCRIPT,
-  READ_GUEST_ATC_SCRIPT,
-  UNPACK_SCRIPT,
-} from './imp-provider';
-import { verifyBrokerAuthority } from './verify-broker-authority';
+import { ImpProvider } from './imp-provider';
+import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
+import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
+import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
+import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
+import { buildMockImpIdentity } from './testing/build-mock-imp-identity';
+import { createStubImpPort } from './testing/create-stub-imp-port';
+import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 
 /**
  * A stub imp port and a temp directory.
@@ -110,12 +109,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     'imps.get atc-s1',
     'imps.create atc-s1',
     'leases.acquire atc-s1 atc-d1',
-    `exec.run atc-s1 sh -c mkdir -p "$1/run" "$1/bin" || exit 1
-image=$("$2" --version 2>/dev/null) || image=
-copied=$("$1/bin/atc" --version 2>/dev/null) || copied=
-printf '%s\\n%s\\n' "$image" "$copied"
-[ -n "$image" ] && [ "$image" = "$3" ] || exit 0
-[ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc" sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
+    `exec.run atc-s1 sh -c ${READ_GUEST_ATC_SCRIPT} sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
     'imps.destroy atc-s1',
   ]);
 
@@ -488,7 +482,24 @@ test("it names each imp under the target's configured prefix", async () => {
   expect(ctx.port.collectImpNames()).toStrictEqual(['harness-s1']);
 });
 
-test("it lets a token scoped to the target's configured prefix activate the broker for its imps", async () => {
+test("it scopes its broker and its imp names to the target's configured prefix", () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  expect(provider.brokerAuth.hostPrefix).toBe('harness-');
+  expect(provider.getImpName('s1')).toStartWith('harness-');
+});
+
+test('it reads the identity of the token its port holds through its broker', async () => {
   const ctx = setupTest();
 
   const provider = new ImpProvider(
@@ -509,41 +520,9 @@ test("it lets a token scoped to the target's configured prefix activate the brok
     grantable: ['glm'],
   });
 
-  const verified = verifyBrokerAuthority(provider.brokerAuth, {
-    impNames: [provider.getImpName('s1')],
-    secrets: ['glm'],
-  });
+  const identity = await provider.brokerAuth.readIdentity();
 
-  await expect(verified).toResolve();
-});
-
-test("it refuses a token scoped beyond the target's configured prefix", () => {
-  const ctx = setupTest();
-
-  const provider = new ImpProvider(
-    ctx.port,
-    { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
-    { atcBinary: null, version: '1.0.0' },
-  );
-
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
-
-  ctx.port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
-
-  const verified = verifyBrokerAuthority(provider.brokerAuth, {
-    impNames: [provider.getImpName('s1')],
-    secrets: ['glm'],
-  });
-
-  expect(verified).rejects.toMatchObject({ code: 'auth_token_too_broad' });
+  expect(identity).toMatchObject({ name: 'harness-runtime', grantable: ['glm'] });
 });
 
 test('it asks impd to require the broker on a harness start that requires one', async () => {
@@ -852,6 +831,8 @@ test.each([
   ['reads the guest atc versions', READ_GUEST_ATC_SCRIPT],
   ['links the guest atc', LINK_GUEST_ATC_SCRIPT],
   ['checks the guest atc', CHECK_GUEST_ATC_SCRIPT],
+  ['readies the guest folder', READY_GUEST_DIR_SCRIPT],
+  ['installs the guest atc', INSTALL_GUEST_ATC_SCRIPT],
 ])('it %s through a script that passes shellcheck', async (_label, script) => {
   const result = await runShellcheck(script);
 

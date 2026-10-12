@@ -14,7 +14,7 @@ export interface Confinement {
 export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
   {
     specifier: 'bun-pty',
-    owners: ['execution-local', 'app'],
+    owners: ['execution-local'],
     inTests: true,
 
     // the fake impd runs its guests in real PTYs, as impd does, the TUI
@@ -28,7 +28,7 @@ export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
   },
   {
     specifier: '@zgeoff/imp-client',
-    owners: ['execution-imp', 'app'],
+    owners: ['execution-imp'],
     inTests: true,
     exceptions: [],
   },

@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { ImpProvider } from './imp-provider';
 import { loadOAuthStates } from './load-oauth-states';
 
 // An imp provider's broker host over a stub imp port, which reaches

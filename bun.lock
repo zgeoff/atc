@@ -35,6 +35,8 @@
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
+        "@atc/execution-imp": "workspace:*",
+        "@atc/execution-local": "workspace:*",
         "@atc/harness-claude": "workspace:*",
         "@atc/harness-codex": "workspace:*",
         "@atc/harness-grok": "workspace:*",
@@ -46,9 +48,7 @@
         "@better-auth/oauth-provider": "catalog:",
         "@xterm/addon-serialize": "catalog:",
         "@xterm/headless": "catalog:",
-        "@zgeoff/imp-client": "catalog:",
         "better-auth": "catalog:",
-        "bun-pty": "catalog:",
         "citty": "catalog:",
         "kysely": "catalog:",
         "lru-cache": "catalog:",
@@ -81,6 +81,38 @@
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
+      },
+    },
+    "packages/execution/imp": {
+      "name": "@atc/execution-imp",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "@zgeoff/imp-client": "catalog:",
+        "ts-pattern": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "bun-pty": "catalog:",
+        "tiny-invariant": "catalog:",
+      },
+    },
+    "packages/execution/local": {
+      "name": "@atc/execution-local",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "bun-pty": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+        "tiny-invariant": "catalog:",
       },
     },
     "packages/harnesses/claude": {
@@ -279,6 +311,10 @@
     "@atc/config": ["@atc/config@workspace:packages/config"],
 
     "@atc/core": ["@atc/core@workspace:packages/core"],
+
+    "@atc/execution-imp": ["@atc/execution-imp@workspace:packages/execution/imp"],
+
+    "@atc/execution-local": ["@atc/execution-local@workspace:packages/execution/local"],
 
     "@atc/harness-claude": ["@atc/harness-claude@workspace:packages/harnesses/claude"],
 

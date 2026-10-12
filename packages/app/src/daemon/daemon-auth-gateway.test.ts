@@ -4,6 +4,9 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
@@ -12,10 +15,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 import type { RestoreSettled } from './restore-fleet';
 
 /**

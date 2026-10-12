@@ -1,9 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { buildTargetList } from './build-target-list';
-import { ImpProvider } from './imp-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * An imp provider over a stub imp port.

@@ -12,6 +12,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredGatewayAdapter } from '@atc/test-utils/build-stub-brokered-gateway-adapter';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
@@ -22,10 +25,7 @@ import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 
 /**
  * The runtime an imp workspace spawn runs on: a stub imp port whose imps
@@ -145,9 +145,7 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
 
   expect(
     ctx.port.calls.filter((call) => call.includes(dest) && call.includes('tar -x')),
-  ).toStrictEqual([
-    `exec.run ${imp} sh -c command -v gzip >/dev/null 2>&1 || exit 69; mkdir -p "$1" && tar -x -z --no-same-owner -f - -C "$1" sh ${dest}`,
-  ]);
+  ).toStrictEqual([expect.toEndWith(`tar -x -z --no-same-owner -f - -C "$1"\n sh ${dest} 69`)]);
 
   expect(ctx.port.sessionRequests.map((request) => request.kind)).toStrictEqual(['start']);
 });
@@ -1735,7 +1733,7 @@ test('it claims the directory of a workspace sub-session on the shared host befo
 
   const held = await tarHold.entered;
 
-  expect(held).toEndWith(` sh ${outer}`);
+  expect(held).toEndWith(` sh ${outer} 69`);
   expect(ctx.port.calls).toContainEqual(expect.toEndWith(` sh ${dirname(outer)} ${outer}`));
   expect(existsSync(outer)).toBeTrue();
 });
@@ -1823,7 +1821,7 @@ test('it claims the directory of a workspace sub-session under the home of the s
 
   const held = await tarHold.entered;
 
-  expect(held).toEndWith(` sh ${outer}`);
+  expect(held).toEndWith(` sh ${outer} 69`);
   expect(ctx.port.calls).toContainEqual(expect.toEndWith(` sh ${dirname(outer)} ${outer}`));
   expect(existsSync(outer)).toBeTrue();
 });

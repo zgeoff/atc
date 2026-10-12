@@ -3,6 +3,8 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
@@ -14,9 +16,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildHostServices } from '../build-host-services';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
 
 // A real daemon whose one target `box`, its default, runs Claude sessions
 // on the imp provider over a stub imp port, with the guest folder under

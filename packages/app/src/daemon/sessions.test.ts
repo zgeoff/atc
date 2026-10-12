@@ -3,6 +3,8 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { buildStubHostProvider } from '@atc/execution-local/testing/build-stub-host-provider';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
@@ -15,8 +17,6 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
-import { buildStubHostProvider } from '../test-utils/build-stub-host-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 import {
   READ_PROJECT_SETTINGS_SCRIPT,
   REMOVE_DIR_SCRIPT,

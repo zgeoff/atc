@@ -3,6 +3,8 @@ import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
@@ -15,9 +17,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
 
 /**
  * The runtime an imp clone launch runs on: a stub imp port, an imp provider

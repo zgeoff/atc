@@ -1,13 +1,13 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { createStubEchoClaude } from '@atc/test-utils/create-stub-echo-claude';
 import { getRecord } from '@atc/test-utils/get-record';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ImpProvider } from './imp-provider';
-import { LocalPTYProvider } from './local-pty-provider';
 
 function setupTest() {
   const port = createStubImpPort();

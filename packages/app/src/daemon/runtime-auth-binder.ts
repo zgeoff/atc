@@ -9,6 +9,7 @@ import type { LaunchTicket } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { RuntimeAuthBinding, RuntimeAuthGrant } from '@atc/store/runtime-auth-binding';
 import type { StateStore } from '@atc/store/state-store';
+import { z } from 'zod';
 import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
@@ -997,27 +998,23 @@ function collectBindingSecrets(
   return [...new Set([...bound, ...grants.map((grant) => grant.secret)])].toSorted();
 }
 
+// A stored binding's secrets, each read on its own so one that does not read
+// leaves the rest.
+const BINDING_SECRETS_SCHEMA = z.object({ secrets: z.array(z.unknown()) });
+const BOUND_SECRET_SCHEMA = z.object({ secret: z.string() });
+
 function parseBoundSecrets(json: string): string[] {
-  const parsed: unknown = JSON.parse(json);
+  const parsed = BINDING_SECRETS_SCHEMA.safeParse(JSON.parse(json));
 
-  if (typeof parsed !== 'object' || parsed === null || !('secrets' in parsed)) {
+  if (!parsed.success) {
     return [];
   }
 
-  const secrets = parsed.secrets;
+  return parsed.data.secrets.flatMap((entry) => {
+    const bound = BOUND_SECRET_SCHEMA.safeParse(entry);
 
-  if (!Array.isArray(secrets)) {
-    return [];
-  }
-
-  return secrets.flatMap((secret: unknown) =>
-    typeof secret === 'object' &&
-    secret !== null &&
-    'secret' in secret &&
-    typeof secret.secret === 'string'
-      ? [secret.secret]
-      : [],
-  );
+    return bound.success ? [bound.data.secret] : [];
+  });
 }
 
 function buildRevocationPending(hostKey: SessionID, pending: readonly string[]): DaemonError {

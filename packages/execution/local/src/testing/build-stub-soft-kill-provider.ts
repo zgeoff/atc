@@ -1,5 +1,5 @@
 import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api/execution-provider';
-import { LocalPTYProvider } from '../daemon/local-pty-provider';
+import { LocalPTYProvider } from '../local-pty-provider';
 
 /**
  * An execution provider of kind `no-forced-kill` that runs every harness on
