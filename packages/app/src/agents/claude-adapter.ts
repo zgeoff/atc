@@ -20,7 +20,6 @@ import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
-  ClaudeHostPaths,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -44,6 +43,7 @@ import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { buildScratchLaunch } from './build-scratch-launch';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import type { ClaudeHostPaths } from './claude-host-paths';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
