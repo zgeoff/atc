@@ -1,3 +1,5 @@
+import type { AgentID } from '@atc/core/agent-id';
+import { makeSingleFlight } from '@atc/core/make-single-flight';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { countSessionStates } from '../protocol/count-session-states';
@@ -6,9 +8,7 @@ import type { DaemonFeature } from '../protocol/daemon-features';
 import type { EventMsg } from '../protocol/protocol';
 import { sortGroupedSessionViews } from '../protocol/sort-grouped-session-views';
 import { sortSessionViews } from '../protocol/sort-session-views';
-import type { AgentID } from '../shared/agent-id';
 import { configFile, loadConfig } from '../shared/config';
-import { makeSingleFlight } from '../shared/make-single-flight';
 import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
 import { restartManagedDaemon } from '../shared/restart-managed-daemon';
 import { bootDaemonClient } from './boot-daemon';

@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { toSessionID } from '@atc/core/to-session-id';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { DaemonError } from '../protocol/daemon-error';
-import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';

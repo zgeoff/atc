@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { sortJSONKeys } from '../shared/sort-json-keys';
+import { sortJSONKeys } from '@atc/core/sort-json-keys';
 
 /**
  * The identity a session binds to when it spawns on a target: the provider

@@ -1,4 +1,4 @@
-import type { AgentID } from '../shared/agent-id';
+import type { AgentID } from '@atc/core/agent-id';
 
 /**
  * Whether a hook line, judged by the agent it carries, comes from the

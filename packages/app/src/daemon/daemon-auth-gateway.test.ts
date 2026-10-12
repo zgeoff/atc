@@ -2,13 +2,13 @@
 import { expect, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { toSessionID } from '@atc/core/to-session-id';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { parseConfig } from '../shared/config';
-import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';

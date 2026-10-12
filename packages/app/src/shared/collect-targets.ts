@@ -1,5 +1,5 @@
+import { isRecord } from '@atc/core/is-record';
 import { formatJSONKind } from './format-json-kind';
-import { isRecord } from './report';
 
 /**
  * A named place sessions run: the execution provider kind that serves it,

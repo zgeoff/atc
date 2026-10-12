@@ -1,5 +1,5 @@
-import { isRecord } from '../shared/report';
-import { truncateSummary } from '../shared/truncate-summary';
+import { isRecord } from '@atc/core/is-record';
+import { truncateSummary } from '@atc/core/truncate-summary';
 
 interface RenderableMessage {
   readonly type: string;

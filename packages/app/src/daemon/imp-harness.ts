@@ -1,7 +1,7 @@
+import { isRecord } from '@atc/core/is-record';
+import { truncateSummary } from '@atc/core/truncate-summary';
 import { DaemonError } from '../protocol/daemon-error';
-import { isRecord } from '../shared/report';
 import { sanitizeDetail } from '../shared/sanitize-detail';
-import { truncateSummary } from '../shared/truncate-summary';
 import type {
   HarnessAttachment,
   HarnessExit,

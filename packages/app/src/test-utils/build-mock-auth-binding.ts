@@ -1,8 +1,8 @@
+import { toAgentID } from '@atc/core/to-agent-id';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import type { AuthBinding } from '../daemon/build-auth-binding';
-import { toAgentID } from '../shared/to-agent-id';
 
 /**
  * A runtime auth binding for agent `glm` at an arbitrary endpoint, reaching

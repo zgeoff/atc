@@ -1,6 +1,6 @@
+import type { AgentID } from '@atc/core/agent-id';
+import { toShellArg } from '@atc/core/to-shell-arg';
 import { z } from 'zod';
-import type { AgentID } from '../shared/agent-id';
-import { toShellArg } from '../shared/to-shell-arg';
 import { buildCLICommand } from './build-cli-command';
 
 /**

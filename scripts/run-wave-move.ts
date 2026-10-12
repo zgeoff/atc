@@ -8,8 +8,10 @@
 // stays a relative path, which check-manifests reports. A path the map holds
 // in parentheses or as `-` belongs to a ticket, not to the codemod. A second
 // run finds every file at its new path and changes nothing. Path literals
-// that are not import specifiers are left for the move's author.
-// Usage: bun scripts/run-wave-move.ts <wave> [root]
+// that are not import specifiers are left for the move's author. Each
+// `--package <name>` limits the move to the files that land in that package,
+// so a wave that several tickets share moves one ticket's package at a time.
+// Usage: bun scripts/run-wave-move.ts <wave> [root] [--package <name>]...
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
 import { SyntaxKind } from 'typescript/unstable/ast';
@@ -17,16 +19,18 @@ import { z } from 'zod';
 import { collectSourceFiles } from './collect-source-files';
 import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
+import { PACKAGE_RULES } from './package-rules';
 
 function main(): void {
-  const wave = Number(process.argv[2]);
-  const root = resolve(process.argv[3] ?? join(import.meta.dir, '..'));
+  const args = parseArgs(process.argv.slice(2));
+  const wave = Number(args.positionals[0]);
+  const root = resolve(args.positionals[1] ?? join(import.meta.dir, '..'));
 
   if (!Number.isInteger(wave) || wave < 1) {
-    throw new Error('usage: run-wave-move.ts <wave> [root]');
+    throw new Error(USAGE);
   }
 
-  const moves = collectMoves(root, wave);
+  const moves = collectMoves(root, wave, args.packageDirs);
   const files = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir));
 
   const known = new Set([...files, ...moves.keys()]);
@@ -56,6 +60,42 @@ function main(): void {
   console.log(`run-wave-move: wave ${wave}, ${moved} files moved, ${rewritten} files rewritten`);
 }
 
+const USAGE = 'usage: run-wave-move.ts <wave> [root] [--package <name>]...';
+
+interface WaveMoveArgs {
+  readonly positionals: readonly string[];
+
+  // the directories of the packages the move is limited to; empty moves
+  // every package
+  readonly packageDirs: readonly string[];
+}
+
+function parseArgs(argv: readonly string[]): WaveMoveArgs {
+  const positionals: string[] = [];
+  const packageDirs: string[] = [];
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i] ?? '';
+
+    if (arg === '--package') {
+      const name = argv[i + 1];
+      const rule = PACKAGE_RULES.find((candidate) => candidate.name === name);
+
+      if (rule === undefined) {
+        throw new Error(`unknown package: ${name ?? '(none)'}; ${USAGE}`);
+      }
+
+      packageDirs.push(rule.dir);
+
+      i += 1;
+    } else {
+      positionals.push(arg);
+    }
+  }
+
+  return { positionals, packageDirs };
+}
+
 // src/ holds the sources that wave 1 moves into packages/app
 const SOURCE_DIRS = ['src', 'packages', 'e2e', 'scripts'];
 const MAP_DIR = 'scripts/package-map';
@@ -67,10 +107,16 @@ const MAP_TABLES = [
 ] as const;
 
 /**
- * Each path this wave moves a file from, keyed to the path it moves to. A
- * file already at its new path is no longer a move.
+ * Each path this wave moves a file from, keyed to the path it moves to, for
+ * the files that land in one of the given package directories, or in any
+ * package when none is given. A file already at its new path is no longer a
+ * move.
  */
-function collectMoves(root: string, wave: number): Map<string, string> {
+function collectMoves(
+  root: string,
+  wave: number,
+  packageDirs: readonly string[],
+): Map<string, string> {
   const moves = new Map<string, string>();
 
   const to = `path_wave${wave}`;
@@ -82,7 +128,10 @@ function collectMoves(root: string, wave: number): Map<string, string> {
       const before = row[from] ?? '';
       const after = row[to] ?? '';
 
-      if (isPlainPath(before) && isPlainPath(after) && before !== after) {
+      const isSelected =
+        packageDirs.length === 0 || packageDirs.some((dir) => after.startsWith(`${dir}/`));
+
+      if (isSelected && isPlainPath(before) && isPlainPath(after) && before !== after) {
         if (existsSync(join(root, before))) {
           moves.set(before, after);
         } else if (!existsSync(join(root, after))) {

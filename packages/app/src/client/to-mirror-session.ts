@@ -1,8 +1,8 @@
+import type { AgentID } from '@atc/core/agent-id';
+import { isRecord } from '@atc/core/is-record';
+import { toAgentID } from '@atc/core/to-agent-id';
 import { z } from 'zod';
 import type { SessionState } from '../protocol/session-state';
-import type { AgentID } from '../shared/agent-id';
-import { isRecord } from '../shared/report';
-import { toAgentID } from '../shared/to-agent-id';
 
 export interface MirrorSession {
   id: string;

@@ -1,6 +1,6 @@
+import { isRecord } from '@atc/core/is-record';
+import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
 import { DaemonError } from '../protocol/daemon-error';
-import { isSubscriptionOverrideVariable } from '../shared/is-subscription-override-variable';
-import { isRecord } from '../shared/report';
 import type { ProjectSettingsCheck } from './agent-adapter';
 
 /**

@@ -239,6 +239,57 @@ test('it fails on a reached module with no row in the package map', async () => 
   });
 });
 
+test('it follows a workspace package import through a wildcard export', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\tpath_wave3\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\tpackages/app/src/gateway.ts\nsrc/client/boot-daemon.ts\tlifecycle\tpackages/app/src/client/boot-daemon.ts\tpackages/lifecycle/src/boot/boot-daemon.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/client/boot-daemon.ts\tlifecycle\t\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/lifecycle/package.json'),
+    JSON.stringify({ name: '@atc/lifecycle', exports: { './*': './src/*.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/lifecycle/src/boot/boot-daemon.ts'),
+    'export const BOOT = 1;\n',
+  );
+
+  mkdirSync(join(ctx.dir, 'node_modules/@atc'), { recursive: true });
+  symlinkSync(join(ctx.dir, 'packages/lifecycle'), join(ctx.dir, 'node_modules/@atc/lifecycle'));
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/gateway.ts'),
+    "import { BOOT } from '@atc/lifecycle/boot/boot-daemon';\n\nconsole.log(BOOT);\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
+    stderr:
+      'unreachable module: packages/app/src/gateway.ts reaches packages/lifecycle/src/boot/boot-daemon.ts (lifecycle)\nunreachable module: packages/app/src/gateway.ts bundles packages/lifecycle/src/boot/boot-daemon.ts (lifecycle)\n',
+  });
+});
+
 test('it follows a workspace package import through the package exports', async () => {
   const ctx = setupTest();
 

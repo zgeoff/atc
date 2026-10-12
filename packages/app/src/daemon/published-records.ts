@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { SessionID } from '@atc/core/session-id';
 import type { DeclaredScope } from '../protocol/parse-declared-scope';
 import type { PublishedRecord, RecordedScope } from '../protocol/published-record';
-import type { SessionID } from '../shared/session-id';
 import type { SessionWorkspace } from '../store/workspace-materialization';
 import { checkSessionScope } from './check-session-scope';
 import type { CheckedScope } from './check-session-scope';

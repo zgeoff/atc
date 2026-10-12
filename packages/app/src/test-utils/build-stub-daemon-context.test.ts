@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toDaemonID } from '../shared/to-daemon-id';
-import { toSessionID } from '../shared/to-session-id';
+import { toDaemonID } from '@atc/core/to-daemon-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { buildStubDaemonContext } from './build-stub-daemon-context';
 
 test('it builds a daemon of build atc/test with id d-1 and a day of idempotency retention', () => {

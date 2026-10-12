@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import invariant from 'tiny-invariant';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
 import { TapRegistry } from './tap-registry';
 
 test('it counts a session as tapped once a client attaches', () => {

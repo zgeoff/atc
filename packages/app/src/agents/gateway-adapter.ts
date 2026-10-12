@@ -1,15 +1,15 @@
+import type { AgentID } from '@atc/core/agent-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import { isBrokerVariable } from '@atc/core/is-broker-variable';
+import { isRecord } from '@atc/core/is-record';
+import type { SessionID } from '@atc/core/session-id';
+import { toShellArg } from '@atc/core/to-shell-arg';
 import type { AdapterEvent } from '../protocol/adapter-event';
 import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
-import type { AgentID } from '../shared/agent-id';
-import type { AgentSessionID } from '../shared/agent-session-id';
 import type { GatewayConfig } from '../shared/collect-gateways';
 import type { Config } from '../shared/config';
-import { isBrokerVariable } from '../shared/is-broker-variable';
-import { isRecord } from '../shared/report';
 import { resolveAuthProfiles } from '../shared/resolve-auth-profiles';
-import type { SessionID } from '../shared/session-id';
-import { toShellArg } from '../shared/to-shell-arg';
 import type {
   AgentAdapter,
   AgentProfile,

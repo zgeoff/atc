@@ -1,6 +1,6 @@
 import { expect, expectTypeOf, test } from 'bun:test';
-import type { AgentSessionID } from '../shared/agent-session-id';
-import { toSessionID } from '../shared/to-session-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { PermissionRegistry } from './permission-registry';
 

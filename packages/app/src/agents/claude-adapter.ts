@@ -1,21 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import type { AgentID } from '@atc/core/agent-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import { buildOptionalString } from '@atc/core/build-optional-string';
+import { isRecord } from '@atc/core/is-record';
+import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
+import { OUTRANKING_VARIABLES } from '@atc/core/outranking-variables';
+import type { SessionID } from '@atc/core/session-id';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toShellArg } from '@atc/core/to-shell-arg';
+import { truncateDetail } from '@atc/core/truncate-detail';
 import { z } from 'zod';
 import type { AdapterEvent } from '../protocol/adapter-event';
 import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
-import type { AgentID } from '../shared/agent-id';
-import type { AgentSessionID } from '../shared/agent-session-id';
-import { buildOptionalString } from '../shared/build-optional-string';
 import type { AgentEntry } from '../shared/collect-agents';
 import type { Config } from '../shared/config';
-import { isSubscriptionOverrideVariable } from '../shared/is-subscription-override-variable';
-import { OUTRANKING_VARIABLES } from '../shared/outranking-variables';
-import { isRecord } from '../shared/report';
-import type { SessionID } from '../shared/session-id';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toShellArg } from '../shared/to-shell-arg';
-import { truncateDetail } from '../shared/truncate-detail';
 import type {
   AgentAdapter,
   AgentProfile,

@@ -1,6 +1,6 @@
+import type { SessionID } from '@atc/core/session-id';
 import { PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
-import type { SessionID } from '../shared/session-id';
 import type { Session, SessionDescriptor, SessionEventKind, SessionManager } from './sessions';
 
 /**

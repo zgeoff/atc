@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import invariant from 'tiny-invariant';
 import { decodeCursor } from '../protocol/decode-cursor';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
 import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
 import { buildMockStoredEvent } from '../test-utils/build-mock-stored-event';
 import { buildFleetEvents } from './build-fleet-events';

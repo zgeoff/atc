@@ -1,3 +1,4 @@
+import { isRecord } from '@atc/core/is-record';
 import { DaemonClient } from './client/daemon-client';
 import { pickStaleDaemonPID } from './client/pick-stale-daemon-pid';
 import { findRestartUnit } from './find-restart-unit';
@@ -12,7 +13,6 @@ import { findDaemonRecord } from './shared/find-daemon-record';
 import { findPidFilePID } from './shared/find-pid-file-pid';
 import { getBuild } from './shared/get-build';
 import { isProcessAlive } from './shared/is-process-alive';
-import { isRecord } from './shared/report';
 
 // How long the handshake and the session list may take together.
 const PROBE_DEADLINE_MS = 3000;

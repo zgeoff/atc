@@ -1,5 +1,5 @@
-import type { AgentID } from '../shared/agent-id';
-import type { SessionID } from '../shared/session-id';
+import type { AgentID } from '@atc/core/agent-id';
+import type { SessionID } from '@atc/core/session-id';
 
 /**
  * One line a hook reporter sends: the atc session it reports on, the agent

@@ -1,6 +1,6 @@
+import { RESET_INPUT_MODES } from '@atc/core/reset-input-modes';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/headless';
-import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 
 export interface ScreenText {
   readonly text: string;

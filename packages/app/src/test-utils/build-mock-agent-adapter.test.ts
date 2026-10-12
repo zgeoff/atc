@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import type { RequiredKeysOf } from 'type-fest';
 import type { AgentAdapter } from '../agents/agent-adapter';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toSessionID } from '../shared/to-session-id';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 test('it builds a default agent adapter', () => {

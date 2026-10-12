@@ -1,8 +1,8 @@
+import { isRecord } from '@atc/core/is-record';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { encodeCursor } from '../protocol/encode-cursor';
-import { isRecord } from '../shared/report';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
 import type { DaemonCaller } from './daemon-caller';

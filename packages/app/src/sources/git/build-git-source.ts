@@ -1,4 +1,4 @@
-import { isGitURL } from '../../shared/is-git-url';
+import { isGitURL } from '@atc/core/is-git-url';
 import type { SourceInterpretation, SourceProvider } from '../types';
 
 /**

@@ -1,10 +1,11 @@
 import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import type { AgentID } from '@atc/core/agent-id';
+import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
+import { buildOptionalString } from '@atc/core/build-optional-string';
+import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
+import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
-import type { AgentID } from './agent-id';
-import { buildOptionalBoolean } from './build-optional-boolean';
-import { buildOptionalString } from './build-optional-string';
-import { buildOptionalStringArray } from './build-optional-string-array';
 import { collectAgents } from './collect-agents';
 import type { AgentEntry } from './collect-agents';
 import { collectAuthProfiles } from './collect-auth-profiles';
@@ -24,7 +25,6 @@ import { formatMixedAgentKeys } from './format-mixed-agent-keys';
 import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
 import { pickDefaultAgent } from './pick-default-agent';
 import { REMOVED_CONFIG_KEYS } from './removed-config-keys';
-import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
 
 export interface Config {

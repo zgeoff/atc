@@ -1,5 +1,5 @@
-import { systemClock } from '../shared/system-clock';
-import type { Clock } from '../shared/system-clock';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 
 /**
  * Wakes long-polling readers when the event trail grows. A reader notes the

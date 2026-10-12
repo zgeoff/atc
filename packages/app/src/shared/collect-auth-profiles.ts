@@ -1,6 +1,6 @@
-import { isBrokerVariable } from './is-broker-variable';
-import { isSubscriptionOverrideVariable } from './is-subscription-override-variable';
-import { isRecord } from './report';
+import { isBrokerVariable } from '@atc/core/is-broker-variable';
+import { isRecord } from '@atc/core/is-record';
+import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
 
 /**
  * A named reference to a credential impd holds: the secret's name, never

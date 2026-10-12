@@ -13,6 +13,8 @@ import {
 } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
@@ -23,8 +25,6 @@ import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { DaemonError } from '../protocol/daemon-error';
 import { getRecord } from '../shared/get-record';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';

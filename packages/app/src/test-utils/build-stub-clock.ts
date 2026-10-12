@@ -1,4 +1,4 @@
-import type { Clock } from '../shared/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 
 interface StubTimer {
   readonly dueAt: number;

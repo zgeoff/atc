@@ -1,6 +1,6 @@
-import type { AgentSessionID } from '../shared/agent-session-id';
-import type { MessageID } from '../shared/message-id';
-import type { SessionID } from '../shared/session-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import type { MessageID } from '@atc/core/message-id';
+import type { SessionID } from '@atc/core/session-id';
 
 export type MessageStatus = 'queued' | 'delivered' | 'answered';
 

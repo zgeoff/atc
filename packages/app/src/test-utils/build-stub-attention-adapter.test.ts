@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toSessionID } from '../shared/to-session-id';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { buildStubAttentionAdapter } from './build-stub-attention-adapter';
 
 test('it builds an adapter whose sessions take messages and resume with claude', () => {

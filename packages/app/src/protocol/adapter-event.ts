@@ -1,4 +1,4 @@
-import type { AgentSessionID } from '../shared/agent-session-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
 
 /**
  * What an adapter makes of one hook event: the agent-neutral kind and the

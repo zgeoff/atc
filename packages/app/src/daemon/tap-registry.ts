@@ -1,5 +1,5 @@
-import type { MessageID } from '../shared/message-id';
-import type { SessionID } from '../shared/session-id';
+import type { MessageID } from '@atc/core/message-id';
+import type { SessionID } from '@atc/core/session-id';
 
 interface TapEntry<TClient> {
   readonly client: TClient;

@@ -1,6 +1,6 @@
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { faker } from '@faker-js/faker';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
 import type { MessageRecord } from '../store/message-record';
 
 type MessageRecordOverrides = {

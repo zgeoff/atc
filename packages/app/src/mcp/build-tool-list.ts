@@ -1,4 +1,4 @@
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { MCP_TOOLS } from './mcp-tools';

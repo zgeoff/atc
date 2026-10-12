@@ -2,6 +2,8 @@
 import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core/is-record';
+import { toSessionID } from '@atc/core/to-session-id';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
@@ -10,8 +12,6 @@ import { encodeCursor } from '../protocol/encode-cursor';
 import { decodeMessage } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import { getRecord } from '../shared/get-record';
-import { isRecord } from '../shared/report';
-import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';

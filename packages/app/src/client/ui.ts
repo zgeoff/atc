@@ -1,7 +1,7 @@
+import type { AgentID } from '@atc/core/agent-id';
+import { RESET_INPUT_MODES } from '@atc/core/reset-input-modes';
 import { PINNED_GROUP_KEY } from '../protocol/pinned-group-key';
 import type { SessionState } from '../protocol/session-state';
-import type { AgentID } from '../shared/agent-id';
-import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 import { formatDir } from './dirs';
 import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';

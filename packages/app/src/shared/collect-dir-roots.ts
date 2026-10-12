@@ -1,4 +1,4 @@
-import { isRecord } from './report';
+import { isRecord } from '@atc/core/is-record';
 import { resolveHomeDir } from './resolve-home-dir';
 
 /**

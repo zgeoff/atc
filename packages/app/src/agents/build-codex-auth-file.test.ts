@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
+import { isRecord } from '@atc/core/is-record';
 import invariant from 'tiny-invariant';
 import { getRecord } from '../shared/get-record';
-import { isRecord } from '../shared/report';
 import { buildCodexAuthFile } from './build-codex-auth-file';
 
 test('it writes a ChatGPT sign-in whose tokens are the placeholder and whose refresh lies far ahead', () => {

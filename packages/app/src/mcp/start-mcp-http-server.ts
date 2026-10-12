@@ -1,5 +1,5 @@
+import { isRecord } from '@atc/core/is-record';
 import { MAX_LINE } from '../protocol/protocol';
-import { isRecord } from '../shared/report';
 import { answerAuthorizeRequest } from './answer-authorize-request';
 import { answerConsentRequest } from './answer-consent-request';
 import { answerLoginRequest } from './answer-login-request';

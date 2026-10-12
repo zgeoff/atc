@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { toSessionID } from '@atc/core/to-session-id';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
@@ -8,7 +9,6 @@ import { DaemonClient } from '../client/daemon-client';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
-import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';

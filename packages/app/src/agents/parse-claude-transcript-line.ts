@@ -1,5 +1,5 @@
-import { isRecord } from '../shared/report';
-import { truncateToBytes } from '../shared/truncate-to-bytes';
+import { isRecord } from '@atc/core/is-record';
+import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type { TranscriptRow, TranscriptToolUse } from './agent-adapter';
 
 // One row must stay far under the protocol's line cap.

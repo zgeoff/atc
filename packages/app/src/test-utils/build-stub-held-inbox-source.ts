@@ -1,8 +1,8 @@
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import type { SessionID } from '@atc/core/session-id';
 import type { TapClient } from '../daemon/daemon-context';
 import type { InboxSource } from '../daemon/drain-inbox';
 import { TapRegistry } from '../daemon/tap-registry';
-import type { AgentSessionID } from '../shared/agent-session-id';
-import type { SessionID } from '../shared/session-id';
 import type { MessageRecord } from '../store/message-record';
 
 /**

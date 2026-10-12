@@ -1,7 +1,7 @@
+import { isRecord } from '@atc/core/is-record';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import type { GrantScope } from '../shared/grant-scope';
-import { isRecord } from '../shared/report';
 import { buildRPCError } from './build-rpc-error';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { buildToolList } from './build-tool-list';

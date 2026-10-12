@@ -1,14 +1,14 @@
 import { homedir } from 'node:os';
+import type { AgentID } from '@atc/core/agent-id';
+import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
+import { isGitURL } from '@atc/core/is-git-url';
+import { isRecord } from '@atc/core/is-record';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
-import type { AgentID } from '../shared/agent-id';
-import { buildWorkspaceDestination } from '../shared/build-workspace-destination';
 import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { loadConfig } from '../shared/config';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
-import { isGitURL } from '../shared/is-git-url';
-import { isRecord } from '../shared/report';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';

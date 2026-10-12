@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import type { SessionID } from '@atc/core/session-id';
 import { DaemonError } from '../protocol/daemon-error';
-import type { SessionID } from '../shared/session-id';
 import type { RuntimeAuthBinding, RuntimeAuthGrant } from '../store/runtime-auth-binding';
 import type { StateStore } from '../store/state-store';
 import type { BrokerAuthHost } from './broker-auth-host';

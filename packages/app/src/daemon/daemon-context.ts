@@ -1,13 +1,13 @@
+import type { AgentID } from '@atc/core/agent-id';
+import type { DaemonID } from '@atc/core/daemon-id';
+import type { MessageID } from '@atc/core/message-id';
+import type { SessionID } from '@atc/core/session-id';
 import type { AgentAdapter, SpawnOptions, SpawnOverrides } from '../agents/agent-adapter';
 import type { DeclaredScope } from '../protocol/parse-declared-scope';
 import type { EventMsg } from '../protocol/protocol';
 import type { PublishedRecord } from '../protocol/published-record';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
-import type { AgentID } from '../shared/agent-id';
 import type { TargetConfigError } from '../shared/collect-targets';
-import type { DaemonID } from '../shared/daemon-id';
-import type { MessageID } from '../shared/message-id';
-import type { SessionID } from '../shared/session-id';
 import type { SourceKind, SourceProvider } from '../sources/types';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { MessageRecord } from '../store/message-record';

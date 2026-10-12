@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 import type { ClaudeConfigLockOptions } from './with-claude-config-lock';
 

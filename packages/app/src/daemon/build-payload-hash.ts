@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 
 /**
  * The SHA-256 of a request's params as canonical JSON: object keys sorted

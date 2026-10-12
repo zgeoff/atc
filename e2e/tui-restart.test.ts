@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { PROTOCOL_V } from '../packages/app/src/protocol/protocol';
-import { toAgentSessionID } from '../packages/app/src/shared/to-agent-session-id';
 import { StateStore } from '../packages/app/src/store/state-store';
 import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
 

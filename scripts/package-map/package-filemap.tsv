@@ -377,6 +377,7 @@ src/shared/is-broker-variable.ts	core		packages/core/src/is-broker-variable.ts
 src/shared/is-compiled-binary.ts	config		packages/config/src/is-compiled-binary.ts	
 src/shared/is-git-url.ts	core		packages/core/src/is-git-url.ts	
 src/shared/is-process-alive.ts	lifecycle		packages/lifecycle/src/is-process-alive.ts	
+src/shared/is-record.ts	core		packages/core/src/is-record.ts	new in ticket 3
 src/shared/is-subscription-override-variable.ts	core		packages/core/src/is-subscription-override-variable.ts	
 src/shared/legacy-agent-keys.ts	config		packages/config/src/legacy-agent-keys.ts	
 src/shared/load-listener-tokens.ts	config		packages/config/src/load-listener-tokens.ts	

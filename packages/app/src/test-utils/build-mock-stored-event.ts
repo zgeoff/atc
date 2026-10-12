@@ -1,5 +1,5 @@
+import { toSessionID } from '@atc/core/to-session-id';
 import { faker } from '@faker-js/faker';
-import { toSessionID } from '../shared/to-session-id';
 import type { StoredEvent } from '../store/state-store';
 
 /**

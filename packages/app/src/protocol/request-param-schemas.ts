@@ -1,9 +1,9 @@
+import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
+import { buildOptionalString } from '@atc/core/build-optional-string';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { z } from 'zod';
-import { buildOptionalBoolean } from '../shared/build-optional-boolean';
-import { buildOptionalString } from '../shared/build-optional-string';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';

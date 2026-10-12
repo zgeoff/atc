@@ -1,5 +1,5 @@
+import { isRecord } from '@atc/core/is-record';
 import type { z } from 'zod';
-import { isRecord } from '../shared/report';
 import { REQUEST_PARAM_SCHEMAS } from './request-param-schemas';
 
 export type RequestMethod = keyof typeof REQUEST_PARAM_SCHEMAS;

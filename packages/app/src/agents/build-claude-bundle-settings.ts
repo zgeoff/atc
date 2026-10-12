@@ -1,4 +1,4 @@
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 
 /**
  * The user settings a session's own Claude config folder starts with, from

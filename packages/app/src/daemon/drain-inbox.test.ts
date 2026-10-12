@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { buildStubHeldInboxSource } from '../test-utils/build-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 

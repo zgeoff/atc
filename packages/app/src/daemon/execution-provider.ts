@@ -1,6 +1,6 @@
+import type { StepTimer } from '@atc/core/create-step-timer';
 import type { DaemonError } from '../protocol/daemon-error';
 import type { BrokerAuthHost } from './broker-auth-host';
-import type { StepTimer } from './create-step-timer';
 
 /**
  * The host a session's harness runs on: it starts a process in a

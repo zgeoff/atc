@@ -1,4 +1,4 @@
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 import { buildRuledValue } from './build-ruled-value';
 import { ID_RULES } from './id-rules';
 import type { RegistryDaemon } from './types';

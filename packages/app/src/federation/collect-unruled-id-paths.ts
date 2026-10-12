@@ -1,4 +1,4 @@
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 import type { IDRule } from './id-rules';
 
 // A value that holds one of atc's ids: a session id or daemon ID is a
