@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { statusFile } from '@atc/config/config';
-import { resolveAgentHome } from '@atc/config/resolve-agent-home';
+import { loadClaudeStatusLine } from '@atc/config/load-claude-statusline';
 import { isRecord } from '@atc/core/is-record';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
@@ -41,13 +40,9 @@ export async function runStatusline(agent: string): Promise<void> {
   let chained = '';
 
   try {
-    const settingsPath = join(resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude'), 'settings.json');
-    const rawSettings = readFileSync(settingsPath, 'utf8');
-    const settings: unknown = JSON.parse(rawSettings);
-    const statusLine = isRecord(settings) ? settings['statusLine'] : undefined;
-    const cmd = isRecord(statusLine) ? statusLine['command'] : undefined;
+    const cmd = loadClaudeStatusLine().command;
 
-    if (typeof cmd === 'string' && cmd !== '' && !isSelfCommand(cmd)) {
+    if (cmd !== undefined && cmd !== '' && !isSelfCommand(cmd)) {
       const proc = Bun.spawn(['bash', '-c', cmd], {
         stdin: new TextEncoder().encode(raw),
         stdout: 'pipe',
