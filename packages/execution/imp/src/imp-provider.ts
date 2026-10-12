@@ -855,16 +855,13 @@ function buildBusyRefusal(name: string): DaemonError {
 }
 
 // The leases that impd's refusal to suspend a leased imp holds: those the
-// caller may see, and a count of the others.
-const LEASED_SCHEMA = z.object({
-  leases: z.array(z.unknown()).optional(),
-  otherCount: z.number().optional(),
-});
+// caller may see, and a count of the others, each read on its own.
+const LEASES_SCHEMA = z.object({ leases: z.array(z.unknown()) });
+const OTHER_COUNT_SCHEMA = z.object({ otherCount: z.number() });
 
 function buildLeasedRefusal(name: string, data: unknown): DaemonError {
-  const parsed = LEASED_SCHEMA.safeParse(data);
-  const leases = parsed.data?.leases ?? [];
-  const otherCount = parsed.data?.otherCount ?? 0;
+  const leases = LEASES_SCHEMA.safeParse(data).data?.leases ?? [];
+  const otherCount = OTHER_COUNT_SCHEMA.safeParse(data).data?.otherCount ?? 0;
 
   return new DaemonError(
     'host_leased',

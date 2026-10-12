@@ -638,6 +638,66 @@ test('it ends with the kept exit code of its own generation when impd no longer 
   });
 });
 
+test('it ends with the kept exit code when the cold boots impd returns do not read', async () => {
+  const ctx = setupTest();
+
+  const guest = await createStubHarnessGuest(ctx.dir);
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-a',
+      session: 's1',
+      argv: [guest.path],
+      cwd: ctx.dir,
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  registerTestCleanup(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exits: HarnessExit[] = [];
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  ctx.port.setNextSessionFailure('NO_SESSION', {
+    bootId: ctx.port.getBootID('imp-a'),
+    coldBoots: 'not a list',
+    previous: {
+      executionGeneration: ctx.port.getGeneration('imp-a', 's1'),
+      end: 10,
+      exitCode: 7,
+    },
+  });
+
+  ctx.port.stopConnection('imp-a', 's1', 1011);
+
+  await waitFor(() => {
+    expect(exits).toStrictEqual([{ exitCode: 7, reason: 'exited' }]);
+  });
+});
+
 test('it ends with the refusal message in the detail when impd refuses without a code', async () => {
   const ctx = setupTest();
 

@@ -864,12 +864,9 @@ export class ImpHarness implements HarnessHandle {
 // What ended a process impd no longer holds: the kept previous generation
 // of the same boot, and impd's cold boots, newest first. Each part is read
 // on its own, and one that does not read is no evidence.
-const LOST_SCHEMA = z.object({
-  bootId: z.string().optional(),
-  previous: z.unknown().optional(),
-  coldBoots: z.array(z.unknown()).optional(),
-});
-
+const LOST_BOOT_SCHEMA = z.object({ bootId: z.string() });
+const LOST_PREVIOUS_SCHEMA = z.object({ previous: z.unknown() });
+const LOST_COLD_BOOTS_SCHEMA = z.object({ coldBoots: z.array(z.unknown()) });
 const GENERATION_SCHEMA = z.object({ executionGeneration: z.string() });
 const EXIT_CODE_SCHEMA = z.object({ exitCode: z.number() });
 
@@ -885,12 +882,12 @@ function buildLostExit(
   data: unknown,
   cursor: Readonly<{ bootId: string; generation: string }> | null,
 ): HarnessExit {
-  const parsed = LOST_SCHEMA.safeParse(data);
-  const lost = parsed.success ? parsed.data : {};
+  const bootID = LOST_BOOT_SCHEMA.safeParse(data).data?.bootId;
+  const previous = LOST_PREVIOUS_SCHEMA.safeParse(data).data?.previous;
 
-  if (cursor !== null && lost.bootId === cursor.bootId) {
-    const generation = GENERATION_SCHEMA.safeParse(lost.previous);
-    const exitCode = EXIT_CODE_SCHEMA.safeParse(lost.previous);
+  if (cursor !== null && bootID === cursor.bootId) {
+    const generation = GENERATION_SCHEMA.safeParse(previous);
+    const exitCode = EXIT_CODE_SCHEMA.safeParse(previous);
     const isOwn = generation.data?.executionGeneration === cursor.generation;
 
     return isOwn
@@ -898,7 +895,7 @@ function buildLostExit(
       : { exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' };
   }
 
-  const boots = collectColdBoots(lost.coldBoots ?? []);
+  const boots = collectColdBoots(LOST_COLD_BOOTS_SCHEMA.safeParse(data).data?.coldBoots ?? []);
   const own = cursor === null ? -1 : boots.findIndex((boot) => boot.bootId === cursor.bootId);
   const next = own > 0 ? boots[own - 1] : undefined;
 
