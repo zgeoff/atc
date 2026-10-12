@@ -1,7 +1,7 @@
 # Installing atc
 
-atc ships as a prebuilt binary for macOS and Linux, on arm64 and x64, and as an npm package. It
-needs at least one of the `claude`, `grok` or `codex` CLIs on your `PATH`.
+atc ships as a prebuilt binary for macOS and Linux, on arm64 and x64. It needs at least one of the
+`claude`, `grok` or `codex` CLIs on your `PATH`.
 
 ## Homebrew
 
@@ -20,11 +20,8 @@ checksums are on the [releases page](https://github.com/zgeoff/atc/releases).
 
 ## From npm
 
-With [Bun](https://bun.sh):
-
-```bash
-bun add -g @zgeoff/atc
-```
+The `@zgeoff/atc` npm package is deprecated and gets no new releases. If you installed atc with
+`bun add -g @zgeoff/atc`, remove it with `bun remove -g @zgeoff/atc` and install a binary instead.
 
 ## Environment
 

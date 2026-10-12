@@ -77,8 +77,7 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 
 ## Guides
 
-- [Installing atc](guides/install.md) — Homebrew, the install script, npm and the environment atc
-  takes
+- [Installing atc](guides/install.md) — Homebrew, the install script and the environment atc takes
 - [Using atc](guides/using-atc.md) — spawning, the session list and its keys, Grok and Codex hooks,
   agents that drive agents, and restarting the daemon
 - [Configuration](guides/configuration.md) — every `config.json` field: agents, targets, gateways,
