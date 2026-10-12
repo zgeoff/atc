@@ -10,7 +10,6 @@ import {
 import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 import { startClaudeHeadlessRun } from '@atc/harness-claude/headless/start-claude-headless-run';
 import type { SourceProvider } from '@atc/plugin-api/types';
-import { collectZoxideDirs } from '@atc/source-dirs/collect-zoxide-dirs';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { buildHostServices } from '../build-host-services';
 import { buildExecutionTargets } from '../daemon/build-execution-targets';
@@ -40,9 +39,8 @@ async function main() {
       roots: config.dirs.roots,
       githubOwner: config.workspaces.githubOwner,
       ghBin: 'gh',
-      runCommand: hostServices.runCommand,
       homeDir: resolveHomeDir(),
-      collectZoxideDirs: () => collectZoxideDirs(hostServices.runCommand),
+      host: hostServices,
     }),
     config.workspaces.sources,
   ).sources;
@@ -93,7 +91,7 @@ async function main() {
     defaultAgent: config.defaultAgent,
     dbPath: dbFile,
     pidPath: daemonPidFile,
-    targets: buildExecutionTargets(config.targets, buildHostServices().version).targets,
+    targets: buildExecutionTargets(config.targets, hostServices).targets,
     defaultTarget: config.defaultTarget,
     sources: process.env['ATC_TEST_SOURCES'] === 'none' ? [] : [...builtin, fixture],
     gitTransports: config.workspaces.gitTransports,

@@ -19,9 +19,8 @@ test('it leaves GitHub out when gh is not on the host', () => {
     roots: [],
     githubOwner: null,
     ghBin: ctx.gh,
-    runCommand: buildMockHostServices().runCommand,
     homeDir: ctx.homeDir,
-    collectZoxideDirs: () => Promise.resolve([]),
+    host: buildMockHostServices(),
   });
 
   expect(sources.map((source) => source.id)).toStrictEqual(['dirs', 'git']);
@@ -36,9 +35,8 @@ test('it offers GitHub when gh is on the host', () => {
     roots: [],
     githubOwner: null,
     ghBin: ctx.gh,
-    runCommand: buildMockHostServices().runCommand,
     homeDir: ctx.homeDir,
-    collectZoxideDirs: () => Promise.resolve([]),
+    host: buildMockHostServices(),
   });
 
   expect(sources.map((source) => source.id)).toStrictEqual(['dirs', 'github', 'git']);

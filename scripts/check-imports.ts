@@ -141,7 +141,7 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   plugins: ['shared', 'protocol'],
   agents: ['shared', 'protocol', 'plugins'],
   workspace: ['shared', 'protocol'],
-  sources: ['shared', 'protocol', 'workspace'],
+  sources: ['shared', 'protocol', 'workspace', 'plugins'],
   store: ['shared', 'protocol'],
   daemon: ['shared', 'protocol', 'agents', 'workspace', 'sources', 'store', 'plugins'],
 
