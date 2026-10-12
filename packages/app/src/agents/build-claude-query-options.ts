@@ -2,6 +2,7 @@ import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { socketPath } from '../shared/config';
 import type { HeadlessRunRequest } from './agent-adapter';
 import { buildHeadlessEnv } from './build-headless-env';
+import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 /**
@@ -33,9 +34,6 @@ const PERMISSION_MODES = [
   'dontAsk',
 ] as const;
 
-// The effort levels the Agent SDK accepts.
-const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
-
 /**
  * The Agent SDK options one headless turn runs with, apart from the abort
  * controller and stderr sink the live run owns. A permission mode or effort
@@ -46,7 +44,7 @@ export function buildClaudeQueryOptions(
   compiled: boolean,
 ): Options {
   const mode = PERMISSION_MODES.find((m) => m === opts.permissionMode);
-  const effort = EFFORT_LEVELS.find((level) => level === opts.effort);
+  const effort = CLAUDE_EFFORT_LEVELS.find((level) => level === opts.effort);
 
   return {
     cwd: opts.cwd,

@@ -56,9 +56,6 @@ import { writeHookSettings } from './write-hook-settings';
 export class GatewayAdapter implements AgentAdapter {
   readonly id: AgentID;
 
-  // The settings file names the gateway's id on every hook command.
-  readonly hookAgent: AgentID;
-
   // A headless turn carries the same settings file the terminal spawn does,
   // so it reaches this backend rather than the default one. A gateway whose
   // credential comes through impd's broker alone runs no headless turn.
@@ -115,8 +112,6 @@ export class GatewayAdapter implements AgentAdapter {
       models,
       spawnOptions: buildGatewaySpawnOptions(gateway.args, models),
     };
-
-    this.hookAgent = gateway.id;
 
     this.claude = new ClaudeAdapter(
       {

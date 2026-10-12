@@ -81,10 +81,6 @@ type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;
 export class ClaudeAdapter implements AgentAdapter {
   readonly id: AgentID;
 
-  // The agent value the hook lines of a Claude session carry: the settings
-  // file atc writes for this id names it on each hook command.
-  readonly hookAgent: AgentID;
-
   readonly headlessRunner: HeadlessRunner | null;
 
   // Claude's hooks are authoritative; no screen heuristics needed.
@@ -127,7 +123,6 @@ export class ClaudeAdapter implements AgentAdapter {
     this.entry = entry;
     this.authProfiles = config.authProfiles;
     this.id = entry.id;
-    this.hookAgent = entry.id;
 
     this.profile = {
       label: entry.label,
