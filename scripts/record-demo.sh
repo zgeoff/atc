@@ -22,7 +22,9 @@ DONE=
 teardown() {
   [ -n "$DONE" ] && return
   DONE=1
-  [ -n "$VHS_PID" ] && kill -- "-$VHS_PID" 2> /dev/null || true
+  if [ -n "$VHS_PID" ]; then
+    kill -- "-$VHS_PID" 2> /dev/null || true
+  fi
   bun "$ROOT/scripts/stage-demo-sessions.ts" kill-all 2> /dev/null || true
   if [ -n "$DAEMON_PID" ]; then
     for _ in $(seq 1 100); do
