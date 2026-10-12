@@ -1,6 +1,7 @@
 import type { Config } from '../shared/config';
-import type { AgentAdapter, ClaudeHostPaths } from './agent-adapter';
+import type { AgentAdapter } from './agent-adapter';
 import { ClaudeAdapter } from './claude-adapter';
+import type { ClaudeHostPaths } from './claude-host-paths';
 import { CodexAdapter } from './codex-adapter';
 import { GatewayAdapter } from './gateway-adapter';
 import { GrokAdapter } from './grok-adapter';

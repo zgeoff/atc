@@ -1,4 +1,5 @@
 import { basename, isAbsolute } from 'node:path';
+import { CONTROL_CHARACTER } from '../protocol/control-character';
 import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
@@ -27,6 +28,7 @@ import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from './daemon-context';
+import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPosition } from './load-transcript-page';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
@@ -777,11 +779,7 @@ export class DaemonConnection {
         } else if (result === 'unsupported') {
           this.sendErr(req.id, 'unsupported', "this session's agent has no headless handoff");
         } else if (result === 'no_transcript') {
-          this.sendErr(
-            req.id,
-            'session_dead',
-            'nothing to resume yet — the session has no saved transcript',
-          );
+          this.sendNoTranscript(req.id);
         } else {
           this.sendErr(
             req.id,
@@ -813,11 +811,7 @@ export class DaemonConnection {
         if (adoptResult === 'ok') {
           this.sendOk(req.id, {});
         } else if (adoptResult === 'no_transcript') {
-          this.sendErr(
-            req.id,
-            'session_dead',
-            'nothing to resume yet — the session has no saved transcript',
-          );
+          this.sendNoTranscript(req.id);
         } else {
           this.sendErr(
             req.id,
@@ -1105,14 +1099,7 @@ export class DaemonConnection {
       return;
     }
 
-    const keyed =
-      data.idempotencyKey === undefined
-        ? null
-        : {
-            key: data.idempotencyKey,
-            payloadHash: buildPayloadHash(data),
-            replayOnly: data.replayOnly === true,
-          };
+    const keyed = buildKeyedRequest(data);
 
     const spawned = await ctx.spawnSession(plan, keyed, null);
 
@@ -1547,14 +1534,7 @@ export class DaemonConnection {
       return;
     }
 
-    const keyed =
-      parsed.data.idempotencyKey === undefined
-        ? null
-        : {
-            key: parsed.data.idempotencyKey,
-            payloadHash: buildPayloadHash(parsed.data),
-            replayOnly: parsed.data.replayOnly === true,
-          };
+    const keyed = buildKeyedRequest(parsed.data);
 
     const result = await ctx.writeSessionMessage(
       sessionID,
@@ -1887,6 +1867,11 @@ export class DaemonConnection {
     }
   }
 
+  // A resume or adopt of a session whose agent saved no transcript yet.
+  private sendNoTranscript(id: number): void {
+    this.sendErr(id, 'session_dead', 'nothing to resume yet — the session has no saved transcript');
+  }
+
   private sendErr(
     id: number,
     code: ErrorCode,
@@ -1946,9 +1931,6 @@ function findEventSession(event: EventMsg): SessionID | null {
   return null;
 }
 
-// oxlint-disable-next-line no-control-regex -- control characters are what a workspace cwd is refused for
-const CONTROL_CHARACTER = /[\u0000-\u001F\u007F]/u;
-
 function isPlainWorkspaceDir(dir: string): boolean {
   return (
     !CONTROL_CHARACTER.test(dir) && !dir.split('/').some((part) => part === '.' || part === '..')
@@ -1969,4 +1951,21 @@ function requireDeclaredScope(raw: unknown): DeclaredScope | null {
   }
 
   return parsed.scope;
+}
+
+// The idempotency claim a keyed request carries, or null for a request that
+// gave no idempotency key.
+function buildKeyedRequest(
+  params: Readonly<Record<string, unknown>> & {
+    readonly idempotencyKey?: string | undefined;
+    readonly replayOnly?: boolean | undefined;
+  },
+): KeyedRequest | null {
+  return params.idempotencyKey === undefined
+    ? null
+    : {
+        key: params.idempotencyKey,
+        payloadHash: buildPayloadHash(params),
+        replayOnly: params.replayOnly === true,
+      };
 }

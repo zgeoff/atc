@@ -5,6 +5,7 @@ import { normalizeClientName } from '../shared/normalize-client-name';
 import { isRecord } from '../shared/report';
 import { answerRPCRequest } from './answer-rpc-request';
 import { buildPrincipalCaller } from './build-principal-caller';
+import { buildRPCError } from './build-rpc-error';
 import { deriveTokenHash } from './derive-token-hash';
 import { findClientName } from './find-client-name';
 import { isSupportedProtocolVersion } from './is-supported-protocol-version';
@@ -59,11 +60,13 @@ export async function answerMCPRequest(
   try {
     message = JSON.parse(request.body);
   } catch {
-    return buildRPCError(400, null, -32_700, 'parse error');
+    return Response.json(buildRPCError(null, -32_700, 'parse error'), { status: 400 });
   }
 
   if (Array.isArray(message)) {
-    return buildRPCError(400, null, -32_600, 'atc does not accept JSON-RPC batches');
+    return Response.json(buildRPCError(null, -32_600, 'atc does not accept JSON-RPC batches'), {
+      status: 400,
+    });
   }
 
   const outcome = await answerRPCRequest(message, {
@@ -83,7 +86,11 @@ export async function answerMCPRequest(
 
   if (outcome.kind === 'forbidden') {
     const id = isRecord(message) ? (message['id'] ?? null) : null;
-    const response = buildRPCError(403, id, -32_001, `this grant lacks the ${outcome.scope} scope`);
+
+    const response = Response.json(
+      buildRPCError(id, -32_001, `this grant lacks the ${outcome.scope} scope`),
+      { status: 403 },
+    );
 
     response.headers.set(
       'www-authenticate',
@@ -93,7 +100,7 @@ export async function answerMCPRequest(
     return response;
   }
 
-  return buildRPCError(400, null, -32_600, 'invalid request');
+  return Response.json(buildRPCError(null, -32_600, 'invalid request'), { status: 400 });
 }
 
 interface VerifiedAccess {
@@ -162,8 +169,4 @@ async function upsertGrantUse(ctx: HTTPServerContext, token: string): Promise<vo
     .values({ grant_id: grantID, last_used_at: now })
     .onConflict((conflict) => conflict.column('grant_id').doUpdateSet({ last_used_at: now }))
     .execute();
-}
-
-function buildRPCError(status: number, id: unknown, code: number, message: string): Response {
-  return Response.json({ jsonrpc: '2.0', id, error: { code, message } }, { status });
 }

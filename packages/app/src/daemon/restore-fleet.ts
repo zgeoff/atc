@@ -7,7 +7,7 @@ import type { StateStore } from '../store/state-store';
 import type { SessionRuntime } from './session-runtime';
 import type { Session, SessionManager } from './sessions';
 
-export interface RestoreFleetParams {
+interface RestoreFleetParams {
   readonly mgr: SessionManager;
   readonly store: StateStore;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
@@ -39,7 +39,7 @@ export interface RestoreSettled {
   readonly outcome: RestoreOutcome;
 }
 
-export interface RestoreFleetResult {
+interface RestoreFleetResult {
   // How many sessions the restore registered.
   readonly restored: number;
 

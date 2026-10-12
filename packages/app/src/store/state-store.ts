@@ -1276,19 +1276,6 @@ function buildWorkspaceField(
   };
 }
 
-// Two sessions share an agent session id when one resumes the other's agent
-// session. The fleet keeps one row per agent session id, the entry written
-// last, and relinks the survivors as a one-level hierarchy of rows it holds:
-//
-// 1. A link to a dropped row follows to the row that replaced it. A row that
-//    replaced its own parent follows that parent's link instead, and a link
-//    to a row the fleet does not hold makes the row top-level.
-// 2. Where the links form a cycle, the row written first in the cycle
-//    becomes top-level.
-// 3. A row whose parent is itself a sub-session moves up to the top-level
-//    row above it.
-//
-// Every walk takes at most one step per entry, so it ends on any input.
 // A ready workspace's withheld variable names as their entry field, or
 // nothing for a row that withholds none.
 function buildWithheldEnvField(stored: string | null): { readonly withheldEnv?: string[] } {
@@ -1305,6 +1292,19 @@ function parseWithheldEnv(stored: string | null): string[] {
     : [];
 }
 
+// Two sessions share an agent session id when one resumes the other's agent
+// session. The fleet keeps one row per agent session id, the entry written
+// last, and relinks the survivors as a one-level hierarchy of rows it holds:
+//
+// 1. A link to a dropped row follows to the row that replaced it. A row that
+//    replaced its own parent follows that parent's link instead, and a link
+//    to a row the fleet does not hold makes the row top-level.
+// 2. Where the links form a cycle, the row written first in the cycle
+//    becomes top-level.
+// 3. A row whose parent is itself a sub-session moves up to the top-level
+//    row above it.
+//
+// Every walk takes at most one step per entry, so it ends on any input.
 function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
   const survivors = new Map<AgentSessionID, SessionID>();
 

@@ -1,6 +1,7 @@
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import { normalizeClientName } from '../shared/normalize-client-name';
 import { isRecord } from '../shared/report';
+import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildConsentBinding } from './build-consent-binding';
 import { buildPageResponse } from './build-page-response';
 import { findClientName } from './find-client-name';
@@ -15,9 +16,6 @@ interface ConsentRequest {
   readonly cookie: string | null;
   readonly body: string;
 }
-
-// How long an authorization code stays exchangeable.
-const CODE_MS = 600_000;
 
 /**
  * Answers `GET /consent` and `POST /consent`. Both refuse a request unless
@@ -108,7 +106,7 @@ export async function answerConsentRequest(
   await (issuedCode
     ? ctx.store.db
         .updateTable('session')
-        .set({ expiresAt: new Date(Date.now() + CODE_MS).toISOString() })
+        .set({ expiresAt: new Date(Date.now() + APPROVAL_WINDOW_SECONDS * 1000).toISOString() })
         .where('id', '=', sessionID)
         .execute()
     : ctx.store.db.deleteFrom('session').where('id', '=', sessionID).execute());

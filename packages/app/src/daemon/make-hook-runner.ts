@@ -10,7 +10,7 @@ export interface HookScope {
   readonly repoRoot: string;
 }
 
-export type RunHooks = (event: EventMsg, scope: HookScope | null) => void;
+type RunHooks = (event: EventMsg, scope: HookScope | null) => void;
 
 /**
  * How one hook run ended: its exit code, or the signal that ended it, or

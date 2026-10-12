@@ -16,7 +16,7 @@ import { runHostGit } from './run-host-git';
  * and the repository URL of its materialized workspace, null for a
  * directory that runs as it stands.
  */
-export interface ScopeCheckRequest {
+interface ScopeCheckRequest {
   readonly provider: ExecutionProvider;
   readonly host: string;
   readonly dir: string;

@@ -4,6 +4,7 @@ import { isRecord } from '../shared/report';
 import { buildGatewayID } from './build-gateway-id';
 import { buildRuledValue } from './build-ruled-value';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
+import { ID_RULES } from './id-rules';
 import type { IDRule } from './id-rules';
 import type { RegistryDaemon } from './types';
 
@@ -46,13 +47,17 @@ interface MergedEvents {
   readonly truncated: readonly string[];
 }
 
-// The id fields of one event, relative to the event.
-const EVENT_RULES: ReadonlyMap<string, IDRule> = new Map([
-  ['session', 'id'],
-  ['message', 'id'],
-  ['parent', 'id'],
-  ['note', 'id'],
-]);
+const EVENT_PREFIX = 'events[].';
+
+// The id fields of one event, relative to the event: the events read's
+// rules under each event, less the event's cursor, which the merge rebuilds.
+const EVENT_RULES: ReadonlyMap<string, IDRule> = new Map(
+  [...(ID_RULES['events.read'] ?? [])].flatMap(([path, rule]) =>
+    path.startsWith(EVENT_PREFIX) && rule !== 'cursor'
+      ? [[path.slice(EVENT_PREFIX.length), rule] as const]
+      : [],
+  ),
+);
 
 /**
  * Merges the daemons' pages of one events read into one page of at most

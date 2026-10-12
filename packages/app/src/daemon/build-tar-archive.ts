@@ -2,7 +2,7 @@
  * One file in an archive: its path relative to the directory it unpacks
  * into, its bytes, and its permission bits.
  */
-export interface ArchiveFile {
+interface ArchiveFile {
   readonly path: string;
   readonly content: string | Uint8Array;
   readonly mode?: number;

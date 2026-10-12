@@ -1,7 +1,6 @@
 import type { TerminalInputModes } from './agent-adapter';
-
-const PASTE_START = '\u001B[200~';
-const PASTE_END = '\u001B[201~';
+import { buildUnmarkedText } from './build-unmarked-text';
+import { PASTE_MARKERS } from './paste-markers';
 
 /**
  * Pastes a line into a TUI that tells a paste from typing, then submits it
@@ -21,7 +20,9 @@ export function planPastedLineInput(text: string, modes: TerminalInputModes): re
     return ['\r'];
   }
 
-  const unmarked = text.replaceAll(PASTE_START, '').replaceAll(PASTE_END, '');
+  const unmarked = buildUnmarkedText(text);
 
-  return modes.bracketedPaste ? [`${PASTE_START}${unmarked}${PASTE_END}`, '\r'] : [unmarked, '\r'];
+  return modes.bracketedPaste
+    ? [`${PASTE_MARKERS.start}${unmarked}${PASTE_MARKERS.end}`, '\r']
+    : [unmarked, '\r'];
 }

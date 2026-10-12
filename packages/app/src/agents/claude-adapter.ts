@@ -20,7 +20,6 @@ import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
-  ClaudeHostPaths,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -44,6 +43,7 @@ import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { buildScratchLaunch } from './build-scratch-launch';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import type { ClaudeHostPaths } from './claude-host-paths';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
@@ -80,10 +80,6 @@ type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;
  */
 export class ClaudeAdapter implements AgentAdapter {
   readonly id: AgentID;
-
-  // The agent value the hook lines of a Claude session carry: the settings
-  // file atc writes for this id names it on each hook command.
-  readonly hookAgent: AgentID;
 
   readonly headlessRunner: HeadlessRunner | null;
 
@@ -127,7 +123,6 @@ export class ClaudeAdapter implements AgentAdapter {
     this.entry = entry;
     this.authProfiles = config.authProfiles;
     this.id = entry.id;
-    this.hookAgent = entry.id;
 
     this.profile = {
       label: entry.label,

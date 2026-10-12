@@ -14,7 +14,6 @@ import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
-  ClaudeHostPaths,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -34,6 +33,7 @@ import { buildHookSettings } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import type { ClaudeHostPaths } from './claude-host-paths';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { findFlagValue } from './find-flag-value';
@@ -55,9 +55,6 @@ import { writeHookSettings } from './write-hook-settings';
  */
 export class GatewayAdapter implements AgentAdapter {
   readonly id: AgentID;
-
-  // The settings file names the gateway's id on every hook command.
-  readonly hookAgent: AgentID;
 
   // A headless turn carries the same settings file the terminal spawn does,
   // so it reaches this backend rather than the default one. A gateway whose
@@ -115,8 +112,6 @@ export class GatewayAdapter implements AgentAdapter {
       models,
       spawnOptions: buildGatewaySpawnOptions(gateway.args, models),
     };
-
-    this.hookAgent = gateway.id;
 
     this.claude = new ClaudeAdapter(
       {

@@ -57,7 +57,6 @@ import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { buildTargetList } from './build-target-list';
 import { createNonBlockingLog } from './create-non-blocking-log';
 import type { NonBlockingLog } from './create-non-blocking-log';
-import type { StepTimer } from './create-step-timer';
 import { DaemonConnection } from './daemon-connection';
 import type {
   DaemonContext,
@@ -94,7 +93,7 @@ import { RuntimeAuthBinder } from './runtime-auth-binder';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import type { Session, SessionDescriptor } from './sessions';
+import type { Session, SessionDescriptor, SpawnHostAccess } from './sessions';
 import { startEventsServer } from './start-events-server';
 import { startHeadlessTurn } from './start-headless-turn';
 import { startSessionBridge } from './start-session-bridge';
@@ -1087,16 +1086,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const materialize =
       source === null
         ? null
-        : async (
-            host: Readonly<{
-              readyHost: (
-                attempt: number,
-              ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
-              removeClaim: (dir: string) => Promise<boolean>;
-              timer: StepTimer;
-            }>,
-            targetIdentity: string,
-          ) => {
+        : async (host: SpawnHostAccess, targetIdentity: string) => {
             const prepared = await materializeSpawnWorkspace(p, id, source, host, targetIdentity);
 
             if (prepared.kind !== 'ready') {
@@ -1142,11 +1132,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     p: SpawnParams,
     id: SessionID,
     source: SpawnWorkspaceSource,
-    host: Readonly<{
-      readyHost: (attempt: number) => Promise<{ readonly host: SessionID; readonly dir: string }>;
-      removeClaim: (dir: string) => Promise<boolean>;
-      timer: StepTimer;
-    }>,
+    host: SpawnHostAccess,
     targetIdentity: string,
   ) => {
     const binding = { target: p.target, targetIdentity };
@@ -1189,13 +1175,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     id: SessionID,
     materialize:
       | ((
-          host: Readonly<{
-            readyHost: (
-              attempt: number,
-            ) => Promise<{ readonly host: SessionID; readonly dir: string }>;
-            removeClaim: (dir: string) => Promise<boolean>;
-            timer: StepTimer;
-          }>,
+          host: SpawnHostAccess,
           targetIdentity: string,
         ) => Promise<Readonly<{
           workspace: SessionWorkspace;

@@ -17,7 +17,7 @@ import { verifyCleanupAuthority } from './verify-cleanup-authority';
 /**
  * The store calls the binder makes: a host's binding and its grant rows.
  */
-export type RuntimeAuthStore = Pick<
+type RuntimeAuthStore = Pick<
   StateStore,
   | 'createAuthBinding'
   | 'updateAuthBinding'

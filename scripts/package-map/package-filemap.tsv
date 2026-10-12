@@ -36,10 +36,12 @@ src/agents/build-headless-env.ts	harness-claude	headless	packages/harnesses/clau
 src/agents/build-hook-settings.ts	harness-claude		packages/harnesses/claude/src/build-hook-settings.ts	
 src/agents/build-restore-mode-args.ts	harness-claude		packages/harnesses/claude/src/build-restore-mode-args.ts	
 src/agents/build-scratch-launch.ts	harness-claude		packages/harnesses/claude/src/build-scratch-launch.ts	
+src/agents/build-unmarked-text.ts	plugin-api	harness	packages/plugin-api/src/harness/build-unmarked-text.ts	
 src/agents/claude-adapter.ts	harness-claude		packages/harnesses/claude/src/claude-adapter.ts	
 src/agents/claude-config-bundle-folder.ts	harness-claude	guest	packages/harnesses/claude/src/guest/claude-config-bundle-folder.ts	
 src/agents/claude-config-seed-file.ts	harness-claude	guest	packages/harnesses/claude/src/guest/claude-config-seed-file.ts	
 src/agents/claude-effort-levels.ts	harness-claude		packages/harnesses/claude/src/claude-effort-levels.ts	
+src/agents/claude-host-paths.ts	harness-claude		packages/harnesses/claude/src/claude-host-paths.ts	
 src/agents/codex-adapter.ts	harness-codex		packages/harnesses/codex/src/codex-adapter.ts	
 src/agents/codex-trust-seed-file.ts	harness-codex		packages/harnesses/codex/src/codex-trust-seed-file.ts	
 src/agents/create-local-scratch-dir.ts	harness-claude		packages/harnesses/claude/src/create-local-scratch-dir.ts	
@@ -52,6 +54,7 @@ src/agents/load-claude-config-bundle.ts	harness-claude	guest	packages/harnesses/
 src/agents/make-claude-headless-runner.ts	harness-claude	headless	packages/harnesses/claude/src/headless/make-claude-headless-runner.ts	
 src/agents/normalize-hook-event.ts	protocol		packages/protocol/src/normalize-hook-event.ts	
 src/agents/parse-claude-transcript-line.ts	harness-claude		packages/harnesses/claude/src/parse-claude-transcript-line.ts	
+src/agents/paste-markers.ts	plugin-api	harness	packages/plugin-api/src/harness/paste-markers.ts	
 src/agents/plan-claude-line-input.ts	harness-claude		packages/harnesses/claude/src/plan-claude-line-input.ts	
 src/agents/plan-codex-line-input.ts	harness-codex		packages/harnesses/codex/src/plan-codex-line-input.ts	
 src/agents/plan-pasted-line-input.ts	plugin-api	harness	packages/plugin-api/src/harness/plan-pasted-line-input.ts	
@@ -247,10 +250,12 @@ src/mcp/answer-login-request.ts	mcp	auth	packages/mcp/src/auth/answer-login-requ
 src/mcp/answer-mcp-request.ts	mcp	http	packages/mcp/src/http/answer-mcp-request.ts	
 src/mcp/answer-rpc-request.ts	mcp	tools	packages/mcp/src/tools/answer-rpc-request.ts	
 src/mcp/approval-state.ts	mcp	auth	packages/mcp/src/auth/approval-state.ts	
+src/mcp/approval-window-seconds.ts	mcp	auth	packages/mcp/src/auth/approval-window-seconds.ts	
 src/mcp/build-consent-binding.ts	mcp	auth	packages/mcp/src/auth/build-consent-binding.ts	
 src/mcp/build-owner-plugin.ts	mcp	auth	packages/mcp/src/auth/build-owner-plugin.ts	
 src/mcp/build-page-response.ts	mcp	http	packages/mcp/src/http/build-page-response.ts	
 src/mcp/build-principal-caller.ts	mcp	tools	packages/mcp/src/tools/build-principal-caller.ts	
+src/mcp/build-rpc-error.ts	mcp	tools	packages/mcp/src/tools/build-rpc-error.ts	
 src/mcp/build-spawn-descriptions.ts	mcp	tools	packages/mcp/src/tools/build-spawn-descriptions.ts	
 src/mcp/build-tool-list.ts	mcp	tools	packages/mcp/src/tools/build-tool-list.ts	
 src/mcp/collect-clients.ts	mcp	auth	packages/mcp/src/auth/collect-clients.ts	
@@ -259,6 +264,7 @@ src/mcp/collect-json-strings.ts	mcp	tools	packages/mcp/src/tools/collect-json-st
 src/mcp/derive-token-hash.ts	mcp	auth	packages/mcp/src/auth/derive-token-hash.ts	
 src/mcp/find-client-name.ts	mcp	auth	packages/mcp/src/auth/find-client-name.ts	
 src/mcp/find-owner-session-id.ts	mcp	tools	packages/mcp/src/tools/find-owner-session-id.ts	
+src/mcp/format-tool-error.ts	mcp	tools	packages/mcp/src/tools/format-tool-error.ts	
 src/mcp/is-allowed-redirect-uri.ts	mcp	auth	packages/mcp/src/auth/is-allowed-redirect-uri.ts	
 src/mcp/is-loopback-host.ts	mcp	http	packages/mcp/src/http/is-loopback-host.ts	
 src/mcp/is-supported-protocol-version.ts	mcp	tools	packages/mcp/src/tools/is-supported-protocol-version.ts	
@@ -292,6 +298,7 @@ src/parse-port.ts	app	cli	packages/app/src/cli/parse-port.ts
 src/parse-restart-result.ts	lifecycle		packages/lifecycle/src/parse-restart-result.ts	
 src/parse-systemd-unit.ts	lifecycle		packages/lifecycle/src/parse-systemd-unit.ts	
 src/protocol/adapter-event.ts	protocol		packages/protocol/src/adapter-event.ts	
+src/protocol/control-character.ts	protocol		packages/protocol/src/control-character.ts	
 src/protocol/count-session-states.ts	protocol		packages/protocol/src/count-session-states.ts	
 src/protocol/daemon-channel.ts	protocol		packages/protocol/src/daemon-channel.ts	
 src/protocol/daemon-error.ts	protocol		packages/protocol/src/daemon-error.ts	

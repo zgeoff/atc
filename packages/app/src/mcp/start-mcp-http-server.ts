@@ -5,6 +5,7 @@ import { answerConsentRequest } from './answer-consent-request';
 import { answerLoginRequest } from './answer-login-request';
 import { answerMCPRequest } from './answer-mcp-request';
 import { ApprovalState } from './approval-state';
+import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildPageResponse } from './build-page-response';
 import { isLoopbackHost } from './is-loopback-host';
 import { normalizePublicURL } from './normalize-public-url';
@@ -175,7 +176,10 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       origin,
       resource: `${origin}/mcp`,
       store,
-      approvals: new ApprovalState(600_000, options.now ?? (() => Date.now())),
+      approvals: new ApprovalState(
+        APPROVAL_WINDOW_SECONDS * 1000,
+        options.now ?? (() => Date.now()),
+      ),
       printApproval: options.printApproval,
     },
   };

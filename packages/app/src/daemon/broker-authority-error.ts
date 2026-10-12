@@ -15,7 +15,7 @@
  * - `auth_runtime_mismatch`: the imp under the recorded name has another
  *   id than the one recorded.
  */
-export type BrokerAuthorityCode =
+type BrokerAuthorityCode =
   | 'auth_impd_too_old'
   | 'auth_token_scope'
   | 'auth_token_too_broad'

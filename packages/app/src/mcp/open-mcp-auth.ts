@@ -10,6 +10,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
 import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
 import { GRANT_SCOPES } from '../shared/grant-scope';
+import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildOwnerPlugin } from './build-owner-plugin';
 import { deriveTokenHash } from './derive-token-hash';
 import type { MCPAuthSchema } from './mcp-auth-schema';
@@ -27,13 +28,9 @@ interface MCPAuthOptions {
   readonly refreshReuseSeconds?: number;
 }
 
-// How long an approval page, its signed query, and an authorization code each
-// stay valid.
-const APPROVAL_SECONDS = 600;
-
 // The owner's session lives only to carry one approval from the code page
 // through consent to the code exchange, which every token detaches from.
-const OWNER_SESSION_SECONDS = 3 * APPROVAL_SECONDS;
+const OWNER_SESSION_SECONDS = 3 * APPROVAL_WINDOW_SECONDS;
 
 /**
  * Opens the authorization server's SQLite database and the better-auth
@@ -83,7 +80,7 @@ export async function openMCPAuth(options: MCPAuthOptions) {
     // atc serves one resource, so every client may request it.
     enforcePerClientResources: false,
     accessTokenExpiresIn: 3600,
-    codeExpiresIn: APPROVAL_SECONDS,
+    codeExpiresIn: APPROVAL_WINDOW_SECONDS,
     refreshTokenReuseInterval: options.refreshReuseSeconds ?? 0,
     storeTokens: { hash: (token: string) => Promise.resolve(deriveTokenHash(token)) },
   };
