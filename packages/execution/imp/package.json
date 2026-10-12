@@ -11,7 +11,9 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
-    "@zgeoff/imp-client": "catalog:"
+    "@zgeoff/imp-client": "catalog:",
+    "ts-pattern": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@atc/test-utils": "workspace:*",

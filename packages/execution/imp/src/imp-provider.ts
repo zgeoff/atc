@@ -22,14 +22,17 @@ import { buildSessionEnv } from '@atc/protocol/build-session-env';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { LineDecoder } from '@atc/protocol/line-decoder';
 import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
+import { z } from 'zod';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { buildImpName } from './build-imp-name';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpHarness } from './imp-harness';
 import type { ImpPort, ImpRelayConnection } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
 import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
 import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
+import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
 import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 
 /**
@@ -533,14 +536,7 @@ export class ImpProvider implements ExecutionProvider {
     }
 
     const ready = await this.port.runCommand(name, {
-      argv: [
-        'sh',
-        '-c',
-        'mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }',
-        'sh',
-        this.guest.dir,
-        this.guest.atc ?? '',
-      ],
+      argv: ['sh', '-c', READY_GUEST_DIR_SCRIPT, 'sh', this.guest.dir, this.guest.atc ?? ''],
     });
 
     if (ready.code === 0 || !installATC) {
@@ -648,13 +644,7 @@ export class ImpProvider implements ExecutionProvider {
     const binary = await Bun.file(atcBinary).bytes();
 
     const unpacked = await this.port.runCommand(name, {
-      argv: [
-        'sh',
-        '-c',
-        'mkdir -p "$1" && rm -f "$1/bin/atc" && tar -x -f - -C "$1"',
-        'sh',
-        this.guest.dir,
-      ],
+      argv: ['sh', '-c', INSTALL_GUEST_ATC_SCRIPT, 'sh', this.guest.dir],
       stdin: buildTarArchive([{ path: 'bin/atc', content: binary, mode: 0o755 }]),
     });
 
@@ -876,12 +866,17 @@ function buildBusyRefusal(name: string): DaemonError {
   );
 }
 
-function buildLeasedRefusal(name: string, data: unknown): DaemonError {
-  const record = typeof data === 'object' && data !== null ? data : {};
-  const leases = 'leases' in record && Array.isArray(record.leases) ? record.leases : [];
+// The leases that impd's refusal to suspend a leased imp holds: those the
+// caller may see, and a count of the others.
+const LEASED_SCHEMA = z.object({
+  leases: z.array(z.unknown()).optional(),
+  otherCount: z.number().optional(),
+});
 
-  const otherCount =
-    'otherCount' in record && typeof record.otherCount === 'number' ? record.otherCount : 0;
+function buildLeasedRefusal(name: string, data: unknown): DaemonError {
+  const parsed = LEASED_SCHEMA.safeParse(data);
+  const leases = parsed.data?.leases ?? [];
+  const otherCount = parsed.data?.otherCount ?? 0;
 
   return new DaemonError(
     'host_leased',

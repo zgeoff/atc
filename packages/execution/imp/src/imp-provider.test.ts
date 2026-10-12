@@ -20,8 +20,10 @@ import invariant from 'tiny-invariant';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpClientPort } from './imp-client-port';
 import { ImpProvider } from './imp-provider';
+import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
 import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
 import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
+import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
 import { buildMockImpIdentity } from './testing/build-mock-imp-identity';
 import { createStubImpPort } from './testing/create-stub-imp-port';
 import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
@@ -829,6 +831,8 @@ test.each([
   ['reads the guest atc versions', READ_GUEST_ATC_SCRIPT],
   ['links the guest atc', LINK_GUEST_ATC_SCRIPT],
   ['checks the guest atc', CHECK_GUEST_ATC_SCRIPT],
+  ['readies the guest folder', READY_GUEST_DIR_SCRIPT],
+  ['installs the guest atc', INSTALL_GUEST_ATC_SCRIPT],
 ])('it %s through a script that passes shellcheck', async (_label, script) => {
   const result = await runShellcheck(script);
 

@@ -1,5 +1,4 @@
 import { ansi } from '@atc/core/ansi';
-import { isRecord } from '@atc/core/is-record';
 import { truncateSummary } from '@atc/core/truncate-summary';
 import type {
   HarnessAttachment,
@@ -8,6 +7,8 @@ import type {
   LaunchTicket,
 } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
+import { P, match } from 'ts-pattern';
+import { z } from 'zod';
 import type {
   ImpExecRequirement,
   ImpPort,
@@ -568,44 +569,37 @@ export class ImpHarness implements HarnessHandle {
     this.applyOutcome(outcome, wasStarted);
   }
 
-  // A drop resumes at once only on a connection that had started, so a
-  // connection impd drops before it answers counts as a failed reconnect.
+  // impd closes a connection whose send it dropped under backpressure with
+  // 1011, and detaches a slow one: either resumes at once. A drop resumes at
+  // once only on a connection that had started, so a connection impd drops
+  // before it answers counts as a failed reconnect.
   private applyOutcome(outcome: ImpSessionOutcome, wasStarted: boolean): void {
-    if (outcome.kind === 'local_error') {
-      this.applyLocalError(outcome);
-
-      return;
+    if (outcome.kind !== 'local_error') {
+      this.localErrors = 0;
     }
 
-    this.localErrors = 0;
+    const dropDelay = wasStarted ? 0 : null;
 
-    if (outcome.kind === 'exit') {
-      this.emitExit({ exitCode: outcome.code ?? 1, reason: 'exited' });
-
-      return;
-    }
-
-    if (outcome.kind === 'failed') {
-      this.applyRefusal(outcome);
-
-      return;
-    }
-
-    if (outcome.kind === 'unauthorized' || outcome.kind === 'bad_message') {
-      this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
-
-      return;
-    }
-
-    // impd closes a connection whose send it dropped under backpressure
-    // with 1011, and detaches a slow one: either resumes at once.
-    const isDropped =
-      (outcome.kind === 'closed' && outcome.closeCode === 1011) ||
-      (outcome.kind === 'detached' && outcome.reason === 'slow');
-
-    const delay = isDropped && wasStarted ? 0 : null;
-
-    this.scheduleReconnect(outcome, delay);
+    match(outcome)
+      .with({ kind: 'local_error' }, (ended) => {
+        this.applyLocalError(ended);
+      })
+      .with({ kind: 'exit' }, (ended) => {
+        this.emitExit({ exitCode: ended.code ?? 1, reason: 'exited' });
+      })
+      .with({ kind: 'failed' }, (ended) => {
+        this.applyRefusal(ended);
+      })
+      .with({ kind: P.union('unauthorized', 'bad_message') }, (ended) => {
+        this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(ended) });
+      })
+      .with({ kind: 'closed', closeCode: 1011 }, { kind: 'detached', reason: 'slow' }, (ended) => {
+        this.scheduleReconnect(ended, dropDelay);
+      })
+      .with({ kind: P.union('closed', 'detached', 'unreachable') }, (ended) => {
+        this.scheduleReconnect(ended, null);
+      })
+      .exhaustive();
   }
 
   // A handler that throws on every connection would reconnect without end,
@@ -626,68 +620,61 @@ export class ImpHarness implements HarnessHandle {
   }
 
   private applyRefusal(outcome: Extract<ImpSessionOutcome, { kind: 'failed' }>): void {
-    if (outcome.code === 'INVALID_RESUME') {
-      this.fresh = true;
-      this.cursor = null;
+    match(outcome.code)
+      .with('INVALID_RESUME', () => {
+        this.fresh = true;
+        this.cursor = null;
 
-      this.scheduleReconnect(outcome, 0);
+        this.scheduleReconnect(outcome, 0);
+      })
+      .with('NO_SESSION', () => {
+        this.emitExit(buildLostExit(outcome.data, this.cursor));
+      })
+      .with('INVALID_STATE', () => {
+        this.emitExit(buildStateExit(outcome.data));
+      })
+      .with('PRECONDITION_FAILED', () => {
+        this.applyPreconditionRefusal(outcome);
+      })
+      .otherwise(() => {
+        this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
+      });
+  }
 
-      return;
-    }
+  // impd refuses a start whose broker is not ready. An exec with
+  // requirements is refused against an impd that would ignore them, by
+  // impd's client and the harness both.
+  private applyPreconditionRefusal(outcome: Extract<ImpSessionOutcome, { kind: 'failed' }>): void {
+    const data = parsePrecondition(outcome.data);
 
-    if (outcome.code === 'NO_SESSION') {
-      this.emitExit(buildLostExit(outcome.data, this.cursor));
+    match(data.reason)
+      .with('impd_outdated', () => {
+        this.startRefusal = new DaemonError(
+          'auth_impd_too_old',
+          `impd for imp ${this.name} does not honour exec requirements; upgrade it to 0.30.0 or later`,
+          { imp: this.name, execRequire: false },
+        );
 
-      return;
-    }
+        this.emitExit({
+          exitCode: 1,
+          reason: 'ended',
+          detail: 'impd too old to require the broker',
+        });
+      })
+      .with('broker_not_ready', () => {
+        const detail = data.detail ?? 'no detail';
 
-    if (outcome.code === 'INVALID_STATE') {
-      const state = isRecord(outcome.data) ? outcome.data['state'] : undefined;
+        this.startRefusal = new DaemonError(
+          'broker_not_ready',
+          `imp ${this.name} refused to start the harness: its credential broker is not ready (${detail})`,
+          { imp: this.name, detail },
+        );
 
-      const exit: HarnessExit =
-        state === 'sleeping'
-          ? { exitCode: 0, reason: 'suspended' }
-          : {
-              exitCode: 1,
-              reason: 'ended',
-              detail: `imp is ${typeof state === 'string' ? state : 'not running'}`,
-            };
-
-      this.emitExit(exit);
-
-      return;
-    }
-
-    if (outcome.code === 'PRECONDITION_FAILED' && isImpdOutdated(outcome.data)) {
-      this.startRefusal = new DaemonError(
-        'auth_impd_too_old',
-        `impd for imp ${this.name} does not honour exec requirements; upgrade it to 0.30.0 or later`,
-        { imp: this.name, execRequire: false },
-      );
-
-      this.emitExit({ exitCode: 1, reason: 'ended', detail: 'impd too old to require the broker' });
-
-      return;
-    }
-
-    if (outcome.code === 'PRECONDITION_FAILED' && isBrokerNotReady(outcome.data)) {
-      const detail =
-        isRecord(outcome.data) && typeof outcome.data['detail'] === 'string'
-          ? outcome.data['detail']
-          : 'no detail';
-
-      this.startRefusal = new DaemonError(
-        'broker_not_ready',
-        `imp ${this.name} refused to start the harness: its credential broker is not ready (${detail})`,
-        { imp: this.name, detail },
-      );
-
-      this.emitExit({ exitCode: 1, reason: 'ended', detail: `imp broker not ready (${detail})` });
-
-      return;
-    }
-
-    this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
+        this.emitExit({ exitCode: 1, reason: 'ended', detail: `imp broker not ready (${detail})` });
+      })
+      .otherwise(() => {
+        this.emitExit({ exitCode: 1, reason: 'ended', detail: formatOutcome(outcome) });
+      });
   }
 
   // A delay of null takes the next one from the host's list; running out of
@@ -874,16 +861,19 @@ export class ImpHarness implements HarnessHandle {
   }
 }
 
-// impd's refusal of a start whose broker is not ready.
-function isBrokerNotReady(data: unknown): boolean {
-  return isRecord(data) && data['reason'] === 'broker_not_ready';
-}
+// One of impd's cold boots, with what caused it.
+const COLD_BOOT_SCHEMA = z.object({ bootId: z.string().optional(), cause: z.string().optional() });
 
-// The refusal of an exec with requirements against an impd that would
-// ignore them, which impd's client and the harness both give.
-function isImpdOutdated(data: unknown): boolean {
-  return isRecord(data) && data['reason'] === 'impd_outdated';
-}
+// What ended a process impd no longer holds: the kept previous generation
+// of the same boot, and impd's cold boots, newest first. Data that does not
+// read is no evidence.
+const LOST_SCHEMA = z.object({
+  bootId: z.string().optional(),
+  previous: z
+    .object({ executionGeneration: z.string().optional(), exitCode: z.number().optional() })
+    .optional(),
+  coldBoots: z.array(COLD_BOOT_SCHEMA).optional(),
+});
 
 // What ended a process impd no longer holds. In the same boot, the kept
 // previous generation gives its exit. Across a cold boot, the first boot
@@ -893,39 +883,52 @@ function buildLostExit(
   data: unknown,
   cursor: Readonly<{ bootId: string; generation: string }> | null,
 ): HarnessExit {
-  const record = isRecord(data) ? data : {};
+  const parsed = LOST_SCHEMA.safeParse(data);
+  const lost = parsed.success ? parsed.data : {};
 
-  if (cursor !== null && record['bootId'] === cursor.bootId) {
-    const previous = record['previous'];
-    const isOwn = isRecord(previous) && previous['executionGeneration'] === cursor.generation;
-    const exitCode = isOwn && typeof previous['exitCode'] === 'number' ? previous['exitCode'] : 1;
+  if (cursor !== null && lost.bootId === cursor.bootId) {
+    const isOwn = lost.previous?.executionGeneration === cursor.generation;
 
     return isOwn
-      ? { exitCode, reason: 'exited' }
+      ? { exitCode: lost.previous?.exitCode ?? 1, reason: 'exited' }
       : { exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' };
   }
 
-  const boots = collectColdBoots(record['coldBoots']);
+  const boots = lost.coldBoots ?? [];
   const own = cursor === null ? -1 : boots.findIndex((boot) => boot.bootId === cursor.bootId);
   const next = own > 0 ? boots[own - 1] : undefined;
 
   return next === undefined
     ? { exitCode: 1, reason: 'ended', detail: 'ended, cause unknown' }
-    : { exitCode: 1, reason: 'ended', detail: `imp rebooted (${next.cause})` };
+    : { exitCode: 1, reason: 'ended', detail: `imp rebooted (${next.cause ?? 'unknown'})` };
 }
 
-// impd's cold boots, newest first, as far as each one reads.
-function collectColdBoots(value: unknown): { readonly bootId: unknown; readonly cause: string }[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
+// The state impd gives for an imp that cannot run the session.
+const IMP_STATE_SCHEMA = z.object({ state: z.string() });
 
-  return value
-    .filter((boot) => isRecord(boot))
-    .map((boot) => ({
-      bootId: boot['bootId'],
-      cause: typeof boot['cause'] === 'string' ? boot['cause'] : 'unknown',
-    }));
+// A sleeping imp suspends the session; any other state ends it.
+function buildStateExit(data: unknown): HarnessExit {
+  const parsed = IMP_STATE_SCHEMA.safeParse(data);
+  const state = parsed.success ? parsed.data.state : 'not running';
+
+  return state === 'sleeping'
+    ? { exitCode: 0, reason: 'suspended' }
+    : { exitCode: 1, reason: 'ended', detail: `imp is ${state}` };
+}
+
+// impd's reason for a refused precondition, and its detail, each read on its
+// own so a detail that is not text leaves the reason.
+const PRECONDITION_REASON_SCHEMA = z.object({ reason: z.string() });
+const PRECONDITION_DETAIL_SCHEMA = z.object({ detail: z.string() });
+
+function parsePrecondition(data: unknown): { reason?: string; detail?: string } {
+  const reason = PRECONDITION_REASON_SCHEMA.safeParse(data);
+  const detail = PRECONDITION_DETAIL_SCHEMA.safeParse(data);
+
+  return {
+    ...(reason.success && { reason: reason.data.reason }),
+    ...(detail.success && { detail: detail.data.detail }),
+  };
 }
 
 // A refusal's message as detail a session list row can hold: credentials
@@ -941,37 +944,26 @@ function buildSafeDetail(message: string): string {
 
 // An end other than an exit, as a session's last message.
 function formatOutcome(outcome: Exclude<ImpSessionOutcome, { kind: 'exit' }>): string {
-  if (outcome.kind === 'failed') {
-    const code = outcome.code ?? 'error';
-    const detail = buildSafeDetail(outcome.message);
+  return match(outcome)
+    .with({ kind: 'failed' }, (ended) => {
+      const code = ended.code ?? 'error';
+      const detail = buildSafeDetail(ended.message);
 
-    const line =
-      detail === ''
-        ? `imp refused the session (${code})`
-        : `imp refused the session (${code}): ${detail}`;
+      const line =
+        detail === ''
+          ? `imp refused the session (${code})`
+          : `imp refused the session (${code}): ${detail}`;
 
-    return truncateSummary(line);
-  }
-
-  if (outcome.kind === 'detached') {
-    return `imp detached the session (${outcome.reason})`;
-  }
-
-  if (outcome.kind === 'closed') {
-    return `imp connection closed (${outcome.reason})`;
-  }
-
-  if (outcome.kind === 'unreachable') {
-    return 'imp unreachable';
-  }
-
-  if (outcome.kind === 'unauthorized') {
-    return 'imp refused the token';
-  }
-
-  if (outcome.kind === 'local_error') {
-    return `imp connection failed in the daemon (${outcome.detail})`;
-  }
-
-  return 'imp sent a bad message';
+      return truncateSummary(line);
+    })
+    .with({ kind: 'detached' }, (ended) => `imp detached the session (${ended.reason})`)
+    .with({ kind: 'closed' }, (ended) => `imp connection closed (${ended.reason})`)
+    .with({ kind: 'unreachable' }, () => 'imp unreachable')
+    .with({ kind: 'unauthorized' }, () => 'imp refused the token')
+    .with(
+      { kind: 'local_error' },
+      (ended) => `imp connection failed in the daemon (${ended.detail})`,
+    )
+    .with({ kind: 'bad_message' }, () => 'imp sent a bad message')
+    .exhaustive();
 }
