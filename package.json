@@ -71,6 +71,7 @@
     "lint": "oxlint",
     "lint:files": "oxlint",
     "lint:fix": "oxlint --fix",
+    "lint:shell": "git ls-files -z '*.sh' ':!.claude/**' | xargs -0 sh -c 'shellcheck \"$@\" && shfmt -d \"$@\"' sh",
     "lint:full": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error",
     "test": "bash scripts/with-test-home.sh bun test --parallel --timings=bun-test-timings.json",
     "test:related": "bun scripts/run-related-tests.ts",

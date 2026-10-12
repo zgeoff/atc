@@ -1,11 +1,12 @@
 # Development
 
-atc is one Bun package with no workspaces. The repo's [AGENTS.md](../../AGENTS.md) holds the layout
-and the runtime rules, and this runbook covers setting up a checkout and running it.
+atc is a Bun workspace with the app in `packages/app`. The repo's [AGENTS.md](../../AGENTS.md) holds
+the layout and the runtime rules, and this runbook covers setting up a checkout and running it.
 
 ## Setting up
 
-1. Install the Bun version in `.bun-version`, and gitleaks, which the pre-commit hook runs.
+1. Install the Bun version in `.bun-version`, gitleaks, which the pre-commit hook runs, and
+   shellcheck and shfmt, which the pre-push hook runs.
 2. Install the dependencies. The `prepare` script installs the lefthook git hooks:
 
    ```bash
@@ -23,8 +24,11 @@ and the runtime rules, and this runbook covers setting up a checkout and running
    `bun run lint:full` runs the type-aware lint, and runs in CI only.
 
 lefthook runs oxlint, oxfmt, format-codemod and gitleaks on the staged files before a commit, and
-commitlint on the message. Before a push it runs the format check, the import check, and the lint
-and tests for what the branch changes, one job at a time, to bound memory.
+commitlint on the message. Before a push it runs the format check, the shell lint, the import check,
+and the lint and tests for what the branch changes, one job at a time, to bound memory. The shell
+lint (`bun run lint:shell`) runs shellcheck and `shfmt -d` over the tracked shell scripts, with
+shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are synced from another
+repo.
 
 ## Running from source
 
@@ -61,7 +65,9 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 | `bun run test:timings`        | the suite, rewriting the timings that balance the CI shards          |
 
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
-regenerates the mod's embedded copy after a change to `mods/atc-bridge/`.
+regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`
+records `docs/assets/demo.gif` against an isolated daemon, and needs vhs, ttyd, ffmpeg, zoxide and a
+signed-in `claude`.
 
 ## Checking a change to the agent integration
 
