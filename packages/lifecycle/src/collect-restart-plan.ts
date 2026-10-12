@@ -6,16 +6,16 @@ import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { pickStaleDaemonPID } from '@atc/lifecycle/pick-stale-daemon-pid';
-import { findRestartUnit } from '@atc/lifecycle/find-restart-unit';
-import { isDaemonProcess } from '@atc/lifecycle/is-daemon-process';
-import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from '@atc/lifecycle/restart-plan';
-import { runSystemctl } from '@atc/lifecycle/run-systemctl';
-import { buildATCCommand } from '@atc/lifecycle/build-atc-command';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { findPidFilePID } from '@atc/lifecycle/find-pid-file-pid';
-import { getATCBuild } from './shared/get-atc-build';
-import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
+import type { ATCInvocation } from './atc-invocation';
+import { buildATCCommand } from './build-atc-command';
+import { findDaemonRecord } from './find-daemon-record';
+import { findPidFilePID } from './find-pid-file-pid';
+import { findRestartUnit } from './find-restart-unit';
+import { isDaemonProcess } from './is-daemon-process';
+import { isProcessAlive } from './is-process-alive';
+import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
+import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
+import { runSystemctl } from './run-systemctl';
 
 // How long the handshake and the session list may take together.
 const PROBE_DEADLINE_MS = 3000;
@@ -31,9 +31,11 @@ interface Probe {
  * without changing either. The daemon answers on the socket this
  * environment computes or the one its record in the state directory holds,
  * and a handshake that its protocol refuses still identifies it. The probe's
- * time limit runs on the clock.
+ * time limit runs on the clock, and the probe and a plain replacement take
+ * this build's stamp and argv from the invocation.
  */
 export async function collectRestartPlan(
+  invocation: ATCInvocation,
   callerSession: string | null,
   clock: Clock = systemClock,
 ): Promise<RestartPlan> {
@@ -44,7 +46,7 @@ export async function collectRestartPlan(
   let probe: Probe | null = null;
 
   for (const path of paths) {
-    probe = await tryProbe(path, clock);
+    probe = await tryProbe(path, invocation.readBuild(), clock);
 
     if (probe !== null) {
       break;
@@ -67,7 +69,7 @@ export async function collectRestartPlan(
     answer: probe?.answer ?? null,
     sessions: probe?.sessions ?? null,
     callerSession,
-    replacement: await planReplacement(pid),
+    replacement: await planReplacement(pid, invocation),
   };
 }
 
@@ -79,11 +81,18 @@ function pickLivePID(...candidates: readonly (number | null)[]): number | null {
   );
 }
 
-async function planReplacement(pid: number | null): Promise<ReplacementPlan> {
+async function planReplacement(
+  pid: number | null,
+  invocation: ATCInvocation,
+): Promise<ReplacementPlan> {
   const unit = pid === null ? null : await findRestartUnit(pid);
 
   if (unit === null) {
-    return { kind: 'plain', build: getATCBuild(), command: buildATCCommand(['daemon']).join(' ') };
+    return {
+      kind: 'plain',
+      build: invocation.readBuild(),
+      command: buildATCCommand(invocation.argv, ['daemon']).join(' '),
+    };
   }
 
   const shown = await runSystemctl(['show', '-p', 'ExecStart', '--value', unit]);
@@ -97,7 +106,7 @@ async function planReplacement(pid: number | null): Promise<ReplacementPlan> {
   };
 }
 
-async function tryProbe(socketPath: string, clock: Clock): Promise<Probe | null> {
+async function tryProbe(socketPath: string, build: string, clock: Clock): Promise<Probe | null> {
   let client: DaemonClient;
 
   try {
@@ -113,17 +122,17 @@ async function tryProbe(socketPath: string, clock: Clock): Promise<Probe | null>
   }, PROBE_DEADLINE_MS);
 
   try {
-    const hello = await client.sendHello(getATCBuild(), {
+    const hello = await client.sendHello(build, {
       session: readSessionEnv(process.env).sessionID,
     });
 
-    const build = hello['daemon'];
+    const daemonBuild = hello['daemon'];
 
     return {
       socketPath,
       answer: {
         kind: 'ok',
-        build: typeof build === 'string' ? build : 'unknown',
+        build: typeof daemonBuild === 'string' ? daemonBuild : 'unknown',
         protocol: PROTOCOL_V,
       },
       sessions: await tryListSessions(client),

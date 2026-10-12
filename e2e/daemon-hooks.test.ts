@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 import type { EventMsg } from '@atc/protocol/protocol';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubCodex } from '@atc/test-utils/create-stub-codex';
@@ -15,7 +16,6 @@ import { runATC } from '@atc/test-utils/run-atc';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { waitForEvent } from '@atc/test-utils/wait-for-event';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 
 /**
  * A home with stub Claude, Grok, and Codex CLIs for the `atc daemon` that

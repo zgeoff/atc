@@ -2,18 +2,18 @@ import { resolve } from 'node:path';
 import { dbFile } from '@atc/config/config';
 import { loadListenerTokens } from '@atc/config/load-listener-tokens';
 import { readStoredFleetFile } from '@atc/store/snapshot/read-stored-fleet-file';
-import { buildOwnDaemonProcess } from '@atc/lifecycle/build-own-daemon-process';
-import { buildRestartFailure } from '@atc/lifecycle/build-restart-failure';
+import type { ATCInvocation } from './atc-invocation';
+import { buildOwnDaemonProcess } from './build-own-daemon-process';
+import { buildRestartFailure } from './build-restart-failure';
 import { collectRestartPlan } from './collect-restart-plan';
-import { formatRestartPreflight } from '@atc/lifecycle/format-restart-preflight';
-import type { RestartResult } from '@atc/lifecycle/parse-restart-result';
-import { readDaemonProcess } from '@atc/lifecycle/read-daemon-process';
+import { formatRestartPreflight } from './format-restart-preflight';
+import type { RestartResult } from './parse-restart-result';
+import { readDaemonProcess } from './read-daemon-process';
 import { readFleetSnapshot } from './read-fleet-snapshot';
-import { runSystemctl } from '@atc/lifecycle/run-systemctl';
-import { getATCBuild } from './shared/get-atc-build';
-import { startReplacementDaemon } from '@atc/lifecycle/start-replacement-daemon';
-import { stopDaemonProcess } from '@atc/lifecycle/stop-daemon-process';
-import { verifyRestoredFleet } from '@atc/lifecycle/verify-restored-fleet';
+import { runSystemctl } from './run-systemctl';
+import { startReplacementDaemon } from './start-replacement-daemon';
+import { stopDaemonProcess } from './stop-daemon-process';
+import { verifyRestoredFleet } from './verify-restored-fleet';
 import { waitForReplacement } from './wait-for-replacement';
 
 export interface RestartOptions {
@@ -30,9 +30,16 @@ const START_WAIT_MS = 30_000;
  * Stops the running daemon, starts exactly one in its place, restores the
  * stored fleet on it, and reports what came back. The preflight prints
  * before anything stops. A failure on the way is a result, never a throw.
+ * The replacement runs through the invocation's argv, and every handshake
+ * sends the build it reads.
  */
-export async function restartDaemon(options: RestartOptions): Promise<RestartResult> {
-  const plan = await collectRestartPlan(options.callerSession);
+export async function restartDaemon(
+  invocation: ATCInvocation,
+  options: RestartOptions,
+): Promise<RestartResult> {
+  const plan = await collectRestartPlan(invocation, options.callerSession);
+
+  const clientBuild = invocation.readBuild();
 
   for (const line of formatRestartPreflight(plan)) {
     console.log(line);
@@ -47,7 +54,7 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
   // build cannot speak to is read from its database instead.
   const snapshot =
     (plan.answer?.kind === 'ok' && plan.socketPath !== null
-      ? await readFleetSnapshot(plan.socketPath)
+      ? await readFleetSnapshot(plan.socketPath, clientBuild)
       : null) ?? readStoredFleetFile(dbFile);
 
   if (snapshot === null) {
@@ -72,7 +79,7 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
       return buildFailure(`systemctl restart ${plan.replacement.unit} failed: ${restarted.stderr}`);
     }
   } else {
-    expectedBuild = getATCBuild();
+    expectedBuild = clientBuild;
 
     const old = plan.pid === null ? buildOwnDaemonProcess() : readDaemonProcess(plan.pid);
 
@@ -108,10 +115,13 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
       console.log(stoppedLine);
     }
 
-    startReplacementDaemon(old, { listen: options.listen, tokenFile: options.tokenFile });
+    startReplacementDaemon(invocation.argv, old, {
+      listen: options.listen,
+      tokenFile: options.tokenFile,
+    });
   }
 
-  const replacement = await waitForReplacement(plan.pid, expectedBuild, START_WAIT_MS);
+  const replacement = await waitForReplacement(plan.pid, clientBuild, expectedBuild, START_WAIT_MS);
 
   if (!replacement.ok) {
     return buildFailure(replacement.reason);

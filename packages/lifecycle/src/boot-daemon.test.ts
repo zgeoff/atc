@@ -2,15 +2,11 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { StateStore } from '@atc/store/state-store';
 import { readJSONRecord } from '@atc/test-utils/read-json-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
 import { startStubUnansweringUnixListener } from '@atc/test-utils/start-stub-unanswering-unix-listener';
-import { startDaemon } from '../daemon/daemon';
-import { getATCBuild } from '../shared/get-atc-build';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { bootDaemonClient } from './boot-daemon';
 
 /**
@@ -18,7 +14,7 @@ import { bootDaemonClient } from './boot-daemon';
  * runtime directory, so the client computes `sockPath` as the daemon's
  * socket and `stateDir` as the daemon's state directory. The client reads
  * those paths once at import, so each test boots it in a subprocess with
- * `env`.
+ * `env`. The cases that boot a real daemon run end to end.
  */
 function setupTest() {
   const tmp = setupTempDir('atc-boot-daemon-');
@@ -35,160 +31,13 @@ function setupTest() {
   };
 }
 
-test('it makes a CLI client wait for an installed daemon unit before connecting', async () => {
-  const ctx = setupTest();
-  const unitDir = join(ctx.dir, '.config', 'systemd', 'user');
-
-  mkdirSync(unitDir, { recursive: true });
-  writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
-
-  const probe = join(ctx.dir, 'probe.ts');
-
-  writeFileSync(
-    probe,
-    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-const boot = await bootDaemonClient();
-boot.client.stop();
-console.log('connected');
-`,
-  );
-
-  const proc = Bun.spawn([process.execPath, probe], {
-    env: ctx.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  registerTestCleanup(() => {
-    proc.kill();
-  });
-
-  const reader = proc.stderr.getReader();
-
-  const message = await reader.read();
-
-  reader.releaseLock();
-
-  const waiting = new TextDecoder().decode(message.value);
-
-  const autostarted = existsSync(join(ctx.stateDir, 'atc.db'));
-
-  const daemon = await startDaemon({
-    socketPath: ctx.sockPath,
-    reporterSocketPath: join(ctx.dir, 'atc.sock'),
-    dbPath: join(ctx.stateDir, 'atc.db'),
-    statusPath: join(ctx.stateDir, 'status.json'),
-    build: getATCBuild(),
-    adapter: buildMockAgentAdapter(),
-  });
-
-  registerTestCleanup(() => daemon.stop());
-
-  const stdout = await new Response(proc.stdout).text();
-
-  const code = await proc.exited;
-
-  expect(code).toBe(0);
-  expect(stdout).toBe('connected\n');
-  expect(waiting).toBe('waiting for atc-daemon.service; this client does not start a daemon\n');
-  expect(autostarted).toBe(false);
-});
-
-test('it reports a codex hello as the last-used agent instead of coercing it to claude', async () => {
-  const ctx = setupTest();
-
-  const store = await StateStore.open(join(ctx.dir, 'state.db'));
-
-  registerTestCleanup(() => store.stop());
-
-  await store.writeLastUsedAgent('codex');
-
-  const daemon = await startDaemon({
-    socketPath: ctx.sockPath,
-    reporterSocketPath: join(ctx.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: buildMockAgentAdapter(),
-    dbPath: join(ctx.dir, 'state.db'),
-    statusPath: join(ctx.dir, 'status.json'),
-  });
-
-  registerTestCleanup(() => daemon.stop());
-
-  writeFileSync(
-    join(ctx.dir, 'probe.ts'),
-    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-const boot = await bootDaemonClient();
-process.stdout.write(JSON.stringify({ lastUsedAgent: boot.lastUsedAgent }));
-boot.client.stop();
-`,
-  );
-
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
-    env: ctx.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  registerTestCleanup(() => {
-    proc.kill();
-  });
-
-  const stdout = await new Response(proc.stdout).text();
-
-  await proc.exited;
-
-  expect(JSON.parse(stdout)).toStrictEqual({ lastUsedAgent: 'codex' });
-});
-
-test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR is unset', async () => {
-  const ctx = setupTest();
-
-  mkdirSync(join(ctx.dir, 'run'));
-
-  const daemon = await startDaemon({
-    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
-    build: 'atc/test-build',
-    adapter: buildMockAgentAdapter(),
-    dbPath: join(ctx.stateDir, 'atc.db'),
-    statusPath: join(ctx.stateDir, 'status.json'),
-  });
-
-  registerTestCleanup(() => daemon.stop());
-
-  writeFileSync(
-    join(ctx.dir, 'probe.ts'),
-    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-const boot = await bootDaemonClient();
-process.stdout.write(JSON.stringify({ socketPath: boot.socketPath }));
-boot.client.stop();
-`,
-  );
-
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
-    env: { ...ctx.env, XDG_RUNTIME_DIR: undefined },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  registerTestCleanup(() => {
-    proc.kill();
-  });
-
-  const stdout = await new Response(proc.stdout).text();
-
-  await proc.exited;
-
-  expect(JSON.parse(stdout)).toStrictEqual({ socketPath: join(ctx.dir, 'run', 'atc-daemon.sock') });
-});
-
 test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
   const ctx = setupTest();
 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      join(import.meta.dir, '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -205,10 +54,11 @@ test('it leaves a daemon on another protocol running and rejects with both build
 
   const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
 
+  // The argv starts nothing, so a boot that tried to start a daemon fails.
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-const outcome = await bootDaemonClient().then(
+const outcome = await bootDaemonClient({ argv: ['false'], readBuild: () => 'atc/test-build' }).then(
   (boot) => { boot.client.stop(); return { booted: true }; },
   (error) => ({ code: error.code, message: error.message }),
 );
@@ -243,70 +93,12 @@ process.exit(0);
   expect(JSON.parse(stdout)).toStrictEqual({
     code: 'protocol_mismatch',
     message: [
-      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, ${getATCBuild()} on protocol v${PROTOCOL_V}.`,
-      `The daemon answered: ${getATCBuild()} speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, atc/test-build on protocol v${PROTOCOL_V}.`,
+      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
     ].join('\n'),
   });
-});
-
-test('it stops a daemon on another protocol and boots its own build when the caller confirms the restart', async () => {
-  const ctx = setupTest();
-
-  const legacy = Bun.spawn(
-    [
-      process.execPath,
-      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
-      ctx.sockPath,
-      ctx.stateDir,
-    ],
-    { env: ctx.env, stdout: 'pipe', stderr: 'inherit' },
-  );
-
-  registerTestCleanup(async () => {
-    legacy.kill('SIGTERM');
-
-    await legacy.exited;
-  });
-
-  await legacy.stdout.getReader().read();
-
-  // The probe quits the daemon it booted, so nothing outlives the test.
-  writeFileSync(
-    join(ctx.dir, 'probe.ts'),
-    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-const asked = [];
-const boot = await bootDaemonClient({
-  onProtocolMismatch: (mismatch) => { asked.push(mismatch.daemonPID); return Promise.resolve(true); },
-});
-await boot.client.sendRequest('daemon.quit');
-boot.client.stop();
-process.stdout.write(JSON.stringify({ asked, stale: boot.stale }));
-process.exit(0);
-`,
-  );
-
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
-    env: ctx.env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-
-  registerTestCleanup(() => {
-    proc.kill();
-  });
-
-  const stdout = await new Response(proc.stdout).text();
-
-  await proc.exited;
-  await legacy.exited;
-
-  const out = await readJSONRecord(new Response(stdout));
-
-  expect(out['asked']).toStrictEqual([legacy.pid]);
-  expect(out['stale']).toBe(false);
-  expect(legacy.signalCode).toBe('SIGTERM');
 });
 
 test('it leaves a daemon on another protocol running and rejects when the caller declines the restart', async () => {
@@ -315,7 +107,7 @@ test('it leaves a daemon on another protocol running and rejects when the caller
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      join(import.meta.dir, '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -336,7 +128,7 @@ test('it leaves a daemon on another protocol running and rejects when the caller
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 const asked = [];
-const outcome = await bootDaemonClient({
+const outcome = await bootDaemonClient({ argv: ['false'], readBuild: () => 'atc/test-build' }, {
   onProtocolMismatch: (mismatch) => { asked.push(mismatch.daemonPID); return Promise.resolve(false); },
 }).then(
   (boot) => { boot.client.stop(); return { booted: true }; },
@@ -382,7 +174,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      join(import.meta.dir, '..', '..', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
       ctx.sockPath,
       ctx.stateDir,
     ],
@@ -405,7 +197,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
 const asked = [];
-const outcome = await bootDaemonClient({
+const outcome = await bootDaemonClient({ argv: ['false'], readBuild: () => 'atc/test-build' }, {
   onProtocolMismatch: (mismatch) => { asked.push(mismatch.daemonPID); return Promise.resolve(true); },
 }).then(
   (boot) => { boot.client.stop(); return { booted: true }; },
@@ -454,11 +246,11 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-import { buildStubClock } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
-import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
+import { buildStubClock } from '${join(import.meta.dir, '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 const notices = [];
-const booting = bootDaemonClient({
+const booting = bootDaemonClient({ argv: ['false'], readBuild: () => 'atc/test-build' }, {
   waitForDaemonMs: 300,
   clock,
   onWaitForDaemon: () => { notices.push('waiting without starting a daemon'); },
@@ -521,10 +313,10 @@ test('it rejects when a socket takes the connection but never answers the handsh
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-import { buildStubClock } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
-import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
+import { buildStubClock } from '${join(import.meta.dir, '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
-const booting = bootDaemonClient({ waitForDaemonMs: 300, clock });
+const booting = bootDaemonClient({ argv: ['false'], readBuild: () => 'atc/test-build' }, { waitForDaemonMs: 300, clock });
 const step = await waitFor(() => {
   const [pending] = clock.collectPending();
   if (pending === undefined) throw new Error('no handshake wait is pending');
@@ -573,11 +365,11 @@ test('it reports the start of a wait once across every poll of that wait', async
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-import { buildStubClock } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
-import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
+import { buildStubClock } from '${join(import.meta.dir, '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
+import { waitFor } from '${join(import.meta.dir, '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 let waits = 0;
-const booting = bootDaemonClient({ waitForDaemonMs: 500, clock, onWaitForDaemon: () => { waits += 1; } });
+const booting = bootDaemonClient({ argv: ['false'], readBuild: () => 'atc/test-build' }, { waitForDaemonMs: 500, clock, onWaitForDaemon: () => { waits += 1; } });
 const steps = [];
 for (let poll = 0; poll < 5; poll++) {
   steps.push(await waitFor(() => {
@@ -615,89 +407,21 @@ process.exit(0);
   );
 });
 
-test('it never reports a wait when a daemon answers on the first try', async () => {
-  const ctx = setupTest();
-
-  const daemon = await startDaemon({
-    socketPath: ctx.sockPath,
-    reporterSocketPath: join(ctx.dir, 'reporter.sock'),
-    build: 'atc/test-build',
-    adapter: buildMockAgentAdapter(),
-    dbPath: join(ctx.dir, 'state.db'),
-    statusPath: join(ctx.dir, 'status.json'),
-  });
-
-  registerTestCleanup(() => daemon.stop());
-
-  writeFileSync(
-    join(ctx.dir, 'probe.ts'),
-    `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-let waits = 0;
-const boot = await bootDaemonClient({ waitForDaemonMs: 2000, onWaitForDaemon: () => { waits += 1; } });
-boot.client.stop();
-process.stdout.write(JSON.stringify({ waits }));
-process.exit(0);
-`,
-  );
-
-  const proc = Bun.spawn([process.execPath, join(ctx.dir, 'probe.ts')], {
-    env: ctx.env,
-    stdout: 'pipe',
-    stderr: 'ignore',
-  });
-
-  registerTestCleanup(() => {
-    proc.kill();
-  });
-
-  const stdout = await new Response(proc.stdout).text();
-
-  expect(JSON.parse(stdout)).toStrictEqual({ waits: 0 });
-});
-
-test('it finds a running daemon through the record at the paths it is given', async () => {
-  const ctx = setupTest();
-
-  mkdirSync(join(ctx.dir, 'run'));
-
-  const daemon = await startDaemon({
-    socketPath: join(ctx.dir, 'run', 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.dir, 'run', 'atc.sock'),
-    build: 'atc/test-build',
-    adapter: buildMockAgentAdapter(),
-    dbPath: join(ctx.stateDir, 'atc.db'),
-    statusPath: join(ctx.stateDir, 'status.json'),
-  });
-
-  registerTestCleanup(() => daemon.stop());
-
-  const boot = await bootDaemonClient({
-    paths: {
-      socketPath: join(ctx.dir, 'elsewhere', 'atc-daemon.sock'),
-      recordFile: join(ctx.stateDir, 'daemon.json'),
-      pidFile: join(ctx.dir, 'elsewhere', 'atc-daemon.pid'),
-    },
-  });
-
-  registerTestCleanup(() => {
-    boot.client.stop();
-  });
-
-  expect(boot.socketPath).toBe(join(ctx.dir, 'run', 'atc-daemon.sock'));
-});
-
 test('it rejects with the socket path it is given when a wait finds no daemon there', () => {
   const ctx = setupTest();
 
   expect(
-    bootDaemonClient({
-      waitForDaemonMs: 0,
-      paths: {
-        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
-        recordFile: join(ctx.dir, 'given', 'daemon.json'),
-        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+    bootDaemonClient(
+      { argv: ['false'], readBuild: () => 'atc/test-build' },
+      {
+        waitForDaemonMs: 0,
+        paths: {
+          socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+          recordFile: join(ctx.dir, 'given', 'daemon.json'),
+          pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+        },
       },
-    }),
+    ),
   ).rejects.toThrowWithMessage(
     Error,
     `no atc daemon answered at ${join(ctx.dir, 'given', 'atc-daemon.sock')} within 0s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
@@ -708,13 +432,16 @@ test('it rejects at once, saying a boot given its own paths starts no daemon, wh
   const ctx = setupTest();
 
   expect(
-    bootDaemonClient({
-      paths: {
-        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
-        recordFile: join(ctx.dir, 'given', 'daemon.json'),
-        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+    bootDaemonClient(
+      { argv: ['false'], readBuild: () => 'atc/test-build' },
+      {
+        paths: {
+          socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+          recordFile: join(ctx.dir, 'given', 'daemon.json'),
+          pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+        },
       },
-    }),
+    ),
   ).rejects.toThrowWithMessage(
     Error,
     `no atc daemon answered at ${join(ctx.dir, 'given', 'atc-daemon.sock')}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`,
@@ -729,13 +456,16 @@ test('it reads the pid of a daemon on another protocol from the pid file at the 
   writeFileSync(join(ctx.dir, 'given', 'atc-daemon.pid'), '4242');
 
   expect(
-    bootDaemonClient({
-      paths: {
-        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
-        recordFile: join(ctx.dir, 'given', 'daemon.json'),
-        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+    bootDaemonClient(
+      { argv: ['false'], readBuild: () => 'atc/test-build' },
+      {
+        paths: {
+          socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+          recordFile: join(ctx.dir, 'given', 'daemon.json'),
+          pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+        },
       },
-    }),
+    ),
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: expect.toStartWith(
@@ -762,13 +492,16 @@ test('it reads the pid of a daemon on another protocol from the record at the pa
   );
 
   expect(
-    bootDaemonClient({
-      paths: {
-        socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
-        recordFile: join(ctx.dir, 'given', 'daemon.json'),
-        pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+    bootDaemonClient(
+      { argv: ['false'], readBuild: () => 'atc/test-build' },
+      {
+        paths: {
+          socketPath: join(ctx.dir, 'given', 'atc-daemon.sock'),
+          recordFile: join(ctx.dir, 'given', 'daemon.json'),
+          pidFile: join(ctx.dir, 'given', 'atc-daemon.pid'),
+        },
       },
-    }),
+    ),
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: expect.toStartWith(

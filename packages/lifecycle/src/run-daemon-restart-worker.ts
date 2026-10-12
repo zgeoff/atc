@@ -1,14 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { restartLockFile, restartsDir } from '@atc/config/config';
-import { buildRestartFailure } from '@atc/lifecycle/build-restart-failure';
-import { formatRestartReport } from '@atc/lifecycle/format-restart-report';
-import type { RestartResult } from '@atc/lifecycle/parse-restart-result';
-import { readRestartResult } from '@atc/lifecycle/read-restart-result';
-import { removeRestartResult } from '@atc/lifecycle/remove-restart-result';
+import type { ATCInvocation } from './atc-invocation';
+import { buildRestartFailure } from './build-restart-failure';
+import { claimDaemonLock } from './claim-daemon-lock';
+import { formatRestartReport } from './format-restart-report';
+import type { RestartResult } from './parse-restart-result';
+import { readRestartResult } from './read-restart-result';
+import { removeRestartResult } from './remove-restart-result';
 import { restartDaemon } from './restart-daemon';
 import type { RestartOptions } from './restart-daemon';
-import { claimDaemonLock } from '@atc/lifecycle/claim-daemon-lock';
-import { writeRestartResult } from '@atc/lifecycle/write-restart-result';
+import { writeRestartResult } from './write-restart-result';
 
 // How long a restart that finds another in flight waits for it to finish.
 const JOIN_WAIT_MS = 15 * 60_000;
@@ -20,7 +21,10 @@ const JOIN_WAIT_MS = 15 * 60_000;
  * daemon. Prints each step to stdout, which the caller follows in the run
  * log, and ends the log with the result record. Resolves the exit code.
  */
-export async function runDaemonRestartWorker(options: RestartOptions): Promise<number> {
+export async function runDaemonRestartWorker(
+  invocation: ATCInvocation,
+  options: RestartOptions,
+): Promise<number> {
   console.log(`worker pid ${process.pid}`);
 
   mkdirSync(restartsDir, { recursive: true });
@@ -37,7 +41,7 @@ export async function runDaemonRestartWorker(options: RestartOptions): Promise<n
       // an earlier restart must not outlive this run's start.
       removeRestartResult();
 
-      result = await restartDaemon(options).catch((error: unknown) => {
+      result = await restartDaemon(invocation, options).catch((error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);
 
         return buildRestartFailure(options.runID, reason);

@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
 import { toAgentID } from '@atc/core/to-agent-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
@@ -17,8 +19,6 @@ import { runATC } from '@atc/test-utils/run-atc';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 
 /**
  * A home with a stub Claude CLI and an empty config directory, and a fake

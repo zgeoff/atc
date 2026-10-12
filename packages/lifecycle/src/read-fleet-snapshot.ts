@@ -2,16 +2,19 @@ import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { readStoredRows } from '@atc/store/snapshot/read-stored-rows';
 import type { StoredRow } from '@atc/store/snapshot/read-stored-rows';
-import { getATCBuild } from './shared/get-atc-build';
 
 const SNAPSHOT_DEADLINE_MS = 3000;
 
 /**
- * Reads the stored fleet rows from the daemon at this socket, or null when
- * it does not answer in time. The restart takes this before it stops the
- * daemon, so the rows keep their original exit status.
+ * Reads the stored fleet rows from the daemon at this socket, handshaking
+ * with this client's build, or null when it does not answer in time. The
+ * restart takes this before it stops the daemon, so the rows keep their
+ * original exit status.
  */
-export async function readFleetSnapshot(socketPath: string): Promise<StoredRow[] | null> {
+export async function readFleetSnapshot(
+  socketPath: string,
+  build: string,
+): Promise<StoredRow[] | null> {
   let client: DaemonClient;
 
   try {
@@ -25,7 +28,7 @@ export async function readFleetSnapshot(socketPath: string): Promise<StoredRow[]
   }, SNAPSHOT_DEADLINE_MS);
 
   try {
-    await client.sendHello(getATCBuild(), { session: readSessionEnv(process.env).sessionID });
+    await client.sendHello(build, { session: readSessionEnv(process.env).sessionID });
 
     return await readStoredRows(client);
   } catch {

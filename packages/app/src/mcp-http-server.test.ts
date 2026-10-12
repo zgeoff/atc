@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { bootDaemonClient } from '@atc/lifecycle/boot-daemon';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
@@ -49,6 +50,7 @@ test('it serves MCP through the daemon it boots and says no client can connect y
   await runMCPHTTPServer(
     'atc/test-build',
     { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    (options) => bootDaemonClient({ argv: ['atc'], readBuild: () => 'atc/test-build' }, options),
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
@@ -103,6 +105,7 @@ test('it prints no hint to add a client once one can connect', async () => {
   await runMCPHTTPServer(
     'atc/test-build',
     { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    (options) => bootDaemonClient({ argv: ['atc'], readBuild: () => 'atc/test-build' }, options),
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
@@ -138,6 +141,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
   await runMCPHTTPServer(
     'atc/test-build',
     { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    (options) => bootDaemonClient({ argv: ['atc'], readBuild: () => 'atc/test-build' }, options),
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
@@ -177,6 +181,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
   await runMCPHTTPServer(
     'atc/test-build',
     { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    (options) => bootDaemonClient({ argv: ['atc'], readBuild: () => 'atc/test-build' }, options),
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: ctx.dbPath,
@@ -218,6 +223,7 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
   await runMCPHTTPServer(
     'atc/test-build',
     { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    (options) => bootDaemonClient({ argv: ['atc'], readBuild: () => 'atc/test-build' }, options),
     {
       loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
       dbPath: join(tmp.dir, 'mcp-auth.db'),

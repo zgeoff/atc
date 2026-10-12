@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
 import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
+import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();

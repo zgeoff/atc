@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
+import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
-import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();

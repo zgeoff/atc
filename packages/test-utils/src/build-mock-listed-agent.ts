@@ -3,15 +3,16 @@ import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 
+type ListedAgentOverrides = MockOverrides<AgentEntry, keyof AgentEntry>;
+
 /**
  * An agent as the `agents.list` answer shows it: a Claude agent that is not
  * installed, so it cannot start a session, with no models and no supported
  * spawn options. The id and label are arbitrary. Overrides merge into fresh
  * defaults at every depth.
  */
-export function buildMockListedAgent(
-  overrides: MockOverrides<AgentEntry, keyof AgentEntry> = {},
-): AgentEntry {
+// oxlint-disable-next-line prefer-readonly-parameter-types -- the schema's output type holds mutable arrays, which the merge only reads
+export function buildMockListedAgent(overrides: ListedAgentOverrides = {}): AgentEntry {
   return mergeDeep<AgentEntry, keyof AgentEntry>(
     {
       id: faker.string.alpha({ length: 8, casing: 'lower' }),

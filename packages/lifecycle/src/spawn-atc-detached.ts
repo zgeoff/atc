@@ -9,17 +9,19 @@ interface SpawnATCDetachedOptions {
 }
 
 /**
- * Starts this build of atc with `args` in a session of its own, so it
- * outlives the caller, and releases the handle so the caller can exit. The
- * child's stdio is discarded unless `options` routes it elsewhere.
+ * Starts this build of atc, through the argv that starts its CLI, with
+ * `args` in a session of its own, so it outlives the caller, and releases
+ * the handle so the caller can exit. The child's stdio is discarded unless
+ * `options` routes it elsewhere.
  */
 export function spawnATCDetached(
+  atcArgv: readonly string[],
   args: readonly string[],
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the stdio option takes a mutable array
   options: SpawnATCDetachedOptions = {},
 ): ChildProcess {
-  const [bin = process.execPath, ...rest] = buildATCCommand(args);
+  const [bin = process.execPath, ...rest] = buildATCCommand(atcArgv, args);
 
   const child = spawnChild(bin, rest, {
     detached: true,

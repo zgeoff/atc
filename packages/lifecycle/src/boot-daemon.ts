@@ -1,80 +1,28 @@
 import type { ChildProcess } from 'node:child_process';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '@atc/config/config';
-import type { AgentID } from '@atc/core/agent-id';
 import { makeSingleFlight } from '@atc/core/make-single-flight';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { toAgentID } from '@atc/core/to-agent-id';
 import { waitUntil } from '@atc/core/wait-until';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import type { DaemonBoot } from '@atc/protocol/daemon-boot';
+import type { DaemonBootOptions } from '@atc/protocol/daemon-boot-options';
 import { DaemonError } from '@atc/protocol/daemon-error';
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import type { DaemonPaths } from '@atc/protocol/daemon-paths';
 import { formatProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
 import type { ProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { findPidFilePID } from '@atc/lifecycle/find-pid-file-pid';
-import { getATCBuild } from '../shared/get-atc-build';
-import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
-import { readManagedDaemonUnit } from '@atc/lifecycle/read-managed-daemon-unit';
-import { restartManagedDaemon } from '@atc/lifecycle/restart-managed-daemon';
-import { spawnATCDetached } from '@atc/lifecycle/spawn-atc-detached';
-import { pickStaleDaemonPID } from '@atc/lifecycle/pick-stale-daemon-pid';
-
-export interface DaemonBoot {
-  readonly client: DaemonClient;
-  readonly stale: boolean;
-  readonly lastUsedAgent: AgentID;
-
-  // What the daemon announced it serves; an older daemon announces less.
-  readonly features: ReadonlySet<DaemonFeature>;
-
-  // The socket the client reached, which differs from the computed one when
-  // the daemon was found through its record in the state directory.
-  readonly socketPath: string;
-}
-
-/**
- * The files that locate a running daemon: the socket this environment
- * computes, the record the daemon writes in its state directory, and its
- * pid file.
- */
-export interface DaemonPaths {
-  readonly socketPath: string;
-  readonly recordFile: string;
-  readonly pidFile: string;
-}
-
-export interface DaemonBootOptions {
-  // Called when the daemon speaks another protocol version. Resolving true
-  // stops that daemon and boots one from this build, which ends every
-  // session it hosts; without the callback, or resolving false, the boot
-  // rejects and the daemon keeps running.
-  readonly onProtocolMismatch?: (mismatch: ProtocolMismatch) => Promise<boolean>;
-
-  // When set, the boot never starts a daemon: it waits this many
-  // milliseconds for one to answer, then rejects. A caller that a service
-  // manager starts beside a managed daemon sets it, so the two never race
-  // for the state directory.
-  readonly waitForDaemonMs?: number;
-
-  // Called once per boot, when a waiting boot first finds no daemon and
-  // starts to wait instead of starting one; a retry after a protocol
-  // mismatch that waits again does not call it a second time.
-  readonly onWaitForDaemon?: () => void;
-
-  // The time and the timers a waiting boot reads for its deadline and its
-  // polls; the wall clock when absent.
-  readonly clock?: Clock;
-
-  // Where the boot looks for a running daemon and its pid; this process's
-  // own paths when absent. `atc daemon` takes no paths of its own, only the
-  // environment's, so a boot given paths never starts a daemon: when none
-  // answers there, it rejects at once.
-  readonly paths?: DaemonPaths;
-}
+import type { ATCInvocation } from './atc-invocation';
+import { findDaemonRecord } from './find-daemon-record';
+import { findPidFilePID } from './find-pid-file-pid';
+import { isProcessAlive } from './is-process-alive';
+import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
+import { readManagedDaemonUnit } from './read-managed-daemon-unit';
+import { restartManagedDaemon } from './restart-managed-daemon';
+import { spawnATCDetached } from './spawn-atc-detached';
 
 const PROCESS_PATHS: DaemonPaths = {
   socketPath: daemonSocketPath,
@@ -93,11 +41,16 @@ const PROCESS_PATHS: DaemonPaths = {
  * restart. A daemon on another protocol version stays in service too: the
  * boot rejects with `protocol_mismatch` and a message holding both builds,
  * both versions, and the way to restart it, unless the caller's
- * `onProtocolMismatch` confirms a restart. The expected build is read from
- * disk on every attempt: a long-lived caller holding a build string from
- * its own boot would otherwise flag daemons that are already current.
+ * `onProtocolMismatch` confirms a restart. The expected build is read
+ * through the invocation on every attempt: a long-lived caller holding a
+ * build string from its own boot would otherwise flag daemons that are
+ * already current. A daemon the boot starts runs through the invocation's
+ * argv.
  */
-export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise<DaemonBoot> {
+export async function bootDaemonClient(
+  invocation: ATCInvocation,
+  options: DaemonBootOptions = {},
+): Promise<DaemonBoot> {
   let waited = false;
   const clock = options.clock ?? systemClock;
   const paths = options.paths ?? PROCESS_PATHS;
@@ -128,11 +81,11 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
         };
 
   for (let attempt = 0; attempt < 2; ) {
-    const build = getATCBuild();
+    const build = invocation.readBuild();
 
     const opened =
       wait === null
-        ? await openOrBootDaemon(paths, options.paths === undefined, clock)
+        ? await openOrBootDaemon(paths, options.paths === undefined, clock, invocation.argv)
         : await waitForDaemon(wait);
 
     const client = opened.client;
@@ -217,6 +170,7 @@ async function openOrBootDaemon(
   paths: DaemonPaths,
   canStart: boolean,
   clock: Clock,
+  atcArgv: readonly string[],
 ): Promise<OpenedDaemon> {
   const opened = await tryOpenKnownDaemon(paths);
 
@@ -228,7 +182,7 @@ async function openOrBootDaemon(
     throw new Error(formatGivenPathsFailure(paths));
   }
 
-  await bootDaemonOnce(clock);
+  await bootDaemonOnce(clock, atcArgv);
 
   const booted = await tryOpenKnownDaemon(paths);
 
@@ -347,11 +301,11 @@ const bootFlights = new WeakMap<Clock, () => Promise<void>>();
  * Starts a daemon and waits on the clock until one answers at the known
  * paths, sharing a boot already in flight on the same clock.
  */
-function bootDaemonOnce(clock: Clock): Promise<void> {
+function bootDaemonOnce(clock: Clock, atcArgv: readonly string[]): Promise<void> {
   let flight = bootFlights.get(clock);
 
   if (flight === undefined) {
-    flight = makeSingleFlight(() => bootDaemon(clock));
+    flight = makeSingleFlight(() => bootDaemon(clock, atcArgv));
 
     bootFlights.set(clock, flight);
   }
@@ -359,8 +313,8 @@ function bootDaemonOnce(clock: Clock): Promise<void> {
   return flight();
 }
 
-async function bootDaemon(clock: Clock): Promise<void> {
-  let child = spawnDaemonDetached();
+async function bootDaemon(clock: Clock, atcArgv: readonly string[]): Promise<void> {
+  let child = spawnDaemonDetached(atcArgv);
 
   await waitUntil(
     async () => {
@@ -375,7 +329,7 @@ async function bootDaemon(clock: Clock): Promise<void> {
       // A daemon that found the state lock still held by one shutting down
       // exits; once the old one is gone, a fresh spawn takes the lock.
       if (child.exitCode !== null || child.signalCode !== null) {
-        child = spawnDaemonDetached();
+        child = spawnDaemonDetached(atcArgv);
       }
 
       return false;
@@ -453,6 +407,6 @@ async function stopDaemon(pid: number, clock: Clock): Promise<void> {
   );
 }
 
-function spawnDaemonDetached(): ChildProcess {
-  return spawnATCDetached(['daemon']);
+function spawnDaemonDetached(atcArgv: readonly string[]): ChildProcess {
+  return spawnATCDetached(atcArgv, ['daemon']);
 }

@@ -7,11 +7,13 @@ interface ReplacementOverrides {
 }
 
 /**
- * Starts one daemon, detached, the way the one it replaces was started: its
+ * Starts one daemon, detached, through the argv that starts this build's
+ * CLI, the way the one it replaces was started: its
  * environment, its working directory, and its `--listen` and `--token-file`
  * values, except where `overrides` sets them.
  */
 export function startReplacementDaemon(
+  atcArgv: readonly string[],
   old: DaemonProcess,
   overrides: ReplacementOverrides,
 ): number | undefined {
@@ -19,6 +21,7 @@ export function startReplacementDaemon(
   const tokenFile = overrides.tokenFile ?? old.flags.tokenFile;
 
   const child = spawnATCDetached(
+    atcArgv,
     [
       'daemon',
       ...(listen === null ? [] : ['--listen', listen]),

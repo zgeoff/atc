@@ -13,13 +13,14 @@ import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { collectRestartEnv } from '@atc/lifecycle/collect-restart-env';
+import type { ATCInvocation } from './atc-invocation';
+import { buildATCCommand } from './build-atc-command';
+import { collectRestartEnv } from './collect-restart-env';
 import { collectRestartPlan } from './collect-restart-plan';
-import { formatRestartPreflight } from '@atc/lifecycle/format-restart-preflight';
-import { parseRestartResult } from '@atc/lifecycle/parse-restart-result';
-import { buildATCCommand } from '@atc/lifecycle/build-atc-command';
-import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
-import { spawnATCDetached } from '@atc/lifecycle/spawn-atc-detached';
+import { formatRestartPreflight } from './format-restart-preflight';
+import { isProcessAlive } from './is-process-alive';
+import { parseRestartResult } from './parse-restart-result';
+import { spawnATCDetached } from './spawn-atc-detached';
 
 interface DaemonRestartOptions {
   readonly listen: string | null;
@@ -40,15 +41,17 @@ const WORKER_START_WAIT_MS = 30_000;
  * restart can end the process that asked for it. The worker writes a run
  * log, which this follows line by line until the worker's result record
  * ends it. Resolves the exit code: the worker's, or 1 when the worker
- * vanishes without a result. The follower and the probe run on the clock.
+ * vanishes without a result. The follower and the probe run on the clock,
+ * and the worker runs through the invocation's argv.
  */
 export async function runDaemonRestart(
+  invocation: ATCInvocation,
   options: DaemonRestartOptions,
   clock: Clock = systemClock,
 ): Promise<number> {
   const callerSession = readSessionEnv(process.env).sessionID ?? null;
 
-  const plan = await collectRestartPlan(callerSession, clock);
+  const plan = await collectRestartPlan(invocation, callerSession, clock);
 
   if (options.dryRun) {
     for (const line of formatRestartPreflight(plan)) {
@@ -69,7 +72,7 @@ export async function runDaemonRestart(
 
   try {
     if (plan.replacement.kind === 'unit') {
-      const started = await startWorkerInUnit(runID, logPath, workerArgs);
+      const started = await startWorkerInUnit(runID, logPath, invocation.argv, workerArgs);
 
       if (started !== 0) {
         console.error(`atc daemon restart: systemd-run failed with exit code ${started}`);
@@ -78,7 +81,7 @@ export async function runDaemonRestart(
       }
     } else {
       workerPID =
-        spawnATCDetached(workerArgs, {
+        spawnATCDetached(invocation.argv, workerArgs, {
           env: collectRestartEnv(process.env),
           stdio: ['ignore', logFD, logFD],
         }).pid ?? null;
@@ -120,6 +123,7 @@ function buildWorkerArgs(
 function startWorkerInUnit(
   runID: string,
   logPath: string,
+  atcArgv: readonly string[],
   workerArgs: readonly string[],
 ): Promise<number> {
   const env = collectRestartEnv(process.env);
@@ -143,7 +147,7 @@ function startWorkerInUnit(
       `--property=StandardError=append:${logPath}`,
       ...setenvs,
       '--',
-      ...buildATCCommand(workerArgs),
+      ...buildATCCommand(atcArgv, workerArgs),
     ],
     { env, stdin: 'ignore', stdout: 'ignore', stderr: 'inherit' },
   );

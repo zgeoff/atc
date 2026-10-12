@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubCodex } from '@atc/test-utils/create-stub-codex';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
@@ -11,7 +12,6 @@ import { getString } from '@atc/test-utils/get-string';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 
 /**
  * A home with stub Claude, Grok, and Codex CLIs and an empty config

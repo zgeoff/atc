@@ -5,9 +5,8 @@ import { waitUntil } from '@atc/core/wait-until';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { getATCBuild } from './shared/get-atc-build';
-import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
+import { findDaemonRecord } from './find-daemon-record';
+import { isProcessAlive } from './is-process-alive';
 
 type ReplacementOutcome =
   | {
@@ -28,6 +27,7 @@ type ReplacementOutcome =
  */
 export async function waitForReplacement(
   oldPID: number | null,
+  clientBuild: string,
   expectedBuild: string | null,
   waitMs: number,
   clock: Clock = systemClock,
@@ -46,7 +46,7 @@ export async function waitForReplacement(
         return false;
       }
 
-      const attempt = await tryHello(record.socketPath, deadline, clock);
+      const attempt = await tryHello(record.socketPath, clientBuild, deadline, clock);
 
       if (attempt.kind === 'refused') {
         settled.refusal = attempt.message;
@@ -96,7 +96,12 @@ type Hello =
   | { readonly kind: 'refused'; readonly message: string }
   | { readonly kind: 'none' };
 
-async function tryHello(socketPath: string, deadline: number, clock: Clock): Promise<Hello> {
+async function tryHello(
+  socketPath: string,
+  clientBuild: string,
+  deadline: number,
+  clock: Clock,
+): Promise<Hello> {
   let client: DaemonClient;
 
   try {
@@ -115,7 +120,7 @@ async function tryHello(socketPath: string, deadline: number, clock: Clock): Pro
   );
 
   try {
-    const hello = await client.sendHello(getATCBuild(), {
+    const hello = await client.sendHello(clientBuild, {
       session: readSessionEnv(process.env).sessionID,
     });
 
