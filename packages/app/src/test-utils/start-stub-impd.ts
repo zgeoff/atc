@@ -1,6 +1,6 @@
+import { isRecord } from '@atc/core/is-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import type { ServerWebSocket } from 'bun';
-import { isRecord } from '../shared/report';
 
 // What the stand-in does with an exec open: refuse it as a start whose
 // broker is not ready, start it and count its stdin bytes as `wc -c` does,

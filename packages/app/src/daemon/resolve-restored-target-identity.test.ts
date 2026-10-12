@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { toSessionID } from '../shared/to-session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';

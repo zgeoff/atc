@@ -1,4 +1,4 @@
-import { isRecord } from './report';
+import { isRecord } from '@atc/core/is-record';
 
 /**
  * Narrows one field of a record to a record, for tests pulling a nested

@@ -1,7 +1,9 @@
+import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
+import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
+import { isBrokerVariable } from '@atc/core/is-broker-variable';
+import { isRecord } from '@atc/core/is-record';
 import type { AuthProfile } from './collect-auth-profiles';
 import { collectProfileEnvProblems } from './collect-profile-env-problems';
-import { isBrokerVariable } from './is-broker-variable';
-import { isRecord } from './report';
 import { resolveAuthProfiles } from './resolve-auth-profiles';
 
 /**
@@ -92,10 +94,6 @@ export function checkGatewayAuth(
   return problems.length > 0 ? problems : auth;
 }
 
-// The value every placeholder variable holds; impd's broker swaps the real
-// credential in on the host's side.
-const PLACEHOLDER = 'imp-broker-placeholder';
-
 function parseGatewayAuth(raw: unknown): GatewayAuth | string {
   const profiles = isRecord(raw) ? raw['profiles'] : undefined;
 
@@ -117,8 +115,8 @@ function parseGatewayAuth(raw: unknown): GatewayAuth | string {
   const env: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(placeholderEnv)) {
-    if (value !== PLACEHOLDER) {
-      return `placeholderEnv.${key} must be ${PLACEHOLDER}`;
+    if (value !== BROKER_PLACEHOLDER) {
+      return `placeholderEnv.${key} must be ${BROKER_PLACEHOLDER}`;
     }
 
     env[key] = value;
@@ -146,23 +144,24 @@ function toEnvKeys(value: unknown): string[] {
 // placeholders may set a credential variable, and the base URL comes from
 // `baseURL` alone, whose host is checked against the profiles.
 const CREDENTIAL_VARIABLES: ReadonlySet<string> = new Set([
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_API_KEY',
+  CLAUDE_CREDENTIAL_VARIABLES.authToken,
+  CLAUDE_CREDENTIAL_VARIABLES.apiKey,
 ]);
-
-const BASE_URL_VARIABLE = 'ANTHROPIC_BASE_URL';
 
 function collectEnvProblems(source: string, keys: readonly string[]): string[] {
   return keys
     .filter(
-      (key) => isBrokerVariable(key) || CREDENTIAL_VARIABLES.has(key) || key === BASE_URL_VARIABLE,
+      (key) =>
+        isBrokerVariable(key) ||
+        CREDENTIAL_VARIABLES.has(key) ||
+        key === CLAUDE_CREDENTIAL_VARIABLES.baseURL,
     )
     .map((key) => `${source} must not set ${key}`);
 }
 
 function collectPlaceholderProblems(env: Readonly<Record<string, string>>): string[] {
   return Object.keys(env)
-    .filter((key) => isBrokerVariable(key) || key === BASE_URL_VARIABLE)
+    .filter((key) => isBrokerVariable(key) || key === CLAUDE_CREDENTIAL_VARIABLES.baseURL)
     .map((key) => `placeholderEnv must not set ${key}`);
 }
 

@@ -10,6 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { buildTarArchive } from '@atc/core/build-tar-archive';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
@@ -18,7 +19,6 @@ import invariant from 'tiny-invariant';
 import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startStubImpd } from '../test-utils/start-stub-impd';
-import { buildTarArchive } from './build-tar-archive';
 import { ImpClientPort } from './imp-client-port';
 import {
   CHECK_GUEST_ATC_SCRIPT,

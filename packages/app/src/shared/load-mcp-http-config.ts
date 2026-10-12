@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
+import { isRecord } from '@atc/core/is-record';
 import { collectMCPHTTPConfig } from './collect-mcp-http-config';
 import type { MCPHTTPConfig } from './collect-mcp-http-config';
 import { configFile } from './config';
-import { isRecord } from './report';
 
 /**
  * Reads config.json's `mcpHTTP` section for `atc mcp --http`. Nothing else in

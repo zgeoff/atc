@@ -1,4 +1,7 @@
 import { mkdir } from 'node:fs/promises';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
+import { waitUntil } from '@atc/core/wait-until';
 import { spawn } from 'bun-pty';
 import { DaemonError } from '../protocol/daemon-error';
 import { collectCleanEnv } from '../shared/collect-clean-env';
@@ -36,6 +39,13 @@ export class LocalPTYProvider implements ExecutionProvider {
     suspend: false,
     destroy: false,
   };
+
+  // The clock a harness's exit is waited on.
+  private readonly clock: Clock;
+
+  constructor(clock: Clock = systemClock) {
+    this.clock = clock;
+  }
 
   // The daemon's own machine is always ready.
   readonly prepareHost = (): Promise<void> => Promise.resolve();
@@ -111,19 +121,12 @@ export class LocalPTYProvider implements ExecutionProvider {
       // the process ended or not, so the exit is read from the process id
       // instead: the library reaps its child, so the id stops answering a
       // signal once the process is gone.
-      waitForExit: async (timeoutMs) => {
-        const deadline = Date.now() + timeoutMs;
-
-        while (isProcessRunning(pty.pid)) {
-          if (Date.now() >= deadline) {
-            return false;
-          }
-
-          await Bun.sleep(20);
-        }
-
-        return true;
-      },
+      waitForExit: (timeoutMs) =>
+        waitUntil(() => !isProcessRunning(pty.pid), {
+          clock: this.clock,
+          intervalMs: 20,
+          deadlineMs: this.clock.now() + timeoutMs,
+        }),
       detach: () => {
         for (const subscription of subscriptions) {
           subscription.dispose();

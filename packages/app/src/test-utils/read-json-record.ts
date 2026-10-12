@@ -1,4 +1,4 @@
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 
 interface JSONBody {
   readonly json: () => Promise<unknown>;

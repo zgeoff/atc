@@ -1,3 +1,6 @@
+import { isRecord } from '@atc/core/is-record';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonClient } from './client/daemon-client';
 import { pickStaleDaemonPID } from './client/pick-stale-daemon-pid';
 import { findRestartUnit } from './find-restart-unit';
@@ -12,7 +15,6 @@ import { findDaemonRecord } from './shared/find-daemon-record';
 import { findPidFilePID } from './shared/find-pid-file-pid';
 import { getBuild } from './shared/get-build';
 import { isProcessAlive } from './shared/is-process-alive';
-import { isRecord } from './shared/report';
 
 // How long the handshake and the session list may take together.
 const PROBE_DEADLINE_MS = 3000;
@@ -27,9 +29,13 @@ interface Probe {
  * Finds the daemon a restart would stop and the replacement it would start,
  * without changing either. The daemon answers on the socket this
  * environment computes or the one its record in the state directory holds,
- * and a handshake that its protocol refuses still identifies it.
+ * and a handshake that its protocol refuses still identifies it. The probe's
+ * time limit runs on the clock.
  */
-export async function collectRestartPlan(callerSession: string | null): Promise<RestartPlan> {
+export async function collectRestartPlan(
+  callerSession: string | null,
+  clock: Clock = systemClock,
+): Promise<RestartPlan> {
   const record = findDaemonRecord(daemonRecordFile);
 
   const paths = new Set([daemonSocketPath, ...(record === null ? [] : [record.socketPath])]);
@@ -37,7 +43,7 @@ export async function collectRestartPlan(callerSession: string | null): Promise<
   let probe: Probe | null = null;
 
   for (const path of paths) {
-    probe = await tryProbe(path);
+    probe = await tryProbe(path, clock);
 
     if (probe !== null) {
       break;
@@ -90,7 +96,7 @@ async function planReplacement(pid: number | null): Promise<ReplacementPlan> {
   };
 }
 
-async function tryProbe(socketPath: string): Promise<Probe | null> {
+async function tryProbe(socketPath: string, clock: Clock): Promise<Probe | null> {
   let client: DaemonClient;
 
   try {
@@ -101,7 +107,7 @@ async function tryProbe(socketPath: string): Promise<Probe | null> {
 
   // A daemon that accepts the socket and never answers must not hang the
   // restart: closing the client rejects every request still waiting.
-  const expiry = setTimeout(() => {
+  const cancelExpiry = clock.schedule(() => {
     client.stop();
   }, PROBE_DEADLINE_MS);
 
@@ -126,7 +132,7 @@ async function tryProbe(socketPath: string): Promise<Probe | null> {
 
     return null;
   } finally {
-    clearTimeout(expiry);
+    cancelExpiry();
 
     client.stop();
   }

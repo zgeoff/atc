@@ -2,6 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import type { AgentID } from '@atc/core/agent-id';
+import { ansi } from '@atc/core/ansi';
+import { isRecord } from '@atc/core/is-record';
+import type { MessageID } from '@atc/core/message-id';
+import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
+import { toMessageID } from '@atc/core/to-message-id';
+import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { planTypedLineInput } from '../agents/plan-typed-line-input';
 import type { AdapterEvent } from '../protocol/adapter-event';
@@ -11,7 +20,6 @@ import { MAX_CHUNK, PROTOCOL_V } from '../protocol/protocol';
 import type { EventMsg } from '../protocol/protocol';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { SessionState } from '../protocol/session-state';
-import type { AgentID } from '../shared/agent-id';
 import { claimDaemonLock } from '../shared/claim-daemon-lock';
 import type { HooksConfig } from '../shared/collect-hooks';
 import type { TargetConfigError } from '../shared/collect-targets';
@@ -19,14 +27,7 @@ import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { loadListenerTokens } from '../shared/load-listener-tokens';
-import type { MessageID } from '../shared/message-id';
-import { isRecord } from '../shared/report';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
-import type { SessionID } from '../shared/session-id';
-import { systemClock } from '../shared/system-clock';
-import type { Clock } from '../shared/system-clock';
-import { toMessageID } from '../shared/to-message-id';
-import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { SourceProvider } from '../sources/types';
 import type { IdempotencyRecord } from '../store/idempotency-record';
 import type { MessageOwner } from '../store/message-owner';
@@ -181,8 +182,9 @@ export interface DaemonOptions {
   // The clock the event trail stamps each hook event with, and the clock
   // behind the tap grace window, the held-read waits, the time a note is
   // reported at, the permission request timeouts, the restore's per-session
-  // boot cap, and the TCP listener's failure times, delays, and refusal
-  // windows; the wall clock when unset.
+  // boot cap, the TCP listener's failure times, delays, and refusal
+  // windows, and every other time the daemon stores; the wall clock when
+  // unset.
   readonly clock?: Clock;
 
   // Whether the daemon restores the stored fleet by itself once it is
@@ -207,7 +209,7 @@ export interface DaemonOptions {
   readonly forgetConfirmMs?: number;
 
   // The clock confirm tokens from `session.forget` are minted and checked
-  // against, in epoch milliseconds; the wall clock when unset.
+  // against, in epoch milliseconds; the daemon's clock when unset.
   readonly forgetClock?: () => number;
 
   // Called with a session's id when it reports its start and the daemon
@@ -392,14 +394,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // Before any request is served: a workspace a stopped daemon left short
   // of ready fails as interrupted, and a key left in progress by a daemon
   // that stopped mid-effect is settled, so no retry can race either.
-  await store.reconcileMaterializations(Date.now());
-  await store.reconcileIdempotencyKeys(Date.now());
-  await store.reconcileAuthBindings(Date.now());
+  await store.reconcileMaterializations(clock.now());
+  await store.reconcileIdempotencyKeys(clock.now());
+  await store.reconcileAuthBindings(clock.now());
 
-  await tryRemoveExpiredIdempotencyKeys(store);
+  await tryRemoveExpiredIdempotencyKeys(store, clock);
 
   const idempotencySweep = setInterval(() => {
-    void tryRemoveExpiredIdempotencyKeys(store);
+    void tryRemoveExpiredIdempotencyKeys(store, clock);
   }, IDEMPOTENCY_SWEEP_MS);
 
   idempotencySweep.unref();
@@ -430,6 +432,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     targetErrors,
   );
 
+  mgr.clock = clock;
+
   if (opts.log !== undefined) {
     mgr.log = opts.log;
   }
@@ -443,12 +447,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     daemonID: store.daemonID,
     localDir: join(stateDir, 'records'),
     ghBin: opts.ghBin ?? 'gh',
-    now: () => Date.now(),
+    now: () => clock.now(),
   });
 
   mgr.records = records;
 
-  const authBinder = new RuntimeAuthBinder(store);
+  const authBinder = new RuntimeAuthBinder(store, () => clock.now());
 
   mgr.authBinder = authBinder;
 
@@ -684,7 +688,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         note.messages,
         owner,
         truncateToBytes(note.answer, ANSWER_BYTE_CAP),
-        Date.now(),
+        clock.now(),
         note.turn,
       );
 
@@ -737,7 +741,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return;
     }
 
-    const replay = `\u001B[2J\u001B[H${await runtime.screen.renderReplay()}`;
+    const replay = `${ansi.clear}${await runtime.screen.renderReplay()}`;
     const seq = runtime.seq;
 
     for (let i = 0; i < replay.length; i += MAX_CHUNK) {
@@ -1158,6 +1162,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         stagingRoot: tmpdir(),
         timer: host.timer,
         gitTransports,
+        clock,
 
         // An imp fetches from the repository host over its own network,
         // so its workspace never crosses the daemon's link.
@@ -1213,7 +1218,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     void store.recordSpawnDir(
       s.cwd,
       { target: s.target, targetIdentity: s.targetIdentity },
-      Date.now(),
+      clock.now(),
     );
 
     return getDescriptor(mgr, s.id);
@@ -1243,9 +1248,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  const ledger = new IdempotencyLedger(store, LOCAL_PRINCIPAL, (line) => {
-    mgr.log(line);
-  });
+  const ledger = new IdempotencyLedger(
+    store,
+    LOCAL_PRINCIPAL,
+    (line) => {
+      mgr.log(line);
+    },
+    clock,
+  );
 
   // Throws the refusal a fresh spawn to the target gets when the access
   // does not reach the target, and the identity, a held spawn key recorded
@@ -1308,7 +1318,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const confirmTokens = new Map<string, ConfirmToken>();
 
   const forgetConfirmMs = opts.forgetConfirmMs ?? FORGET_CONFIRM_MS;
-  const forgetClock = opts.forgetClock ?? Date.now;
+  const forgetClock = opts.forgetClock ?? (() => clock.now());
 
   const claimConfirmToken = (sessionID: SessionID, token: string) => {
     const now = forgetClock();
@@ -1403,7 +1413,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       from,
       text,
       status: 'queued',
-      sentAt: Date.now(),
+      sentAt: clock.now(),
     };
 
     try {
@@ -2260,7 +2270,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       // session's to ack, as with the inbox drain.
       const owner = access === null ? buildMessageOwner(s) : { atcID: s.id };
 
-      const delivered = await store.updateMessageDelivered(messageID, owner, Date.now());
+      const delivered = await store.updateMessageDelivered(messageID, owner, clock.now());
 
       void drainSessionInbox(sessionID);
 
@@ -2579,9 +2589,9 @@ function getDescriptor(mgr: SessionManager, id: SessionID): SessionDescriptor {
 }
 
 // A sweep that fails leaves the keys for the next one.
-async function tryRemoveExpiredIdempotencyKeys(store: StateStore): Promise<boolean> {
+async function tryRemoveExpiredIdempotencyKeys(store: StateStore, clock: Clock): Promise<boolean> {
   try {
-    await store.removeExpiredIdempotencyKeys(Date.now() - IDEMPOTENCY_TTL_MS);
+    await store.removeExpiredIdempotencyKeys(clock.now() - IDEMPOTENCY_TTL_MS);
   } catch {
     return false;
   }

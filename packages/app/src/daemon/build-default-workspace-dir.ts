@@ -1,7 +1,8 @@
 import { posix } from 'node:path';
+import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
+import { isHomeRelative } from '@atc/core/is-home-relative';
 import { DaemonError } from '../protocol/daemon-error';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
-import { buildWorkspaceDestination } from '../shared/build-workspace-destination';
 
 type GitWorkspaceSource = Extract<SpawnWorkspaceSource, { kind: 'git' }>;
 
@@ -47,7 +48,7 @@ export function buildDefaultWorkspaceDir(
     return buildWorkspaceDestination({ root: posix.normalize(configured), ...parts });
   }
 
-  if (configured !== '~' && !configured.startsWith('~/')) {
+  if (!isHomeRelative(configured)) {
     throw new DaemonError(
       'bad_args',
       `workspaces root '${configured}' must be an absolute path or start with ~/`,

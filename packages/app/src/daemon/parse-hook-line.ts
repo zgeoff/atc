@@ -1,6 +1,6 @@
+import { isRecord } from '@atc/core/is-record';
+import { toSessionID } from '@atc/core/to-session-id';
 import type { HookEvent } from '../protocol/hook-event';
-import { isRecord } from '../shared/report';
-import { toSessionID } from '../shared/to-session-id';
 
 /**
  * One reporter line as a hook event, or null for a line that is not one.

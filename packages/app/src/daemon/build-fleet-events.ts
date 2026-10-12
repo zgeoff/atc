@@ -1,5 +1,5 @@
+import type { MessageID } from '@atc/core/message-id';
 import { encodeCursor } from '../protocol/encode-cursor';
-import type { MessageID } from '../shared/message-id';
 import type { StoredEvent } from '../store/state-store';
 import type { SessionDescriptor } from './sessions';
 

@@ -1,10 +1,14 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { createStepTimer } from '@atc/core/create-step-timer';
+import type { StepTimer } from '@atc/core/create-step-timer';
+import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '../protocol/daemon-error';
 import type { ErrorCode } from '../protocol/protocol';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
 import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
-import type { SessionID } from '../shared/session-id';
 import type { StateStore } from '../store/state-store';
 import type { MaterializationPhase, SessionWorkspace } from '../store/workspace-materialization';
 import { checkURLCredentials } from '../workspace/check-url-credentials';
@@ -13,15 +17,13 @@ import { expandGitShorthand } from '../workspace/expand-git-shorthand';
 import { normalizeGitURL } from '../workspace/normalize-git-url';
 import type { GitIdentity } from '../workspace/read-host-git-identity';
 import { readWorkspaceTar } from '../workspace/read-workspace-tar';
-import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { resolveGitURL } from '../workspace/resolve-git-url';
 import { resolvePathSource } from '../workspace/resolve-path-source';
 import { resolveRemoteRef } from '../workspace/resolve-remote-ref';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
 import { createGuestClone } from './create-guest-clone';
-import { createStepTimer } from './create-step-timer';
-import type { StepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
 import type { ExecutionProvider } from './execution-provider';
 import { requireGitTransports } from './require-git-transports';
@@ -85,6 +87,10 @@ interface MaterializeDeps {
   // The git identity written into the checkout's own config, for a host that
   // holds none of its own; unset or null writes nothing.
   readonly gitIdentity?: GitIdentity | null;
+
+  // The clock each phase of the row is stamped with; the system clock when
+  // unset.
+  readonly clock?: Clock;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -176,7 +182,7 @@ export async function materializeWorkspace(
       sourceKind: source.kind,
       withheldEnv,
     },
-    Date.now(),
+    (deps.clock ?? systemClock).now(),
   );
 
   // The staging directory exists only once the row does, and only inside
@@ -326,7 +332,7 @@ async function runMaterialization(
 
   await timer.withStep('verify', () => verifyTargetHead(request, deps, landing, cloned.sha));
 
-  const materializedAt = Date.now();
+  const materializedAt = (deps.clock ?? systemClock).now();
 
   await recordPhase(request, deps, updateProgress, 'ready', { materializedAt });
 
@@ -566,7 +572,11 @@ async function recordPhase(
     materializedAt?: number;
   }>,
 ): Promise<void> {
-  await deps.store.updateMaterialization(request.sessionID, { phase, ...fields }, Date.now());
+  await deps.store.updateMaterialization(
+    request.sessionID,
+    { phase, ...fields },
+    (deps.clock ?? systemClock).now(),
+  );
 
   updateProgress({ phase });
 }
@@ -828,7 +838,6 @@ async function writeGitIdentity(
 
 // The provider runs commands in its own environment, so the verify unsets
 // every variable that could point git at another repository first.
-const VERIFY_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
 
 // Prints the commit HEAD resolves to and a NUL, then lists every tracked
 // file whose content differs from HEAD, so a file the unpack left out or
@@ -843,7 +852,7 @@ async function verifyTargetHead(
   sha: string,
 ): Promise<void> {
   const verified = await deps.requireProvider('run').runCommand({
-    argv: [...VERIFY_ENV, 'sh', '-c', VERIFY_SCRIPT],
+    argv: [...REPOSITORY_ENV_UNSET_ARGV, 'sh', '-c', VERIFY_SCRIPT],
     cwd: landing.dir,
     host: landing.host,
   });
@@ -953,7 +962,7 @@ async function tryUpdateFailed(
     await deps.store.updateMaterialization(
       request.sessionID,
       { phase: 'failed', errorCode: code },
-      Date.now(),
+      (deps.clock ?? systemClock).now(),
     );
   } catch {
     // A row left short of failed is failed as interrupted at the next start.

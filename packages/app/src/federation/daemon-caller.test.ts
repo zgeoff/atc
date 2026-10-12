@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubChannelOpener } from '@atc/test-utils/build-stub-channel-opener';
-import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
+import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startCutProxy } from '@atc/test-utils/start-cut-proxy';
 import { startStubUnansweringListener } from '@atc/test-utils/start-stub-unanswering-listener';
@@ -310,7 +310,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
     mode: 'hold',
   });
 
-  const timers = buildStubTimeoutScheduler();
+  const clock = buildStubClock(0);
 
   const opener = buildStubChannelOpener([
     (address: RegistryDaemon['address']) =>
@@ -327,7 +327,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
     build: 'atc-gateway/test',
     openChannel: opener.open,
     responseTimeoutMs: 500,
-    scheduleTimeout: timers.schedule,
+    clock,
   });
 
   registerTestCleanup(() => caller.stop());
@@ -346,7 +346,11 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
     expect(listed['sessions']).toHaveLength(1);
   });
 
-  timers.runTimer(500);
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([500]);
+  });
+
+  clock.advance(500);
 
   const spawned = await spawning;
 
@@ -359,7 +363,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
 
 test('it refuses a daemon that never answers the handshake as daemon_unavailable once the connect time passes', () => {
   const silent = startStubUnansweringListener();
-  const timers = buildStubTimeoutScheduler();
+  const clock = buildStubClock(0);
 
   const caller = new DaemonCaller({
     daemon: buildMockRegistryDaemon({
@@ -369,14 +373,16 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
     build: 'atc-gateway/test',
     openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
     connectTimeoutMs: 300,
-    scheduleTimeout: timers.schedule,
+    clock,
   });
 
   registerTestCleanup(() => caller.stop());
 
   const listed = caller.sendRequest('session.list', {}, 'gw');
 
-  timers.runTimer(300);
+  expect(clock.collectPending()).toStrictEqual([300]);
+
+  clock.advance(300);
 
   expect(listed).rejects.toMatchObject({
     code: 'daemon_unavailable',
@@ -517,7 +523,7 @@ test('it holds concurrent first requests until the handshake answers, so the dae
 test('it gives a long poll its own waitMs on top of the response time on the same connection', async () => {
   const ctx = await setupTest();
 
-  const timers = buildStubTimeoutScheduler();
+  const clock = buildStubClock(0);
 
   const opener = buildStubChannelOpener([
     (address: RegistryDaemon['address']) =>
@@ -535,7 +541,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
     openChannel: opener.open,
     connectTimeoutMs: 10_000,
     responseTimeoutMs: 500,
-    scheduleTimeout: timers.schedule,
+    clock,
   });
 
   registerTestCleanup(() => caller.stop());
@@ -556,7 +562,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
 
   // Once the poll is out, a message writes the event that ends its wait.
   await waitFor(() => {
-    expect(timers.collectPendingDelays()).toStrictEqual([2000]);
+    expect(clock.collectPending()).toStrictEqual([2000]);
   });
 
   await caller.sendRequest(
@@ -574,6 +580,6 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
     }),
   ]);
 
-  expect(timers.collectDelays()).toStrictEqual([10_000, 500, 500, 2000, 500]);
+  expect(clock.collectDelays()).toStrictEqual([10_000, 500, 500, 2000, 500]);
   expect(opener.countOpened()).toBe(1);
 });

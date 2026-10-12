@@ -43,7 +43,3 @@ export async function sendReport(sock: string, line: string, timeoutMs: number):
     await Promise.race([sendLine(sock, line), Bun.sleep(timeoutMs)]);
   } catch {}
 }
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}

@@ -1,5 +1,6 @@
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonCaller } from './daemon-caller';
-import type { GatewayChannel, TimeoutScheduler } from './daemon-caller';
+import type { GatewayChannel } from './daemon-caller';
 import type { GatewayRegistry, RegistryDaemon } from './types';
 
 interface DaemonPoolOptions {
@@ -8,7 +9,7 @@ interface DaemonPoolOptions {
   readonly openChannel: (address: RegistryDaemon['address']) => Promise<GatewayChannel>;
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
-  readonly scheduleTimeout?: TimeoutScheduler;
+  readonly clock?: Clock;
 }
 
 /**
@@ -32,7 +33,7 @@ export class DaemonPool {
           ...(opts.responseTimeoutMs === undefined
             ? {}
             : { responseTimeoutMs: opts.responseTimeoutMs }),
-          ...(opts.scheduleTimeout === undefined ? {} : { scheduleTimeout: opts.scheduleTimeout }),
+          ...(opts.clock === undefined ? {} : { clock: opts.clock }),
         }),
       ]),
     );

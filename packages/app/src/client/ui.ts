@@ -1,7 +1,7 @@
+import type { AgentID } from '@atc/core/agent-id';
+import { ansi } from '@atc/core/ansi';
 import { PINNED_GROUP_KEY } from '../protocol/pinned-group-key';
 import type { SessionState } from '../protocol/session-state';
-import type { AgentID } from '../shared/agent-id';
-import { RESET_INPUT_MODES } from '../shared/reset-input-modes';
 import { formatDir } from './dirs';
 import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
@@ -20,19 +20,6 @@ interface SessionView {
 }
 
 const ESC = '\u001B';
-
-export const ansi = {
-  altScreenOn: `${ESC}[?1049h`,
-  resetInputModes: RESET_INPUT_MODES,
-  altScreenOff: `${ESC}[?1049l`,
-  clear: `${ESC}[2J${ESC}[H`,
-  hideCursor: `${ESC}[?25l`,
-  showCursor: `${ESC}[?25h`,
-  saveCursor: `${ESC}7`,
-  restoreCursor: `${ESC}8`,
-  reset: `${ESC}[0m`,
-  moveTo: (row: number, col: number) => `${ESC}[${row};${col}H`,
-};
 
 const GLYPH: Record<SessionState, string> = {
   needs_you: `${ESC}[31m●${ESC}[0m`,

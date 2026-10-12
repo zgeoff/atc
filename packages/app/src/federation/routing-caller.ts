@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { match } from 'ts-pattern';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
@@ -25,7 +27,10 @@ interface RoutingCallerOptions {
   // How long each daemon may take to answer a call the gateway asks every
   // daemon; 5 s when unset.
   readonly fanOutTimeoutMs?: number;
-  readonly now?: () => number;
+
+  // Runs the fan-out waits and reads the time for the binding store; the
+  // system clock when unset.
+  readonly clock?: Clock;
 }
 
 const FAN_OUT_TIMEOUT_MS = 5000;
@@ -100,7 +105,12 @@ export class RoutingCaller {
       .with('session.list', 'agents.list', (fanned) => this.sendFanOut(fanned, required, principal))
       .with('events.read', () =>
         readFleetEvents(
-          { registry: this.opts.registry, getCaller: this.getCaller, timeoutMs: this.getTimeout() },
+          {
+            registry: this.opts.registry,
+            getCaller: this.getCaller,
+            timeoutMs: this.getTimeout(),
+            clock: this.getClock(),
+          },
           params,
           required,
           principal,
@@ -117,7 +127,11 @@ export class RoutingCaller {
   async readFeatures(): Promise<ReadonlySet<GatewayFeature>> {
     const outcomes = await Promise.all(
       [...this.opts.registry.daemons.values()].map((daemon) =>
-        waitForOutcome(this.opts.pool.getCaller(daemon.name).readHello(), this.getTimeout()),
+        waitForOutcome(
+          this.opts.pool.getCaller(daemon.name).readHello(),
+          this.getTimeout(),
+          this.getClock(),
+        ),
       ),
     );
 
@@ -140,8 +154,8 @@ export class RoutingCaller {
     return this.opts.fanOutTimeoutMs ?? FAN_OUT_TIMEOUT_MS;
   }
 
-  private getNow(): number {
-    return this.opts.now === undefined ? Date.now() : this.opts.now();
+  private getClock(): Clock {
+    return this.opts.clock ?? systemClock;
   }
 
   // The daemon a `daemon` param picks, or null when the call gives none.
@@ -225,7 +239,7 @@ export class RoutingCaller {
         principal: keyed.principal,
         key: keyed.key,
         prepareParams: (params) =>
-          this.opts.store.claimFirstSend(keyed.principal, keyed.m, keyed.key, this.getNow())
+          this.opts.store.claimFirstSend(keyed.principal, keyed.m, keyed.key, this.getClock().now())
             ? params
             : { ...params, replayOnly: true },
       });
@@ -250,7 +264,7 @@ export class RoutingCaller {
         .sendRequest(send.m, send.route.params, send.principal, send.required, send.prepareParams);
 
       if (send.key !== null) {
-        store.updateOutcome(send.principal, send.m, send.key, 'completed', this.getNow());
+        store.updateOutcome(send.principal, send.m, send.key, 'completed', this.getClock().now());
       }
 
       return buildGatewayResult(send.m, ok, send.daemon);
@@ -260,7 +274,14 @@ export class RoutingCaller {
         const rawRef = error.data?.['effectRef'];
         const effectRef = typeof rawRef === 'string' ? rawRef : null;
 
-        store.updateOutcome(send.principal, send.m, send.key, outcome, this.getNow(), effectRef);
+        store.updateOutcome(
+          send.principal,
+          send.m,
+          send.key,
+          outcome,
+          this.getClock().now(),
+          effectRef,
+        );
 
         const held = store.findBinding(send.principal, send.m, send.key);
 
@@ -299,7 +320,7 @@ export class RoutingCaller {
     route: KeyedRoute,
   ): Promise<{ readonly daemon: RegistryDaemon; readonly claimID: string }> {
     const store = this.opts.store;
-    const now = this.getNow();
+    const now = this.getClock().now();
 
     store.removeExpiredBindings(now);
 
@@ -335,7 +356,7 @@ export class RoutingCaller {
         payloadHash: buildBindingPayloadHash(route.params),
         claimID,
       },
-      this.getNow(),
+      this.getClock().now(),
     );
 
     // Another gateway call may have bound the key since it was read; the
@@ -360,7 +381,11 @@ export class RoutingCaller {
 
     const outcomes = await Promise.all(
       daemons.map((daemon) =>
-        waitForOutcome(this.sendToDaemon(m, daemon, required, principal), this.getTimeout()),
+        waitForOutcome(
+          this.sendToDaemon(m, daemon, required, principal),
+          this.getTimeout(),
+          this.getClock(),
+        ),
       ),
     );
 
@@ -410,7 +435,11 @@ export class RoutingCaller {
 
     const outcomes = await Promise.all(
       daemons.map((daemon) =>
-        waitForOutcome(this.opts.pool.getCaller(daemon.name).readHello(), this.getTimeout()),
+        waitForOutcome(
+          this.opts.pool.getCaller(daemon.name).readHello(),
+          this.getTimeout(),
+          this.getClock(),
+        ),
       ),
     );
 

@@ -1,12 +1,12 @@
+import type { AgentID } from '@atc/core/agent-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import type { SessionID } from '@atc/core/session-id';
 import type { AdapterEvent } from '../protocol/adapter-event';
 import type { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
-import type { AgentID } from '../shared/agent-id';
-import type { AgentSessionID } from '../shared/agent-session-id';
 import type { GatewayAuth } from '../shared/check-gateway-auth';
 import type { AuthProfile } from '../shared/collect-auth-profiles';
 import type { GatewayConfig } from '../shared/collect-gateways';
-import type { SessionID } from '../shared/session-id';
 
 export interface SpawnOptions {
   readonly prompt: string;

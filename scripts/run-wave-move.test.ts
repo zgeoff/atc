@@ -169,6 +169,58 @@ test('it moves the sources that wave 1 takes from src', async () => {
   );
 });
 
+test('it moves only the files that land in a package the run names', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave2\tpath_wave3\nsrc/shared/session-id.ts\tcore\tpackages/app/src/shared/session-id.ts\tpackages/core/src/session-id.ts\nsrc/shared/config.ts\tconfig\tpackages/app/src/shared/config.ts\tpackages/config/src/config.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-testmap.tsv'),
+    'test\tpath_wave2\tpath_wave3\nsrc/shared/session-id.test.ts\tpackages/app/src/shared/session-id.test.ts\tpackages/core/src/session-id.test.ts\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/shared/session-id.ts'), 'export const ID = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/shared/session-id.test.ts'), 'export {};\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/shared/config.ts'), 'export const C = 1;\n');
+
+  const moved = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'run-wave-move.ts'),
+    '3',
+    ctx.dir,
+    '--package',
+    'core',
+  ]);
+
+  expect({ exitCode: moved.exitCode, stdout: moved.stdout, stderr: moved.stderr }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'run-wave-move: wave 3, 2 files moved, 0 files rewritten\n',
+    stderr: '',
+  });
+
+  expect(existsSync(join(ctx.dir, 'packages/core/src/session-id.test.ts'))).toBe(true);
+  expect(existsSync(join(ctx.dir, 'packages/app/src/shared/config.ts'))).toBe(true);
+});
+
+test('it refuses a package name the package rules do not hold', async () => {
+  const ctx = setupTest();
+
+  const moved = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'run-wave-move.ts'),
+    '3',
+    ctx.dir,
+    '--package',
+    'nope',
+  ]);
+
+  expect(moved.exitCode).toBe(1);
+  expect(moved.stderr).toInclude('unknown package: nope');
+});
+
 test('it changes nothing on a second run of the same wave', async () => {
   const ctx = setupTest();
 

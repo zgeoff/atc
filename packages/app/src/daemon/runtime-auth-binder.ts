@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { makeKeyedLock } from '@atc/core/make-keyed-lock';
+import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
 import { DaemonError } from '../protocol/daemon-error';
-import type { SessionID } from '../shared/session-id';
 import type { RuntimeAuthBinding, RuntimeAuthGrant } from '../store/runtime-auth-binding';
 import type { StateStore } from '../store/state-store';
 import type { BrokerAuthHost } from './broker-auth-host';
@@ -68,15 +70,15 @@ export class RuntimeAuthBinder {
 
   private readonly now: () => number;
 
-  // The tail of each host's chain of calls, which never rejects.
-  private readonly locks = new Map<SessionID, Promise<void>>();
+  // Runs each call on a host after the one before it on that host.
+  private readonly withHostLock = makeKeyedLock();
 
   // The admissions on each host whose request has not gone out yet. A
   // revoke, a rebind or a forget cancels them before it writes anything,
   // so a request still opening its connection closes it unsent.
   private readonly pending = new Map<SessionID, Set<{ refusal: DaemonError | null }>>();
 
-  constructor(store: RuntimeAuthStore, now: () => number = Date.now) {
+  constructor(store: RuntimeAuthStore, now: () => number = systemClock.now) {
     this.store = store;
     this.now = now;
   }
@@ -557,28 +559,6 @@ export class RuntimeAuthBinder {
         log(
           `atc could not settle the runtime auth of host ${row.hostKey} (${formatError(error)}); it stays blocked`,
         );
-      }
-    }
-  }
-
-  // Runs each call on a host after the one before it on that host.
-  private async withHostLock<T>(hostKey: SessionID, run: () => Promise<T>): Promise<T> {
-    const before = this.locks.get(hostKey);
-    const turn = Promise.withResolvers<void>();
-
-    this.locks.set(hostKey, turn.promise);
-
-    try {
-      if (before !== undefined) {
-        await before;
-      }
-
-      return await run();
-    } finally {
-      turn.resolve();
-
-      if (this.locks.get(hostKey) === turn.promise) {
-        this.locks.delete(hostKey);
       }
     }
   }

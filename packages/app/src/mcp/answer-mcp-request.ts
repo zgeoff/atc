@@ -1,8 +1,8 @@
+import { isRecord } from '@atc/core/is-record';
 import { isAPIError } from 'better-auth/api';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import type { GrantScope } from '../shared/grant-scope';
 import { normalizeClientName } from '../shared/normalize-client-name';
-import { isRecord } from '../shared/report';
 import { answerRPCRequest } from './answer-rpc-request';
 import { buildPrincipalCaller } from './build-principal-caller';
 import { buildRPCError } from './build-rpc-error';

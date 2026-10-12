@@ -1,8 +1,8 @@
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toSessionID } from '../shared/to-session-id';
 import type { FleetEntry } from '../store/fleet-entry';
 
 /**

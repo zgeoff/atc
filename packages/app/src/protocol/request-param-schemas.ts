@@ -1,9 +1,10 @@
+import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
+import { buildOptionalString } from '@atc/core/build-optional-string';
+import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { z } from 'zod';
-import { buildOptionalBoolean } from '../shared/build-optional-boolean';
-import { buildOptionalString } from '../shared/build-optional-string';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
@@ -27,9 +28,6 @@ const IDEMPOTENCY_KEY = z
 // does not hold is refused and nothing runs.
 const REPLAY_ONLY = z.boolean({ error: 'replayOnly must be a boolean' }).optional();
 
-// A full commit id, SHA-1 or SHA-256.
-const COMMIT_ID = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
-
 // The daemon environment variable a git workspace's token is read from.
 const CREDENTIAL_REF = z.strictObject({
   kind: z.literal('env'),
@@ -48,7 +46,7 @@ const GIT_REF = z
   .min(1, 'a git workspace ref must not be empty')
   .refine((ref) => !ref.startsWith('-'), 'a git workspace ref must not start with -');
 
-const GIT_SHA = z.string().regex(COMMIT_ID, 'a git workspace sha is a full commit id');
+const GIT_SHA = z.string().regex(COMMIT_ID_PATTERN, 'a git workspace sha is a full commit id');
 
 /**
  * Where a spawn's working directory comes from, materialized as a clean

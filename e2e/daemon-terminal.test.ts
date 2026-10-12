@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { toSessionID } from '@atc/core/to-session-id';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubCodex } from '@atc/test-utils/create-stub-codex';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
@@ -13,7 +14,6 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import type { EventMsg } from '../packages/app/src/protocol/protocol';
 import { getRecord } from '../packages/app/src/shared/get-record';
-import { toSessionID } from '../packages/app/src/shared/to-session-id';
 import { StateStore } from '../packages/app/src/store/state-store';
 import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';

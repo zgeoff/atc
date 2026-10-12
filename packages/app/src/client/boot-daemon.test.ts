@@ -454,7 +454,7 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
+import { buildStubClock } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
 import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 const notices = [];
@@ -521,7 +521,7 @@ test('it rejects when a socket takes the connection but never answers the handsh
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
+import { buildStubClock } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
 import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 const booting = bootDaemonClient({ waitForDaemonMs: 300, clock });
@@ -573,7 +573,7 @@ test('it reports the start of a wait once across every poll of that wait', async
   writeFileSync(
     join(ctx.dir, 'probe.ts'),
     `import { bootDaemonClient } from '${join(import.meta.dir, 'boot-daemon.ts')}';
-import { buildStubClock } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-clock.ts')}';
+import { buildStubClock } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'build-stub-clock.ts')}';
 import { waitFor } from '${join(import.meta.dir, '..', '..', '..', 'test-utils', 'src', 'wait-for.ts')}';
 const clock = buildStubClock(0);
 let waits = 0;

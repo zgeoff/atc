@@ -1,3 +1,4 @@
+import type { Clock } from '@atc/core/system-clock';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import type { ApprovalState } from './approval-state';
 import type { openMCPAuth } from './open-mcp-auth';
@@ -52,4 +53,7 @@ export interface HTTPServerContext {
   readonly store: MCPAuth;
   readonly approvals: ApprovalState;
   readonly printApproval: (line: string) => void;
+
+  // The time the routes stamp and check expiries against.
+  readonly clock: Clock;
 }

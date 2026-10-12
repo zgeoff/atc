@@ -339,6 +339,8 @@ src/run-gateway.ts	app	cli	packages/app/src/cli/run-gateway.ts
 src/run-systemctl.ts	lifecycle		packages/lifecycle/src/run-systemctl.ts	
 src/shared/agent-id.ts	core		packages/core/src/agent-id.ts	
 src/shared/agent-session-id.ts	core		packages/core/src/agent-session-id.ts	
+src/shared/ansi.ts	core		packages/core/src/ansi.ts	new in ticket 3
+src/shared/broker-placeholder.ts	core		packages/core/src/broker-placeholder.ts	new in ticket 3
 src/shared/build-atc-command.ts	lifecycle		packages/lifecycle/src/build-atc-command.ts	takes atcArgv from its caller (HostServices built in app); no import.meta.dir path
 src/shared/build-optional-boolean.ts	core		packages/core/src/build-optional-boolean.ts	
 src/shared/build-optional-string-array.ts	core		packages/core/src/build-optional-string-array.ts	
@@ -347,6 +349,7 @@ src/shared/build-workspace-destination.ts	core		packages/core/src/build-workspac
 src/shared/bun-sqlite-driver.ts	store	sqlite	packages/store/src/sqlite/bun-sqlite-driver.ts	
 src/shared/check-gateway-auth.ts	harness-claude	config	packages/harnesses/claude/src/config/check-gateway-auth.ts	config slice check owned by harness-claude; agent-adapter.ts type import must go
 src/shared/claim-daemon-lock.ts	lifecycle		packages/lifecycle/src/claim-daemon-lock.ts	
+src/shared/claude-credential-variables.ts	core		packages/core/src/claude-credential-variables.ts	new in ticket 3
 src/shared/collect-agents.ts	config		packages/config/src/collect-agents.ts	split: envelope and union builder in config; per-kind entry parsing to each harness plugin
 src/shared/collect-auth-profiles.ts	config		packages/config/src/collect-auth-profiles.ts	
 src/shared/collect-claude-auth.ts	harness-claude	config	packages/harnesses/claude/src/config/collect-claude-auth.ts	
@@ -363,11 +366,14 @@ src/shared/collect-root-dirs.ts	source-dirs		packages/sources/dirs/src/collect-r
 src/shared/collect-targets.ts	config		packages/config/src/collect-targets.ts	split: envelope in config; per-kind target options to execution-local and execution-imp
 src/shared/collect-workspaces-config.ts	config		packages/config/src/collect-workspaces-config.ts	
 src/shared/collect-zoxide-dirs.ts	source-dirs		packages/sources/dirs/src/collect-zoxide-dirs.ts	source-dirs (and app cli.ts): the TUI fallback (spawn-picker.ts:7) is deleted (decision 8)
+src/shared/commit-id-pattern.ts	core		packages/core/src/commit-id-pattern.ts	new in ticket 3
 src/shared/config.ts	config		packages/config/src/config.ts	split: config/paths (resolvePaths) and config/load envelope; per-plugin sections move to plugins
 src/shared/daemon-id.ts	core		packages/core/src/daemon-id.ts	
 src/shared/default-git-transports.ts	config		packages/config/src/default-git-transports.ts	
+src/shared/expand-home.ts	core		packages/core/src/expand-home.ts	new in ticket 3
 src/shared/find-daemon-record.ts	lifecycle		packages/lifecycle/src/find-daemon-record.ts	
 src/shared/find-pid-file-pid.ts	lifecycle		packages/lifecycle/src/find-pid-file-pid.ts	
+src/shared/format-home-path.ts	core		packages/core/src/format-home-path.ts	new in ticket 3
 src/shared/format-json-kind.ts	config		packages/config/src/format-json-kind.ts	
 src/shared/format-mixed-agent-keys.ts	config		packages/config/src/format-mixed-agent-keys.ts	
 src/shared/get-build.ts	config		packages/config/src/get-build.ts	drop both defaults: app passes the version and the scan root (workspace packages/ in source mode, execPath in a binary); no ../../package.json import
@@ -376,11 +382,14 @@ src/shared/grant-scope.ts	mcp	auth	packages/mcp/src/auth/grant-scope.ts
 src/shared/is-broker-variable.ts	core		packages/core/src/is-broker-variable.ts	
 src/shared/is-compiled-binary.ts	config		packages/config/src/is-compiled-binary.ts	
 src/shared/is-git-url.ts	core		packages/core/src/is-git-url.ts	
+src/shared/is-home-relative.ts	core		packages/core/src/is-home-relative.ts	new in ticket 3
 src/shared/is-process-alive.ts	lifecycle		packages/lifecycle/src/is-process-alive.ts	
+src/shared/is-record.ts	core		packages/core/src/is-record.ts	new in ticket 3
 src/shared/is-subscription-override-variable.ts	core		packages/core/src/is-subscription-override-variable.ts	
 src/shared/legacy-agent-keys.ts	config		packages/config/src/legacy-agent-keys.ts	
 src/shared/load-listener-tokens.ts	config		packages/config/src/load-listener-tokens.ts	
 src/shared/load-mcp-http-config.ts	config		packages/config/src/load-mcp-http-config.ts	
+src/shared/make-keyed-lock.ts	core		packages/core/src/make-keyed-lock.ts	new in ticket 3
 src/shared/make-single-flight.ts	core		packages/core/src/make-single-flight.ts	
 src/shared/message-id.ts	core		packages/core/src/message-id.ts	
 src/shared/normalize-client-name.ts	mcp	auth	packages/mcp/src/auth/normalize-client-name.ts	
@@ -409,6 +418,8 @@ src/shared/to-shell-arg.ts	core		packages/core/src/to-shell-arg.ts
 src/shared/truncate-detail.ts	core		packages/core/src/truncate-detail.ts	
 src/shared/truncate-summary.ts	core		packages/core/src/truncate-summary.ts	
 src/shared/truncate-to-bytes.ts	core		packages/core/src/truncate-to-bytes.ts	
+src/shared/truncate.ts	core		packages/core/src/truncate.ts	new in ticket 3
+src/shared/wait-until.ts	core		packages/core/src/wait-until.ts	new in ticket 3
 src/sources/build-sources.ts	daemon	sources	packages/daemon/src/sources/build-sources.ts	daemon source orchestration over the plugin list
 src/sources/collect-builtin-sources.ts	app	plugins	packages/app/src/plugins/collect-builtin-sources.ts	registry: becomes the app plugin list
 src/sources/dirs/build-dirs-source.ts	source-dirs		packages/sources/dirs/src/build-dirs-source.ts	
@@ -601,6 +612,7 @@ src/workspace/find-remote-ref.ts	daemon	workspace	packages/daemon/src/workspace/
 src/workspace/normalize-git-url.ts	daemon	workspace	packages/daemon/src/workspace/normalize-git-url.ts	
 src/workspace/read-host-git-identity.ts	daemon	workspace	packages/daemon/src/workspace/read-host-git-identity.ts	
 src/workspace/read-workspace-tar.ts	daemon	workspace	packages/daemon/src/workspace/read-workspace-tar.ts	
+src/workspace/repository-env-unset-argv.ts	daemon	workspace	packages/daemon/src/workspace/repository-env-unset-argv.ts	new in ticket 3
 src/workspace/repository-env-vars.ts	daemon	workspace	packages/daemon/src/workspace/repository-env-vars.ts	
 src/workspace/resolve-git-url.ts	daemon	workspace	packages/daemon/src/workspace/resolve-git-url.ts	
 src/workspace/resolve-path-source.ts	daemon	workspace	packages/daemon/src/workspace/resolve-path-source.ts	

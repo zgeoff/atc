@@ -194,10 +194,40 @@ function resolveSpecifier(
   }
 
   if (specifier.startsWith('@atc/')) {
-    return exports.get(specifier) ?? null;
+    return findExport(exports, specifier);
   }
 
   return undefined;
+}
+
+/**
+ * The source file an `@atc/*` specifier names: an exact entry point first,
+ * then a wildcard entry such as `./*` exporting `./src/*.ts`. Null when no
+ * entry matches.
+ */
+function findExport(exports: ReadonlyMap<string, string>, specifier: string): string | null {
+  const exact = exports.get(specifier);
+
+  if (exact !== undefined) {
+    return exact;
+  }
+
+  for (const [pattern, target] of exports) {
+    const [prefix = '', suffix] = pattern.split('*');
+
+    if (
+      suffix !== undefined &&
+      specifier.startsWith(prefix) &&
+      specifier.endsWith(suffix) &&
+      specifier.length >= prefix.length + suffix.length
+    ) {
+      const matched = specifier.slice(prefix.length, specifier.length - suffix.length);
+
+      return target.replace('*', matched);
+    }
+  }
+
+  return null;
 }
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
@@ -231,7 +261,8 @@ const PACKAGE_MANIFEST_SCHEMA = z.object({
 
 /**
  * Each workspace entry point's specifier, such as `@atc/store/sqlite`, keyed
- * to the source file it exports.
+ * to the source file it exports. A wildcard entry keeps its `*` on both
+ * sides, such as `@atc/core/*` keyed to `packages/core/src/*.ts`.
  */
 function collectExports(root: string): Map<string, string> {
   const exports = new Map<string, string>();

@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { toSessionID } from '@atc/core/to-session-id';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { toSessionID } from '../shared/to-session-id';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 
 function setupTest() {

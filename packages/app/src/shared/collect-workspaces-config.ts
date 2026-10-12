@@ -1,5 +1,5 @@
+import { isRecord } from '@atc/core/is-record';
 import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
-import { isRecord } from './report';
 
 /**
  * Where workspace sources come from and where their checkouts land: the

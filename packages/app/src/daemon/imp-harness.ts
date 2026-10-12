@@ -1,7 +1,8 @@
+import { ansi } from '@atc/core/ansi';
+import { isRecord } from '@atc/core/is-record';
+import { truncateSummary } from '@atc/core/truncate-summary';
 import { DaemonError } from '../protocol/daemon-error';
-import { isRecord } from '../shared/report';
 import { sanitizeDetail } from '../shared/sanitize-detail';
-import { truncateSummary } from '../shared/truncate-summary';
 import type {
   HarnessAttachment,
   HarnessExit,
@@ -53,7 +54,7 @@ interface ImpHarnessHost {
 // The bytes a fresh attach sends listeners ahead of its replay: reset the
 // attributes, home the cursor, and clear the screen. A full terminal reset
 // would also undo the modes of every attached client's own terminal.
-const SCREEN_RESET = '\u001B[0m\u001B[H\u001B[2J';
+const SCREEN_RESET = `${ansi.reset}${ansi.cursorHome}${ansi.eraseScreen}`;
 
 /**
  * A harness running in an imp session, as the daemon's one connection to

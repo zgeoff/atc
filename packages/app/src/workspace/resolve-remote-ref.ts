@@ -1,3 +1,4 @@
+import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
 import { findRemoteRef } from './find-remote-ref';
 import { runGit } from './run-git';
 import type { WorkspaceSource } from './workspace-source';
@@ -21,8 +22,6 @@ interface RefRefusal {
   readonly message: string;
 }
 
-const SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
-
 /**
  * Pins a ref to a commit before cloning, so the checkout is exactly the
  * commit the ref pointed at when asked, whatever lands on the branch meanwhile.
@@ -39,7 +38,7 @@ export async function resolveRemoteRef(
 ): Promise<RefRefusal | ResolvedRef> {
   const source = request.source;
 
-  if (SHA_PATTERN.test(source.ref)) {
+  if (COMMIT_ID_PATTERN.test(source.ref)) {
     return { ok: true, sha: source.ref, branch: null };
   }
 

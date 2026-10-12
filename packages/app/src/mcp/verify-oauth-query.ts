@@ -3,9 +3,14 @@ import { constantTimeEqual, makeSignature } from 'better-auth/crypto';
 /**
  * Whether a signed authorization query is one better-auth signed with this
  * secret and has not expired: exactly one `sig`, matching the HMAC of every
- * other parameter sorted by name and then value, and an `exp` still ahead.
+ * other parameter sorted by name and then value, and an `exp` still ahead
+ * of `now`, in epoch milliseconds.
  */
-export async function verifyOAuthQuery(oauthQuery: string, secret: string): Promise<boolean> {
+export async function verifyOAuthQuery(
+  oauthQuery: string,
+  secret: string,
+  now: number,
+): Promise<boolean> {
   const params = new URLSearchParams(oauthQuery);
 
   const signatures = params.getAll('sig');
@@ -36,7 +41,5 @@ export async function verifyOAuthQuery(oauthQuery: string, secret: string): Prom
 
   const expected = await makeSignature(canonical.toString(), secret);
 
-  return (
-    constantTimeEqual(signature, expected) && Number.isFinite(expiresAt) && expiresAt >= Date.now()
-  );
+  return constantTimeEqual(signature, expected) && Number.isFinite(expiresAt) && expiresAt >= now;
 }

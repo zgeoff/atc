@@ -1,7 +1,7 @@
+import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { LRUCache } from 'lru-cache';
-import type { SessionID } from '../shared/session-id';
-import { systemClock } from '../shared/system-clock';
-import type { Clock } from '../shared/system-clock';
 
 export interface PermissionRequest {
   readonly id: string;

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 

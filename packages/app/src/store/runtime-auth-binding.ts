@@ -1,4 +1,4 @@
-import type { SessionID } from '../shared/session-id';
+import type { SessionID } from '@atc/core/session-id';
 
 /**
  * Where a session's runtime auth binding stands:

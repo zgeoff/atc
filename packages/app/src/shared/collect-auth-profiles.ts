@@ -1,6 +1,7 @@
-import { isBrokerVariable } from './is-broker-variable';
-import { isSubscriptionOverrideVariable } from './is-subscription-override-variable';
-import { isRecord } from './report';
+import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
+import { isBrokerVariable } from '@atc/core/is-broker-variable';
+import { isRecord } from '@atc/core/is-record';
+import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
 
 /**
  * A named reference to a credential impd holds: the secret's name, never
@@ -160,10 +161,6 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
   };
 }
 
-// The value a profile's variable may hold: the placeholder the broker swaps
-// a credential in for, or the profile's own host as an https origin. No
-// other value, so a credential is never written into a profile.
-const ENV_PLACEHOLDER = 'imp-broker-placeholder';
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/;
 const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
 
@@ -189,8 +186,11 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
       return `env.${key} cannot be set: atc or impd sets or reserves it`;
     }
 
-    if (value !== ENV_PLACEHOLDER && value !== `https://${host}`) {
-      return `env.${key} must be ${ENV_PLACEHOLDER} or https://${host}`;
+    // only the placeholder the broker swaps a credential in for, or the
+    // profile's own host as an https origin, so a credential is never
+    // written into a profile
+    if (value !== BROKER_PLACEHOLDER && value !== `https://${host}`) {
+      return `env.${key} must be ${BROKER_PLACEHOLDER} or https://${host}`;
     }
 
     env[key] = value;

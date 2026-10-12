@@ -1,6 +1,6 @@
+import type { MessageID } from '@atc/core/message-id';
+import { toMessageID } from '@atc/core/to-message-id';
 import { z } from 'zod';
-import type { MessageID } from '../shared/message-id';
-import { toMessageID } from '../shared/to-message-id';
 
 interface TurnAnswer {
   readonly kind: 'answered';

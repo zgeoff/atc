@@ -1,11 +1,11 @@
 // oxlint-disable zgeoff/test-beside-module -- tests restore-fleet.ts; GEO-433 moves it beside its module
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import type { SessionID } from '@atc/core/session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import type { SessionID } from '../shared/session-id';
-import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';

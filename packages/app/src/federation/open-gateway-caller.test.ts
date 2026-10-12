@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
+import { isRecord } from '@atc/core/is-record';
+import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -11,7 +12,6 @@ import { DaemonClient } from '../client/daemon-client';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { getRecord } from '../shared/get-record';
-import { isRecord } from '../shared/report';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { readJSONRecord } from '../test-utils/read-json-record';
@@ -27,8 +27,9 @@ import { openGatewayCaller } from './open-gateway-caller';
  * lets the OAuth client `Claude` use the local target. `claudeToken` is an
  * access token of `Claude`. `auth` is the authorization store, and
  * `approvals` collects the approval lines the server prints, so a test can
- * register and authorize a client of its own. `timers` starts every timer
- * of the gateway's daemon connections, so none runs unless a test runs it.
+ * register and authorize a client of its own. `clock` runs every timer of
+ * the gateway's daemon connections and fan-out waits, so none runs unless a
+ * test advances it.
  * Sessions run in `dir`.
  */
 async function setupTest() {
@@ -94,7 +95,7 @@ async function setupTest() {
 
   const cloudID = String(cloudHello['daemonID']);
   const pcID = String(pcHello['daemonID']);
-  const timers = buildStubTimeoutScheduler();
+  const clock = buildStubClock(Date.now());
 
   const cloudDaemon = buildMockRegistryDaemon({
     name: 'cloud',
@@ -126,7 +127,7 @@ async function setupTest() {
     // cannot hold a test for the 5 s default. No test waits it out: a
     // stopped daemon refuses the connection at once.
     fanOutTimeoutMs: 1000,
-    scheduleTimeout: timers.schedule,
+    clock,
   });
 
   registerTestCleanup(() => gateway.stop());
@@ -184,7 +185,7 @@ async function setupTest() {
     pc,
     cloudID,
     pcID,
-    timers,
+    clock,
     claudeToken: String(tokens['access_token']),
   };
 }
@@ -564,9 +565,10 @@ test('it holds a waiting events read open until one daemon has an event and retu
   });
 
   // Each daemon holds a waiting read, timed at its wait on top of the
-  // response time, before the message that ends the wait goes out.
+  // response time and of the fan-out time, before the message that ends the
+  // wait goes out.
   await waitFor(() => {
-    expect(ctx.timers.collectPendingDelays()).toStrictEqual([40_000, 40_000]);
+    expect(ctx.clock.collectPending()).toStrictEqual([11_000, 11_000, 40_000, 40_000]);
   });
 
   await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {

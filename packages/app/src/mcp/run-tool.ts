@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
+import { isRecord } from '@atc/core/is-record';
 import { match } from 'ts-pattern';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
-import { isRecord } from '../shared/report';
 import { parseIdempotencyKey } from './parse-idempotency-key';
 import { readNoteTexts } from './read-note-texts';
 import type { FleetCaller, ToolContext } from './types';

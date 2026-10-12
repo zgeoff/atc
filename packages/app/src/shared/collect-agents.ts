@@ -1,4 +1,6 @@
-import type { AgentID } from './agent-id';
+import type { AgentID } from '@atc/core/agent-id';
+import { isRecord } from '@atc/core/is-record';
+import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
 import { checkGatewayAuth } from './check-gateway-auth';
 import type { GatewayAuth } from './check-gateway-auth';
 import type { AuthProfile } from './collect-auth-profiles';
@@ -6,8 +8,6 @@ import { collectClaudeAuth } from './collect-claude-auth';
 import type { ClaudeMCPServer } from './collect-claude-auth';
 import { collectCodexAuth } from './collect-codex-auth';
 import { collectProfileEnvProblems } from './collect-profile-env-problems';
-import { isSubscriptionOverrideVariable } from './is-subscription-override-variable';
-import { isRecord } from './report';
 import { resolveAuthProfiles } from './resolve-auth-profiles';
 
 /**

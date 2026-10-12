@@ -8,6 +8,9 @@ import {
   statSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
+import { waitUntil } from '@atc/core/wait-until';
 import { collectRestartEnv } from './collect-restart-env';
 import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
@@ -36,12 +39,15 @@ const WORKER_START_WAIT_MS = 30_000;
  * restart can end the process that asked for it. The worker writes a run
  * log, which this follows line by line until the worker's result record
  * ends it. Resolves the exit code: the worker's, or 1 when the worker
- * vanishes without a result.
+ * vanishes without a result. The follower and the probe run on the clock.
  */
-export async function runDaemonRestart(options: DaemonRestartOptions): Promise<number> {
+export async function runDaemonRestart(
+  options: DaemonRestartOptions,
+  clock: Clock = systemClock,
+): Promise<number> {
   const callerSession = process.env['ATC_SESSION_ID'] ?? null;
 
-  const plan = await collectRestartPlan(callerSession);
+  const plan = await collectRestartPlan(callerSession, clock);
 
   if (options.dryRun) {
     for (const line of formatRestartPreflight(plan)) {
@@ -52,9 +58,9 @@ export async function runDaemonRestart(options: DaemonRestartOptions): Promise<n
   }
 
   mkdirSync(restartsDir, { recursive: true });
-  removeStaleRestartLogs();
+  removeStaleRestartLogs(clock);
 
-  const runID = mintRunID();
+  const runID = mintRunID(clock);
   const logPath = join(restartsDir, `${runID}.log`);
   const workerArgs = buildWorkerArgs(runID, callerSession, options);
   const logFD = openSync(logPath, 'a');
@@ -82,11 +88,11 @@ export async function runDaemonRestart(options: DaemonRestartOptions): Promise<n
 
   console.log(`progress: ${logPath}`);
 
-  return printRunLog(runID, logPath, workerPID);
+  return printRunLog(runID, logPath, workerPID, clock);
 }
 
-function mintRunID(): string {
-  return `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}`;
+function mintRunID(clock: Clock): string {
+  return `${clock.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}`;
 }
 
 function buildWorkerArgs(
@@ -148,51 +154,62 @@ async function printRunLog(
   runID: string,
   logPath: string,
   workerPIDAtStart: number | null,
+  clock: Clock,
 ): Promise<number> {
-  const startedAt = Date.now();
+  const startedAt = clock.now();
   let workerPID = workerPIDAtStart;
   let printed = 0;
   let pending = '';
   let vanished = false;
+  const settled: { code?: number } = {};
 
-  for (;;) {
-    const text = readLog(logPath);
+  await waitUntil(
+    () => {
+      const text = readLog(logPath);
 
-    pending += text.slice(printed);
-    printed = text.length;
+      pending += text.slice(printed);
+      printed = text.length;
 
-    const lines = pending.split('\n');
+      const lines = pending.split('\n');
 
-    pending = lines.pop() ?? '';
+      pending = lines.pop() ?? '';
 
-    for (const line of lines) {
-      const result = parseRestartResult(line);
+      for (const line of lines) {
+        const result = parseRestartResult(line);
 
-      if (result !== null && result.runID === runID) {
-        return result.code;
+        if (result !== null && result.runID === runID) {
+          settled.code = result.code;
+
+          return true;
+        }
+
+        const pidMatch = /^worker pid (?<pid>\d+)$/.exec(line);
+
+        if (pidMatch !== null) {
+          workerPID = Number(pidMatch.groups?.['pid']);
+        }
+
+        console.log(line);
       }
 
-      const pidMatch = /^worker pid (?<pid>\d+)$/.exec(line);
+      if (vanished) {
+        settled.code = printVanishedWorker(logPath);
 
-      if (pidMatch !== null) {
-        workerPID = Number(pidMatch.groups?.['pid']);
+        return true;
       }
 
-      console.log(line);
-    }
+      // One more read after the worker is gone, in case its last lines
+      // landed between the read above and its exit.
+      vanished =
+        (workerPID !== null && !isProcessAlive(workerPID)) ||
+        (workerPID === null && clock.now() - startedAt > WORKER_START_WAIT_MS);
 
-    if (vanished) {
-      return printVanishedWorker(logPath);
-    }
+      return false;
+    },
+    { clock, intervalMs: 100, deadlineMs: Number.POSITIVE_INFINITY },
+  );
 
-    // One more read after the worker is gone, in case its last lines landed
-    // between the read above and its exit.
-    vanished =
-      (workerPID !== null && !isProcessAlive(workerPID)) ||
-      (workerPID === null && Date.now() - startedAt > WORKER_START_WAIT_MS);
-
-    await Bun.sleep(100);
-  }
+  return settled.code ?? printVanishedWorker(logPath);
 }
 
 function printVanishedWorker(logPath: string): number {
@@ -209,8 +226,8 @@ function readLog(logPath: string): string {
   }
 }
 
-function removeStaleRestartLogs(): void {
-  const cutoff = Date.now() - LOG_RETENTION_MS;
+function removeStaleRestartLogs(clock: Clock): void {
+  const cutoff = clock.now() - LOG_RETENTION_MS;
 
   for (const entry of readdirSync(restartsDir)) {
     if (!entry.endsWith('.log')) {

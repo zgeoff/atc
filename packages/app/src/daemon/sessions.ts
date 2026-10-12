@@ -1,5 +1,17 @@
 import { realpathSync, writeFileSync } from 'node:fs';
 import { posix } from 'node:path';
+import type { AgentID } from '@atc/core/agent-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import { buildTarArchive } from '@atc/core/build-tar-archive';
+import { createStepTimer } from '@atc/core/create-step-timer';
+import type { StepTimer } from '@atc/core/create-step-timer';
+import type { DaemonID } from '@atc/core/daemon-id';
+import { isBrokerVariable } from '@atc/core/is-broker-variable';
+import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
+import { truncateDetail } from '@atc/core/truncate-detail';
+import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type {
   AgentAdapter,
   GuestPaths,
@@ -17,29 +29,19 @@ import type { ErrorCode } from '../protocol/protocol';
 import type { PublishedRecord } from '../protocol/published-record';
 import type { SessionState } from '../protocol/session-state';
 import { sortSessionViews } from '../protocol/sort-session-views';
-import type { AgentID } from '../shared/agent-id';
-import type { AgentSessionID } from '../shared/agent-session-id';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
-import type { DaemonID } from '../shared/daemon-id';
-import { isBrokerVariable } from '../shared/is-broker-variable';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
-import type { SessionID } from '../shared/session-id';
-import { truncateDetail } from '../shared/truncate-detail';
-import { truncateToBytes } from '../shared/truncate-to-bytes';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import type { SessionWorkspace } from '../store/workspace-materialization';
-import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionLifecycle } from './build-session-lifecycle';
-import { buildTarArchive } from './build-tar-archive';
 import { buildTargetIdentity } from './build-target-identity';
-import { createStepTimer } from './create-step-timer';
-import type { StepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
 import type {
   ExecutionCapability,
@@ -281,7 +283,6 @@ const ABSENT_DIR_EXIT = 3;
 
 // Runs git on the directory it starts in, whatever repository the daemon's
 // environment pins git to.
-const GIT_ENV_ARGV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
 const MAX_SETTINGS_BYTES = 1_048_576;
 
 // A readied host's harness plan, and the auth attempt that provisioned the
@@ -372,6 +373,9 @@ export class SessionManager {
 
   // The clock each remote launch's step timing reads, in milliseconds.
   now: () => number = () => performance.now();
+
+  // The clock a session's creation and last attach are stamped with.
+  clock: Clock = systemClock;
 
   // Binds the runtime auth of each host whose agent takes its credential
   // from impd's broker; with none, every such start is refused.
@@ -645,10 +649,10 @@ export class SessionManager {
       ...(entry.agentSessionID === undefined ? {} : { agentSessionID: entry.agentSessionID }),
       agent: entry.agent,
       pinned: entry.pinned ?? false,
-      lastAttachedAt: entry.lastAttachedAt ?? Date.now(),
+      lastAttachedAt: entry.lastAttachedAt ?? this.clock.now(),
       repoRoot: this.pickRestoredRepoRoot(entry.cwd, exited, target),
       namedBy: 'auto',
-      createdAt: Date.now(),
+      createdAt: this.clock.now(),
       parent: parent !== null && this.sessions.some((s) => s.id === parent) ? parent : null,
       ...(entry.prompt === undefined ? {} : { prompt: entry.prompt }),
       ...(entry.result === undefined ? {} : { result: entry.result }),
@@ -1388,10 +1392,10 @@ export class SessionManager {
       ...(typeof resume === 'string' ? { agentSessionID: resume } : {}),
       agent,
       pinned: false,
-      lastAttachedAt: Date.now(),
+      lastAttachedAt: this.clock.now(),
       repoRoot: dir === cwd ? repoRoot : dir,
       namedBy,
-      createdAt: Date.now(),
+      createdAt: this.clock.now(),
       parent,
       ...(prompt === '' ? {} : { prompt }),
       ...(overrides.model === undefined ? {} : { model: overrides.model }),
@@ -2518,7 +2522,7 @@ export class SessionManager {
 
     const found = await provider.runCommand({
       argv: [
-        ...GIT_ENV_ARGV,
+        ...REPOSITORY_ENV_UNSET_ARGV,
         'sh',
         '-c',
         READ_PROJECT_SETTINGS_SCRIPT,
@@ -2942,7 +2946,7 @@ export class SessionManager {
     }
 
     s.unread = false;
-    s.lastAttachedAt = Date.now();
+    s.lastAttachedAt = this.clock.now();
     void this.tryWriteFleet(s.id);
 
     // Attaching answers the attention request: a still-pending prompt

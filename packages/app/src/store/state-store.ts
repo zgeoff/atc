@@ -1,6 +1,17 @@
 import { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import type { AgentID } from '@atc/core/agent-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import type { DaemonID } from '@atc/core/daemon-id';
+import type { MessageID } from '@atc/core/message-id';
+import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
+import { toAgentID } from '@atc/core/to-agent-id';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toDaemonID } from '@atc/core/to-daemon-id';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
 import type {
   CompiledQuery,
@@ -14,17 +25,7 @@ import type { AdapterEvent } from '../protocol/adapter-event';
 import { DaemonError } from '../protocol/daemon-error';
 import type { HookEvent } from '../protocol/hook-event';
 import type { PublishedRecord } from '../protocol/published-record';
-import type { AgentID } from '../shared/agent-id';
-import type { AgentSessionID } from '../shared/agent-session-id';
 import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
-import type { DaemonID } from '../shared/daemon-id';
-import type { MessageID } from '../shared/message-id';
-import type { SessionID } from '../shared/session-id';
-import { toAgentID } from '../shared/to-agent-id';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
-import { toDaemonID } from '../shared/to-daemon-id';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
@@ -348,7 +349,7 @@ export class StateStore {
           .execute();
       }
 
-      const updatedAt = Date.now();
+      const updatedAt = systemClock.now();
 
       for (const entry of kept) {
         await trx
@@ -441,11 +442,11 @@ export class StateStore {
   }
 
   // Records a hook event in the trail, stamped with the given time in epoch
-  // milliseconds, or the wall clock's when absent.
+  // milliseconds, or the system clock's when absent.
   async recordEvent(
     e: HookEvent,
     ev: Readonly<AdapterEvent> | null = null,
-    at: number = Date.now(),
+    at: number = systemClock.now(),
   ): Promise<void> {
     const rawMessage = e.payload['message'];
     const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];

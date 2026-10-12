@@ -1,6 +1,6 @@
 import { DaemonError } from '../protocol/daemon-error';
 import { collectCredentialConfigKeys } from '../workspace/collect-credential-config-keys';
-import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
+import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import type { ExecutionProvider } from './execution-provider';
 
 interface GuestCloneRequest {
@@ -53,7 +53,7 @@ export async function createGuestClone(
 ): Promise<GuestClone> {
   const run = await provider.runCommand({
     argv: [
-      ...GUEST_CLONE_ENV,
+      ...REPOSITORY_ENV_UNSET_ARGV,
       'sh',
       '-c',
       GUEST_CLONE_SCRIPT,
@@ -115,7 +115,6 @@ export async function createGuestClone(
 
 // The host runs commands in its own environment, so the clone unsets every
 // variable that could point git at another repository first.
-const GUEST_CLONE_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', name])];
 
 // Exit statuses of the script for each refusal it reports; a clone or a
 // checkout that fails exits with git's status once the directory is empty.

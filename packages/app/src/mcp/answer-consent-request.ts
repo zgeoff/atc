@@ -1,6 +1,6 @@
+import { isRecord } from '@atc/core/is-record';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import { normalizeClientName } from '../shared/normalize-client-name';
-import { isRecord } from '../shared/report';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildConsentBinding } from './build-consent-binding';
 import { buildPageResponse } from './build-page-response';
@@ -106,7 +106,9 @@ export async function answerConsentRequest(
   await (issuedCode
     ? ctx.store.db
         .updateTable('session')
-        .set({ expiresAt: new Date(Date.now() + APPROVAL_WINDOW_SECONDS * 1000).toISOString() })
+        .set({
+          expiresAt: new Date(ctx.clock.now() + APPROVAL_WINDOW_SECONDS * 1000).toISOString(),
+        })
         .where('id', '=', sessionID)
         .execute()
     : ctx.store.db.deleteFrom('session').where('id', '=', sessionID).execute());
@@ -141,7 +143,7 @@ async function verifyConsentRequest(
 ): Promise<string | null> {
   const authContext = await ctx.store.auth.$context;
 
-  if (!(await verifyOAuthQuery(oauthQuery, authContext.secret))) {
+  if (!(await verifyOAuthQuery(oauthQuery, authContext.secret, ctx.clock.now()))) {
     return null;
   }
 

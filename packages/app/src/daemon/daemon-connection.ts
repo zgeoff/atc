@@ -1,4 +1,8 @@
 import { basename, isAbsolute } from 'node:path';
+import type { AgentID } from '@atc/core/agent-id';
+import { isRecord } from '@atc/core/is-record';
+import type { SessionID } from '@atc/core/session-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { CONTROL_CHARACTER } from '../protocol/control-character';
 import { DaemonError } from '../protocol/daemon-error';
 import { DAEMON_FEATURES } from '../protocol/daemon-features';
@@ -19,10 +23,6 @@ import {
   encodeMessage,
 } from '../protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
-import type { AgentID } from '../shared/agent-id';
-import { isRecord } from '../shared/report';
-import type { SessionID } from '../shared/session-id';
-import { toSessionID } from '../shared/to-session-id';
 import type { SourceProvider, SourceRequest } from '../sources/types';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';

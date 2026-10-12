@@ -1,4 +1,4 @@
-import type { AgentID } from './agent-id';
+import type { AgentID } from '@atc/core/agent-id';
 import type { AgentEntry } from './collect-agents';
 
 /**

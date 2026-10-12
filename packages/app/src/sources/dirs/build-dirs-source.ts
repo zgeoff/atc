@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { expandHome } from '@atc/core/expand-home';
+import { formatHomePath } from '@atc/core/format-home-path';
 import { collectRootDirs } from '../../shared/collect-root-dirs';
 import type { SourceInterpretation, SourceProvider } from '../types';
 
@@ -52,9 +54,7 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
     },
     interpret(input) {
       const text = input.trim();
-
-      const dir =
-        text === '~' || text.startsWith('~/') ? `${services.homeDir}${text.slice(1)}` : text;
+      const dir = expandHome(text, services.homeDir);
 
       const interpretation: SourceInterpretation = isAbsolute(dir)
         ? { kind: 'path', dir }
@@ -63,8 +63,4 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
       return Promise.resolve(interpretation);
     },
   };
-}
-
-function formatHomePath(dir: string, home: string): string {
-  return dir === home || dir.startsWith(`${home}/`) ? `~${dir.slice(home.length)}` : dir;
 }

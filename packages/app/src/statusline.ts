@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core/is-record';
 import { resolveAgentHome } from './agents/resolve-agent-home';
 import { sendBridgeRequest } from './protocol/send-bridge-request';
 import { statusFile } from './shared/config';
-import { isRecord, sendReport } from './shared/report';
+import { sendReport } from './shared/report';
 
 /**
  * Runs as the statusLine command injected into wrangled sessions. Chains the

@@ -1,13 +1,14 @@
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
+import { buildTarArchive } from '@atc/core/build-tar-archive';
+import { createStepTimer } from '@atc/core/create-step-timer';
+import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import pkg from '../../package.json';
 import { DaemonError } from '../protocol/daemon-error';
 import { LineDecoder } from '../protocol/line-decoder';
 import { isCompiledBinary } from '../shared/is-compiled-binary';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildImpName } from './build-imp-name';
-import { buildTarArchive } from './build-tar-archive';
-import { createStepTimer } from './create-step-timer';
 import { EffectRemainsError } from './effect-remains-error';
 import type {
   CommandResult,
@@ -157,7 +158,7 @@ export class ImpProvider implements ExecutionProvider {
   // Each imp's readyings, sleeps, and lease returns run one after another,
   // in the order they were asked for, so none of them gives back the lease
   // a readying just took.
-  private readonly turns = new Map<string, Promise<void>>();
+  private readonly withHostTurn = makeKeyedLock();
 
   // The readyings of each imp still waiting for their turn.
   private readonly waitingPrepares = new Map<string, number>();
@@ -754,29 +755,6 @@ export class ImpProvider implements ExecutionProvider {
       clearInterval(host.renewTimer);
 
       host.renewTimer = null;
-    }
-  }
-
-  // Runs a readying, a sleep, or a lease return of an imp after the one
-  // before it there.
-  private async withHostTurn<T>(name: string, run: () => Promise<T>): Promise<T> {
-    const before = this.turns.get(name);
-    const turn = Promise.withResolvers<void>();
-
-    this.turns.set(name, turn.promise);
-
-    try {
-      if (before !== undefined) {
-        await before;
-      }
-
-      return await run();
-    } finally {
-      turn.resolve();
-
-      if (this.turns.get(name) === turn.promise) {
-        this.turns.delete(name);
-      }
     }
   }
 

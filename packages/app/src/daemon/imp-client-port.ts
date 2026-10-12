@@ -1,6 +1,6 @@
+import { isRecord } from '@atc/core/is-record';
 import { createImpClient, openExecSession, openReverseForward } from '@zgeoff/imp-client';
 import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@zgeoff/imp-client';
-import { isRecord } from '../shared/report';
 import type {
   ImpCommand,
   ImpCommandResult,

@@ -1,13 +1,13 @@
+import type { AgentID } from '@atc/core/agent-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
+import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
+import { buildOptionalString } from '@atc/core/build-optional-string';
+import type { DaemonID } from '@atc/core/daemon-id';
+import { isRecord } from '@atc/core/is-record';
+import type { SessionID } from '@atc/core/session-id';
+import { toAgentID } from '@atc/core/to-agent-id';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { z } from 'zod';
-import type { AgentID } from '../shared/agent-id';
-import type { AgentSessionID } from '../shared/agent-session-id';
-import { buildOptionalBoolean } from '../shared/build-optional-boolean';
-import { buildOptionalString } from '../shared/build-optional-string';
-import type { DaemonID } from '../shared/daemon-id';
-import { isRecord } from '../shared/report';
-import type { SessionID } from '../shared/session-id';
-import { toAgentID } from '../shared/to-agent-id';
-import { toAgentSessionID } from '../shared/to-agent-session-id';
 import type { SessionWorkspace } from './workspace-materialization';
 
 // One fleet row. The atc session id keys it and stays the same for the

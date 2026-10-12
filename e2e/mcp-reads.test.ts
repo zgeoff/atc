@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core/is-record';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { isRecord } from '../packages/app/src/shared/report';
 import { setupMCPHome } from '../packages/app/src/test-utils/setup-mcp-home';
 import { startMCPStdio } from '../packages/app/src/test-utils/start-mcp-stdio';
 

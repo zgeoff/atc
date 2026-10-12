@@ -1,4 +1,4 @@
-import type { SessionID } from '../shared/session-id';
+import type { SessionID } from '@atc/core/session-id';
 
 /**
  * What one session bridge was opened for: the session, the target and

@@ -2,6 +2,7 @@
 import { expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
+import { toSessionID } from '@atc/core/to-session-id';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubEchoClaude } from '@atc/test-utils/create-stub-echo-claude';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
@@ -10,7 +11,6 @@ import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { getRecord } from '../shared/get-record';
-import { toSessionID } from '../shared/to-session-id';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';

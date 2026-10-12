@@ -1,8 +1,9 @@
+import { isRecord } from '@atc/core/is-record';
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { decodeCursor } from '../protocol/decode-cursor';
 import { encodeCursor } from '../protocol/encode-cursor';
-import { isRecord } from '../shared/report';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
 import type { DaemonCaller } from './daemon-caller';
@@ -21,6 +22,9 @@ interface FleetEventsDeps {
 
   // How long each daemon may take to answer a read that does not wait.
   readonly timeoutMs: number;
+
+  // Runs the time each daemon gets.
+  readonly clock: Clock;
 }
 
 // The daemon's own default and bounds for a page of events.
@@ -116,7 +120,11 @@ async function readDaemonSource(
   daemon: RegistryDaemon,
   start: EventReadStart,
 ): Promise<MergeSource> {
-  const outcome = await waitForOutcome(readDaemonPart(read, daemon, start), read.deps.timeoutMs);
+  const outcome = await waitForOutcome(
+    readDaemonPart(read, daemon, start),
+    read.deps.timeoutMs,
+    read.deps.clock,
+  );
 
   if (outcome.kind === 'answered') {
     return outcome.value;
@@ -256,6 +264,7 @@ async function waitForFirstEvents(
         cursor: source.page.cursor,
       }),
       read.deps.timeoutMs + waitMs,
+      read.deps.clock,
     );
 
     if (outcome.kind === 'answered') {

@@ -1,5 +1,5 @@
+import { isRecord } from '@atc/core/is-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { isRecord } from '../shared/report';
 
 type BridgeRequest = Readonly<Record<string, unknown>>;
 

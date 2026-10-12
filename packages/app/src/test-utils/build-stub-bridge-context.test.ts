@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toMessageID } from '../shared/to-message-id';
-import { toSessionID } from '../shared/to-session-id';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { buildStubBridgeContext } from './build-stub-bridge-context';
 
 test('it finds no live session', () => {

@@ -1,0 +1,16 @@
+{
+  "name": "@atc/core",
+  "private": true,
+  "description": "Pure helpers every other package shares: ids, the clock, truncation, canonical JSON and the broker vocabulary",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "type-fest": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*"
+  }
+}

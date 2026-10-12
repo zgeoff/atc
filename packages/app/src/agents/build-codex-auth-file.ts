@@ -1,3 +1,5 @@
+import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
+
 /**
  * The `auth.json` a Codex session on a remote host signs in with, which
  * holds no credential: impd's broker sets the real access token on each
@@ -19,8 +21,8 @@ export function buildCodexAuthFile(
     OPENAI_API_KEY: null,
     tokens: {
       id_token: buildUnsignedIDToken(idClaims),
-      access_token: PLACEHOLDER,
-      refresh_token: PLACEHOLDER,
+      access_token: BROKER_PLACEHOLDER,
+      refresh_token: BROKER_PLACEHOLDER,
       account_id: accountID,
     },
     last_refresh: LAST_REFRESH,
@@ -28,9 +30,6 @@ export function buildCodexAuthFile(
 
   return `${JSON.stringify(auth, null, 2)}\n`;
 }
-
-// The value impd's broker replaces with the access token on the host's side.
-const PLACEHOLDER = 'imp-broker-placeholder';
 
 // A last refresh Codex never counts as stale.
 const LAST_REFRESH = '2099-01-01T00:00:00Z';
@@ -53,7 +52,7 @@ function buildUnsignedIDToken(idClaims: Readonly<Record<string, unknown>>): stri
   return [
     toBase64URL(JSON.stringify({ alg: 'none', typ: 'JWT' })),
     toBase64URL(JSON.stringify(payload)),
-    toBase64URL(PLACEHOLDER),
+    toBase64URL(BROKER_PLACEHOLDER),
   ].join('.');
 }
 

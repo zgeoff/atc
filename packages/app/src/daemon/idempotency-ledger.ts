@@ -1,3 +1,6 @@
+import { makeKeyedLock } from '@atc/core/make-keyed-lock';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '../protocol/daemon-error';
 import type { EffectTarget, IdempotencyRecord } from '../store/idempotency-record';
 import type { StateStore } from '../store/state-store';
@@ -63,44 +66,33 @@ export class IdempotencyLedger {
   // Where a failed write to the ledger is reported, one line at a time.
   private readonly log: (line: string) => void;
 
+  // The time each claim and outcome is stamped with.
+  private readonly clock: Clock;
+
   // One promise chain per key, so two requests under the same key never
   // interleave their claim and completion on one daemon.
-  private readonly locks = new Map<string, Promise<void>>();
+  private readonly withKeyLock = makeKeyedLock();
 
-  constructor(store: StateStore, principal: string, log: (line: string) => void) {
+  constructor(
+    store: StateStore,
+    principal: string,
+    log: (line: string) => void,
+    clock: Clock = systemClock,
+  ) {
     this.store = store;
     this.principal = principal;
     this.log = log;
+    this.clock = clock;
   }
 
-  async run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
+  run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
     const lockKey = JSON.stringify([
       call.keyed.principal ?? this.principal,
       call.operation,
       call.keyed.key,
     ]);
 
-    const previous = this.locks.get(lockKey) ?? Promise.resolve();
-    const released = Promise.withResolvers<void>();
-
-    const chained = (async () => {
-      await previous;
-      await released.promise;
-    })();
-
-    this.locks.set(lockKey, chained);
-
-    await previous;
-
-    try {
-      return await this.runClaimed(call);
-    } finally {
-      released.resolve();
-
-      if (this.locks.get(lockKey) === chained) {
-        this.locks.delete(lockKey);
-      }
-    }
+    return this.withKeyLock(lockKey, () => this.runClaimed(call));
   }
 
   private async runClaimed<T extends Readonly<Record<string, unknown>>>(
@@ -129,7 +121,7 @@ export class IdempotencyLedger {
       ...id,
       payloadHash: call.keyed.payloadHash,
       effectRef: call.effectRef,
-      at: Date.now(),
+      at: this.clock.now(),
     });
 
     if (held !== null) {
@@ -171,7 +163,7 @@ export class IdempotencyLedger {
       await this.store.updateIdempotencyCompleted(
         id,
         JSON.stringify(result),
-        Date.now(),
+        this.clock.now(),
         call.findEffectTarget?.(result) ?? null,
       );
     } catch (error) {
@@ -189,7 +181,7 @@ export class IdempotencyLedger {
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ): Promise<void> {
     try {
-      await this.store.updateIdempotencyOutcomeUnknown(id, Date.now());
+      await this.store.updateIdempotencyOutcomeUnknown(id, this.clock.now());
     } catch (error) {
       this.logFailure(call, 'outcome_unknown write', error);
     }

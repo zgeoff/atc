@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core/is-record';
 import { stateDir } from '../shared/config';
-import { isRecord } from '../shared/report';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';

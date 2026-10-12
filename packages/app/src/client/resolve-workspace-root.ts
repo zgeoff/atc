@@ -1,3 +1,4 @@
+import { expandHome } from '@atc/core/expand-home';
 import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { resolveHomeDir } from '../shared/resolve-home-dir';
 
@@ -47,8 +48,4 @@ export function resolveWorkspaceRoot(
   }
 
   return { ok: true, root: configured };
-}
-
-function expandHome(dir: string, home: string): string {
-  return dir === '~' || dir.startsWith('~/') ? `${home}${dir.slice(1)}` : dir;
 }

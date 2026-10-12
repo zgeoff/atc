@@ -1,4 +1,4 @@
-import { isRecord } from '../shared/report';
+import { isRecord } from '@atc/core/is-record';
 import { buildGatewayID } from './build-gateway-id';
 import type { IDRule } from './id-rules';
 import type { RegistryDaemon } from './types';

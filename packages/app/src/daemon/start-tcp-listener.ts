@@ -1,4 +1,4 @@
-import type { Clock } from '../shared/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import type { DaemonConnection, TCPPeer } from './daemon-connection';
 import { findTokenFingerprint } from './find-token-fingerprint';
 import { formatLogField } from './format-log-field';

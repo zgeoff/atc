@@ -1,15 +1,17 @@
-import { homedir } from 'node:os';
+import type { AgentID } from '@atc/core/agent-id';
+import { ansi } from '@atc/core/ansi';
+import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
+import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
+import { expandHome } from '@atc/core/expand-home';
+import { isGitURL } from '@atc/core/is-git-url';
+import { isHomeRelative } from '@atc/core/is-home-relative';
+import { isRecord } from '@atc/core/is-record';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
-import type { AgentID } from '../shared/agent-id';
-import { buildWorkspaceDestination } from '../shared/build-workspace-destination';
 import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { loadConfig } from '../shared/config';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
-import { isGitURL } from '../shared/is-git-url';
-import { isRecord } from '../shared/report';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectPathCompletions } from './collect-path-completions';
@@ -21,7 +23,7 @@ import { pickRefusalStep } from './pick-refusal-step';
 import { resolvePathInput } from './resolve-path-input';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { splitToWidth } from './split-to-width';
-import { ansi, cols, drawPicker, getPickerWidth } from './ui';
+import { cols, drawPicker, getPickerWidth } from './ui';
 
 type PickerStep =
   | 'agent'
@@ -68,6 +70,9 @@ export interface SpawnPickerDeps<TMirror> {
 
   // The client's own directory, which the directory step lists first.
   readonly cwd: string;
+
+  // The client's home directory, which a typed `~` expands to.
+  readonly home: string;
 
   // The config file the flow reads its agents, roots, and workspaces from
   // each time it opens.
@@ -138,7 +143,6 @@ interface ChosenRef {
 // The root the daemon picks a destination under on a remote target without
 // a configured one, as the confirm screen shows it.
 const AUTO_ROOT = '~/.local/share/atc/workspaces';
-const FULL_SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
 const SHORT_SHA_PATTERN = /^[\da-f]{7,63}$/u;
 
 // A request the step waits on, and the number that tells its answer from a
@@ -961,7 +965,8 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     const typed = this.input.trim();
 
     const chosen =
-      this.collectDirItems()[this.selected] ?? resolvePathInput(typed, this.deps.cwd, homedir());
+      this.collectDirItems()[this.selected] ??
+      resolvePathInput(typed, this.deps.cwd, this.deps.home);
 
     if (chosen !== null) {
       this.applyDir(chosen);
@@ -1028,9 +1033,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
    * else fuzzy-filters the merged list.
    */
   private collectDirItems(): string[] {
-    return resolvePathInput(this.input, this.deps.cwd, homedir()) === null
+    return resolvePathInput(this.input, this.deps.cwd, this.deps.home) === null
       ? pickMatches(this.dirs, this.input)
-      : collectPathCompletions(this.input, this.deps.cwd, homedir());
+      : collectPathCompletions(this.input, this.deps.cwd, this.deps.home);
   }
 
   // The git source step's rows: the other URL form after a failed probe,
@@ -1597,7 +1602,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    if (FULL_SHA_PATTERN.test(typed)) {
+    if (COMMIT_ID_PATTERN.test(typed)) {
       this.applyRef({ ref: null, sha: typed });
 
       return;
@@ -1714,7 +1719,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     return (
       this.deps.hasDaemonFeature('spawn.workspace.autoDir') &&
-      (configured === null || configured === '~' || configured.startsWith('~/'))
+      (configured === null || isHomeRelative(configured))
     );
   }
 
@@ -1731,11 +1736,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     const inPlace = this.findEffectiveTarget()?.inPlace ?? true;
-
-    const dir =
-      inPlace && (typed === '~' || typed.startsWith('~/'))
-        ? `${resolveHomeDir()}${typed.slice(1)}`
-        : typed;
+    const dir = inPlace ? expandHome(typed, this.deps.home) : typed;
 
     if (!dir.startsWith('/')) {
       this.refusal = inPlace

@@ -1,4 +1,5 @@
-import type { GatewayChannel, TimeoutScheduler } from './daemon-caller';
+import type { Clock } from '@atc/core/system-clock';
+import type { GatewayChannel } from './daemon-caller';
 import { DaemonPool } from './daemon-pool';
 import { GatewayStore } from './gateway-store';
 import { RoutingCaller } from './routing-caller';
@@ -17,9 +18,10 @@ interface GatewayCallerOptions {
   // How long each daemon may take to answer a call asked of every daemon.
   readonly fanOutTimeoutMs?: number;
 
-  // Starts each daemon connection's connect and response timers; real
-  // timers when unset.
-  readonly scheduleTimeout?: TimeoutScheduler;
+  // Runs each daemon connection's connect and response timers and the
+  // fan-out waits, and reads the time for the binding store; the system
+  // clock when unset.
+  readonly clock?: Clock;
 }
 
 /**
@@ -39,7 +41,7 @@ export function openGatewayCaller(opts: GatewayCallerOptions): {
     registry: opts.registry,
     build: opts.build,
     openChannel: opts.openChannel,
-    ...(opts.scheduleTimeout === undefined ? {} : { scheduleTimeout: opts.scheduleTimeout }),
+    ...(opts.clock === undefined ? {} : { clock: opts.clock }),
   });
 
   const caller = new RoutingCaller({
@@ -47,6 +49,7 @@ export function openGatewayCaller(opts: GatewayCallerOptions): {
     pool,
     store,
     ...(opts.fanOutTimeoutMs === undefined ? {} : { fanOutTimeoutMs: opts.fanOutTimeoutMs }),
+    ...(opts.clock === undefined ? {} : { clock: opts.clock }),
   });
 
   return {

@@ -1,6 +1,6 @@
+import { toDaemonID } from '@atc/core/to-daemon-id';
 import type { DaemonContext } from '../daemon/daemon-context';
 import { TargetAccess } from '../daemon/target-access';
-import { toDaemonID } from '../shared/to-daemon-id';
 
 /**
  * The daemon a connection serves, for tests that drive one connection

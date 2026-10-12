@@ -1,5 +1,5 @@
+import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
-import { isRecord } from './report';
 import { resolveHomeDir } from './resolve-home-dir';
 
 /**

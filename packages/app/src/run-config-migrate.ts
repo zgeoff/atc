@@ -1,4 +1,5 @@
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { systemClock } from '@atc/core/system-clock';
 import { buildMigratedConfig } from './build-migrated-config';
 
 // Where the command's output goes, the console by default: text printed as
@@ -76,7 +77,7 @@ export function runConfigMigrate(
     return 0;
   }
 
-  const backup = `${file}.bak-${formatBackupStamp(Date.now())}`;
+  const backup = `${file}.bak-${formatBackupStamp(systemClock.now())}`;
 
   try {
     copyFileSync(file, backup);
