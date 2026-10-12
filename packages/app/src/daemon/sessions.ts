@@ -244,14 +244,18 @@ interface WorkspaceReservation {
 // existing directory as the host resolves it and a newline, which keeps a
 // name that ends in newlines whole, then a NUL and the rest of the path as
 // given.
-const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
+export const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
 
 // Removes a directory only while it still resolves to itself: it enters
 // the directory, compares where it landed with the path it was given, and
 // removes the contents from inside it, so no symlink changed on the way is
 // followed, then the directory itself, which is empty by then.
-const REMOVE_DIR_SCRIPT =
+export const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
+
+// Prints the home directory of the user it runs as, with every symlink in
+// it resolved.
+export const RESOLVE_HOME_SCRIPT = 'cd && pwd -P';
 
 // Enters a directory as the host resolves it and prints two fields, each
 // followed by a NUL, for every path where something, even a dangling
@@ -263,7 +267,7 @@ const REMOVE_DIR_SCRIPT =
 // `U` for anything else, such as a FIFO, a device that would never end, or
 // a file it cannot read. A `--` argument ends the start files. A directory
 // that does not exist exits with the absent status.
-const READ_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
+export const READ_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
 emit() {
   [ -e "$1" ] || [ -L "$1" ] || return 0
   if [ -f "$1" ] && n=$(wc -c < "$1" 2>/dev/null) && [ "$n" -le 1048576 ] && b=$(base64 -w0 -- "$1" 2>/dev/null); then printf '%s\\0F%s\\0' "$1" "$b"; else printf '%s\\0U\\0' "$1"; fi
@@ -1895,7 +1899,7 @@ export class SessionManager {
   // symlink in it resolved.
   private async resolveHostHome(provider: ExecutionProvider, hostKey: SessionID): Promise<string> {
     const result = await provider.runCommand({
-      argv: ['sh', '-c', 'cd && pwd -P'],
+      argv: ['sh', '-c', RESOLVE_HOME_SCRIPT],
       cwd: '/',
       host: hostKey,
     });

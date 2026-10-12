@@ -2,7 +2,9 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand } from '@atc/test-utils/run-command';
+import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import invariant from 'tiny-invariant';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 
 // The guest folder a launch stages its files under and runs in.
@@ -121,4 +123,16 @@ test('it stops before the CLI runs when the staged sign-in is missing', async ()
     exitCode: 1,
     stdout: '',
   });
+});
+
+test('it builds a launch script that passes shellcheck', async () => {
+  const launch = buildCodexGuestLaunch('/home/u/.atc/guest', 'auth-r1', ['codex', '--yolo']);
+  const [flag, script] = launch.args;
+
+  invariant(script !== undefined);
+
+  const result = await runShellcheck(script);
+
+  expect(flag).toBe('-c');
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

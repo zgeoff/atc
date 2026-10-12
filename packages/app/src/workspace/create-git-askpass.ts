@@ -28,7 +28,7 @@ const ASKPASS_SECRET_VAR = 'ATC_GIT_ASKPASS_SECRET';
 
 // Username prompts get a fixed name that GitHub and GitLab both accept
 // alongside a token; password prompts get the token.
-const ASKPASS_SCRIPT = `#!/bin/sh
+export const ASKPASS_SCRIPT = `#!/bin/sh
 case "$1" in
   Username*) printf '%s\\n' x-access-token ;;
   *) printf '%s\\n' "$${ASKPASS_SECRET_VAR}" ;;

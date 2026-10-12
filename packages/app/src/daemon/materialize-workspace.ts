@@ -498,7 +498,7 @@ async function claimLanding(
 const PARENT_FAILED_EXIT = 3;
 const DIR_PRESENT_EXIT = 4;
 
-const CLAIM_DIR_SCRIPT = `mkdir -p -- "$1" || exit ${PARENT_FAILED_EXIT}
+export const CLAIM_DIR_SCRIPT = `mkdir -p -- "$1" || exit ${PARENT_FAILED_EXIT}
 mkdir -- "$2" && exit 0
 if [ -e "$2" ] || [ -L "$2" ]; then exit ${DIR_PRESENT_EXIT}; fi
 exit 5`;
@@ -834,7 +834,7 @@ const VERIFY_ENV = ['env', ...[...REPOSITORY_ENV_VARS].flatMap((name) => ['-u', 
 // file whose content differs from HEAD, so a file the unpack left out or
 // changed refuses the checkout whatever tar did there. A HEAD that resolves
 // to no commit exits at once, before the NUL.
-const VERIFY_SCRIPT = String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`;
+export const VERIFY_SCRIPT = String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`;
 
 async function verifyTargetHead(
   request: MaterializeRequest,

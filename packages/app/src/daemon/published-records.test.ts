@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { getRecord } from '../shared/get-record';
@@ -11,7 +12,7 @@ import { parsePublishedRecord } from '../store/parse-published-record';
 import { StateStore } from '../store/state-store';
 import { readJSONRecord } from '../test-utils/read-json-record';
 import { LocalPTYProvider } from './local-pty-provider';
-import { PublishedRecords } from './published-records';
+import { PLACE_COPY, PublishedRecords } from './published-records';
 
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-records-' });
@@ -492,4 +493,10 @@ test("it never removes another session's copy", async () => {
   await ctx.records.remove(toSessionID('s-gone'));
 
   expect(existsSync(other)).toBe(true);
+});
+
+test('it places a remote copy through a script that passes shellcheck', async () => {
+  const result = await runShellcheck(PLACE_COPY);
+
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

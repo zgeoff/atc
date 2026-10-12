@@ -86,13 +86,13 @@ const NO_GZIP_CODE = 69;
 
 // Checks for gzip before the archive is read, then creates the directory
 // and unpacks into it.
-const UNPACK_SCRIPT = `command -v gzip >/dev/null 2>&1 || exit ${NO_GZIP_CODE}; mkdir -p "$1" && tar -x -z --no-same-owner -f - -C "$1"`;
+export const UNPACK_SCRIPT = `command -v gzip >/dev/null 2>&1 || exit ${NO_GZIP_CODE}; mkdir -p "$1" && tar -x -z --no-same-owner -f - -C "$1"`;
 
 // Readies the guest folder, prints the version of the image's atc and of
 // the atc at `bin/atc`, one per line and empty for one that is missing,
 // and links `bin/atc` to the image's atc when that one prints the
 // daemon's version and lives elsewhere.
-const READ_GUEST_ATC_SCRIPT = [
+export const READ_GUEST_ATC_SCRIPT = [
   'mkdir -p "$1/run" "$1/bin" || exit 1',
   'image=$("$2" --version 2>/dev/null) || image=',
   'copied=$("$1/bin/atc" --version 2>/dev/null) || copied=',
@@ -103,8 +103,12 @@ const READ_GUEST_ATC_SCRIPT = [
 
 // Readies the guest folder and links `bin/atc` to the image's atc again,
 // as a cold boot of an imp leaves it without the link.
-const LINK_GUEST_ATC_SCRIPT =
+export const LINK_GUEST_ATC_SCRIPT =
   'mkdir -p "$1/run" "$1/bin" && { [ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc"; }';
+
+// Readies the guest folder and exits 0 only when `bin/atc` is an
+// executable it can run.
+export const CHECK_GUEST_ATC_SCRIPT = 'mkdir -p "$1/run" && [ -x "$1/bin/atc" ]';
 
 /**
  * The `imp` provider: one imp, a VM that impd hosts, per top-level session,
@@ -600,7 +604,7 @@ export class ImpProvider implements ExecutionProvider {
       }
     } else if (known) {
       const ready = await this.port.runCommand(name, {
-        argv: ['sh', '-c', 'mkdir -p "$1/run" && [ -x "$1/bin/atc" ]', 'sh', dir],
+        argv: ['sh', '-c', CHECK_GUEST_ATC_SCRIPT, 'sh', dir],
       });
 
       copiedVersion = ready.code === 0 ? this.version : null;

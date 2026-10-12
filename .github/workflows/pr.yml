@@ -111,6 +111,10 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      # the embedded shell tests run shellcheck and fail without it
+      - name: Install shellcheck
+        run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+
       - name: Test
         run: bun run test --shard=${{ matrix.shard }}/2
 
