@@ -178,7 +178,7 @@ test('it builds a shell script that passes shellcheck when it exports macOS vari
 
   const script = argv[argv.indexOf('-c') + 1];
 
-  invariant(script);
+  invariant(script !== undefined);
 
   const result = await runShellcheck(script);
 
@@ -197,7 +197,7 @@ test('it builds a shell script that passes shellcheck when it exports nothing', 
 
   const script = argv[argv.indexOf('-c') + 1];
 
-  invariant(script);
+  invariant(script !== undefined);
 
   const result = await runShellcheck(script);
 

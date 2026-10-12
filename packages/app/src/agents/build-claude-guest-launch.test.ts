@@ -262,7 +262,7 @@ test('it builds a launch script that passes shellcheck', async () => {
 
   const [flag, script] = launch.args;
 
-  invariant(script);
+  invariant(script !== undefined);
 
   const result = await runShellcheck(script);
 
