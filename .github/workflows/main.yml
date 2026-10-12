@@ -55,17 +55,18 @@ jobs:
     steps:
       # A release takes two runs of this job:
       # - Run 1, after a releasable commit lands on main: release-please
-      #   opens or updates the release PR (version bump + changelog), the
-      #   sync step makes that PR pass the checks job, and auto-merge merges
-      #   it.
+      #   opens or updates the release PR (version bump + changelog), and
+      #   the sync step makes that PR pass the checks job. The PR then
+      #   waits for someone to merge it by hand; no step here merges it.
       # - Run 2, triggered by that merge: release-please turns the merged
       #   bump into a tag + GitHub release, and the steps after it attach the
       #   binaries, update the Homebrew formula and open the cloud pin PR.
       #
       # The App token exists because GITHUB_TOKEN events don't trigger
-      # workflows — a GITHUB_TOKEN merge of the release PR would never start
-      # run 2. With no App configured (see docs/runbooks/releasing.md), release PRs are
-      # left open to merge by hand and the chain continues from there.
+      # workflows: a release PR that GITHUB_TOKEN opens or pushes to gets
+      # no pull request checks. With no App configured (see
+      # docs/runbooks/releasing.md), the release PR still opens, without
+      # those checks.
       - name: Mint GitHub App token
         id: app-token
         if: github.event_name == 'push' && vars.RELEASE_APP_ID != ''
@@ -108,43 +109,6 @@ jobs:
             git commit -am "chore: sync lockfile and format release files"
             git push
           fi
-
-      # Reads no release-please outputs on purpose: prs_created is false
-      # when the open release PR needed no update (a previous run failed
-      # after creating it), and a step's env block is template-evaluated
-      # even when its if-condition is false, so fallible expressions like
-      # fromJSON must never appear in env. Mergeability is recomputed
-      # asynchronously after the sync push — poll until it settles — and a
-      # MERGEABLE read can be stale ("Base branch was modified" from the
-      # merge mutation), so the merge attempt itself retries inside the
-      # same loop rather than trusting any single read. The release app is a
-      # bypass actor on the main ruleset, and --admin merges through that
-      # bypass past the required review; without it, gh refuses any PR that
-      # GitHub reports as blocked.
-      - name: Auto-merge release PRs
-        if: github.event_name == 'push' && steps.app-token.outputs.token != ''
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --head "release-please--branches--main--components--@zgeoff/atc" --json number --jq '.[].number'); do
-            merged=''
-            for _ in $(seq 1 12); do
-              state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json mergeable --jq .mergeable)
-              if [ "$state" = "CONFLICTING" ]; then
-                echo "release PR #$pr has conflicts" >&2
-                exit 1
-              fi
-              if [ "$state" = "MERGEABLE" ] && gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --admin; then
-                merged=1
-                break
-              fi
-              sleep 5
-            done
-            if [ -z "$merged" ]; then
-              echo "release PR #$pr never became mergeable" >&2
-              exit 1
-            fi
-          done
 
       - name: Check out merged release
         if:
