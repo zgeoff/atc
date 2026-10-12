@@ -8,6 +8,7 @@
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atc/store": "workspace:*",
         "@atc/test-utils": "workspace:*",
         "@commitlint/cli": "catalog:",
         "@stylistic/eslint-plugin": "catalog:",
@@ -35,6 +36,7 @@
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atc/store": "workspace:*",
         "@better-auth/mcp": "catalog:",
         "@better-auth/oauth-provider": "catalog:",
         "@modelcontextprotocol/sdk": "catalog:",
@@ -88,6 +90,20 @@
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
+      },
+    },
+    "packages/store": {
+      "name": "@atc/store",
+      "dependencies": {
+        "@atc/core": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "kysely": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "tiny-invariant": "catalog:",
       },
     },
     "packages/test-utils": {
@@ -187,6 +203,8 @@
     "@atc/core": ["@atc/core@workspace:packages/core"],
 
     "@atc/protocol": ["@atc/protocol@workspace:packages/protocol"],
+
+    "@atc/store": ["@atc/store@workspace:packages/store"],
 
     "@atc/test-utils": ["@atc/test-utils@workspace:packages/test-utils"],
 

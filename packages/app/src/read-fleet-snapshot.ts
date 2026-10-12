@@ -1,7 +1,7 @@
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { readStoredRows } from './read-stored-rows';
-import type { StoredRow } from './read-stored-rows';
+import { readStoredRows } from '@atc/store/snapshot/read-stored-rows';
+import type { StoredRow } from '@atc/store/snapshot/read-stored-rows';
 import { getATCBuild } from './shared/get-atc-build';
 
 const SNAPSHOT_DEADLINE_MS = 3000;

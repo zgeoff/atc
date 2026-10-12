@@ -1,5 +1,5 @@
+import { parseJSONStrings } from '@atc/store/sqlite/parse-json-strings';
 import type { Kysely } from 'kysely';
-import { collectJSONStrings } from './collect-json-strings';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 /**
@@ -25,7 +25,7 @@ export async function collectClients(db: Kysely<MCPAuthSchema>): Promise<readonl
   return rows.map((row) => ({
     clientID: row.clientId,
     name: row.name ?? '',
-    redirectURIs: collectJSONStrings(row.redirectUris),
+    redirectURIs: parseJSONStrings(row.redirectUris) ?? [],
     createdAt: row.createdAt,
   }));
 }

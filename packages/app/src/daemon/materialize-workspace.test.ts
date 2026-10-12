@@ -3,14 +3,14 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
 import { DaemonError } from '@atc/protocol/daemon-error';
+import { StateStore } from '@atc/store/state-store';
+import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
-import { StateStore } from '../store/state-store';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
-import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import type { CommandSpec } from './execution-provider';
 import { CLAIM_DIR_SCRIPT, VERIFY_SCRIPT, materializeWorkspace } from './materialize-workspace';
 

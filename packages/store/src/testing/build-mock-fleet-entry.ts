@@ -3,7 +3,7 @@ import { toSessionID } from '@atc/core/to-session-id';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
-import type { FleetEntry } from '../store/fleet-entry';
+import type { FleetEntry } from '../fleet-entry';
 
 /**
  * The fields the defaults set; every other field is absent until an

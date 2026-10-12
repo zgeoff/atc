@@ -1,14 +1,14 @@
-import { Database } from 'bun:sqlite';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, closeSync, openSync } from 'node:fs';
+import { buildSQLiteDialect } from '@atc/store/sqlite/build-sqlite-dialect';
+import { openSQLite } from '@atc/store/sqlite/open-sqlite';
 import { mcp } from '@better-auth/mcp';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import type { OAuthOptions, Scope } from '@better-auth/oauth-provider';
 import { betterAuth } from 'better-auth';
 import type { BetterAuthPlugin } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
-import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
-import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
+import { Kysely, sql } from 'kysely';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildOwnerPlugin } from './build-owner-plugin';
@@ -51,23 +51,11 @@ export async function openMCPAuth(options: MCPAuthOptions) {
   closeSync(openSync(options.dbPath, 'a', 0o600));
   chmodSync(options.dbPath, 0o600);
 
-  const sqlite = new Database(options.dbPath, { create: true });
-
-  sqlite.run('PRAGMA journal_mode = WAL;');
-  sqlite.run('PRAGMA busy_timeout = 5000;');
-
   // The schema declares cascades from a client to its tokens and consent,
   // which SQLite enforces only with foreign keys on.
-  sqlite.run('PRAGMA foreign_keys = ON;');
+  const sqlite = openSQLite(options.dbPath, { busyTimeoutMs: 5000, foreignKeys: true });
 
-  const db = new Kysely<MCPAuthSchema>({
-    dialect: {
-      createAdapter: () => new SqliteAdapter(),
-      createDriver: () => new BunSqliteDriver(sqlite),
-      createIntrospector: (kysely) => new SqliteIntrospector(kysely),
-      createQueryCompiler: () => new SqliteQueryCompiler(),
-    },
-  });
+  const db = new Kysely<MCPAuthSchema>({ dialect: buildSQLiteDialect(sqlite) });
 
   const providerOptions: OAuthOptions<Scope[]> = {
     loginPage: '/login',

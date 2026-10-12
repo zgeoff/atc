@@ -3,10 +3,10 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
-import { StateStore } from '../packages/app/src/store/state-store';
-import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
 
 function setupTest() {
   return startTUIHarness();

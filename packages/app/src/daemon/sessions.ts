@@ -27,6 +27,8 @@ import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
 import type { SessionState } from '@atc/protocol/session-state';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { sortSessionViews } from '@atc/protocol/sort-session-views';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import type { FleetEntry, FleetEntryUpdate, FleetStore } from '@atc/store/fleet-entry';
 import type {
   AgentAdapter,
   GuestPaths,
@@ -36,14 +38,12 @@ import type {
   SpawnPlan,
 } from '../agents/agent-adapter';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
-import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
-import { buildTargetIdentity } from './build-target-identity';
 import { EffectRemainsError } from './effect-remains-error';
 import type {
   ExecutionCapability,
@@ -61,6 +61,7 @@ import { pickSessionState } from './pick-session-state';
 import type { PublishedRecords } from './published-records';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
+import { toDaemonError } from './to-daemon-error';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
 
@@ -3348,7 +3349,11 @@ export class SessionManager {
 
     const removed = [...this.removedIDs];
 
-    await this.store.writeFleet(fleet, removed);
+    try {
+      await this.store.writeFleet(fleet, removed);
+    } catch (error) {
+      throw toDaemonError(error);
+    }
 
     for (const id of removed) {
       this.removedIDs.delete(id);
@@ -3377,7 +3382,7 @@ export class SessionManager {
     try {
       await this.store.updateFleetEntry(id, fields);
     } catch (error) {
-      this.logStoreFailure(id, error);
+      this.logStoreFailure(id, toDaemonError(error));
 
       return false;
     }

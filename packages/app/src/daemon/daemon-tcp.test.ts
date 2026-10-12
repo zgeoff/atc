@@ -6,6 +6,7 @@ import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { collectTargets } from '@atc/config/collect-targets';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
@@ -15,7 +16,6 @@ import { waitFor } from '@atc/test-utils/wait-for';
 import { claimDaemonLock } from '../shared/claim-daemon-lock';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { buildTargetIdentity } from './build-target-identity';
 import { startDaemon } from './daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 

@@ -1,8 +1,8 @@
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { SessionID } from '@atc/core/session-id';
 import { truncateDetail } from '@atc/core/truncate-detail';
-import type { MessageRecord, MessageStatus } from '../store/message-record';
-import type { TrailEntry } from '../store/trail-entry';
+import type { MessageRecord, MessageStatus } from '@atc/store/message-record';
+import type { TrailEntry } from '@atc/store/trail-entry';
 
 /**
  * The trail entry for one message status change, addressed like its SessionMessage

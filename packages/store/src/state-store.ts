@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import type { AgentID } from '@atc/core/agent-id';
@@ -13,11 +13,10 @@ import { toDaemonID } from '@atc/core/to-daemon-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import type { PublishedRecord } from '@atc/protocol/published-record';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
-import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import type {
   CompiledQuery,
   Expression,
@@ -26,20 +25,23 @@ import type {
   SqlBool,
   Transaction,
 } from 'kysely';
-import { BunSqliteDriver } from '../shared/bun-sqlite-driver';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord } from './message-record';
 import { parsePublishedRecord } from './parse-published-record';
-import { runMigrations } from './run-migrations';
-import type { StateStoreSchema } from './run-migrations';
 import type {
   RuntimeAuthBinding,
   RuntimeAuthBindingUpdate,
   RuntimeAuthGrant,
 } from './runtime-auth-binding';
+import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
+import { openSQLite } from './sqlite/open-sqlite';
+import { parseJSONStrings } from './sqlite/parse-json-strings';
+import { runMigrations } from './sqlite/run-migrations';
+import type { StateStoreSchema } from './sqlite/run-migrations';
+import { StaleOwnershipError } from './stale-ownership-error';
 import type { TrailEntry } from './trail-entry';
 import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
 
@@ -153,17 +155,10 @@ export class StateStore {
     legacyFleetPath?: string,
     onQuery?: (query: CompiledQuery) => void,
   ): Promise<StateStore> {
-    const sqlite = new Database(dbPath, { create: true });
-
-    sqlite.run('PRAGMA journal_mode = WAL;');
+    const sqlite = openSQLite(dbPath);
 
     const db = new Kysely<StateStoreSchema>({
-      dialect: {
-        createAdapter: () => new SqliteAdapter(),
-        createDriver: () => new BunSqliteDriver(sqlite),
-        createIntrospector: (kysely) => new SqliteIntrospector(kysely),
-        createQueryCompiler: () => new SqliteQueryCompiler(),
-      },
+      dialect: buildSQLiteDialect(sqlite),
       ...(onQuery === undefined
         ? {}
         : {
@@ -240,6 +235,15 @@ export class StateStore {
     const entries: FleetEntry[] = [];
 
     for (const row of rows) {
+      const withheldEnv = parseWithheldEnv(row.withheld_env);
+
+      // A session whose withheld variables cannot be read stays out of the
+      // fleet, so its agent never starts with the variables it withheld; its
+      // row stays stored, since a fleet write keeps rows it never loaded.
+      if (withheldEnv === null) {
+        continue;
+      }
+
       entries.push({
         sessionID: toSessionID(row.session_id),
         name: row.name,
@@ -260,7 +264,7 @@ export class StateStore {
         ...(row.target === null ? {} : { target: row.target }),
         ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
         ...buildWorkspaceField(row),
-        ...buildWithheldEnvField(row.withheld_env),
+        ...(withheldEnv.length === 0 ? {} : { withheldEnv }),
         ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
         ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
       });
@@ -297,7 +301,7 @@ export class StateStore {
   // replaces by holding the same agent session id. Every other row stays as
   // it stands, so a row the daemon never loaded survives a write. A session
   // another daemon owns, or one whose stored ownership epoch has moved past
-  // this daemon's, rejects the whole write with stale_epoch.
+  // this daemon's, rejects the whole write as stale.
   async writeFleet(
     entries: readonly FleetEntry[],
     removed: readonly SessionID[] = [],
@@ -1274,20 +1278,10 @@ function buildWorkspaceField(
   };
 }
 
-// A ready workspace's withheld variable names as their entry field, or
-// nothing for a row that withholds none.
-function buildWithheldEnvField(stored: string | null): { readonly withheldEnv?: string[] } {
-  const names = parseWithheldEnv(stored);
-
-  return names.length === 0 ? {} : { withheldEnv: names };
-}
-
-function parseWithheldEnv(stored: string | null): string[] {
-  const parsed: unknown = stored === null ? [] : JSON.parse(stored);
-
-  return Array.isArray(parsed)
-    ? parsed.filter((name): name is string => typeof name === 'string')
-    : [];
+// The variable names a workspace withholds, none for a row without a ready
+// workspace, or null when the stored list is malformed.
+function parseWithheldEnv(stored: string | null): string[] | null {
+  return stored === null ? [] : parseJSONStrings(stored);
 }
 
 // Two sessions share an agent session id when one resumes the other's agent
@@ -1432,10 +1426,13 @@ async function requireCurrentOwnership(
     .executeTakeFirst();
 
   if (stale !== undefined) {
-    throw new DaemonError(
-      'stale_epoch',
-      `session '${stale.session_id}' is owned by daemon '${stale.daemon_id}' at epoch ${stale.owner_epoch}; this daemon writes as '${daemonID}' at epoch ${OWNER_EPOCH}`,
-    );
+    throw new StaleOwnershipError({
+      sessionID: toSessionID(stale.session_id),
+      ownerDaemonID: toDaemonID(stale.daemon_id),
+      ownerEpoch: stale.owner_epoch,
+      writerDaemonID: daemonID,
+      writerEpoch: OWNER_EPOCH,
+    });
   }
 }
 
@@ -1579,6 +1576,16 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
 function toWorkspaceMaterialization(
   row: Readonly<StateStoreSchema['workspace_materialization']>,
 ): WorkspaceMaterialization {
+  const withheldEnv = parseWithheldEnv(row.withheld_env);
+
+  // Reading the workspace as withholding nothing would start its agent with
+  // the variables it withheld.
+  if (withheldEnv === null) {
+    throw new Error(
+      `the workspace of session '${row.session_id}' holds a malformed list of withheld variables`,
+    );
+  }
+
   return {
     sessionID: toSessionID(row.session_id),
     target: row.target,
@@ -1592,7 +1599,7 @@ function toWorkspaceMaterialization(
     startedAt: row.started_at,
     updatedAt: row.updated_at,
     materializedAt: row.materialized_at,
-    withheldEnv: parseWithheldEnv(row.withheld_env),
+    withheldEnv,
   };
 }
 

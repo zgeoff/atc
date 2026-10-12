@@ -1,4 +1,4 @@
-import type { FleetEntry } from '../store/fleet-entry';
+import type { FleetEntry } from '@atc/store/fleet-entry';
 import type { ExecutionTarget } from './build-execution-targets';
 
 /**

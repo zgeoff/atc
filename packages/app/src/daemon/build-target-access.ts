@@ -1,6 +1,6 @@
 import { LOCAL_TARGET } from '@atc/config/local-target';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import type { ExecutionTarget } from './build-execution-targets';
-import { buildTargetIdentity } from './build-target-identity';
 import { TargetAccess } from './target-access';
 
 /**

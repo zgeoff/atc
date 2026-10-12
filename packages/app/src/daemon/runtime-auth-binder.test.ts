@@ -1,14 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { StateStore } from '@atc/store/state-store';
+import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { StateStore } from '../store/state-store';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { buildStubPregrantedBrokerHost } from '../test-utils/build-stub-pregranted-broker-host';
-import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { EffectRemainsError } from './effect-remains-error';
 import type { LaunchTicket } from './execution-provider';

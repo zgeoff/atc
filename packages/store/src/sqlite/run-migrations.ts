@@ -4,10 +4,11 @@ import { sql } from 'kysely';
 import type { Generated, Kysely } from 'kysely';
 import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
 import type { Migration, MigrationProvider, MigrationResultSet } from 'kysely/migration';
-import type { IdempotencyState } from './idempotency-record';
-import type { MessageStatus } from './message-record';
-import type { RuntimeAuthBindingState, RuntimeAuthGrantPhase } from './runtime-auth-binding';
-import type { MaterializationPhase } from './workspace-materialization';
+import type { IdempotencyState } from '../idempotency-record';
+import type { MessageStatus } from '../message-record';
+import type { RuntimeAuthBindingState, RuntimeAuthGrantPhase } from '../runtime-auth-binding';
+import type { MaterializationPhase } from '../workspace-materialization';
+import { withImmediateTransaction } from './with-immediate-transaction';
 
 interface FleetTable {
   session_id: string;
@@ -382,35 +383,12 @@ const MIGRATIONS: Record<string, Migration> = {
         return;
       }
 
-      // SQLite takes this DDL inside a transaction even though kysely's
-      // adapter declines to open one for it, so the rebuild lands whole or
-      // not at all.
-      await sql`BEGIN IMMEDIATE`.execute(db);
-
-      try {
-        await updateFleetKeyToSessionID(db);
-
-        await sql`COMMIT`.execute(db);
-      } catch (error) {
-        await sql`ROLLBACK`.execute(db);
-
-        throw error;
-      }
+      await withImmediateTransaction(db, () => updateFleetKeyToSessionID(db));
     },
   },
   '016_create_session_owner': {
     async up(db: Kysely<StateStoreSchema>) {
-      await sql`BEGIN IMMEDIATE`.execute(db);
-
-      try {
-        await createSessionOwners(db);
-
-        await sql`COMMIT`.execute(db);
-      } catch (error) {
-        await sql`ROLLBACK`.execute(db);
-
-        throw error;
-      }
+      await withImmediateTransaction(db, () => createSessionOwners(db));
     },
   },
   '017_create_idempotency': {
@@ -509,17 +487,7 @@ const MIGRATIONS: Record<string, Migration> = {
         return;
       }
 
-      await sql`BEGIN IMMEDIATE`.execute(db);
-
-      try {
-        await updateSpawnHistoryKeyToTarget(db);
-
-        await sql`COMMIT`.execute(db);
-      } catch (error) {
-        await sql`ROLLBACK`.execute(db);
-
-        throw error;
-      }
+      await withImmediateTransaction(db, () => updateSpawnHistoryKeyToTarget(db));
     },
   },
   '025_create_runtime_auth': {

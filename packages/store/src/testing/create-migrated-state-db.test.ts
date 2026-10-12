@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/test-utils/update-env';
-import { StateStore } from '../store/state-store';
+import { StateStore } from '../state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 
 function setupTest() {

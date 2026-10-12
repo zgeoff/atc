@@ -7,6 +7,8 @@ import { toSessionID } from '@atc/core/to-session-id';
 import { encodeCursor } from '@atc/protocol/encode-cursor';
 import { decodeMessage } from '@atc/protocol/protocol';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { StateStore } from '@atc/store/state-store';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -17,9 +19,7 @@ import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-line
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {

@@ -1,6 +1,6 @@
 import { copyFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { StateStore } from '../store/state-store';
+import { StateStore } from '../state-store';
 
 let template: Promise<string> | undefined;
 

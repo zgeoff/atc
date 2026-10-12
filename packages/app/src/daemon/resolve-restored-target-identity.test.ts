@@ -1,9 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { toSessionID } from '@atc/core/to-session-id';
-import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { buildTargetIdentity } from './build-target-identity';
 import { ImpProvider } from './imp-provider';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 

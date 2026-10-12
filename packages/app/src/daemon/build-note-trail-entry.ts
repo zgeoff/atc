@@ -1,7 +1,7 @@
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { SessionID } from '@atc/core/session-id';
 import { truncateDetail } from '@atc/core/truncate-detail';
-import type { TrailEntry } from '../store/trail-entry';
+import type { TrailEntry } from '@atc/store/trail-entry';
 import type { SentNote } from './parse-note';
 
 /**

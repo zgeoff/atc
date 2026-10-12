@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
-import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
+import { buildMockMessageRecord } from '@atc/store/testing/build-mock-message-record';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 
 test('it builds a queued entry stamped with the sent time and a text preview', () => {
