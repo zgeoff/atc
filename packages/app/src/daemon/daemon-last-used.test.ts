@@ -4,11 +4,11 @@ import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { faker } from '@faker-js/faker';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it keeps the last-used agent when a restored session reports its start', async () => {
@@ -30,7 +30,10 @@ test('it keeps the last-used agent when a restored session reports its start', a
       return {
         adapter: buildMockAgentAdapter(),
         adapters: [
-          buildMockAgentAdapter({ id: 'grok', normalizeHook: () => ({ kind: 'started' }) }),
+          buildMockAgentAdapter({
+            id: 'grok',
+            planHookEvents: () => ({ events: [{ kind: 'started' }] }),
+          }),
         ],
         onLastUsedUnchanged: (id: SessionID) => {
           unchanged.push(id);
@@ -67,7 +70,10 @@ test('it writes the last-used agent when a spawned session reports its start', a
       return {
         adapter: buildMockAgentAdapter(),
         adapters: [
-          buildMockAgentAdapter({ id: 'grok', normalizeHook: () => ({ kind: 'started' }) }),
+          buildMockAgentAdapter({
+            id: 'grok',
+            planHookEvents: () => ({ events: [{ kind: 'started' }] }),
+          }),
         ],
       };
     },

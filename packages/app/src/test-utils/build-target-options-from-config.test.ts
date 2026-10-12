@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import type { ExecutionProvider } from '../daemon/execution-provider';
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 import { buildTargetOptionsFromConfig } from './build-target-options-from-config';
 

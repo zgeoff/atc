@@ -1,4 +1,8 @@
-import type { ImpSecret, ImpSecretRule } from './imp-port';
+import type {
+  BrokerSecret,
+  BrokerSecretKind,
+  BrokerSecretRule,
+} from '@atc/plugin-api/credential-broker';
 
 /**
  * One secret as a resolved binding expects impd to hold it: its kind and
@@ -6,8 +10,8 @@ import type { ImpSecret, ImpSecretRule } from './imp-port';
  */
 interface ExpectedSecret {
   readonly secret: string;
-  readonly kind: ImpSecret['kind'];
-  readonly rules: readonly ImpSecretRule[];
+  readonly kind: BrokerSecretKind;
+  readonly rules: readonly BrokerSecretRule[];
 }
 
 type SecretRuleMismatch =
@@ -15,14 +19,14 @@ type SecretRuleMismatch =
   | {
       readonly secret: string;
       readonly reason: 'kind';
-      readonly expected: ImpSecret['kind'];
-      readonly actual: ImpSecret['kind'];
+      readonly expected: BrokerSecretKind;
+      readonly actual: BrokerSecretKind;
     }
   | {
       readonly secret: string;
       readonly reason: 'rules';
-      readonly expected: readonly ImpSecretRule[];
-      readonly actual: readonly ImpSecretRule[];
+      readonly expected: readonly BrokerSecretRule[];
+      readonly actual: readonly BrokerSecretRule[];
     };
 
 /**
@@ -36,7 +40,7 @@ type SecretRuleMismatch =
  */
 export function collectSecretRuleMismatches(
   expected: readonly ExpectedSecret[],
-  secrets: readonly ImpSecret[],
+  secrets: readonly BrokerSecret[],
 ): SecretRuleMismatch[] {
   const held = new Map(secrets.map((secret) => [secret.name, secret]));
 
@@ -67,7 +71,10 @@ export function collectSecretRuleMismatches(
   return mismatches;
 }
 
-function hasSameRules(left: readonly ImpSecretRule[], right: readonly ImpSecretRule[]): boolean {
+function hasSameRules(
+  left: readonly BrokerSecretRule[],
+  right: readonly BrokerSecretRule[],
+): boolean {
   const leftKeys = left.map((rule) => toRuleKey(rule)).toSorted();
   const rightKeys = right.map((rule) => toRuleKey(rule)).toSorted();
 
@@ -78,6 +85,6 @@ function hasSameRules(left: readonly ImpSecretRule[], right: readonly ImpSecretR
 
 // A rule as one comparable string; JSON keeps a missing user apart from
 // any user a basic rule can hold.
-function toRuleKey(rule: ImpSecretRule): string {
+function toRuleKey(rule: BrokerSecretRule): string {
   return JSON.stringify([rule.host, rule.header, rule.scheme, rule.user ?? null]);
 }

@@ -11,8 +11,8 @@ interface HeadlessRunHandle {
 /**
  * Everything the daemon tracks for one session: its screen model, output
  * sequence counter, PTY dims, the queue its input writes run through, its
- * resize/detect/boot timers, its live headless run, and its pending eject
- * and boot waiters. `dispose` releases all of it in one call, and is safe to
+ * resize/detect/boot timers, its live headless run, its adapter's hook
+ * state, and its pending eject and boot waiters. `dispose` releases all of it in one call, and is safe to
  * call more than once.
  */
 export class SessionRuntime {
@@ -53,6 +53,11 @@ export class SessionRuntime {
   // to carry it, and a line without one comes from another harness.
   hasAgentHookLines = false;
 
+  // The state the session's adapter returned for its last hook line, which
+  // goes back to the adapter with the session's next line. A fresh terminal
+  // starts with none.
+  harnessState: unknown = undefined;
+
   // Returns the boot-scoped state to how a fresh terminal starts, at the
   // dims it boots with: no SessionStart yet and no tap since. Every path
   // that boots a new terminal for an existing session runs it, so a revived
@@ -62,6 +67,7 @@ export class SessionRuntime {
     this.startedAt = null;
     this.tapAttached = false;
     this.hasAgentHookLines = false;
+    this.harnessState = undefined;
   }
 
   dispose(): void {

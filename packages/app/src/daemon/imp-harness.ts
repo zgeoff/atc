@@ -1,14 +1,14 @@
 import { ansi } from '@atc/core/ansi';
 import { isRecord } from '@atc/core/is-record';
 import { truncateSummary } from '@atc/core/truncate-summary';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { sanitizeDetail } from '../shared/sanitize-detail';
 import type {
   HarnessAttachment,
   HarnessExit,
   HarnessHandle,
   LaunchTicket,
-} from './execution-provider';
+} from '@atc/plugin-api/execution-provider';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { sanitizeDetail } from '../shared/sanitize-detail';
 import type {
   ImpExecRequirement,
   ImpPort,

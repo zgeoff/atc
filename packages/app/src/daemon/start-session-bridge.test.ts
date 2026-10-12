@@ -1,9 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildStubHarnessRelay } from '@atc/test-utils/build-stub-harness-relay';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildStubBridgeContext } from '../test-utils/build-stub-bridge-context';
-import { buildStubHarnessRelay } from '../test-utils/build-stub-harness-relay';
 import { startSessionBridge } from './start-session-bridge';
 import type { BridgeContext, BridgeSession } from './start-session-bridge';
 

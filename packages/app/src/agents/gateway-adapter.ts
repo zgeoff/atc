@@ -9,9 +9,6 @@ import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -19,13 +16,18 @@ import type {
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
+  HookPlan,
   NameUpdate,
   ProjectSettingsCheck,
   ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
-} from './agent-adapter';
+} from '@atc/plugin-api/agent-adapter';
+import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { HookEvent } from '@atc/protocol/hook-event';
 import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildClaudeConfigSeed } from './build-claude-config-seed';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
@@ -38,7 +40,6 @@ import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import type { ClaudeHostPaths } from './claude-host-paths';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
-import { findFlagValue } from './find-flag-value';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
@@ -302,6 +303,10 @@ export class GatewayAdapter implements AgentAdapter {
     const approvedAPIKey = findAPIKeyPlaceholder(this.gateway.auth.placeholderEnv);
 
     return buildClaudeConfigSeed(root, approvedAPIKey);
+  }
+
+  planHookEvents(e: HookEvent): HookPlan {
+    return { events: [this.normalizeHook(e)] };
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {

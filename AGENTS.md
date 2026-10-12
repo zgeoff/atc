@@ -81,37 +81,39 @@ sits under `packages/`, is private, is named `@atc/<name>`, and takes each exter
 the root catalog (`workspaces.catalog`). `packages/app` holds the app: both entrypoints and every
 module they wire together. Its `src/` groups its modules by concern, each still one primary export
 per file: `daemon/` owns the fleet and per-session runtime state; `client/` is the TUI and its
-connection to the daemon; `agents/` holds the `AgentAdapter` interface and the Claude, Grok, Codex,
-and gateway implementations; `store/` is the SQLite state store and its migrations; `workspace/`
-resolves a spawn's workspace source and clones, sanitizes, and archives it; `sources/` holds the
-spawn picker's discovery sources, the directories, GitHub, and git URL sources the daemon offers;
-`protocol/` is the wire format, the transport it rides, and the types both ends of it share;
-`shared/` holds id types, config, and other utilities used across the rest of the app's `src/`.
-`cli.ts` is the CLI entrypoint, and `gateway.ts` is the entrypoint of the separate `atc-gateway`
-binary, which must never reach `daemon/`, `agents/`, or any module that starts a daemon. A module
-that exists only to back one of its subcommands stays beside it at the app's `src/` root, while the
-`tui` and `daemon` subcommands load their subsystems from `client/` and `daemon/`.
-`bun run check:imports` fails on an import cycle and on an import a directory's rule forbids; the
-rules live in `scripts/check-imports.ts`. `scripts/package-rules.ts` holds the packages and the
-internal packages each may depend on, and three gates read it. The oxlint overrides in
-`.oxlintrc.imports.json`, which `bun run build:import-rules` generates, refuse an import outside a
-package's row, a deep import into another package's `src/`, a test helper in production code, and a
-confined external package outside its owner. `bun run check:manifests` fails on an import the
-manifest does not declare, on a relative path into another package, and on a module load whose
-specifier is a template literal, which the oxlint overrides cannot read. `bun run check:reach` fails
-when the gateway entry reaches a module the gateway must never load.
+connection to the daemon; `agents/` holds the Claude, Grok, Codex, and gateway adapters; `store/` is
+the SQLite state store and its migrations; `workspace/` resolves a spawn's workspace source and
+clones, sanitizes, and archives it; `sources/` holds the spawn picker's discovery sources, the
+directories, GitHub, and git URL sources the daemon offers; `protocol/` is the wire format, the
+transport it rides, and the types both ends of it share; `shared/` holds id types, config, and other
+utilities used across the rest of the app's `src/`. `cli.ts` is the CLI entrypoint, and `gateway.ts`
+is the entrypoint of the separate `atc-gateway` binary, which must never reach `daemon/`, `agents/`,
+or any module that starts a daemon. A module that exists only to back one of its subcommands stays
+beside it at the app's `src/` root, while the `tui` and `daemon` subcommands load their subsystems
+from `client/` and `daemon/`. `bun run check:imports` fails on an import cycle and on an import a
+directory's rule forbids; the rules live in `scripts/check-imports.ts`. `scripts/package-rules.ts`
+holds the packages and the internal packages each may depend on, and three gates read it. The oxlint
+overrides in `.oxlintrc.imports.json`, which `bun run build:import-rules` generates, refuse an
+import outside a package's row, a deep import into another package's `src/`, a test helper in
+production code, and a confined external package outside its owner. `bun run check:manifests` fails
+on an import the manifest does not declare, on a relative path into another package, and on a module
+load whose specifier is a template literal, which the oxlint overrides cannot read.
+`bun run check:reach` fails when the gateway entry reaches a module the gateway must never load.
 `bun run check:disable-baseline` fails when more directives switch off an import rule than
 `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool definitions and request handling
 that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
 authorization server and its pages. `federation/` holds the gateway's daemon registry, per-daemon
 callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. The app's
-`test-utils/` holds the helpers that start or drive the daemon. The `@atc/test-utils` package
-(`packages/test-utils/`) holds the generic test helpers, stand-ins, and factories and the test
-preload, each helper with its test beside it. A helper that runs atc or atc-gateway takes the source
-entry that `scripts/with-test-home.sh` exports, so it does not depend on where the app sits. No
-production module imports either one. `e2e/` at the repo root holds the end-to-end suites that run
-the whole program, and `bin/atc` is the dev shim that runs the app's CLI entrypoint from a checkout.
-`mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not app code.
+`test-utils/` holds the helpers that start or drive the daemon. The `@atc/plugin-api` package
+(`packages/plugin-api/`) holds the contracts a harness, execution, or source plugin implements,
+among them the `AgentAdapter` interface, the host services a plugin receives, and the helpers
+harnesses share. The `@atc/test-utils` package (`packages/test-utils/`) holds the generic test
+helpers, stand-ins, and factories and the test preload, each helper with its test beside it. A
+helper that runs atc or atc-gateway takes the source entry that `scripts/with-test-home.sh` exports,
+so it does not depend on where the app sits. No production module imports either one. `e2e/` at the
+repo root holds the end-to-end suites that run the whole program, and `bin/atc` is the dev shim that
+runs the app's CLI entrypoint from a checkout. `mods/` holds the `atc-bridge` Claude Code mod.
+`scripts/` holds repo tooling, not app code.
 
 ## Runtime rules
 

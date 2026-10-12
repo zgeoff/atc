@@ -50,6 +50,15 @@ export interface SourceRequest {
 }
 
 /**
+ * The request a completion serves: the source request, and the directory
+ * the client runs in, a hint that a source reads only when the daemon runs
+ * on the client's own machine.
+ */
+export interface SourceCompletionRequest extends SourceRequest {
+  readonly clientCwd?: string;
+}
+
+/**
  * A discovery source for the spawn picker. It lists candidates and reads
  * typed input, and every candidate resolves to a pick of its kind. A source
  * runs on the daemon, the host that materializes the workspace, and gets
@@ -67,4 +76,8 @@ export interface SourceProvider {
   // not read, for a source that knows its host's URL forms; none when it
   // does not recognize the URL.
   readonly findAlternateURLs?: (url: string) => readonly string[];
+
+  // Completions of partly typed input, best first, such as the directories
+  // a typed path could continue to. Absent: the source completes nothing.
+  readonly complete?: (input: string, request: SourceCompletionRequest) => Promise<string[]>;
 }

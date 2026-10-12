@@ -1,6 +1,3 @@
-import type { GatewayAuth } from '@atc/config/agent-slices/check-gateway-auth';
-import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
-import type { AuthProfile } from '@atc/config/collect-auth-profiles';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { SessionID } from '@atc/core/session-id';
@@ -9,6 +6,8 @@ import type { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
 import type { TranscriptRow } from '@atc/protocol/transcript-row';
+import type { AuthProfile } from './auth-profile';
+import type { GatewayAuth } from './gateway-auth';
 
 export interface SpawnOptions {
   readonly prompt: string;
@@ -85,7 +84,11 @@ export interface GuestOAuthState {
  * reaches no broker under the sign-in that target's host holds.
  */
 export interface AuthSelection {
-  readonly gateway: Pick<GatewayConfig, 'id' | 'baseURL'> & { readonly auth: GatewayAuth };
+  readonly gateway: {
+    readonly id: AgentID;
+    readonly baseURL: string;
+    readonly auth: GatewayAuth;
+  };
   readonly profiles: ReadonlyMap<string, AuthProfile>;
   readonly brokerRequired: boolean;
 }
@@ -225,6 +228,19 @@ export interface TerminalInputModes {
 export type LineInputStep = string | { readonly pauseMs: number };
 
 /**
+ * What one hook line means for its session: the events the session takes,
+ * in order, and the state the adapter keeps for the session's next line.
+ * The state belongs to the adapter and is opaque to the daemon, which
+ * holds it per session and passes it back on that session's next line
+ * only, so an adapter keeps no state across sessions. Absent `next` keeps
+ * none.
+ */
+export interface HookPlan {
+  readonly events: readonly AdapterEvent[];
+  readonly next?: unknown;
+}
+
+/**
  * Everything specific to one agent CLI: how to spawn it, how to read its
  * hook payloads, where its session names come from, and how to resume a
  * session outside atc. The session core never sees past this interface.
@@ -290,7 +306,11 @@ export interface AgentAdapter {
   // the directory the harness starts in, before it starts. Absent: atc
   // reads none.
   readonly planProjectSettingsCheck?: () => ProjectSettingsCheck;
-  readonly normalizeHook: (e: HookEvent) => AdapterEvent;
+
+  // Reads one hook line as the events it means for its session. `prev` is
+  // the state this adapter returned for the same session's previous line,
+  // or undefined for the session's first line since its harness booted.
+  readonly planHookEvents: (e: HookEvent, prev: unknown) => HookPlan;
   readonly loadName: (
     source: string,
     namedBy: 'user' | 'auto' | 'agent',

@@ -1,4 +1,4 @@
-import type { AuthProfile } from '@atc/config/collect-auth-profiles';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';

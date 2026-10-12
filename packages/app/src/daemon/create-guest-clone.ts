@@ -1,7 +1,7 @@
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { collectCredentialConfigKeys } from '../workspace/collect-credential-config-keys';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
-import type { ExecutionProvider } from './execution-provider';
 
 interface GuestCloneRequest {
   // The host the clone runs on, and the directory there it lands in, which

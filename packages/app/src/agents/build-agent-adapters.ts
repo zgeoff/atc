@@ -1,5 +1,5 @@
 import type { Config } from '@atc/config/config';
-import type { AgentAdapter } from './agent-adapter';
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { ClaudeAdapter } from './claude-adapter';
 import type { ClaudeHostPaths } from './claude-host-paths';
 import { CodexAdapter } from './codex-adapter';

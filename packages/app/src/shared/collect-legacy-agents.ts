@@ -1,7 +1,7 @@
 import { collectClaudeAuth } from '@atc/config/agent-slices/collect-claude-auth';
 import { collectGateways } from '@atc/config/agent-slices/collect-gateways';
 import type { AgentEntry } from '@atc/config/collect-agents';
-import type { AuthProfile } from '@atc/config/collect-auth-profiles';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 
 /**
  * The agent keys of the old config.json shape, already defaulted: a binary and arguments per harness, and the raw `claudeAuth`

@@ -23,6 +23,10 @@ import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import { claimDaemonLock } from '@atc/lifecycle/claim-daemon-lock';
 import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
 import { writeDaemonRecord } from '@atc/lifecycle/write-daemon-record';
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
+import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
+import { planTypedLineInput } from '@atc/plugin-api/harness/plan-typed-line-input';
+import type { SourceProvider } from '@atc/plugin-api/types';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
 import { DaemonError } from '@atc/protocol/daemon-error';
@@ -41,9 +45,6 @@ import type { MessageRecord, MessageStatus } from '@atc/store/message-record';
 import { StateStore } from '@atc/store/state-store';
 import type { EventScope } from '@atc/store/state-store';
 import type { TrailEntry } from '@atc/store/trail-entry';
-import type { AgentAdapter } from '../agents/agent-adapter';
-import { planTypedLineInput } from '../agents/plan-typed-line-input';
-import type { SourceProvider } from '../sources/types';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
@@ -76,7 +77,6 @@ import type {
 } from './daemon-context';
 import { drainInbox } from './drain-inbox';
 import type { InboxSource } from './drain-inbox';
-import { EffectRemainsError } from './effect-remains-error';
 import { EventSignal } from './event-signal';
 import { formatLogField } from './format-log-field';
 import { startHookServer } from './hooks';
@@ -1009,17 +1009,23 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     const previousAgentSessionID = before?.agentSessionID;
-    const ev = mgr.applyHook(e);
+    const plan = mgr.applyHook(e, runtime?.harnessState);
+
+    if (plan !== null && runtime !== undefined) {
+      runtime.harnessState = plan.next;
+    }
+
+    const events = plan?.events ?? [];
 
     // A headless session's trail comes from its runs alone: hook reports from
-    // its dying terminal, or from a run's own CLI, stay out of it.
-    const trailEvent = before?.kind === 'headless' ? null : ev;
+    // its dying terminal, or from a run's own CLI, stay out of it. A line
+    // records the last event it planned, which the session's state follows.
+    const trailEvent = before?.kind === 'headless' ? null : (events.at(-1) ?? null);
 
     if (e.event !== 'Statusline') {
       void recordHookEvent(e, trailEvent);
     }
 
-    const kind = ev?.kind ?? null;
     const currentAgentSessionID = mgr.sessions.find((s) => s.id === e.atcId)?.agentSessionID;
 
     if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
@@ -1027,25 +1033,27 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       void store.updateTrailOwner(e.atcId, currentAgentSessionID);
     }
 
-    if (kind === 'ended') {
-      runtime?.pendingEject?.();
-    }
-
-    // A revived session announcing itself is the cue a staggered restore
-    // waits on before booting the next one.
-    if (kind === 'started') {
-      if (runtime !== undefined) {
-        runtime.startedAt = clock.now();
+    for (const ev of events) {
+      if (ev.kind === 'ended') {
+        runtime?.pendingEject?.();
       }
 
-      runtime?.bootWaiter?.();
-      const started = mgr.sessions.find((s) => s.id === e.atcId);
+      // A revived session announcing itself is the cue a staggered restore
+      // waits on before booting the next one.
+      if (ev.kind === 'started') {
+        if (runtime !== undefined) {
+          runtime.startedAt = clock.now();
+        }
 
-      if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {
-        runtime.pendingLastUsed = false;
-        void store.writeLastUsedAgent(started.agent);
-      } else if (started !== undefined) {
-        opts.onLastUsedUnchanged?.(started.id);
+        runtime?.bootWaiter?.();
+        const started = mgr.sessions.find((s) => s.id === e.atcId);
+
+        if (started !== undefined && runtime !== undefined && runtime.pendingLastUsed) {
+          runtime.pendingLastUsed = false;
+          void store.writeLastUsedAgent(started.agent);
+        } else if (started !== undefined) {
+          opts.onLastUsedUnchanged?.(started.id);
+        }
       }
     }
   };

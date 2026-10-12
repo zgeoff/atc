@@ -3,9 +3,6 @@ import { collectCleanEnv } from '@atc/config/collect-clean-env';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { spawn } from 'bun-pty';
-import { buildHarnessArgv } from './build-harness-argv';
 import type {
   CommandResult,
   CommandSpec,
@@ -13,7 +10,10 @@ import type {
   ExecutionProvider,
   HarnessHandle,
   HarnessSpec,
-} from './execution-provider';
+} from '@atc/plugin-api/execution-provider';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { spawn } from 'bun-pty';
+import { buildHarnessArgv } from './build-harness-argv';
 import { readNativeEnvKeys } from './read-native-env-keys';
 
 /**

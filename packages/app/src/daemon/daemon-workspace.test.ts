@@ -15,9 +15,11 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -27,12 +29,10 @@ import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubDirProvider } from '../test-utils/build-stub-dir-provider';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**

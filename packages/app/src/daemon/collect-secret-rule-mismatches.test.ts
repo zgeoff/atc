@@ -21,7 +21,6 @@ test('it finds no mismatch when impd holds the complete rule set in another orde
           { host: 'open.bigmodel.cn', header: 'authorization', scheme: 'bearer' },
           { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         ],
-        imps: ['atc-s1'],
       },
     ],
   );
@@ -58,7 +57,6 @@ test('it reports a secret of another kind', () => {
         name: 'glm',
         kind: 'anthropic',
         rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-        imps: [],
       },
     ],
   );
@@ -85,7 +83,6 @@ test('it reports a secret whose rules send it to a host the binding lacks', () =
           { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           { host: 'evil.example.com', header: 'authorization', scheme: 'bearer' },
         ],
-        imps: [],
       },
     ],
   );
@@ -120,7 +117,6 @@ test('it reports a secret that lacks one of the binding rules', () => {
         name: 'glm',
         kind: 'custom',
         rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-        imps: [],
       },
     ],
   );
@@ -151,7 +147,7 @@ test.each([
         rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
       },
     ],
-    [{ name: 'glm', kind: 'custom', rules: [rule], imps: [] }],
+    [{ name: 'glm', kind: 'custom', rules: [rule] }],
   );
 
   expect(mismatches).toStrictEqual([
@@ -183,19 +179,16 @@ test('it compares each expected secret on its own and ignores secrets the bindin
         name: 'glm',
         kind: 'custom',
         rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-        imps: [],
       },
       {
         name: 'judge',
         kind: 'custom',
         rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
-        imps: [],
       },
       {
         name: 'gh',
         kind: 'github',
         rules: [{ host: 'api.github.com', header: 'authorization', scheme: 'bearer' }],
-        imps: [],
       },
     ],
   );

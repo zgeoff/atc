@@ -4,13 +4,13 @@ import { join } from 'node:path';
 import { bootDaemonClient } from '@atc/lifecycle/boot-daemon';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing/build-mock-lifecycle-host';
 import { StateStore } from '@atc/store/state-store';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { getSourceEntry } from '@atc/test-utils/get-source-entry';
 import { readJSONRecord } from '@atc/test-utils/read-json-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
 import { getATCBuild } from '../packages/app/src/shared/get-atc-build';
-import { buildMockAgentAdapter } from '../packages/app/src/test-utils/build-mock-agent-adapter';
 
 /**
  * A fresh home for a client process: `dir` serves as both its home and its

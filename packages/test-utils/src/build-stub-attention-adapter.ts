@@ -1,4 +1,4 @@
-import type { AgentAdapter } from '../agents/agent-adapter';
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 /**
@@ -13,8 +13,8 @@ import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 export function buildStubAttentionAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return buildMockAgentAdapter({
     takesMessages: true,
-    normalizeHook: (hook) => ({
-      kind: hook.event === 'Notification' ? 'needs-input' : 'prompt-submitted',
+    planHookEvents: (hook) => ({
+      events: [{ kind: hook.event === 'Notification' ? 'needs-input' : 'prompt-submitted' }],
     }),
     buildResumeCommand: () => 'claude --resume',
     ...overrides,

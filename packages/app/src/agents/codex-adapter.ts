@@ -11,10 +11,6 @@ import { isRecord } from '@atc/core/is-record';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
 import { truncateDetail } from '@atc/core/truncate-detail';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import { z } from 'zod';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -22,19 +18,24 @@ import type {
   GuestOAuthState,
   GuestPaths,
   GuestSpawnPlan,
+  HookPlan,
   NameUpdate,
   ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
-} from './agent-adapter';
-import { buildArgsWithoutFlags } from './build-args-without-flags';
+} from '@atc/plugin-api/agent-adapter';
+import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
+import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import { z } from 'zod';
 import { buildCodexAuthFile } from './build-codex-auth-file';
 import { buildCodexConfig } from './build-codex-config';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 import { buildCodexHookFile } from './build-codex-hook-file';
 import { buildCodexTrustSeed } from './build-codex-trust-seed';
-import { findFlagValue } from './find-flag-value';
 import { planCodexLineInput } from './plan-codex-line-input';
 
 // Codex's hook payload keys, snake_case. An absent or wrong-typed field
@@ -269,6 +270,10 @@ export class CodexAdapter implements AgentAdapter {
     );
 
     return found?.secret ?? null;
+  }
+
+  planHookEvents(e: HookEvent): HookPlan {
+    return { events: [this.normalizeHook(e)] };
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {

@@ -1,7 +1,7 @@
 import type { TargetConfigError } from '@atc/config/collect-targets';
+import type { ExecutionCapability } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { ExecutionTarget } from './build-execution-targets';
-import type { ExecutionCapability } from './execution-provider';
 
 // The target a session runs on and the identity it was bound to there; a
 // null identity is a session not yet bound, which binds to the target as

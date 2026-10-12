@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
 import { collectAgents } from './collect-agents';
-import type { AuthProfile } from './collect-auth-profiles';
 
 test('it fills every default for the three ids that name a kind', () => {
   expect(collectAgents({ claude: {}, codex: {}, grok: {} })).toStrictEqual({

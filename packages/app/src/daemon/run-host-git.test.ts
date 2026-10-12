@@ -1,8 +1,8 @@
 import { expect, mock, test } from 'bun:test';
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { updateEnv } from '@atc/test-utils/update-env';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
-import type { ExecutionProvider } from './execution-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 import { runHostGit } from './run-host-git';
 

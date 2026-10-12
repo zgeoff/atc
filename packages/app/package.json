@@ -9,6 +9,7 @@
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/lifecycle": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atc/store": "workspace:*",
     "@better-auth/mcp": "catalog:",
@@ -23,7 +24,6 @@
     "kysely": "catalog:",
     "lru-cache": "catalog:",
     "ts-pattern": "catalog:",
-    "type-fest": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"
   },

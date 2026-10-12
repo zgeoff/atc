@@ -9,6 +9,7 @@
   "dependencies": {
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@faker-js/faker": "catalog:",
     "bun-pty": "catalog:",

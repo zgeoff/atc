@@ -1,4 +1,4 @@
-import type { SpawnPlan } from './agent-adapter';
+import type { SpawnPlan } from '@atc/plugin-api/agent-adapter';
 
 /**
  * The launch of a CLI on a remote host that first creates the session's

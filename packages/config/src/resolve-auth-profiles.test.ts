@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
-import type { AuthProfile } from './collect-auth-profiles';
 import { resolveAuthProfiles } from './resolve-auth-profiles';
 
 test('it resolves the dependency closure into the complete rule set grouped by secret', () => {

@@ -6,6 +6,8 @@ import type { StepTimer } from '@atc/core/create-step-timer';
 import type { SessionID } from '@atc/core/session-id';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
+import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
+import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { ErrorCode } from '@atc/protocol/protocol';
 import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
@@ -25,8 +27,6 @@ import { resolveRemoteRef } from '../workspace/resolve-remote-ref';
 import { runGit } from '../workspace/run-git';
 import { sanitizeWorkspaceClone } from '../workspace/sanitize-workspace-clone';
 import { createGuestClone } from './create-guest-clone';
-import { EffectRemainsError } from './effect-remains-error';
-import type { ExecutionProvider } from './execution-provider';
 import { requireGitTransports } from './require-git-transports';
 
 interface MaterializeRequest {

@@ -1,4 +1,5 @@
-import { buildCLICommand } from './build-cli-command';
+import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
+import { buildCLIArgv } from './build-cli-argv';
 
 const GROK_HOOK_EVENTS = [
   'SessionStart',
@@ -24,7 +25,7 @@ export function printGrokHookFile(
 }
 
 function buildGrokHookFile(): string {
-  const cmd = buildCLICommand('hook-report --agent grok');
+  const cmd = buildHookCommand('hook-report --agent grok', buildCLIArgv());
   const entry = [{ hooks: [{ type: 'command', command: cmd, timeout: 5 }] }];
   const hooks = Object.fromEntries(GROK_HOOK_EVENTS.map((event) => [event, entry]));
 

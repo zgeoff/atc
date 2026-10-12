@@ -8,6 +8,7 @@ import {
   socketPath,
 } from '@atc/config/config';
 import { resolveHomeDir } from '@atc/config/resolve-home-dir';
+import type { SourceProvider } from '@atc/plugin-api/types';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { startClaudeHeadlessRun } from '../agents/start-claude-headless-run';
 import { buildExecutionTargets } from '../daemon/build-execution-targets';
@@ -16,7 +17,6 @@ import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { getATCBuild } from '../shared/get-atc-build';
 import { buildSources } from '../sources/build-sources';
 import { collectBuiltinSources } from '../sources/collect-builtin-sources';
-import type { SourceProvider } from '../sources/types';
 
 /**
  * Runs a daemon for the e2e suite, composed as `atc daemon` composes its

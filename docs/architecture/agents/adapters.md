@@ -25,6 +25,15 @@ that file, so a gateway session ejected to a headless run stays on its backend. 
 goes in the file: a helper command supplies it, or impd's broker on an imp
 ([runtime auth](../execution/runtime-auth.md)).
 
+## Hook state
+
+An adapter reads each hook line as the events it means for the session, and reading a line can
+depend on earlier lines, such as which prompt is the latest one. The daemon holds that state for the
+adapter, one value per session: it passes the value the adapter returned for a session's previous
+line back with that session's next line, and the value starts empty each time the session's terminal
+boots. An adapter therefore keeps no state of its own, and one session's lines never change how
+another session's lines read.
+
 ## Choosing an agent
 
 The spawn picker resolves each agent's binary as it opens and lists only the agents that resolve, so

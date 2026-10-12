@@ -12,6 +12,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubBrokeredGatewayAdapter } from '@atc/test-utils/build-stub-brokered-gateway-adapter';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
@@ -20,8 +22,6 @@ import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildStubBrokeredGatewayAdapter } from '../test-utils/build-stub-brokered-gateway-adapter';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';

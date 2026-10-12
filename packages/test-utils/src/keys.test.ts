@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { planPastedLineInput } from '../../app/src/agents/plan-pasted-line-input';
+import { planPastedLineInput } from '@atc/plugin-api/harness/plan-pasted-line-input';
 import { buildLeaderChords } from '../../app/src/client/build-leader-chords';
 import { KEY, planTextEdit } from '../../app/src/client/keys';
 import type { TextEdit } from '../../app/src/client/keys';

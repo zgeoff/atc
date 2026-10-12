@@ -1,4 +1,4 @@
-import type { AuthProfile } from './collect-auth-profiles';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 
 /**
  * How impd applies one secret to requests for one host. Only a basic rule

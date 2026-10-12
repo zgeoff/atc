@@ -1,138 +1,108 @@
 import { expect, test } from 'bun:test';
-import { createStubImpPort } from '../test-utils/create-stub-imp-port';
+import { buildStubCredentialBroker } from '@atc/test-utils/build-stub-credential-broker';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
 function setupTest() {
-  const port = createStubImpPort();
+  const broker = buildStubCredentialBroker('atc-');
 
-  return { port };
+  return { broker };
 }
 
-test('it allows cleanup of the recorded imp after its secret was rebound', async () => {
+test('it allows cleanup of the recorded host after its secret was rebound', async () => {
   const ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.broker.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.broker.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  await ctx.port.createGrant('atc-s1', 'glm');
+  await ctx.broker.createGrant('atc-s1', 'glm');
 
-  ctx.port.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]);
+  ctx.broker.updateSecret('glm', [{ host: 'api.z.ai', header: 'x-api-key', scheme: 'raw' }]);
 
-  ctx.port.calls.length = 0;
+  ctx.broker.calls.length = 0;
 
-  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
+  const host = await verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
-  expect(imp).toStrictEqual({
-    id: created.id,
-    name: 'atc-s1',
-    state: 'running',
-    leases: [],
-    otherLeaseCount: 0,
-  });
-
-  expect(ctx.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
+  expect(host).toStrictEqual({ id: created.id, name: 'atc-s1' });
+  expect(ctx.broker.calls).toStrictEqual(['readIdentity', 'readHost atc-s1']);
 });
 
-test('it allows cleanup of the recorded imp after its secret was deleted', async () => {
+test('it allows cleanup of the recorded host after its secret was deleted', async () => {
   const ctx = setupTest();
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.broker.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: ['glm'],
   });
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.broker.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  await ctx.port.createGrant('atc-s1', 'glm');
+  await ctx.broker.createGrant('atc-s1', 'glm');
 
-  ctx.port.removeSecret('glm');
+  ctx.broker.removeSecret('glm');
 
-  ctx.port.calls.length = 0;
+  ctx.broker.calls.length = 0;
 
-  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
+  const host = await verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
-  expect(imp).toStrictEqual({
-    id: created.id,
-    name: 'atc-s1',
-    state: 'running',
-    leases: [],
-    otherLeaseCount: 0,
-  });
-
-  expect(ctx.port.calls).toStrictEqual(['tokens.whoami', 'imps.get atc-s1']);
+  expect(host).toStrictEqual({ id: created.id, name: 'atc-s1' });
+  expect(ctx.broker.calls).toStrictEqual(['readIdentity', 'readHost atc-s1']);
 });
 
-test('it allows cleanup by a token that may no longer grant the bound secret', async () => {
+test('it allows cleanup by an identity that may no longer grant the bound secret', async () => {
   const ctx = setupTest();
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.broker.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-*'],
+    hosts: ['atc-*'],
     grantable: [],
   });
 
-  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
+  const host = await verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
-  expect(imp).toStrictEqual({
-    id: created.id,
-    name: 'atc-s1',
-    state: 'running',
-    leases: [],
-    otherLeaseCount: 0,
-  });
+  expect(host).toStrictEqual({ id: created.id, name: 'atc-s1' });
 });
 
-test('it reports a recorded imp that impd no longer holds as nothing to clean up', async () => {
+test('it reports a recorded host that the broker no longer holds as nothing to clean up', async () => {
   const ctx = setupTest();
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  await ctx.port.destroyImp('atc-s1');
+  await ctx.broker.destroyHost('s1');
 
-  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
+  const host = await verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
-  expect(imp).toBeNull();
+  expect(host).toBeNull();
 });
 
-test('it refuses cleanup of an imp made again under the recorded name', async () => {
+test('it refuses cleanup of a host made again under the recorded name', async () => {
   const ctx = setupTest();
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  await ctx.port.destroyImp('atc-s1');
+  await ctx.broker.destroyHost('s1');
 
-  const remade = await ctx.port.createImp({ name: 'atc-s1' });
+  const remade = await ctx.broker.createHost('s1');
 
-  const verified = verifyCleanupAuthority(
-    ctx.port,
-    {
-      name: 'atc-s1',
-      id: created.id,
-    },
-    'atc-',
-  );
+  const verified = verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
   expect(verified).rejects.toMatchObject({
     code: 'auth_runtime_mismatch',
@@ -140,61 +110,62 @@ test('it refuses cleanup of an imp made again under the recorded name', async ()
   });
 });
 
-test('it refuses cleanup by a token whose patterns do not cover the recorded imp without looking it up', async () => {
+test('it refuses cleanup by an identity whose patterns do not cover the recorded host without looking it up', async () => {
   const ctx = setupTest();
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.broker.setIdentity({
     name: 'cloud-runtime',
     scope: 'manage',
-    imps: ['atc-other-*'],
+    hosts: ['atc-other-*'],
     grantable: [],
   });
 
-  ctx.port.calls.length = 0;
+  ctx.broker.calls.length = 0;
 
-  const verified = verifyCleanupAuthority(
-    ctx.port,
-    {
-      name: 'atc-s1',
-      id: created.id,
-    },
-    'atc-',
-  );
+  const verified = verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
   expect(verified).rejects.toMatchObject({
     code: 'auth_imp_out_of_scope',
     data: { outside: ['atc-s1'] },
   });
 
-  expect(ctx.port.calls).toStrictEqual(['tokens.whoami']);
+  expect(ctx.broker.calls).toStrictEqual(['readIdentity']);
 });
 
-test('it refuses cleanup by a token that reaches every imp on the host', async () => {
+test('it refuses cleanup by an identity that reaches every host', async () => {
   const ctx = setupTest();
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.broker.setIdentity({
     name: 'admin',
     scope: 'manage',
-    imps: null,
+    hosts: null,
     grantable: [],
   });
 
-  const verified = verifyCleanupAuthority(
-    ctx.port,
-    {
-      name: 'atc-s1',
-      id: created.id,
-    },
-    'atc-',
-  );
+  const verified = verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
   expect(verified).rejects.toMatchObject({ code: 'auth_token_too_broad' });
+});
+
+test('it refuses cleanup by an identity that cannot manage hosts', async () => {
+  const ctx = setupTest();
+
+  const created = await ctx.broker.createHost('s1');
+
+  ctx.broker.setIdentity({
+    name: 'reader',
+    scope: 'read',
+    hosts: ['atc-*'],
+    grantable: [],
+  });
+
+  const verified = verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
+
+  expect(verified).rejects.toMatchObject({ code: 'auth_token_scope' });
 });
 
 test.each([
@@ -232,60 +203,45 @@ test.each([
   [['prod']],
   [['atc*']],
 ])(
-  'it refuses cleanup by a token whose patterns %p reach imps outside the namespace',
-  async (imps) => {
+  'it refuses cleanup by an identity whose patterns %p reach hosts outside the namespace',
+  async (hosts) => {
     const ctx = setupTest();
 
-    const created = await ctx.port.createImp({ name: 'atc-s1' });
+    const created = await ctx.broker.createHost('s1');
 
-    ctx.port.setIdentity({
-      kind: 'token',
+    ctx.broker.setIdentity({
       name: 'wide',
       scope: 'manage',
-      imps,
+      hosts,
       grantable: [],
     });
 
-    ctx.port.calls.length = 0;
+    ctx.broker.calls.length = 0;
 
-    const verified = verifyCleanupAuthority(
-      ctx.port,
-      {
-        name: 'atc-s1',
-        id: created.id,
-      },
-      'atc-',
-    );
+    const verified = verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
     expect(verified).rejects.toMatchObject({
       code: 'auth_token_too_broad',
-      data: { token: 'wide', imps },
+      data: { token: 'wide', imps: hosts },
     });
 
-    expect(ctx.port.calls).toStrictEqual(['tokens.whoami']);
+    expect(ctx.broker.calls).toStrictEqual(['readIdentity']);
   },
 );
 
-test('it allows cleanup by a token whose literal imp name is the recorded imp', async () => {
+test('it allows cleanup by an identity whose literal host name is the recorded host', async () => {
   const ctx = setupTest();
 
-  const created = await ctx.port.createImp({ name: 'atc-s1' });
+  const created = await ctx.broker.createHost('s1');
 
-  ctx.port.setIdentity({
-    kind: 'token',
+  ctx.broker.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
-    imps: ['atc-s1'],
+    hosts: ['atc-s1'],
     grantable: [],
   });
 
-  const imp = await verifyCleanupAuthority(ctx.port, { name: 'atc-s1', id: created.id }, 'atc-');
+  const host = await verifyCleanupAuthority(ctx.broker, { name: 'atc-s1', id: created.id });
 
-  expect(imp).toStrictEqual({
-    id: created.id,
-    name: 'atc-s1',
-    state: 'running',
-    leases: [],
-    otherLeaseCount: 0,
-  });
+  expect(host).toStrictEqual({ id: created.id, name: 'atc-s1' });
 });

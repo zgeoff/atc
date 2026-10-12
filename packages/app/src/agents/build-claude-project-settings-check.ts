@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core/is-record';
 import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
+import type { ProjectSettingsCheck } from '@atc/plugin-api/agent-adapter';
 import { DaemonError } from '@atc/protocol/daemon-error';
-import type { ProjectSettingsCheck } from './agent-adapter';
 
 /**
  * The check of a Claude CLI session's project settings before a launch

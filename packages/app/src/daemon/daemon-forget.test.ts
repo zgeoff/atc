@@ -1,11 +1,11 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
 import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
-import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 
@@ -550,7 +550,7 @@ test('it keeps a headless run going when the forget of its session fails to dest
 
         // Every hook reads as the terminal's end, so one fires the pending
         // eject.
-        normalizeHook: () => ({ kind: 'ended' }),
+        planHookEvents: () => ({ events: [{ kind: 'ended' }] }),
       }),
       targets: [
         { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },

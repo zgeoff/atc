@@ -15,10 +15,6 @@ import type { SessionID } from '@atc/core/session-id';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
 import { truncateDetail } from '@atc/core/truncate-detail';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import { z } from 'zod';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -26,14 +22,20 @@ import type {
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
+  HookPlan,
   NameUpdate,
   ProjectSettingsCheck,
   ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
-} from './agent-adapter';
-import { buildArgsWithoutFlags } from './build-args-without-flags';
+} from '@atc/plugin-api/agent-adapter';
+import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
+import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import { z } from 'zod';
 import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildClaudeConfigSeed } from './build-claude-config-seed';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
@@ -49,7 +51,6 @@ import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import type { ClaudeHostPaths } from './claude-host-paths';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
-import { findFlagValue } from './find-flag-value';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
@@ -458,6 +459,10 @@ export class ClaudeAdapter implements AgentAdapter {
   // so trust for the clone is that config's entry for the clone alone.
   updateLocalWorkspaceTrust(root: string): Promise<() => Promise<void>> {
     return updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(this.hostPaths.homeDir), root);
+  }
+
+  planHookEvents(e: HookEvent): HookPlan {
+    return { events: [this.normalizeHook(e)] };
   }
 
   normalizeHook(e: HookEvent): AdapterEvent {

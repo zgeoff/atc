@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import type { GatewayAuth } from '@atc/config/agent-slices/check-gateway-auth';
 import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
-import type { AuthProfile } from '@atc/config/collect-auth-profiles';
 import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
 import type { AuthProfileProblem, ResolvedAuthSecret } from '@atc/config/resolve-auth-profiles';
 import type { AgentID } from '@atc/core/agent-id';
 import { sortJSONKeys } from '@atc/core/sort-json-keys';
+import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { GatewayAuth } from '@atc/plugin-api/gateway-auth';
 
 /**
  * What a session's runtime is bound to through impd's broker: every

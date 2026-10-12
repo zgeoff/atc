@@ -1,5 +1,5 @@
+import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
-import { findFlagValue } from './find-flag-value';
 
 /**
  * The arguments that restore a Claude CLI session in its configured

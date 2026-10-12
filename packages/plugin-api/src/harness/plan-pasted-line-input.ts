@@ -1,4 +1,4 @@
-import type { TerminalInputModes } from './agent-adapter';
+import type { TerminalInputModes } from '../agent-adapter';
 import { buildUnmarkedText } from './build-unmarked-text';
 import { PASTE_MARKERS } from './paste-markers';
 

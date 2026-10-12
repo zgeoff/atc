@@ -7,7 +7,7 @@ import type {
   ExecutionProvider,
   HarnessHandle,
   HarnessSpec,
-} from '../daemon/execution-provider';
+} from '@atc/plugin-api/execution-provider';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 
 // One provider operation, in the order the daemon called it.

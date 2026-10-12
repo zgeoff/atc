@@ -6,6 +6,7 @@ import { parseConfig } from '@atc/config/config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { encodeCursor } from '@atc/protocol/encode-cursor';
 import { StateStore } from '@atc/store/state-store';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -15,7 +16,6 @@ import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-line
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { GrokAdapter } from '../agents/grok-adapter';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // A test that leaves every connection to itself turns the main client off.

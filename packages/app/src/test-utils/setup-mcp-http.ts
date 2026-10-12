@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startDaemon } from '../daemon/daemon';
@@ -9,7 +10,6 @@ import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
-import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 interface MCPHTTPSetupOptions {
   // Further Host header values the server accepts.

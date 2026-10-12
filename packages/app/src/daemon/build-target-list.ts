@@ -1,5 +1,5 @@
+import type { ExecutionCapabilities } from '@atc/plugin-api/execution-provider';
 import type { ExecutionTarget } from './build-execution-targets';
-import type { ExecutionCapabilities } from './execution-provider';
 
 export interface TargetEntry {
   readonly id: string;

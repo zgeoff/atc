@@ -9,6 +9,7 @@ import { decodeMessage } from '@atc/protocol/protocol';
 import type { EventMsg } from '@atc/protocol/protocol';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -19,7 +20,6 @@ import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-line
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {
@@ -32,7 +32,7 @@ test('it accepts a message for a session that has not reported SessionStart', as
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
     }),
   });
@@ -59,7 +59,7 @@ test('it queues a message to a started session within the start-up grace window'
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
       clock,
       tapGraceMs: 300,
@@ -98,7 +98,7 @@ test('it refuses a message once the grace window passes with no tap ever attache
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
       clock,
       tapGraceMs: 300,
@@ -135,7 +135,7 @@ test('it accepts a message to a started session once a tap is connected', async 
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
       tapGraceMs: 0,
     }),
@@ -743,7 +743,7 @@ test('it keeps queueing messages after the tap connection drops', async () => {
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
       tapGraceMs: 0,
     }),
@@ -2154,7 +2154,7 @@ test('it refuses the cursor of an event that is not a note as an unknown note', 
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
     }),
   });
@@ -2271,7 +2271,7 @@ test('it gates a revived session on its own tap, not the tap its previous proces
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
         planSpawn,
       }),
       tapGraceMs: 0,
@@ -2338,7 +2338,7 @@ test('it queues a message to a revived session before it reports SessionStart ag
     options: () => ({
       adapter: buildMockAgentAdapter({
         takesMessages: true,
-        normalizeHook: (hook) => claude.normalizeHook(hook),
+        planHookEvents: (hook) => claude.planHookEvents(hook),
         planSpawn,
       }),
       tapGraceMs: 0,

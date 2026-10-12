@@ -1,4 +1,4 @@
-import type { AgentAdapter } from '../agents/agent-adapter';
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { buildStubBrokeredAgentAdapter } from './build-stub-brokered-agent-adapter';
 
 interface StubProxiedAgentAdapterConfig {

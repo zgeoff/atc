@@ -7,13 +7,13 @@ import { toSessionID } from '@atc/core/to-session-id';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { CodexAdapter } from '../agents/codex-adapter';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

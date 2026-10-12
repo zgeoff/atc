@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildAgentList } from './build-agent-list';
 
 test('it lists an agent that takes the broker credential as spawnable once a target reaches the broker', () => {

@@ -1,5 +1,5 @@
-import type { SpawnOverrides } from './agent-adapter';
-import { buildArgsWithoutFlags } from './build-args-without-flags';
+import type { SpawnOverrides } from '@atc/plugin-api/agent-adapter';
+import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
 
 /**
  * The configured leading arguments for a Claude CLI spawn with the session's
