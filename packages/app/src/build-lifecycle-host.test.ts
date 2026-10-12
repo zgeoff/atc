@@ -1,5 +1,8 @@
 import { expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { systemClock } from '@atc/core/system-clock';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { buildLifecycleHost } from './build-lifecycle-host';
 
 test('it builds the paths, the /proc root, and the restore boot time from the environment', () => {
@@ -15,6 +18,17 @@ test('it builds the paths, the /proc root, and the restore boot time from the en
   expect(host.procRoot).toBe('/tmp/proc');
   expect(host.restoreBootTimeoutMs).toBe(500);
   expect(host.clock).toBe(systemClock);
+});
+
+test('it finds the user unit in the unit directories the environment gives', () => {
+  const tmp = setupTempDir('atc-lifecycle-host-');
+  const path = join(tmp.dir, 'atc-daemon.service');
+
+  writeFileSync(path, '[Service]\nExecStart=atc daemon\n');
+
+  const host = buildLifecycleHost({ HOME: '/home/u', SYSTEMD_UNIT_PATH: tmp.dir });
+
+  expect(host.findManagedUnit()).toBe(path);
 });
 
 test('it reads /proc and the default restore boot time when the environment sets neither', () => {

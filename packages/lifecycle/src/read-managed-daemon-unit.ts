@@ -4,12 +4,13 @@ import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 
 /**
  * Finds an installed daemon user unit without a connection to the service
- * manager. An installed or masked unit keeps ownership while it is stopped.
+ * manager, in the user unit directories that `env` gives. An installed or
+ * masked unit keeps ownership while it is stopped.
  */
 export function readManagedDaemonUnit(
-  directories: readonly string[] = buildUserUnitDirectories(process.env, resolveHomeDir()),
+  env: Readonly<Record<string, string | undefined>>,
 ): string | null {
-  for (const directory of directories) {
+  for (const directory of buildUserUnitDirectories(env, resolveHomeDir(env))) {
     const path = join(directory, 'atc-daemon.service');
 
     try {

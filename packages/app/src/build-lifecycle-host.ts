@@ -8,8 +8,8 @@ import { buildATCInvocation } from './build-atc-invocation';
 
 /**
  * The host the daemon's process control runs against in this process: this
- * build's invocation, the paths and the restore boot time `env` gives, the
- * wall clock, the user unit lookup, and `systemctl --user`. `ATC_PROC_ROOT` moves the `/proc`
+ * build's invocation, the paths, the user unit directories, and the restore
+ * boot time `env` gives, the wall clock, and `systemctl --user`. `ATC_PROC_ROOT` moves the `/proc`
  * reads to another directory, so a test can place a daemon in a unit
  * without a user manager.
  */
@@ -22,7 +22,7 @@ export function buildLifecycleHost(
     clock: systemClock,
     procRoot: env['ATC_PROC_ROOT'] ?? '/proc',
     restoreBootTimeoutMs: parseRestoreBootTimeoutMs(env),
-    findManagedUnit: () => readManagedDaemonUnit(),
+    findManagedUnit: () => readManagedDaemonUnit(env),
     runSystemctl,
   };
 }
