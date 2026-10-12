@@ -12,9 +12,10 @@ import { assign, createActor, fromPromise, setup } from 'xstate';
 function setupTest() {
   const requests: PromiseWithResolvers<string>[] = [];
   const onDone = mock();
+  const context: { result: string | null } = { result: null };
 
   const machine = setup({
-    types: { context: {} as { result: string | null } },
+    types: { context },
     actors: {
       request: fromPromise(() => {
         const request = Promise.withResolvers<string>();
@@ -25,7 +26,7 @@ function setupTest() {
       }),
     },
   }).createMachine({
-    context: { result: null },
+    context,
     initial: 'idle',
     states: {
       idle: { on: { LOAD: 'loading' } },
@@ -37,7 +38,9 @@ function setupTest() {
             target: 'loaded',
             actions: [
               assign({ result: (args) => args.event.output }),
-              (args) => onDone(args.event.output),
+              (args) => {
+                onDone(args.event.output);
+              },
             ],
           },
         },
