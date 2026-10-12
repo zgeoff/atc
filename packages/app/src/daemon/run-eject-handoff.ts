@@ -7,7 +7,7 @@ import type { SessionRuntime } from './session-runtime';
  */
 export type SettleScheduler = (onTimeout: () => void, ms: number) => () => void;
 
-export interface EjectHandoffParams {
+interface EjectHandoffParams {
   readonly sessionID: SessionID;
   readonly prompt: string;
   readonly settleMs: number;

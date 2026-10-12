@@ -24,7 +24,7 @@ interface PublishedRecordStore {
  * One session as its record sees it: the host it runs on, the directory
  * it runs in, and what its workspace was materialized from.
  */
-export interface RecordSubject {
+interface RecordSubject {
   readonly session: SessionID;
   readonly target: string;
   readonly provider: ExecutionProvider;

@@ -32,7 +32,7 @@ import { isImpNameAllowed } from './is-imp-name-allowed';
  * image, and the prefix every imp name the target builds starts with.
  * None holds a credential.
  */
-export interface ImpTargetOptions {
+interface ImpTargetOptions {
   readonly impPrefix?: string;
   readonly image?: string;
   readonly memoryMib?: number;

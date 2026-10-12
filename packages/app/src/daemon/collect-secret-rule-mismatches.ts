@@ -4,13 +4,13 @@ import type { ImpSecret, ImpSecretRule } from './imp-port';
  * One secret as a resolved binding expects impd to hold it: its kind and
  * the complete set of rules, one per host.
  */
-export interface ExpectedSecret {
+interface ExpectedSecret {
   readonly secret: string;
   readonly kind: ImpSecret['kind'];
   readonly rules: readonly ImpSecretRule[];
 }
 
-export type SecretRuleMismatch =
+type SecretRuleMismatch =
   | { readonly secret: string; readonly reason: 'missing' }
   | {
       readonly secret: string;

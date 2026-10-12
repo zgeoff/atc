@@ -16,7 +16,7 @@ interface EventsServerOptions {
   readonly queueBytes?: number;
 }
 
-export interface EventsServer {
+interface EventsServer {
   readonly broadcast: (event: EventMsg) => void;
   readonly stop: () => void;
 }

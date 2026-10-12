@@ -6,7 +6,7 @@ import { readImpToken } from './read-imp-token';
  * The provider of an `imp` target, or the problem that keeps it from one.
  * A problem never includes a token or any other environment value.
  */
-export interface ImpProviderBuild {
+interface ImpProviderBuild {
   readonly provider: ImpProvider | null;
   readonly problem: string | null;
 }

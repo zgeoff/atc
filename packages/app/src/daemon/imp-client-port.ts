@@ -28,7 +28,7 @@ import { ImpPortError } from './imp-port-error';
  * on the next one. A read that throws fails that call without reaching
  * impd.
  */
-export interface ImpClientPortOptions {
+interface ImpClientPortOptions {
   readonly url: string;
   readonly readToken: () => string | null;
 }

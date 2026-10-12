@@ -5,7 +5,7 @@ import type { RequestMethod } from '../protocol/parse-request-params';
  * `principal` is also open to a principal, which runs it through the
  * context scoped to that principal.
  */
-export type RequestAccessClass = 'owner' | 'principal';
+type RequestAccessClass = 'owner' | 'principal';
 
 /**
  * The access class of every request method, checked when a request is

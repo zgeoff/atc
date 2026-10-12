@@ -24,7 +24,7 @@ export interface ExecutionTarget {
  * The targets the daemon serves, and the problems with their entries that
  * only the daemon's environment shows.
  */
-export interface ExecutionTargetsBuild {
+interface ExecutionTargetsBuild {
   readonly targets: ExecutionTarget[];
   readonly errors: TargetConfigError[];
 }

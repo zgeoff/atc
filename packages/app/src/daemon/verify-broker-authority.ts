@@ -7,7 +7,7 @@ import { verifyTokenImpAuthority } from './verify-token-imp-authority';
  * names, as the target's runtime namespace builds them, every secret the
  * binding grants them, and those of the secrets it binds as kind `oauth`.
  */
-export interface BrokerActivation {
+interface BrokerActivation {
   readonly impNames: readonly string[];
   readonly secrets: readonly string[];
   readonly oauthSecrets?: readonly string[];

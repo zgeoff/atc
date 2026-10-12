@@ -3,7 +3,7 @@ import type { ImpPort, ImpView } from './imp-port';
 import { verifyTokenImpAuthority } from './verify-token-imp-authority';
 
 // The imp a binding recorded when atc made it.
-export interface RecordedImp {
+interface RecordedImp {
   readonly name: string;
   readonly id: string;
 }

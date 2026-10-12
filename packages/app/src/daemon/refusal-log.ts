@@ -13,7 +13,7 @@ type HandshakeRefusalReason =
   | 'unexpected_line'
   | 'line_too_long';
 
-export type Refusal =
+type Refusal =
   | {
       readonly event: 'handshake_refused';
       readonly peer: string;
