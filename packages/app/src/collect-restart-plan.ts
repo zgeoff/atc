@@ -1,3 +1,4 @@
+import { daemonPidFile, daemonRecordFile, daemonSocketPath, stateDir } from '@atc/config/config';
 import { isRecord } from '@atc/core/is-record';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
@@ -11,7 +12,6 @@ import { isDaemonProcess } from './is-daemon-process';
 import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
 import { runSystemctl } from './run-systemctl';
 import { buildATCCommand } from './shared/build-atc-command';
-import { daemonPidFile, daemonRecordFile, daemonSocketPath, stateDir } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 import { findPidFilePID } from './shared/find-pid-file-pid';
 import { getATCBuild } from './shared/get-atc-build';

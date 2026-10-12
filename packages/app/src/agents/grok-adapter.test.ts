@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { parseConfig } from '../shared/config';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { GrokAdapter } from './grok-adapter';
 
 // A Grok home of the test's own, where the adapter looks for session summaries.
@@ -49,9 +49,9 @@ test('it plans restore with --resume after --no-leader', () => {
   ]);
 });
 
-test('it drops a user --leader from grokArgs and still appends --no-leader', () => {
+test('it drops a user --leader from the configured arguments and still appends --no-leader', () => {
   const config = parseConfig({
-    grokArgs: ['--leader', '--yolo'],
+    agents: { grok: { args: ['--leader', '--yolo'] } },
   });
 
   const plan = new GrokAdapter(getAgentEntry(config, 'grok')).planSpawn({

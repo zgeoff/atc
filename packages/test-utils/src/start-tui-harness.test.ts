@@ -144,13 +144,11 @@ test('it writes the fake binaries and transports with the fields given laid over
   tui.writeConfig({ leader: 'ctrl-]', workspaces: { sources: ['git'] } });
 
   expect(JSON.parse(readFileSync(tui.configPath, 'utf8'))).toStrictEqual({
-    claudeBin: join(tui.home, 'fake-claude'),
-    claudeArgs: [],
-    grokBin: join(tui.home, 'fake-grok'),
-    grokArgs: [],
-    codexBin: join(tui.home, 'fake-codex'),
-    codexArgs: [],
-    gateways: [],
+    agents: {
+      claude: { kind: 'claude', bin: join(tui.home, 'fake-claude') },
+      grok: { kind: 'grok', bin: join(tui.home, 'fake-grok') },
+      codex: { kind: 'codex', bin: join(tui.home, 'fake-codex') },
+    },
     workspaces: { gitTransports: ['https', 'ssh', 'http', 'file'], sources: ['git'] },
     leader: 'ctrl-]',
   });

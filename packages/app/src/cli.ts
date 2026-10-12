@@ -112,7 +112,7 @@ const main = defineCommand({
               meta: { name: 'list', description: 'List the clients', hidden: true },
               async run() {
                 const clients = await import('./clients');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 await clients.runClients(
                   { kind: 'list' },
@@ -133,7 +133,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 await clients.runClients(
                   {
@@ -156,7 +156,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 await clients.runClients(
                   { kind: 'remove', clientID: ctx.args.id },
@@ -206,7 +206,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const migrate = await import('./run-config-migrate');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 const code = migrate.runConfigMigrate(
                   ctx.args.file ?? config.configFile,
@@ -544,7 +544,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   }
 
   const daemon = await import('./daemon/daemon');
-  const config = await import('./shared/config');
+  const config = await import('@atc/config/config');
   const adapterBuilder = await import('./agents/build-agent-adapters');
   const headless = await import('./agents/start-claude-headless-run');
   const targets = await import('./daemon/build-execution-targets');

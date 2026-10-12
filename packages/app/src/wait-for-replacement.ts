@@ -1,10 +1,10 @@
+import { daemonRecordFile } from '@atc/config/config';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { daemonRecordFile } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 import { getATCBuild } from './shared/get-atc-build';
 import { isProcessAlive } from './shared/is-process-alive';

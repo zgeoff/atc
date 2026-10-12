@@ -10,9 +10,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -20,9 +22,7 @@ import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
-import { parseConfig } from '../shared/config';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
@@ -86,12 +86,14 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
@@ -187,12 +189,14 @@ test.each([
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
@@ -265,12 +269,14 @@ test('it refuses trust for an existing folder before touching the imp', async ()
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
@@ -335,12 +341,14 @@ test.each([
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
-          claudeBin: ctx.fakeClaude,
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          gateways: {
+          agents: {
+            claude: { bin: ctx.fakeClaude },
             glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
@@ -435,12 +443,14 @@ test.each([
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
-          claudeBin: ctx.fakeClaude,
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          gateways: {
+          agents: {
+            claude: { bin: ctx.fakeClaude },
             glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
@@ -529,12 +539,14 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
@@ -599,12 +611,14 @@ test('it refuses clone trust for a gateway on the local target before cloning', 
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
@@ -673,12 +687,14 @@ test.each([
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
-          claudeBin: ctx.fakeClaude,
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          gateways: {
+          agents: {
+            claude: { bin: ctx.fakeClaude },
             glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
@@ -780,12 +796,14 @@ test.each([
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
-          claudeBin: ctx.fakeClaude,
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          gateways: {
+          agents: {
+            claude: { bin: ctx.fakeClaude },
             glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
@@ -895,12 +913,14 @@ test.each([
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
-          claudeBin: ctx.fakeClaude,
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          gateways: {
+          agents: {
+            claude: { bin: ctx.fakeClaude },
             glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
@@ -1026,12 +1046,14 @@ test.each([
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
-          claudeBin: ctx.fakeClaude,
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          gateways: {
+          agents: {
+            claude: { bin: ctx.fakeClaude },
             glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
@@ -1118,12 +1140,14 @@ test.each([
     const daemon = await startTestDaemon({
       options: () => {
         const agents = parseConfig({
-          claudeBin: ctx.fakeClaude,
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
-          gateways: {
+          agents: {
+            claude: { bin: ctx.fakeClaude },
             glm: {
+              kind: 'claude',
+              bin: ctx.fakeClaude,
               baseURL: 'https://api.z.ai/api/anthropic',
               auth: {
                 profiles: ['glm'],
@@ -1206,12 +1230,14 @@ test('it refuses an inherited trust default without a clone before touching the 
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
@@ -1276,12 +1302,14 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],
@@ -1347,12 +1375,14 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
   const daemon = await startTestDaemon({
     options: () => {
       const agents = parseConfig({
-        claudeBin: ctx.fakeClaude,
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
-        gateways: {
+        agents: {
+          claude: { bin: ctx.fakeClaude },
           glm: {
+            kind: 'claude',
+            bin: ctx.fakeClaude,
             baseURL: 'https://api.z.ai/api/anthropic',
             auth: {
               profiles: ['glm'],

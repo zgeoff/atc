@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs';
+import { restartLockFile, restartsDir } from '@atc/config/config';
 import { buildRestartFailure } from './build-restart-failure';
 import { formatRestartReport } from './format-restart-report';
 import type { RestartResult } from './parse-restart-result';
@@ -7,7 +8,6 @@ import { removeRestartResult } from './remove-restart-result';
 import { restartDaemon } from './restart-daemon';
 import type { RestartOptions } from './restart-daemon';
 import { claimDaemonLock } from './shared/claim-daemon-lock';
-import { restartLockFile, restartsDir } from './shared/config';
 import { writeRestartResult } from './write-restart-result';
 
 // How long a restart that finds another in flight waits for it to finish.

@@ -1,4 +1,5 @@
 import type { ChildProcess } from 'node:child_process';
+import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '@atc/config/config';
 import type { AgentID } from '@atc/core/agent-id';
 import { makeSingleFlight } from '@atc/core/make-single-flight';
 import { systemClock } from '@atc/core/system-clock';
@@ -13,7 +14,6 @@ import type { ProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { findPidFilePID } from '../shared/find-pid-file-pid';
 import { getATCBuild } from '../shared/get-atc-build';

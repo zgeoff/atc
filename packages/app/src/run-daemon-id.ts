@@ -1,6 +1,6 @@
+import { daemonRecordFile, daemonSocketPath } from '@atc/config/config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { daemonRecordFile, daemonSocketPath } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 
 /**

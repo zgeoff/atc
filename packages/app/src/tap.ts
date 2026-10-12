@@ -1,9 +1,9 @@
+import { daemonSocketPath } from '@atc/config/config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { z } from 'zod';
 import { runBridgeTap } from './run-bridge-tap';
-import { daemonSocketPath } from './shared/config';
 import { getATCBuild } from './shared/get-atc-build';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({

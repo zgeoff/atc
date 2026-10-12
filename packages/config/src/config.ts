@@ -1,30 +1,32 @@
 import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { collectAgents } from '@atc/config/collect-agents';
-import type { AgentEntry } from '@atc/config/collect-agents';
-import { collectAuthProfiles } from '@atc/config/collect-auth-profiles';
-import type { AuthProfile } from '@atc/config/collect-auth-profiles';
-import { collectDirRoots } from '@atc/config/collect-dir-roots';
-import { collectHooks } from '@atc/config/collect-hooks';
-import type { HooksConfig } from '@atc/config/collect-hooks';
-import { collectPrincipals } from '@atc/config/collect-principals';
-import { collectTargets } from '@atc/config/collect-targets';
-import type { TargetConfig, TargetConfigError } from '@atc/config/collect-targets';
-import { collectWorkspacesConfig } from '@atc/config/collect-workspaces-config';
-import type { WorkspacesConfig } from '@atc/config/collect-workspaces-config';
-import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
-import { formatJSONKind } from '@atc/config/format-json-kind';
-import { formatLegacyAgentKeys } from '@atc/config/format-legacy-agent-keys';
-import { formatMixedAgentKeys } from '@atc/config/format-mixed-agent-keys';
-import { LEGACY_AGENT_KEYS } from '@atc/config/legacy-agent-keys';
-import { pickDefaultAgent } from '@atc/config/pick-default-agent';
-import { REMOVED_CONFIG_KEYS } from '@atc/config/removed-config-keys';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
+import { dirname } from 'node:path';
 import type { AgentID } from '@atc/core/agent-id';
 import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
 import { buildOptionalString } from '@atc/core/build-optional-string';
 import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
+import { collectAgents } from './collect-agents';
+import type { AgentEntry } from './collect-agents';
+import { collectAuthProfiles } from './collect-auth-profiles';
+import type { AuthProfile } from './collect-auth-profiles';
+import { collectDirRoots } from './collect-dir-roots';
+import { collectHooks } from './collect-hooks';
+import type { HooksConfig } from './collect-hooks';
+import { collectPrincipals } from './collect-principals';
+import { collectTargets } from './collect-targets';
+import type { TargetConfig, TargetConfigError } from './collect-targets';
+import { collectWorkspacesConfig } from './collect-workspaces-config';
+import type { WorkspacesConfig } from './collect-workspaces-config';
+import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
+import { formatJSONKind } from './format-json-kind';
+import { formatLegacyAgentKeys } from './format-legacy-agent-keys';
+import { formatMixedAgentKeys } from './format-mixed-agent-keys';
+import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
+import { LOCAL_TARGET } from './local-target';
+import { pickDefaultAgent } from './pick-default-agent';
+import { REMOVED_CONFIG_KEYS } from './removed-config-keys';
+import { resolveHomeDir } from './resolve-home-dir';
+import { resolvePaths } from './resolve-paths';
 
 export interface Config {
   // The agents atc offers, in menu order, and the problems that left an
@@ -111,8 +113,8 @@ const DEFAULTS: Config = {
   authProfileErrors: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
-  targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-  defaultTarget: 'local',
+  targets: [LOCAL_TARGET],
+  defaultTarget: LOCAL_TARGET.id,
   targetErrors: [],
   principals: null,
   principalErrors: [],
@@ -121,27 +123,22 @@ const DEFAULTS: Config = {
   removedKeys: [],
 };
 
-const configDir = join(resolveHomeDir(), '.config', 'atc');
+// The paths of the environment this process started in.
+const paths = resolvePaths(process.env);
 
-export const configFile = join(configDir, 'config.json');
-export const stateDir = join(resolveHomeDir(), '.local', 'state', 'atc');
-export const socketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc.sock');
-export const daemonSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.sock');
-export const eventsSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-events.sock');
-export const statusFile = join(stateDir, 'status.json');
-export const dbFile = join(stateDir, 'atc.db');
-export const mcpAuthDBFile = join(stateDir, 'mcp-auth.db');
-export const legacyFleetFile = join(stateDir, 'fleet.json');
-export const daemonPidFile = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.pid');
-
-// Written by the running daemon: its pid and the socket paths it listens
-// on, for a client whose environment computes other socket paths.
-export const daemonRecordFile = join(stateDir, 'daemon.json');
-
-// Where `atc daemon restart` keeps its run logs and the record of the last
-// finished restart, and the lock that admits one restart at a time.
-export const restartsDir = join(stateDir, 'restarts');
-export const restartLockFile = join(stateDir, 'daemon-restart.lock');
+export const configFile = paths.configFile;
+export const stateDir = paths.stateDir;
+export const socketPath = paths.socketPath;
+export const daemonSocketPath = paths.daemonSocketPath;
+export const eventsSocketPath = paths.eventsSocketPath;
+export const statusFile = paths.statusFile;
+export const dbFile = paths.dbFile;
+export const mcpAuthDBFile = paths.mcpAuthDBFile;
+export const legacyFleetFile = paths.legacyFleetFile;
+export const daemonPidFile = paths.daemonPidFile;
+export const daemonRecordFile = paths.daemonRecordFile;
+export const restartsDir = paths.restartsDir;
+export const restartLockFile = paths.restartLockFile;
 
 // A user-written config.json's top-level keys. An absent or wrong-typed
 // field parses to undefined rather than failing the file, so a bad config

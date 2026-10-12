@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { restartsDir } from '@atc/config/config';
 import { parseRestartResult } from './parse-restart-result';
 import type { RestartResult } from './parse-restart-result';
-import { restartsDir } from './shared/config';
 
 /**
  * The result of the last finished restart, or null when none was written or

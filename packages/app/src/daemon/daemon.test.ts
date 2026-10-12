@@ -2,9 +2,11 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { encodeCursor } from '@atc/protocol/encode-cursor';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
@@ -12,10 +14,8 @@ import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-line
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { GrokAdapter } from '../agents/grok-adapter';
-import { parseConfig } from '../shared/config';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // A test that leaves every connection to itself turns the main client off.
@@ -389,7 +389,12 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
       adapter: buildMockAgentAdapter(),
       adapters: [
         new GrokAdapter(
-          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          getAgentEntry(
+            parseConfig({
+              agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
+            }),
+            'grok',
+          ),
           join(paths.dir, 'grok-home'),
         ),
       ],
@@ -413,7 +418,12 @@ test('it yanks a grok session spawned with an id as a resume of that id', async 
       adapter: buildMockAgentAdapter(),
       adapters: [
         new GrokAdapter(
-          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          getAgentEntry(
+            parseConfig({
+              agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
+            }),
+            'grok',
+          ),
           join(paths.dir, 'grok-home'),
         ),
       ],
@@ -442,7 +452,12 @@ test('it yanks a grok session spawned without an id as a plain start', async () 
       adapter: buildMockAgentAdapter(),
       adapters: [
         new GrokAdapter(
-          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          getAgentEntry(
+            parseConfig({
+              agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
+            }),
+            'grok',
+          ),
           join(paths.dir, 'grok-home'),
         ),
       ],
@@ -470,7 +485,12 @@ test('it revives a grok session from a captured id when summary.json is missing'
       adapter: buildMockAgentAdapter(),
       adapters: [
         new GrokAdapter(
-          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          getAgentEntry(
+            parseConfig({
+              agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
+            }),
+            'grok',
+          ),
           join(paths.dir, 'grok-home'),
         ),
       ],
@@ -511,7 +531,12 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
       adapter: buildMockAgentAdapter(),
       adapters: [
         new GrokAdapter(
-          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          getAgentEntry(
+            parseConfig({
+              agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
+            }),
+            'grok',
+          ),
           join(paths.dir, 'grok-home'),
         ),
       ],
@@ -560,7 +585,12 @@ test('it spawns claude when a spawn omits agent after another agent was last use
         adapter: buildMockAgentAdapter(),
         adapters: [
           new GrokAdapter(
-            getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+            getAgentEntry(
+              parseConfig({
+                agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
+              }),
+              'grok',
+            ),
             join(paths.dir, 'grok-home'),
           ),
         ],

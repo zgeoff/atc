@@ -1,3 +1,4 @@
+import { LOCAL_TARGET } from '@atc/config/local-target';
 import type { FleetEntry } from '../store/fleet-entry';
 import { buildTargetIdentity } from './build-target-identity';
 import type { TargetGrant } from './target-access';
@@ -8,7 +9,8 @@ import type { TargetGrant } from './target-access';
  */
 export function buildGrantFromFleetEntry(entry: FleetEntry): TargetGrant {
   return {
-    target: entry.target ?? 'local',
-    targetIdentity: entry.targetIdentity ?? buildTargetIdentity('local-pty', {}),
+    target: entry.target ?? LOCAL_TARGET.id,
+    targetIdentity:
+      entry.targetIdentity ?? buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
   };
 }

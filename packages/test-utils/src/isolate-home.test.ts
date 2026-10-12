@@ -21,7 +21,7 @@ test("it resolves every atc config and state path inside the run's own home", as
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { configFile, dbFile, legacyFleetFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'app', 'src', 'shared', 'config')}';
+import { configFile, dbFile, legacyFleetFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home') + sep;
 
@@ -54,7 +54,7 @@ test("it resolves every atc socket and the daemon record inside the run's own ru
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'packages', 'app', 'src', 'shared', 'config')}';
+import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
 
 const runtime = join(process.env['ATC_TEST_HOME'] ?? '', 'runtime') + sep;
 
@@ -268,7 +268,7 @@ test("it writes a gateway's generated settings file inside the run's own home", 
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'gateway-adapter')}';
-import { parseConfig, stateDir } from '${join(ctx.repo, 'packages', 'app', 'src', 'shared', 'config')}';
+import { parseConfig, stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
 
 test('it writes the settings file under the home', () => {
   const adapter = new GatewayAdapter(

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { AgentEntry } from '@atc/config/collect-agents';
+import type { Config } from '@atc/config/config';
 import { resolveAgentHome } from '@atc/config/resolve-agent-home';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
@@ -18,7 +19,6 @@ import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { z } from 'zod';
-import type { Config } from '../shared/config';
 import type {
   AgentAdapter,
   AgentProfile,

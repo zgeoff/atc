@@ -1,3 +1,4 @@
+import { configFile, loadConfig } from '@atc/config/config';
 import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 import type { AgentID } from '@atc/core/agent-id';
 import { ansi } from '@atc/core/ansi';
@@ -13,7 +14,6 @@ import { sortGroupedSessionViews } from '@atc/protocol/sort-grouped-session-view
 import { sortSessionViews } from '@atc/protocol/sort-session-views';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
-import { configFile, loadConfig } from '../shared/config';
 import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
 import { restartManagedDaemon } from '../shared/restart-managed-daemon';
 import { bootDaemonClient } from './boot-daemon';

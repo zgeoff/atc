@@ -5,6 +5,7 @@
     "": {
       "name": "atc",
       "devDependencies": {
+        "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@atc/test-utils": "workspace:*",

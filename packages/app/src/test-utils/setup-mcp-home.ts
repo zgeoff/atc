@@ -54,7 +54,13 @@ export function setupMCPHome() {
 
   writeFileSync(
     join(home, '.config', 'atc', 'config.json'),
-    JSON.stringify({ claudeBin, claudeArgs: [], grokBin, grokArgs: [] }),
+    JSON.stringify({
+      agents: {
+        claude: { kind: 'claude', bin: claudeBin },
+        grok: { kind: 'grok', bin: grokBin },
+        codex: { kind: 'codex' },
+      },
+    }),
   );
 
   return {

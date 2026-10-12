@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { collectAuthProfiles } from '@atc/config/collect-auth-profiles';
+import { parseConfig } from '@atc/config/config';
 import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { buildMigratedConfig } from './build-migrated-config';
 import { collectLegacyAgents } from './shared/collect-legacy-agents';
-import { parseConfig } from './shared/config';
 
 test('it replaces the old keys with agents at the position of the first one', () => {
   const result = buildMigratedConfig({

@@ -22,11 +22,11 @@ test('it advertises the spawn agent as an open string listing the registered age
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
-      codexBin: '/nonexistent/codex',
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -64,11 +64,11 @@ test('it refuses through a spawn a registered agent that is not installed', asyn
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
-      codexBin: '/nonexistent/codex',
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -88,12 +88,17 @@ test('it spawns a session under a configured backend id', async () => {
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
-      gateways: {
-        zai: { label: 'GLM (z.ai)', mark: 'z', baseURL: 'https://api.z.ai/api/anthropic' },
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
+        codex: { kind: 'codex' },
+        zai: {
+          kind: 'claude',
+          label: 'GLM (z.ai)',
+          mark: 'z',
+          baseURL: 'https://api.z.ai/api/anthropic',
+          bin: ctx.claudeBin,
+        },
       },
     }),
   );
@@ -117,12 +122,13 @@ test('it writes a backend settings file that carries the base URL and no credent
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
-      gateways: {
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
+        codex: { kind: 'codex' },
         zai: {
+          kind: 'claude',
+          bin: ctx.claudeBin,
           label: 'GLM (z.ai)',
           mark: 'z',
           baseURL: 'https://api.z.ai/api/anthropic',

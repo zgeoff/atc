@@ -1,4 +1,4 @@
-import type { Config } from '../shared/config';
+import type { Config } from '@atc/config/config';
 import type { AgentAdapter } from './agent-adapter';
 import { ClaudeAdapter } from './claude-adapter';
 import type { ClaudeHostPaths } from './claude-host-paths';

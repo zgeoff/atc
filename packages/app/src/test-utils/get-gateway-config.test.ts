@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '../shared/config';
+import { parseConfig } from '@atc/config/config';
 import { getGatewayConfig } from './get-gateway-config';
 
 test('it returns the gateway a config holds under an id', () => {
-  const config = parseConfig({ gateways: { glm: { baseURL: 'https://gateway.example.com' } } });
+  const config = parseConfig({
+    agents: { glm: { kind: 'claude', baseURL: 'https://gateway.example.com' } },
+  });
 
   expect(getGatewayConfig(config, 'glm')).toStrictEqual({
     id: 'glm',

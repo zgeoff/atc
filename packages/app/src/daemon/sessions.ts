@@ -1,6 +1,8 @@
 import { realpathSync, writeFileSync } from 'node:fs';
 import { posix } from 'node:path';
 import type { TargetConfigError } from '@atc/config/collect-targets';
+import { socketPath, statusFile } from '@atc/config/config';
+import { LOCAL_TARGET } from '@atc/config/local-target';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import { buildTarArchive } from '@atc/core/build-tar-archive';
@@ -33,7 +35,6 @@ import type {
   SpawnOverrides,
   SpawnPlan,
 } from '../agents/agent-adapter';
-import { socketPath, statusFile } from '../shared/config';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
@@ -254,7 +255,7 @@ interface SpawnReadied {
 
 // The identity of the implicit `local` target, which a fleet row without a
 // stored identity ran on.
-const LOCAL_TARGET_IDENTITY = buildTargetIdentity('local-pty', {});
+const LOCAL_TARGET_IDENTITY = buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options);
 
 // How long a failed spawn's rollback waits for the killed process to exit
 // unless the manager is given another wait.
@@ -404,9 +405,9 @@ export class SessionManager {
     adapters: readonly AgentAdapter[] = [],
     targets: readonly ExecutionTarget[] = [
       {
-        id: 'local',
-        kind: 'local-pty',
-        options: {},
+        id: LOCAL_TARGET.id,
+        kind: LOCAL_TARGET.provider,
+        options: LOCAL_TARGET.options,
         identity: LOCAL_TARGET_IDENTITY,
         provider: new LocalPTYProvider(),
       },
@@ -541,7 +542,7 @@ export class SessionManager {
   // Checks the configured target before resolving an unversioned binding
   // against an existing host. Invalid config never reaches the provider.
   async resolveRestoredEntry(entry: FleetEntry): Promise<FleetEntry> {
-    const target = entry.target ?? 'local';
+    const target = entry.target ?? LOCAL_TARGET.id;
 
     if (this.findExecutionRefusal({ target, targetIdentity: null }, 'spawn') !== null) {
       return entry;
@@ -557,7 +558,7 @@ export class SessionManager {
   // Registers a fleet entry without a terminal, so the fleet lists before
   // adoption. Exited entries stay exited until revived by hand.
   restore(entry: FleetEntry): Session {
-    const target = entry.target ?? 'local';
+    const target = entry.target ?? LOCAL_TARGET.id;
     const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
     const refusal = this.findExecutionRefusal({ target, targetIdentity }, 'spawn');
 

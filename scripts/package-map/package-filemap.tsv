@@ -72,7 +72,7 @@ src/agents/update-claude-project-trust.ts	harness-claude	local-trust	packages/ha
 src/agents/with-claude-config-lock.ts	harness-claude	local-trust	packages/harnesses/claude/src/local-trust/with-claude-config-lock.ts	
 src/agents/write-atc-bridge.ts	harness-claude	bridge	packages/harnesses/claude/src/bridge/write-atc-bridge.ts	
 src/agents/write-hook-settings.ts	harness-claude		packages/harnesses/claude/src/write-hook-settings.ts	
-src/build-migrated-config.ts	config		packages/config/src/build-migrated-config.ts	
+src/build-migrated-config.ts	app	cli/config-migrate	packages/app/src/cli/config-migrate/build-migrated-config.ts	the migrate command's converter; stays beside it in app
 src/build-own-daemon-process.ts	lifecycle		packages/lifecycle/src/build-own-daemon-process.ts	
 src/build-restart-failure.ts	lifecycle		packages/lifecycle/src/build-restart-failure.ts	
 src/cli.ts	app		packages/app/src/cli.ts	
@@ -106,6 +106,11 @@ src/collect-redirect-uris.ts	app	cli	packages/app/src/cli/collect-redirect-uris.
 src/collect-restart-env.ts	lifecycle		packages/lifecycle/src/collect-restart-env.ts	
 src/collect-restart-plan.ts	lifecycle		packages/lifecycle/src/collect-restart-plan.ts	
 src/config/format-legacy-agent-keys.ts	config		packages/config/src/format-legacy-agent-keys.ts	new in ticket 5
+src/config/listen/format-listen-refusal.ts	config		packages/config/src/listen/format-listen-refusal.ts	new in ticket 5
+src/config/local-target.ts	config		packages/config/src/local-target.ts	new in ticket 5
+src/config/normalize-config-dir.ts	config		packages/config/src/normalize-config-dir.ts	new in ticket 5
+src/config/resolve-paths.ts	config		packages/config/src/resolve-paths.ts	new in ticket 5
+src/core/build-optional-non-empty-string.ts	core		packages/core/src/build-optional-non-empty-string.ts	new in ticket 5
 src/daemon-process.ts	lifecycle		packages/lifecycle/src/daemon-process.ts	
 src/daemon/answer-byte-cap.ts	daemon	transport	packages/daemon/src/transport/answer-byte-cap.ts	
 src/daemon/attach-registry.ts	daemon	sessions	packages/daemon/src/sessions/attach-registry.ts	

@@ -1,3 +1,4 @@
+import { formatListenRefusal } from './format-listen-refusal';
 import { isAllowedListenHost } from './is-allowed-listen-host';
 
 type ParsedListenAddress =
@@ -23,10 +24,7 @@ export function parseListenAddress(raw: string): ParsedListenAddress {
   }
 
   if (!isAllowedListenHost(host)) {
-    return {
-      ok: false,
-      message: `--listen refuses '${host}': bind a loopback address or one in 100.64.0.0/10 or fd7a:115c:a1e4::/48`,
-    };
+    return { ok: false, message: formatListenRefusal(host) };
   }
 
   return { ok: true, host, port };

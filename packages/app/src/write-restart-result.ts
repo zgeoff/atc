@@ -1,7 +1,7 @@
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { restartsDir } from '@atc/config/config';
 import type { RestartResult } from './parse-restart-result';
-import { restartsDir } from './shared/config';
 
 /**
  * Writes the result of a finished restart to `last.json` in the restarts

@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { mcpAuthDBFile } from '@atc/config/config';
 import { collectGrants } from './mcp/collect-grants';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { revokeGrant } from './mcp/revoke-grant';
-import { mcpAuthDBFile } from './shared/config';
 
 // Where the command's lines and its exit code go: the console and the
 // process by default.

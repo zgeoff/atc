@@ -1,9 +1,9 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
+import { parseConfig } from '@atc/config/config';
 import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { parseConfig } from '../shared/config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 async function setupTest() {

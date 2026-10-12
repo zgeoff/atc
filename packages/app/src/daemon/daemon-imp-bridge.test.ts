@@ -2,17 +2,17 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
 import { createStubGuestCLIs } from '@atc/test-utils/create-stub-guest-clis';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { parseConfig } from '../shared/config';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
 
@@ -25,7 +25,7 @@ async function setupTest() {
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
   const guestDir = join(tmp.dir, 'g');
   const port = createStubImpPort();
-  const config = parseConfig({ claudeBin: clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: clis.claude } } });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-bridge-daemon-',

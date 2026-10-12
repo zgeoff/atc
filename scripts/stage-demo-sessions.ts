@@ -1,14 +1,14 @@
 // Spawns or kills sessions on the daemon the environment points at, for the
 // demo recording. `spawn <cwd> <name> <prompt>` starts one session and prints
 // its id; `kill-all` kills every session the daemon hosts.
+import { resolvePaths } from '@atc/config/resolve-paths';
 import { isRecord } from '@atc/core/is-record';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { daemonSocketPath } from '../packages/app/src/shared/config';
 import { getATCBuild } from '../packages/app/src/shared/get-atc-build';
 
 const [mode, cwd, name = '', prompt = ''] = process.argv.slice(2);
 
-const client = await DaemonClient.open(daemonSocketPath);
+const client = await DaemonClient.open(resolvePaths(process.env).daemonSocketPath);
 
 await client.sendHello(getATCBuild());
 

@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { dbFile } from '@atc/config/config';
 import { loadListenerTokens } from '@atc/config/load-listener-tokens';
 import { buildOwnDaemonProcess } from './build-own-daemon-process';
 import { buildRestartFailure } from './build-restart-failure';
@@ -9,7 +10,6 @@ import { readDaemonProcess } from './read-daemon-process';
 import { readFleetSnapshot } from './read-fleet-snapshot';
 import { readStoredFleetFile } from './read-stored-fleet-file';
 import { runSystemctl } from './run-systemctl';
-import { dbFile } from './shared/config';
 import { getATCBuild } from './shared/get-atc-build';
 import { startReplacementDaemon } from './start-replacement-daemon';
 import { stopDaemonProcess } from './stop-daemon-process';

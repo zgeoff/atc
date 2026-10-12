@@ -1,4 +1,5 @@
 import type { AgentID } from '@atc/core/agent-id';
+import { buildOptionalNonEmptyString } from '@atc/core/build-optional-non-empty-string';
 import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
 import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
@@ -123,13 +124,6 @@ function buildOptionalSettings() {
   return z.preprocess(
     (v) => (isRecord(v) ? v : undefined),
     z.record(z.string(), z.unknown()).optional(),
-  );
-}
-
-function buildOptionalNonEmptyString() {
-  return z.preprocess(
-    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
-    z.string().optional(),
   );
 }
 

@@ -1,4 +1,5 @@
 import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
+import type { Config } from '@atc/config/config';
 import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
@@ -11,7 +12,6 @@ import { toShellArg } from '@atc/core/to-shell-arg';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
-import type { Config } from '../shared/config';
 import type {
   AgentAdapter,
   AgentProfile,

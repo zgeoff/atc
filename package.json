@@ -87,6 +87,7 @@
     "prepare": "command -v git > /dev/null 2>&1 && lefthook install --force || true"
   },
   "devDependencies": {
+    "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atc/test-utils": "workspace:*",

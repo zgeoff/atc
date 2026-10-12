@@ -1,5 +1,5 @@
+import type { Config } from '@atc/config/config';
 import type { AgentID } from '@atc/core/agent-id';
-import type { Config } from '../shared/config';
 
 export interface AgentPick {
   readonly agent: AgentID;
