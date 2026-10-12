@@ -3,13 +3,14 @@
 // removes a stale directive, but nothing else stops a new one from switching
 // off a package rule. A directive counts when it names an import rule, or
 // names no rule at all and so switches off every rule. oxlint honours
-// `eslint-disable` comments as well as its own, so both count. A directive is
-// a `//` or `/*` comment at the start of a line or after whitespace, so text
-// inside a string that holds a directive's words right after its quote does
-// not count. Prints the count and exits 1 when it exceeds the baseline.
+// `eslint-disable` comments as well as its own, so both count. Only real
+// comments count: the module is tokenized, so a string or template that holds
+// a directive's words is skipped, and a block comment may list its rules over
+// several lines. Prints the count and exits 1 when it exceeds the baseline.
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { collectSourceFiles } from './collect-source-files';
+import { collectTokens } from './collect-tokens';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -55,31 +56,51 @@ const IMPORT_RULES: ReadonlySet<string> = new Set([
 ]);
 
 const DIRECTIVE =
-  /(?:^|\s)(?:\/\/|\/\*)\s*(?:oxlint|eslint)-disable(?:-next-line|-line)?\b(?<rules>[^\n]*)/gm;
+  /^(?:\/\/|\/\*)\s*(?:oxlint|eslint)-disable(?:-next-line|-line)?(?<rules>(?:\s[\s\S]*|\*\/)?)$/;
 
 /**
  * The line of each directive in the source that switches off an import
  * rule.
  */
 function collectDirectives(source: string): number[] {
-  const lines: number[] = [];
+  const tokens = collectTokens(source);
+  const end = tokens.at(-1);
 
-  for (const match of source.matchAll(DIRECTIVE)) {
-    const rules = (match.groups?.['rules'] ?? '')
-      .replace(/\*\/.*$/, '')
-      .split('--')[0]
-      ?.split(/[\s,]+/)
-      .filter((rule) => rule !== '')
-      .map((rule) => rule.replace(/^eslint\//, ''));
+  // the comments and whitespace between tokens, and after the last one
+  const trivia = [
+    ...tokens.map((token) => ({
+      start: token.fullStart,
+      text: source.slice(token.fullStart, token.start),
+    })),
+    ...(end === undefined
+      ? [{ start: 0, text: source }]
+      : [{ start: end.start + end.text.length, text: source.slice(end.start + end.text.length) }]),
+  ];
 
-    if (rules === undefined || rules.length === 0 || rules.some((rule) => IMPORT_RULES.has(rule))) {
-      lines.push(
-        source.slice(0, match.index).split('\n').length + (match[0].startsWith('\n') ? 1 : 0),
-      );
-    }
+  return trivia.flatMap((gap) =>
+    [...gap.text.matchAll(COMMENT)]
+      .filter((comment) => isImportRuleDirective(comment[0]))
+      .map((comment) => source.slice(0, gap.start + comment.index).split('\n').length),
+  );
+}
+
+const COMMENT = /\/\/[^\n\r]*|\/\*[\s\S]*?\*\//g;
+
+function isImportRuleDirective(comment: string): boolean {
+  const match = DIRECTIVE.exec(comment);
+
+  if (match === null) {
+    return false;
   }
 
-  return lines;
+  const rules = (match.groups?.['rules'] ?? '')
+    .replace(/\*\/$/, '')
+    .split('--')[0]
+    ?.split(/[\s,*]+/)
+    .filter((rule) => rule !== '')
+    .map((rule) => rule.replace(/^eslint\//, ''));
+
+  return rules === undefined || rules.length === 0 || rules.some((rule) => IMPORT_RULES.has(rule));
 }
 
 main();

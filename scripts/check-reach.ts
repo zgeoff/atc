@@ -19,14 +19,20 @@ import { collectSourceFiles } from './collect-source-files';
 async function main(): Promise<void> {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
   const map = loadPackageMap(root);
-  const reached = collectReached(root, ENTRY);
+
+  const known = new Set(collectSourceFiles(root, 'packages'));
+
+  const reached = collectReached(root, known, ENTRY);
 
   const bundled = await collectBundled(root, ENTRY);
 
   const findings = [
     ...[...reached.files].toSorted().flatMap((file) => checkFile(map, 'reaches', file)),
     ...reached.unresolved,
-    ...bundled.toSorted().flatMap((file) => checkFile(map, 'bundles', file)),
+    ...bundled
+      .filter((file) => known.has(file))
+      .toSorted()
+      .flatMap((file) => checkFile(map, 'bundles', file)),
   ];
 
   for (const finding of findings) {
@@ -122,10 +128,6 @@ function readTable(path: string): Record<string, string>[] {
 }
 
 function checkFile(map: ReadonlyMap<string, MapRow>, verb: string, file: string): string[] {
-  if (!file.endsWith('.ts')) {
-    return [];
-  }
-
   const row = map.get(file);
 
   if (row === undefined) {
@@ -149,9 +151,7 @@ interface Reach {
  * Every workspace source file the entry imports, however indirectly. An
  * `@atc/*` import resolves through the target package's exports.
  */
-function collectReached(root: string, entry: string): Reach {
-  const known = new Set(collectSourceFiles(root, 'packages'));
-
+function collectReached(root: string, known: ReadonlySet<string>, entry: string): Reach {
   const exports = collectExports(root);
 
   const files = new Set([entry]);
@@ -200,6 +200,8 @@ function resolveSpecifier(
   return undefined;
 }
 
+const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
+
 /**
  * The module a relative path names, or null when no source file matches it.
  * A path that leaves every source file, such as a package.json, resolves to
@@ -208,7 +210,12 @@ function resolveSpecifier(
 function findModule(known: ReadonlySet<string>, base: string): string | null | undefined {
   const path = base.replace(/\.js$/, '');
 
-  for (const candidate of [path, `${path}.ts`, `${path}/index.ts`]) {
+  for (const candidate of [
+    base,
+    path,
+    ...SOURCE_EXTENSIONS.map((extension) => `${path}${extension}`),
+    `${path}/index.ts`,
+  ]) {
     if (known.has(candidate)) {
       return candidate;
     }

@@ -93,6 +93,85 @@ test('it fails on more import rule directives than the baseline', async () => {
   });
 });
 
+test('it counts a block directive whose rules span several lines', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/disable-baseline.json'),
+    JSON.stringify({ importRuleDisables: 0 }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/src/a.ts'),
+    [
+      'export const A = 1;',
+      '',
+      '/* eslint-disable import/newline-after-import,',
+      '   no-restricted-imports */',
+      "import { Database } from 'bun:sqlite';",
+      '',
+      'export const DB = Database;',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-disable-baseline.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-disable-baseline: 1 directives, baseline 0\n',
+    stderr:
+      'import rule disabled: packages/tui/src/a.ts:3\ncheck-disable-baseline: 1 more than the baseline in scripts/disable-baseline.json\n',
+  });
+});
+
+test('it skips directive text inside a multiline template', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/disable-baseline.json'),
+    JSON.stringify({ importRuleDisables: 0 }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/a.test.ts'),
+    [
+      'export const FIXTURE = `',
+      '// oxlint-disable-next-line no-restricted-imports',
+      "import { Database } from 'bun:sqlite';",
+      '  /* eslint-disable */',
+      `\${String(1)}`,
+      '// oxlint-disable',
+      '`;',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-disable-baseline.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-disable-baseline: 0 directives, baseline 0\n',
+    stderr: '',
+  });
+});
+
 test('it asks for a lower baseline when the count falls below it', async () => {
   const ctx = setupTest();
 

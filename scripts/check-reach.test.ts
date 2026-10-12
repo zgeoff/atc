@@ -114,6 +114,45 @@ test('it fails on a gateway that reaches the daemon through an allowed module', 
   });
 });
 
+test('it fails on a gateway that reaches a daemon module written as .mjs', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\nsrc/daemon/start.mjs\tdaemon\tpackages/app/src/daemon/start.mjs\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\nsrc/daemon/start.mjs\tdaemon\t\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  await Bun.write(join(ctx.dir, 'packages/app/src/daemon/start.mjs'), 'export const START = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/gateway.ts'),
+    "import { START } from './daemon/start.mjs';\n\nconsole.log(START);\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
+    stderr:
+      'unreachable module: packages/app/src/gateway.ts reaches packages/app/src/daemon/start.mjs (daemon)\nunreachable module: packages/app/src/gateway.ts bundles packages/app/src/daemon/start.mjs (daemon)\n',
+  });
+});
+
 test('it fails on a type-only reach that the bundle drops', async () => {
   const ctx = setupTest();
 
