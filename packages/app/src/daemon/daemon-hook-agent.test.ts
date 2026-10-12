@@ -19,9 +19,11 @@ test("it passes each session's hook state back for that session alone, starting 
         planHookEvents: (event, prev) => {
           seen.push({ session: event.atcId, prev });
 
+          const read: readonly unknown[] = Array.isArray(prev) ? prev : [];
+
           return {
             events: [{ kind: 'heartbeat' }],
-            next: [...(Array.isArray(prev) ? prev : []), event.event],
+            next: [...read, event.event],
           };
         },
       }),

@@ -2747,7 +2747,7 @@ export class SessionManager {
     return plan;
   }
 
-  private applyAdapterEvent(s: Session, ev: AdapterEvent): void {
+  private applyAdapterEvent(s: Session, ev: Readonly<AdapterEvent>): void {
     // Reporters belong to the terminal process; once a session is headless,
     // late reports from the dying terminal must not clobber its state.
     if (s.kind === 'headless') {

@@ -1,6 +1,5 @@
 import type {
   BrokerFeatures,
-  BrokerHost,
   BrokerIdentity,
   BrokerSecret,
   BrokerSecretKind,
@@ -163,7 +162,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubCredentialBr
 
         const host = hosts.get(hostName);
 
-        return host === undefined ? null : toBrokerHost(hostName, host);
+        return host === undefined ? null : { id: host.id, name: hostName };
       }),
     createHost: (hostKey) =>
       answerCall(() => {
@@ -183,7 +182,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubCredentialBr
 
         hosts.set(name, host);
 
-        return toBrokerHost(name, host);
+        return { id: host.id, name };
       }),
     destroyHost: (hostKey) =>
       answerCall(() => {
@@ -198,13 +197,7 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubCredentialBr
 // A call's result as the broker answers it: resolved, or rejected with
 // what the call threw.
 function answerCall<T>(read: () => T): Promise<T> {
-  try {
-    return Promise.resolve(read());
-  } catch (error) {
-    return Promise.reject(error);
-  }
-}
-
-function toBrokerHost(name: string, host: StubHost): BrokerHost {
-  return { id: host.id, name };
+  return new Promise((resolve) => {
+    resolve(read());
+  });
 }

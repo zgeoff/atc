@@ -109,6 +109,8 @@
           // the runtime auth binder: its per-host call queue changes as
           // calls arrive and finish
           { "from": "file", "name": "RuntimeAuthBinder" },
+          // a plugin's definition: its zod config schema has no readonly form
+          { "from": "file", "name": "PluginDefinition" },
           // wraps a live db connection; not meaningfully freezable
           { "from": "package", "name": "Database", "package": "bun:sqlite" },
           // a query builder bound to a live connection; not meaningfully
