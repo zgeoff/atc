@@ -48,6 +48,9 @@ The rules a task needs are not repeated here. Load the skill for the work before
   exclusions for convenience.
 - A dependency knip can't see gets its `knip.json` ignore entry in the same PR that introduces it,
   with the reason in the PR description.
+- `knip.json` ignores two dependencies that oxlint loads where knip cannot trace them, and takes no
+  comments, so the reasons live here. `.oxlintrc.json` extends `@zgeoff/oxlint-config` through a
+  `node_modules` path, and that config loads `@stylistic/eslint-plugin` by name as a JS plugin.
 
 ## Review bots
 

@@ -2,8 +2,14 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["bin/atc", "e2e/**/*.test.ts"],
-      "project": ["e2e/**/*.ts"]
+      "entry": [
+        "bin/atc",
+        "e2e/**/*.test.ts",
+        "scripts/**/*.test.ts",
+        "scripts/stage-demo-sessions.ts",
+        "scripts/run-wave-move.ts"
+      ],
+      "project": ["e2e/**/*.ts", "scripts/**/*.ts"]
     },
     "packages/app": {
       "entry": [
