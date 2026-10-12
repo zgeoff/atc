@@ -15,6 +15,7 @@ import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { buildHostServices } from '../build-host-services';
 import { buildExecutionTargets } from '../daemon/build-execution-targets';
 import { startDaemon } from '../daemon/daemon';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildSources } from '../sources/build-sources';
 import { collectBuiltinSources } from '../sources/collect-builtin-sources';
 
@@ -30,7 +31,7 @@ import { collectBuiltinSources } from '../sources/collect-builtin-sources';
  * it.
  */
 async function main() {
-  const config = loadConfig();
+  const config = loadConfig(SHIPPED_HARNESS_PLUGINS);
   const hostServices = buildHostServices();
   const adapters = buildAgentAdapters(config, hostServices, startClaudeHeadlessRun);
 

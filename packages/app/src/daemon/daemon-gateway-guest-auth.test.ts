@@ -18,6 +18,7 @@ import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**
@@ -81,7 +82,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -163,7 +164,7 @@ test('it revives a rebound session under the settings file of the next revision'
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -231,7 +232,7 @@ test('it refuses to revive a revoked session and starts no harness under its old
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -292,7 +293,7 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -372,7 +373,7 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
 
   const daemon = await startTestDaemon({
     options: () => {
-      const config = parseConfig({
+      const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -444,7 +445,7 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
 
   const daemon = await startTestDaemon({
     options: () => {
-      const config = parseConfig({
+      const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -520,7 +521,7 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -585,7 +586,7 @@ test('it refuses a brokered gateway on the local target before materializing its
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },

@@ -6,13 +6,14 @@ import { parseConfig } from '@atc/config/config';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { getRecords } from '@atc/test-utils/get-records';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it lists each registered agent with what it can do and the host it runs on', async () => {
   const daemon = await startTestDaemon({
     options: (paths) => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
             grok: { kind: 'grok', bin: 'sh' },
@@ -233,7 +234,7 @@ test("it keeps a gateway's env values, helper, and base URL out of the agent lis
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
             zai: {
@@ -271,7 +272,7 @@ test('it refuses a registered agent whose binary is missing before spawning anyt
   const daemon = await startTestDaemon({
     options: (paths) => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
             codex: { kind: 'codex', bin: join(paths.dir, 'missing', 'codex') },
@@ -300,7 +301,7 @@ test('it lists only the agents the daemon registered', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({ agents: { claude: { bin: 'sh' } } }),
+        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { bin: 'sh' } } }),
         buildMockHostServices(),
       ),
     }),
@@ -315,7 +316,7 @@ test('it refuses to spawn an agent id the daemon never registered', async () => 
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({ agents: { claude: { kind: 'claude', bin: 'sh' } } }),
+        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { kind: 'claude', bin: 'sh' } } }),
         buildMockHostServices(),
       ),
     }),
@@ -335,7 +336,7 @@ test('it refuses a model shaped like a flag before spawning anything', async () 
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({ agents: { claude: { kind: 'claude', bin: 'sh' } } }),
+        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { kind: 'claude', bin: 'sh' } } }),
         buildMockHostServices(),
       ),
     }),
@@ -358,7 +359,7 @@ test('it refuses a gateway effort outside the levels the CLI accepts', async () 
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
             zai: {
@@ -394,7 +395,7 @@ test('it refuses an option the agent takes no value for', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: { claude: { kind: 'claude', bin: 'sh' }, grok: { kind: 'grok', bin: 'sh' } },
         }),
         buildMockHostServices(),
@@ -424,7 +425,7 @@ test('it refuses a model that is not a string', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({ agents: { claude: { kind: 'claude', bin: 'sh' } } }),
+        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { kind: 'claude', bin: 'sh' } } }),
         buildMockHostServices(),
       ),
     }),
@@ -442,7 +443,7 @@ test('it answers a spawn with the model it was spawned with', async () => {
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
             zai: {
@@ -475,7 +476,7 @@ test('it lists a spawned session with the model it was spawned with', async () =
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             claude: { kind: 'claude', bin: 'sh' },
             zai: {
@@ -510,7 +511,7 @@ test('it lists a spawned session without a model key when it runs the default', 
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({ agents: { claude: { kind: 'claude', bin: 'sh' } } }),
+        parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { kind: 'claude', bin: 'sh' } } }),
         buildMockHostServices(),
       ),
     }),

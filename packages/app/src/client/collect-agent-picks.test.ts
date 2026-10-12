@@ -5,6 +5,7 @@ import { parseConfig } from '@atc/config/config';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/test-utils/update-env';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectAgentPicks } from './collect-agent-picks';
 
 function setupTest() {
@@ -19,7 +20,7 @@ test('it lists only the agents whose configured binary resolves', () => {
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
   createStubBin(ctx.dir, 'my-codex', '#!/bin/sh\nexit 0\n');
 
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: join(ctx.dir, 'my-claude') },
       grok: { bin: join(ctx.dir, 'my-grok') },
@@ -39,7 +40,7 @@ test('it resolves a bare binary name off PATH', () => {
   createStubBin(ctx.dir, 'grok', '#!/bin/sh\nexit 0\n');
   updateEnv('PATH', ctx.dir);
 
-  const picks = collectAgentPicks(parseConfig({}));
+  const picks = collectAgentPicks(parseConfig(SHIPPED_HARNESS_PLUGINS, {}));
 
   expect(picks).toStrictEqual([{ agent: 'grok', label: 'Grok' }]);
 });
@@ -49,7 +50,7 @@ test('it leaves out a binary that exists without the executable bit', () => {
 
   writeFileSync(join(ctx.dir, 'my-codex'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
 
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: join(ctx.dir, 'my-claude') },
       codex: { bin: join(ctx.dir, 'my-codex') },
@@ -64,7 +65,7 @@ test('it lists agents in registry order with their labels', () => {
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       zai: {
         kind: 'claude',
@@ -89,7 +90,7 @@ test('it leaves out a configured backend whose binary does not resolve', () => {
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: join(ctx.dir, 'my-claude') },
       zai: {
@@ -108,7 +109,7 @@ test('it lists a gateway whose entry carries auth profiles', () => {
 
   createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
 
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -131,7 +132,7 @@ test('it lists a gateway whose entry carries auth profiles', () => {
 });
 
 test('it lists no agent for an empty registry', () => {
-  const picks = collectAgentPicks(parseConfig({ agents: {} }));
+  const picks = collectAgentPicks(parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: {} }));
 
   expect(picks).toStrictEqual([]);
 });

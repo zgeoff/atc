@@ -9,11 +9,12 @@ import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services'
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildAgentList } from './build-agent-list';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 
 test('it accepts every model and effort value agents.list advertises as available', () => {
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: {},
       grok: {},
@@ -71,7 +72,7 @@ test('it accepts every model and effort value agents.list advertises as availabl
 });
 
 test('it refuses as unsupported every option agents.list does not advertise as available', () => {
-  const config = parseConfig({});
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {});
 
   const agents = buildAgentList(
     [
@@ -107,7 +108,10 @@ test('it refuses as unsupported every option agents.list does not advertise as a
 
 test('it refuses a model for a registered agent that is not installed', () => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
+    buildAgentAdapters(
+      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
+      buildMockHostServices(),
+    ),
     () => false,
     false,
   );
@@ -123,7 +127,10 @@ test('it refuses a model for a registered agent that is not installed', () => {
 
 test('it passes a full model name through as given', () => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
+    buildAgentAdapters(
+      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
+      buildMockHostServices(),
+    ),
     () => true,
     false,
   );
@@ -147,7 +154,10 @@ test.each([
   ['m'.repeat(201), 'model must be 1 to 200 characters'],
 ])('it refuses the model %p as bad_args', (model, message) => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
+    buildAgentAdapters(
+      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
+      buildMockHostServices(),
+    ),
     () => true,
     false,
   );
@@ -168,7 +178,10 @@ test.each([
   ['--max', "effort must not start with '-' or hold control characters"],
 ])('it refuses the effort %p that Claude Code does not accept', (effort, message) => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
+    buildAgentAdapters(
+      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: {} } }),
+      buildMockHostServices(),
+    ),
     () => true,
     false,
   );
@@ -183,7 +196,7 @@ test.each([
 });
 
 test('it accepts a gateway effort', () => {
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: { zai: { kind: 'claude', baseURL: 'https://api.z.ai/api/anthropic' } },
   });
 
@@ -202,7 +215,7 @@ test('it accepts a gateway effort', () => {
 });
 
 test('it refuses a gateway effort outside the levels Claude Code accepts', () => {
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: { zai: { kind: 'claude', baseURL: 'https://api.z.ai/api/anthropic' } },
   });
 
@@ -223,7 +236,10 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
 
 test('it refuses a codex effort', () => {
   const [codex] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { codex: {} } }), buildMockHostServices()),
+    buildAgentAdapters(
+      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { codex: {} } }),
+      buildMockHostServices(),
+    ),
     () => true,
     false,
   );
@@ -239,7 +255,10 @@ test('it refuses a codex effort', () => {
 
 test('it accepts a codex model', () => {
   const [codex] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { codex: {} } }), buildMockHostServices()),
+    buildAgentAdapters(
+      parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { codex: {} } }),
+      buildMockHostServices(),
+    ),
     () => true,
     false,
   );

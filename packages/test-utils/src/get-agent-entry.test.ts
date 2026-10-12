@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config/config';
+import { buildStubHarnessPlugins } from './build-stub-harness-plugins';
 import { getAgentEntry } from './get-agent-entry';
 
 test('it returns the entry a config holds under an id', () => {
-  const config = parseConfig({ agents: { grok: { bin: 'my-grok' } } });
+  const config = parseConfig(buildStubHarnessPlugins(), { agents: { grok: { bin: 'my-grok' } } });
 
   expect(getAgentEntry(config, 'grok')).toStrictEqual({
     id: 'grok',
@@ -17,7 +18,7 @@ test('it returns the entry a config holds under an id', () => {
 });
 
 test('it throws naming the id when the config holds no such agent', () => {
-  const config = parseConfig({ agents: { claude: {} } });
+  const config = parseConfig(buildStubHarnessPlugins(), { agents: { claude: {} } });
 
   expect(() => getAgentEntry(config, 'codex')).toThrowWithMessage(
     Error,

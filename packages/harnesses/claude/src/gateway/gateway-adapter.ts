@@ -1,4 +1,3 @@
-import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
 import type { Config } from '@atc/config/config';
 import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
 import type { AgentID } from '@atc/core/agent-id';
@@ -38,6 +37,7 @@ import { buildRestoreModeArgs } from '../build-restore-mode-args';
 import type { ClaudeAdapterOptions } from '../claude-adapter-options';
 import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
 import { ClaudeLaunchFiles } from '../claude-launch-files';
+import type { GatewayConfig } from '../config/collect-gateways';
 import { createLocalScratchDir } from '../create-local-scratch-dir';
 import { findClaudePermissionMode } from '../find-claude-permission-mode';
 import { buildClaudeConfigSeed } from '../guest/build-claude-config-seed';
@@ -87,7 +87,7 @@ export class GatewayAdapter implements AgentAdapter {
 
   private readonly gateway: GatewayConfig;
 
-  private readonly config: Config;
+  private readonly config: Pick<Config, 'authProfiles'>;
 
   private readonly options: ClaudeAdapterOptions;
 
@@ -97,7 +97,7 @@ export class GatewayAdapter implements AgentAdapter {
 
   constructor(
     gateway: GatewayConfig,
-    config: Config,
+    config: Pick<Config, 'authProfiles'>,
     host: Pick<HostServices, 'atcArgv'>,
     options: ClaudeAdapterOptions = {},
   ) {

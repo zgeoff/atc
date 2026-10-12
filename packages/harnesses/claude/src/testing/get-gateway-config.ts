@@ -1,6 +1,6 @@
-import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
 import type { Config } from '@atc/config/config';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
+import type { GatewayConfig } from '../config/collect-gateways';
 
 /**
  * The gateway a parsed config holds under an agent id: a Claude entry with a

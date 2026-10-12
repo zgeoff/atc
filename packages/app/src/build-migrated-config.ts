@@ -1,4 +1,4 @@
-import type { AgentEntry } from '@atc/config/collect-agents';
+import type { AgentEntry } from '@atc/config/agent-entry';
 import { collectAuthProfiles } from '@atc/config/collect-auth-profiles';
 import { formatJSONKind } from '@atc/config/format-json-kind';
 import { formatMixedAgentKeys } from '@atc/config/format-mixed-agent-keys';

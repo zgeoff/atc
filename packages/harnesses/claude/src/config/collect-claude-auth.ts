@@ -1,19 +1,7 @@
+import type { ClaudeMCPServer } from '@atc/config/agent-entry';
+import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
 import { isRecord } from '@atc/core/is-record';
 import type { AuthProfile } from '@atc/plugin-api/auth-profile';
-import { resolveAuthProfiles } from '../resolve-auth-profiles';
-
-/**
- * An MCP server a stock Claude session on a target that reaches impd's
- * broker reaches over HTTP, with the header that one of the session's
- * profiles sets for the server's host. The session sends a placeholder in
- * that header, and impd swaps the credential in on the host's side.
- */
-export interface ClaudeMCPServer {
-  readonly name: string;
-  readonly url: string;
-  readonly profile: string;
-  readonly header: string;
-}
 
 /**
  * The profiles a stock Claude session on a target that reaches impd's

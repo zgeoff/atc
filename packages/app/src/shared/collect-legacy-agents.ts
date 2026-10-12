@@ -1,6 +1,6 @@
-import { collectClaudeAuth } from '@atc/config/agent-slices/collect-claude-auth';
-import { collectGateways } from '@atc/config/agent-slices/collect-gateways';
-import type { AgentEntry } from '@atc/config/collect-agents';
+import type { AgentEntry } from '@atc/config/agent-entry';
+import { collectClaudeAuth } from '@atc/harness-claude/config/collect-claude-auth';
+import { collectGateways } from '@atc/harness-claude/config/collect-gateways';
 import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 
 /**

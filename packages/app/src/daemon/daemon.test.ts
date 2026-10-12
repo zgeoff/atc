@@ -16,6 +16,7 @@ import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
 import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // A test that leaves every connection to itself turns the main client off.
@@ -390,7 +391,7 @@ test('it spawns a grok session when a grok adapter is registered', async () => {
       adapters: [
         new GrokAdapter(
           getAgentEntry(
-            parseConfig({
+            parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
             }),
             'grok',
@@ -419,7 +420,7 @@ test('it yanks a grok session spawned with an id as a resume of that id', async 
       adapters: [
         new GrokAdapter(
           getAgentEntry(
-            parseConfig({
+            parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
             }),
             'grok',
@@ -453,7 +454,7 @@ test('it yanks a grok session spawned without an id as a plain start', async () 
       adapters: [
         new GrokAdapter(
           getAgentEntry(
-            parseConfig({
+            parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
             }),
             'grok',
@@ -486,7 +487,7 @@ test('it revives a grok session from a captured id when summary.json is missing'
       adapters: [
         new GrokAdapter(
           getAgentEntry(
-            parseConfig({
+            parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
             }),
             'grok',
@@ -532,7 +533,7 @@ test('it keeps last-used on a spawn that has not reported SessionStart', async (
       adapters: [
         new GrokAdapter(
           getAgentEntry(
-            parseConfig({
+            parseConfig(SHIPPED_HARNESS_PLUGINS, {
               agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
             }),
             'grok',
@@ -586,7 +587,7 @@ test('it spawns claude when a spawn omits agent after another agent was last use
         adapters: [
           new GrokAdapter(
             getAgentEntry(
-              parseConfig({
+              parseConfig(SHIPPED_HARNESS_PLUGINS, {
                 agents: { grok: { kind: 'grok', bin: 'bash', args: ['-c', 'sleep 30'] } },
               }),
               'grok',

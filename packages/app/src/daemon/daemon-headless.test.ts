@@ -13,6 +13,7 @@ import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**
@@ -588,7 +589,9 @@ test('it refuses to eject a grok session', async () => {
       adapters: [
         new GrokAdapter(
           getAgentEntry(
-            parseConfig({ agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } } }),
+            parseConfig(SHIPPED_HARNESS_PLUGINS, {
+              agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } },
+            }),
             'grok',
           ),
           join(paths.dir, 'grok-home'),
@@ -628,7 +631,9 @@ test('it starts no headless run for a refused grok eject', async () => {
       adapters: [
         new GrokAdapter(
           getAgentEntry(
-            parseConfig({ agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } } }),
+            parseConfig(SHIPPED_HARNESS_PLUGINS, {
+              agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } },
+            }),
             'grok',
           ),
           join(paths.dir, 'grok-home'),

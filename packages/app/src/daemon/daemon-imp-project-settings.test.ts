@@ -17,6 +17,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**
@@ -112,7 +113,7 @@ test.each([
 
     // Both agents sign in through impd's broker: `claude` on a subscription
     // and the gateway `glm`, each running the fake Claude.
-    const config = parseConfig({
+    const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
       authProfiles: {
         claude: {
           secret: 'claude-setup-token',
@@ -211,7 +212,7 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -305,7 +306,7 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
 
     // Both agents sign in through impd's broker: `claude` on a subscription
     // and the gateway `glm`, each running the fake Claude.
-    const config = parseConfig({
+    const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
       authProfiles: {
         claude: {
           secret: 'claude-setup-token',
@@ -399,7 +400,7 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -491,7 +492,7 @@ test('it starts a trusted subscription clone whose settings set neither a creden
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -577,7 +578,7 @@ test('it starts a trusted subscription clone with no project settings files', as
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -652,7 +653,7 @@ test('it refuses a subscription launch in an existing folder whose local setting
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -744,7 +745,7 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -837,7 +838,7 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -929,7 +930,7 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1017,7 +1018,7 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1112,7 +1113,7 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
 
   // Both agents sign in through impd's broker: `claude` on a subscription
   // and the gateway `glm`, each running the fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1198,7 +1199,7 @@ test('it refuses a subscription launch in an existing folder whose settings file
 
   // `claude` signs in through impd's broker on a subscription and runs the
   // fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1271,7 +1272,7 @@ test.skipIf(process.getuid?.() === 0)(
 
     // `claude` signs in through impd's broker on a subscription and runs the
     // fake Claude.
-    const config = parseConfig({
+    const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
       authProfiles: {
         claude: {
           secret: 'claude-setup-token',
@@ -1344,7 +1345,7 @@ test('it reads every project settings file of a subscription launch in one comma
 
   // `claude` signs in through impd's broker on a subscription and runs the
   // fake Claude.
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',

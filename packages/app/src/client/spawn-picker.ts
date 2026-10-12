@@ -24,6 +24,7 @@ import type { SourcePick } from '@atc/protocol/source-pick';
 import { collectZoxideDirs } from '@atc/source-dirs/collect-zoxide-dirs';
 import { collectPathCompletions } from '@atc/source-dirs/complete/collect-path-completions';
 import { resolvePathInput } from '@atc/source-dirs/complete/resolve-path-input';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectTargetPicks } from './collect-target-picks';
@@ -302,7 +303,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.generation += 1;
     this.resume = resume;
 
-    const config = loadConfig(this.deps.configPath);
+    const config = loadConfig(SHIPPED_HARNESS_PLUGINS, this.deps.configPath);
 
     this.picks = collectAgentPicks(config);
     this.roots = config.dirs.roots;

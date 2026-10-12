@@ -1,12 +1,9 @@
 import type { Config } from '@atc/config/config';
-import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import type { ClaudeHostPaths } from '@atc/harness-claude/claude-host-paths';
-import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import type { ClaudeHeadlessRun } from '@atc/harness-claude/headless/make-claude-headless-runner';
-import { CodexAdapter } from '@atc/harness-codex/codex-adapter';
-import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
 import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import type { HostServices } from '@atc/plugin-api/host-services';
+import { buildHarnessPlugins } from '../plugins/build-harness-plugins';
 
 /**
  * Where the Claude and gateway adapters write their settings file and their
@@ -18,31 +15,27 @@ interface AgentAdapterPaths extends ClaudeHostPaths {
 }
 
 /**
- * One adapter per registry entry, in registry order. A Claude entry with a
- * base URL is a gateway, and one without is stock Claude. The Claude-family
- * adapters run the atc CLI that the host's argv runs.
+ * One adapter per registry entry, in registry order, each created by the
+ * shipped harness plugin its kind selects. The Claude-family adapters run
+ * the atc CLI that the host's argv runs. Throws for an entry whose kind no
+ * shipped plugin owns, which a config the shipped plugins read never holds.
  */
 export function buildAgentAdapters(
   config: Config,
-  host: Pick<HostServices, 'atcArgv'>,
+  host: HostServices,
   headlessRun: ClaudeHeadlessRun | null = null,
   paths: AgentAdapterPaths = {},
 ): AgentAdapter[] {
-  const options = { ...paths, headlessRun };
+  const plugins = buildHarnessPlugins({ ...paths, headlessRun });
+  const context = { authProfiles: config.authProfiles };
 
   return config.agents.map((entry): AgentAdapter => {
-    if (entry.kind === 'codex') {
-      return new CodexAdapter(entry, config);
+    const plugin = plugins.find((candidate) => candidate.id === entry.kind);
+
+    if (plugin === undefined) {
+      throw new Error(`no harness plugin owns kind ${entry.kind}`);
     }
 
-    if (entry.kind === 'grok') {
-      return new GrokAdapter(entry);
-    }
-
-    if (entry.baseURL === undefined) {
-      return new ClaudeAdapter(entry, config, host, options);
-    }
-
-    return new GatewayAdapter({ ...entry, baseURL: entry.baseURL }, config, host, options);
+    return plugin.create({ entry, warnings: [] }, host, context);
   });
 }

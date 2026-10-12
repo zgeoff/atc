@@ -14,6 +14,7 @@ import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { ClaudeAdapter } from './claude-adapter';
+import { CLAUDE_PLUGIN } from './claude-plugin';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
 // host config folder, or a guest folder a launch runs in.
@@ -25,8 +26,8 @@ function setupTest() {
 
 test("it reads a session's hook lines as Claude's, with no state across them", () => {
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -43,8 +44,8 @@ test("it reads a session's hook lines as Claude's, with no state across them", (
 
 test('it takes inbox messages', () => {
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -56,8 +57,8 @@ test('it runs a headless turn through the configured claude binary under the aut
   const runner = buildStubClaudeHeadlessRun();
 
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       headlessRun: runner,
@@ -97,7 +98,7 @@ test('it runs a headless turn through the configured claude binary under the aut
 });
 
 test('it advertises the documented model aliases and effort levels with the configured defaults', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { args: ['--model', 'opus', '--effort=high'] } },
   });
 
@@ -138,8 +139,8 @@ test('it advertises the documented model aliases and effort levels with the conf
 
 test('it advertises no default model or effort when the configured arguments set none', () => {
   const options = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   ).profile.spawnOptions;
 
@@ -151,7 +152,7 @@ test('it runs a headless turn under the permission mode its configured arguments
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
@@ -189,7 +190,7 @@ test('it runs a headless turn under the permission mode its configured arguments
 });
 
 test('it keeps the permission mode its configured arguments set in the command that resumes it outside atc', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
@@ -207,7 +208,7 @@ test('it keeps the permission mode its configured arguments set in the command t
 test('it restores a stock session in the mode its settings set', () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { settings: { permissions: { defaultMode: 'bypassPermissions' } } } },
   });
 
@@ -241,7 +242,7 @@ test('it restores a stock session in the mode its settings set', () => {
 
 test('it gives a local session a scratch folder of its own as a working directory and its temporary folder', () => {
   const ctx = setupTest();
-  const config = parseConfig({});
+  const config = parseConfig([CLAUDE_PLUGIN], {});
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
@@ -274,7 +275,7 @@ test('it gives a local session a scratch folder of its own as a working director
 });
 
 test('it restores an unbrokered remote session in the mode its settings set', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { settings: { permissions: { defaultMode: 'plan' } } } },
   });
 
@@ -391,7 +392,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
 });
 
 test('it plans a remote spawn in the permission mode its configured arguments set', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
@@ -505,7 +506,9 @@ test('it plans a remote spawn in the permission mode its configured arguments se
 });
 
 test('it quotes a configured binary path with spaces in the resume command', () => {
-  const config = parseConfig({ agents: { claude: { bin: '/opt/Claude Code/claude' } } });
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    agents: { claude: { bin: '/opt/Claude Code/claude' } },
+  });
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
@@ -521,7 +524,7 @@ test('it quotes a configured binary path with spaces in the resume command', () 
 test('it carries the settings file in the resume command of an entry with its own settings', () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     agents: { claude: { settings: { model: 'opus' } } },
   });
 
@@ -613,8 +616,8 @@ test('it restores a stock session without a permission-mode argument', () => {
   const ctx = setupTest();
 
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -640,8 +643,8 @@ test('it restores a stock session without a permission-mode argument', () => {
 
 test('it resumes a stock session outside atc without a permission-mode argument', () => {
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -652,8 +655,8 @@ test('it resumes a stock session outside atc without a permission-mode argument'
 
 test('it pastes a long line and submits it with a carriage return as a second write', () => {
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -665,8 +668,8 @@ test('it pastes a long line and submits it with a carriage return as a second wr
 
 test('it takes no credential from the broker when the config holds no Claude auth', () => {
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -675,8 +678,8 @@ test('it takes no credential from the broker when the config holds no Claude aut
 
 test('it seeds no clone trust when the config holds no Claude auth', () => {
   const adapter = new ClaudeAdapter(
-    getAgentEntry(parseConfig({}), 'claude'),
-    parseConfig({}),
+    getAgentEntry(parseConfig([CLAUDE_PLUGIN], {}), 'claude'),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -684,7 +687,7 @@ test('it seeds no clone trust when the config holds no Claude auth', () => {
 });
 
 test('it selects the subscription token on the Anthropic API with the placeholder, and still starts where no broker is', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -719,7 +722,7 @@ test('it selects the subscription token on the Anthropic API with the placeholde
 test('it plans a subscription guest spawn with its own config folder, the placeholder, and no permission mode', () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -891,7 +894,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
     }),
   );
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1040,7 +1043,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
 test('it gives a subscription guest spawn its MCP servers with the placeholder in an MCP config of its binding revision', () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1127,7 +1130,7 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
 });
 
 test('it plans a guest spawn without a broker binding in the config of the host image', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1253,7 +1256,7 @@ test.each([
   ['CLAUDE_CODE_USE_VERTEX'],
   ['HTTPS_PROXY'],
 ])('it refuses a subscription guest spawn whose configured --settings sets %s', (variable) => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1306,7 +1309,7 @@ test('it refuses a subscription guest spawn whose entry env overrides the sign-i
       env: { ANTHROPIC_BASE_URL: 'https://x.example.com' },
       auth: { profiles: ['claude'], placeholderEnv: {} },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -1342,7 +1345,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
       settings: { env: { HTTPS_PROXY: 'http://p.example:3128' } },
       auth: { profiles: ['claude'], placeholderEnv: {} },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -1373,7 +1376,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
 test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', async () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1440,7 +1443,7 @@ test.each([
   async (name, value) => {
     const ctx = setupTest();
 
-    const config = parseConfig({
+    const config = parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         claude: {
           secret: 'claude-setup-token',
@@ -1488,7 +1491,7 @@ test.each([
 test('it starts a subscription session with a seeded config folder in a host whose environment sets no credential', async () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1542,7 +1545,7 @@ test('it starts a subscription session with a seeded config folder in a host who
 });
 
 test("it seeds folder trust and approval of the clone's own MCP servers for the exact clone root of a subscription session", () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1574,7 +1577,7 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
 test("it sets a profile's variables in a subscription guest's settings env and spawn env", () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1711,7 +1714,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
 test("it leaves a profile's variables out of the local plan of an entry with a profile env", () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',

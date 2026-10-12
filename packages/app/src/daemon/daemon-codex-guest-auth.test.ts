@@ -13,6 +13,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**
@@ -57,7 +58,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
     prefix: 'atc-codex-guest-auth-daemon-',
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             codex: {
               secret: 'codex-chatgpt',
@@ -217,7 +218,7 @@ test.each(['pending', 'needs_login'] as const)(
       prefix: 'atc-codex-guest-auth-daemon-',
       options: () => ({
         adapters: buildAgentAdapters(
-          parseConfig({
+          parseConfig(SHIPPED_HARNESS_PLUGINS, {
             authProfiles: {
               codex: {
                 secret: 'codex-chatgpt',
@@ -272,7 +273,7 @@ test('it refuses a spawn on an impd without oauth secrets', async () => {
     prefix: 'atc-codex-guest-auth-daemon-',
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             codex: {
               secret: 'codex-chatgpt',

@@ -14,6 +14,7 @@ import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
@@ -50,7 +51,7 @@ test('it refuses a spawn without a target when an existing config holds invalid 
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -85,7 +86,7 @@ test('it refuses a spawn on the local target when an existing config holds inval
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -120,7 +121,7 @@ test('it refuses a spawn without a target when the config path is a directory', 
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -155,7 +156,7 @@ test('it refuses a spawn on the local target when the config path is a directory
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -195,7 +196,7 @@ test.skipIf(process.getuid?.() === 0)(
 
     const daemon = await startTestDaemon({
       options: () => {
-        const loaded = loadConfig(ctx.configPath);
+        const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
         return {
           adapter: ctx.claude,
@@ -236,7 +237,7 @@ test.skipIf(process.getuid?.() === 0)(
 
     const daemon = await startTestDaemon({
       options: () => {
-        const loaded = loadConfig(ctx.configPath);
+        const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
         return {
           adapter: ctx.claude,
@@ -280,7 +281,7 @@ test.each([
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -320,7 +321,7 @@ test.each([
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -355,7 +356,7 @@ test('it refuses a spawn without a target when a config file sets agents beside 
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -392,7 +393,7 @@ test('it refuses a spawn on the local target when a config file sets agents besi
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -437,7 +438,7 @@ test('it refuses input to a restored local session without running a turn when t
         buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
       ]);
 
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       await store.stop();
 
@@ -476,7 +477,7 @@ test('it lists the config problem, no targets, and no default target when the co
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -516,7 +517,7 @@ test('it lists no sessions and keeps answering when the config holds invalid JSO
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -537,7 +538,7 @@ test('it spawns a session without a target on the local target when no config ex
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -561,7 +562,7 @@ test('it refuses a spawn of an agent missing from this host with the config prob
 
   // A codex binary that does not exist, so codex is registered but not
   // installed.
-  const codexConfig = parseConfig({
+  const codexConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: { codex: { kind: 'codex', bin: join(ctx.dir, 'missing', 'codex') } },
   });
 
@@ -571,7 +572,7 @@ test('it refuses a spawn of an agent missing from this host with the config prob
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -604,7 +605,7 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
 
   // A codex binary that does not exist, so codex is registered but not
   // installed.
-  const codexConfig = parseConfig({
+  const codexConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: { codex: { kind: 'codex', bin: join(ctx.dir, 'missing', 'codex') } },
   });
 
@@ -614,7 +615,7 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -658,7 +659,7 @@ test.each([
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -692,7 +693,7 @@ test('it keeps a config value out of the listed target error of a config that is
 
   const daemon = await startTestDaemon({
     options: () => {
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       return {
         adapter: ctx.claude,
@@ -741,7 +742,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const loaded = loadConfig(ctx.configPath);
+        const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
         return {
           adapter: ctx.claude,
@@ -797,7 +798,7 @@ test.each([
           }),
         ]);
 
-        const loaded = loadConfig(ctx.configPath);
+        const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
         await store.stop();
 
@@ -834,7 +835,7 @@ test('it gives a principal legacy rights over a restored local session when no c
         buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
       ]);
 
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       await store.stop();
 
@@ -883,7 +884,7 @@ test.each([
           }),
         ]);
 
-        const loaded = loadConfig(ctx.configPath);
+        const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
         await store.stop();
 
@@ -921,7 +922,7 @@ test('it hides a restored local session from a principal when the config path is
         buildMockFleetEntry({ sessionID: toSessionID('s-old'), name: 'old work', cwd: paths.dir }),
       ]);
 
-      const loaded = loadConfig(ctx.configPath);
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
 
       await store.stop();
 

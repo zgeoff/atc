@@ -1,5 +1,5 @@
 import type { AgentID } from '@atc/core/agent-id';
-import type { AgentEntry } from './collect-agents';
+import type { AgentEntry } from './agent-entry';
 
 /**
  * The agent a spawn without one runs: `claude` when the registry holds an

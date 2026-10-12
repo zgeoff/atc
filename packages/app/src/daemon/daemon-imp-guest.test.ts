@@ -14,6 +14,7 @@ import { getRecord } from '@atc/test-utils/get-record';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildHostServices } from '../build-host-services';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // The fixed parts every imp guest test shares: the stub guest tools and the
@@ -28,7 +29,10 @@ function setupTest() {
 
 test('it refuses a remote Claude spawn when the host has no atc and the daemon has none to copy', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -73,7 +77,10 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
 
 test('it gives a remote Claude session settings, a statusline, and a mod that report through the atc in its host', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -145,7 +152,10 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
 
 test("it takes a remote session's hook reports from a socket that serves that session alone", async () => {
   const ctx = setupTest();
-  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -210,7 +220,10 @@ test("it takes a remote session's hook reports from a socket that serves that se
 
 test('it keeps a nested harness inside a remote session from rebinding that session', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -276,7 +289,10 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
 
 test('it copies its own atc binary into an imp that has none', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -510,7 +526,10 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
 
 test('it revives a slept remote session whose transcript only its imp holds', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -568,7 +587,10 @@ test('it revives a slept remote session whose transcript only its imp holds', as
 
 test('it refuses a remote Claude spawn when the atc the target names is missing from the host', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.

@@ -273,7 +273,7 @@ import { parseConfig, stateDir } from '${join(ctx.repo, 'packages', 'config', 's
 test('it writes the settings file under the home', () => {
   const adapter = new GatewayAdapter(
     { id: 'isolation-probe', label: 'Isolation probe', mark: 'i', bin: 'claude', args: [], baseURL: 'https://gateway.example/anthropic', env: {} },
-    parseConfig({}),
+    parseConfig([], {}),
     { atcArgv: ['atc'] },
   );
 
