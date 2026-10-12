@@ -4,6 +4,9 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { buildStubHostHold } from '@atc/test-utils/build-stub-host-hold';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { DaemonClient } from '../client/daemon-client';
@@ -19,13 +22,10 @@ import { collectTargets } from '../shared/collect-targets';
 import { getRecord } from '../shared/get-record';
 import { buildStubAttentionAdapter } from '../test-utils/build-stub-attention-adapter';
 import { buildStubClock } from '../test-utils/build-stub-clock';
-import { buildStubHostHold } from '../test-utils/build-stub-host-hold';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startStubStalledClient } from '../test-utils/start-stub-stalled-client';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { trySendRequest } from '../test-utils/try-send-request';
-import { waitFor } from '../test-utils/wait-for';
 
 test('it refuses a client a configured target other than local when the config has no principals', async () => {
   const harnesses: string[] = [];

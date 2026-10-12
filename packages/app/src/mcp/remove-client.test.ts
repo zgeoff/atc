@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { collectClients } from './collect-clients';
 import { collectGrants } from './collect-grants';
 import { openMCPAuth } from './open-mcp-auth';

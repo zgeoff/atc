@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
+import { buildStubTerminal } from '@atc/test-utils/build-stub-terminal';
+import { KEYS } from '@atc/test-utils/keys';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
-import { buildStubTerminal } from '../test-utils/build-stub-terminal';
-import { KEYS } from '../test-utils/keys';
 import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
 import { buildOverlayHint, buildSessionRow, drawOverlay } from './ui';

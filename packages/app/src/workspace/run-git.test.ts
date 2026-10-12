@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/test-utils/update-env';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { updateEnv } from '../test-utils/update-env';
-import { waitFor } from '../test-utils/wait-for';
 import { runGit } from './run-git';
 
 // A directory outside any repository for git to run in.

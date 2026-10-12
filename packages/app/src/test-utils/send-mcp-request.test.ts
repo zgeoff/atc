@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { startStubMCPServer } from '@atc/test-utils/start-stub-mcp-server';
 import { sendMCPRequest } from './send-mcp-request';
-import { startStubMCPServer } from './start-stub-mcp-server';
 
 test('it posts one JSON-RPC request with the bearer token to the MCP endpoint', async () => {
   const server = startStubMCPServer({ jsonrpc: '2.0', id: 1, result: {} });

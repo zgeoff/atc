@@ -2,20 +2,20 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
-import { createGitFixture } from '../test-utils/create-git-fixture';
-import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 /**

@@ -1,3 +1,4 @@
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import type { SocketHandler } from 'bun';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import {
@@ -7,7 +8,6 @@ import {
   decodeMessage,
   encodeMessage,
 } from '../protocol/protocol';
-import { registerTestCleanup } from './register-test-cleanup';
 
 interface ReceivedRequest {
   readonly m: string;

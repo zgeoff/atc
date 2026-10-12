@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubBin } from '../test-utils/create-stub-bin';
-import { runCommand } from '../test-utils/run-command';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { buildHarnessArgv } from './build-harness-argv';
 
 function setupTest() {

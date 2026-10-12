@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { buildStubRecordingGit } from '@atc/test-utils/build-stub-recording-git';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { startGitHTTPServer } from '@atc/test-utils/start-git-http-server';
+import { startStubSilentServer } from '@atc/test-utils/start-stub-silent-server';
+import { updateEnv } from '@atc/test-utils/update-env';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
-import { buildStubRecordingGit } from '../test-utils/build-stub-recording-git';
-import { createGitFixture } from '../test-utils/create-git-fixture';
-import { createStubBin } from '../test-utils/create-stub-bin';
-import { startGitHTTPServer } from '../test-utils/start-git-http-server';
-import { startStubSilentServer } from '../test-utils/start-stub-silent-server';
-import { updateEnv } from '../test-utils/update-env';
-import { waitFor } from '../test-utils/wait-for';
 import { checkRepositoryAccess } from './check-repository-access';
 
 // A bare upstream holding one pushed commit and a work clone of it.

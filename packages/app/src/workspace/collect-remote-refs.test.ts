@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { $ } from 'bun';
-import { createGitFixture } from '../test-utils/create-git-fixture';
 import { collectRemoteRefs } from './collect-remote-refs';
 
 // A bare upstream holding one commit and a work clone that pushes to it.

@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { buildStubDirProvider } from './build-stub-dir-provider';
-import { registerTestCleanup } from './register-test-cleanup';
-import { setupTempDir } from './setup-temp-dir';
 
 // A temp directory the provider's transfers and commands run in.
 function setupTest() {

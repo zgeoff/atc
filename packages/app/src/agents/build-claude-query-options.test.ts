@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { updateEnv } from '@atc/test-utils/update-env';
 import invariant from 'tiny-invariant';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
-import { updateEnv } from '../test-utils/update-env';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 
 test('it runs a session turn in its directory, resumed, under the auto permission mode, with its model, effort, and mod', () => {

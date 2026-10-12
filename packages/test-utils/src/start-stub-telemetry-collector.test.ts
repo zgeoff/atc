@@ -21,7 +21,7 @@ test('it receives the telemetry better-auth sends to the endpoint the environmen
 await createTelemetry({ baseURL: 'http://127.0.0.1' });`,
     ],
     {
-      cwd: join(import.meta.dir, '..', '..'),
+      cwd: join(import.meta.dir, '..'),
       env: {
         PATH: process.env['PATH'] ?? '',
         HOME: home.dir,

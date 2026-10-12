@@ -1,5 +1,7 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { getRecord } from '../shared/get-record';
 import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
@@ -9,9 +11,7 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 
 /**
  * The daemon's stand-ins. `providers` builds, for a target id, the

@@ -8,7 +8,7 @@ import { setupTempDir } from './setup-temp-dir';
 // repository root, where the bunfig preload applies to a nested `bun test`.
 function setupTest() {
   const tmp = setupTempDir('atc-isolate-home-');
-  const repo = join(import.meta.dir, '..', '..', '..', '..');
+  const repo = join(import.meta.dir, '..', '..', '..');
 
   return { dir: tmp.dir, repo };
 }
@@ -231,7 +231,7 @@ test('it runs git in a test without the git config of the host XDG config home',
   writeFileSync(
     fixture,
     `import { expect, test } from 'bun:test';
-import { runCommand } from '${join(ctx.repo, 'packages', 'app', 'src', 'test-utils', 'run-command')}';
+import { runCommand } from '${join(ctx.repo, 'packages', 'test-utils', 'src', 'run-command')}';
 
 test('it reads no value for the host canary key', async () => {
   const read = await runCommand(['git', 'config', '--get', 'atc.canary']);
@@ -343,7 +343,7 @@ test("it puts back an environment override before the run's next test", async ()
   writeFileSync(
     fixture,
     `import { expect, test } from 'bun:test';
-import { updateEnv } from '${join(ctx.repo, 'packages', 'app', 'src', 'test-utils', 'update-env')}';
+import { updateEnv } from '${join(ctx.repo, 'packages', 'test-utils', 'src', 'update-env')}';
 
 test('it overrides a variable', () => {
   updateEnv('ATC_TEST_PRELOAD_RESTORE_PROBE', 'overridden');

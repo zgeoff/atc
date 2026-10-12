@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubSignedOutGH } from '@atc/test-utils/build-stub-signed-out-gh';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { KEYS } from '@atc/test-utils/keys';
+import { openRepoStep } from '@atc/test-utils/open-repo-step';
+import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { $ } from 'bun';
-import { buildStubSignedOutGH } from '../packages/app/src/test-utils/build-stub-signed-out-gh';
-import { createGitFixture } from '../packages/app/src/test-utils/create-git-fixture';
-import { createStubBin } from '../packages/app/src/test-utils/create-stub-bin';
-import { KEYS } from '../packages/app/src/test-utils/keys';
-import { openRepoStep } from '../packages/app/src/test-utils/open-repo-step';
-import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
 
 /**
  * The client's harness with a signed-out `gh` on the PATH of the client and

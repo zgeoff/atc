@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { runClients } from './clients';
-import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
  * A temp directory that holds the authorization database the command opens.

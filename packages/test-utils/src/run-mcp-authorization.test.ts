@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '../client/daemon-client';
-import { openMCPAuth } from '../mcp/open-mcp-auth';
-import { ReconnectingCaller } from '../mcp/reconnecting-caller';
-import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
+import { DaemonClient } from '../../app/src/client/daemon-client';
+import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
+import { ReconnectingCaller } from '../../app/src/mcp/reconnecting-caller';
+import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runMCPAuthorization } from './run-mcp-authorization';
 import { setupTempDir } from './setup-temp-dir';

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { EventMsg } from '../protocol/protocol';
-import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookOutcome } from './make-hook-runner';
 

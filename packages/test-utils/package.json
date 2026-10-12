@@ -1,0 +1,19 @@
+{
+  "name": "@atc/test-utils",
+  "private": true,
+  "description": "The shared test helpers, stand-ins and factories, and the test preload",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@faker-js/faker": "catalog:",
+    "bun-pty": "catalog:",
+    "kysely": "catalog:",
+    "type-fest": "catalog:"
+  },
+  "devDependencies": {
+    "better-auth": "catalog:",
+    "tiny-invariant": "catalog:"
+  }
+}

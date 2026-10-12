@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { KEYS } from '../test-utils/keys';
+import { KEYS } from '@atc/test-utils/keys';
 import { planClaudeLineInput } from './plan-claude-line-input';
 
 test('it types a slash command name and pastes its argument so the command runs at any length', () => {

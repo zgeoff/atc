@@ -1,11 +1,11 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { DaemonError } from '../protocol/daemon-error';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
 test('it streams the output of a session harness on the local pty provider', async () => {

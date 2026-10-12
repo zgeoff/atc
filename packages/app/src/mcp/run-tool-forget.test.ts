@@ -2,6 +2,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { DaemonClient } from '../client/daemon-client';
 import { LocalPTYProvider } from '../daemon/local-pty-provider';
 import { DaemonPool } from '../federation/daemon-pool';
@@ -12,7 +13,6 @@ import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildPrincipalCaller } from './build-principal-caller';

@@ -1,7 +1,7 @@
+import { mergeDeep } from '@atc/test-utils/merge-deep';
+import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import type { ExecutionTarget } from '../daemon/build-execution-targets';
-import { mergeDeep } from './merge-deep';
-import type { MockOverrides } from './mock-overrides';
 
 /**
  * A local-pty execution target with an arbitrary id and identity, no

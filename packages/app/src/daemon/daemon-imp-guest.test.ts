@@ -2,16 +2,16 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubGuestCLIs } from '@atc/test-utils/create-stub-guest-clis';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { createStubGuestCLIs } from '../test-utils/create-stub-guest-clis';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 
 // The fixed parts every imp guest test shares: the stub guest tools and the

@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { PROTOCOL_V } from '../protocol/protocol';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startStubDroppingDaemon } from '../test-utils/start-stub-dropping-daemon';
 import { startStubLegacyDaemon } from '../test-utils/start-stub-legacy-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 async function setupTest() {

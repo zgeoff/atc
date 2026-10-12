@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { $ } from 'bun';
-import { createGitFixture } from '../test-utils/create-git-fixture';
 import { sanitizeWorkspaceClone } from './sanitize-workspace-clone';
 
 // A work clone of a bare upstream, holding one pushed commit, for the sanitizer to strip.

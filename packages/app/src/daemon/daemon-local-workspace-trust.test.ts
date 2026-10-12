@@ -2,16 +2,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
 import { buildStubPTYProvider } from '../test-utils/build-stub-pty-provider';
-import { createGitFixture } from '../test-utils/create-git-fixture';
-import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 import { LocalPTYProvider } from './local-pty-provider';
 
 /**

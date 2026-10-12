@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { openMCPAuth } from './open-mcp-auth';
 import { verifyOAuthQuery } from './verify-oauth-query';
 

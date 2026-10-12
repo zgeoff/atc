@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { KEYS } from '../test-utils/keys';
+import { KEYS } from '@atc/test-utils/keys';
 import { planTextEdit } from './keys';
 
 test('it submits the whole pasted line when the paste ends in a newline', () => {

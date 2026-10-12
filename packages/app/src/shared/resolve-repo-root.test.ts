@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { resolveRepoRoot } from './resolve-repo-root';
 
 function setupTest() {

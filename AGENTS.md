@@ -101,11 +101,14 @@ when the gateway entry reaches a module the gateway must never load.
 `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool definitions and request handling
 that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
 authorization server and its pages. `federation/` holds the gateway's daemon registry, per-daemon
-callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. `test-utils/`
-holds the shared test helpers, stand-ins, and factories, each with its test beside it, and no
-production module imports it. `e2e/` at the repo root holds the end-to-end suites that run the whole
-program, and `bin/atc` is the dev shim that runs the app's CLI entrypoint from a checkout. `mods/`
-holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not app code.
+callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. The app's
+`test-utils/` holds the helpers that start or drive the daemon. The `@atc/test-utils` package
+(`packages/test-utils/`) holds the generic test helpers, stand-ins, and factories and the test
+preload, each helper with its test beside it. A helper that runs atc or atc-gateway takes the source
+entry that `scripts/with-test-home.sh` exports, so it does not depend on where the app sits. No
+production module imports either one. `e2e/` at the repo root holds the end-to-end suites that run
+the whole program, and `bin/atc` is the dev shim that runs the app's CLI entrypoint from a checkout.
+`mods/` holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not app code.
 
 ## Runtime rules
 

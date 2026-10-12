@@ -1,10 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { DaemonClient } from '../client/daemon-client';
 import { isProcessAlive } from '../shared/is-process-alive';
-import { registerTestCleanup } from './register-test-cleanup';
-import { setupTempDir } from './setup-temp-dir';
 import { startStubSourceDaemon } from './start-stub-source-daemon';
 
 // A temp directory for the daemon's home and sockets.

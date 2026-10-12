@@ -1,12 +1,12 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, mock, test } from 'bun:test';
+import { waitFor } from '@atc/test-utils/wait-for';
 import type { EventMsg } from '../protocol/protocol';
 import { getRecord } from '../shared/get-record';
 import { isRecord } from '../shared/report';
 import type { SessionID } from '../shared/session-id';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 
 test('it flags a hook-less agent waiting at a prompt via the screen detector', async () => {
   const daemon = await startTestDaemon({

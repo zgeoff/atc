@@ -2,13 +2,13 @@ import { expect, test } from 'bun:test';
 import { getEventListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { buildStubForkingGH } from '@atc/test-utils/build-stub-forking-gh';
+import { buildStubGH } from '@atc/test-utils/build-stub-gh';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { buildStubForkingGH } from '../../test-utils/build-stub-forking-gh';
-import { buildStubGH } from '../../test-utils/build-stub-gh';
-import { createStubBin } from '../../test-utils/create-stub-bin';
-import { registerTestCleanup } from '../../test-utils/register-test-cleanup';
-import { setupTempDir } from '../../test-utils/setup-temp-dir';
-import { waitFor } from '../../test-utils/wait-for';
 import { runGH } from './run-gh';
 
 // A directory for a stand-in gh and the files it records.

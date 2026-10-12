@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runCommand } from '@atc/test-utils/run-command';
 import pkg from '../../package.json';
-import { runCommand } from '../test-utils/run-command';
 import { buildCLIArgv } from './build-cli-argv';
 
 test('it runs the source entry under bun outside a compiled binary', async () => {

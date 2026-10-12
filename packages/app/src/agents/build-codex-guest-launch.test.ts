@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '../test-utils/run-command';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 
 // The guest folder a launch stages its files under and runs in.

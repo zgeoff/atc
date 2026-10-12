@@ -1,6 +1,6 @@
-import { join } from 'node:path';
+import { getSourceEntry } from './get-source-entry';
 
-const CLI_PATH = join(import.meta.dir, '..', 'cli.ts');
+const CLI_PATH = getSourceEntry('atc');
 
 /**
  * The script of a stand-in `grok` for the stdio MCP suites. It appends its

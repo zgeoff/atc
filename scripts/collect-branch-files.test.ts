@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { runCommand } from '@atc/test-utils/run-command';
 import { $ } from 'bun';
-import { createGitFixture } from '../packages/app/src/test-utils/create-git-fixture';
-import { runCommand } from '../packages/app/src/test-utils/run-command';
 import { collectBranchFiles } from './collect-branch-files';
 
 // A bare upstream and a clone of it whose main holds one pushed commit, so

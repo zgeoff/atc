@@ -1,6 +1,10 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { updateEnv } from '@atc/test-utils/update-env';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { GrokAdapter } from '../agents/grok-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
@@ -8,12 +12,8 @@ import { toAgentSessionID } from '../shared/to-agent-session-id';
 import { toSessionID } from '../shared/to-session-id';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
-import { buildStubTimeoutScheduler } from '../test-utils/build-stub-timeout-scheduler';
-import { createGitFixture } from '../test-utils/create-git-fixture';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { updateEnv } from '../test-utils/update-env';
-import { waitFor } from '../test-utils/wait-for';
 
 /**
  * A real daemon whose claude stand-in hands an ejected session to a

@@ -177,7 +177,8 @@ function checkSpecifier(
 
     if (
       owner === pkg ||
-      (pkg.dir === '.' && ROOT_REACHES.some((dir) => target.startsWith(`${dir}/`)))
+      (pkg.dir === '.' && ROOT_REACHES.some((dir) => target.startsWith(`${dir}/`))) ||
+      (APP_TESTS.has(file) && target.startsWith('packages/app/'))
     ) {
       return [];
     }
@@ -213,6 +214,20 @@ function checkSpecifier(
 // The root package's e2e journeys and scripts reach into the app by path,
 // for the app modules and test helpers that no package exports yet.
 const ROOT_REACHES = ['packages/app'];
+
+// Tests of shared helpers that drive the helper against app modules no
+// package exports yet, such as the daemon client and the reporter line
+// format, so each reaches into the app by path.
+const APP_TESTS: ReadonlySet<string> = new Set([
+  'packages/test-utils/src/build-stub-daemon-requests.test.ts',
+  'packages/test-utils/src/keys.test.ts',
+  'packages/test-utils/src/run-mcp-authorization.test.ts',
+  'packages/test-utils/src/spawn-claude-session.test.ts',
+  'packages/test-utils/src/spawn-grok-session.test.ts',
+  'packages/test-utils/src/start-cut-proxy.test.ts',
+  'packages/test-utils/src/start-stub-reporter-socket.test.ts',
+  'packages/test-utils/src/start-tui-harness.test.ts',
+]);
 
 /**
  * The package whose directory holds the path: the deepest workspace package

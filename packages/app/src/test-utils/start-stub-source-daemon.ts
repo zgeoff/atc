@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { registerTestCleanup } from './register-test-cleanup';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 
 /**
  * Starts a daemon composed with a fixture source, in a process of its own

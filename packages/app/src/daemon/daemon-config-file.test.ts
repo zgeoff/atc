@@ -2,6 +2,8 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { CodexAdapter } from '../agents/codex-adapter';
 import { loadConfig, parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
@@ -12,8 +14,6 @@ import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
 

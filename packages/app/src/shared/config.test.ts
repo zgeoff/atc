@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
 
 function setupTest() {

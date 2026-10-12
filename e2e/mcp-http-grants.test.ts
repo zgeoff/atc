@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
+import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
+import { runCommand } from '@atc/test-utils/run-command';
+import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
 import invariant from 'tiny-invariant';
 import { readJSONRecord } from '../packages/app/src/test-utils/read-json-record';
-import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
-import { runCommand } from '../packages/app/src/test-utils/run-command';
-import { runMCPAuthorization } from '../packages/app/src/test-utils/run-mcp-authorization';
 import { setupMCPHTTP } from '../packages/app/src/test-utils/setup-mcp-http';
 
 /**

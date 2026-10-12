@@ -37,7 +37,7 @@ const main = defineCommand({
           hidden: true,
         },
         async run() {
-          await import('./client/index');
+          await import('./client');
         },
       }),
     mcp: () =>

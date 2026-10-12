@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { buildStubGH } from '../../test-utils/build-stub-gh';
-import { buildStubSignedOutGH } from '../../test-utils/build-stub-signed-out-gh';
-import { createStubBin } from '../../test-utils/create-stub-bin';
-import { setupTempDir } from '../../test-utils/setup-temp-dir';
+import { buildStubGH } from '@atc/test-utils/build-stub-gh';
+import { buildStubSignedOutGH } from '@atc/test-utils/build-stub-signed-out-gh';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { collectGitHubRepos } from './collect-github-repos';
 
 // A directory for a stand-in gh and the arguments it records.

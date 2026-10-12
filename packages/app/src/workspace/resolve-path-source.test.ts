@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { updateEnv } from '@atc/test-utils/update-env';
 import { $ } from 'bun';
-import { createGitFixture } from '../test-utils/create-git-fixture';
-import { updateEnv } from '../test-utils/update-env';
 import { resolvePathSource } from './resolve-path-source';
 
 // A work clone of a bare upstream, holding one pushed commit, for a test to

@@ -2,20 +2,20 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
+import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/test-utils/update-env';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { parseConfig } from '../shared/config';
 import { getRecord } from '../shared/get-record';
-import { createStubBin } from '../test-utils/create-stub-bin';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { updateEnv } from '../test-utils/update-env';
-import { waitFor } from '../test-utils/wait-for';
 import { ImpProvider } from './imp-provider';
 import { LocalPTYProvider } from './local-pty-provider';
 

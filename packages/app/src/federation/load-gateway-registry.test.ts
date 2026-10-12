@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { loadGatewayRegistry } from './load-gateway-registry';
 
 /**

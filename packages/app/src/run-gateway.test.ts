@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { runGateway } from './run-gateway';
-import { registerTestCleanup } from './test-utils/register-test-cleanup';
-import { setupTempDir } from './test-utils/setup-temp-dir';
 
 /**
  * A temp directory for the registry and the state directory. The directory

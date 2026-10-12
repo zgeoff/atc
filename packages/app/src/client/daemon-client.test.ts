@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
-import { startStubClosingListener } from '../test-utils/start-stub-closing-listener';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { startStubClosingListener } from '@atc/test-utils/start-stub-closing-listener';
 import { DaemonClient } from './daemon-client';
 
 /**

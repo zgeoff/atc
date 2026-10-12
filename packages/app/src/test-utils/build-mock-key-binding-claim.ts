@@ -1,7 +1,7 @@
+import { mergeDeep } from '@atc/test-utils/merge-deep';
+import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import type { GatewayStore } from '../federation/gateway-store';
-import { mergeDeep } from './merge-deep';
-import type { MockOverrides } from './mock-overrides';
 
 /**
  * The binding a keyed request claims in the gateway store, before any

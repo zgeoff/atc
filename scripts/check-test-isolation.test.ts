@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { type } from 'node:os';
 import { join } from 'node:path';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
-import { runCommand } from '../packages/app/src/test-utils/run-command';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 
 /**
  * A temp directory for the stand-in tool directory a test builds.

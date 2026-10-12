@@ -2,11 +2,11 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { parseConfig } from '../shared/config';
-import { createStubRecordingClaude } from '../test-utils/create-stub-recording-claude';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { waitFor } from '../test-utils/wait-for';
 
 test('it spawns two claude entries each with its own args and settings file', async () => {
   const daemon = await startTestDaemon({

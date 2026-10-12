@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { getSourceEntry } from './get-source-entry';
 
 /**
  * The command an end-to-end suite runs atc as: the compiled binary that
@@ -9,5 +9,5 @@ import { join } from 'node:path';
 export function resolveATCCommand(): string[] {
   const bin = process.env['ATC_BIN'];
 
-  return bin === undefined ? [process.execPath, join(import.meta.dir, '..', 'cli.ts')] : [bin];
+  return bin === undefined ? [process.execPath, getSourceEntry('atc')] : [bin];
 }

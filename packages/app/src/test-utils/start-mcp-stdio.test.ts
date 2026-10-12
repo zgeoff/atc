@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { buildStubMCPStdioServer } from '@atc/test-utils/build-stub-mcp-stdio-server';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { isProcessAlive } from '../shared/is-process-alive';
-import { buildStubMCPStdioServer } from './build-stub-mcp-stdio-server';
-import { createStubBin } from './create-stub-bin';
 import { setupMCPHome } from './setup-mcp-home';
 import { startMCPStdio } from './start-mcp-stdio';
 

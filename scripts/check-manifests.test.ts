@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '../packages/app/src/test-utils/run-command';
-import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { runCommand } from '@atc/test-utils/run-command';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -130,6 +130,50 @@ test('it fails on a module load whose specifier is a template literal', async ()
     stdout: 'check-manifests: 2 packages, 1 files, 1 findings\n',
     stderr:
       'template specifier: packages/core/src/a.ts:1 loads a module through a template literal, which the import lint rules cannot read; quote the specifier\n',
+  });
+});
+
+test('it lets a listed helper test reach the app and no other helper test', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/package.json'),
+    JSON.stringify({ name: '@atc/test-utils' }),
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/package.json'), JSON.stringify({ name: '@atc/app' }));
+  await Bun.write(join(ctx.dir, 'packages/app/src/keymap.ts'), 'export const KEYMAP = [];\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/keys.test.ts'),
+    "import { KEYMAP } from '../../app/src/keymap';\n\nexport const A = KEYMAP;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/test-utils/src/wait-for.test.ts'),
+    "import { KEYMAP } from '../../app/src/keymap';\n\nexport const B = KEYMAP;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 3 packages, 3 files, 1 findings\n',
+    stderr:
+      'outside package: packages/test-utils/src/wait-for.test.ts imports ../../app/src/keymap, which resolves into packages/app\n',
   });
 });
 
