@@ -11,6 +11,10 @@ test('it runs the CLI entrypoint under bun from a source tree', () => {
   expect(buildHostServices().atcArgv).toStrictEqual([process.execPath, getSourceEntry('atc')]);
 });
 
+test('it runs the binary itself as the CLI entry inside a compiled binary', () => {
+  expect(buildHostServices({ compiled: true }).atcArgv).toStrictEqual([process.execPath]);
+});
+
 test("it reads the version from the app's manifest", () => {
   const appDir = dirname(dirname(getSourceEntry('atc')));
   const manifest: unknown = JSON.parse(readFileSync(join(appDir, 'package.json'), 'utf8'));
@@ -58,7 +62,7 @@ test('it tells the time by the wall clock', () => {
 test('it writes each log line through the log it is given', () => {
   const log = mock<(line: string) => void>();
 
-  buildHostServices(log).log('daemon up');
+  buildHostServices({ log }).log('daemon up');
 
   expect(log).toHaveBeenCalledExactlyOnceWith('daemon up');
 });

@@ -1,16 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { AgentEntry } from '@atc/config/collect-agents';
 import type { Config } from '@atc/config/config';
 import { resolveAgentHome } from '@atc/config/resolve-agent-home';
 import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import { isRecord } from '@atc/core/is-record';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
-import { truncateDetail } from '@atc/core/truncate-detail';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -20,36 +14,25 @@ import type {
   GuestSpawnPlan,
   HookPlan,
   NameUpdate,
-  ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
 } from '@atc/plugin-api/agent-adapter';
 import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
+import { buildAuthRevisionFolder } from '@atc/plugin-api/harness/build-auth-revision-folder';
+import { canResumeFromTranscript } from '@atc/plugin-api/harness/can-resume-from-transcript';
 import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { z } from 'zod';
 import { buildCodexAuthFile } from './build-codex-auth-file';
 import { buildCodexConfig } from './build-codex-config';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
+import { buildCodexHookEvent } from './build-codex-hook-event';
 import { buildCodexHookFile } from './build-codex-hook-file';
 import { buildCodexTrustSeed } from './build-codex-trust-seed';
+import { loadCodexName } from './load-codex-name';
 import { planCodexLineInput } from './plan-codex-line-input';
-
-// Codex's hook payload keys, snake_case. An absent or wrong-typed field
-// parses to undefined rather than failing the payload, so a broken reporter
-// never breaks the session it reports on.
-const CODEX_HOOK_PAYLOAD_SCHEMA = z.object({
-  session_id: buildOptionalString(),
-  transcript_path: buildOptionalString(),
-  prompt: buildOptionalString(),
-  last_assistant_message: buildOptionalString(),
-  tool_name: buildOptionalString(),
-});
-
-type CodexHookPayload = z.infer<typeof CODEX_HOOK_PAYLOAD_SCHEMA>;
 
 // The spellings of the Codex CLI's model flag.
 const CODEX_MODEL_FLAGS = ['-m', '--model'];
@@ -87,6 +70,9 @@ export class CodexAdapter implements AgentAdapter {
   // Codex's TUI keeps a newline that arrives inside a burst of input, so a
   // line is pasted and then submitted, a slash command as two pastes.
   readonly planLineInput = planCodexLineInput;
+
+  // A session resumes while its rollout exists.
+  readonly canResume = canResumeFromTranscript;
 
   // Present only for an entry with `auth`: any other entry runs on a
   // remote host as a local spawn plans it, under the sign-in of the host's
@@ -179,7 +165,7 @@ export class CodexAdapter implements AgentAdapter {
       return null;
     }
 
-    const authDir = `auth-r${guest.auth.revision}`;
+    const authDir = buildAuthRevisionFolder(guest.auth.revision);
     const signIn = this.requireSignIn(guest.auth.oauth ?? {});
     const plan = this.planSpawn(opts);
 
@@ -236,10 +222,9 @@ export class CodexAdapter implements AgentAdapter {
       );
     }
 
-    const auth = state.idClaims?.[OPENAI_AUTH_CLAIM];
-    const accountID = isRecord(auth) ? auth['chatgpt_account_id'] : undefined;
+    const claims = ID_CLAIMS_SCHEMA.safeParse(state.idClaims);
 
-    if (state.idClaims === null || typeof accountID !== 'string' || accountID === '') {
+    if (state.idClaims === null || !claims.success) {
       throw new DaemonError(
         'auth_signin_needed',
         `agent '${this.id}' signs in through ${name}, whose ID token in impd holds no ChatGPT account id; ${renew}`,
@@ -247,7 +232,10 @@ export class CodexAdapter implements AgentAdapter {
       );
     }
 
-    return { idClaims: state.idClaims, accountID };
+    return {
+      idClaims: state.idClaims,
+      accountID: claims.data[OPENAI_AUTH_CLAIM].chatgpt_account_id,
+    };
   }
 
   // The secret this entry's profiles send to chatgpt.com, or null when
@@ -273,123 +261,16 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   planHookEvents(e: HookEvent): HookPlan {
-    return { events: [this.normalizeHook(e)] };
+    return { events: [buildCodexHookEvent(e)] };
   }
 
-  normalizeHook(e: HookEvent): AdapterEvent {
-    const parsed = CODEX_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
-    const payload: CodexHookPayload = parsed.success ? parsed.data : {};
-
-    const base: AdapterEvent = {
-      kind: 'heartbeat',
-      ...(payload.session_id === undefined
-        ? {}
-        : { agentSessionID: toAgentSessionID(payload.session_id) }),
-    };
-
-    const named: AdapterEvent = {
-      ...base,
-      ...(payload.session_id === undefined ? {} : { nameSource: payload.session_id }),
-      ...(payload.transcript_path === undefined
-        ? {}
-        : { transcriptSource: payload.transcript_path }),
-    };
-
-    switch (e.event) {
-      case 'SessionStart': {
-        return { ...named, kind: 'started' };
-      }
-      case 'PermissionRequest': {
-        const toolName = payload.tool_name;
-
-        const message =
-          toolName !== undefined && toolName !== ''
-            ? `waiting for approval: ${toolName}`
-            : 'waiting for approval';
-
-        return { ...base, kind: 'needs-input', message, detail: message };
-      }
-      case 'UserPromptSubmit': {
-        const preview = payload.prompt === undefined ? '' : payload.prompt.slice(0, 80);
-
-        return {
-          ...named,
-          kind: 'prompt-submitted',
-          ...(preview === '' ? {} : { message: preview, detail: truncateDetail(preview) }),
-        };
-      }
-      case 'Stop': {
-        const lastMessage = payload.last_assistant_message;
-
-        return {
-          ...named,
-          kind: 'turn-done',
-          ...(lastMessage !== undefined && lastMessage !== ''
-            ? { detail: truncateDetail(lastMessage), result: lastMessage }
-            : {}),
-        };
-      }
-      case 'SessionEnd': {
-        return { ...base, kind: 'ended' };
-      }
-      default: {
-        return base;
-      }
-    }
-  }
-
-  // Codex records session titles in session_index.jsonl; the index does not
-  // say whether a title was set by /rename or auto-generated, so a title
-  // never overrides a user-typed name.
+  // Codex records session titles in the session index of its home.
   loadName(source: string, namedBy: 'user' | 'auto' | 'agent'): Promise<NameUpdate | null> {
-    if (namedBy === 'user') {
-      return Promise.resolve(null);
-    }
-
-    const index = join(
+    return loadCodexName(
       this.codexHome ?? resolveAgentHome('CODEX_HOME', '.codex'),
-      'session_index.jsonl',
+      source,
+      namedBy,
     );
-
-    let text: string;
-
-    try {
-      text = readFileSync(index, 'utf8');
-    } catch {
-      return Promise.resolve(null);
-    }
-
-    let name: string | undefined;
-
-    for (const line of text.split('\n')) {
-      if (line.trim() === '' || !line.includes(source)) {
-        continue;
-      }
-
-      try {
-        const parsed: unknown = JSON.parse(line);
-
-        if (
-          isRecord(parsed) &&
-          parsed['id'] === source &&
-          typeof parsed['thread_name'] === 'string'
-        ) {
-          name = parsed['thread_name'];
-        }
-      } catch {}
-    }
-
-    const update = name === undefined || name === '' ? null : { name };
-
-    return Promise.resolve(update);
-  }
-
-  canResume(session: ResumeCheck): boolean {
-    if (session.transcriptSource === undefined) {
-      return true;
-    }
-
-    return existsSync(session.transcriptSource);
   }
 
   // Shell command that re-opens this session outside atc (or anywhere).
@@ -407,6 +288,11 @@ const CHATGPT_HOST = 'chatgpt.com';
 
 // The ID token claim that holds the ChatGPT account and plan.
 const OPENAI_AUTH_CLAIM = 'https://api.openai.com/auth';
+
+// The ID token claims that hold a ChatGPT account id.
+const ID_CLAIMS_SCHEMA = z.object({
+  [OPENAI_AUTH_CLAIM]: z.object({ chatgpt_account_id: z.string().min(1) }),
+});
 
 // Codex's documented flag that runs hooks without the trust a person
 // gives them in the TUI, meant for automation that vets its hook sources.

@@ -368,7 +368,7 @@ const main = defineCommand({
             'Print the Codex hook entries to merge into $CODEX_HOME/hooks.json (trust them once in the Codex TUI)',
         },
         async run() {
-          const hook = await import('./agents/print-codex-hook-file');
+          const hook = await import('@atc/harness-codex/print-codex-hook-file');
 
           hook.printCodexHookFile(hostServices.atcArgv);
         },
