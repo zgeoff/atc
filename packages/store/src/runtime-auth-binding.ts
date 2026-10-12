@@ -13,8 +13,9 @@ import type { SessionID } from '@atc/core/session-id';
  * - `rollback_pending`: a failed attempt left effects atc could not
  *   confirm removed.
  * - `rebind_failed`: a rebind failed; the binding keeps its old revision,
- *   the failed one is kept beside it, and auth stays blocked until an
- *   explicit retry.
+ *   the failed one is kept beside it, and auth stays blocked until a
+ *   retry: an explicit rebind, or the next launch on a target that
+ *   rebinds a changed selection.
  */
 export type RuntimeAuthBindingState =
   | 'provisioning'

@@ -32,6 +32,7 @@ import type {
   HarnessHandle,
   HarnessRelay,
   HarnessSpec,
+  HarnessStart,
 } from '@atc/plugin-api/execution-provider';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { buildSessionEnv } from '@atc/protocol/build-session-env';
@@ -48,6 +49,7 @@ import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { sortSessionViews } from '@atc/protocol/sort-session-views';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '@atc/store/fleet-entry';
+import type { RuntimeAuthBinding } from '@atc/store/runtime-auth-binding';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { buildAuthBinding } from './build-auth-binding';
@@ -152,6 +154,10 @@ export interface Session {
   // The epoch of the session's latest harness start or attach, which the
   // daemon's bridge to that harness is bound to; 0 before the first.
   bridgeEpoch: number;
+
+  // The runtime auth revision the session's latest harness launched under;
+  // absent for a harness that takes no credential from impd's broker.
+  authRevision?: number;
 }
 
 // A session's ready workspace and the variables its harnesses go without.
@@ -277,6 +283,13 @@ interface HarnessAuthSetup extends HarnessAuth {
   readonly targetIdentity: string;
 }
 
+// A verified binding and the revision it held before the verify, which a
+// rebind inside the verify moves on from.
+interface VerifiedAuth {
+  readonly binding: RuntimeAuthBinding;
+  readonly heldRevision: number;
+}
+
 // A harness as its setup plans it: the agent's spawn, and the variables
 // the agent's plan starts the harness with, which no variable atc adds
 // overrides.
@@ -291,6 +304,12 @@ interface HarnessPlan extends SpawnPlan {
     readonly hash: string;
     readonly attemptID: string | null;
   } | null;
+
+  // The revision the host's binding held before this launch verified it,
+  // the latest a process the start attaches to instead of making can have
+  // launched under; null for a launch that creates its binding or takes no
+  // runtime auth.
+  readonly heldRevision: number | null;
 }
 
 // The target a session runs on and the identity it is bound to there; null
@@ -395,6 +414,10 @@ export class SessionManager {
   // What each listed spawn still waiting on its harness's start readied,
   // by spawn id, so a start that fails takes it back with the session.
   private readonly startingSpawns = new Map<SessionID, SpawnReadied>();
+
+  // The runtime auth revision each host's binding held at its latest
+  // launch, so a harness that launched under an older one can show it.
+  private readonly authRevisions = new Map<SessionID, number>();
 
   // The epoch the next harness start or attach takes, unique across every
   // session this manager holds.
@@ -826,6 +849,11 @@ export class SessionManager {
     s.kind = 'pty';
     s.state = 'running';
     s.lastMsg = 'revived';
+
+    if (plan.admission === null) {
+      delete s.authRevision;
+    }
+
     s.repoRoot = provider.remote ? s.cwd : resolveRepoRoot(s.cwd);
     s.desired = 'run';
     s.suspended = false;
@@ -836,11 +864,18 @@ export class SessionManager {
     this.onEvent('state', s);
     this.emitChange();
 
-    await timer.withStep('harness-start', async () => {
-      if (auth !== null) {
-        await this.waitForAuthStart(s, provider, pty);
-      }
-    });
+    const start = await timer.withStep('harness-start', () =>
+      auth === null ? Promise.resolve(undefined) : this.waitForAuthStart(s, provider, pty),
+    );
+
+    if (plan.admission !== null) {
+      this.updateLaunchRevision(
+        s,
+        plan.admission.revision,
+        plan.heldRevision,
+        start?.created ?? true,
+      );
+    }
 
     if (provider.remote) {
       this.log(`atc: wake of session ${s.id} on target '${s.target}' took ${timer.formatSteps()}`);
@@ -874,6 +909,10 @@ export class SessionManager {
       }
 
       s.attachment = attachment;
+
+      if (attachment === 'attached' && this.isAuthOutdated(s)) {
+        s.lastMsg = formatAuthNotice(this.authRevisions.get(s.hostKey) ?? 0);
+      }
 
       this.onEvent('state', s);
       this.emitChange();
@@ -1368,6 +1407,7 @@ export class SessionManager {
       suspended: false,
       hostKey,
       bridgeEpoch: binding.epoch,
+      ...(plan.admission === null ? {} : { authRevision: plan.admission.revision }),
     };
 
     this.attachHarness(session, pty, this.hasHostLifecycle(target));
@@ -2117,6 +2157,27 @@ export class SessionManager {
     await this.authBinder.removeAttempt(host, hostKey, attemptID);
   }
 
+  // Records the revision a revived harness launched under once its start
+  // settles. A start that made the process launched under the plan's; one
+  // that attached to a process the host still ran keeps the revision that
+  // process launched under, or the one the host held before this launch,
+  // and shows that the newer one applies at its next launch.
+  private updateLaunchRevision(
+    s: Session,
+    revision: number,
+    heldRevision: number | null,
+    created: boolean,
+  ): void {
+    s.authRevision = created ? revision : (s.authRevision ?? heldRevision ?? revision);
+
+    if (s.pty !== null && this.isAuthOutdated(s)) {
+      s.lastMsg = formatAuthNotice(this.authRevisions.get(s.hostKey) ?? revision);
+
+      this.onEvent('state', s);
+      this.emitChange();
+    }
+  }
+
   // Waits for a revived harness behind the broker to start. A refused start
   // already ended the harness; the host goes back to sleep when no other
   // harness runs there, and the refusal is thrown. A spawn that still has a
@@ -2126,9 +2187,9 @@ export class SessionManager {
     s: Session,
     provider: ExecutionProvider,
     pty: HarnessHandle,
-  ): Promise<void> {
+  ): Promise<HarnessStart | undefined> {
     try {
-      await pty.waitForStart?.();
+      return await pty.waitForStart?.();
     } catch (error) {
       const hasCheckout = (this.startingSpawns.get(s.id)?.root ?? null) !== null;
 
@@ -2254,7 +2315,13 @@ export class SessionManager {
       const local = adapter.planSpawn(options, id);
 
       return {
-        plan: { bin: local.bin, args: local.args, env: local.env ?? {}, admission: null },
+        plan: {
+          bin: local.bin,
+          args: local.args,
+          env: local.env ?? {},
+          admission: null,
+          heldRevision: null,
+        },
         attemptID: null,
       };
     }
@@ -2262,13 +2329,25 @@ export class SessionManager {
     const guest = provider.guest ?? { dir: '/tmp/atc', atc: null };
     const dir = `${guest.dir}/sessions/${id}`;
 
+    // A launch on a bound host verifies the binding before it plans, since
+    // a target that rebinds a changed selection moves the binding to the
+    // revision the plan then launches under.
+    const verified =
+      auth?.mode === 'verify'
+        ? await timer.withStep('auth-binding', () =>
+            this.verifyHarnessAuth(adapter.id, provider, hostKey, auth),
+          )
+        : null;
+
     const paths: GuestPaths =
       auth === null
         ? { atc: guest.atc, dir }
         : {
             atc: guest.atc,
             dir,
-            auth: await timer.withStep('auth-plan', () => this.planGuestAuth(hostKey, auth)),
+            auth: await timer.withStep('auth-plan', () =>
+              this.planGuestAuth(auth, verified?.binding.revision ?? 1),
+            ),
           };
 
     const plan =
@@ -2291,9 +2370,16 @@ export class SessionManager {
     requireGuestEnv(adapter.id, target, env, auth !== null);
 
     const attemptID =
-      auth === null
-        ? null
-        : await timer.withStep('auth-binding', () => this.applyHarnessAuth(hostKey, target, auth));
+      auth?.mode === 'create'
+        ? await timer.withStep('auth-binding', () =>
+            this.requireAuthBinder().createBinding(auth.host, {
+              hostKey,
+              target,
+              targetIdentity: auth.targetIdentity,
+              binding: auth.binding,
+            }),
+          )
+        : null;
 
     try {
       await this.setupGuest(adapter, provider, hostKey, target, dir, plan.files, timer);
@@ -2316,7 +2402,16 @@ export class SessionManager {
         ? null
         : { revision: paths.auth.revision, hash: auth.binding.hash, attemptID };
 
-    return { plan: { bin: plan.bin, args: plan.args, env, admission }, attemptID };
+    return {
+      plan: {
+        bin: plan.bin,
+        args: plan.args,
+        env,
+        admission,
+        heldRevision: verified?.heldRevision ?? null,
+      },
+      attemptID,
+    };
   }
 
   // The part of a harness spec that keeps a launch behind the broker: the
@@ -2354,52 +2449,77 @@ export class SessionManager {
   }
 
   // The binding revision and placeholders a guest plan behind the broker
-  // launches under: the next host's first revision, or the revision the
-  // shared host holds, with the sign-in state impd lists for each oauth
+  // launches under, with the sign-in state impd lists for each oauth
   // secret the binding holds.
   private async planGuestAuth(
-    hostKey: SessionID,
     auth: HarnessAuthSetup,
+    revision: number,
   ): Promise<NonNullable<GuestPaths['auth']>> {
-    const held =
-      auth.mode === 'create' ? null : await this.requireAuthBinder().findBinding(hostKey);
-
     const oauth = await loadOAuthStates(auth.host, auth.binding);
 
     return {
-      revision: held?.revision ?? 1,
+      revision,
       env: auth.binding.placeholderEnv,
       profileEnv: auth.binding.profileEnv,
       ...(oauth === undefined ? {} : { oauth }),
     };
   }
 
-  // Creates the binding of a host a spawn provisions, or verifies the one
-  // a revive or a sub-session launches under, and returns the attempt
-  // that created it, null for a verify or no auth.
-  private async applyHarnessAuth(
+  // Verifies the binding a revive or a sub-session launches under, moving
+  // a changed selection to the current one on a target that rebinds it, and
+  // marks each harness on the host that launched under an older revision.
+  // Only a host whose every session runs the launching agent rebinds, since
+  // two agents that select different profiles would each move the host
+  // back on their own launches.
+  private async verifyHarnessAuth(
+    agent: AgentID,
+    provider: ExecutionProvider,
     hostKey: SessionID,
-    target: string,
-    auth: HarnessAuthSetup | null,
-  ): Promise<string | null> {
-    if (auth === null) {
-      return null;
-    }
+    auth: HarnessAuthSetup,
+  ): Promise<VerifiedAuth> {
+    const isSoleAgent = this.sessions.every(
+      (other) => other.hostKey !== hostKey || other.agent === agent,
+    );
+
+    const rebind =
+      provider.rebindChangedAuth === true && isSoleAgent
+        ? {
+            log: (line: string) => {
+              this.log(line);
+            },
+          }
+        : null;
 
     const binder = this.requireAuthBinder();
 
-    if (auth.mode === 'verify') {
-      await binder.verifyBinding(auth.host, hostKey, auth.binding);
+    const held = await binder.findBinding(hostKey);
+    const row = await binder.verifyBinding(auth.host, hostKey, auth.binding, rebind);
 
-      return null;
+    this.authRevisions.set(hostKey, row.revision);
+
+    const older = this.sessions.filter(
+      (other) => other.hostKey === hostKey && other.pty !== null && this.isAuthOutdated(other),
+    );
+
+    for (const other of older) {
+      other.lastMsg = formatAuthNotice(row.revision);
+
+      this.onEvent('state', other);
     }
 
-    return binder.createBinding(auth.host, {
-      hostKey,
-      target,
-      targetIdentity: auth.targetIdentity,
-      binding: auth.binding,
-    });
+    if (older.length > 0) {
+      this.emitChange();
+    }
+
+    return { binding: row, heldRevision: held?.revision ?? row.revision };
+  }
+
+  // Whether a session's harness launched under an older revision than the
+  // one its host's binding held at the latest launch there.
+  private isAuthOutdated(s: Session): boolean {
+    const revision = this.authRevisions.get(s.hostKey);
+
+    return s.authRevision !== undefined && revision !== undefined && s.authRevision < revision;
   }
 
   // Readies a remote host and the files a guest plan reads there, after
@@ -3503,6 +3623,12 @@ function pickExitMessage(exit: Readonly<{ reason?: string; detail?: string }>): 
 }
 
 // A target refusal as a session's last message, short enough for a list row.
+// What a session whose harness launched under an older runtime auth
+// revision shows until its next launch.
+function formatAuthNotice(revision: number): string {
+  return `auth revision ${String(revision)} applies at the next launch`;
+}
+
 function formatTargetRefusal(code: ErrorCode, target: string, identity: string): string {
   if (code === 'target_config_invalid') {
     return `target '${target}' misconfigured`;

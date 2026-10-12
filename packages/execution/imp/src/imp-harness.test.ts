@@ -1896,7 +1896,7 @@ test('it sends the start of a harness whose admission check passes as its connec
     harness.kill();
   });
 
-  expect(harness.waitForStart()).resolves.toBeUndefined();
+  expect(harness.waitForStart()).resolves.toStrictEqual({ created: true });
 
   expect(ctx.port.sessionRequests).toStrictEqual([
     {
@@ -1911,6 +1911,64 @@ test('it sends the start of a harness whose admission check passes as its connec
       require: ['broker'],
     },
   ]);
+});
+
+test('it settles a start that impd answers by attaching to the running process as not created', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-b' });
+
+  const first = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  registerTestCleanup(() => {
+    first.kill();
+  });
+
+  await first.waitForStart();
+
+  first.detach();
+
+  const second = new ImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-b',
+      session: 's2',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    }),
+    {
+      offsets: true,
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  registerTestCleanup(() => {
+    second.kill();
+  });
+
+  expect(second.waitForStart()).resolves.toStrictEqual({ created: false });
 });
 
 test('it tells its host the harness is done only after every exit listener has run', async () => {

@@ -4,6 +4,7 @@ import type {
   HarnessAttachment,
   HarnessExit,
   HarnessHandle,
+  HarnessStart,
   LaunchTicket,
 } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
@@ -142,7 +143,11 @@ export class ImpHarness implements HarnessHandle {
   // The waits on how the harness's start settles: started once a connection
   // first starts the process or attaches to it, or the refusal it ended
   // with before that.
-  private readonly startWaiters = new Set<PromiseWithResolvers<void>>();
+  private readonly startWaiters = new Set<PromiseWithResolvers<HarnessStart>>();
+
+  // Whether the first start impd answered made the process, or attached to
+  // one it still ran; null until a start is answered.
+  private created: boolean | null = null;
 
   // Why impd refused to start the harness, once it has given a reason.
   private startRefusal: DaemonError | null = null;
@@ -247,18 +252,18 @@ export class ImpHarness implements HarnessHandle {
     return waited.promise;
   };
 
-  readonly waitForStart = (): Promise<void> => {
+  readonly waitForStart = (): Promise<HarnessStart> => {
     const outcome = this.getStartOutcome();
 
     if (outcome === 'started') {
-      return Promise.resolve();
+      return Promise.resolve({ created: this.created ?? true });
     }
 
     if (outcome !== null) {
       return Promise.reject(outcome);
     }
 
-    const waited = Promise.withResolvers<void>();
+    const waited = Promise.withResolvers<HarnessStart>();
 
     this.startWaiters.add(waited);
 
@@ -507,6 +512,8 @@ export class ImpHarness implements HarnessHandle {
 
     // A start resumes the screen and takes the waiting kill with it.
     const hasKill = this.hasPendingKill();
+
+    this.created ??= started.created;
 
     this.state.send({ type: 'CONNECTION_STARTED' });
     this.emitStartOutcome();
@@ -852,7 +859,7 @@ export class ImpHarness implements HarnessHandle {
 
     for (const waited of this.startWaiters) {
       if (outcome === 'started') {
-        waited.resolve();
+        waited.resolve({ created: this.created ?? true });
       } else {
         waited.reject(outcome);
       }

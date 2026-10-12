@@ -32,9 +32,16 @@ test('it preserves the identity when the image for new imps changes', () => {
 test.each([
   ['guestATC', '/usr/bin/atc', '/opt/atc'],
   ['memoryMib', 2048, 4096],
+  ['rebindChangedAuth', false, true],
 ])('it preserves the identity when %s changes', (key, before, after) => {
   expect(buildTargetIdentity('imp', { [key]: before })).toBe(
     buildTargetIdentity('imp', { [key]: after }),
+  );
+});
+
+test('it builds the same identity for a target that turns on the changed-auth rebind as for one without it', () => {
+  expect(buildTargetIdentity('imp', { url: 'http://impd', rebindChangedAuth: true })).toBe(
+    buildTargetIdentity('imp', { url: 'http://impd' }),
   );
 });
 

@@ -56,14 +56,28 @@ hash as recorded, the imp must be the one recorded, and impd must hold exactly t
 never adds a missing grant back, since a missing grant means someone withdrew it. A sub-session
 joins only a host bound to the same binding as its own.
 
+On an imp target that sets `rebindChangedAuth`, a revive or a restore whose auth profiles no longer
+hash as recorded moves the host to the current selection instead of refusing. The owner writes both
+the profile change and the option, so the new grants follow the owner's own intent. The imp must
+still be the one recorded and must hold every grant that both selections keep, so a withdrawn grant
+still refuses. A host that also runs a session of another agent refuses as before, since two agents
+that select different profiles would each move the host back on their own launches. The launch then
+runs the rebind's own steps, logs one line with the host, both revisions, and the profiles added and
+removed, and plans its harness under the new revision. A rebind that fails leaves the host blocked
+at its old revision, and the next such launch takes back the grants the failed attempt added and
+tries it again. A harness already running on the host keeps the settings it launched with, and its
+session shows that the new revision applies at its next launch.
+
 ## Admission
 
 Each start and attach of a brokered harness is admitted under the host's binding lock: the binding
 must still be ready, or still provisioning under the spawn that launches it, and a start must match
 the revision it was planned under. An admitted request goes out only once its connection to impd
 opens, and a revoke, a rebind or a forget cancels every admission still waiting there before it
-records anything, so the waiting connection closes with nothing sent. The lock never spans the
-network, so a revoke never waits on a connection or on impd's answer.
+records anything, so the waiting connection closes with nothing sent. A rebind that a revive or a
+restore makes cancels no admission, so another harness on the host still reconnects with the
+settings it launched with. The lock never spans the network, so a revoke never waits on a connection
+or on impd's answer.
 
 ## Revoke and rebind
 

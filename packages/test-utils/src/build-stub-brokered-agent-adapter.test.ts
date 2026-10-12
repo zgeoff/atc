@@ -82,6 +82,55 @@ test('it selects the glm gateway credential with the broker requirement it is gi
   });
 });
 
+test('it selects the judge profile beside glm while the judge selection is on', () => {
+  const adapter = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => true,
+  });
+
+  expect(adapter.findAuthSelection?.()).toStrictEqual({
+    brokerRequired: true,
+    gateway: {
+      id: 'glm',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: {
+        profiles: ['glm', 'judge'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+      },
+    },
+    profiles: new Map([
+      [
+        'glm',
+        {
+          name: 'glm',
+          secret: 'glm',
+          kind: 'custom',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+      [
+        'judge',
+        {
+          name: 'judge',
+          secret: 'judge',
+          kind: 'custom',
+          host: 'judge.example',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+  });
+});
+
 test('it selects no credential while the selection is off', () => {
   const adapter = buildStubBrokeredAgentAdapter({
     id: 'glm',
