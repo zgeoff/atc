@@ -1,14 +1,6 @@
 import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
-
-const GROK_HOOK_EVENTS = [
-  'SessionStart',
-  'SessionEnd',
-  'UserPromptSubmit',
-  'Stop',
-  'StopFailure',
-  'StopCancelled',
-  'Notification',
-] as const;
+import { buildHookEntry } from '@atc/plugin-api/harness/build-hook-entry';
+import { GROK_HOOKS } from './grok-hooks';
 
 /**
  * Print the Grok hook file to stdout. The operator copies it to
@@ -27,8 +19,7 @@ export function printGrokHookFile(
 
 function buildGrokHookFile(atcArgv: readonly string[]): string {
   const cmd = buildHookCommand('hook-report --agent grok', atcArgv);
-  const entry = [{ hooks: [{ type: 'command', command: cmd, timeout: 5 }] }];
-  const hooks = Object.fromEntries(GROK_HOOK_EVENTS.map((event) => [event, entry]));
+  const hooks = Object.fromEntries(GROK_HOOKS.map((event) => [event, [buildHookEntry(cmd, 5)]]));
 
   return `${JSON.stringify({ hooks }, null, 2)}\n`;
 }
