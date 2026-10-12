@@ -3552,13 +3552,13 @@ function formatTargetRefusal(code: ErrorCode, target: string, identity: string):
   return `target '${target}' cannot start a terminal`;
 }
 
-// Whether either of two directories on a host holds the other, or they are
-// the same.
 // The key of a shared host on one target, for state kept per host.
 function buildHostSlot(hostKey: SessionID, target: string): string {
   return `${target}\0${hostKey}`;
 }
 
+// Whether either of two directories on a host holds the other, or they are
+// the same.
 function isPathOverlapping(a: string, b: string): boolean {
   return isPathWithin(a, b) || isPathWithin(b, a);
 }
