@@ -1,6 +1,7 @@
 import { isRecord } from '../shared/report';
 import { systemClock } from '../shared/system-clock';
 import type { Clock } from '../shared/system-clock';
+import { formatToolError } from './format-tool-error';
 import type { FleetCaller } from './types';
 
 // The most note text one events page carries, in UTF-8 bytes: as much as
@@ -111,21 +112,6 @@ async function readNoteText(
 
     return { text: note['text'], complete: note['complete'] };
   } catch (error) {
-    return { textError: formatReadError(error) };
+    return { textError: formatToolError(error) };
   }
-}
-
-// An error with a lowercase protocol-style code reads as `<code>: <message>`,
-// as a failed tool call does.
-function formatReadError(error: unknown): string {
-  if (
-    error instanceof Error &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    /^[a-z][a-z_]*$/.test(error.code)
-  ) {
-    return `${error.code}: ${error.message}`;
-  }
-
-  return error instanceof Error ? error.message : String(error);
 }

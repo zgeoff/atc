@@ -1,10 +1,11 @@
 import { match } from 'ts-pattern';
 import { z } from 'zod';
-import { DaemonError } from '../protocol/daemon-error';
 import type { GrantScope } from '../shared/grant-scope';
 import { isRecord } from '../shared/report';
+import { buildRPCError } from './build-rpc-error';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { buildToolList } from './build-tool-list';
+import { formatToolError } from './format-tool-error';
 import { MCP_TOOLS } from './mcp-tools';
 import { pickProtocolVersion } from './pick-protocol-version';
 import { runTool } from './run-tool';
@@ -143,42 +144,9 @@ async function answerToolCall(
   }
 }
 
-// A daemon's error, or any other error that holds a lowercase protocol-style
-// code, such as a router's refusal about a daemon, reads as
-// `<code>: <message>`. A system error's uppercase code is already in its
-// message.
-function formatToolError(error: unknown): string {
-  if (error instanceof DaemonError || hasErrorCode(error)) {
-    return `${error.code}: ${error.message}`;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
-}
-
-function hasErrorCode(error: unknown): error is Error & { readonly code: string } {
-  return (
-    error instanceof Error &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    /^[a-z][a-z_]*$/.test(error.code)
-  );
-}
-
 function buildRPCResult(
   id: string | number,
   result: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
   return { jsonrpc: '2.0', id, result };
-}
-
-function buildRPCError(
-  id: string | number,
-  code: number,
-  message: string,
-): Readonly<Record<string, unknown>> {
-  return { jsonrpc: '2.0', id, error: { code, message } };
 }
