@@ -25,9 +25,10 @@ import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
 import { z } from 'zod';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { buildImpName } from './build-imp-name';
+import { buildShortName } from './build-short-name';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpHarness } from './imp-harness';
-import type { ImpPort, ImpRelayConnection } from './imp-port';
+import type { ImpCreateSpec, ImpPort, ImpRelayConnection } from './imp-port';
 import { ImpPortError } from './imp-port-error';
 import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
 import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
@@ -184,12 +185,7 @@ export class ImpProvider implements ExecutionProvider {
     this.brokerAuth = buildImpCredentialBroker(port, {
       impPrefix: this.impPrefix,
       getImpName: (hostKey) => this.getImpName(hostKey),
-      createImp: (hostKey) =>
-        port.createImp({
-          name: this.getImpName(hostKey),
-          ...(target.image === undefined ? {} : { image: target.image }),
-          ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
-        }),
+      createImp: (hostKey) => port.createImp(buildCreateImpSpec(this.getImpName(hostKey), target)),
       destroyImp: (hostKey) => this.destroyHost(hostKey),
     });
   }
@@ -197,6 +193,21 @@ export class ImpProvider implements ExecutionProvider {
   // The imp a host key runs on, under this provider's prefix.
   getImpName(hostKey: string): string {
     return buildImpName(this.impPrefix, hostKey);
+  }
+
+  // The provider's record of a host, made and kept on the first ask.
+  private getHost(hostKey: string): ImpHost {
+    const host = this.hosts.get(hostKey) ?? {
+      name: this.getImpName(hostKey),
+      harnesses: 0,
+      renewTimer: null,
+      suspending: false,
+      isIdle: null,
+    };
+
+    this.hosts.set(hostKey, host);
+
+    return host;
   }
 
   readonly checkExistingHost = async (host: string): Promise<boolean> => {
@@ -263,11 +274,7 @@ export class ImpProvider implements ExecutionProvider {
         this.imageATCVersions.delete(name);
 
         await timer.withStep('create-imp', () =>
-          this.port.createImp({
-            name,
-            ...(this.target.image === undefined ? {} : { image: this.target.image }),
-            ...(this.target.memoryMib === undefined ? {} : { memoryMib: this.target.memoryMib }),
-          }),
+          this.port.createImp(buildCreateImpSpec(name, this.target)),
         );
 
         created = true;
@@ -295,31 +302,16 @@ export class ImpProvider implements ExecutionProvider {
       throw refusal;
     }
 
-    const host = this.hosts.get(request.host) ?? {
-      name,
-      harnesses: 0,
-      renewTimer: null,
-      suspending: false,
-      isIdle: null,
-    };
+    const host = this.getHost(request.host);
 
     host.suspending = false;
     host.isIdle = request.isIdle ?? null;
 
-    this.hosts.set(request.host, host);
     this.startRenewal(host, label);
   };
 
   readonly spawnHarness = (spec: HarnessSpec): HarnessHandle => {
-    const host = this.hosts.get(spec.host) ?? {
-      name: this.getImpName(spec.host),
-      harnesses: 0,
-      renewTimer: null,
-      suspending: false,
-      isIdle: null,
-    };
-
-    this.hosts.set(spec.host, host);
+    const host = this.getHost(spec.host);
 
     host.harnesses += 1;
 
@@ -406,15 +398,7 @@ export class ImpProvider implements ExecutionProvider {
   // carries what impd showed of the other leases.
   readonly suspendHost = (hostKey: string, isIdle?: () => boolean): Promise<void> =>
     this.withHostTurn(this.getImpName(hostKey), async () => {
-      const host = this.hosts.get(hostKey) ?? {
-        name: this.getImpName(hostKey),
-        harnesses: 0,
-        renewTimer: null,
-        suspending: false,
-        isIdle: null,
-      };
-
-      this.hosts.set(hostKey, host);
+      const host = this.getHost(hostKey);
 
       // A host a harness runs on, or that a readying waits for, is busy.
       const isBusy = () =>
@@ -796,20 +780,24 @@ interface ImpHost {
   isIdle: (() => boolean) | null;
 }
 
+// The imp a target creates: its image and memory when the target sets them,
+// and impd's defaults otherwise.
+function buildCreateImpSpec(name: string, target: ImpTargetOptions): ImpCreateSpec {
+  return {
+    name,
+    ...(target.image === undefined ? {} : { image: target.image }),
+    ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
+  };
+}
+
 function buildImpSessionName(sessionID: string): string {
   // The prefix plus 28 chars stays inside the 32-char session limit.
-  return `atc-${sessionID
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
-    .slice(0, 28)}`;
+  return `atc-${buildShortName(sessionID, 28)}`;
 }
 
 // Short enough that the socket's path stays inside a unix socket's limit.
 function buildSocketName(sessionID: string): string {
-  return sessionID
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, '')
-    .slice(0, 16);
+  return buildShortName(sessionID, 16);
 }
 
 // Frames a guest connection's bytes into lines, both ways.
