@@ -1,0 +1,25 @@
+{
+  "name": "@atc/harness-claude",
+  "private": true,
+  "description": "The Claude Code harness: the stock and gateway adapters, their hook settings, the atc-bridge mod embed, guest launches, and headless turns",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:",
+    "@types/proper-lockfile": "catalog:",
+    "proper-lockfile": "catalog:",
+    "tiny-invariant": "catalog:"
+  }
+}

@@ -6,6 +6,7 @@ import { parseConfig } from '@atc/config/config';
 import { toSessionID } from '@atc/core/to-session-id';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -76,6 +77,7 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: [
         {
@@ -131,6 +133,7 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: [
         {
@@ -185,6 +188,7 @@ test('it starts the harness of a gateway without auth on a local spawn', async (
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: [
         {
@@ -232,6 +236,7 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: [
         {
@@ -398,6 +403,7 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: [
         {
@@ -454,6 +460,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: [
         {
@@ -530,6 +537,7 @@ test('it restores a local session of a gateway with auth without starting its ha
             zai: { kind: 'claude', bin: ctx.fakeClaude, baseURL: 'https://api.z.ai/api/anthropic' },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: [
         {

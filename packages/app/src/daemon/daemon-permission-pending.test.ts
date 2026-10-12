@@ -1,6 +1,7 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config/config';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
@@ -12,6 +13,7 @@ async function setupTest() {
     options: () => ({
       adapters: buildAgentAdapters(
         parseConfig({ agents: { claude: { bin: 'bash', args: ['-c', 'sleep 30'] } } }),
+        buildMockHostServices(),
       ),
     }),
   });

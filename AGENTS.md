@@ -148,13 +148,13 @@ runs the app's CLI entrypoint from a checkout. `mods/` holds the `atc-bridge` Cl
   `--add-dir` and as `TMPDIR`. Stock Claude's folder also takes an allow-listed copy of the daemon
   host's own Claude config at each launch; atc reads that config and never writes it.
 - The `atc-bridge` mod's source lives in `mods/atc-bridge/`. `bun run build:atc-bridge` regenerates
-  its embedded copy in `packages/app/src/agents/atc-bridge-files.ts`, which compiled binaries write
-  out. The mods API is early access, so CI validates and tests the mod against one pinned Claude
-  Code version. Never write into the user's own agent config (Claude, Grok, or any future agent);
-  instrumentation an agent cannot take per-invocation is a documented self-install step. One
-  exception: a local launch that opts into clone trust adds one folder-trust entry for its verified
-  clone root to the user's Claude config, under Claude's own lock, since Claude takes trust no other
-  way.
+  its embedded copy in `packages/harnesses/claude/src/bridge/atc-bridge-files.ts`, which compiled
+  binaries write out. The mods API is early access, so CI validates and tests the mod against one
+  pinned Claude Code version. Never write into the user's own agent config (Claude, Grok, or any
+  future agent); instrumentation an agent cannot take per-invocation is a documented self-install
+  step. One exception: a local launch that opts into clone trust adds one folder-trust entry for its
+  verified clone root to the user's Claude config, under Claude's own lock, since Claude takes trust
+  no other way.
 - The config's `agents` map is the registry: one adapter per entry, keyed by the entry's id, so
   several entries of one kind coexist. A Claude-compatible backend is an entry with a `baseURL`, not
   a new adapter class per vendor: it gets its own agent id, its own generated settings file, and its

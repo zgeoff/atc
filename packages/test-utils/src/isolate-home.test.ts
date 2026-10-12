@@ -267,13 +267,14 @@ test("it writes a gateway's generated settings file inside the run's own home", 
     `import { expect, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'gateway-adapter')}';
+import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'gateway', 'gateway-adapter')}';
 import { parseConfig, stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
 
 test('it writes the settings file under the home', () => {
   const adapter = new GatewayAdapter(
     { id: 'isolation-probe', label: 'Isolation probe', mark: 'i', bin: 'claude', args: [], baseURL: 'https://gateway.example/anthropic', env: {} },
     parseConfig({}),
+    { atcArgv: ['atc'] },
   );
 
   adapter.buildResumeCommand('${ctx.dir}', undefined);
@@ -309,10 +310,10 @@ test("it writes the atc-bridge mod inside the run's own home by default", async 
     `import { expect, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { writeATCBridge } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'write-atc-bridge')}';
+import { writeATCBridge } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'bridge', 'write-atc-bridge')}';
 
 test('it writes the mod under the home', () => {
-  const dir = writeATCBridge();
+  const dir = writeATCBridge(['atc']);
 
   expect(realpathSync(dir)).toStartWith(
     realpathSync(join(process.env['ATC_TEST_HOME'] ?? '', 'home')) + sep,
@@ -320,7 +321,7 @@ test('it writes the mod under the home', () => {
 });
 
 test('it writes the mod again to the same directory', () => {
-  expect(writeATCBridge()).toBe(writeATCBridge());
+  expect(writeATCBridge(['atc'])).toBe(writeATCBridge(['atc']));
 });
 `,
   );

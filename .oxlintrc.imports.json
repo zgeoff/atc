@@ -2756,7 +2756,7 @@
       }
     },
     {
-      "files": ["packages/app/src/agents/with-claude-config-lock.test.ts"],
+      "files": ["packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -2775,8 +2775,20 @@
             ],
             "patterns": [
               {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
                 "regex": "^@atc/[^/]+/src(/|$)",
                 "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",

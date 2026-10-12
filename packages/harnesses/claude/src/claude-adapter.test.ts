@@ -4,15 +4,15 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ATC_BRIDGE_FILES } from '@atc/harness-claude/bridge/atc-bridge-files';
+import { buildStubClaudeHeadlessRun } from '@atc/harness-claude/testing/build-stub-claude-headless-run';
 import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
-import { getSourceEntry } from '@atc/test-utils/get-source-entry';
 import { KEYS } from '@atc/test-utils/keys';
 import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
-import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
-import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { ClaudeAdapter } from './claude-adapter';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
@@ -24,7 +24,11 @@ function setupTest() {
 }
 
 test('it resumes when no transcript was reported', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.canResume({})).toBeTrue();
 });
@@ -35,7 +39,11 @@ test('it resumes when the reported transcript exists', () => {
 
   writeFileSync(transcript, '');
 
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.canResume({ transcriptSource: transcript })).toBeTrue();
 });
@@ -43,13 +51,21 @@ test('it resumes when the reported transcript exists', () => {
 test('it does not resume when the reported transcript is gone', () => {
   const ctx = setupTest();
 
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
 });
 
 test('it maps a non-object hook payload to a bare heartbeat instead of throwing', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -63,7 +79,11 @@ test('it maps a non-object hook payload to a bare heartbeat instead of throwing'
 });
 
 test('it treats wrong-typed hook payload fields as absent instead of throwing', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -75,7 +95,11 @@ test('it treats wrong-typed hook payload fields as absent instead of throwing', 
 });
 
 test('it carries the whole last assistant message of a finished turn as its result', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -92,7 +116,11 @@ test('it carries the whole last assistant message of a finished turn as its resu
 });
 
 test('it marks a permission prompt notification as pending a permission answer', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -114,7 +142,11 @@ test('it marks a permission prompt notification as pending a permission answer',
 });
 
 test('it marks an idle notification as closing any permission prompt', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),
@@ -136,7 +168,11 @@ test('it marks an idle notification as closing any permission prompt', () => {
 });
 
 test('it takes inbox messages', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.takesMessages).toBeTrue();
 });
@@ -148,9 +184,13 @@ test('it runs a headless turn through the configured claude binary under the aut
   const adapter = new ClaudeAdapter(
     getAgentEntry(parseConfig({}), 'claude'),
     parseConfig({}),
-    runner,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
@@ -177,7 +217,11 @@ test('it advertises the documented model aliases and effort levels with the conf
     agents: { claude: { args: ['--model', 'opus', '--effort=high'] } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   expect(adapter.profile.spawnOptions).toStrictEqual({
     model: {
@@ -209,8 +253,11 @@ test('it advertises the documented model aliases and effort levels with the conf
 });
 
 test('it advertises no default model or effort when the configured arguments set none', () => {
-  const options = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}))
-    .profile.spawnOptions;
+  const options = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  ).profile.spawnOptions;
 
   expect(options.model.default).toBeNull();
   expect(options.effort.default).toBeNull();
@@ -227,9 +274,13 @@ test('it runs a headless turn under the permission mode its configured arguments
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
-    runner,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
@@ -254,7 +305,11 @@ test('it keeps the permission mode its configured arguments set in the command t
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
     "cd '/work/repo' && claude --permission-mode 'plan' --resume sess-1",
@@ -271,9 +326,12 @@ test('it restores a stock session in the mode its settings set', () => {
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -300,9 +358,12 @@ test('it gives a local session a scratch folder of its own as a working director
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: 'hi', resume: false }, toSessionID('s1'));
@@ -329,7 +390,11 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
     agents: { claude: { settings: { permissions: { defaultMode: 'plan' } } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: toAgentSessionID('sess-1') },
@@ -442,7 +507,11 @@ test('it plans a remote spawn in the permission mode its configured arguments se
     agents: { claude: { args: ['--permission-mode', 'plan'] } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -550,7 +619,11 @@ test('it plans a remote spawn in the permission mode its configured arguments se
 test('it quotes a configured binary path with spaces in the resume command', () => {
   const config = parseConfig({ agents: { claude: { bin: '/opt/Claude Code/claude' } } });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
     "cd '/work/repo' && '/opt/Claude Code/claude' --resume sess-1",
@@ -558,17 +631,18 @@ test('it quotes a configured binary path with spaces in the resume command', () 
 });
 
 test('it carries the settings file in the resume command of an entry with its own settings', () => {
-  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
 
   const config = parseConfig({
     agents: { claude: { settings: { model: 'opus' } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-    stateDir: join(ctx.dir, 'state'),
-    homeDir: join(ctx.dir, 'home'),
-  });
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
+    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+  );
 
   const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
 
@@ -588,7 +662,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -599,7 +673,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -610,7 +684,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -621,7 +695,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -632,7 +706,7 @@ test('it carries the settings file in the resume command of an entry with its ow
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -641,7 +715,7 @@ test('it carries the settings file in the resume command of an entry with its ow
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'claude'`,
+      command: `"/opt/atc/bin/atc" statusline --agent 'claude'`,
       padding: 0,
     },
   });
@@ -653,9 +727,12 @@ test('it restores a stock session without a permission-mode argument', () => {
   const adapter = new ClaudeAdapter(
     getAgentEntry(parseConfig({}), 'claude'),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -674,7 +751,11 @@ test('it restores a stock session without a permission-mode argument', () => {
 });
 
 test('it resumes a stock session outside atc without a permission-mode argument', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
     "cd '/work/repo' && claude --resume sess-1",
@@ -682,7 +763,11 @@ test('it resumes a stock session outside atc without a permission-mode argument'
 });
 
 test('it pastes a long line and submits it with a carriage return as a second write', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.planLineInput('a'.repeat(1600), { bracketedPaste: true })).toStrictEqual([
     `${KEYS.pasteOpen}${'a'.repeat(1600)}${KEYS.pasteClose}`,
@@ -691,13 +776,21 @@ test('it pastes a long line and submits it with a carriage return as a second wr
 });
 
 test('it takes no credential from the broker when the config holds no Claude auth', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.findAuthSelection()).toBeNull();
 });
 
 test('it seeds no clone trust when the config holds no Claude auth', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.planGuestWorkspaceTrust('/work/repo')).toBeNull();
 });
@@ -715,7 +808,11 @@ test('it selects the subscription token on the Anthropic API with the placeholde
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   expect(adapter.findAuthSelection()).toStrictEqual({
     gateway: {
@@ -751,9 +848,12 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
     },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-    homeDir: join(ctx.dir, 'home'),
-  });
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -915,9 +1015,12 @@ test("it ships the host's Claude config as the session's user settings and keeps
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-    homeDir: join(ctx.dir, 'home'),
-  });
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -1074,9 +1177,12 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
     },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-    homeDir: join(ctx.dir, 'home'),
-  });
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -1145,7 +1251,11 @@ test('it plans a guest spawn without a broker binding in the config of the host 
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -1272,7 +1382,11 @@ test.each([
     },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   const plan = () =>
     adapter.planGuestSpawn(
@@ -1305,6 +1419,7 @@ test('it refuses a subscription guest spawn whose entry env overrides the sign-i
       auth: { profiles: ['claude'], placeholderEnv: {} },
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   const plan = () =>
@@ -1340,6 +1455,7 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
       auth: { profiles: ['claude'], placeholderEnv: {} },
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   const plan = () =>
@@ -1381,9 +1497,12 @@ test('it refuses to start a subscription session in a host whose environment set
     agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-    homeDir: join(ctx.dir, 'home'),
-  });
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -1445,9 +1564,12 @@ test.each([
       agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
     });
 
-    const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-      homeDir: join(ctx.dir, 'home'),
-    });
+    const adapter = new ClaudeAdapter(
+      getAgentEntry(config, 'claude'),
+      config,
+      buildMockHostServices(),
+      { homeDir: join(ctx.dir, 'home') },
+    );
 
     const plan = adapter.planGuestSpawn(
       { prompt: '', resume: false },
@@ -1490,9 +1612,12 @@ test('it starts a subscription session with a seeded config folder in a host who
     agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-    homeDir: join(ctx.dir, 'home'),
-  });
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: '', resume: false },
@@ -1541,7 +1666,11 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
     agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
 
   const seed = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
 
@@ -1579,9 +1708,12 @@ test("it sets a profile's variables in a subscription guest's settings env and s
     agents: { claude: { auth: { profiles: ['claude', 'op'] } } },
   });
 
-  const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
-    homeDir: join(ctx.dir, 'home'),
-  });
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
 
   const plan = adapter.planGuestSpawn(
     { prompt: 'hi', resume: false },
@@ -1689,7 +1821,6 @@ test("it sets a profile's variables in a subscription guest's settings env and s
 });
 
 test("it leaves a profile's variables out of the local plan of an entry with a profile env", () => {
-  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
 
   const config = parseConfig({
@@ -1717,9 +1848,12 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
     config,
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: false });
@@ -1745,7 +1879,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1756,7 +1890,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1767,7 +1901,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1778,7 +1912,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1789,7 +1923,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'claude'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'claude'`,
               timeout: 5,
             },
           ],
@@ -1798,14 +1932,18 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'claude'`,
+      command: `"/opt/atc/bin/atc" statusline --agent 'claude'`,
       padding: 0,
     },
   });
 });
 
 test('it leaves the permission field out of a notification of another type', () => {
-  const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(parseConfig({}), 'claude'),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   const ev = adapter.normalizeHook({
     atcId: toSessionID('s1'),

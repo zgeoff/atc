@@ -3,15 +3,16 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createStubGuestCLIs } from '@atc/test-utils/create-stub-guest-clis';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { ClaudeAdapter } from '../agents/claude-adapter';
 import { buildHostServices } from '../build-host-services';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -31,7 +32,7 @@ async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-bridge-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',

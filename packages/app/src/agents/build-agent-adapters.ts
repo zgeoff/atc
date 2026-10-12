@@ -1,11 +1,12 @@
 import type { Config } from '@atc/config/config';
+import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
+import type { ClaudeHostPaths } from '@atc/harness-claude/claude-host-paths';
+import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
+import type { ClaudeHeadlessRun } from '@atc/harness-claude/headless/make-claude-headless-runner';
 import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import { ClaudeAdapter } from './claude-adapter';
-import type { ClaudeHostPaths } from './claude-host-paths';
+import type { HostServices } from '@atc/plugin-api/host-services';
 import { CodexAdapter } from './codex-adapter';
-import { GatewayAdapter } from './gateway-adapter';
 import { GrokAdapter } from './grok-adapter';
-import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 
 /**
  * Where the Claude and gateway adapters write their settings file and their
@@ -18,14 +19,16 @@ interface AgentAdapterPaths extends ClaudeHostPaths {
 
 /**
  * One adapter per registry entry, in registry order. A Claude entry with a
- * base URL is a gateway, and one without is stock Claude.
+ * base URL is a gateway, and one without is stock Claude. The Claude-family
+ * adapters run the atc CLI that the host's argv runs.
  */
 export function buildAgentAdapters(
   config: Config,
+  host: Pick<HostServices, 'atcArgv'>,
   headlessRun: ClaudeHeadlessRun | null = null,
   paths: AgentAdapterPaths = {},
 ): AgentAdapter[] {
-  const { bridgeTarget, ...hostPaths } = paths;
+  const options = { ...paths, headlessRun };
 
   return config.agents.map((entry): AgentAdapter => {
     if (entry.kind === 'codex') {
@@ -37,15 +40,9 @@ export function buildAgentAdapters(
     }
 
     if (entry.baseURL === undefined) {
-      return new ClaudeAdapter(entry, config, headlessRun, bridgeTarget, hostPaths);
+      return new ClaudeAdapter(entry, config, host, options);
     }
 
-    return new GatewayAdapter(
-      { ...entry, baseURL: entry.baseURL },
-      config,
-      headlessRun,
-      bridgeTarget,
-      hostPaths,
-    );
+    return new GatewayAdapter({ ...entry, baseURL: entry.baseURL }, config, host, options);
   });
 }

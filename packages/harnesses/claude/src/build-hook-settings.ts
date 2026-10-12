@@ -2,7 +2,6 @@ import type { AgentID } from '@atc/core/agent-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
 import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
 import { z } from 'zod';
-import { buildCLIArgv } from './build-cli-argv';
 
 /**
  * What one agent id needs on top of the shared instrumentation. The
@@ -32,13 +31,14 @@ export interface HookSettingsProfile {
  * happened to carry. The credential is never part of it: the helper command
  * supplies that at run time, so it never reaches a file atc writes.
  *
- * A session on a remote host gets the argv of the atc inside that host,
- * whose statusline renders that session's own state alone.
+ * The hooks run the atc CLI that `cliArgv` runs. A session on a remote host
+ * gets the argv of the atc inside that host, whose statusline renders that
+ * session's own state alone.
  */
 export function buildHookSettings(
   profile: HookSettingsProfile,
   statuslinePadding: number,
-  cliArgv: readonly string[] = buildCLIArgv(),
+  cliArgv: readonly string[],
 ): Record<string, unknown> {
   const entry = [
     {

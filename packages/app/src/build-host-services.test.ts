@@ -1,9 +1,10 @@
 import { expect, mock, test } from 'bun:test';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { getBuild } from '@atc/config/get-build';
 import { systemClock } from '@atc/core/system-clock';
 import { getSourceEntry } from '@atc/test-utils/get-source-entry';
+import { z } from 'zod';
 import { buildHostServices } from './build-host-services';
 
 test('it runs the CLI entrypoint under bun from a source tree', () => {
@@ -19,10 +20,22 @@ test("it reads the version from the app's manifest", () => {
 
 test('it stamps the version with every workspace package src tree of the checkout', () => {
   const appDir = dirname(dirname(getSourceEntry('atc')));
-  const packagesDir = dirname(appDir);
-  const roots = readdirSync(packagesDir).map((name) => join(packagesDir, name, 'src'));
+  const repoDir = dirname(dirname(appDir));
+  const text = readFileSync(join(repoDir, 'package.json'), 'utf8');
+  const workspaces = z.object({ packages: z.array(z.string()) });
+  const manifest = z.object({ workspaces }).parse(JSON.parse(text));
+
+  const roots = manifest.workspaces.packages.flatMap((pattern) => {
+    const glob = new Bun.Glob(`${pattern}/package.json`);
+
+    const found = [...glob.scanSync({ cwd: repoDir, onlyFiles: true })];
+
+    return found.map((path) => join(repoDir, dirname(path), 'src'));
+  });
+
   const host = buildHostServices();
 
+  expect(roots).toContain(join(repoDir, 'packages', 'harnesses', 'claude', 'src'));
   expect(host.build).toBe(getBuild({ version: host.version, roots }));
 });
 

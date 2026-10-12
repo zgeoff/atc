@@ -9,16 +9,17 @@ import type { HookSettingsProfile } from './build-hook-settings';
 /**
  * Writes the settings file passed to a wrangled session as
  * `claude --settings`, one per agent id, into the folder `dir`, and returns
- * its path. The statusline padding comes from the Claude settings in the
- * user's home `homeDir`.
+ * its path. Its hooks run the atc CLI that `cliArgv` runs. The statusline
+ * padding comes from the Claude settings in the user's home `homeDir`.
  */
 export function writeHookSettings(
   profile: HookSettingsProfile,
+  cliArgv: readonly string[],
   dir: string = stateDir,
   homeDir: string = resolveHomeDir(),
 ): string {
   const file = join(dir, `hook-settings-${profile.id}.json`);
-  const settings = buildHookSettings(profile, readStatuslinePadding(homeDir));
+  const settings = buildHookSettings(profile, readStatuslinePadding(homeDir), cliArgv);
 
   mkdirSync(dir, { recursive: true });
   writeFileSync(file, JSON.stringify(settings, null, 2));

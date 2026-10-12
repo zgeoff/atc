@@ -1,6 +1,6 @@
 import { mock } from 'bun:test';
 import type { Mock } from 'bun:test';
-import type { ClaudeHeadlessRun } from '../agents/make-claude-headless-runner';
+import type { ClaudeHeadlessRun } from '../headless/make-claude-headless-runner';
 
 /**
  * A stand-in for the Claude headless runner an adapter takes: it records

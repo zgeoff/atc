@@ -105,8 +105,8 @@ const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
   ],
   '@zgeoff/imp-client': ['packages/app/src/daemon/imp-client-port.ts'],
   '@anthropic-ai/claude-agent-sdk': [
-    'packages/app/src/agents/build-claude-query-options.ts',
-    'packages/app/src/agents/start-claude-headless-run.ts',
+    'packages/harnesses/claude/src/headless/build-claude-query-options.ts',
+    'packages/harnesses/claude/src/headless/start-claude-headless-run.ts',
   ],
 };
 

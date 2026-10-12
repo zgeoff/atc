@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { createStubRecordingCodex } from '@atc/test-utils/create-stub-recording-codex';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -68,6 +69,7 @@ test('it starts Codex on an imp in a Codex home of its own, signed in through th
           },
           agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',
@@ -227,6 +229,7 @@ test.each(['pending', 'needs_login'] as const)(
             },
             agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
           }),
+          buildMockHostServices(),
         ),
         targets: ctx.targets,
         defaultTarget: 'box',
@@ -281,6 +284,7 @@ test('it refuses a spawn on an impd without oauth secrets', async () => {
           },
           agents: { codex: { bin: ctx.fakeCodex, auth: { profiles: ['codex'] } } },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',

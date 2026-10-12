@@ -9,6 +9,24 @@ import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
+import { buildATCBridgeFiles } from '@atc/harness-claude/bridge/build-atc-bridge-files';
+import { writeATCBridge } from '@atc/harness-claude/bridge/write-atc-bridge';
+import { buildClaudeOverrideArgs } from '@atc/harness-claude/build-claude-override-args';
+import { buildHookSettings } from '@atc/harness-claude/build-hook-settings';
+import { buildRestoreModeArgs } from '@atc/harness-claude/build-restore-mode-args';
+import type { ClaudeAdapterOptions } from '@atc/harness-claude/claude-adapter-options';
+import { CLAUDE_EFFORT_LEVELS } from '@atc/harness-claude/claude-effort-levels';
+import { createLocalScratchDir } from '@atc/harness-claude/create-local-scratch-dir';
+import { findClaudePermissionMode } from '@atc/harness-claude/find-claude-permission-mode';
+import { buildClaudeConfigSeed } from '@atc/harness-claude/guest/build-claude-config-seed';
+import { buildClaudeGuestLaunch } from '@atc/harness-claude/guest/build-claude-guest-launch';
+import { buildClaudeProjectSettingsCheck } from '@atc/harness-claude/guest/build-claude-project-settings-check';
+import { makeClaudeHeadlessRunner } from '@atc/harness-claude/headless/make-claude-headless-runner';
+import { parseClaudeTranscriptLine } from '@atc/harness-claude/parse-claude-transcript-line';
+import { planClaudeLineInput } from '@atc/harness-claude/plan-claude-line-input';
+import { resolveClaudePermissionMode } from '@atc/harness-claude/resolve-claude-permission-mode';
+import { SESSION_SCRATCH_FOLDER } from '@atc/harness-claude/session-scratch-folder';
+import { writeHookSettings } from '@atc/harness-claude/write-hook-settings';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -25,29 +43,11 @@ import type {
   SpawnPlan,
 } from '@atc/plugin-api/agent-adapter';
 import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
+import type { HostServices } from '@atc/plugin-api/host-services';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
-import { buildATCBridgeFiles } from './build-atc-bridge-files';
-import { buildClaudeConfigSeed } from './build-claude-config-seed';
-import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
-import { buildClaudeOverrideArgs } from './build-claude-override-args';
-import { buildClaudeProjectSettingsCheck } from './build-claude-project-settings-check';
-import { buildHookSettings } from './build-hook-settings';
-import { buildRestoreModeArgs } from './build-restore-mode-args';
-import { ClaudeAdapter } from './claude-adapter';
-import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
-import type { ClaudeHostPaths } from './claude-host-paths';
-import { createLocalScratchDir } from './create-local-scratch-dir';
-import { findClaudePermissionMode } from './find-claude-permission-mode';
-import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
-import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
-import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
-import { planClaudeLineInput } from './plan-claude-line-input';
-import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
-import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
-import { writeATCBridge } from './write-atc-bridge';
-import { writeHookSettings } from './write-hook-settings';
+import { ClaudeAdapter } from '../claude-adapter';
 
 /**
  * The Claude CLI pointed at a Claude-compatible backend other than the
@@ -91,17 +91,23 @@ export class GatewayAdapter implements AgentAdapter {
 
   private readonly bridgeTarget: string | undefined;
 
-  private readonly hostPaths: ClaudeHostPaths;
+  private readonly hostPaths: ClaudeAdapterOptions;
+
+  // The argv that runs this atc's CLI, which the settings file's hooks and
+  // the mod's commands run.
+  private readonly atcArgv: readonly string[];
 
   constructor(
     gateway: GatewayConfig,
     config: Config,
-    headlessRun: ClaudeHeadlessRun | null = null,
-    bridgeTarget?: string,
-    hostPaths: ClaudeHostPaths = {},
+    host: Pick<HostServices, 'atcArgv'>,
+    options: ClaudeAdapterOptions = {},
   ) {
-    this.bridgeTarget = bridgeTarget;
-    this.hostPaths = hostPaths;
+    const headlessRun = options.headlessRun ?? null;
+
+    this.bridgeTarget = options.bridgeTarget;
+    this.hostPaths = options;
+    this.atcArgv = host.atcArgv;
     this.gateway = gateway;
     this.config = config;
     this.id = gateway.id;
@@ -127,9 +133,11 @@ export class GatewayAdapter implements AgentAdapter {
         env: {},
       },
       config,
-      null,
-      undefined,
-      hostPaths,
+      host,
+      {
+        ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
+        ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
+      },
     );
 
     this.headlessRunner =
@@ -502,6 +510,7 @@ export class GatewayAdapter implements AgentAdapter {
           : { apiKeyHelper: this.gateway.apiKeyHelper }),
         ...(this.gateway.settings === undefined ? {} : { settings: this.gateway.settings }),
       },
+      this.atcArgv,
       this.hostPaths.stateDir,
       this.hostPaths.homeDir,
     );
@@ -510,7 +519,7 @@ export class GatewayAdapter implements AgentAdapter {
   }
 
   private writeBridge(): string {
-    this.bridgeDir ??= writeATCBridge(this.bridgeTarget);
+    this.bridgeDir ??= writeATCBridge(this.atcArgv, this.bridgeTarget);
 
     return this.bridgeDir;
   }
