@@ -814,7 +814,7 @@ export class ImpHarness implements HarnessHandle {
   // The first end counts: it confirms the exit or leaves it unconfirmed,
   // settles a start that has not started with the refusal, and settles
   // every wait.
-  private stopFollowing(confirmed: boolean, refusal: DaemonError): void {
+  private stopFollowing(confirmed: boolean, refusal: Readonly<DaemonError>): void {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
 
@@ -862,7 +862,7 @@ export class ImpHarness implements HarnessHandle {
   }
 
   private isStarted(): boolean {
-    return this.state.getSnapshot().matches({ run: { following: { link: 'live' } } });
+    return this.state.getSnapshot().matches({ run: { following: { connection: 'live' } } });
   }
 
   private isDone(): boolean {

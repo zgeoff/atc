@@ -21,7 +21,7 @@ test('it starts following with no started connection, nothing sent, and its star
 
   expect(ctx.actor.getSnapshot().value).toStrictEqual({
     run: {
-      following: { link: 'waiting', process: 'unsent', screen: 'resuming', kill: 'none' },
+      following: { connection: 'waiting', process: 'unsent', screen: 'resuming', kill: 'none' },
     },
     start: 'pending',
   });
@@ -36,7 +36,9 @@ test('it resumes the screen, takes the waiting kill, and settles the start when 
   ctx.actor.send({ type: 'CONNECTION_STARTED' });
 
   expect(ctx.actor.getSnapshot().value).toStrictEqual({
-    run: { following: { link: 'live', process: 'sent', screen: 'resuming', kill: 'none' } },
+    run: {
+      following: { connection: 'live', process: 'sent', screen: 'resuming', kill: 'none' },
+    },
     start: 'started',
   });
 });
@@ -47,7 +49,9 @@ test('it waits for the next connection after a started one ends', () => {
   ctx.actor.send({ type: 'CONNECTION_STARTED' });
   ctx.actor.send({ type: 'CONNECTION_ENDED' });
 
-  expect(ctx.actor.getSnapshot().matches({ run: { following: { link: 'waiting' } } })).toBe(true);
+  expect(ctx.actor.getSnapshot().matches({ run: { following: { connection: 'waiting' } } })).toBe(
+    true,
+  );
 });
 
 test('it confirms the exit and refuses the start when the harness ends with an exit before it started', () => {

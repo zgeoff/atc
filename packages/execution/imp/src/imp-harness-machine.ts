@@ -20,7 +20,7 @@ interface ImpHarnessContext {
  * the harness performs every effect and reads its state back from here.
  *
  * Two regions run side by side. `run` follows the session until it ends:
- * while following, `link` holds whether the open connection has started,
+ * while following, `connection` holds whether the open connection has started,
  * `process` whether the request that starts the process went out, `screen`
  * whether the next connection replaces the screen, and `kill` whether a
  * kill waits for the next connection to start. A connection that starts
@@ -55,7 +55,7 @@ export const IMP_HARNESS_MACHINE = setup({
             ],
           },
           states: {
-            link: {
+            connection: {
               initial: 'waiting',
               states: {
                 waiting: { on: { CONNECTION_STARTED: 'live' } },
