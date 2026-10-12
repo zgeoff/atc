@@ -30,8 +30,8 @@ test's subprocesses.
   first change, and the `isolate-home` preload puts that value back after the test.
 - `bun run test:isolation` runs a gate inside a synthetic home of canary files and fails when the
   gate reads, changes, or adds to them. Run it after adding anything that writes generated state. It
-  runs on Linux with GNU coreutils only, and stops with a message anywhere else; no canary check
-  covers macOS or BSD.
+  catches a read through access times, so only on a filesystem that updates them, and CI runs it on
+  Linux.
 
 ## The PTY harness
 

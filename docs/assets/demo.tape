@@ -1,4 +1,4 @@
-# Records docs/assets/demo.gif. Run `scripts/record-demo.sh` from the repo root: it
+# Records docs/assets/demo.gif. Run `bun run demo:record` from the repo root: it
 # starts an isolated daemon with staged sessions and a curated directory list, then
 # plays this tape against it.
 

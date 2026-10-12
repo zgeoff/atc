@@ -33,6 +33,8 @@ pre-push:
   jobs:
     - name: format:check
       run: bun run format:check
+    - name: lint:shell
+      run: bun run lint:shell
     - name: check:imports
       run: bun run check:imports
     - name: check:manifests

@@ -1,0 +1,148 @@
+name: Checks
+
+# The static checks, the test suite, and the isolation run, shared by the PR
+# and main workflows; each caller's own checks job gates on this one.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    # a hung step (a script that never exits, a wedged process) must fail the
+    # run, not burn runner hours
+    timeout-minutes: 10
+    env:
+      # CI never commits, but skip hook install/execution regardless
+      LEFTHOOK: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Audit Dependencies
+        run: bun run audit
+
+      - name: Dead Code
+        run: bun run deadcode
+
+      - name: Import Direction
+        run: bun run check:imports
+
+      - name: Package Manifests
+        run: bun run check:manifests
+
+      - name: Gateway Reach
+        run: bun run check:reach
+
+      - name: Import Rule Disables
+        run: bun run check:disable-baseline
+
+      - name: Format
+        run: bun run format:check
+
+      # shfmt and shellcheck are pinned with their published hashes, so what
+      # this step checks does not move with the runner image
+      - name: Install shfmt and shellcheck
+        env:
+          SHFMT_VERSION: v3.13.1
+          SHFMT_SHA256: fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1
+          SHELLCHECK_VERSION: v0.11.0
+          SHELLCHECK_SHA256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+        run: |
+          bin="$RUNNER_TEMP/shell-tools"
+          mkdir -p "$bin"
+          curl -fsSL -o "$bin/shfmt" \
+            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "$SHFMT_SHA256  $bin/shfmt" | sha256sum -c -
+          chmod +x "$bin/shfmt"
+          archive="shellcheck-$SHELLCHECK_VERSION.linux.x86_64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/$archive"
+          echo "$SHELLCHECK_SHA256  $RUNNER_TEMP/$archive" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
+          mv "$RUNNER_TEMP/shellcheck-$SHELLCHECK_VERSION/shellcheck" "$bin/shellcheck"
+          echo "$bin" >> "$GITHUB_PATH"
+
+      - name: Shell Lint
+        run: bun run lint:shell
+
+      - name: Lint
+        run: bun run lint:full
+
+      - name: Doc links
+        run: bash .claude/skills/docs-writing/scripts/check-links.sh
+
+      # Some READMEs and docs/ pages fail the shared length or prose rules, so this step reports
+      # its findings without failing the run. The root package is private, but its README is the
+      # product README, so it is checked against the package limits.
+      - name: Doc length and prose
+        continue-on-error: true
+        run: bash .claude/skills/docs-writing/scripts/check-length.sh --package README.md
+
+      - name: Typecheck
+        run: bun run typecheck
+
+  # the suite runs in two shards, balanced by the committed per-file timings
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      LEFTHOOK: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # the embedded shell tests run shellcheck and fail without it
+      - name: Install shellcheck
+        run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+
+      - name: Test
+        run: bun run test --shard=${{ matrix.shard }}/2
+
+  # the suite once more inside a home of canary files, failing when a test
+  # reads, changes, or adds to a home it does not own
+  isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LEFTHOOK: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # the embedded shell tests run shellcheck and fail without it
+      - name: Install shellcheck
+        run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+
+      - name: Test Isolation
+        run: bun run test:isolation
