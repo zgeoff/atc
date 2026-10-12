@@ -39,6 +39,7 @@
         "bun-pty": "catalog:",
         "citty": "catalog:",
         "kysely": "catalog:",
+        "lru-cache": "catalog:",
         "ts-pattern": "catalog:",
         "type-fest": "catalog:",
         "xstate": "catalog:",
@@ -100,6 +101,7 @@
     "knip": "6.24.0",
     "kysely": "0.29.5",
     "lefthook": "2.1.10",
+    "lru-cache": "11.5.3",
     "oxfmt": "0.57.0",
     "oxlint": "1.73.0",
     "oxlint-tsgolint": "0.24.0",
@@ -789,6 +791,8 @@
     "lines-and-columns": ["lines-and-columns@1.2.4", "", {}, "sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg=="],
 
     "locate-path": ["locate-path@6.0.0", "", { "dependencies": { "p-locate": "^5.0.0" } }, "sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw=="],
+
+    "lru-cache": ["lru-cache@11.5.3", "", {}, "sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg=="],
 
     "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="],
 

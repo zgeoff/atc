@@ -16,6 +16,7 @@
     "bun-pty": "catalog:",
     "citty": "catalog:",
     "kysely": "catalog:",
+    "lru-cache": "catalog:",
     "ts-pattern": "catalog:",
     "type-fest": "catalog:",
     "xstate": "catalog:",
