@@ -869,7 +869,12 @@ export class SessionManager {
     );
 
     if (plan.admission !== null) {
-      this.updateLaunchRevision(s, plan, start?.created ?? true);
+      this.updateLaunchRevision(
+        s,
+        plan.admission.revision,
+        plan.heldRevision,
+        start?.created ?? true,
+      );
     }
 
     if (provider.remote) {
@@ -2157,19 +2162,16 @@ export class SessionManager {
   // that attached to a process the host still ran keeps the revision that
   // process launched under, or the one the host held before this launch,
   // and shows that the newer one applies at its next launch.
-  private updateLaunchRevision(s: Session, plan: HarnessPlan, created: boolean): void {
-    const admission = plan.admission;
-
-    if (admission === null) {
-      return;
-    }
-
-    s.authRevision = created
-      ? admission.revision
-      : (s.authRevision ?? plan.heldRevision ?? admission.revision);
+  private updateLaunchRevision(
+    s: Session,
+    revision: number,
+    heldRevision: number | null,
+    created: boolean,
+  ): void {
+    s.authRevision = created ? revision : (s.authRevision ?? heldRevision ?? revision);
 
     if (s.pty !== null && this.isAuthOutdated(s)) {
-      s.lastMsg = formatAuthNotice(this.authRevisions.get(s.hostKey) ?? admission.revision);
+      s.lastMsg = formatAuthNotice(this.authRevisions.get(s.hostKey) ?? revision);
 
       this.onEvent('state', s);
       this.emitChange();
