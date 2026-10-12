@@ -9,17 +9,14 @@
 // several lines. Prints the count and exits 1 when it exceeds the baseline.
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { z } from 'zod';
 import { collectSourceFiles } from './collect-source-files';
 import { collectTokens } from './collect-tokens';
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
-
-  const baseline = (
-    JSON.parse(readFileSync(join(root, BASELINE_FILE), 'utf8')) as {
-      readonly importRuleDisables: number;
-    }
-  ).importRuleDisables;
+  const text = readFileSync(join(root, BASELINE_FILE), 'utf8');
+  const baseline = BASELINE_SCHEMA.parse(JSON.parse(text)).importRuleDisables;
 
   const found = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir)).flatMap((file) =>
     collectDirectives(readFileSync(join(root, file), 'utf8')).map((line) => `${file}:${line}`),
@@ -47,6 +44,7 @@ function main(): void {
 }
 
 const BASELINE_FILE = 'scripts/disable-baseline.json';
+const BASELINE_SCHEMA = z.object({ importRuleDisables: z.number().int().nonnegative() });
 const SOURCE_DIRS = ['packages', 'e2e', 'scripts'];
 
 const IMPORT_RULES: ReadonlySet<string> = new Set([

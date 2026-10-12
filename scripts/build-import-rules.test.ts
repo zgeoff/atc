@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { runCommand } from '../packages/app/src/test-utils/run-command';
 import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 import { IMPORT_RULES_FILE, buildImportRules } from './build-import-rules';
@@ -173,7 +174,11 @@ test.each([
     },
   );
 
-  expect(JSON.parse(linted.stdout).diagnostics).toPartiallyContain({
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
+
+  expect(report.diagnostics).toPartiallyContain({
     code: 'eslint(no-restricted-imports)',
     filename: file,
     help,
@@ -211,10 +216,11 @@ test.each([
     },
   );
 
-  const diagnostics: unknown = JSON.parse(linted.stdout).diagnostics;
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
 
-  expect(diagnostics).toBeArray();
-  expect(diagnostics).not.toPartiallyContain({ code: 'eslint(no-restricted-imports)' });
+  expect(report.diagnostics).not.toPartiallyContain({ code: 'eslint(no-restricted-imports)' });
 });
 
 test('it keeps the synchronous spawn ban in a package override', async () => {
@@ -232,7 +238,11 @@ test('it keeps the synchronous spawn ban in a package override', async () => {
     { cwd: ctx.dir },
   );
 
-  expect(JSON.parse(linted.stdout).diagnostics).toPartiallyContain({
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
+
+  expect(report.diagnostics).toPartiallyContain({
     code: 'eslint(no-restricted-imports)',
     help: "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069).",
   });

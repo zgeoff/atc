@@ -13,6 +13,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
+import { z } from 'zod';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
 
@@ -93,9 +94,8 @@ function loadPackageMap(root: string): Map<string, MapRow> {
     ]),
   );
 
-  const interim = JSON.parse(readFileSync(join(root, MAP_DIR, 'interim.json'), 'utf8')) as Readonly<
-    Record<string, string>
-  >;
+  const interimText = readFileSync(join(root, MAP_DIR, 'interim.json'), 'utf8');
+  const interim = z.record(z.string(), z.string()).parse(JSON.parse(interimText));
 
   const map = new Map<string, MapRow>();
 
@@ -224,10 +224,10 @@ function findModule(known: ReadonlySet<string>, base: string): string | null | u
   return path.endsWith('.json') ? undefined : null;
 }
 
-interface PackageManifest {
-  readonly name?: string;
-  readonly exports?: Readonly<Record<string, string>>;
-}
+const PACKAGE_MANIFEST_SCHEMA = z.object({
+  name: z.string().optional(),
+  exports: z.record(z.string(), z.string()).optional(),
+});
 
 /**
  * Each workspace entry point's specifier, such as `@atc/store/sqlite`, keyed
@@ -241,7 +241,8 @@ function collectExports(root: string): Map<string, string> {
       continue;
     }
 
-    const manifest = JSON.parse(readFileSync(join(root, path), 'utf8')) as PackageManifest;
+    const text = readFileSync(join(root, path), 'utf8');
+    const manifest = PACKAGE_MANIFEST_SCHEMA.parse(JSON.parse(text));
 
     for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
       const specifier = subpath === '.' ? manifest.name : `${manifest.name}/${subpath.slice(2)}`;
@@ -280,9 +281,9 @@ async function collectBundled(root: string, entry: string): Promise<string[]> {
       throw new Error(`bun build ${entry} failed: ${await new Response(build.stderr).text()}`);
     }
 
-    const meta = (await Bun.file(join(out, 'meta.json')).json()) as {
-      readonly inputs: Readonly<Record<string, unknown>>;
-    };
+    const metafile: unknown = await Bun.file(join(out, 'meta.json')).json();
+
+    const meta = z.object({ inputs: z.record(z.string(), z.unknown()) }).parse(metafile);
 
     return Object.keys(meta.inputs).filter((input) => !input.split('/').includes('node_modules'));
   } finally {

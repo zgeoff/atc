@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, normalize, resolve } from 'node:path';
+import { z } from 'zod';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
 import { PACKAGE_RULES } from './package-rules';
@@ -61,12 +62,21 @@ function main(): void {
 
 // The root package's own source directories.
 const ROOT_DIRS = ['e2e', 'scripts'];
+const DEPENDENCIES_SCHEMA = z.record(z.string(), z.string()).optional();
+const WORKSPACES_SCHEMA = z.object({ packages: z.array(z.string()).optional() }).optional();
+
+const MANIFEST_SCHEMA = z.object({
+  name: z.string().optional(),
+  workspaces: WORKSPACES_SCHEMA,
+  dependencies: DEPENDENCIES_SCHEMA,
+  devDependencies: DEPENDENCIES_SCHEMA,
+});
 
 interface Manifest {
-  readonly name?: string;
-  readonly workspaces?: { readonly packages?: readonly string[] };
-  readonly dependencies?: Readonly<Record<string, string>>;
-  readonly devDependencies?: Readonly<Record<string, string>>;
+  readonly name?: string | undefined;
+  readonly workspaces?: { readonly packages?: readonly string[] | undefined } | undefined;
+  readonly dependencies?: Readonly<Record<string, string>> | undefined;
+  readonly devDependencies?: Readonly<Record<string, string>> | undefined;
 }
 
 interface WorkspacePackage {
@@ -96,7 +106,9 @@ function collectPackages(root: string): WorkspacePackage[] {
 }
 
 function readManifest(root: string, dir: string): Manifest {
-  return JSON.parse(readFileSync(join(root, dir, 'package.json'), 'utf8')) as Manifest;
+  const text = readFileSync(join(root, dir, 'package.json'), 'utf8');
+
+  return MANIFEST_SCHEMA.parse(JSON.parse(text));
 }
 
 function checkManifest(pkg: WorkspacePackage): string[] {
