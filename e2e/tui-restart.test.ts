@@ -115,10 +115,17 @@ test('it stops a daemon of an older build when the user asks for the update and 
   ctx.reset();
   ctx.write('u');
 
+  await ctx.waitFor('restarting daemon');
+
   await older.exited;
 
   await ctx.waitFor('idle');
 
+  // The status bar is drawn on a timer, so one the menu scheduled can still
+  // draw the stale mark after the reset; only what follows the restart's
+  // own status bar counts.
+  const screen = ctx.read();
+
   expect(older.signalCode).toBe('SIGTERM');
-  expect(ctx.read()).not.toInclude('update ready');
+  expect(screen.slice(screen.lastIndexOf('restarting daemon'))).not.toInclude('update ready');
 });
