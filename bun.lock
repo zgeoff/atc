@@ -43,6 +43,9 @@
         "@atc/lifecycle": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atc/source-dirs": "workspace:*",
+        "@atc/source-git": "workspace:*",
+        "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@better-auth/mcp": "catalog:",
         "@better-auth/oauth-provider": "catalog:",
@@ -202,6 +205,35 @@
         "@atc/test-utils": "workspace:*",
       },
     },
+    "packages/sources/dirs": {
+      "name": "@atc/source-dirs",
+      "dependencies": {
+        "@atc/core": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+      },
+    },
+    "packages/sources/git": {
+      "name": "@atc/source-git",
+      "dependencies": {
+        "@atc/core": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+      },
+    },
+    "packages/sources/github": {
+      "name": "@atc/source-github",
+      "dependencies": {
+        "@atc/plugin-api": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
+        "tiny-invariant": "catalog:",
+      },
+    },
     "packages/store": {
       "name": "@atc/store",
       "dependencies": {
@@ -328,6 +360,12 @@
     "@atc/plugin-api": ["@atc/plugin-api@workspace:packages/plugin-api"],
 
     "@atc/protocol": ["@atc/protocol@workspace:packages/protocol"],
+
+    "@atc/source-dirs": ["@atc/source-dirs@workspace:packages/sources/dirs"],
+
+    "@atc/source-git": ["@atc/source-git@workspace:packages/sources/git"],
+
+    "@atc/source-github": ["@atc/source-github@workspace:packages/sources/github"],
 
     "@atc/store": ["@atc/store@workspace:packages/store"],
 

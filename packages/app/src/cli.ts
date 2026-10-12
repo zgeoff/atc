@@ -582,7 +582,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const targets = await import('./daemon/build-execution-targets');
   const sourceOrder = await import('./sources/build-sources');
   const builtinSources = await import('./sources/collect-builtin-sources');
-  const zoxide = await import('./shared/collect-zoxide-dirs');
+  const zoxide = await import('@atc/source-dirs/collect-zoxide-dirs');
   const home = await import('@atc/config/resolve-home-dir');
 
   // Test harnesses shrink the outbound queue to force overflow

@@ -3,7 +3,7 @@ import { isAbsolute } from 'node:path';
 import { expandHome } from '@atc/core/expand-home';
 import { formatHomePath } from '@atc/core/format-home-path';
 import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api/types';
-import { collectRootDirs } from '../../shared/collect-root-dirs';
+import { collectRootDirs } from './collect-root-dirs';
 
 // What the source reads besides the spawn history a request brings.
 interface DirsSourceServices {

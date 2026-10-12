@@ -1,0 +1,13 @@
+{
+  "name": "@atc/source-git",
+  "private": true,
+  "description": "The git URL source: a repository at a typed git URL",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*"
+  }
+}

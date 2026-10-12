@@ -6,8 +6,8 @@ import type {
   RecordedPullRequest,
   RecordedWorktree,
 } from '@atc/protocol/published-record';
+import { runGH } from '@atc/source-github/run-gh';
 import { z } from 'zod';
-import { runGH } from '../sources/github/run-gh';
 import { findHostBranch } from './find-host-branch';
 import { runHostGit } from './run-host-git';
 

@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { buildDirsSource } from '@atc/source-dirs/build-dirs-source';
+import { buildGitSource } from '@atc/source-git/build-git-source';
+import { buildGitHubSource } from '@atc/source-github/build-github-source';
 import { buildSources } from './build-sources';
-import { buildDirsSource } from './dirs/build-dirs-source';
-import { buildGitSource } from './git/build-git-source';
-import { buildGitHubSource } from './github/build-github-source';
 
 test('it offers the available sources in the default order when the config gives none', () => {
   const git = buildGitSource();
