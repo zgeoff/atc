@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import type { AgentID } from '@atc/core/agent-id';
 import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
+import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
 import { isGitURL } from '@atc/core/is-git-url';
 import { isRecord } from '@atc/core/is-record';
 import { DaemonError } from '../protocol/daemon-error';
@@ -138,7 +139,6 @@ interface ChosenRef {
 // The root the daemon picks a destination under on a remote target without
 // a configured one, as the confirm screen shows it.
 const AUTO_ROOT = '~/.local/share/atc/workspaces';
-const FULL_SHA_PATTERN = /^(?:[\da-f]{40}|[\da-f]{64})$/u;
 const SHORT_SHA_PATTERN = /^[\da-f]{7,63}$/u;
 
 // A request the step waits on, and the number that tells its answer from a
@@ -1597,7 +1597,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    if (FULL_SHA_PATTERN.test(typed)) {
+    if (COMMIT_ID_PATTERN.test(typed)) {
       this.applyRef({ ref: null, sha: typed });
 
       return;

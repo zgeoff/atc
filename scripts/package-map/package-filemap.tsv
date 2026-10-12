@@ -363,6 +363,7 @@ src/shared/collect-root-dirs.ts	source-dirs		packages/sources/dirs/src/collect-r
 src/shared/collect-targets.ts	config		packages/config/src/collect-targets.ts	split: envelope in config; per-kind target options to execution-local and execution-imp
 src/shared/collect-workspaces-config.ts	config		packages/config/src/collect-workspaces-config.ts	
 src/shared/collect-zoxide-dirs.ts	source-dirs		packages/sources/dirs/src/collect-zoxide-dirs.ts	source-dirs (and app cli.ts): the TUI fallback (spawn-picker.ts:7) is deleted (decision 8)
+src/shared/commit-id-pattern.ts	core		packages/core/src/commit-id-pattern.ts	new in ticket 3
 src/shared/config.ts	config		packages/config/src/config.ts	split: config/paths (resolvePaths) and config/load envelope; per-plugin sections move to plugins
 src/shared/daemon-id.ts	core		packages/core/src/daemon-id.ts	
 src/shared/default-git-transports.ts	config		packages/config/src/default-git-transports.ts	
