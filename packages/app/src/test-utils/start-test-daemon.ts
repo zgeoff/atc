@@ -162,6 +162,16 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
     await stopping?.stop();
   };
 
+  // An event outside the contract fails the test once the daemon stops. A
+  // throw inside the socket's read would drop the lines after the event.
+  const contractErrors: string[] = [];
+
+  stack.defer(() => {
+    if (contractErrors.length > 0) {
+      throw new Error(contractErrors.join('\n'));
+    }
+  });
+
   stack.defer(stop);
 
   const boot = async () => {
@@ -191,7 +201,11 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
     client.onEvent = (event) => {
       events.push(event);
 
-      assertContractEvent(event);
+      try {
+        assertContractEvent(event);
+      } catch (error) {
+        contractErrors.push(String(error));
+      }
     };
 
     return { daemon, client };
