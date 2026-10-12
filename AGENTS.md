@@ -221,3 +221,8 @@ test home and the PTY harness); load both. Two rules worth restating here: never
 changes to the integration contract), and every gate is invoked as a root package script. One
 exception to the first rule: `test:atc-bridge` runs `claude plugin validate` and
 `claude plugin test` on the mod, and neither starts a session.
+
+The Claude config lock's test runs against `proper-lockfile`, the lock library Claude Code bundles,
+and not against Claude itself. So the manual check before an integration-contract merge also
+confirms that the pinned Claude Code version refreshes a held lock well inside the age at which atc
+takes a lock over as stale.

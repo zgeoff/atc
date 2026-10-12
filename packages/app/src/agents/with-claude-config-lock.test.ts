@@ -1,8 +1,17 @@
-import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, rmdirSync, statSync, utimesSync } from 'node:fs';
+import { expect, mock, onTestFinished, test } from 'bun:test';
+import {
+  existsSync,
+  mkdirSync,
+  realpathSync,
+  rmdirSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
+import { lock } from 'proper-lockfile';
 import { buildStubClock } from '../test-utils/build-stub-clock';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 
@@ -104,4 +113,40 @@ test('it creates a config folder that does not exist yet', async () => {
 
   expect(ran).toBeTrue();
   expect(existsSync(join(ctx.dir, 'fresh'))).toBeTrue();
+});
+
+test('it refuses proper-lockfile, the Claude CLI lock library, while it holds the lock', async () => {
+  const ctx = setupTest();
+  const configPath = join(realpathSync(ctx.dir), '.claude.json');
+
+  writeFileSync(configPath, '{}');
+
+  const attempt = await withClaudeConfigLock(configPath, () =>
+    lock(configPath, { retries: 0 }).catch((error: unknown) => error),
+  );
+
+  expect(attempt).toMatchObject({ code: 'ELOCKED' });
+});
+
+test('it waits while proper-lockfile, the Claude CLI lock library, holds the lock', async () => {
+  const ctx = setupTest();
+  const configPath = join(realpathSync(ctx.dir), '.claude.json');
+
+  writeFileSync(configPath, '{}');
+
+  const release = await lock(configPath, { retries: 0 });
+
+  let released: Promise<void> | null = null;
+
+  onTestFinished(() => released ?? release());
+
+  const onBusy = mock(() => {
+    released ??= release();
+  });
+
+  const ran = await withClaudeConfigLock(configPath, () => Promise.resolve(true), { onBusy });
+
+  expect(onBusy).toHaveBeenCalled();
+  expect(ran).toBeTrue();
+  expect(existsSync(`${configPath}.lock`)).toBeFalse();
 });
