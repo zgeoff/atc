@@ -382,6 +382,7 @@ src/shared/is-subscription-override-variable.ts	core		packages/core/src/is-subsc
 src/shared/legacy-agent-keys.ts	config		packages/config/src/legacy-agent-keys.ts	
 src/shared/load-listener-tokens.ts	config		packages/config/src/load-listener-tokens.ts	
 src/shared/load-mcp-http-config.ts	config		packages/config/src/load-mcp-http-config.ts	
+src/shared/make-keyed-lock.ts	core		packages/core/src/make-keyed-lock.ts	new in ticket 3
 src/shared/make-single-flight.ts	core		packages/core/src/make-single-flight.ts	
 src/shared/message-id.ts	core		packages/core/src/message-id.ts	
 src/shared/normalize-client-name.ts	mcp	auth	packages/mcp/src/auth/normalize-client-name.ts	

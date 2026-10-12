@@ -1,3 +1,4 @@
+import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import { DaemonError } from '../protocol/daemon-error';
 import type { EffectTarget, IdempotencyRecord } from '../store/idempotency-record';
 import type { StateStore } from '../store/state-store';
@@ -65,7 +66,7 @@ export class IdempotencyLedger {
 
   // One promise chain per key, so two requests under the same key never
   // interleave their claim and completion on one daemon.
-  private readonly locks = new Map<string, Promise<void>>();
+  private readonly withKeyLock = makeKeyedLock<string>();
 
   constructor(store: StateStore, principal: string, log: (line: string) => void) {
     this.store = store;
@@ -73,34 +74,14 @@ export class IdempotencyLedger {
     this.log = log;
   }
 
-  async run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
+  run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
     const lockKey = JSON.stringify([
       call.keyed.principal ?? this.principal,
       call.operation,
       call.keyed.key,
     ]);
 
-    const previous = this.locks.get(lockKey) ?? Promise.resolve();
-    const released = Promise.withResolvers<void>();
-
-    const chained = (async () => {
-      await previous;
-      await released.promise;
-    })();
-
-    this.locks.set(lockKey, chained);
-
-    await previous;
-
-    try {
-      return await this.runClaimed(call);
-    } finally {
-      released.resolve();
-
-      if (this.locks.get(lockKey) === chained) {
-        this.locks.delete(lockKey);
-      }
-    }
+    return this.withKeyLock(lockKey, () => this.runClaimed(call));
   }
 
   private async runClaimed<T extends Readonly<Record<string, unknown>>>(

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import type { SessionID } from '@atc/core/session-id';
 import type { DeclaredScope } from '../protocol/parse-declared-scope';
 import type { PublishedRecord, RecordedScope } from '../protocol/published-record';
@@ -66,7 +67,7 @@ export class PublishedRecords {
 
   // The change under way for each session, which the next change to the
   // same record waits on, so two additions never write over each other.
-  private readonly changes = new Map<SessionID, Promise<void>>();
+  private readonly withSessionTurn = makeKeyedLock<SessionID>();
 
   constructor(options: PublishedRecordsOptions) {
     this.options = options;
@@ -102,23 +103,8 @@ export class PublishedRecords {
   // Checks an added scope on the session's host, adds each entry the record
   // lacks, and places the changed copy. A scope that adds nothing leaves
   // the record and its revision as they were.
-  async updateScope(subject: RecordSubject, declared: DeclaredScope): Promise<PublishedRecord> {
-    const before = this.changes.get(subject.session);
-    const turn = Promise.withResolvers<void>();
-
-    this.changes.set(subject.session, turn.promise);
-
-    try {
-      await before;
-
-      return await this.writeScope(subject, declared);
-    } finally {
-      turn.resolve();
-
-      if (this.changes.get(subject.session) === turn.promise) {
-        this.changes.delete(subject.session);
-      }
-    }
+  updateScope(subject: RecordSubject, declared: DeclaredScope): Promise<PublishedRecord> {
+    return this.withSessionTurn(subject.session, () => this.writeScope(subject, declared));
   }
 
   findRecord(sessionID: SessionID): Promise<PublishedRecord | null> {

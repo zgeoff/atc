@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import type { SessionID } from '@atc/core/session-id';
 import { DaemonError } from '../protocol/daemon-error';
 import type { RuntimeAuthBinding, RuntimeAuthGrant } from '../store/runtime-auth-binding';
@@ -68,8 +69,8 @@ export class RuntimeAuthBinder {
 
   private readonly now: () => number;
 
-  // The tail of each host's chain of calls, which never rejects.
-  private readonly locks = new Map<SessionID, Promise<void>>();
+  // Runs each call on a host after the one before it on that host.
+  private readonly withHostLock = makeKeyedLock<SessionID>();
 
   // The admissions on each host whose request has not gone out yet. A
   // revoke, a rebind or a forget cancels them before it writes anything,
@@ -557,28 +558,6 @@ export class RuntimeAuthBinder {
         log(
           `atc could not settle the runtime auth of host ${row.hostKey} (${formatError(error)}); it stays blocked`,
         );
-      }
-    }
-  }
-
-  // Runs each call on a host after the one before it on that host.
-  private async withHostLock<T>(hostKey: SessionID, run: () => Promise<T>): Promise<T> {
-    const before = this.locks.get(hostKey);
-    const turn = Promise.withResolvers<void>();
-
-    this.locks.set(hostKey, turn.promise);
-
-    try {
-      if (before !== undefined) {
-        await before;
-      }
-
-      return await run();
-    } finally {
-      turn.resolve();
-
-      if (this.locks.get(hostKey) === turn.promise) {
-        this.locks.delete(hostKey);
       }
     }
   }
