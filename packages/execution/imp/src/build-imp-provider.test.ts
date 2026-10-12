@@ -187,6 +187,41 @@ test("it builds an imp provider that names imps under the target's impPrefix", (
   expect(built.provider.getImpName('s1')).toBe('harness-s1');
 });
 
+test('it builds an imp provider that refuses a changed auth selection when the target leaves rebindChangedAuth unset', () => {
+  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9' }, '1.0.0', {});
+
+  invariant(built.provider !== null, 'expected an imp provider');
+
+  expect(built.provider.rebindChangedAuth).toBe(false);
+});
+
+test('it builds an imp provider that rebinds a changed auth selection when the target sets rebindChangedAuth', () => {
+  const built = buildImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', rebindChangedAuth: true },
+    '1.0.0',
+    {},
+  );
+
+  invariant(built.provider !== null, 'expected an imp provider');
+
+  expect(built.provider.rebindChangedAuth).toBe(true);
+});
+
+test('it reports a target whose rebindChangedAuth is not a boolean, without a provider', () => {
+  const built = buildImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', rebindChangedAuth: 'yes' },
+    '1.0.0',
+    {},
+  );
+
+  expect(built).toStrictEqual({
+    provider: null,
+    problem: 'target "box" must give rebindChangedAuth as true or false',
+  });
+});
+
 test.each([
   [''],
   ['*'],

@@ -39,6 +39,12 @@ interface BindingRequest {
   readonly binding: AuthBinding;
 }
 
+// How a verify moves a binding whose auth selection changed to the current
+// one: the log each rebind writes its line to.
+interface ChangedAuthRebind {
+  readonly log: (line: string) => void;
+}
+
 // What a launch was planned under: the binding's revision and hash, and
 // the spawn attempt still provisioning the host, or null for a launch on a
 // host already ready.
@@ -57,7 +63,8 @@ interface LaunchAdmission {
  * imp, then each grant, each step recorded before the next. A resume, a
  * restore, and a sub-session joining the host verify it: the full gate,
  * the imp's identity, and the exact grant set, and nothing is granted
- * again. A rebind moves the binding to a new revision. A revoke and a
+ * again, unless the launch's target rebinds a changed selection. A rebind
+ * moves the binding to a new revision. A revoke and a
  * forget first record the block that stops every launch, then check only
  * that the token may manage the recorded imp and that the imp is still
  * the one recorded, never a secret's rules or a complete grant set.
@@ -154,11 +161,20 @@ export class RuntimeAuthBinder {
    * each secret must hold exactly the bound rules, the imp under the name
    * must be the one recorded, and impd must hold exactly the bound grants.
    * Resolves to the binding.
+   *
+   * Given a rebind, a binding whose hash alone differs from the current
+   * one moves to it instead of refusing: the imp must still be the one
+   * recorded and hold exactly the grants both bindings keep, and then the
+   * rebind's own steps run, which cancel no admission of another harness
+   * on the host. A failed rebind refuses and leaves the binding blocked as
+   * one, and the next launch given a rebind tries it again. Each rebind
+   * logs one line with the revisions and the profiles it adds and drops.
    */
   verifyBinding(
     host: CredentialBroker,
     hostKey: SessionID,
     binding: AuthBinding,
+    rebind: ChangedAuthRebind | null = null,
   ): Promise<RuntimeAuthBinding> {
     return this.withHostLock(hostKey, async () => {
       const row = await this.store.findAuthBinding(hostKey);
@@ -171,7 +187,12 @@ export class RuntimeAuthBinder {
         );
       }
 
-      if (row.state !== 'ready') {
+      const isChanged = row.bindingHash !== binding.hash;
+
+      const isRebindable =
+        rebind !== null && isChanged && (row.state === 'ready' || row.state === 'rebind_failed');
+
+      if (row.state !== 'ready' && !isRebindable) {
         throw new DaemonError(
           'auth_blocked',
           `the runtime auth of host ${hostKey} is ${row.state}; rebind it to launch again`,
@@ -179,7 +200,11 @@ export class RuntimeAuthBinder {
         );
       }
 
-      if (row.bindingHash !== binding.hash) {
+      if (isRebindable) {
+        return this.updateChangedBinding(host, row, binding, rebind);
+      }
+
+      if (isChanged) {
         throw new DaemonError(
           'auth_rebind_required',
           `the auth profiles host ${hostKey} uses changed since it was bound; rebind it to adopt them`,
@@ -227,6 +252,64 @@ export class RuntimeAuthBinder {
 
       return row;
     });
+  }
+
+  // Moves a binding whose selection changed to the current one, under the
+  // host's lock: the imp's identity and the grants both bindings keep are
+  // checked first, so a grant lost outside atc still refuses rather than
+  // being granted again.
+  private async updateChangedBinding(
+    host: CredentialBroker,
+    row: RuntimeAuthBinding,
+    binding: AuthBinding,
+    rebind: ChangedAuthRebind,
+  ): Promise<RuntimeAuthBinding> {
+    const imp = await tryReadImp(host, row.impName);
+
+    if (imp === null || imp.id !== row.impID || row.impName !== host.getHostName(row.hostKey)) {
+      throw new DaemonError(
+        'auth_runtime_mismatch',
+        `imp ${row.impName} is no longer the imp host ${row.hostKey} was bound to`,
+        { host: row.hostKey, imp: row.impName, recordedID: row.impID, actualID: imp?.id ?? null },
+      );
+    }
+
+    const held = await tryReadGrants(host, row.impName);
+
+    const recorded = parseBoundSecrets(row.bindingJSON);
+
+    const bound = new Set(binding.secrets.map((secret) => secret.secret));
+
+    const missing = recorded.filter((secret) => bound.has(secret) && !held.includes(secret));
+    const extra = held.filter((secret) => !recorded.includes(secret));
+
+    if (missing.length > 0) {
+      throw new DaemonError(
+        'auth_grant_missing',
+        `imp ${row.impName} no longer holds ${missing.join(', ')}; atc never grants it again on its own, so rebind the host`,
+        { host: row.hostKey, missing },
+      );
+    }
+
+    if (extra.length > 0) {
+      throw new DaemonError(
+        'auth_grants_mismatch',
+        `imp ${row.impName} holds ${extra.join(', ')}, which its binding does not grant`,
+        { host: row.hostKey, extra },
+      );
+    }
+
+    const revision = await this.updateBindingLocked(host, row, binding);
+
+    const before = parseBoundProfiles(row.bindingJSON);
+    const added = binding.profiles.filter((profile) => !before.includes(profile));
+    const removed = before.filter((profile) => !binding.profiles.includes(profile));
+
+    rebind.log(
+      `atc: rebound the runtime auth of host ${row.hostKey} from revision ${String(row.revision)} to revision ${String(revision)} (added profiles: ${formatNames(added)}; removed profiles: ${formatNames(removed)})`,
+    );
+
+    return this.requireBinding(row.hostKey);
   }
 
   /**
@@ -381,85 +464,96 @@ export class RuntimeAuthBinder {
 
       const row = await this.requireBinding(hostKey);
 
-      // A spawn whose session listed but never recorded its start leaves a
-      // provisioned imp a rebind may take on.
-      const isProvisioned =
-        row.state === 'provisioning' && row.rebind === null && row.impID !== null;
-
-      if (
-        row.state !== 'ready' &&
-        row.state !== 'revoked' &&
-        row.state !== 'rebind_failed' &&
-        !isProvisioned
-      ) {
-        throw new DaemonError(
-          'auth_blocked',
-          `the runtime auth of host ${hostKey} is ${row.state}, which a rebind cannot move on from`,
-          { host: hostKey, state: row.state },
-        );
-      }
-
-      if (row.impID === null) {
-        throw new DaemonError(
-          'auth_runtime_mismatch',
-          `host ${hostKey} never recorded its imp, so atc cannot rebind it`,
-          { host: hostKey, imp: row.impName, recordedID: null, actualID: null },
-        );
-      }
-
-      try {
-        await verifyGate(host, row.impName, binding);
-
-        const imp = await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
-
-        if (imp === null) {
-          throw new BrokerAuthorityError(
-            'auth_runtime_mismatch',
-            `imp ${row.impName} is gone, so atc cannot rebind it`,
-            { imp: row.impName, recordedID: row.impID, actualID: null },
-          );
-        }
-      } catch (error) {
-        throw toAuthRefusal(error);
-      }
-
-      const revision = row.revision + 1;
-      const attemptID = randomUUID();
-      const bindingJSON = JSON.stringify(binding);
-
-      await this.store.updateAuthBinding(
-        hostKey,
-        {
-          state: 'provisioning',
-          rebind: { revision, bindingHash: binding.hash, bindingJSON, attemptID },
-        },
-        this.now(),
-      );
-
-      try {
-        await this.applyRebindGrants(host, row, binding, revision, attemptID);
-      } catch (error) {
-        await this.removeRebindGrants(host, hostKey, row.impName, attemptID);
-        await this.store.updateAuthBinding(hostKey, { state: 'rebind_failed' }, this.now());
-
-        throw toAuthRefusal(error);
-      }
-
-      await this.store.updateAuthBinding(
-        hostKey,
-        {
-          state: 'ready',
-          revision,
-          bindingHash: binding.hash,
-          bindingJSON,
-          attemptID,
-          rebind: null,
-        },
-        this.now(),
-      );
-
-      return revision;
+      return this.updateBindingLocked(host, row, binding);
     });
+  }
+
+  // The rebind's own steps on a binding read under the host's lock, which
+  // leave the admissions on the host to the caller.
+  private async updateBindingLocked(
+    host: CredentialBroker,
+    row: RuntimeAuthBinding,
+    binding: AuthBinding,
+  ): Promise<number> {
+    const hostKey = row.hostKey;
+
+    // A spawn whose session listed but never recorded its start leaves a
+    // provisioned imp a rebind may take on.
+    const isProvisioned = row.state === 'provisioning' && row.rebind === null && row.impID !== null;
+
+    if (
+      row.state !== 'ready' &&
+      row.state !== 'revoked' &&
+      row.state !== 'rebind_failed' &&
+      !isProvisioned
+    ) {
+      throw new DaemonError(
+        'auth_blocked',
+        `the runtime auth of host ${hostKey} is ${row.state}, which a rebind cannot move on from`,
+        { host: hostKey, state: row.state },
+      );
+    }
+
+    if (row.impID === null) {
+      throw new DaemonError(
+        'auth_runtime_mismatch',
+        `host ${hostKey} never recorded its imp, so atc cannot rebind it`,
+        { host: hostKey, imp: row.impName, recordedID: null, actualID: null },
+      );
+    }
+
+    try {
+      await verifyGate(host, row.impName, binding);
+
+      const imp = await verifyCleanupAuthority(host, { name: row.impName, id: row.impID });
+
+      if (imp === null) {
+        throw new BrokerAuthorityError(
+          'auth_runtime_mismatch',
+          `imp ${row.impName} is gone, so atc cannot rebind it`,
+          { imp: row.impName, recordedID: row.impID, actualID: null },
+        );
+      }
+    } catch (error) {
+      throw toAuthRefusal(error);
+    }
+
+    const revision = row.revision + 1;
+    const attemptID = randomUUID();
+    const bindingJSON = JSON.stringify(binding);
+
+    await this.store.updateAuthBinding(
+      hostKey,
+      {
+        state: 'provisioning',
+        rebind: { revision, bindingHash: binding.hash, bindingJSON, attemptID },
+      },
+      this.now(),
+    );
+
+    try {
+      await this.applyRebindGrants(host, row, binding, revision, attemptID);
+    } catch (error) {
+      await this.removeRebindGrants(host, hostKey, row.impName, attemptID);
+      await this.store.updateAuthBinding(hostKey, { state: 'rebind_failed' }, this.now());
+
+      throw toAuthRefusal(error);
+    }
+
+    await this.store.updateAuthBinding(
+      hostKey,
+      {
+        state: 'ready',
+        revision,
+        bindingHash: binding.hash,
+        bindingJSON,
+        attemptID,
+        rebind: null,
+      },
+      this.now(),
+    );
+
+    return revision;
   }
 
   /**
@@ -1015,6 +1109,19 @@ function parseBoundSecrets(json: string): string[] {
 
     return bound.success ? [bound.data.secret] : [];
   });
+}
+
+// A stored binding's profile names, or none when they do not read.
+const BINDING_PROFILES_SCHEMA = z.object({ profiles: z.array(z.string()) });
+
+function parseBoundProfiles(json: string): string[] {
+  const parsed = BINDING_PROFILES_SCHEMA.safeParse(JSON.parse(json));
+
+  return parsed.success ? parsed.data.profiles : [];
+}
+
+function formatNames(names: readonly string[]): string {
+  return names.length === 0 ? 'none' : names.join(', ');
 }
 
 function buildRevocationPending(hostKey: SessionID, pending: readonly string[]): DaemonError {

@@ -20,6 +20,7 @@ export const IMP_PLUGIN = definePlugin({
     'memoryMib',
     'guestDir',
     'guestATC',
+    'rebindChangedAuth',
   ],
   configSchema: () => EXECUTION_TARGET_CONFIG_SCHEMA,
   create: (config, host) => {

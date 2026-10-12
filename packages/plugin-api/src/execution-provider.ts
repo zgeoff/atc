@@ -38,6 +38,11 @@ export interface ExecutionProvider {
   // session that needs one.
   readonly brokerAuth?: CredentialBroker;
 
+  // Whether a launch behind the broker on a host whose agent's auth
+  // selection changed since the host was bound moves the host's binding to
+  // the current selection instead of refusing. Absent refuses.
+  readonly rebindChangedAuth?: boolean;
+
   // Readies the host a harness is about to start on: a remote host is
   // created when missing, woken when asleep, and held awake while its
   // harnesses run. Rejects with the refusal before any harness starts. A

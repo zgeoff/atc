@@ -19,18 +19,23 @@ import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 
+interface SetupConfig {
+  readonly rebindChangedAuth: boolean;
+}
+
 /**
  * A stub imp port whose impd holds nothing until the test adds it, and
  * the imp provider over it, which each test hands to the daemon it starts
- * as the target `box`.
+ * as the target `box`; the config chooses whether that target rebinds a
+ * changed auth selection.
  */
-function setupTest() {
+function setupTest(config?: SetupConfig) {
   const tmp = setupTempDir('atc-runtime-auth-');
   const port = createStubImpPort();
 
   const provider = new ImpProvider(
     port,
-    { guestDir: join(tmp.dir, 'g') },
+    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: config?.rebindChangedAuth ?? false },
     { atcBinary: null, version: '1.0.0' },
   );
 
@@ -3186,5 +3191,400 @@ test('it restores a session whose broker is not ready without a terminal', async
 
   expect(listed).toStrictEqual({
     sessions: [expect.objectContaining({ id, alive: false, kind: 'headless' })],
+  });
+});
+
+test('it restores every session on a host whose agent added a profile on a target that rebinds a changed selection, granting it at the next revision', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      restoreBootTimeoutMs: 10,
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  const child = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a2',
+    parent: parentID,
+  });
+
+  const childID = String(getRecord(child, 'session')['id']);
+  const imp = getOnlyImpName(ctx.port);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  // The stub agent never reports it booted, so the restore starts the
+  // sub-session once the parent's boot cap runs out.
+  await waitFor(async () => {
+    const got = await daemon.client.sendRequest('session.get', { session: childID });
+
+    expect(getRecord(got, 'session')['kind']).toBe('pty');
+  });
+
+  const listed = await daemon.client.sendRequest('session.list');
+  const grants = await ctx.port.readGrants(imp);
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
+
+  const binding = await store.findAuthBinding(toSessionID(parentID));
+
+  expect(listed).toStrictEqual({
+    sessions: expect.toIncludeSameMembers([
+      expect.objectContaining({ id: parentID, kind: 'pty', alive: true }),
+      expect.objectContaining({ id: childID, kind: 'pty', alive: true }),
+    ]),
+  });
+
+  expect(grants).toIncludeSameMembers(['glm', 'judge']);
+  expect(binding).toMatchObject({ state: 'ready', revision: 2 });
+});
+
+test('it revokes the grant of a dropped profile as it restores a session on a target that rebinds a changed selection', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let judgeSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const imp = getOnlyImpName(ctx.port);
+
+  judgeSelected = false;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+  const grants = await ctx.port.readGrants(imp);
+
+  expect(getRecord(got, 'session')).toMatchObject({ kind: 'pty', alive: true });
+  expect(grants).toStrictEqual(['glm']);
+});
+
+test('it refuses to restore a session whose agent added a profile on a target that leaves a changed selection to a rebind', async () => {
+  const ctx = setupTest({ rebindChangedAuth: false });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const imp = getOnlyImpName(ctx.port);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+  const grants = await ctx.port.readGrants(imp);
+
+  const adopted = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(getRecord(got, 'session')['kind']).toBe('headless');
+  expect(grants).toStrictEqual(['glm']);
+  expect(adopted).rejects.toMatchObject({ code: 'auth_rebind_required' });
+});
+
+test('it refuses to restore a session whose agent dropped the broker credential on a target that rebinds a changed selection', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: false,
+    isSelected: () => authSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  authSelected = false;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+  const store = await StateStore.open(daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
+
+  const binding = await store.findAuthBinding(toSessionID(id));
+
+  const adopted = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(getRecord(got, 'session')['kind']).toBe('headless');
+  expect(binding).toMatchObject({ state: 'ready', revision: 1 });
+  expect(adopted).rejects.toMatchObject({ code: 'auth_rebind_required' });
+});
+
+test('it shows a running harness on the host that its auth revision applies at the next launch once a revive rebinds a changed selection', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  const child = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a2',
+    parent: parentID,
+  });
+
+  const childID = String(getRecord(child, 'session')['id']);
+
+  await daemon.client.sendRequest('session.kill', { session: childID });
+
+  judgeSelected = true;
+
+  await daemon.client.sendRequest('session.adopt', { session: childID, cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: parentID });
+
+  expect(getRecord(got, 'session')).toMatchObject({
+    alive: true,
+    lastMsg: 'auth revision 2 applies at the next launch',
   });
 });

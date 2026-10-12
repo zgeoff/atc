@@ -40,11 +40,13 @@ import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
  * The options an `imp` target takes beside its provider: the image a new
  * imp boots, the memory it gets, the folder inside each imp that atc's
  * files go under, the path of an atc binary already installed in the
- * image, and the prefix every imp name the target builds starts with.
- * None holds a credential.
+ * image, the prefix every imp name the target builds starts with, and
+ * whether a launch rebinds a host whose auth selection changed. None holds
+ * a credential.
  */
 interface ImpTargetOptions {
   readonly impPrefix?: string;
+  readonly rebindChangedAuth?: boolean;
   readonly image?: string;
   readonly memoryMib?: number;
   readonly guestDir?: string;
@@ -129,6 +131,8 @@ export class ImpProvider implements ExecutionProvider {
 
   readonly brokerAuth: CredentialBroker;
 
+  readonly rebindChangedAuth: boolean;
+
   private readonly port: ImpPort;
 
   private readonly target: ImpTargetOptions;
@@ -168,6 +172,7 @@ export class ImpProvider implements ExecutionProvider {
     this.port = port;
     this.target = target;
     this.impPrefix = target.impPrefix ?? IMP_PREFIX;
+    this.rebindChangedAuth = target.rebindChangedAuth ?? false;
     this.leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
     this.atcBinary = options.atcBinary === undefined ? findOwnLinuxBinary() : options.atcBinary;

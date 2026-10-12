@@ -20,7 +20,9 @@ interface ImpProviderBuild {
  * before each impd call and connection. `impPrefix` starts every imp name
  * the target builds, `atc-` when absent, and must be a lowercase letter
  * followed by up to 10 lowercase letters, digits or hyphens, so the name
- * it builds with a host key's 20 characters stays within impd's 31. `image`,
+ * it builds with a host key's 20 characters stays within impd's 31.
+ * `rebindChangedAuth`, false when absent, lets a launch rebind a host whose
+ * auth selection changed, and must be a boolean when given. `image`,
  * `memoryMib`, `guestDir`, and `guestATC` pass through. No provider when
  * `url` is missing, so the
  * target lists and refuses every spawn. Both token options, either one not
@@ -55,10 +57,20 @@ export function buildImpProvider(
     };
   }
 
+  const rebindChangedAuth = options['rebindChangedAuth'];
+
+  if (rebindChangedAuth !== undefined && typeof rebindChangedAuth !== 'boolean') {
+    return {
+      provider: null,
+      problem: `target ${JSON.stringify(id)} must give rebindChangedAuth as true or false`,
+    };
+  }
+
   const provider = new ImpProvider(
     new ImpClientPort({ url, readToken: source.readToken }),
     {
       ...(impPrefix === undefined ? {} : { impPrefix }),
+      ...(rebindChangedAuth === undefined ? {} : { rebindChangedAuth }),
       ...pickString(options, 'image'),
       ...pickString(options, 'guestDir'),
       ...pickString(options, 'guestATC'),
