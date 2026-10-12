@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core/is-record';
+import { truncate } from '@atc/core/truncate';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type { TranscriptRow, TranscriptToolUse } from './agent-adapter';
 
@@ -103,5 +104,5 @@ function formatToolInput(input: unknown): string {
     }
   }
 
-  return summary.length <= 200 ? summary : `${summary.slice(0, 199)}…`;
+  return truncate(summary, 200);
 }
