@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Readies the guest folder and links bin/atc to the image's atc again, as a
 # cold boot of an imp leaves it without the link.
 # $1: the guest folder.

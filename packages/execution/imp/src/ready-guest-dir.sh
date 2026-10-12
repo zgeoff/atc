@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Readies the guest folder and exits 0 only when the configured guest atc
 # is an executable, or when no guest atc is configured.
 # $1: the guest folder.
