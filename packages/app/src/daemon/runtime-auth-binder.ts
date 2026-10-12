@@ -257,7 +257,9 @@ export class RuntimeAuthBinder {
   // Moves a binding whose selection changed to the current one, under the
   // host's lock: the imp's identity and the grants both bindings keep are
   // checked first, so a grant lost outside atc still refuses rather than
-  // being granted again.
+  // being granted again. A failed rebind first takes back the grants its
+  // attempt added, as a daemon start does, so one whose removal failed
+  // before does not read as a grant the binding never made.
   private async updateChangedBinding(
     host: CredentialBroker,
     row: RuntimeAuthBinding,
@@ -272,6 +274,10 @@ export class RuntimeAuthBinder {
         `imp ${row.impName} is no longer the imp host ${row.hostKey} was bound to`,
         { host: row.hostKey, imp: row.impName, recordedID: row.impID, actualID: imp?.id ?? null },
       );
+    }
+
+    if (row.state === 'rebind_failed' && row.rebind !== null) {
+      await this.removeRebindGrants(host, row.hostKey, row.impName, row.rebind.attemptID);
     }
 
     const held = await tryReadGrants(host, row.impName);

@@ -3418,6 +3418,117 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
   expect(grants).toStrictEqual(['glm']);
 });
 
+test('it retries a failed rebind at the next verify given a rebind after taking back a grant whose removal failed', async () => {
+  const ctx = await setupTest();
+
+  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
+  // imps and may grant `glm`, `judge` and `zeta`, and impd holds each as a
+  // custom bearer secret for its own host.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge', 'zeta'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('zeta', 'custom', [
+    { host: 'zeta.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.binder.createBinding(ctx.host, {
+    hostKey: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:test',
+    binding: buildMockAuthBinding({
+      profiles: ['glm', 'judge'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+        {
+          secret: 'judge',
+          kind: 'custom',
+          rules: [{ host: 'judge.example', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h1',
+    }),
+  });
+
+  await ctx.binder.updateReady(toSessionID('s1'), attemptID);
+
+  // impd removes no grant, so the rebind fails on the dropped judge and
+  // leaves the zeta grant it added behind.
+  ctx.port.setGrantRemovalFailure('INTERNAL');
+
+  const failed = ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm', 'zeta'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+        {
+          secret: 'zeta',
+          kind: 'custom',
+          rules: [{ host: 'zeta.example', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h2',
+    }),
+    { log: mock() },
+  );
+
+  await expect(failed).toReject();
+
+  const left = await ctx.port.readGrants('atc-s1');
+
+  ctx.port.setGrantRemovalFailure(null);
+
+  const verified = await ctx.binder.verifyBinding(
+    ctx.host,
+    toSessionID('s1'),
+    buildMockAuthBinding({
+      profiles: ['glm', 'zeta'],
+      secrets: [
+        {
+          secret: 'glm',
+          kind: 'custom',
+          rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+        },
+        {
+          secret: 'zeta',
+          kind: 'custom',
+          rules: [{ host: 'zeta.example', header: 'authorization', scheme: 'bearer' }],
+        },
+      ],
+      hash: 'h2',
+    }),
+    { log: mock() },
+  );
+
+  const grants = await ctx.port.readGrants('atc-s1');
+
+  expect(left).toIncludeSameMembers(['glm', 'judge', 'zeta']);
+  expect(verified).toMatchObject({ state: 'ready', revision: 2, bindingHash: 'h2' });
+  expect(grants).toIncludeSameMembers(['glm', 'zeta']);
+});
+
 test('it keeps the pending admission of another harness on the host through a rebind at a verify', async () => {
   const ctx = await setupTest();
 

@@ -2289,7 +2289,7 @@ export class SessionManager {
     const verified =
       auth?.mode === 'verify'
         ? await timer.withStep('auth-binding', () =>
-            this.verifyHarnessAuth(provider, hostKey, auth),
+            this.verifyHarnessAuth(adapter.id, provider, hostKey, auth),
           )
         : null;
 
@@ -2413,13 +2413,23 @@ export class SessionManager {
   // Verifies the binding a revive or a sub-session launches under, moving
   // a changed selection to the current one on a target that rebinds it, and
   // marks each harness on the host that launched under an older revision.
+  // Only a host whose every session runs the launching agent rebinds, since
+  // two agents that select different profiles would each move the host
+  // back on their own launches.
   private async verifyHarnessAuth(
+    agent: AgentID,
     provider: ExecutionProvider,
     hostKey: SessionID,
     auth: HarnessAuthSetup,
   ): Promise<RuntimeAuthBinding> {
+    const isSoleAgent = this.sessions.every(
+      (other) => other.hostKey !== hostKey || other.agent === agent,
+    );
+
     const rebind =
-      provider.rebindChangedAuth === true ? { log: (line: string) => this.log(line) } : null;
+      provider.rebindChangedAuth === true && isSoleAgent
+        ? { log: (line: string) => this.log(line) }
+        : null;
 
     const row = await this.requireAuthBinder().verifyBinding(
       auth.host,

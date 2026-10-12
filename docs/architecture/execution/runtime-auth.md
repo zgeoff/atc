@@ -60,11 +60,13 @@ On an imp target that sets `rebindChangedAuth`, a revive or a restore whose auth
 hash as recorded moves the host to the current selection instead of refusing. The owner writes both
 the profile change and the option, so the new grants follow the owner's own intent. The imp must
 still be the one recorded and must hold every grant that both selections keep, so a withdrawn grant
-still refuses. The launch then runs the rebind's own steps, logs one line with the host, both
-revisions, and the profiles added and removed, and plans its harness under the new revision. A
-rebind that fails leaves the host blocked at its old revision, and the next such launch tries it
-again. A harness already running on the host keeps the settings it launched with, and its session
-shows that the new revision applies at its next launch.
+still refuses. A host that also runs a session of another agent refuses as before, since two agents
+that select different profiles would each move the host back on their own launches. The launch then
+runs the rebind's own steps, logs one line with the host, both revisions, and the profiles added and
+removed, and plans its harness under the new revision. A rebind that fails leaves the host blocked
+at its old revision, and the next such launch takes back the grants the failed attempt added and
+tries it again. A harness already running on the host keeps the settings it launched with, and its
+session shows that the new revision applies at its next launch.
 
 ## Admission
 

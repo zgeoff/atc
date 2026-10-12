@@ -3508,6 +3508,97 @@ test('it refuses to restore a session whose agent dropped the broker credential 
   expect(adopted).rejects.toMatchObject({ code: 'auth_rebind_required' });
 });
 
+test('it refuses to restore a session whose agent added a profile on a target that rebinds a changed selection while another agent shares its host', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const kimi = buildStubBrokeredAgentAdapter({
+    id: 'kimi',
+    brokerRequired: true,
+    isSelected: () => true,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm, kimi],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'kimi',
+    target: 'box',
+    resume: 'a2',
+    parent: parentID,
+  });
+
+  const imp = getOnlyImpName(ctx.port);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const adopted = daemon.client.sendRequest('session.adopt', {
+    session: parentID,
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(adopted).rejects.toMatchObject({ code: 'auth_rebind_required' });
+
+  const grants = await ctx.port.readGrants(imp);
+
+  expect(grants).toStrictEqual(['glm']);
+});
+
 test('it shows a running harness on the host that its auth revision applies at the next launch once a revive rebinds a changed selection', async () => {
   const ctx = setupTest({ rebindChangedAuth: true });
   let judgeSelected = false;
