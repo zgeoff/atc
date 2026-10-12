@@ -217,7 +217,10 @@ never appear in a test file.
   conditional setup flag.
 - A test file declares one function, `setupTest()`, and nothing else. A helper the tests want goes
   one of three ways: inline it where it is used, swap it for a registered matcher, or move it to the
-  shared test utils with tests of its own. A file with nothing to wire has no `setupTest()`.
+  shared test utils with tests of its own. A file with nothing to wire has no `setupTest()`. One
+  exception: a collection-time skip gate may keep its awaited probe, and named gates derived from
+  it, at module level. Only `skipIf` reads them, each repeated condition is named once, and a
+  comment gives the reason: Bun 1.4.2's `skipIf` takes a boolean and has no in-body skip.
 - Each test file keeps its own `setupTest()`. A shared one gathers a flag for every suite that uses
   it.
 
@@ -262,9 +265,10 @@ Each kind of state has one cleanup tool.
 `try`/`finally` never appears in a test. `onTestFinished` runs on failure as well, keeps teardown
 beside the acquisition, and needs no `?.` guard for a resource the test never reached. A shared test
 util may register `onTestFinished` for its callers. These helpers must run inside a test. A test of
-such a helper proves its cleanup ran by registering an `onTestFinished` hook after the helper's
-call, so the hook runs after the helper's release, and asserting in that hook. This is the only
-place an assertion leaves the test body.
+such a helper proves its cleanup ran by asserting in an `onTestFinished` hook. `onTestFinished`
+hooks run first-in, first-out, so register that check after the helper's call, and register the
+removal of any directory the check reads after the check, not immediately after creating it. This is
+the only place an assertion leaves the test body.
 
 When resources have cleanup dependencies, register one callback that closes them in the required
 order. Every cleanup must run even if another cleanup throws. Use a disposable stack when reverse
