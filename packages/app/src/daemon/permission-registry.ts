@@ -1,3 +1,4 @@
+import { LRUCache } from 'lru-cache';
 import type { SessionID } from '../shared/session-id';
 import { systemClock } from '../shared/system-clock';
 import type { Clock } from '../shared/system-clock';
@@ -35,8 +36,10 @@ export class PermissionRegistry {
   private readonly pending = new Map<string, PendingRequest>();
 
   // Each answered request's session, kept to tell already_answered from
+  // unknown. It keeps the 1000 most recently used, so a long-lived daemon
+  // cannot grow it without bound; an answer to a forgotten request gets
   // unknown.
-  private readonly resolved = new Map<string, SessionID>();
+  private readonly resolved = new LRUCache<string, SessionID>({ max: 1000 });
 
   private counter = 0;
 
@@ -106,16 +109,6 @@ export class PermissionRegistry {
     entry.cancelTimeout();
     this.pending.delete(id);
     this.resolved.set(id, entry.req.sessionID);
-
-    // The resolved map only exists to tell already_answered from unknown;
-    // cap it so a long-lived daemon cannot grow it without bound.
-    if (this.resolved.size > 1000) {
-      for (const oldest of this.resolved.keys()) {
-        this.resolved.delete(oldest);
-        break;
-      }
-    }
-
     this.onResolved(id, decision);
   }
 }

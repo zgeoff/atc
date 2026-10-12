@@ -46,6 +46,36 @@ test('it reports already_answered to a second responder', () => {
   expect(registry.answer(req.id, 'deny')).toBe('already_answered');
 });
 
+test('it reports unknown for the oldest answered request once 1000 later ones are answered', () => {
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
+
+  const requests = Array.from({ length: 1001 }, () =>
+    registry.open(toSessionID('s1'), 'allow tool?', true),
+  );
+
+  for (const req of requests) {
+    registry.answer(req.id, 'allow');
+  }
+
+  expect(registry.answer('p1', 'deny')).toBe('unknown');
+});
+
+test('it reports already_answered for each of the 1000 most recently answered requests', () => {
+  const registry = new PermissionRegistry(60_000, buildStubClock(0));
+
+  const requests = Array.from({ length: 1001 }, () =>
+    registry.open(toSessionID('s1'), 'allow tool?', true),
+  );
+
+  for (const req of requests) {
+    registry.answer(req.id, 'allow');
+  }
+
+  expect(requests.slice(1).map((req) => registry.answer(req.id, 'deny'))).toSatisfyAll(
+    (result: string) => result === 'already_answered',
+  );
+});
+
 test('it reports unsupported for a request a client cannot answer structurally', () => {
   const registry = new PermissionRegistry(60_000, buildStubClock(0));
 
