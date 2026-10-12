@@ -53,7 +53,7 @@ const EMPTY_SCOPE: CheckedScope = { worktrees: [], branches: [], pullRequests: [
 
 // Writes a record copy into a directory on a remote host: the content to a
 // staged file, made read-only, then renamed over the copy.
-const PLACE_COPY =
+export const PLACE_COPY =
   'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
 
 /**

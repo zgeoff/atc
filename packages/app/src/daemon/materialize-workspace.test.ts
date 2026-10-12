@@ -3,6 +3,7 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { DaemonError } from '../protocol/daemon-error';
@@ -11,7 +12,7 @@ import { StateStore } from '../store/state-store';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import type { CommandSpec } from './execution-provider';
-import { materializeWorkspace } from './materialize-workspace';
+import { CLAIM_DIR_SCRIPT, VERIFY_SCRIPT, materializeWorkspace } from './materialize-workspace';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-materialize-');
@@ -346,4 +347,13 @@ test('it refuses and removes the claimed directory when the git identity cannot 
   await materialized.catch(() => {});
 
   expect(removed).toStrictEqual([dir]);
+});
+
+test.each([
+  ['claims the landing directory', CLAIM_DIR_SCRIPT],
+  ['verifies the checkout', VERIFY_SCRIPT],
+])('it %s through a script that passes shellcheck', async (_label, script) => {
+  const result = await runShellcheck(script);
+
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubLog } from '@atc/test-utils/build-stub-log';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
@@ -16,7 +17,13 @@ import { buildStubHostProvider } from '../test-utils/build-stub-host-provider';
 import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
 import { buildTargetIdentity } from './build-target-identity';
 import { LocalPTYProvider } from './local-pty-provider';
-import { SessionManager } from './sessions';
+import {
+  READ_PROJECT_SETTINGS_SCRIPT,
+  REMOVE_DIR_SCRIPT,
+  RESOLVE_DIR_SCRIPT,
+  RESOLVE_HOME_SCRIPT,
+  SessionManager,
+} from './sessions';
 
 // The fixed parts every session manager test shares: a real state store, a
 // recorder of logged lines, and the `local` provider on this machine's
@@ -1551,4 +1558,15 @@ test('it allows a second disposal', async () => {
   expect(() => {
     mgr[Symbol.dispose]();
   }).not.toThrow();
+});
+
+test.each([
+  ['resolves a host directory', RESOLVE_DIR_SCRIPT],
+  ['removes a host directory', REMOVE_DIR_SCRIPT],
+  ['resolves the host home', RESOLVE_HOME_SCRIPT],
+  ['reads the project settings', READ_PROJECT_SETTINGS_SCRIPT],
+])('it %s through a script that passes shellcheck', async (_label, script) => {
+  const result = await runShellcheck(script);
+
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

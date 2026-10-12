@@ -2,7 +2,9 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { runCommand } from '@atc/test-utils/run-command';
+import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import invariant from 'tiny-invariant';
 import { buildHarnessArgv } from './build-harness-argv';
 
 function setupTest() {
@@ -163,4 +165,41 @@ test('it starts a program path holding = when a DYLD_ name is one the shell cann
   );
 
   expect(result.stdout).toBe('RAN:[first arg]');
+});
+
+test('it builds a shell script that passes shellcheck when it exports macOS variables', async () => {
+  const argv = buildHarnessArgv({
+    unset: [],
+    env: { DYLD_LIBRARY_PATH: '/opt/lib', DYLD_FALLBACK_LIBRARY_PATH: '/usr/lib' },
+    platform: 'darwin',
+    bin: '/opt/a=b/claude',
+    args: ['--resume'],
+  });
+
+  const script = argv[argv.indexOf('-c') + 1];
+
+  invariant(script);
+
+  const result = await runShellcheck(script);
+
+  expect(script).toInclude('export DYLD_LIBRARY_PATH=');
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
+});
+
+test('it builds a shell script that passes shellcheck when it exports nothing', async () => {
+  const argv = buildHarnessArgv({
+    unset: [],
+    env: {},
+    platform: 'linux',
+    bin: '/opt/a=b/claude',
+    args: ['--resume'],
+  });
+
+  const script = argv[argv.indexOf('-c') + 1];
+
+  invariant(script);
+
+  const result = await runShellcheck(script);
+
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

@@ -129,18 +129,18 @@ const LFS_PATHS_SHOWN = 5;
 // detached checkout, and the transports git may fetch over, joined by `:`.
 // On success it prints the repository config as `git config --list -z`
 // does; on an LFS refusal, every LFS path, each ended by a NUL.
-const GUEST_CLONE_SCRIPT = String.raw`dir=$1 url=$2 sha=$3 branch=$4
-export GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 LC_ALL=C GIT_ALLOW_PROTOCOL=$5
-iso="-c core.attributesFile=/dev/null -c core.hooksPath=/dev/null -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false"
+export const GUEST_CLONE_SCRIPT = String.raw`dir=$1 url=$2 sha=$3 branch=$4
+export GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 LC_ALL=C GIT_ALLOW_PROTOCOL="$5"
+iso() { git -c core.attributesFile=/dev/null -c core.hooksPath=/dev/null -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false "$@"; }
 empty() { status=$?; find "$dir" -mindepth 1 -delete; exit "$status"; }
 git clone --quiet --no-local --no-hardlinks --no-checkout --filter=blob:none --template= -- "$url" "$dir" || empty
 cd "$dir" || empty
-if [ -n "$branch" ]; then git $iso checkout --quiet -B "$branch" "$sha" || empty
-else git $iso checkout --quiet --detach "$sha" || empty; fi
-tree=$(git $iso ls-tree -r --full-tree "$sha") || exit ${UNREADABLE_TREE_EXIT}
+if [ -n "$branch" ]; then iso checkout --quiet -B "$branch" "$sha" || empty
+else iso checkout --quiet --detach "$sha" || empty; fi
+tree=$(iso ls-tree -r --full-tree "$sha") || exit ${UNREADABLE_TREE_EXIT}
 tab=$(printf '\t')
 printf '%s\n' "$tree" | grep -q -e '^160000 ' -e "$tab\.gitmodules\$" && exit ${SUBMODULES_EXIT}
-git $iso ls-files -z -- ':(attr:filter=lfs)' > .git/atc-lfs || exit ${UNREADABLE_TREE_EXIT}
+iso ls-files -z -- ':(attr:filter=lfs)' > .git/atc-lfs || exit ${UNREADABLE_TREE_EXIT}
 if [ -s .git/atc-lfs ]; then cat .git/atc-lfs; exit ${LFS_EXIT}; fi
 rm -f .git/atc-lfs
 git config --file .git/config remote.origin.url "$url" || exit ${SANITIZE_EXIT}

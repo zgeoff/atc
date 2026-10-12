@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { buildMockImpIdentity } from '../test-utils/build-mock-imp-identity';
@@ -19,7 +20,13 @@ import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startStubImpd } from '../test-utils/start-stub-impd';
 import { buildTarArchive } from './build-tar-archive';
 import { ImpClientPort } from './imp-client-port';
-import { ImpProvider } from './imp-provider';
+import {
+  CHECK_GUEST_ATC_SCRIPT,
+  ImpProvider,
+  LINK_GUEST_ATC_SCRIPT,
+  READ_GUEST_ATC_SCRIPT,
+  UNPACK_SCRIPT,
+} from './imp-provider';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 /**
@@ -817,4 +824,15 @@ test('it refuses a transfer to an imp without gzip and leaves the directory uncr
   );
 
   expect(existsSync(join(ctx.dir, 'w'))).toBe(false);
+});
+
+test.each([
+  ['unpacks an archive', UNPACK_SCRIPT],
+  ['reads the guest atc versions', READ_GUEST_ATC_SCRIPT],
+  ['links the guest atc', LINK_GUEST_ATC_SCRIPT],
+  ['checks the guest atc', CHECK_GUEST_ATC_SCRIPT],
+])('it %s through a script that passes shellcheck', async (_label, script) => {
+  const result = await runShellcheck(script);
+
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });
