@@ -3312,7 +3312,7 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
   ]);
 });
 
-test('it loads a ready workspace whose withheld variables are malformed as withholding none', async () => {
+test('it leaves out of the fleet a session whose withheld variables are malformed and keeps its row on the next write', async () => {
   const ctx = await setupTest();
 
   await ctx.store.createMaterialization(
@@ -3339,8 +3339,9 @@ test('it loads a ready workspace whose withheld variables are malformed as withh
   );
 
   const ready = buildMockFleetEntry({ sessionID: toSessionID('s-ready') });
+  const plain = buildMockFleetEntry({ sessionID: toSessionID('s-plain') });
 
-  await ctx.store.writeFleet([ready]);
+  await ctx.store.writeFleet([ready, plain]);
 
   const writer = new Database(ctx.dbPath);
 
@@ -3352,16 +3353,40 @@ test('it loads a ready workspace whose withheld variables are malformed as withh
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(fleet).toStrictEqual([
+  await ctx.store.writeFleet(fleet);
+
+  const stored = writer.query('SELECT session_id FROM fleet ORDER BY rowid').all();
+
+  expect(fleet).toStrictEqual([plain]);
+  expect(stored).toStrictEqual([{ session_id: 's-ready' }, { session_id: 's-plain' }]);
+});
+
+test('it refuses to read a workspace whose withheld variables are malformed', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.createMaterialization(
     {
-      ...ready,
-      workspace: {
-        repoURL: 'https://example.com/r.git',
-        sha: 'b'.repeat(40),
-        materializedAt: 2000,
-      },
+      sessionID: toSessionID('s-ready'),
+      target: 'local',
+      dir: '/w/s-ready',
+      sourceKind: 'git',
+      withheldEnv: ['APP_GIT_TOKEN'],
     },
-  ]);
+    1000,
+  );
+
+  const writer = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    writer.close();
+  });
+
+  writer.run('UPDATE workspace_materialization SET withheld_env = \'{"APP_GIT_TOKEN":true}\'');
+
+  expect(ctx.store.findMaterialization(toSessionID('s-ready'))).rejects.toThrowWithMessage(
+    Error,
+    "the workspace of session 's-ready' holds a malformed list of withheld variables",
+  );
 });
 
 test('it upgrades a database from before runtime auth and keeps every existing row', async () => {

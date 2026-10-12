@@ -66,3 +66,17 @@ test('it rolls back a table rebuild whose callback throws', () => {
     ctx.sqlite.query("SELECT name FROM sqlite_master WHERE type = 'table'").all(),
   ).toStrictEqual([{ name: 'notes' }]);
 });
+
+test('it rethrows the error of a callback whose transaction SQLite already ended', () => {
+  const ctx = setupTest();
+
+  // The callback ends the transaction itself, as SQLite does after a full
+  // disk, so the helper's own rollback finds no transaction to end.
+  const run = withImmediateTransaction(ctx.db, async () => {
+    await sql`ROLLBACK`.execute(ctx.db);
+
+    throw new Error('disk full');
+  });
+
+  expect(run).rejects.toThrowWithMessage(Error, 'disk full');
+});

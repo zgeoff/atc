@@ -37,8 +37,8 @@ import type {
   RuntimeAuthGrant,
 } from './runtime-auth-binding';
 import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
-import { collectJSONStrings } from './sqlite/collect-json-strings';
 import { openSQLite } from './sqlite/open-sqlite';
+import { parseJSONStrings } from './sqlite/parse-json-strings';
 import { runMigrations } from './sqlite/run-migrations';
 import type { StateStoreSchema } from './sqlite/run-migrations';
 import { StaleOwnershipError } from './stale-ownership-error';
@@ -235,6 +235,15 @@ export class StateStore {
     const entries: FleetEntry[] = [];
 
     for (const row of rows) {
+      const withheldEnv = parseWithheldEnv(row.withheld_env);
+
+      // A session whose withheld variables cannot be read stays out of the
+      // fleet, so its agent never starts with the variables it withheld; its
+      // row stays stored, since a fleet write keeps rows it never loaded.
+      if (withheldEnv === null) {
+        continue;
+      }
+
       entries.push({
         sessionID: toSessionID(row.session_id),
         name: row.name,
@@ -255,7 +264,7 @@ export class StateStore {
         ...(row.target === null ? {} : { target: row.target }),
         ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
         ...buildWorkspaceField(row),
-        ...buildWithheldEnvField(row.withheld_env),
+        ...(withheldEnv.length === 0 ? {} : { withheldEnv }),
         ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
         ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
       });
@@ -1269,18 +1278,10 @@ function buildWorkspaceField(
   };
 }
 
-// A ready workspace's withheld variable names as their entry field, or
-// nothing for a row that withholds none.
-function buildWithheldEnvField(stored: string | null): { readonly withheldEnv?: string[] } {
-  const names = parseWithheldEnv(stored);
-
-  return names.length === 0 ? {} : { withheldEnv: names };
-}
-
-// A malformed column holds no names, so one bad row never stops the fleet
-// from loading.
-function parseWithheldEnv(stored: string | null): string[] {
-  return stored === null ? [] : [...collectJSONStrings(stored)];
+// The variable names a workspace withholds, none for a row without a ready
+// workspace, or null when the stored list is malformed.
+function parseWithheldEnv(stored: string | null): string[] | null {
+  return stored === null ? [] : parseJSONStrings(stored);
 }
 
 // Two sessions share an agent session id when one resumes the other's agent
@@ -1575,6 +1576,16 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
 function toWorkspaceMaterialization(
   row: Readonly<StateStoreSchema['workspace_materialization']>,
 ): WorkspaceMaterialization {
+  const withheldEnv = parseWithheldEnv(row.withheld_env);
+
+  // Reading the workspace as withholding nothing would start its agent with
+  // the variables it withheld.
+  if (withheldEnv === null) {
+    throw new Error(
+      `the workspace of session '${row.session_id}' holds a malformed list of withheld variables`,
+    );
+  }
+
   return {
     sessionID: toSessionID(row.session_id),
     target: row.target,
@@ -1588,7 +1599,7 @@ function toWorkspaceMaterialization(
     startedAt: row.started_at,
     updatedAt: row.updated_at,
     materializedAt: row.materialized_at,
-    withheldEnv: parseWithheldEnv(row.withheld_env),
+    withheldEnv,
   };
 }
 

@@ -1,4 +1,4 @@
-import { collectJSONStrings } from '@atc/store/sqlite/collect-json-strings';
+import { parseJSONStrings } from '@atc/store/sqlite/parse-json-strings';
 import type { Kysely } from 'kysely';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import type { GrantScope } from '../shared/grant-scope';
@@ -41,7 +41,7 @@ export async function collectGrants(db: Kysely<MCPAuthSchema>): Promise<readonly
     .execute();
 
   return rows.map((row) => {
-    const scopes = collectJSONStrings(row.scopes);
+    const scopes = parseJSONStrings(row.scopes) ?? [];
 
     return {
       grantID: row.authorizationCodeId ?? '',

@@ -267,7 +267,7 @@ src/mcp/build-spawn-descriptions.ts	mcp	tools	packages/mcp/src/tools/build-spawn
 src/mcp/build-tool-list.ts	mcp	tools	packages/mcp/src/tools/build-tool-list.ts	
 src/mcp/collect-clients.ts	mcp	auth	packages/mcp/src/auth/collect-clients.ts	
 src/mcp/collect-grants.ts	mcp	auth	packages/mcp/src/auth/collect-grants.ts	
-src/mcp/collect-json-strings.ts	store	sqlite	packages/store/src/sqlite/collect-json-strings.ts	
+src/mcp/collect-json-strings.ts	store	sqlite	packages/store/src/sqlite/parse-json-strings.ts	
 src/mcp/derive-token-hash.ts	mcp	auth	packages/mcp/src/auth/derive-token-hash.ts	
 src/mcp/find-client-name.ts	mcp	auth	packages/mcp/src/auth/find-client-name.ts	
 src/mcp/find-owner-session-id.ts	mcp	tools	packages/mcp/src/tools/find-owner-session-id.ts	
