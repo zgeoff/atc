@@ -1,5 +1,4 @@
 import { isRecord } from '@atc/core/is-record';
-import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import type { DaemonClient } from '@atc/protocol/client/daemon-client';
 import type { StoredRow } from '@atc/store/snapshot/read-stored-rows';
@@ -27,7 +26,8 @@ const UNSIZED_READ_MS = 30_000;
  * stopped, with their original exit status; without one, the new daemon's
  * rows are read instead. The call joins a restore the daemon already started by itself. A
  * row that is not exited must be listed with a live terminal before the deadline
- * passes (`timeoutSeconds` when set, else the rows that are not exited times the restore boot cap, plus 30 s), and an exited row must be listed. A stored row that is not listed
+ * passes (`timeoutSeconds` when set, else the rows that are not exited times
+ * `restoreBootTimeoutMs`, plus 30 s), and an exited row must be listed. A stored row that is not listed
  * failed to restore, and a listed row that is still without a live terminal
  * at the deadline failed to revive. A listed row without a live terminal
  * whose agent the new daemon's config no longer holds fails at once, since
@@ -35,13 +35,14 @@ const UNSIZED_READ_MS = 30_000;
  * every request to the daemon is held to it: the daemon must answer the first
  * list before it, and when it overtakes a later list, the verdict comes from
  * the last list the daemon answered. The deadline, the waits between lists,
- * and every request's time limit run on `clock`, the wall clock unless given.
+ * and every request's time limit run on `clock`.
  */
 export async function verifyRestoredFleet(
   client: Pick<DaemonClient, 'sendRequest'>,
   timeoutSeconds: number | null,
   snapshot: readonly StoredRow[] | null,
-  clock: Clock = systemClock,
+  clock: Clock,
+  restoreBootTimeoutMs: number,
 ): Promise<FleetVerdict> {
   const startedAt = clock.now();
 
@@ -57,7 +58,7 @@ export async function verifyRestoredFleet(
       : null;
 
   const stored = snapshot ?? read ?? [];
-  const deadline = startedAt + pickDeadlineMs(stored, timeoutSeconds);
+  const deadline = startedAt + pickDeadlineMs(stored, timeoutSeconds, restoreBootTimeoutMs);
 
   const restored = await tryRestore(client, deadline, clock);
   const agents = await tryReadAgentIDs(client, deadline, clock);
@@ -108,15 +109,16 @@ async function sendBounded<T>(send: () => Promise<T>, deadline: number, clock: C
   }
 }
 
-function pickDeadlineMs(stored: readonly StoredRow[], timeoutSeconds: number | null): number {
+function pickDeadlineMs(
+  stored: readonly StoredRow[],
+  timeoutSeconds: number | null,
+  restoreBootTimeoutMs: number,
+): number {
   if (timeoutSeconds !== null) {
     return timeoutSeconds * 1000;
   }
 
-  const cap = Number(process.env['ATC_RESTORE_BOOT_TIMEOUT_MS']);
-  const bootMs = Number.isFinite(cap) && cap >= 0 ? cap : 15_000;
-
-  return stored.filter((row) => !row.exited).length * bootMs + 30_000;
+  return stored.filter((row) => !row.exited).length * restoreBootTimeoutMs + 30_000;
 }
 
 async function tryRestore(

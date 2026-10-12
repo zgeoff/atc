@@ -8,18 +8,17 @@ import {
   statSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { restartsDir } from '@atc/config/config';
-import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import type { ATCInvocation } from './atc-invocation';
 import { buildATCCommand } from './build-atc-command';
 import { collectRestartEnv } from './collect-restart-env';
 import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
 import { isProcessAlive } from './is-process-alive';
+import type { LifecycleHost } from './lifecycle-host';
 import { parseRestartResult } from './parse-restart-result';
+import { parseWorkerPID } from './parse-worker-pid';
 import { spawnATCDetached } from './spawn-atc-detached';
 
 interface DaemonRestartOptions {
@@ -41,17 +40,19 @@ const WORKER_START_WAIT_MS = 30_000;
  * restart can end the process that asked for it. The worker writes a run
  * log, which this follows line by line until the worker's result record
  * ends it. Resolves the exit code: the worker's, or 1 when the worker
- * vanishes without a result. The follower and the probe run on the clock,
- * and the worker runs through the invocation's argv.
+ * vanishes without a result. The follower and the probe run on the host's
+ * clock, and the worker runs through the host's invocation.
  */
 export async function runDaemonRestart(
-  invocation: ATCInvocation,
+  host: LifecycleHost,
   options: DaemonRestartOptions,
-  clock: Clock = systemClock,
 ): Promise<number> {
+  const clock = host.clock;
+  const restartsDir = host.paths.restartsDir;
+  const invocation = host.invocation;
   const callerSession = readSessionEnv(process.env).sessionID ?? null;
 
-  const plan = await collectRestartPlan(invocation, callerSession, clock);
+  const plan = await collectRestartPlan(host, callerSession);
 
   if (options.dryRun) {
     for (const line of formatRestartPreflight(plan)) {
@@ -62,7 +63,7 @@ export async function runDaemonRestart(
   }
 
   mkdirSync(restartsDir, { recursive: true });
-  removeStaleRestartLogs(clock);
+  removeStaleRestartLogs(restartsDir, clock);
 
   const runID = mintRunID(clock);
   const logPath = join(restartsDir, `${runID}.log`);
@@ -188,10 +189,11 @@ async function printRunLog(
           return true;
         }
 
-        const pidMatch = /^worker pid (?<pid>\d+)$/.exec(line);
+        const announced = parseWorkerPID(line);
 
-        if (pidMatch !== null) {
-          workerPID = Number(pidMatch.groups?.['pid']);
+        if (announced !== null) {
+          workerPID = announced;
+          continue;
         }
 
         console.log(line);
@@ -231,7 +233,7 @@ function readLog(logPath: string): string {
   }
 }
 
-function removeStaleRestartLogs(clock: Clock): void {
+function removeStaleRestartLogs(restartsDir: string, clock: Clock): void {
   const cutoff = clock.now() - LOG_RETENTION_MS;
 
   for (const entry of readdirSync(restartsDir)) {

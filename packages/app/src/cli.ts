@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import { parseListenAddress } from '@atc/config/listen/parse-listen-address';
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
-import { buildATCInvocation } from './build-atc-invocation';
 import { collectRedirectURIs } from './collect-redirect-uris';
 import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
@@ -38,10 +37,11 @@ const main = defineCommand({
           hidden: true,
         },
         async run() {
+          const lifecycle = await import('./build-lifecycle-host');
           const host = await import('./build-tui-host');
           const slot = await import('./client/tui-host-slot');
 
-          slot.tuiHostSlot.current = host.buildTUIHost(buildATCInvocation());
+          slot.tuiHostSlot.current = host.buildTUIHost(lifecycle.buildLifecycleHost(process.env));
 
           await import('./client');
         },
@@ -81,14 +81,15 @@ const main = defineCommand({
         },
         async run(ctx) {
           const boot = await import('@atc/lifecycle/boot-daemon');
+          const lifecycle = await import('./build-lifecycle-host');
 
-          const invocation = buildATCInvocation();
+          const host = lifecycle.buildLifecycleHost(process.env);
 
           if (!ctx.args.http) {
             const server = await import('./mcp-server');
 
-            await server.runMCPServer(invocation.readBuild(), () =>
-              boot.bootDaemonClient(invocation),
+            await server.runMCPServer(host.invocation.readBuild(), () =>
+              boot.bootDaemonClient(host),
             );
 
             return;
@@ -105,7 +106,7 @@ const main = defineCommand({
           const database = await import('./open-mcp-auth-database');
 
           await http.runMCPHTTPServer(
-            invocation.readBuild(),
+            host.invocation.readBuild(),
             {
               host: ctx.args.host ?? null,
               port: port === null ? null : port.port,
@@ -113,7 +114,7 @@ const main = defineCommand({
               waitForDaemon: ctx.args['wait-for-daemon'],
             },
             {
-              bootDaemon: (options) => boot.bootDaemonClient(invocation, options),
+              bootDaemon: (options) => boot.bootDaemonClient(host, options),
               openAuthDatabase: database.openMCPAuthDatabase,
             },
           );
@@ -272,8 +273,9 @@ const main = defineCommand({
               },
               async run() {
                 const id = await import('@atc/lifecycle/run-daemon-id');
+                const lifecycle = await import('./build-lifecycle-host');
 
-                await id.runDaemonID(getATCBuild());
+                await id.runDaemonID(lifecycle.buildLifecycleHost(process.env));
               },
             }),
           restart: () =>
@@ -298,8 +300,11 @@ const main = defineCommand({
                 const options = parseRestartArgs(ctx.args);
 
                 const restart = await import('@atc/lifecycle/run-daemon-restart');
+                const lifecycle = await import('./build-lifecycle-host');
 
-                const code = await restart.runDaemonRestart(buildATCInvocation(), {
+                const host = lifecycle.buildLifecycleHost(process.env);
+
+                const code = await restart.runDaemonRestart(host, {
                   ...options,
                   dryRun: ctx.args['dry-run'],
                 });
@@ -324,8 +329,11 @@ const main = defineCommand({
                 const options = parseRestartArgs(ctx.args);
 
                 const worker = await import('@atc/lifecycle/run-daemon-restart-worker');
+                const lifecycle = await import('./build-lifecycle-host');
 
-                const code = await worker.runDaemonRestartWorker(buildATCInvocation(), {
+                const host = lifecycle.buildLifecycleHost(process.env);
+
+                const code = await worker.runDaemonRestartWorker(host, {
                   ...options,
                   runID: ctx.args.runID,
                   callerSession: ctx.args.session ?? null,
@@ -621,13 +629,9 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     );
   }
 
-  // Cap on how long a fleet restore waits for one revived session to
-  // report it has booted before moving to the next. Tests pin it to
-  // keep timing deterministic; unset means the production default.
-  const capOverride = Number(process.env['ATC_RESTORE_BOOT_TIMEOUT_MS']);
+  const restoreBoot = await import('@atc/config/parse-restore-boot-timeout-ms');
 
-  const restoreBootTimeoutMs =
-    Number.isFinite(capOverride) && capOverride >= 0 ? capOverride : 15_000;
+  const restoreBootTimeoutMs = restoreBoot.parseRestoreBootTimeoutMs(process.env);
 
   // How long a started session may go without a tap before a message
   // to it is refused. Tests pin it to 0 to reach the refusal at once.

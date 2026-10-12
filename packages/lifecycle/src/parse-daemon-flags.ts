@@ -4,14 +4,11 @@ export interface DaemonFlags {
 }
 
 /**
- * The `--listen` and `--token-file` values on a daemon's command line, read
- * from the NUL-separated text of `/proc/<pid>/cmdline`. Both the
- * `--flag value` and `--flag=value` forms count; a flag the line lacks reads
- * as null.
+ * The `--listen` and `--token-file` values among a daemon's command-line
+ * arguments. Both the `--flag value` and `--flag=value` forms count; a flag
+ * the line lacks reads as null.
  */
-export function parseDaemonFlags(cmdline: string): DaemonFlags {
-  const args = cmdline.split('\0').filter((arg) => arg !== '');
-
+export function parseDaemonFlags(args: readonly string[]): DaemonFlags {
   return {
     listen: findFlagValue(args, '--listen'),
     tokenFile: findFlagValue(args, '--token-file'),

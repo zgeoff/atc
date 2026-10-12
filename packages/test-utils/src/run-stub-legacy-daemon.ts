@@ -7,8 +7,11 @@ import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
  * Runs a daemon of another protocol version as its own process, recorded in
  * the state directory the way a real daemon records itself, so a client
  * that finds it by its record can stop it. Arguments: the socket path to
- * listen on and the state directory. It refuses every handshake with
- * `protocol_mismatch` and hosts one session, a child process that sleeps for
+ * listen on, the state directory, and `current` as an optional third, which
+ * makes it a daemon of an older build on this protocol instead. It refuses
+ * every handshake with `protocol_mismatch`, unless it speaks the current
+ * protocol, answers the session list and the fleet as empty, and hosts one
+ * session, a child process that sleeps for
  * a minute. Once it listens it prints `up` and the session's pid on one
  * line, and it runs until it is killed. On SIGTERM or SIGINT it kills and
  * reaps the session, then dies of the same signal, and it kills the session
@@ -23,7 +26,13 @@ function main() {
     throw new Error('usage: run-stub-legacy-daemon.ts <socket path> <state dir>');
   }
 
-  startStubLegacyDaemon(socketPath, { protocol: PROTOCOL_V + 1, owner: 'caller' });
+  // A client on the current protocol reads the session list and the fleet
+  // as it starts, so the daemon answers both as empty.
+  startStubLegacyDaemon(socketPath, {
+    protocol: process.argv.at(4) === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
+    replies: { 'session.list': { sessions: [] }, 'fleet.list': { fleet: [] } },
+    owner: 'caller',
+  });
 
   const session = Bun.spawn(['sleep', '60']);
 

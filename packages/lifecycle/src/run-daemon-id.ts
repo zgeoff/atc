@@ -1,53 +1,37 @@
-import { daemonRecordFile, daemonSocketPath } from '@atc/config/config';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { findDaemonRecord } from './find-daemon-record';
+import { buildHostDaemonPaths } from './build-host-daemon-paths';
+import { collectDaemonSocketPaths } from './collect-daemon-socket-paths';
+import type { LifecycleHost } from './lifecycle-host';
+import { tryOpenDaemon } from './try-open-daemon';
+
+// How long the handshake may take.
+const PROBE_DEADLINE_MS = 3000;
 
 /**
  * Prints the running daemon's `daemonID`, the identity a gateway registry
  * pins, read from the handshake over the owner's local socket: the one this
  * environment computes, else the one the daemon recorded in the state
- * directory. When no daemon answers, prints a hint to stderr and exits
- * nonzero instead of booting one.
+ * directory. When no daemon answers with one, prints a hint to stderr and
+ * exits nonzero instead of booting one.
  */
-export async function runDaemonID(build: string): Promise<void> {
-  const record = findDaemonRecord(daemonRecordFile);
-  const paths = [daemonSocketPath, ...(record === null ? [] : [record.socketPath])];
+export async function runDaemonID(host: LifecycleHost): Promise<void> {
+  const paths = buildHostDaemonPaths(host);
 
-  for (const path of new Set(paths)) {
-    const daemonID = await tryReadDaemonID(path, build);
+  const probe = await tryOpenDaemon(
+    collectDaemonSocketPaths(paths),
+    {
+      build: host.invocation.readBuild(),
+      deadline: host.clock.now() + PROBE_DEADLINE_MS,
+      clock: host.clock,
+    },
+    () => Promise.resolve(null),
+  );
 
-    if (daemonID !== null) {
-      console.log(daemonID);
+  if (probe?.kind === 'ok' && probe.hello.daemonID !== null) {
+    console.log(probe.hello.daemonID);
 
-      return;
-    }
+    return;
   }
 
-  console.error(`atc daemon id: no daemon at ${daemonSocketPath} — start one first`);
+  console.error(`atc daemon id: no daemon at ${paths.socketPath} — start one first`);
   process.exit(1);
-}
-
-// The daemonID the daemon at the socket returns, or null when nothing
-// answers there or the answer holds none.
-async function tryReadDaemonID(socketPath: string, build: string): Promise<string | null> {
-  let client: DaemonClient;
-
-  try {
-    client = await DaemonClient.open(socketPath);
-  } catch {
-    return null;
-  }
-
-  try {
-    const hello = await client.sendHello(build, { session: readSessionEnv(process.env).sessionID });
-
-    const daemonID = hello['daemonID'];
-
-    return typeof daemonID === 'string' ? daemonID : null;
-  } catch {
-    return null;
-  } finally {
-    client.stop();
-  }
 }

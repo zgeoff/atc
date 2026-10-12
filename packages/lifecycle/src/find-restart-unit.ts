@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { LifecycleHost } from './lifecycle-host';
 import { parseSystemdUnit } from './parse-systemd-unit';
-import { runSystemctl } from './run-systemctl';
 
 /**
  * The user service whose main process is the daemon with this pid, or null
@@ -11,11 +11,14 @@ import { runSystemctl } from './run-systemctl';
  * the user manager, and the manager reports that unit's `MainPID` as this
  * pid. The cgroup alone proves nothing: every process started from a
  * session inside the unit, such as a daemon a test starts, shares the
- * unit's cgroup without being the process the unit runs. `ATC_PROC_ROOT`
- * moves the cgroup read from `/proc` to another directory, so a test can
- * place a daemon in a unit without a user manager.
+ * unit's cgroup without being the process the unit runs. The cgroup is read
+ * under the host's `/proc`, and the manager is asked through its
+ * `systemctl`.
  */
-export async function findRestartUnit(pid: number): Promise<string | null> {
+export async function findRestartUnit(
+  pid: number,
+  host: Pick<LifecycleHost, 'procRoot' | 'runSystemctl'>,
+): Promise<string | null> {
   const uid = process.getuid?.();
 
   if (uid === undefined) {
@@ -25,10 +28,7 @@ export async function findRestartUnit(pid: number): Promise<string | null> {
   let cgroup: string;
 
   try {
-    cgroup = readFileSync(
-      join(process.env['ATC_PROC_ROOT'] ?? '/proc', String(pid), 'cgroup'),
-      'utf8',
-    );
+    cgroup = readFileSync(join(host.procRoot, String(pid), 'cgroup'), 'utf8');
   } catch {
     return null;
   }
@@ -39,7 +39,7 @@ export async function findRestartUnit(pid: number): Promise<string | null> {
     return null;
   }
 
-  const shown = await runSystemctl(['show', '-p', 'MainPID', '--value', unit]);
+  const shown = await host.runSystemctl(['show', '-p', 'MainPID', '--value', unit]);
 
   return shown.code === 0 && shown.stdout === String(pid) ? unit : null;
 }

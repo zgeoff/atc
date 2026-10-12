@@ -71,7 +71,12 @@ test('it names the unit and its ExecStart path and says that the unit decides th
     answer: { kind: 'ok', build: 'atc/3.1.1+abc', protocol: 7 },
     sessions: [],
     callerSession: null,
-    replacement: { kind: 'unit', unit: 'atc-daemon.service', execStart: '/home/u/.local/bin/atc' },
+    replacement: {
+      kind: 'unit',
+      unit: 'atc-daemon.service',
+      pid: 77,
+      execStart: '/home/u/.local/bin/atc',
+    },
   });
 
   expect(lines).toStrictEqual([

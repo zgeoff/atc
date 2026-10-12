@@ -28,6 +28,13 @@ export interface PlanSession {
   readonly state: string;
 }
 
+// A unit replacement restarts the user service whose main process is the
+// daemon with `pid`.
 export type ReplacementPlan =
-  | { readonly kind: 'unit'; readonly unit: string; readonly execStart: string | null }
+  | {
+      readonly kind: 'unit';
+      readonly unit: string;
+      readonly pid: number;
+      readonly execStart: string | null;
+    }
   | { readonly kind: 'plain'; readonly build: string; readonly command: string };

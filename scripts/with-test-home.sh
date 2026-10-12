@@ -4,8 +4,8 @@
 # directory before the command's process starts, so
 # Bun's os.homedir(), atc's config and state paths, its sockets, the agent
 # homes, the real claude CLI's own files, and the git config a test's git
-# reads all land there instead of the user's. It removes the enclosing atc session's ATC_SESSION_ID,
-# ATC_SOCKET, and ATC_SESSION_RECORD, so nothing reports to a live daemon, and an inherited
+# reads all land there instead of the user's. It removes every variable atc sets for a session it
+# hosts, so nothing reports to a live daemon from an enclosing session, and an inherited
 # CLAUDE_CONFIG_DIR, so the Claude config folder resolves inside the home too.
 # It keeps every other variable, ATC_BIN included. The directory is removed on exit.
 # It also sets ATC_CLI_ENTRY and ATC_GATEWAY_ENTRY to the source entries of
@@ -35,6 +35,6 @@ export CODEX_HOME="$root/home/.codex"
 export ATC_TEST_HOME="$root"
 export ATC_CLI_ENTRY="$repo/packages/app/src/cli.ts"
 export ATC_GATEWAY_ENTRY="$repo/packages/app/src/gateway.ts"
-unset ATC_SESSION_ID ATC_SOCKET ATC_SESSION_RECORD CLAUDE_CONFIG_DIR
+unset ATC_SESSION_ID ATC_SOCKET ATC_BRIDGE ATC_OUTBOX ATC_SESSION_RECORD CLAUDE_CONFIG_DIR
 
 "$@"

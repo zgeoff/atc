@@ -1,41 +1,26 @@
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
+import type { Clock } from '@atc/core/system-clock';
 import { readStoredRows } from '@atc/store/snapshot/read-stored-rows';
 import type { StoredRow } from '@atc/store/snapshot/read-stored-rows';
+import { tryOpenDaemon } from './try-open-daemon';
 
 const SNAPSHOT_DEADLINE_MS = 3000;
 
 /**
  * Reads the stored fleet rows from the daemon at this socket, handshaking
- * with this client's build, or null when it does not answer in time. The
- * restart takes this before it stops the daemon, so the rows keep their
- * original exit status.
+ * with this client's build, or null when it does not answer in time on the
+ * clock. The restart takes this before it stops the daemon, so the rows
+ * keep their original exit status.
  */
 export async function readFleetSnapshot(
   socketPath: string,
   build: string,
+  clock: Clock,
 ): Promise<StoredRow[] | null> {
-  let client: DaemonClient;
+  const probe = await tryOpenDaemon(
+    [socketPath],
+    { build, deadline: clock.now() + SNAPSHOT_DEADLINE_MS, clock },
+    (client) => readStoredRows(client).catch(() => null),
+  );
 
-  try {
-    client = await DaemonClient.open(socketPath);
-  } catch {
-    return null;
-  }
-
-  const expiry = setTimeout(() => {
-    client.stop();
-  }, SNAPSHOT_DEADLINE_MS);
-
-  try {
-    await client.sendHello(build, { session: readSessionEnv(process.env).sessionID });
-
-    return await readStoredRows(client);
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(expiry);
-
-    client.stop();
-  }
+  return probe?.kind === 'ok' ? probe.value : null;
 }

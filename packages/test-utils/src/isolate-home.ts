@@ -1,5 +1,6 @@
 import { afterEach } from 'bun:test';
 import { join, normalize } from 'node:path';
+import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
 import { removeEnvOverrides } from './remove-env-overrides';
 
 // Holds every test run to the isolated home the package test scripts set
@@ -42,12 +43,9 @@ function requireTestHome(root: string): void {
     .filter(([name, path]) => normalize(process.env[name] ?? '') !== path)
     .map(([name]) => name);
 
-  const leftover = [
-    'ATC_SESSION_ID',
-    'ATC_SOCKET',
-    'ATC_SESSION_RECORD',
-    'CLAUDE_CONFIG_DIR',
-  ].filter((name) => name in process.env);
+  const leftover = [...Object.values(SESSION_ENV_NAMES), 'CLAUDE_CONFIG_DIR'].filter(
+    (name) => name in process.env,
+  );
 
   if (mismatched.length > 0 || leftover.length > 0) {
     stopRun(

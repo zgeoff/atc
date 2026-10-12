@@ -1,47 +1,35 @@
-import { readFileSync, readlinkSync, statSync } from 'node:fs';
+import { readlinkSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { buildOwnDaemonProcess } from './build-own-daemon-process';
 import { collectRestartEnv } from './collect-restart-env';
 import type { DaemonProcess } from './daemon-process';
 import { parseDaemonFlags } from './parse-daemon-flags';
+import { readProcProcess } from './read-proc-process';
 
 /**
- * Reads what a running daemon was started with from `/proc/<pid>`: its
- * environment, its working directory, and the listener flags on its command
- * line. Where `/proc` has no entry for it, as on macOS, the environment is
- * this process's own and the flags are empty.
+ * Reads what a running daemon was started with from its entry under
+ * `procRoot`: its environment, its working directory, and the listener
+ * flags on its command line. Where the entry cannot be read, as on macOS,
+ * the environment is this process's own and the flags are empty.
  */
-export function readDaemonProcess(pid: number): DaemonProcess {
-  let environ: string;
-  let cmdline: string;
+export function readDaemonProcess(pid: number, procRoot: string): DaemonProcess {
+  const proc = readProcProcess(procRoot, pid);
 
-  try {
-    environ = readFileSync(`/proc/${pid}/environ`, 'utf8');
-    cmdline = readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-  } catch {
+  if (proc === null) {
     return buildOwnDaemonProcess();
   }
 
-  const env: Record<string, string> = {};
-
-  for (const entry of environ.split('\0')) {
-    const eq = entry.indexOf('=');
-
-    if (eq > 0) {
-      env[entry.slice(0, eq)] = entry.slice(eq + 1);
-    }
-  }
-
   return {
-    env: collectRestartEnv(env),
-    cwd: readCwd(pid),
-    flags: parseDaemonFlags(cmdline),
+    env: collectRestartEnv(proc.env),
+    cwd: readCwd(procRoot, pid),
+    flags: parseDaemonFlags(proc.args),
     fromProc: true,
   };
 }
 
-function readCwd(pid: number): string | null {
+function readCwd(procRoot: string, pid: number): string | null {
   try {
-    const cwd = readlinkSync(`/proc/${pid}/cwd`);
+    const cwd = readlinkSync(join(procRoot, String(pid), 'cwd'));
 
     return statSync(cwd).isDirectory() ? cwd : null;
   } catch {

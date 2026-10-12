@@ -1,18 +1,16 @@
 import { resolve } from 'node:path';
-import { dbFile } from '@atc/config/config';
 import { loadListenerTokens } from '@atc/config/load-listener-tokens';
 import { readStoredFleetFile } from '@atc/store/snapshot/read-stored-fleet-file';
-import type { ATCInvocation } from './atc-invocation';
 import { buildOwnDaemonProcess } from './build-own-daemon-process';
 import { buildRestartFailure } from './build-restart-failure';
 import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
+import type { LifecycleHost } from './lifecycle-host';
 import type { RestartResult } from './parse-restart-result';
 import { readDaemonProcess } from './read-daemon-process';
 import { readFleetSnapshot } from './read-fleet-snapshot';
-import { runSystemctl } from './run-systemctl';
+import { restartDaemonProcess } from './restart-daemon-process';
 import { startReplacementDaemon } from './start-replacement-daemon';
-import { stopDaemonProcess } from './stop-daemon-process';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 import { waitForReplacement } from './wait-for-replacement';
 
@@ -30,16 +28,16 @@ const START_WAIT_MS = 30_000;
  * Stops the running daemon, starts exactly one in its place, restores the
  * stored fleet on it, and reports what came back. The preflight prints
  * before anything stops. A failure on the way is a result, never a throw.
- * The replacement runs through the invocation's argv, and every handshake
- * sends the build it reads.
+ * The replacement runs through the host's invocation, every handshake sends
+ * the build it reads, and every wait runs on the host's clock.
  */
 export async function restartDaemon(
-  invocation: ATCInvocation,
+  host: LifecycleHost,
   options: RestartOptions,
 ): Promise<RestartResult> {
-  const plan = await collectRestartPlan(invocation, options.callerSession);
+  const plan = await collectRestartPlan(host, options.callerSession);
 
-  const clientBuild = invocation.readBuild();
+  const clientBuild = host.invocation.readBuild();
 
   for (const line of formatRestartPreflight(plan)) {
     console.log(line);
@@ -54,8 +52,8 @@ export async function restartDaemon(
   // build cannot speak to is read from its database instead.
   const snapshot =
     (plan.answer?.kind === 'ok' && plan.socketPath !== null
-      ? await readFleetSnapshot(plan.socketPath, clientBuild)
-      : null) ?? readStoredFleetFile(dbFile);
+      ? await readFleetSnapshot(plan.socketPath, clientBuild, host.clock)
+      : null) ?? readStoredFleetFile(host.paths.dbFile);
 
   if (snapshot === null) {
     console.log(
@@ -73,15 +71,18 @@ export async function restartDaemon(
       console.log('--listen and --token-file are ignored: the unit decides how the daemon starts');
     }
 
-    const restarted = await runSystemctl(['restart', plan.replacement.unit]);
+    try {
+      await restartDaemonProcess({ pid: plan.replacement.pid, unit: plan.replacement.unit }, host);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
 
-    if (restarted.code !== 0) {
-      return buildFailure(`systemctl restart ${plan.replacement.unit} failed: ${restarted.stderr}`);
+      return buildFailure(reason);
     }
   } else {
     expectedBuild = clientBuild;
 
-    const old = plan.pid === null ? buildOwnDaemonProcess() : readDaemonProcess(plan.pid);
+    const old =
+      plan.pid === null ? buildOwnDaemonProcess() : readDaemonProcess(plan.pid, host.procRoot);
 
     if (plan.pid !== null && !old.fromProc) {
       console.log(
@@ -105,23 +106,23 @@ export async function restartDaemon(
     }
 
     if (plan.pid !== null) {
-      const stopped = await stopDaemonProcess(plan.pid);
+      const stopped = await restartDaemonProcess({ pid: plan.pid, unit: null }, host);
 
       const stoppedLine =
-        stopped === 'killed'
+        stopped.kind === 'stopped' && stopped.killed
           ? `the daemon (pid ${plan.pid}) ignored SIGTERM for 10 s, so it was killed with SIGKILL`
           : `stopped the daemon (pid ${plan.pid})`;
 
       console.log(stoppedLine);
     }
 
-    startReplacementDaemon(invocation.argv, old, {
+    startReplacementDaemon(host.invocation.argv, old, {
       listen: options.listen,
       tokenFile: options.tokenFile,
     });
   }
 
-  const replacement = await waitForReplacement(plan.pid, clientBuild, expectedBuild, START_WAIT_MS);
+  const replacement = await waitForReplacement(host, plan.pid, expectedBuild, START_WAIT_MS);
 
   if (!replacement.ok) {
     return buildFailure(replacement.reason);
@@ -130,7 +131,13 @@ export async function restartDaemon(
   try {
     console.log(`daemon pid ${replacement.pid} is up (${replacement.build}); restoring the fleet`);
 
-    const verdict = await verifyRestoredFleet(replacement.client, options.timeoutSeconds, snapshot);
+    const verdict = await verifyRestoredFleet(
+      replacement.client,
+      options.timeoutSeconds,
+      snapshot,
+      host.clock,
+      host.restoreBootTimeoutMs,
+    );
 
     return {
       runID: options.runID,

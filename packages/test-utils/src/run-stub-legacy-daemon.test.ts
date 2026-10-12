@@ -79,6 +79,38 @@ test('it refuses a handshake on the current protocol with protocol_mismatch', as
   });
 });
 
+test('it answers a handshake on the current protocol as an older build when told to speak it', async () => {
+  const ctx = setupTest();
+  const socketPath = join(ctx.dir, 'current.sock');
+
+  const current = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, 'run-stub-legacy-daemon.ts'),
+      socketPath,
+      ctx.dir,
+      'current',
+    ],
+    { stdout: 'pipe', stderr: 'ignore' },
+  );
+
+  registerTestCleanup(async () => {
+    current.kill();
+
+    await current.exited;
+  });
+
+  await current.stdout.getReader().read();
+
+  const client = await DaemonClient.open(socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  expect(client.sendHello('atc/test-build')).resolves.toMatchObject({ daemon: 'atc/legacy-build' });
+});
+
 test('it stops with a usage error when given no socket path and state directory', async () => {
   const run = await runCommand([
     process.execPath,

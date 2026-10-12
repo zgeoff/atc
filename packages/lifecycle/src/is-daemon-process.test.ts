@@ -40,7 +40,11 @@ test('it accepts a daemon process whose home holds this state directory', async 
   // it was forked with, before the exec that makes it the daemon.
   await daemon.stdout.getReader().read();
 
-  const accepted = isDaemonProcess(daemon.pid, join(ctx.dir, 'home', '.local', 'state', 'atc'));
+  const accepted = isDaemonProcess(
+    daemon.pid,
+    join(ctx.dir, 'home', '.local', 'state', 'atc'),
+    '/proc',
+  );
 
   expect(accepted).toBeTrue();
 });
@@ -64,7 +68,11 @@ test('it rejects a daemon process of another home', async () => {
   // it was forked with, before the exec that makes it the daemon.
   await daemon.stdout.getReader().read();
 
-  const accepted = isDaemonProcess(daemon.pid, join(ctx.dir, 'other', '.local', 'state', 'atc'));
+  const accepted = isDaemonProcess(
+    daemon.pid,
+    join(ctx.dir, 'other', '.local', 'state', 'atc'),
+    '/proc',
+  );
 
   expect(accepted).toBeFalse();
 });
@@ -72,9 +80,11 @@ test('it rejects a daemon process of another home', async () => {
 test('it rejects a live process that is not an atc daemon', () => {
   const ctx = setupTest();
 
-  expect(isDaemonProcess(process.pid, join(ctx.dir, 'home', '.local', 'state', 'atc'))).toBeFalse();
+  expect(
+    isDaemonProcess(process.pid, join(ctx.dir, 'home', '.local', 'state', 'atc'), '/proc'),
+  ).toBeFalse();
 });
 
 test('it rejects a pid with no process', () => {
-  expect(isDaemonProcess(2 ** 22 + 1, '/nowhere')).toBeFalse();
+  expect(isDaemonProcess(2 ** 22 + 1, '/nowhere', '/proc')).toBeFalse();
 });
