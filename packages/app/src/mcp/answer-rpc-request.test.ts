@@ -243,13 +243,10 @@ test('it lists the scope tool to a caller without a grant', async () => {
     },
   );
 
-  expect(outcome).toMatchObject({
-    kind: 'reply',
-    body: {
-      result: {
-        tools: expect.arrayContaining([expect.objectContaining({ name: 'atc_session_scope_add' })]),
-      },
-    },
+  invariant(outcome.kind === 'reply');
+
+  expect(getRecord(outcome.body, 'result')['tools']).toPartiallyContain({
+    name: 'atc_session_scope_add',
   });
 });
 
