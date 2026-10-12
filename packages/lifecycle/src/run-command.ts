@@ -10,7 +10,7 @@ interface CommandOptions {
   readonly env?: Readonly<Record<string, string>>;
 
   // Aborting it kills the command's whole process group.
-  readonly signal?: AbortSignal;
+  readonly signal?: Readonly<AbortSignal>;
 
   // Called with the pid of the started command right after it starts; with
   // a signal, that pid is also its process group's id.
@@ -77,7 +77,10 @@ function spawnCommand(argv: readonly string[], options: CommandOptions) {
 }
 
 // The command's output and exit, or null once the signal aborts first.
-async function waitForEnd<T>(finished: Promise<T>, signal: AbortSignal | undefined) {
+async function waitForEnd<T>(
+  finished: Readonly<Promise<T>>,
+  signal: Readonly<AbortSignal> | undefined,
+) {
   if (signal === undefined) {
     return finished;
   }

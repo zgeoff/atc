@@ -38,7 +38,7 @@ export interface HostServices {
  */
 export interface HostCommandOptions {
   readonly env?: Readonly<Record<string, string>>;
-  readonly signal?: AbortSignal;
+  readonly signal?: Readonly<AbortSignal>;
 }
 
 /**

@@ -52,7 +52,7 @@ export function buildStubGHCommand(options: StubGHCommandOptions): StubGHCommand
 }
 
 // A run that hangs until its signal aborts; without a signal, forever.
-function waitForAbort(signal: AbortSignal | undefined): Promise<HostCommandResult> {
+function waitForAbort(signal: Readonly<AbortSignal> | undefined): Promise<HostCommandResult> {
   const ended = Promise.withResolvers<HostCommandResult>();
 
   const onAbort = () => {

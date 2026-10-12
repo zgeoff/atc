@@ -18,7 +18,7 @@ export interface GHRun {
 export async function runGH(
   run: HostServices['runCommand'],
   bin: string,
-  signal: AbortSignal,
+  signal: Readonly<AbortSignal>,
   args: readonly string[],
 ): Promise<GHRun> {
   const ran = await run([bin, ...args], {
