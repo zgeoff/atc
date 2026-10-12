@@ -3,8 +3,8 @@ import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { z } from 'zod';
+import { buildHostServices } from './build-host-services';
 import { runBridgeTap } from './run-bridge-tap';
-import { getATCBuild } from './shared/get-atc-build';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
   message: z.string(),
@@ -114,7 +114,10 @@ export async function runTap(
   };
 
   try {
-    await client.sendHello(getATCBuild(), { session: readSessionEnv(process.env).sessionID });
+    await client.sendHello(buildHostServices().build, {
+      session: readSessionEnv(process.env).sessionID,
+    });
+
     await client.sendRequest('session.tap', { session });
   } catch (error) {
     io.printError(`atc tap: ${formatError(error)}`);

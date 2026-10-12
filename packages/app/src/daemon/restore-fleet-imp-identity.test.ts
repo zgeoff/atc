@@ -20,7 +20,7 @@ async function setupTest() {
 
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(port, {});
+  const provider = new ImpProvider(port, {}, { version: '1.0.0' });
 
   onTestFinished(() => {
     provider.dispose();

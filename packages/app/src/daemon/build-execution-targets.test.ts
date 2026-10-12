@@ -12,6 +12,7 @@ test('it reports an imp target whose token variable is unset as a target error, 
         options: { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
       },
     ],
+    '1.0.0',
     {},
   );
 
@@ -39,6 +40,7 @@ test('it reports no target error for an imp target whose token variable is set',
         options: { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
       },
     ],
+    '1.0.0',
     { ATC_TEST_IMP_TOKEN: 'token-value' },
   );
 
@@ -59,6 +61,7 @@ test('it gives an imp target another identity when its token file path changes',
         options: { url: 'http://127.0.0.1:9', tokenFile: '/run/credentials/two/imp-token' },
       },
     ],
+    '1.0.0',
     {},
   );
 

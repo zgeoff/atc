@@ -11,7 +11,7 @@ import { LocalPTYProvider } from './local-pty-provider';
 function setupTest() {
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(port, {}, { atcBinary: null });
+  const provider = new ImpProvider(port, {}, { atcBinary: null, version: '1.0.0' });
 
   registerTestCleanup(() => {
     provider.dispose();

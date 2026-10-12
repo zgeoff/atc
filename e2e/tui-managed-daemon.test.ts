@@ -6,8 +6,8 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { waitFor } from '@atc/test-utils/wait-for';
+import { buildHostServices } from '../packages/app/src/build-host-services';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
-import { getATCBuild } from '../packages/app/src/shared/get-atc-build';
 
 function setupTest() {
   return startTUIHarness();
@@ -32,7 +32,7 @@ test('it waits for a managed daemon instead of starting one while the unit is do
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getATCBuild(),
+    build: buildHostServices().build,
     adapter: buildMockAgentAdapter(),
   });
 
@@ -58,7 +58,7 @@ test('it reconnects a client after a managed daemon restarts without starting a 
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getATCBuild(),
+    build: buildHostServices().build,
     adapter: buildMockAgentAdapter(),
   };
 
@@ -118,7 +118,7 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getATCBuild(),
+    build: buildHostServices().build,
     adapter: buildMockAgentAdapter(),
   };
 
@@ -170,7 +170,7 @@ test('it keeps help open when a managed daemon returns', async () => {
     reporterSocketPath: join(ctx.home, 'atc.sock'),
     dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
     statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
-    build: getATCBuild(),
+    build: buildHostServices().build,
     adapter: buildMockAgentAdapter(),
   };
 

@@ -13,7 +13,7 @@ function setupTest() {
 }
 
 test('it builds no provider for an imp target without a url', () => {
-  expect(buildImpProvider('box', { tokenEnv: 'ATC_TEST_IMP_TOKEN' }, {})).toStrictEqual({
+  expect(buildImpProvider('box', { tokenEnv: 'ATC_TEST_IMP_TOKEN' }, '1.0.0', {})).toStrictEqual({
     provider: null,
     problem: null,
   });
@@ -28,6 +28,7 @@ test("it builds an imp provider that takes the target's guest options", () => {
       guestDir: '/srv/atc',
       guestATC: '/usr/local/bin/atc',
     },
+    '1.0.0',
     { ATC_TEST_IMP_TOKEN: 'token-value' },
   );
 
@@ -39,7 +40,7 @@ test("it builds an imp provider that takes the target's guest options", () => {
 });
 
 test('it builds an imp provider with no token for a target that sets no tokenEnv', () => {
-  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9' }, {});
+  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9' }, '1.0.0', {});
 
   expect(built.problem).toBeNull();
   expect(built.provider).toBeInstanceOf(ImpProvider);
@@ -49,6 +50,7 @@ test('it reports a target whose tokenEnv variable is unset, without a provider',
   const built = buildImpProvider(
     'box',
     { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
+    '1.0.0',
     { OTHER: 'other-value' },
   );
 
@@ -63,6 +65,7 @@ test('it reports a target whose tokenEnv variable is empty, without a provider',
   const built = buildImpProvider(
     'box',
     { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
+    '1.0.0',
     { ATC_TEST_IMP_TOKEN: '' },
   );
 
@@ -74,7 +77,7 @@ test('it reports a target whose tokenEnv variable is empty, without a provider',
 });
 
 test('it reports a target whose tokenEnv is not a non-empty string, without a provider', () => {
-  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', tokenEnv: 7 }, {});
+  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', tokenEnv: 7 }, '1.0.0', {});
 
   expect(built).toStrictEqual({
     provider: null,
@@ -88,7 +91,12 @@ test('it builds an imp provider for a target whose token file holds a token', ()
 
   writeFileSync(tokenPath, 'file-token\n');
 
-  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', tokenFile: tokenPath }, {});
+  const built = buildImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', tokenFile: tokenPath },
+    '1.0.0',
+    {},
+  );
 
   expect(built.problem).toBeNull();
   expect(built.provider).toBeInstanceOf(ImpProvider);
@@ -103,6 +111,7 @@ test('it reports a target that gives both tokenEnv and tokenFile, without a prov
   const built = buildImpProvider(
     'box',
     { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN', tokenFile: tokenPath },
+    '1.0.0',
     { ATC_TEST_IMP_TOKEN: 'token-value' },
   );
 
@@ -118,7 +127,12 @@ test('it reports a target whose token file is empty, without a provider', () => 
 
   writeFileSync(tokenPath, '\n');
 
-  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', tokenFile: tokenPath }, {});
+  const built = buildImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', tokenFile: tokenPath },
+    '1.0.0',
+    {},
+  );
 
   expect(built).toStrictEqual({
     provider: null,
@@ -132,6 +146,7 @@ test('it reports a target whose token file is missing, without a provider', () =
   const built = buildImpProvider(
     'box',
     { url: 'http://127.0.0.1:9', tokenFile: join(ctx.dir, 'imp-token') },
+    '1.0.0',
     {},
   );
 
@@ -142,7 +157,7 @@ test('it reports a target whose token file is missing, without a provider', () =
 });
 
 test('it reports a target whose tokenFile is not a non-empty string, without a provider', () => {
-  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', tokenFile: '' }, {});
+  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', tokenFile: '' }, '1.0.0', {});
 
   expect(built).toStrictEqual({
     provider: null,
@@ -151,7 +166,7 @@ test('it reports a target whose tokenFile is not a non-empty string, without a p
 });
 
 test('it builds an imp provider that names imps under atc- when the target sets no impPrefix', () => {
-  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9' }, {});
+  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9' }, '1.0.0', {});
 
   invariant(built.provider !== null, 'expected an imp provider');
 
@@ -159,7 +174,12 @@ test('it builds an imp provider that names imps under atc- when the target sets 
 });
 
 test("it builds an imp provider that names imps under the target's impPrefix", () => {
-  const built = buildImpProvider('box', { url: 'http://127.0.0.1:9', impPrefix: 'harness-' }, {});
+  const built = buildImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', impPrefix: 'harness-' },
+    '1.0.0',
+    {},
+  );
 
   invariant(built.provider !== null, 'expected an imp provider');
 
@@ -178,7 +198,9 @@ test.each([
   ['harnessatc-x'],
   [42],
 ])('it reports a target whose impPrefix is %p, without a provider', (impPrefix) => {
-  expect(buildImpProvider('box', { url: 'http://127.0.0.1:9', impPrefix }, {})).toStrictEqual({
+  expect(
+    buildImpProvider('box', { url: 'http://127.0.0.1:9', impPrefix }, '1.0.0', {}),
+  ).toStrictEqual({
     provider: null,
     problem:
       'target "box" must give impPrefix as a lowercase letter followed by up to 10 lowercase letters, digits or hyphens, so every imp name it builds is one impd accepts',

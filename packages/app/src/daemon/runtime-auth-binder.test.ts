@@ -32,7 +32,11 @@ async function setupTest() {
 
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -1777,7 +1781,11 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
 
   await ctx.port.createImp({ name: 'atc-new-s1' });
 
-  const renamed = new ImpProvider(ctx.port, { impPrefix: 'atc-new-' }, { atcBinary: null });
+  const renamed = new ImpProvider(
+    ctx.port,
+    { impPrefix: 'atc-new-' },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     renamed.dispose();

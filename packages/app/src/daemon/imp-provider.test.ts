@@ -48,6 +48,7 @@ test('it keeps an existing-host check refused when impd errors after the credent
   const provider = new ImpProvider(
     new ImpClientPort({ url: impd.url, readToken: () => 'current-token' }),
     {},
+    { version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -72,6 +73,7 @@ test('it keeps an existing-host check refused when impd is unreachable', async (
   const provider = new ImpProvider(
     new ImpClientPort({ url: impd.url, readToken: () => 'current-token' }),
     {},
+    { version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -420,7 +422,7 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
   const provider = new ImpProvider(
     ctx.port,
     { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -452,7 +454,11 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
 test('it names each imp under the atc- prefix when the target sets none', async () => {
   const ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -470,7 +476,7 @@ test("it names each imp under the target's configured prefix", async () => {
   const provider = new ImpProvider(
     ctx.port,
     { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -488,7 +494,7 @@ test("it lets a token scoped to the target's configured prefix activate the brok
   const provider = new ImpProvider(
     ctx.port,
     { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -517,7 +523,7 @@ test("it refuses a token scoped beyond the target's configured prefix", () => {
   const provider = new ImpProvider(
     ctx.port,
     { guestDir: join(ctx.dir, 'g'), impPrefix: 'harness-' },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -543,7 +549,11 @@ test("it refuses a token scoped beyond the target's configured prefix", () => {
 test('it asks impd to require the broker on a harness start that requires one', async () => {
   const ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -579,7 +589,11 @@ test('it asks impd to require the broker on a harness start that requires one', 
 test('it keeps a full UUID imp session name inside the session limit', async () => {
   const ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -616,7 +630,11 @@ test('it keeps a full UUID imp session name inside the session limit', async () 
 test('it derives one imp session name per session', async () => {
   const ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -696,7 +714,11 @@ test('it derives one imp session name per session', async () => {
 test('it asks impd to require nothing on a harness start that requires no broker', async () => {
   const ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -736,7 +758,7 @@ test("it creates a host's imp for the broker with the target's image and memory"
   const provider = new ImpProvider(
     ctx.port,
     { guestDir: join(ctx.dir, 'g'), image: 'base', memoryMib: 512 },
-    { atcBinary: null },
+    { atcBinary: null, version: '1.0.0' },
   );
 
   registerTestCleanup(() => {
@@ -753,7 +775,11 @@ test("it creates a host's imp for the broker with the target's image and memory"
 test('it sends an archive to an imp gzipped and unpacks it there', async () => {
   const ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();
@@ -785,7 +811,11 @@ test('it sends an archive to an imp gzipped and unpacks it there', async () => {
 test('it refuses a transfer to an imp without gzip and leaves the directory uncreated', async () => {
   const ctx = setupTest();
 
-  const provider = new ImpProvider(ctx.port, { guestDir: join(ctx.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();

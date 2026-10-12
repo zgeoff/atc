@@ -12,6 +12,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
+import { buildHostServices } from '../build-host-services';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
@@ -40,7 +41,11 @@ async function setupTest() {
           provider: new ImpProvider(
             port,
             { guestDir, guestATC: clis.atc },
-            { reconnectDelaysMs: [0, 0, 0], atcBinary: null },
+            {
+              reconnectDelaysMs: [0, 0, 0],
+              atcBinary: null,
+              version: buildHostServices().version,
+            },
           ),
         },
       ],

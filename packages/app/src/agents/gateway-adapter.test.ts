@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { getSourceEntry } from '@atc/test-utils/get-source-entry';
 import { KEYS } from '@atc/test-utils/keys';
 import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -282,7 +282,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
 });
 
 test("it runs a headless turn with the gateway's settings file, its permission hook and mode included", () => {
-  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
@@ -332,7 +332,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -343,7 +343,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -354,7 +354,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -365,7 +365,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -376,7 +376,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'manual-hook'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -386,7 +386,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'manual-hook'`,
+      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'manual-hook'`,
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic' },
@@ -544,7 +544,7 @@ test('it gives a gateway with auth no resume command', () => {
 });
 
 test("it starts a gateway with auth and a credential helper on the daemon's machine under that helper", () => {
-  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
@@ -592,7 +592,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -603,7 +603,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -614,7 +614,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -625,7 +625,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -636,7 +636,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'glm-local'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -645,7 +645,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'glm-local'`,
+      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'glm-local'`,
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },

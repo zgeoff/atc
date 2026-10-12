@@ -26,11 +26,12 @@ interface ImpProviderBuild {
  * target lists and refuses every spawn. Both token options, either one not
  * a non-empty string, an unset or empty variable, or an empty or unreadable
  * file is a problem and leaves no provider; a target without either calls
- * impd with no token.
+ * impd with no token. `version` holds the atc version the daemon runs.
  */
 export function buildImpProvider(
   id: string,
   options: Readonly<Record<string, unknown>>,
+  version: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ImpProviderBuild {
   const url = options['url'];
@@ -54,13 +55,17 @@ export function buildImpProvider(
     };
   }
 
-  const provider = new ImpProvider(new ImpClientPort({ url, readToken: source.readToken }), {
-    ...(impPrefix === undefined ? {} : { impPrefix }),
-    ...pickString(options, 'image'),
-    ...pickString(options, 'guestDir'),
-    ...pickString(options, 'guestATC'),
-    ...(typeof options['memoryMib'] === 'number' ? { memoryMib: options['memoryMib'] } : {}),
-  });
+  const provider = new ImpProvider(
+    new ImpClientPort({ url, readToken: source.readToken }),
+    {
+      ...(impPrefix === undefined ? {} : { impPrefix }),
+      ...pickString(options, 'image'),
+      ...pickString(options, 'guestDir'),
+      ...pickString(options, 'guestATC'),
+      ...(typeof options['memoryMib'] === 'number' ? { memoryMib: options['memoryMib'] } : {}),
+    },
+    { version },
+  );
 
   return { provider, problem: null };
 }
