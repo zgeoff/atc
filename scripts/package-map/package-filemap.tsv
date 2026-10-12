@@ -339,6 +339,7 @@ src/run-gateway.ts	app	cli	packages/app/src/cli/run-gateway.ts
 src/run-systemctl.ts	lifecycle		packages/lifecycle/src/run-systemctl.ts	
 src/shared/agent-id.ts	core		packages/core/src/agent-id.ts	
 src/shared/agent-session-id.ts	core		packages/core/src/agent-session-id.ts	
+src/shared/ansi.ts	core		packages/core/src/ansi.ts	new in ticket 3
 src/shared/build-atc-command.ts	lifecycle		packages/lifecycle/src/build-atc-command.ts	takes atcArgv from its caller (HostServices built in app); no import.meta.dir path
 src/shared/build-optional-boolean.ts	core		packages/core/src/build-optional-boolean.ts	
 src/shared/build-optional-string-array.ts	core		packages/core/src/build-optional-string-array.ts	

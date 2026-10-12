@@ -1,4 +1,5 @@
 import type { AgentID } from '@atc/core/agent-id';
+import { ansi } from '@atc/core/ansi';
 import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
 import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
 import { expandHome } from '@atc/core/expand-home';
@@ -22,7 +23,7 @@ import { pickRefusalStep } from './pick-refusal-step';
 import { resolvePathInput } from './resolve-path-input';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { splitToWidth } from './split-to-width';
-import { ansi, cols, drawPicker, getPickerWidth } from './ui';
+import { cols, drawPicker, getPickerWidth } from './ui';
 
 type PickerStep =
   | 'agent'

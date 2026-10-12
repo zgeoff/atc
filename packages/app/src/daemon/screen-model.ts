@@ -1,3 +1,4 @@
+import { ansi } from '@atc/core/ansi';
 import { RESET_INPUT_MODES } from '@atc/core/reset-input-modes';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/headless';
@@ -156,7 +157,7 @@ export class ScreenModel {
   // the buffer the session is actually showing.
   private renderVisibleScreen(): string {
     const serialized = this.serializer.serialize();
-    const altSwitch = '\u001B[?1049h\u001B[H';
+    const altSwitch = `${ansi.altScreenOn}${ansi.cursorHome}`;
     const switchAt = serialized.lastIndexOf(altSwitch);
 
     return switchAt === -1 ? serialized : serialized.slice(switchAt + altSwitch.length);

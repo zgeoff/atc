@@ -1,4 +1,5 @@
 import type { AgentID } from '@atc/core/agent-id';
+import { ansi } from '@atc/core/ansi';
 import { makeSingleFlight } from '@atc/core/make-single-flight';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
@@ -27,7 +28,7 @@ import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
-import { ansi, cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
+import { cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
 let overlaySelected = 0;
 let confirmKill = false;

@@ -3,6 +3,7 @@ import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { AgentID } from '@atc/core/agent-id';
+import { ansi } from '@atc/core/ansi';
 import { isRecord } from '@atc/core/is-record';
 import type { MessageID } from '@atc/core/message-id';
 import type { SessionID } from '@atc/core/session-id';
@@ -737,7 +738,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return;
     }
 
-    const replay = `\u001B[2J\u001B[H${await runtime.screen.renderReplay()}`;
+    const replay = `${ansi.clear}${await runtime.screen.renderReplay()}`;
     const seq = runtime.seq;
 
     for (let i = 0; i < replay.length; i += MAX_CHUNK) {
