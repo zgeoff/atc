@@ -3,11 +3,10 @@
 import { resolve } from 'node:path';
 import { parseListenAddress } from '@atc/config/listen/parse-listen-address';
 import { defineCommand, runMain } from 'citty';
-import pkg from '../package.json';
+import { buildHostServices } from './build-host-services';
 import { collectRedirectURIs } from './collect-redirect-uris';
 import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
-import { getATCBuild } from './shared/get-atc-build';
 
 // The flags `atc daemon` takes.
 const DAEMON_ARGS = {
@@ -21,10 +20,13 @@ const DAEMON_ARGS = {
   },
 } as const;
 
+// This process's host services, built once for every subcommand.
+const hostServices = buildHostServices();
+
 const main = defineCommand({
   meta: {
     name: 'atc',
-    version: pkg.version,
+    version: hostServices.version,
     description: 'Terminal control tower for coding-agent sessions',
   },
   default: 'tui',
@@ -41,7 +43,9 @@ const main = defineCommand({
           const host = await import('./build-tui-host');
           const slot = await import('./client/tui-host-slot');
 
-          slot.tuiHostSlot.current = host.buildTUIHost(lifecycle.buildLifecycleHost(process.env));
+          slot.tuiHostSlot.current = host.buildTUIHost(
+            lifecycle.buildLifecycleHost(process.env, hostServices),
+          );
 
           await import('./client');
         },
@@ -83,7 +87,7 @@ const main = defineCommand({
           const boot = await import('@atc/lifecycle/boot-daemon');
           const lifecycle = await import('./build-lifecycle-host');
 
-          const host = lifecycle.buildLifecycleHost(process.env);
+          const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
           if (!ctx.args.http) {
             const server = await import('./mcp-server');
@@ -275,7 +279,7 @@ const main = defineCommand({
                 const id = await import('@atc/lifecycle/run-daemon-id');
                 const lifecycle = await import('./build-lifecycle-host');
 
-                await id.runDaemonID(lifecycle.buildLifecycleHost(process.env));
+                await id.runDaemonID(lifecycle.buildLifecycleHost(process.env, hostServices));
               },
             }),
           restart: () =>
@@ -302,7 +306,7 @@ const main = defineCommand({
                 const restart = await import('@atc/lifecycle/run-daemon-restart');
                 const lifecycle = await import('./build-lifecycle-host');
 
-                const host = lifecycle.buildLifecycleHost(process.env);
+                const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
                 const code = await restart.runDaemonRestart(host, {
                   ...options,
@@ -331,7 +335,7 @@ const main = defineCommand({
                 const worker = await import('@atc/lifecycle/run-daemon-restart-worker');
                 const lifecycle = await import('./build-lifecycle-host');
 
-                const host = lifecycle.buildLifecycleHost(process.env);
+                const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
                 const code = await worker.runDaemonRestartWorker(host, {
                   ...options,
@@ -366,7 +370,7 @@ const main = defineCommand({
         async run() {
           const hook = await import('./agents/print-codex-hook-file');
 
-          hook.printCodexHookFile();
+          hook.printCodexHookFile(hostServices.atcArgv);
         },
       }),
     'grok-hooks': () =>
@@ -378,7 +382,7 @@ const main = defineCommand({
         async run() {
           const hook = await import('./agents/print-grok-hook-file');
 
-          hook.printGrokHookFile();
+          hook.printGrokHookFile(hostServices.atcArgv);
         },
       }),
     'hook-report': () =>
@@ -585,7 +589,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   // deterministically; unset means the production default.
   const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
   const cfg = config.loadConfig();
-  const built = targets.buildExecutionTargets(cfg.targets);
+  const built = targets.buildExecutionTargets(cfg.targets, hostServices.version);
   const targetErrors = [...cfg.targetErrors, ...built.errors];
 
   for (const error of targetErrors) {
@@ -644,7 +648,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       socketPath: config.daemonSocketPath,
       reporterSocketPath: config.socketPath,
       eventsSocketPath: config.eventsSocketPath,
-      build: getATCBuild(),
+      build: hostServices.build,
       adapters,
       defaultAgent: cfg.defaultAgent,
       dbPath: config.dbFile,

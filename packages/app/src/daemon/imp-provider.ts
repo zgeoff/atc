@@ -22,7 +22,6 @@ import { buildSessionEnv } from '@atc/protocol/build-session-env';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { LineDecoder } from '@atc/protocol/line-decoder';
 import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
-import pkg from '../../package.json';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { buildImpName } from './build-imp-name';
 import { ImpHarness } from './imp-harness';
@@ -59,7 +58,7 @@ interface ImpProviderOptions {
 
   // The atc version the daemon runs, which the image's atc must print for
   // hooks to run it.
-  readonly version?: string;
+  readonly version: string;
 }
 
 // The folder inside an imp that atc's files go under when the target sets
@@ -183,14 +182,14 @@ export class ImpProvider implements ExecutionProvider {
   // names it.
   private label: string | null = null;
 
-  constructor(port: ImpPort, target: ImpTargetOptions, options: ImpProviderOptions = {}) {
+  constructor(port: ImpPort, target: ImpTargetOptions, options: ImpProviderOptions) {
     this.port = port;
     this.target = target;
     this.impPrefix = target.impPrefix ?? IMP_PREFIX;
     this.leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
     this.atcBinary = options.atcBinary === undefined ? findOwnLinuxBinary() : options.atcBinary;
-    this.version = options.version ?? pkg.version;
+    this.version = options.version;
 
     const dir = target.guestDir ?? GUEST_DIR;
 

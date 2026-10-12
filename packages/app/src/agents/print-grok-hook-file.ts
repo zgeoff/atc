@@ -1,5 +1,4 @@
 import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
-import { buildCLIArgv } from './build-cli-argv';
 
 const GROK_HOOK_EVENTS = [
   'SessionStart',
@@ -13,19 +12,21 @@ const GROK_HOOK_EVENTS = [
 
 /**
  * Print the Grok hook file to stdout. The operator copies it to
- * `$GROK_HOME/hooks/atc-reporter.json`; atc never writes that path. `write`
- * takes the printed text, stdout by default.
+ * `$GROK_HOME/hooks/atc-reporter.json`; atc never writes that path. Each
+ * hook runs atc through `atcArgv`. `write` takes the printed text, stdout by
+ * default.
  */
 export function printGrokHookFile(
+  atcArgv: readonly string[],
   write: (text: string) => void = (text) => {
     process.stdout.write(text);
   },
 ): void {
-  write(buildGrokHookFile());
+  write(buildGrokHookFile(atcArgv));
 }
 
-function buildGrokHookFile(): string {
-  const cmd = buildHookCommand('hook-report --agent grok', buildCLIArgv());
+function buildGrokHookFile(atcArgv: readonly string[]): string {
+  const cmd = buildHookCommand('hook-report --agent grok', atcArgv);
   const entry = [{ hooks: [{ type: 'command', command: cmd, timeout: 5 }] }];
   const hooks = Object.fromEntries(GROK_HOOK_EVENTS.map((event) => [event, entry]));
 

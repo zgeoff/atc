@@ -28,7 +28,11 @@ function setupTest() {
   const tmp = setupTempDir('atc-runtime-auth-');
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
+  const provider = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     provider.dispose();

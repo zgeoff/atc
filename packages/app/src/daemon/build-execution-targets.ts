@@ -31,17 +31,20 @@ interface ExecutionTargetsBuild {
 
 /**
  * Builds one target per configured entry, in config order, each with a
- * provider of its kind when this daemon has one. An entry whose provider
- * cannot start from `env` keeps no provider and adds a target error.
+ * provider of its kind when this daemon has one. `version` holds the atc
+ * version the daemon runs, which an imp's atc must match. An entry whose
+ * provider cannot start from `env` keeps no provider and adds a target
+ * error.
  */
 export function buildExecutionTargets(
   configs: readonly TargetConfig[],
+  version: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ExecutionTargetsBuild {
   const errors: TargetConfigError[] = [];
 
   const targets = configs.map((config) => {
-    const built = buildProvider(config, env);
+    const built = buildProvider(config, version, env);
 
     if (built.problem !== null) {
       errors.push({ scope: 'target', target: config.id, problem: built.problem });
@@ -61,6 +64,7 @@ export function buildExecutionTargets(
 
 function buildProvider(
   config: TargetConfig,
+  version: string,
   env: Readonly<Record<string, string | undefined>>,
 ): Readonly<{ provider: ExecutionProvider | null; problem: string | null }> {
   if (config.provider === 'local-pty') {
@@ -68,6 +72,6 @@ function buildProvider(
   }
 
   return config.provider === 'imp'
-    ? buildImpProvider(config.id, config.options, env)
+    ? buildImpProvider(config.id, config.options, version, env)
     : { provider: null, problem: null };
 }

@@ -26,7 +26,7 @@ src/agents/build-claude-mcp-config.ts	harness-claude	guest	packages/harnesses/cl
 src/agents/build-claude-override-args.ts	harness-claude		packages/harnesses/claude/src/build-claude-override-args.ts	
 src/agents/build-claude-project-settings-check.ts	harness-claude	guest	packages/harnesses/claude/src/guest/build-claude-project-settings-check.ts	
 src/agents/build-claude-query-options.ts	harness-claude	headless	packages/harnesses/claude/src/headless/build-claude-query-options.ts	
-src/agents/build-cli-argv.ts	app	host	packages/app/src/host/build-host-services.ts	removed: app computes HostServices.atcArgv once (decision taken 2)
+src/agents/build-cli-argv.ts	app	host	packages/app/src/build-host-services.ts	removed: app computes HostServices.atcArgv once (decision taken 2); build-host-services.ts sits at the app src root, not in host/, so it reads ../package.json
 src/agents/build-cli-command.ts	plugin-api	harness	packages/plugin-api/src/harness/build-hook-command.ts	becomes buildHookCommand(host.atcArgv) in plugin-api ./harness (decision taken 3)
 src/agents/build-codex-auth-file.ts	harness-codex		packages/harnesses/codex/src/build-codex-auth-file.ts	
 src/agents/build-codex-config.ts	harness-codex		packages/harnesses/codex/src/build-codex-config.ts	
@@ -78,6 +78,7 @@ src/agents/write-atc-bridge.ts	harness-claude	bridge	packages/harnesses/claude/s
 src/agents/write-hook-settings.ts	harness-claude		packages/harnesses/claude/src/write-hook-settings.ts	
 src/build-atc-invocation.ts	app		packages/app/src/build-atc-invocation.ts	new in ticket 8
 src/build-host-daemon-paths.ts	lifecycle		packages/lifecycle/src/build-host-daemon-paths.ts	
+src/build-host-services.ts	app		packages/app/src/build-host-services.ts	new in ticket 9
 src/build-lifecycle-host.ts	app		packages/app/src/build-lifecycle-host.ts	
 src/build-migrated-config.ts	app	cli/config-migrate	packages/app/src/cli/config-migrate/build-migrated-config.ts	the migrate command's converter; stays beside it in app
 src/build-own-daemon-process.ts	lifecycle		packages/lifecycle/src/build-own-daemon-process.ts	
@@ -442,7 +443,7 @@ src/shared/find-pid-file-pid.ts	lifecycle		packages/lifecycle/src/find-pid-file-
 src/shared/format-home-path.ts	core		packages/core/src/format-home-path.ts	new in ticket 3
 src/shared/format-json-kind.ts	config		packages/config/src/format-json-kind.ts	
 src/shared/format-mixed-agent-keys.ts	config		packages/config/src/format-mixed-agent-keys.ts	
-src/shared/get-atc-build.ts	app		packages/app/src/shared/get-atc-build.ts	new in ticket 5
+src/shared/get-atc-build.ts	app		packages/app/src/build-host-services.ts	folded into HostServices.build in ticket 9
 src/shared/get-build.ts	config		packages/config/src/get-build.ts	drop both defaults: app passes the version and the scan root (workspace packages/ in source mode, execPath in a binary); no ../../package.json import
 src/shared/get-record.ts	test-utils		packages/test-utils/src/get-record.ts	
 src/shared/grant-scope.ts	mcp	auth	packages/mcp/src/auth/grant-scope.ts	
@@ -526,6 +527,7 @@ src/test-utils/build-mock-daemon-record.ts	lifecycle	testing	packages/lifecycle/
 src/test-utils/build-mock-execution-target.ts	daemon	testing	packages/daemon/src/testing/build-mock-execution-target.ts	
 src/test-utils/build-mock-fleet-entry.ts	store	testing	packages/store/src/testing/build-mock-fleet-entry.ts	
 src/test-utils/build-mock-gateway-config.ts	harness-claude	testing	packages/harnesses/claude/src/testing/build-mock-gateway-config.ts	
+src/test-utils/build-mock-host-services.ts	test-utils		packages/test-utils/src/build-mock-host-services.ts	new in ticket 9: the HostServices factory
 src/test-utils/build-mock-imp-identity.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-identity.ts	
 src/test-utils/build-mock-imp-session-request.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-session-request.ts	
 src/test-utils/build-mock-key-binding-claim.ts	gateway	testing	packages/gateway/src/testing/build-mock-key-binding-claim.ts	

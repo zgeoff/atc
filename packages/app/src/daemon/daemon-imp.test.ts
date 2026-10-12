@@ -43,7 +43,7 @@ async function setupTest() {
             provider: new ImpProvider(
               port,
               { guestDir: join(paths.dir, 'g') },
-              { reconnectDelaysMs: [0, 0, 0] },
+              { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
             ),
           },
         ],

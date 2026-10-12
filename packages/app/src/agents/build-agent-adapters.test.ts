@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { getSourceEntry } from '@atc/test-utils/get-source-entry';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from './build-agent-adapters';
@@ -66,7 +66,7 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
 });
 
 test('it hands a gateway entry the settings folder, home and mod folder it is given', () => {
-  const repoRoot = dirname(fileURLToPath(import.meta.resolve('../../package.json')));
+  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'home', '.claude'), { recursive: true });
@@ -111,7 +111,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'zai'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -122,7 +122,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'zai'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -133,7 +133,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'zai'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -144,7 +144,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'zai'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -155,7 +155,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" hook-report --agent 'zai'`,
+              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -164,7 +164,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${join(repoRoot, 'src/cli.ts')}" statusline --agent 'zai'`,
+      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'zai'`,
       padding: 3,
     },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },

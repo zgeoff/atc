@@ -39,6 +39,7 @@ import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
 import type { SessionState } from '@atc/protocol/session-state';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { SPAWN_ANSWER_SCHEMA } from '@atc/protocol/spawn-answer';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import type { IdempotencyRecord } from '@atc/store/idempotency-record';
 import type { MessageOwner } from '@atc/store/message-owner';
 import type { MessageRecord, MessageStatus } from '@atc/store/message-record';
@@ -52,7 +53,6 @@ import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
 import { buildConfigRevision } from './build-config-revision';
 import { buildDefaultWorkspaceDir } from './build-default-workspace-dir';
-import { buildExecutionTargets } from './build-execution-targets';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
@@ -84,6 +84,7 @@ import { IdempotencyLedger } from './idempotency-ledger';
 import { isOwnHookEvent } from './is-own-hook-event';
 import { isTreeInReach } from './is-tree-in-reach';
 import { loadTranscriptPage } from './load-transcript-page';
+import { LocalPTYProvider } from './local-pty-provider';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { materializeWorkspace } from './materialize-workspace';
@@ -412,7 +413,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   idempotencySweep.unref();
 
-  const targets = opts.targets ?? buildExecutionTargets([LOCAL_TARGET]).targets;
+  // With no configured targets the daemon serves the local one alone,
+  // which needs no atc version since no atc runs inside it.
+  const targets: readonly ExecutionTarget[] = opts.targets ?? [
+    {
+      id: LOCAL_TARGET.id,
+      kind: LOCAL_TARGET.provider,
+      options: LOCAL_TARGET.options,
+      identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
+      provider: new LocalPTYProvider(),
+    },
+  ];
+
   const targetErrors = opts.targetErrors ?? [];
   const principals = opts.principals ?? null;
   const gitTransports = opts.gitTransports ?? DEFAULT_GIT_TRANSPORTS;

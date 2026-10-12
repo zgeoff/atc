@@ -11,10 +11,10 @@ import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 import type { SourceProvider } from '@atc/plugin-api/types';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { startClaudeHeadlessRun } from '../agents/start-claude-headless-run';
+import { buildHostServices } from '../build-host-services';
 import { buildExecutionTargets } from '../daemon/build-execution-targets';
 import { startDaemon } from '../daemon/daemon';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
-import { getATCBuild } from '../shared/get-atc-build';
 import { buildSources } from '../sources/build-sources';
 import { collectBuiltinSources } from '../sources/collect-builtin-sources';
 
@@ -85,12 +85,12 @@ async function main() {
     socketPath: daemonSocketPath,
     reporterSocketPath: socketPath,
     eventsSocketPath,
-    build: getATCBuild(),
+    build: buildHostServices().build,
     adapters,
     defaultAgent: config.defaultAgent,
     dbPath: dbFile,
     pidPath: daemonPidFile,
-    targets: buildExecutionTargets(config.targets).targets,
+    targets: buildExecutionTargets(config.targets, buildHostServices().version).targets,
     defaultTarget: config.defaultTarget,
     sources: process.env['ATC_TEST_SOURCES'] === 'none' ? [] : [...builtin, fixture],
     gitTransports: config.workspaces.gitTransports,

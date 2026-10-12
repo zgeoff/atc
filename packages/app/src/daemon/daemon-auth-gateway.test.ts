@@ -28,7 +28,11 @@ function setupTest() {
   const port = createStubImpPort();
   const settles: RestoreSettled[] = [];
 
-  const box = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { atcBinary: null });
+  const box = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
   registerTestCleanup(() => {
     box.dispose();

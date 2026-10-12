@@ -30,7 +30,7 @@ async function setupTest() {
 
   const port = createStubImpPort();
 
-  const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') });
+  const provider = new ImpProvider(port, { guestDir: join(tmp.dir, 'g') }, { version: '1.0.0' });
 
   registerTestCleanup(() => {
     provider.dispose();
