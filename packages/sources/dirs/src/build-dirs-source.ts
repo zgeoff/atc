@@ -4,6 +4,7 @@ import { expandHome } from '@atc/core/expand-home';
 import { formatHomePath } from '@atc/core/format-home-path';
 import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api/types';
 import { collectRootDirs } from './collect-root-dirs';
+import { collectPathCompletions } from './complete/collect-path-completions';
 
 // What the source reads besides the spawn history a request brings.
 interface DirsSourceServices {
@@ -24,7 +25,10 @@ interface DirsSourceServices {
  * configured roots, then zoxide's list. A directory that no longer exists
  * is left out, and a duplicate keeps its first place. Typed input is a
  * directory when it is absolute or starts with `~`, which stands for the
- * daemon user's home.
+ * daemon user's home. A typed path completes against the daemon host's
+ * filesystem; a relative one resolves under the client's directory, which
+ * a caller sends only when the daemon runs on the client's machine, and
+ * under the home otherwise.
  */
 export function buildDirsSource(services: DirsSourceServices): SourceProvider {
   return {
@@ -61,6 +65,11 @@ export function buildDirsSource(services: DirsSourceServices): SourceProvider {
         : { kind: 'none' };
 
       return Promise.resolve(interpretation);
+    },
+    complete(input, request) {
+      return Promise.resolve(
+        collectPathCompletions(input, request.clientCwd ?? services.homeDir, services.homeDir),
+      );
     },
   };
 }
