@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
+import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
 import { buildOptionalString } from '@atc/core/build-optional-string';
+import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
 import { isRecord } from '@atc/core/is-record';
 import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
 import { OUTRANKING_VARIABLES } from '@atc/core/outranking-variables';
@@ -180,7 +182,10 @@ export class ClaudeAdapter implements AgentAdapter {
       gateway: {
         id: this.id,
         baseURL: ANTHROPIC_API_URL,
-        auth: { profiles: auth.profiles, placeholderEnv: { [OAUTH_VARIABLE]: PLACEHOLDER } },
+        auth: {
+          profiles: auth.profiles,
+          placeholderEnv: { [CLAUDE_CREDENTIAL_VARIABLES.oauthToken]: BROKER_PLACEHOLDER },
+        },
       },
       profiles: this.authProfiles,
       brokerRequired: false,
@@ -600,12 +605,8 @@ export class ClaudeAdapter implements AgentAdapter {
   }
 }
 
-// The endpoint Claude Code sends a subscription token to, the variable it
-// reads that token from, and the value impd's broker replaces with the
-// token on the host's side.
+// The endpoint Claude Code sends a subscription token to.
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
-const OAUTH_VARIABLE = 'CLAUDE_CODE_OAUTH_TOKEN';
-const PLACEHOLDER = 'imp-broker-placeholder';
 
 // The string values of an object, which is all a session's environment holds.
 function toStringEntries(value: Readonly<Record<string, unknown>>): Record<string, string> {

@@ -1,3 +1,4 @@
+import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
 import type { ClaudeMCPServer } from '../shared/collect-claude-auth';
 
 /**
@@ -22,6 +23,3 @@ export function buildClaudeMCPConfig(servers: readonly ClaudeMCPServer[]): {
     ),
   };
 }
-
-// The value impd's broker replaces with the credential on the host's side.
-const BROKER_PLACEHOLDER = 'imp-broker-placeholder';

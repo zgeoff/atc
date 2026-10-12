@@ -1,5 +1,7 @@
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
+import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
+import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
 import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
@@ -432,8 +434,10 @@ export class GatewayAdapter implements AgentAdapter {
       );
     }
 
-    if (env[pairing.variable] !== PLACEHOLDER) {
-      return this.buildPlaceholderRefusal(`needs ${pairing.variable} to hold ${PLACEHOLDER}`);
+    if (env[pairing.variable] !== BROKER_PLACEHOLDER) {
+      return this.buildPlaceholderRefusal(
+        `needs ${pairing.variable} to hold ${BROKER_PLACEHOLDER}`,
+      );
     }
 
     const resolution = resolveAuthProfiles(this.config.authProfiles, profiles);
@@ -513,9 +517,6 @@ function isBrokerOnlyGateway(gateway: GatewayConfig): boolean {
   return gateway.auth !== undefined && gateway.apiKeyHelper === undefined;
 }
 
-// The value impd's broker replaces with the credential on the host's side.
-const PLACEHOLDER = 'imp-broker-placeholder';
-
 /**
  * A variable the Claude CLI sends as its credential, and the header and
  * scheme impd's broker must set for the base URL's host to fill it.
@@ -528,14 +529,14 @@ interface CredentialPairing {
 }
 
 const BEARER_PAIRING: CredentialPairing = {
-  variable: 'ANTHROPIC_AUTH_TOKEN',
+  variable: CLAUDE_CREDENTIAL_VARIABLES.authToken,
   header: 'authorization',
   scheme: 'bearer',
   description: 'a bearer authorization header',
 };
 
 const API_KEY_PAIRING: CredentialPairing = {
-  variable: 'ANTHROPIC_API_KEY',
+  variable: CLAUDE_CREDENTIAL_VARIABLES.apiKey,
   header: 'x-api-key',
   scheme: 'raw',
   description: 'a raw x-api-key header',
@@ -556,7 +557,7 @@ function findAPIKeyPlaceholder(env: Readonly<Record<string, string>>): string | 
 // pairing's variable, plus the one that points it at the session's config
 // folder, whose launch value a placeholder would overwrite.
 const COMPETING_CREDENTIAL_VARIABLES: ReadonlySet<string> = new Set([
-  'CLAUDE_CODE_OAUTH_TOKEN',
+  CLAUDE_CREDENTIAL_VARIABLES.oauthToken,
   'CLAUDE_CONFIG_DIR',
 ]);
 
