@@ -1,17 +1,16 @@
 # Releasing
 
 Releases run on their own from `main`. release-please opens and merges the release PR, and the merge
-tags the release, publishes the npm package with provenance under OIDC, attaches the compiled
-binaries, pushes the Homebrew formula and opens the agent image pin PR in zgeoff/cloud. `main.yml`
-holds every step. This runbook covers what the automation does not: its one-time setup and the
-recoveries a failed release needs.
+tags the release, attaches the compiled binaries, pushes the Homebrew formula and opens the agent
+image pin PR in zgeoff/cloud. `main.yml` holds every step. This runbook covers what the automation
+does not: its one-time setup and the recoveries a failed release needs.
 
 ## One-time setup
 
 ### The release App
 
 A pull request that `GITHUB_TOKEN` creates starts no workflow, so a release PR it opened would get
-no CI, and its merge would never start the publish run. The workflow therefore uses a GitHub App
+no CI, and its merge would never start the release run. The workflow therefore uses a GitHub App
 token.
 
 1. Create a GitHub App, or reuse `zgeoff-release`, with any homepage URL and the webhook off.
@@ -39,32 +38,18 @@ leaves the formula alone and runs every other step.
 The imp agent image in zgeoff/cloud bakes in atc, and each release opens or updates one pin PR
 there. Install the release App on `cloud`. cloud's `docs/runbooks/agent-image.md` covers the rest.
 
-### The first publish
-
-npm trusted publishing cannot create a package that does not exist, so the first publish runs by
-hand:
-
-```bash
-npm login
-scripts/first-publish.sh
-```
-
-The script publishes the current version and prints the trusted publisher settings to add on
-npmjs.com: repo `zgeoff/atc`, workflow `main.yml`. CI publishes every later version with no token.
-
 ## Recovering a release
 
-- **A release PR is open, but nothing published.** The App is not configured, or its token step
-  failed, so the PR did not merge on its own. Merge it by hand, which starts the publish run.
-- **The first CI publish fails with 404 or 403.** The trusted publisher is not configured, or the
-  first manual publish never ran.
-- **The release is tagged, but the npm publish failed.** Run the publish again:
+- **A release PR is open, but no release exists.** The App is not configured, or its token step
+  failed, so the PR did not merge on its own. Merge it by hand, which starts the release run.
+- **The release is tagged, but its binaries, formula or pin PR are missing.** Run the release steps
+  again for the current version:
 
   ```bash
-  gh workflow run main.yml -f republish_paths='["."]'
+  gh workflow run main.yml
   ```
 
-  Versions already on the registry are skipped. A re-run of the failed job does not help when the
+  Each step replaces what the failed run left. A re-run of the failed job does not help when the
   failure is deterministic, since a re-run uses the workflow file of the original commit.
 
 - **A release needs a specific version.** Put `Release-As: <version>` in the footer of a commit that

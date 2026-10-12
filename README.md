@@ -5,7 +5,7 @@
   </picture>
 
   <p>
-    <a href="https://www.npmjs.com/package/@zgeoff/atc"><img src="https://img.shields.io/npm/v/%40zgeoff%2Fatc" alt="npm version"></a>
+    <a href="https://github.com/zgeoff/atc/releases/latest"><img src="https://img.shields.io/github/v/release/zgeoff/atc" alt="latest release"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   </p>
 
@@ -32,8 +32,8 @@ brew install zgeoff/tap/atc
 ```
 
 atc needs at least one of the `claude`, `grok`, or `codex` CLIs on your PATH. The
-[install guide](./docs/guides/install.md) covers the install script, npm, and the prebuilt binaries
-for macOS and Linux.
+[install guide](./docs/guides/install.md) covers the install script and the prebuilt binaries for
+macOS and Linux. atc ships only as binaries; the npm package is deprecated.
 
 Then run `atc`. The first run starts the daemon. Press `n` to spawn a session, `Ctrl-Space` to see
 the rest, and `?` for every other key.
