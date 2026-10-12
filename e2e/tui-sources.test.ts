@@ -194,11 +194,7 @@ test('it spawns the repository a source reads typed text as, through to its work
   await ctx.waitFor('spawn: git URL');
 
   ctx.reset();
-  ctx.write(fixture.upstream);
-
-  await ctx.waitFor(`> ${fixture.upstream}`);
-
-  ctx.write(KEYS.enter);
+  ctx.write(`${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
 
@@ -428,7 +424,7 @@ test('it opens the sources in the order the config gives', async () => {
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(`> ${fixture.upstream}`);
+  await ctx.waitFor('spawn: git URL');
 
   ctx.reset();
   ctx.write(KEYS.tab);
