@@ -25,12 +25,11 @@ test('it fails a gate that reads a canary', async () => {
     'cat "$HOME/.claude.json" > /dev/null',
   ]);
 
-  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
-    exitCode: 1,
-    stderr: expect.stringMatching(
-      /^test isolation: the gate reached the synthetic live home:\n< \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n> \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n$/,
-    ),
-  });
+  expect(run.exitCode).toBe(1);
+
+  expect(run.stderr).toMatch(
+    /^test isolation: the gate reached the synthetic live home:\n< \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n> \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n$/,
+  );
 });
 
 test('it fails a gate that creates a file in the atc state directory', async () => {
@@ -42,12 +41,11 @@ test('it fails a gate that creates a file in the atc state directory', async () 
     'touch "$XDG_STATE_HOME/atc/stray"',
   ]);
 
-  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
-    exitCode: 1,
-    stderr: expect.stringMatching(
-      /^test isolation: the gate reached the synthetic live home:\n> \S+\/home\/\.local\/state\/atc\/stray\n$/,
-    ),
-  });
+  expect(run.exitCode).toBe(1);
+
+  expect(run.stderr).toMatch(
+    /^test isolation: the gate reached the synthetic live home:\n> \S+\/home\/\.local\/state\/atc\/stray\n$/,
+  );
 });
 
 test('it exits with the code of a gate that fails', async () => {
