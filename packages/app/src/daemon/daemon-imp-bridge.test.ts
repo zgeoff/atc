@@ -16,6 +16,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildHostServices } from '../build-host-services';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // A real daemon whose one target `box`, its default, runs Claude sessions
@@ -27,7 +28,7 @@ async function setupTest() {
   const clis = createStubGuestCLIs(join(tmp.dir, 'bin'));
   const guestDir = join(tmp.dir, 'g');
   const port = createStubImpPort();
-  const config = parseConfig({ agents: { claude: { bin: clis.claude } } });
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: { claude: { bin: clis.claude } } });
 
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-bridge-daemon-',

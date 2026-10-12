@@ -210,6 +210,7 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
@@ -220,6 +221,10 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
       },
     },
     "packages/sources/github": {

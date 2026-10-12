@@ -12,12 +12,7 @@
       "project": ["e2e/**/*.ts", "scripts/**/*.ts"]
     },
     "packages/app": {
-      "entry": [
-        "src/gateway.ts",
-        "src/**/*.test.ts",
-        "src/test-utils/run-stub-source-daemon.ts",
-        "src/test-utils/run-listener-daemon.ts"
-      ],
+      "entry": ["src/gateway.ts", "src/**/*.test.ts", "src/test-utils/run-listener-daemon.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/test-utils": {

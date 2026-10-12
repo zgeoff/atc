@@ -5,6 +5,7 @@ import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services'
 import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 async function setupTest() {
@@ -12,7 +13,9 @@ async function setupTest() {
     prefix: 'atc-daemon-permission-pending-',
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({ agents: { claude: { bin: 'bash', args: ['-c', 'sleep 30'] } } }),
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
+          agents: { claude: { bin: 'bash', args: ['-c', 'sleep 30'] } },
+        }),
         buildMockHostServices(),
       ),
     }),

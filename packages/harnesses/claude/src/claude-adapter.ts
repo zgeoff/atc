@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentEntry } from '@atc/config/collect-agents';
+import type { AgentEntry } from '@atc/config/agent-entry';
 import type { Config } from '@atc/config/config';
 import { parseClaudeStatusLine } from '@atc/config/parse-claude-statusline';
 import { resolveAgentHome } from '@atc/config/resolve-agent-home';

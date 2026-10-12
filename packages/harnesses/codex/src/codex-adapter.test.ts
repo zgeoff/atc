@@ -9,6 +9,7 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/test-utils/update-env';
 import invariant from 'tiny-invariant';
 import { CodexAdapter } from './codex-adapter';
+import { CODEX_PLUGIN } from './codex-plugin';
 
 // A folder for the files a test writes: a Codex home with its session index,
 // or a rollout.
@@ -19,7 +20,7 @@ function setupTest() {
 }
 
 test('it spawns a fresh codex command with the prompt', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planSpawn({ prompt: 'fix the bug', resume: false })).toStrictEqual({
     bin: 'codex',
@@ -28,7 +29,7 @@ test('it spawns a fresh codex command with the prompt', () => {
 });
 
 test('it spawns codex resume with the picker when no id was captured', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planSpawn({ prompt: '', resume: true })).toStrictEqual({
     bin: 'codex',
@@ -37,7 +38,7 @@ test('it spawns codex resume with the picker when no id was captured', () => {
 });
 
 test('it spawns codex resume with the captured id', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planSpawn({ prompt: '', resume: toAgentSessionID('c-1') })).toStrictEqual({
     bin: 'codex',
@@ -46,7 +47,7 @@ test('it spawns codex resume with the captured id', () => {
 });
 
 test('it keeps the configured codex arguments when a spawn sets no model', () => {
-  const config = parseConfig({ agents: { codex: { args: ['--model', 'gpt-a'] } } });
+  const config = parseConfig([CODEX_PLUGIN], { agents: { codex: { args: ['--model', 'gpt-a'] } } });
 
   const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
@@ -57,7 +58,9 @@ test('it keeps the configured codex arguments when a spawn sets no model', () =>
 });
 
 test("it replaces the configured codex model with a spawn's model passed as -m", () => {
-  const config = parseConfig({ agents: { codex: { args: ['--model', 'gpt-a', '--search'] } } });
+  const config = parseConfig([CODEX_PLUGIN], {
+    agents: { codex: { args: ['--model', 'gpt-a', '--search'] } },
+  });
 
   const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
@@ -75,7 +78,7 @@ test.each([
   ['--no-daemon', ['--no-daemon', '-m', 'gpt-a']],
 ])('it adds no --no-daemon of its own when the configured arguments hold %s', (_spelling, args) => {
   const adapter = new CodexAdapter(
-    getAgentEntry(parseConfig({ agents: { codex: { args } } }), 'codex'),
+    getAgentEntry(parseConfig([CODEX_PLUGIN], { agents: { codex: { args } } }), 'codex'),
   );
 
   expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
@@ -85,7 +88,7 @@ test.each([
 });
 
 test('it advertises a codex model with the configured default and no effort', () => {
-  const config = parseConfig({ agents: { codex: { args: ['-m', 'gpt-a'] } } });
+  const config = parseConfig([CODEX_PLUGIN], { agents: { codex: { args: ['-m', 'gpt-a'] } } });
 
   const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
@@ -110,7 +113,7 @@ test('it advertises a codex model with the configured default and no effort', ()
 });
 
 test('it plans one event for each hook line and keeps no state between lines', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   const plan = adapter.planHookEvents({
     atcId: toSessionID('s1'),
@@ -142,7 +145,11 @@ test('it loads the latest indexed thread name', async () => {
     ].join('\n'),
   );
 
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'), undefined, ctx.dir);
+  const adapter = new CodexAdapter(
+    getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'),
+    undefined,
+    ctx.dir,
+  );
 
   const name = await adapter.loadName('c-1', 'auto');
 
@@ -159,7 +166,7 @@ test('it loads the indexed thread name from CODEX_HOME when built without a Code
     '{"id":"c-1","thread_name":"env title","updated_at":"2026-08-20T00:00:00Z"}\n',
   );
 
-  const config = parseConfig({});
+  const config = parseConfig([CODEX_PLUGIN], {});
 
   const adapter = new CodexAdapter(getAgentEntry(config, 'codex'), config);
 
@@ -171,13 +178,13 @@ test('it loads the indexed thread name from CODEX_HOME when built without a Code
 test('it does not resume when the reported rollout is gone', () => {
   const ctx = setupTest();
 
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
 });
 
 test('it builds a codex resume command with a captured id', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.buildResumeCommand("/tmp/it's", toAgentSessionID('c-1'))).toBe(
     String.raw`cd '/tmp/it'\''s' && codex resume c-1`,
@@ -185,19 +192,19 @@ test('it builds a codex resume command with a captured id', () => {
 });
 
 test('it builds a codex resume command with the picker when no id was captured', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.buildResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
 });
 
 test('it refuses inbox messages', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.takesMessages).toBeFalse();
 });
 
 test('it selects the ChatGPT endpoint and its profiles for an entry with auth, without requiring the broker', () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -225,19 +232,19 @@ test('it selects the ChatGPT endpoint and its profiles for an entry with auth, w
 });
 
 test('it selects no credential for an entry without auth', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.findAuthSelection()).toBeNull();
 });
 
 test('it plans no guest spawn of its own for an entry without auth', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planGuestSpawn).toBeUndefined();
 });
 
 test('it plans a remote spawn with auth but without the broker as a local spawn with no files', () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -265,7 +272,7 @@ test('it plans a remote spawn with auth but without the broker as a local spawn 
 });
 
 test('it plans a spawn behind the broker with a Codex home of its own and hooks it trusts at launch', () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -397,7 +404,7 @@ test('it plans a spawn behind the broker with a Codex home of its own and hooks 
 });
 
 test("it keeps its own Codex home over a profile's variables", () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -445,7 +452,7 @@ test("it keeps its own Codex home over a profile's variables", () => {
 });
 
 test("it writes the sign-in file from the oauth secret's claims and account id", () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -505,7 +512,7 @@ test("it writes the sign-in file from the oauth secret's claims and account id",
 });
 
 test('it reports every hook through the atc inside the host', () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -582,7 +589,7 @@ test('it reports every hook through the atc inside the host', () => {
 });
 
 test('it plans no spawn behind the broker on a host without atc', () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -629,7 +636,7 @@ test('it plans no spawn behind the broker on a host without atc', () => {
 test.each<['needs_login' | 'pending']>([['needs_login'], ['pending']])(
   'it refuses a spawn whose sign-in is %s',
   (status) => {
-    const config = parseConfig({
+    const config = parseConfig([CODEX_PLUGIN], {
       authProfiles: {
         codex: {
           secret: 'codex-chatgpt',
@@ -682,7 +689,7 @@ test.each<['needs_login' | 'pending']>([['needs_login'], ['pending']])(
 );
 
 test('it refuses a spawn whose sign-in impd does not list', () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -723,7 +730,7 @@ test.each([
   [{ email: 'someone@example.com' }],
   [{ 'https://api.openai.com/auth': { chatgpt_account_id: '' } }],
 ])('it refuses a spawn whose ID token claims are %p', (idClaims) => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -765,7 +772,7 @@ test.each([
 });
 
 test('it seeds clone trust for an entry with auth', () => {
-  const config = parseConfig({
+  const config = parseConfig([CODEX_PLUGIN], {
     authProfiles: {
       codex: {
         secret: 'codex-chatgpt',
@@ -787,7 +794,7 @@ test('it seeds clone trust for an entry with auth', () => {
 });
 
 test('it seeds no clone trust for an entry without auth', () => {
-  const adapter = new CodexAdapter(getAgentEntry(parseConfig({}), 'codex'));
+  const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planGuestWorkspaceTrust('/work')).toBeNull();
 });

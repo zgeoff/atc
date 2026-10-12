@@ -6,8 +6,8 @@ import { buildOptionalString } from '@atc/core/build-optional-string';
 import { isRecord } from '@atc/core/is-record';
 import type { AuthProfile } from '@atc/plugin-api/auth-profile';
 import { z } from 'zod';
+import type { AgentConfigPlugin, AgentEntry } from './agent-entry';
 import { collectAgents } from './collect-agents';
-import type { AgentEntry } from './collect-agents';
 import { collectAuthProfiles } from './collect-auth-profiles';
 import { collectDirRoots } from './collect-dir-roots';
 import { collectHooks } from './collect-hooks';
@@ -87,20 +87,9 @@ interface LeaderKey {
   readonly label: string;
 }
 
-const DEFAULTS: Config = {
-  agents: [
-    {
-      id: 'claude',
-      kind: 'claude',
-      label: 'Claude',
-      mark: 'c',
-      bin: 'claude',
-      args: [],
-      env: {},
-    },
-  ],
-  agentErrors: [],
-  defaultAgent: 'claude',
+// Every default but the agents, which the harness plugins read from the
+// first-run agents map.
+const DEFAULTS: Omit<Config, 'agents' | 'agentErrors' | 'defaultAgent'> = {
   dirs: { roots: [] },
   workspaces: {
     githubOwner: null,
@@ -162,10 +151,12 @@ const CONFIG_SCHEMA = z.object({
  * defaults out. A file that exists but cannot be read or parsed loads as
  * unusable: every default but the targets, which it leaves empty with the
  * problem as the one target error, so nothing runs until the file is fixed.
- * `home` is the directory a `~` in the file expands to, and `state` is the
- * state directory it creates. Never throws.
+ * `plugins` are the harness plugins that read the agents, `home` is the
+ * directory a `~` in the file expands to, and `state` is the state
+ * directory it creates. Never throws.
  */
 export function loadConfig(
+  plugins: readonly AgentConfigPlugin[],
   file: string = configFile,
   home: string = resolveHomeDir(),
   state: string = stateDir,
@@ -186,12 +177,12 @@ export function loadConfig(
     if (code !== 'ENOENT') {
       const detail = typeof code === 'string' ? code : 'the file could not be read';
 
-      return buildUnusableConfig('config_unreadable', file, detail);
+      return buildUnusableConfig(plugins, 'config_unreadable', file, detail);
     }
 
     tryWriteDefaultConfig(file);
 
-    return { ...DEFAULTS };
+    return buildDefaultConfig(plugins);
   }
 
   let raw: unknown;
@@ -201,10 +192,26 @@ export function loadConfig(
   } catch {
     // The parser's own message can quote the file's text, so the detail is
     // a fixed phrase instead.
-    return buildUnusableConfig('config_malformed', file, 'the file is not valid JSON');
+    return buildUnusableConfig(plugins, 'config_malformed', file, 'the file is not valid JSON');
   }
 
-  return parseConfig(raw, file, home);
+  return parseConfig(plugins, raw, file, home);
+}
+
+// The agents map a first run writes.
+const FIRST_RUN_AGENTS = { claude: {} };
+
+// Every default, with the agents the plugins read from the first-run
+// agents map.
+function buildDefaultConfig(plugins: readonly AgentConfigPlugin[]): Config {
+  const registry = collectAgents(FIRST_RUN_AGENTS, new Map(), plugins);
+
+  return {
+    agents: registry.agents,
+    agentErrors: registry.errors,
+    defaultAgent: pickDefaultAgent(registry.agents),
+    ...DEFAULTS,
+  };
 }
 
 /**
@@ -214,12 +221,13 @@ export function loadConfig(
  * the file's own principals cannot be read.
  */
 function buildUnusableConfig(
+  plugins: readonly AgentConfigPlugin[],
   problem: 'config_malformed' | 'config_unreadable',
   path: string,
   detail: string,
 ): Config {
   return {
-    ...DEFAULTS,
+    ...buildDefaultConfig(plugins),
     targets: [],
     defaultTarget: null,
     targetErrors: [{ scope: 'config', problem, path, detail }],
@@ -258,9 +266,6 @@ function tryWriteDefaultConfig(file: string): void {
  */
 export function renderDefaultConfig(): string {
   const {
-    agents: _agents,
-    agentErrors: _agentErrors,
-    defaultAgent: _defaultAgent,
     authProfiles: _authProfiles,
     authProfileErrors: _authProfileErrors,
     targets: _targets,
@@ -280,7 +285,7 @@ export function renderDefaultConfig(): string {
 
   return `${JSON.stringify(
     {
-      agents: { claude: {} },
+      agents: FIRST_RUN_AGENTS,
       ...written,
       workspaces: { ...rest, targets: Object.fromEntries(targetRoots) },
     },
@@ -289,29 +294,25 @@ export function renderDefaultConfig(): string {
   )}\n`;
 }
 
-// The agents a config.json that sets no `agents` runs: one of each kind,
-// each on its defaults.
-const DEFAULT_AGENT_MAP = {
-  claude: { kind: 'claude' },
-  grok: { kind: 'grok' },
-  codex: { kind: 'codex' },
-};
-
 /**
  * Parses a user-written config.json's already-decoded JSON value into a
  * Config, applying every default a malformed or absent field falls back to.
- * A root that is not an object leaves the config unusable, with no targets,
+ * `plugins` are the harness plugins that read the agents. A file that sets
+ * no `agents` runs one entry of each, on its defaults, in plugin order. A
+ * root that is not an object leaves the config unusable, with no targets,
  * and `file` is the path its error holds. `home` is the directory a `~` in
  * a directory root or a hook's `dir` expands to. Total: no shape of `raw`
  * throws, so a hand-edited config never stops atc starting.
  */
 export function parseConfig(
+  plugins: readonly AgentConfigPlugin[],
   raw: unknown,
   file: string = configFile,
   home: string = resolveHomeDir(),
 ): Config {
   if (!isRecord(raw) || Array.isArray(raw)) {
     return buildUnusableConfig(
+      plugins,
       'config_malformed',
       file,
       `the root is ${formatJSONKind(raw)}, not an object`,
@@ -322,6 +323,7 @@ export function parseConfig(
 
   if (!parsed.success) {
     return buildUnusableConfig(
+      plugins,
       'config_malformed',
       file,
       'the file does not match the config schema',
@@ -331,18 +333,22 @@ export function parseConfig(
   const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
 
   if (Object.hasOwn(raw, 'agents') && present.length > 0) {
-    return buildUnusableConfig('config_malformed', file, formatMixedAgentKeys(present));
+    return buildUnusableConfig(plugins, 'config_malformed', file, formatMixedAgentKeys(present));
   }
 
   if (present.length > 0) {
-    return buildUnusableConfig('config_malformed', file, formatLegacyAgentKeys(present));
+    return buildUnusableConfig(plugins, 'config_malformed', file, formatLegacyAgentKeys(present));
   }
 
   const dirs = { roots: collectDirRoots(parsed.data.dirs, home) };
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
-  const agentMap = Object.hasOwn(raw, 'agents') ? parsed.data.agents : DEFAULT_AGENT_MAP;
-  const registry = collectAgents(agentMap, authProfiles.profiles);
+
+  const agentMap = Object.hasOwn(raw, 'agents')
+    ? parsed.data.agents
+    : Object.fromEntries(plugins.map((plugin) => [plugin.id, { kind: plugin.id }]));
+
+  const registry = collectAgents(agentMap, authProfiles.profiles, plugins);
   const hooks = collectHooks(parsed.data.hooks, home);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
   const principals = collectPrincipals(parsed.data.principals);

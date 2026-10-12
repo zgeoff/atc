@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubHarnessPlugins } from '@atc/test-utils/build-stub-harness-plugins';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
 
@@ -11,7 +12,9 @@ function setupTest() {
 }
 
 test('#parseConfig leaves every target unusable, local included, and grants no principal a target when the root is not an object', () => {
-  expect(parseConfig(null, '/home/u/.config/atc/config.json')).toStrictEqual({
+  expect(
+    parseConfig(buildStubHarnessPlugins(), null, '/home/u/.config/atc/config.json'),
+  ).toStrictEqual({
     agents: [
       {
         id: 'claude',
@@ -61,13 +64,13 @@ test.each([
   [42, 'the root is a number, not an object'],
   [true, 'the root is a boolean, not an object'],
 ])('#parseConfig reports a malformed config when the root is %p', (raw, detail) => {
-  expect(parseConfig(raw, '/c.json').targetErrors).toStrictEqual([
+  expect(parseConfig(buildStubHarnessPlugins(), raw, '/c.json').targetErrors).toStrictEqual([
     { scope: 'config', problem: 'config_malformed', path: '/c.json', detail },
   ]);
 });
 
 test('#parseConfig falls back field by field when a field is wrong-typed instead of failing the whole file', () => {
-  const config = parseConfig({
+  const config = parseConfig(buildStubHarnessPlugins(), {
     leader: 3,
     restoreFleetOnRestart: 'no',
     dirs: 7,
@@ -113,15 +116,22 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
 });
 
 test('#parseConfig decodes a configured leader key', () => {
-  expect(parseConfig({ leader: 'ctrl-a' }).leader).toStrictEqual({ code: 1, label: '^A' });
+  expect(parseConfig(buildStubHarnessPlugins(), { leader: 'ctrl-a' }).leader).toStrictEqual({
+    code: 1,
+    label: '^A',
+  });
 });
 
 test('#parseConfig falls back to the default leader key for an unknown one', () => {
-  expect(parseConfig({ leader: 'ctrl-nope' }).leader).toStrictEqual({ code: 0, label: '^Space' });
+  expect(parseConfig(buildStubHarnessPlugins(), { leader: 'ctrl-nope' }).leader).toStrictEqual({
+    code: 0,
+    label: '^Space',
+  });
 });
 
 test('#parseConfig leaves every target unusable and names the migrate command for a config that sets old agent keys', () => {
   const config = parseConfig(
+    buildStubHarnessPlugins(),
     {
       claudeBin: '/opt/claude',
       claudeArgs: ['--verbose'],
@@ -185,7 +195,9 @@ test.each([
   ['codexArgs', []],
   ['gateways', {}],
 ])('#parseConfig refuses the old agent key %s, whatever its value', (key, value) => {
-  expect(parseConfig({ [key]: value }, '/c.json').targetErrors).toStrictEqual([
+  expect(
+    parseConfig(buildStubHarnessPlugins(), { [key]: value }, '/c.json').targetErrors,
+  ).toStrictEqual([
     {
       scope: 'config',
       problem: 'config_malformed',
@@ -196,7 +208,7 @@ test.each([
 });
 
 test('#parseConfig collects the configured hooks map', () => {
-  const config = parseConfig({
+  const config = parseConfig(buildStubHarnessPlugins(), {
     hooks: { SessionAttached: [{ command: 'ork focus', dir: '/w', timeout: 2000 }] },
   });
 
@@ -207,6 +219,7 @@ test('#parseConfig collects the configured hooks map', () => {
 
 test('#parseConfig collects the configured directory roots, expanding a leading tilde to the home', () => {
   const config = parseConfig(
+    buildStubHarnessPlugins(),
     { dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } },
     '/c.json',
     '/home/someone',
@@ -217,6 +230,7 @@ test('#parseConfig collects the configured directory roots, expanding a leading 
 
 test('#parseConfig expands a leading tilde in a hook dir to the home', () => {
   const config = parseConfig(
+    buildStubHarnessPlugins(),
     { hooks: { SessionAttached: [{ command: 'ork focus', dir: '~/w' }] } },
     '/c.json',
     '/home/someone',
@@ -228,7 +242,7 @@ test('#parseConfig expands a leading tilde in a hook dir to the home', () => {
 });
 
 test('#parseConfig reads the targets and default target a config sets', () => {
-  const config = parseConfig({
+  const config = parseConfig(buildStubHarnessPlugins(), {
     targets: { local: { provider: 'local-pty' }, box: { provider: 'imp', image: 'dev' } },
     defaultTarget: 'box',
   });
@@ -276,7 +290,9 @@ test('#parseConfig reads the targets and default target a config sets', () => {
 });
 
 test('#parseConfig reads the principals a config sets', () => {
-  const config = parseConfig({ principals: { 'client-a': { targets: ['local'] } } });
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    principals: { 'client-a': { targets: ['local'] } },
+  });
 
   expect(config).toStrictEqual({
     agents: [
@@ -318,7 +334,10 @@ test('#parseConfig reads the principals a config sets', () => {
 });
 
 test('#parseConfig holds no targets and an error instead of throwing for a malformed targets map', () => {
-  const config = parseConfig({ agents: { claude: { bin: 'my-claude' } }, targets: ['local'] });
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    agents: { claude: { bin: 'my-claude' } },
+    targets: ['local'],
+  });
 
   expect(config).toStrictEqual({
     agents: [
@@ -362,7 +381,7 @@ test('#parseConfig holds no targets and an error instead of throwing for a malfo
 test('#parseConfig reads the config a first run writes back as the defaults, without target errors', () => {
   const written: unknown = JSON.parse(renderDefaultConfig());
 
-  expect(parseConfig(written)).toStrictEqual({
+  expect(parseConfig(buildStubHarnessPlugins(), written)).toStrictEqual({
     agents: [
       {
         id: 'claude',
@@ -399,124 +418,8 @@ test('#parseConfig reads the config a first run writes back as the defaults, wit
   });
 });
 
-test('#parseConfig reads the auth profiles a config sets and registers a claude entry whose auth selects them', () => {
-  const config = parseConfig({
-    authProfiles: {
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-    },
-    agents: {
-      glm: {
-        kind: 'claude',
-        baseURL: 'https://api.z.ai/api/anthropic',
-        auth: {
-          profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-        },
-      },
-    },
-  });
-
-  expect(config).toStrictEqual({
-    agents: [
-      {
-        id: 'glm',
-        kind: 'claude',
-        label: 'glm',
-        mark: 'g',
-        bin: 'claude',
-        args: [],
-        baseURL: 'https://api.z.ai/api/anthropic',
-        env: {},
-        auth: {
-          profiles: ['glm'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
-        },
-      },
-    ],
-    agentErrors: [],
-    defaultAgent: 'glm',
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    authProfiles: new Map([
-      [
-        'glm',
-        {
-          name: 'glm',
-          secret: 'glm',
-          kind: 'custom',
-          host: 'api.z.ai',
-          header: 'authorization',
-          scheme: 'bearer',
-          env: {},
-          dependencies: [],
-        },
-      ],
-    ]),
-    authProfileErrors: [],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    restoreFleetOnRestart: true,
-    removedKeys: [],
-  });
-});
-
-test('#parseConfig refuses a gateway whose auth selects a profile the config refused, and reports both', () => {
-  const config = parseConfig({
-    authProfiles: {
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'basic' },
-    },
-    agents: {
-      glm: {
-        kind: 'claude',
-        baseURL: 'https://api.z.ai/api/anthropic',
-        auth: { profiles: ['glm'] },
-      },
-    },
-  });
-
-  expect(config).toStrictEqual({
-    agents: [],
-    agentErrors: [
-      'agents.glm: profile glm is selected, but authProfiles has no usable profile by that name',
-    ],
-    defaultAgent: 'claude',
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    authProfiles: new Map(),
-    authProfileErrors: ['authProfiles.glm: scheme must be bearer or raw, the schemes atc binds'],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    restoreFleetOnRestart: true,
-    removedKeys: [],
-  });
-});
-
 test('#parseConfig gives a file with no agent keys at all the three built-in agents and no old keys', () => {
-  const config = parseConfig({ leader: 'ctrl-a' });
+  const config = parseConfig(buildStubHarnessPlugins(), { leader: 'ctrl-a' });
 
   expect(config).toStrictEqual({
     agents: [
@@ -558,7 +461,7 @@ test('#parseConfig gives a file with no agent keys at all the three built-in age
 });
 
 test('#parseConfig loads exactly the agents an agents map holds and records no old keys', () => {
-  const config = parseConfig({
+  const config = parseConfig(buildStubHarnessPlugins(), {
     agents: { codex: {}, 'claude-b': { kind: 'claude' } },
   });
 
@@ -601,13 +504,13 @@ test('#parseConfig loads exactly the agents an agents map holds and records no o
 });
 
 test('#parseConfig defaults to claude when the registry holds that id, wherever it sits', () => {
-  const config = parseConfig({ agents: { codex: {}, claude: {} } });
+  const config = parseConfig(buildStubHarnessPlugins(), { agents: { codex: {}, claude: {} } });
 
   expect(config.defaultAgent).toBe('claude');
 });
 
 test('#parseConfig keeps reporting claude as the default agent for an empty registry', () => {
-  const config = parseConfig({ agents: {} });
+  const config = parseConfig(buildStubHarnessPlugins(), { agents: {} });
 
   expect(config).toStrictEqual({
     agents: [],
@@ -637,7 +540,7 @@ test('#parseConfig keeps reporting claude as the default agent for an empty regi
 });
 
 test('#parseConfig leaves the registry empty with one error when agents is not an object', () => {
-  const config = parseConfig({ agents: [] });
+  const config = parseConfig(buildStubHarnessPlugins(), { agents: [] });
 
   expect(config).toStrictEqual({
     agents: [],
@@ -667,7 +570,7 @@ test('#parseConfig leaves the registry empty with one error when agents is not a
 });
 
 test('#parseConfig refuses a config that sets agents beside an old agent key', () => {
-  const config = parseConfig({ agents: {}, claudeArgs: [] }, '/c.json');
+  const config = parseConfig(buildStubHarnessPlugins(), { agents: {}, claudeArgs: [] }, '/c.json');
 
   expect(config).toStrictEqual({
     agents: [
@@ -716,6 +619,7 @@ test('#parseConfig refuses a config that sets agents beside an old agent key', (
 
 test('#parseConfig lists every old key a mixed config sets, in file order', () => {
   const config = parseConfig(
+    buildStubHarnessPlugins(),
     { gateways: {}, agents: {}, claudeBin: 'x', codexArgs: [] },
     '/c.json',
   );
@@ -732,7 +636,7 @@ test('#parseConfig lists every old key a mixed config sets, in file order', () =
 });
 
 test('#parseConfig restores the fleet on restart by default', () => {
-  const config = parseConfig({});
+  const config = parseConfig(buildStubHarnessPlugins(), {});
 
   expect(config).toStrictEqual({
     agents: [
@@ -774,11 +678,16 @@ test('#parseConfig restores the fleet on restart by default', () => {
 });
 
 test('#parseConfig reads restoreFleetOnRestart set to false', () => {
-  expect(parseConfig({ restoreFleetOnRestart: false }).restoreFleetOnRestart).toBe(false);
+  expect(
+    parseConfig(buildStubHarnessPlugins(), { restoreFleetOnRestart: false }).restoreFleetOnRestart,
+  ).toBe(false);
 });
 
 test('#parseConfig loads a config that still sets resumeInterruptedTurns and reports the key without its value', () => {
-  const config = parseConfig({ resumeInterruptedTurns: true, leader: 'ctrl-a' });
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    resumeInterruptedTurns: true,
+    leader: 'ctrl-a',
+  });
 
   expect(config).toStrictEqual({
     agents: [
@@ -840,7 +749,7 @@ test('#loadConfig writes the default config when the file is missing', () => {
   const ctx = setupTest();
   const file = join(ctx.dir, 'config.json');
 
-  loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+  loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
 
   expect(JSON.parse(readFileSync(file, 'utf8'))).toStrictEqual({
     agents: { claude: {} },
@@ -861,7 +770,12 @@ test('#loadConfig writes the default config when the file is missing', () => {
 test('#loadConfig leaves only the config file in its directory after it writes the default config', () => {
   const ctx = setupTest();
 
-  loadConfig(join(ctx.dir, 'atc', 'config.json'), join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+  loadConfig(
+    buildStubHarnessPlugins(),
+    join(ctx.dir, 'atc', 'config.json'),
+    join(ctx.dir, 'home'),
+    join(ctx.dir, 'state'),
+  );
 
   expect(readdirSync(join(ctx.dir, 'atc'))).toStrictEqual(['config.json']);
 });
@@ -870,7 +784,12 @@ test('#loadConfig returns the defaults when the file is missing', () => {
   const ctx = setupTest();
 
   expect(
-    loadConfig(join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+    loadConfig(
+      buildStubHarnessPlugins(),
+      join(ctx.dir, 'config.json'),
+      join(ctx.dir, 'home'),
+      join(ctx.dir, 'state'),
+    ),
   ).toStrictEqual({
     agents: [
       {
@@ -917,7 +836,9 @@ test('#loadConfig reads an existing file against the home it is given', () => {
     JSON.stringify({ agents: { claude: { bin: '/opt/claude' } }, dirs: { roots: ['~/projects'] } }),
   );
 
-  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+  expect(
+    loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+  ).toStrictEqual({
     agents: [
       {
         id: 'claude',
@@ -958,7 +879,7 @@ test('#loadConfig creates the state directory it is given', () => {
   const ctx = setupTest();
   const state = join(ctx.dir, 'state', 'atc');
 
-  loadConfig(join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), state);
+  loadConfig(buildStubHarnessPlugins(), join(ctx.dir, 'config.json'), join(ctx.dir, 'home'), state);
 
   expect(readdirSync(state)).toBeEmpty();
 });
@@ -968,7 +889,7 @@ test('#loadConfig never overwrites an existing file it cannot use', () => {
   const file = join(ctx.dir, 'config.json');
 
   writeFileSync(file, '{ "agents": ');
-  loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
+  loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state'));
 
   expect(readFileSync(file, 'utf8')).toBe('{ "agents": ');
 });
@@ -979,7 +900,9 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
 
   mkdirSync(file);
 
-  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+  expect(
+    loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+  ).toStrictEqual({
     agents: [
       {
         id: 'claude',
@@ -1022,7 +945,9 @@ test('#loadConfig leaves every target unusable when the file is not valid JSON',
 
   writeFileSync(file, '{ "agents": ');
 
-  expect(loadConfig(file, join(ctx.dir, 'home'), join(ctx.dir, 'state'))).toStrictEqual({
+  expect(
+    loadConfig(buildStubHarnessPlugins(), file, join(ctx.dir, 'home'), join(ctx.dir, 'state')),
+  ).toStrictEqual({
     agents: [
       {
         id: 'claude',

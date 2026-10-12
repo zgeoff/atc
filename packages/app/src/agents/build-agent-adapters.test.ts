@@ -7,6 +7,7 @@ import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildAgentAdapters } from './build-agent-adapters';
 
 function setupTest() {
@@ -18,7 +19,7 @@ function setupTest() {
 test('it builds two claude adapters with distinct ids and spawn plans from one registry', () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: 'one', args: ['--a'] },
       'claude-b': { kind: 'claude', bin: 'two', args: ['--b'] },
@@ -75,7 +76,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     JSON.stringify({ statusLine: { type: 'command', command: 'mine', padding: 3 } }),
   );
 
-  const config = parseConfig({
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: { zai: { kind: 'claude', bin: 'gw', baseURL: 'https://api.z.ai/api/anthropic' } },
   });
 

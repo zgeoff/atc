@@ -13,6 +13,7 @@ import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/test-utils/update-env';
 import invariant from 'tiny-invariant';
+import { CLAUDE_PLUGIN } from '../claude-plugin';
 import { GatewayAdapter } from './gateway-adapter';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, or a
@@ -26,7 +27,7 @@ function setupTest() {
 test('it answers to the id its backend was configured under', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'zai' }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -36,7 +37,7 @@ test('it answers to the id its backend was configured under', () => {
 test('it runs no headless turn when the daemon gave it no runner', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig(),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -46,7 +47,7 @@ test('it runs no headless turn when the daemon gave it no runner', () => {
 test("it reads a session's hook lines as Claude's, with no state across them", () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig(),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -71,7 +72,7 @@ test("it reads a session's hook lines as Claude's, with no state across them", (
 test('it takes inbox messages', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig(),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -84,7 +85,7 @@ test("it runs a headless turn through the gateway's binary and settings file und
 
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'zai', bin: '/opt/zai/bin/claude' }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       headlessRun: runner,
@@ -131,7 +132,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
         API_TIMEOUT_MS: '600000',
       },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -167,7 +168,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
 test('it profiles a gateway whose env sets no model with no models', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ env: {} }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -184,7 +185,7 @@ test("it runs a headless turn under the permission mode the gateway's settings d
       bin: 'claude',
       settings: { permissions: { defaultMode: 'default' } },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       headlessRun: runner,
@@ -226,7 +227,7 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
       args: ['--permission-mode', 'default'],
       settings: { permissions: { defaultMode: 'acceptEdits' } },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       headlessRun: runner,
@@ -267,7 +268,7 @@ test("it starts a gateway's terminal run under its explicit permission-mode argu
       args: ['--permission-mode', 'default'],
       settings: { permissions: { defaultMode: 'acceptEdits' } },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -301,7 +302,7 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
       args: ['--permission-mode', 'default'],
       baseURL: 'https://gateway.example/anthropic',
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -333,7 +334,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
         },
       },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
     {
       headlessRun: runner,
@@ -445,7 +446,7 @@ test("it restores a session in the permission mode the gateway's settings defaul
       bin: 'claude',
       settings: { permissions: { defaultMode: 'default' } },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -481,7 +482,7 @@ test("it keeps the gateway's settings default mode in the command that resumes i
       baseURL: 'https://gateway.example/anthropic',
       settings: { permissions: { defaultMode: 'default' } },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -507,7 +508,7 @@ test('it restores a gateway in its explicit permission-mode argument over its se
       args: ['--permission-mode', 'plan'],
       settings: { permissions: { defaultMode: 'default' } },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -543,7 +544,7 @@ test('it resumes a gateway outside atc in its explicit permission-mode argument 
       args: ['--permission-mode', 'plan'],
       settings: { permissions: { defaultMode: 'default' } },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -570,7 +571,7 @@ test("it refuses to start a gateway with auth on the daemon's machine", () => {
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -582,7 +583,7 @@ test("it refuses to start a gateway with auth on the daemon's machine", () => {
 test('it gives a gateway with auth no headless runner', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     { headlessRun: buildStubClaudeHeadlessRun() },
   );
@@ -593,7 +594,7 @@ test('it gives a gateway with auth no headless runner', () => {
 test('it gives a gateway with auth no resume command', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     { headlessRun: buildStubClaudeHeadlessRun() },
   );
@@ -618,7 +619,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
         args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode'],
       },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -728,7 +729,7 @@ test('it writes no broker placeholder into the local settings of a gateway with 
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -745,7 +746,7 @@ test('it writes no broker placeholder into the local settings of a gateway with 
 });
 
 test('it lets a gateway with auth and a credential helper start on a target without a broker', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -781,7 +782,7 @@ test("it runs a headless turn of a gateway with auth and a credential helper thr
       apiKeyHelper: '/home/me/bin/glm-key',
       auth: { profiles: ['glm'], placeholderEnv: {} },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       headlessRun: runner,
@@ -824,7 +825,7 @@ test('it resumes a gateway with auth and a credential helper outside atc through
       apiKeyHelper: '/home/me/bin/glm-key',
       auth: { profiles: ['glm'], placeholderEnv: {} },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
     {
       bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -852,7 +853,7 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
         args: ['--plugin-dir', '/opt/auto-mode/mods/auto-mode', '--permission-mode', 'acceptEdits'],
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -903,7 +904,7 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
 });
 
 test('it plans a brokered guest spawn with its own settings file, Claude config folder and placeholder credential', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -1069,7 +1070,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
 });
 
 test("it keeps the gateway's permission hook and mode in a brokered guest's settings and restore arguments", () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -1230,7 +1231,7 @@ test.each([
       baseURL: 'https://api.z.ai/api/anthropic',
       auth: { profiles: ['glm'], placeholderEnv },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -1267,7 +1268,7 @@ test('it allows the start of a gateway with auth that sets an extra placeholder 
         },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         jev: {
@@ -1299,7 +1300,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
         },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         jev: {
@@ -1443,7 +1444,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
 });
 
 test("it refuses a brokered guest spawn whose profile sets a header other than a bearer authorization for the base URL's host", () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'x-api-key', scheme: 'bearer' },
     },
@@ -1492,7 +1493,7 @@ test('it refuses a brokered guest spawn on a host that gave it no broker binding
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -1512,7 +1513,7 @@ test('it plans no guest spawn for a gateway whose credential helper runs on the 
       baseURL: 'https://api.z.ai/api/anthropic',
       apiKeyHelper: 'zai-key',
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -1543,7 +1544,7 @@ test('it plans no brokered guest spawn on a host without atc', () => {
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -1570,7 +1571,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
   updateEnv('ANTHROPIC_AUTH_TOKEN', canary);
   updateEnv('CLAUDE_CODE_OAUTH_TOKEN', canary);
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -1613,7 +1614,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
 test("it seeds a brokered guest's Claude config with the onboarding state when the folder holds none", async () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -1668,7 +1669,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
 test("it keeps the state an earlier run left in a brokered guest's Claude config and marks the outside-read offer seen", async () => {
   const ctx = setupTest();
 
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -1740,7 +1741,7 @@ test('it starts a brokered guest in the permission mode its configured arguments
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -1793,7 +1794,7 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -1846,7 +1847,7 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -1891,7 +1892,7 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
 });
 
 test('it selects the credential a gateway with auth takes from the broker, with the auth profiles it resolves against', () => {
-  const config = parseConfig({
+  const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     },
@@ -1932,7 +1933,7 @@ test('it selects no broker credential for a gateway without auth', () => {
       bin: 'claude',
       baseURL: 'https://api.z.ai/api/anthropic',
     }),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -1950,7 +1951,7 @@ test('it allows the start of a gateway with auth whose placeholder pairs with th
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -1972,7 +1973,7 @@ test('it refuses every start of a gateway with auth whose API key placeholder me
         placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -1997,7 +1998,7 @@ test('it allows the start of a gateway with auth whose API key placeholder pairs
         placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
       },
@@ -2035,7 +2036,7 @@ test.each([
         baseURL: 'https://api.meta.ai',
         auth: { profiles: ['muse'], placeholderEnv },
       }),
-      parseConfig({
+      parseConfig([CLAUDE_PLUGIN], {
         authProfiles: { muse: { secret: 'muse', host: 'api.meta.ai', ...rule } },
       }),
       buildMockHostServices(),
@@ -2059,7 +2060,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
         placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
       },
@@ -2121,7 +2122,7 @@ test('it seeds the approval of the API key placeholder beside the clone trust of
         placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
       },
@@ -2161,7 +2162,7 @@ test.each([
           placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' },
         },
       }),
-      parseConfig({
+      parseConfig([CLAUDE_PLUGIN], {
         authProfiles: {
           muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
         },
@@ -2209,7 +2210,7 @@ test('it refuses every start of a gateway with auth whose env sets a proxy varia
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
@@ -2226,7 +2227,7 @@ test('it refuses every start of a gateway with auth whose env sets a proxy varia
 test('it pastes a long line and submits it with a carriage return as a second write', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig(),
-    parseConfig({}),
+    parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
@@ -2247,7 +2248,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         op: {
@@ -2382,7 +2383,7 @@ test('it refuses a local plan of a gateway whose profile sets variables', () => 
         placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
       },
     }),
-    parseConfig({
+    parseConfig([CLAUDE_PLUGIN], {
       authProfiles: {
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         op: {

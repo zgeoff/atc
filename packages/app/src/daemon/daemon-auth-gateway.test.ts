@@ -15,6 +15,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import type { RestoreSettled } from './restore-fleet';
 
@@ -59,7 +60,7 @@ test('it refuses a local spawn of a gateway with auth and starts no harness', as
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -115,7 +116,7 @@ test('it refuses an imp spawn of a gateway with auth before touching impd', asyn
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -170,7 +171,7 @@ test('it starts the harness of a gateway without auth on a local spawn', async (
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -218,7 +219,7 @@ test('it lists a gateway with auth as able to spawn, since a target with a broke
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -385,7 +386,7 @@ test('it refuses a local spawn that resumes a session of a gateway with auth and
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -442,7 +443,7 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -519,7 +520,7 @@ test('it restores a local session of a gateway with auth without starting its ha
   const daemon = await startTestDaemon({
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },

@@ -10,7 +10,6 @@ import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { $ } from 'bun';
-import { startStubSourceDaemon } from '../packages/app/src/test-utils/start-stub-source-daemon';
 
 function setupTest() {
   return startTUIHarness();
@@ -111,17 +110,24 @@ test('it switches the directory step to the GitHub source on a pasted URL', asyn
   expect(ctx.read()).toInclude('> https://github.com/acme/app.git');
 }, 20_000);
 
-test('it drives a source the daemon composition adds from its candidates to the confirm screen', async () => {
+test('it drives a source from its candidates to the confirm screen', async () => {
   const ctx = setupTest();
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
+  mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
 
-  await startStubSourceDaemon({
-    ...ctx.env,
-    ATC_TEST_FIXTURE_URL: fixture.upstream,
-  });
+  await $`git clone --quiet --bare --template= ${fixture.upstream} ${join(ctx.home, 'mirror', 'acme', 'app.git')}`
+    .env(fixture.env)
+    .quiet();
+
+  // The daemon reads the home's git config, which sends the https form of
+  // acme/app to the mirror, so no request reaches GitHub.
+  writeFileSync(
+    join(ctx.home, '.gitconfig'),
+    `[url "file://${join(ctx.home, 'mirror')}/"]\n\tinsteadOf = https://github.com/\n`,
+  );
 
   ctx.boot();
 
@@ -138,19 +144,12 @@ test('it drives a source the daemon composition adds from its candidates to the 
   ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('spawn: GitHub repository');
+  await ctx.waitFor('me/dots  dotfiles');
 
   ctx.reset();
-  ctx.write(KEYS.tab);
+  ctx.write(`acme/${KEYS.enter}`);
 
-  await ctx.waitFor('spawn: git URL');
-
-  ctx.reset();
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('upstream  fixture');
-
-  expect(ctx.read()).toInclude('spawn: fixture repository');
+  await ctx.waitFor('acme/app  private');
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -162,20 +161,15 @@ test('it drives a source the daemon composition adds from its candidates to the 
 
   await ctx.waitFor('spawn: confirm');
 
-  expect(ctx.read()).toInclude(`source  ${fixture.upstream}`);
+  expect(ctx.read()).toInclude('source  https://github.com/acme/app.git');
 }, 30_000);
 
-test('it spawns the repository a composed source reads typed text as, through to its workspace', async () => {
+test('it spawns the repository a source reads typed text as, through to its workspace', async () => {
   const ctx = setupTest();
 
   const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
-
-  await startStubSourceDaemon({
-    ...ctx.env,
-    ATC_TEST_FIXTURE_URL: fixture.upstream,
-  });
 
   ctx.boot();
 
@@ -200,16 +194,7 @@ test('it spawns the repository a composed source reads typed text as, through to
   await ctx.waitFor('spawn: git URL');
 
   ctx.reset();
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('upstream  fixture');
-
-  ctx.reset();
-  ctx.write('pick upstream');
-
-  await ctx.waitFor('> pick upstream');
-
-  ctx.write(KEYS.enter);
+  ctx.write(`${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
 
@@ -255,24 +240,14 @@ test('it spawns the repository a composed source reads typed text as, through to
   ]);
 }, 60_000);
 
-test('it lists the scope a composed source reads from a directory step once, on the target chosen next', async () => {
+test('it lists the scope a source reads from a directory step once, after the target step', async () => {
   const ctx = setupTest();
 
-  const fixture = await createGitFixture();
-
-  const listLog = join(ctx.home, 'source-lists.jsonl');
-
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
 
   ctx.writeConfig({
     targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
     defaultTarget: 'local',
-  });
-
-  await startStubSourceDaemon({
-    ...ctx.env,
-    ATC_TEST_FIXTURE_URL: fixture.upstream,
-    ATC_TEST_SOURCE_LOG: listLog,
   });
 
   ctx.boot();
@@ -288,9 +263,9 @@ test('it lists the scope a composed source reads from a directory step once, on 
   await ctx.waitFor('spawn: directory on the daemon host');
 
   ctx.reset();
-  ctx.write('in acme');
+  ctx.write('acme/');
 
-  await ctx.waitFor('> in acme');
+  await ctx.waitFor('> acme/');
 
   ctx.write(KEYS.enter);
 
@@ -304,24 +279,23 @@ test('it lists the scope a composed source reads from a directory step once, on 
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('acme/upstream  fixture');
+  await ctx.waitFor('acme/app  private');
 
-  expect(ctx.read()).toInclude('spawn: fixture repository · acme');
+  expect(ctx.read()).toInclude('spawn: GitHub repository · acme');
 
-  const lists = readFileSync(listLog, 'utf8').trim().split('\n');
+  const lists = readFileSync(join(ctx.home, 'gh-argv'), 'utf8')
+    .split('\n')
+    .filter((line) => line.startsWith('repo list acme '));
 
-  expect(lists.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    { scope: 'acme', target: 'alt' },
-  ]);
+  expect(lists).toHaveLength(1);
 }, 30_000);
 
-test('it offers the local directory flow alone when the daemon offers no sources', async () => {
+test('it offers the local directory flow alone when the config offers no sources', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  await startStubSourceDaemon({ ...ctx.env, ATC_TEST_SOURCES: 'none' });
-
+  ctx.writeConfig({ workspaces: { sources: [] } });
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
@@ -450,7 +424,7 @@ test('it opens the sources in the order the config gives', async () => {
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(`> ${fixture.upstream}`);
+  await ctx.waitFor('spawn: git URL');
 
   ctx.reset();
   ctx.write(KEYS.tab);

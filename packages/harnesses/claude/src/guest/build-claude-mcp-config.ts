@@ -1,4 +1,4 @@
-import type { ClaudeMCPServer } from '@atc/config/agent-slices/collect-claude-auth';
+import type { ClaudeMCPServer } from '@atc/config/agent-entry';
 import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
 
 /**

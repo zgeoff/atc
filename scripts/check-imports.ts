@@ -136,17 +136,23 @@ const COMPOSITION_ROOTS: ReadonlySet<string> = new Set([
 const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   shared: [],
   protocol: ['shared'],
-  agents: ['shared', 'protocol'],
+
+  // the plugin registry: the plugins atc ships, from their packages
+  plugins: ['shared', 'protocol'],
+  agents: ['shared', 'protocol', 'plugins'],
   workspace: ['shared', 'protocol'],
-  sources: ['shared', 'protocol', 'workspace'],
+  sources: ['shared', 'protocol', 'workspace', 'plugins'],
   store: ['shared', 'protocol'],
-  daemon: ['shared', 'protocol', 'agents', 'workspace', 'sources', 'store'],
-  client: ['shared', 'protocol'],
+  daemon: ['shared', 'protocol', 'agents', 'workspace', 'sources', 'store', 'plugins'],
+
+  // the client reads the agents from config through the shipped harness
+  // plugins
+  client: ['shared', 'protocol', 'plugins'],
   mcp: ['shared', 'protocol'],
   federation: ['shared', 'protocol'],
 
   // modules at the source root: the subcommand modules beside the entrypoints
-  root: ['shared', 'protocol', 'agents', 'client', 'mcp', 'federation'],
+  root: ['shared', 'protocol', 'agents', 'client', 'mcp', 'federation', 'plugins'],
 
   // the shared test helpers wire real modules together the way a test does,
   // and no production row lists them, so no production module imports one
@@ -162,6 +168,7 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
     'mcp',
     'federation',
     'root',
+    'plugins',
   ],
 };
 

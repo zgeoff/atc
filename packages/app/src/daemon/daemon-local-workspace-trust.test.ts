@@ -13,6 +13,7 @@ import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { waitFor } from '@atc/test-utils/wait-for';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**
@@ -45,7 +46,7 @@ async function setupTest() {
 test('it trusts only the resolved clone root in the user config after an opted-in local launch', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -132,7 +133,7 @@ test('it trusts only the resolved clone root in the user config after an opted-i
 test('it leaves the user config byte for byte after a local clone launch with no opt-in', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -189,7 +190,7 @@ test('it leaves the user config byte for byte after a local clone launch with no
 test('it leaves the user config byte for byte after a local clone launch that opts out', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -247,7 +248,7 @@ test('it leaves the user config byte for byte after a local clone launch that op
 test('it trusts a local clone when the target defaults trust on', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -301,7 +302,7 @@ test('it trusts a local clone when the target defaults trust on', async () => {
 test('it refuses local trust for an existing folder', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -350,7 +351,7 @@ test('it refuses local trust for an existing folder', async () => {
 test('it leaves the user config and starts nothing when it refuses local trust for an existing folder', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -402,7 +403,7 @@ test('it leaves the user config and starts nothing when it refuses local trust f
 test('it refuses a local launch whose harness fails to start after the trust write', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -458,7 +459,7 @@ test('it refuses a local launch whose harness fails to start after the trust wri
 test('it takes the local trust back and removes the clone when the harness fails to start', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -532,7 +533,7 @@ test('it takes the local trust back and removes the clone when the harness fails
 test('it refuses a local launch whose trust write fails', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -581,7 +582,7 @@ test('it refuses a local launch whose trust write fails', async () => {
 test('it removes the clone, keeps the user config, and starts nothing when the trust write fails', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -634,7 +635,7 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
 test('it refuses local trust for a gateway', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
@@ -687,7 +688,7 @@ test('it refuses local trust for a gateway', async () => {
 test('it refuses local trust for a gateway before cloning or touching the user config', async () => {
   const ctx = await setupTest();
 
-  const atcConfig = parseConfig({
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
       plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },

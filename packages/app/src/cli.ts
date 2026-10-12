@@ -577,19 +577,19 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
 
   const daemon = await import('./daemon/daemon');
   const config = await import('@atc/config/config');
+  const harnessPlugins = await import('./plugins/shipped-harness-plugins');
   const adapterBuilder = await import('./agents/build-agent-adapters');
   const headless = await import('@atc/harness-claude/headless/start-claude-headless-run');
   const targets = await import('./daemon/build-execution-targets');
   const sourceOrder = await import('./sources/build-sources');
   const builtinSources = await import('./sources/collect-builtin-sources');
-  const zoxide = await import('@atc/source-dirs/collect-zoxide-dirs');
   const home = await import('@atc/config/resolve-home-dir');
 
   // Test harnesses shrink the outbound queue to force overflow
   // deterministically; unset means the production default.
   const queueBytes = Number(process.env['ATC_QUEUE_BYTES']);
-  const cfg = config.loadConfig();
-  const built = targets.buildExecutionTargets(cfg.targets, hostServices.version);
+  const cfg = config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS);
+  const built = targets.buildExecutionTargets(cfg.targets, hostServices);
   const targetErrors = [...cfg.targetErrors, ...built.errors];
 
   for (const error of targetErrors) {
@@ -621,9 +621,8 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       roots: cfg.dirs.roots,
       githubOwner: cfg.workspaces.githubOwner,
       ghBin: 'gh',
-      runCommand: hostServices.runCommand,
       homeDir: home.resolveHomeDir(),
-      collectZoxideDirs: () => zoxide.collectZoxideDirs(hostServices.runCommand),
+      host: hostServices,
     }),
     cfg.workspaces.sources,
   );

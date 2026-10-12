@@ -7,13 +7,14 @@ import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services'
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it spawns two claude entries each with its own args and settings file', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: (paths) => {
-      const parsed = parseConfig({
+      const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         agents: {
           claude: { bin: createStubRecordingClaude(join(paths.dir, 'a')), args: ['--a'] },
           'claude-b': {
@@ -87,7 +88,7 @@ test('it lists no agent and defaults spawns to claude for an empty registry', as
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: () => {
-      const parsed = parseConfig({ agents: {} });
+      const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: {} });
 
       return {
         adapters: buildAgentAdapters(parsed, buildMockHostServices()),
@@ -106,7 +107,7 @@ test('it refuses a spawn for an empty registry', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: () => {
-      const parsed = parseConfig({ agents: {} });
+      const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: {} });
 
       return {
         adapters: buildAgentAdapters(parsed, buildMockHostServices()),
@@ -127,7 +128,7 @@ test('it defaults spawns to the first entry when the registry holds no claude', 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: (paths) => {
-      const parsed = parseConfig({
+      const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         agents: {
           'claude-b': { kind: 'claude', bin: createStubRecordingClaude(paths.dir), args: ['--b'] },
         },
@@ -149,7 +150,7 @@ test('it spawns the first entry when the registry holds no claude and the spawn 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-agent-registry-',
     options: (paths) => {
-      const parsed = parseConfig({
+      const parsed = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         agents: {
           'claude-b': { kind: 'claude', bin: createStubRecordingClaude(paths.dir), args: ['--b'] },
         },

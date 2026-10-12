@@ -16,14 +16,15 @@ test('it returns the definition it checks unchanged', () => {
   const definition = {
     kind: 'source' as const,
     id: 'dirs',
-    configSchema: z.object({ roots: z.array(z.string()) }),
+    configFields: ['roots'],
+    configSchema: () => z.object({ roots: z.array(z.string()) }),
     create: () => source,
   };
 
   expect(definePlugin(definition)).toBe(definition);
 });
 
-test('it creates the contract from a parsed config slice and the host services', () => {
+test('it creates the contract from a slice parsed in its context, the host services, and the plugin context', () => {
   const source: SourceProvider = {
     id: 'dirs',
     label: 'Directories',
@@ -33,8 +34,18 @@ test('it creates the contract from a parsed config slice and the host services',
   };
 
   const create = mock(() => source);
-  const configSchema = z.object({ roots: z.array(z.string()) });
-  const plugin = definePlugin({ kind: 'source', id: 'dirs', configSchema, create });
+
+  const plugin = definePlugin({
+    kind: 'source',
+    id: 'dirs',
+    configFields: ['roots'],
+    configSchema: (context) =>
+      z.object({ roots: z.array(z.string()) }).transform((slice) => ({
+        ...slice,
+        entryID: context.entryID,
+      })),
+    create,
+  });
 
   const host = {
     atcArgv: ['/opt/atc/bin/atc'],
@@ -45,9 +56,15 @@ test('it creates the contract from a parsed config slice and the host services',
     log: mock(),
   };
 
-  const config = plugin.configSchema.parse({ roots: ['/src', '/work'] });
-  const created = plugin.create(config, host);
+  const context = { authProfiles: new Map(), entryID: 'dirs', foreignFields: new Set<string>() };
+  const config = plugin.configSchema(context).parse({ roots: ['/src', '/work'] });
+  const created = plugin.create(config, host, context);
 
   expect(created).toBe(source);
-  expect(create).toHaveBeenCalledExactlyOnceWith({ roots: ['/src', '/work'] }, host);
+
+  expect(create).toHaveBeenCalledExactlyOnceWith(
+    { roots: ['/src', '/work'], entryID: 'dirs' },
+    host,
+    context,
+  );
 });

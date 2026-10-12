@@ -4,6 +4,7 @@ import { parseConfig } from '@atc/config/config';
 import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { buildMigratedConfig } from './build-migrated-config';
+import { SHIPPED_HARNESS_PLUGINS } from './plugins/shipped-harness-plugins';
 import { collectLegacyAgents } from './shared/collect-legacy-agents';
 
 test('it replaces the old keys with agents at the position of the first one', () => {
@@ -136,7 +137,7 @@ test('it parses the migrated config into the entries the old keys gave', () => {
   invariant(result.kind === 'migrated', 'expected a migrated config');
 
   const written: unknown = JSON.parse(result.text);
-  const migrated = parseConfig(written);
+  const migrated = parseConfig(SHIPPED_HARNESS_PLUGINS, written);
 
   const converted = collectLegacyAgents(
     {
@@ -194,7 +195,7 @@ test("it carries claudeAuth's MCP servers into the migrated claude entry", () =>
     },
   });
 
-  expect(parseConfig(written).agents).toStrictEqual([
+  expect(parseConfig(SHIPPED_HARNESS_PLUGINS, written).agents).toStrictEqual([
     {
       id: 'claude',
       kind: 'claude',

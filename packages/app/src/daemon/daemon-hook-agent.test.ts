@@ -6,6 +6,7 @@ import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services'
 import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test("it passes each session's hook state back for that session alone, starting each at none", async () => {
@@ -63,7 +64,7 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             codex: { bin: 'sleep', args: ['30'] },
             'codex-fast': { kind: 'codex', bin: 'sleep', args: ['30'] },
@@ -108,7 +109,7 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             codex: { bin: 'sleep', args: ['30'] },
             'codex-fast': { kind: 'codex', bin: 'sleep', args: ['30'] },
@@ -161,7 +162,7 @@ test('it drops a hook line from another agent at a claude session', async () => 
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
       adapters: buildAgentAdapters(
-        parseConfig({
+        parseConfig(SHIPPED_HARNESS_PLUGINS, {
           agents: {
             codex: { bin: 'sleep', args: ['30'] },
             claude: { bin: 'bash', args: ['-c', 'sleep 30'] },

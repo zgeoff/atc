@@ -27,6 +27,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // The fixed parts every test's daemon runs on: a stub imp port behind
@@ -86,7 +87,7 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -189,7 +190,7 @@ test.each([
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -269,7 +270,7 @@ test('it refuses trust for an existing folder before touching the imp', async ()
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -341,7 +342,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const agents = parseConfig({
+        const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -443,7 +444,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const agents = parseConfig({
+        const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -539,7 +540,7 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -611,7 +612,7 @@ test('it refuses clone trust for a gateway on the local target before cloning', 
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -687,7 +688,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const agents = parseConfig({
+        const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -796,7 +797,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const agents = parseConfig({
+        const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -913,7 +914,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const agents = parseConfig({
+        const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -1046,7 +1047,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const agents = parseConfig({
+        const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -1140,7 +1141,7 @@ test.each([
 
     const daemon = await startTestDaemon({
       options: () => {
-        const agents = parseConfig({
+        const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
           authProfiles: {
             glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
           },
@@ -1230,7 +1231,7 @@ test('it refuses an inherited trust default without a clone before touching the 
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -1302,7 +1303,7 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },
@@ -1375,7 +1376,7 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
 
   const daemon = await startTestDaemon({
     options: () => {
-      const agents = parseConfig({
+      const agents = parseConfig(SHIPPED_HARNESS_PLUGINS, {
         authProfiles: {
           glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
         },

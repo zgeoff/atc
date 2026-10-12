@@ -15,6 +15,7 @@ import { sortGroupedSessionViews } from '@atc/protocol/sort-grouped-session-view
 import { sortSessionViews } from '@atc/protocol/sort-session-views';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
+import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
 import { collectTargetPicks } from './collect-target-picks';
@@ -59,13 +60,13 @@ const doneAt = new Map<string, number>();
 
 let focusedID: string | null = null;
 let fleetCount = 0;
-let lastUsedAgent: AgentID = loadConfig().defaultAgent;
+let lastUsedAgent: AgentID = loadConfig(SHIPPED_HARNESS_PLUGINS).defaultAgent;
 
 // The readable harness label and tier-alias map per agent: the config alone
 // until the daemon's `agents.list` answer arrives and re-resolves them
 // whenever the overlay opens, so a backend configured after this client
 // started still lists under its name.
-const bootMetadata = resolveAgentMetadata(loadConfig(), {});
+const bootMetadata = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), {});
 let agentLabels: Readonly<Record<AgentID, string>> = bootMetadata.labels;
 let agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>> = bootMetadata.models;
 
@@ -299,7 +300,7 @@ async function refreshAgents() {
   try {
     const answer = await client.sendRequest('agents.list');
 
-    const meta = resolveAgentMetadata(loadConfig(), answer);
+    const meta = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), answer);
 
     agentLabels = meta.labels;
     agentModels = meta.models;
@@ -542,7 +543,7 @@ function copyToClipboard(text: string) {
 
 // ---- input ----
 
-const leader = loadConfig().leader;
+const leader = loadConfig(SHIPPED_HARNESS_PLUGINS).leader;
 const leaderChords = buildLeaderChords(leader.code);
 
 // A fullscreen session can leave the terminal in an enhanced keyboard
@@ -1096,7 +1097,7 @@ async function restartDaemon() {
   // config baseline until its own answer arrives; the target count goes
   // back to none for the same reason, hiding the column until the new
   // daemon reports what it can spawn on.
-  const baseline = resolveAgentMetadata(loadConfig(), {});
+  const baseline = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), {});
 
   agentLabels = baseline.labels;
   agentModels = baseline.models;

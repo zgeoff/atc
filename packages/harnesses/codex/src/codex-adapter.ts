@@ -1,4 +1,4 @@
-import type { AgentEntry } from '@atc/config/collect-agents';
+import type { AgentEntry } from '@atc/config/agent-entry';
 import type { Config } from '@atc/config/config';
 import { resolveAgentHome } from '@atc/config/resolve-agent-home';
 import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';

@@ -1,4 +1,4 @@
-import type { AgentEntry } from '@atc/config/collect-agents';
+import type { AgentEntry } from '@atc/config/agent-entry';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
