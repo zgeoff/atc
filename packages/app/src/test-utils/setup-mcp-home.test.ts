@@ -17,10 +17,11 @@ test('it writes a config that registers the stand-in agents', async () => {
   ).json();
 
   expect(config).toStrictEqual({
-    claudeBin: join(mcpHome.home, 'fake-claude'),
-    claudeArgs: [],
-    grokBin: join(mcpHome.home, 'fake-grok'),
-    grokArgs: [],
+    agents: {
+      claude: { kind: 'claude', bin: join(mcpHome.home, 'fake-claude') },
+      grok: { kind: 'grok', bin: join(mcpHome.home, 'fake-grok') },
+      codex: { kind: 'codex' },
+    },
   });
 });
 

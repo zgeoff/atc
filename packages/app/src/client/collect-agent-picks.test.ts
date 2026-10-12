@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/test-utils/update-env';
-import { parseConfig } from '../shared/config';
 import { collectAgentPicks } from './collect-agent-picks';
 
 function setupTest() {
@@ -25,24 +25,6 @@ test('it lists only the agents whose configured binary resolves', () => {
       grok: { bin: join(ctx.dir, 'my-grok') },
       codex: { bin: join(ctx.dir, 'my-codex') },
     },
-  });
-
-  expect(collectAgentPicks(config)).toStrictEqual([
-    { agent: 'claude', label: 'Claude' },
-    { agent: 'codex', label: 'Codex' },
-  ]);
-});
-
-test('it lists only the agents whose binary resolves from a config with the old agent keys', () => {
-  const ctx = setupTest();
-
-  createStubBin(ctx.dir, 'my-claude', '#!/bin/sh\nexit 0\n');
-  createStubBin(ctx.dir, 'my-codex', '#!/bin/sh\nexit 0\n');
-
-  const config = parseConfig({
-    claudeBin: join(ctx.dir, 'my-claude'),
-    grokBin: join(ctx.dir, 'my-grok'),
-    codexBin: join(ctx.dir, 'my-codex'),
   });
 
   expect(collectAgentPicks(config)).toStrictEqual([

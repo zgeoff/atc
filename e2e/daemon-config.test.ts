@@ -71,7 +71,7 @@ test('it starts with a broken config, prints the problem, and refuses every spaw
   );
 });
 
-test('it prints one line naming the old agent keys a config still uses and loads them as before', async () => {
+test('it leaves every target unusable and names the migrate command for a config with the old agent keys', async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -95,16 +95,17 @@ test('it prints one line naming the old agent keys a config still uses and loads
 
   const listed = await client.sendRequest('agents.list');
 
-  expect(getRecords(listed, 'agents').map((agent) => agent['id'])).toStrictEqual([
-    'claude',
-    'grok',
-    'codex',
-    'zai',
-  ]);
+  expect(listed['targets']).toStrictEqual([]);
 
-  expect(daemon.readStderr()).toInclude(
-    "atc daemon: config: config.json uses the old agent keys (claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways); run 'atc config migrate' to move them into agents\n",
-  );
+  expect(listed['targetErrors']).toStrictEqual([
+    {
+      scope: 'config',
+      problem: 'config_malformed',
+      path: ctx.configPath,
+      detail:
+        "config.json uses the old agent keys (claudeBin, claudeArgs, grokBin, grokArgs, codexBin, codexArgs, gateways); run 'atc config migrate' to move them into agents",
+    },
+  ]);
 });
 
 test('it lists exactly the agents of an agents map and prints no old-key line', async () => {
@@ -173,8 +174,9 @@ test('it keeps the configured model and effort when a claude spawn sets neither'
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: ctx.claude,
-      claudeArgs: ['--model', 'opus', '--effort', 'low'],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claude, args: ['--model', 'opus', '--effort', 'low'] },
+      },
     }),
   );
 
@@ -209,9 +211,15 @@ test('it keeps the configured model and effort when a gateway spawn sets neither
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: ctx.claude,
-      claudeArgs: ['--model', 'opus', '--effort', 'low'],
-      gateways: { zai: { baseURL: 'http://127.0.0.1:9' } },
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claude, args: ['--model', 'opus', '--effort', 'low'] },
+        zai: {
+          kind: 'claude',
+          baseURL: 'http://127.0.0.1:9',
+          bin: ctx.claude,
+          args: ['--model', 'opus', '--effort', 'low'],
+        },
+      },
     }),
   );
 
@@ -247,8 +255,9 @@ test("it replaces the configured model with a claude spawn's model override", as
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: ctx.claude,
-      claudeArgs: ['--model', 'opus', '--effort', 'low'],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claude, args: ['--model', 'opus', '--effort', 'low'] },
+      },
     }),
   );
 
@@ -284,9 +293,15 @@ test("it replaces the configured model and effort with a gateway spawn's overrid
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: ctx.claude,
-      claudeArgs: ['--model', 'opus', '--effort', 'low'],
-      gateways: { zai: { baseURL: 'http://127.0.0.1:9' } },
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claude, args: ['--model', 'opus', '--effort', 'low'] },
+        zai: {
+          kind: 'claude',
+          baseURL: 'http://127.0.0.1:9',
+          bin: ctx.claude,
+          args: ['--model', 'opus', '--effort', 'low'],
+        },
+      },
     }),
   );
 

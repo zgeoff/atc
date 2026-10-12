@@ -1,3 +1,4 @@
+import { daemonPidFile, daemonRecordFile, daemonSocketPath, stateDir } from '@atc/config/config';
 import { isRecord } from '@atc/core/is-record';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
@@ -11,10 +12,9 @@ import { isDaemonProcess } from './is-daemon-process';
 import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
 import { runSystemctl } from './run-systemctl';
 import { buildATCCommand } from './shared/build-atc-command';
-import { daemonPidFile, daemonRecordFile, daemonSocketPath, stateDir } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 import { findPidFilePID } from './shared/find-pid-file-pid';
-import { getBuild } from './shared/get-build';
+import { getATCBuild } from './shared/get-atc-build';
 import { isProcessAlive } from './shared/is-process-alive';
 
 // How long the handshake and the session list may take together.
@@ -83,7 +83,7 @@ async function planReplacement(pid: number | null): Promise<ReplacementPlan> {
   const unit = pid === null ? null : await findRestartUnit(pid);
 
   if (unit === null) {
-    return { kind: 'plain', build: getBuild(), command: buildATCCommand(['daemon']).join(' ') };
+    return { kind: 'plain', build: getATCBuild(), command: buildATCCommand(['daemon']).join(' ') };
   }
 
   const shown = await runSystemctl(['show', '-p', 'ExecStart', '--value', unit]);
@@ -113,7 +113,7 @@ async function tryProbe(socketPath: string, clock: Clock): Promise<Probe | null>
   }, PROBE_DEADLINE_MS);
 
   try {
-    const hello = await client.sendHello(getBuild(), {
+    const hello = await client.sendHello(getATCBuild(), {
       session: readSessionEnv(process.env).sessionID,
     });
 

@@ -1,7 +1,7 @@
+import type { GatewayConfig } from '@atc/config/agent-slices/collect-gateways';
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
-import type { GatewayConfig } from '../shared/collect-gateways';
 
 /**
  * The fields the defaults set; every other field is absent until an

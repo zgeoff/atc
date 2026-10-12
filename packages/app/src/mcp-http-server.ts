@@ -1,5 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import type { MCPHTTPConfig } from '@atc/config/collect-mcp-http-config';
+import { mcpAuthDBFile } from '@atc/config/config';
+import { loadMCPHTTPConfig } from '@atc/config/load-mcp-http-config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { bootDaemonClient } from './client/boot-daemon';
 import type { DaemonBoot, DaemonPaths } from './client/boot-daemon';
@@ -7,9 +10,6 @@ import { collectClients } from './mcp/collect-clients';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
-import type { MCPHTTPConfig } from './shared/collect-mcp-http-config';
-import { mcpAuthDBFile } from './shared/config';
-import { loadMCPHTTPConfig } from './shared/load-mcp-http-config';
 
 interface MCPHTTPFlags {
   readonly host: string | null;

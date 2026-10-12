@@ -1,3 +1,4 @@
+import { LOCAL_TARGET } from '@atc/config/local-target';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildTargetIdentity } from './build-target-identity';
 import { TargetAccess } from './target-access';
@@ -17,7 +18,10 @@ export function buildTargetAccess(
 ): TargetAccess {
   if (principals === null) {
     return new TargetAccess([
-      { target: 'local', targetIdentity: buildTargetIdentity('local-pty', {}) },
+      {
+        target: LOCAL_TARGET.id,
+        targetIdentity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
+      },
     ]);
   }
 

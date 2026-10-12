@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { stateDir } from '../shared/config';
+import { stateDir } from '@atc/config/config';
 import { buildATCBridgeFiles } from './build-atc-bridge-files';
 import { buildCLIArgv } from './build-cli-argv';
 

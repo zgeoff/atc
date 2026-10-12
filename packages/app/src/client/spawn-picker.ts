@@ -1,3 +1,7 @@
+import type { WorkspacesConfig } from '@atc/config/collect-workspaces-config';
+import { loadConfig } from '@atc/config/config';
+import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
+import { LOCAL_TARGET } from '@atc/config/local-target';
 import type { AgentID } from '@atc/core/agent-id';
 import { ansi } from '@atc/core/ansi';
 import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
@@ -16,10 +20,7 @@ import type { SourceEntry } from '@atc/protocol/source-entry';
 import { SOURCE_INTERPRETATION_SCHEMA } from '@atc/protocol/source-interpretation';
 import type { SourceInterpretation } from '@atc/protocol/source-interpretation';
 import type { SourcePick } from '@atc/protocol/source-pick';
-import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
-import { loadConfig } from '../shared/config';
-import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
 import { collectPathCompletions } from './collect-path-completions';
@@ -1667,7 +1668,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       const target = this.findEffectiveTarget();
 
       const root = resolveWorkspaceRoot(this.workspaces, {
-        id: target?.id ?? 'local',
+        id: target?.id ?? LOCAL_TARGET.id,
         inPlace: target?.inPlace ?? true,
       });
 
@@ -1751,7 +1752,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   private formatDestination(): string {
-    const target = this.findEffectiveTarget()?.id ?? 'local';
+    const target = this.findEffectiveTarget()?.id ?? LOCAL_TARGET.id;
 
     return this.autoDestination === null
       ? `${target}:${this.buildDestination()}`

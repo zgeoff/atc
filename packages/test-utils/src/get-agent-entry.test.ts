@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '../shared/config';
+import { parseConfig } from '@atc/config/config';
 import { getAgentEntry } from './get-agent-entry';
 
 test('it returns the entry a config holds under an id', () => {
-  const config = parseConfig({ grokBin: 'my-grok' });
+  const config = parseConfig({ agents: { grok: { bin: 'my-grok' } } });
 
   expect(getAgentEntry(config, 'grok')).toStrictEqual({
     id: 'grok',

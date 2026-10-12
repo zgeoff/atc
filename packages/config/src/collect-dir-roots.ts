@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core/is-record';
+import { normalizeConfigDir } from './normalize-config-dir';
 import { resolveHomeDir } from './resolve-home-dir';
 
 /**
@@ -19,15 +20,8 @@ export function collectDirRoots(raw: unknown, home: string = resolveHomeDir()): 
       continue;
     }
 
-    roots.push(normalizeRoot(item, home));
+    roots.push(normalizeConfigDir(item, home));
   }
 
   return roots;
-}
-
-function normalizeRoot(dir: string, home: string): string {
-  const expanded = dir === '~' ? home : dir.replace(/^~\//u, `${home}/`);
-  const trimmed = expanded.replace(/\/+$/u, '');
-
-  return trimmed === '' ? '/' : trimmed;
 }

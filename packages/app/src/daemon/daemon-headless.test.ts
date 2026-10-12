@@ -1,18 +1,18 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { GrokAdapter } from '../agents/grok-adapter';
-import { parseConfig } from '../shared/config';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**
@@ -583,7 +583,10 @@ test('it refuses to eject a grok session', async () => {
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
       adapters: [
         new GrokAdapter(
-          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          getAgentEntry(
+            parseConfig({ agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } } }),
+            'grok',
+          ),
           join(paths.dir, 'grok-home'),
         ),
       ],
@@ -620,7 +623,10 @@ test('it starts no headless run for a refused grok eject', async () => {
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
       adapters: [
         new GrokAdapter(
-          getAgentEntry(parseConfig({ grokBin: 'bash', grokArgs: ['-c', 'sleep 30'] }), 'grok'),
+          getAgentEntry(
+            parseConfig({ agents: { grok: { bin: 'bash', args: ['-c', 'sleep 30'] } } }),
+            'grok',
+          ),
           join(paths.dir, 'grok-home'),
         ),
       ],

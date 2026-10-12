@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { isCompiledBinary } from '../shared/is-compiled-binary';
+import { isCompiledBinary } from '@atc/config/is-compiled-binary';
 
 /**
  * The argv that runs the atc CLI from inside a wrangled session: under bun

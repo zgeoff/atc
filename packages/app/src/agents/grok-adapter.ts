@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import type { AgentEntry } from '@atc/config/collect-agents';
+import { resolveAgentHome } from '@atc/config/resolve-agent-home';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import { buildOptionalString } from '@atc/core/build-optional-string';
@@ -13,7 +15,6 @@ import type { HookEvent } from '@atc/protocol/hook-event';
 import { normalizeHookEventName } from '@atc/protocol/normalize-hook-event';
 import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
 import { z } from 'zod';
-import type { AgentEntry } from '../shared/collect-agents';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -23,7 +24,6 @@ import type {
   SpawnPlan,
 } from './agent-adapter';
 import { planPastedLineInput } from './plan-pasted-line-input';
-import { resolveAgentHome } from './resolve-agent-home';
 
 interface GrokSessionHookState {
   latestPromptID?: string;

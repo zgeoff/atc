@@ -1,13 +1,13 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
 import { resolve } from 'node:path';
+import { parseListenAddress } from '@atc/config/listen/parse-listen-address';
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
 import { collectRedirectURIs } from './collect-redirect-uris';
-import { parseListenAddress } from './daemon/parse-listen-address';
 import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
-import { getBuild } from './shared/get-build';
+import { getATCBuild } from './shared/get-atc-build';
 
 // The flags `atc daemon` takes.
 const DAEMON_ARGS = {
@@ -77,7 +77,7 @@ const main = defineCommand({
           if (!ctx.args.http) {
             const server = await import('./mcp-server');
 
-            await server.runMCPServer(getBuild());
+            await server.runMCPServer(getATCBuild());
 
             return;
           }
@@ -91,7 +91,7 @@ const main = defineCommand({
 
           const http = await import('./mcp-http-server');
 
-          await http.runMCPHTTPServer(getBuild(), {
+          await http.runMCPHTTPServer(getATCBuild(), {
             host: ctx.args.host ?? null,
             port: port === null ? null : port.port,
             publicURL: ctx.args['public-url'] ?? null,
@@ -112,7 +112,7 @@ const main = defineCommand({
               meta: { name: 'list', description: 'List the clients', hidden: true },
               async run() {
                 const clients = await import('./clients');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 await clients.runClients(
                   { kind: 'list' },
@@ -133,7 +133,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 await clients.runClients(
                   {
@@ -156,7 +156,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 await clients.runClients(
                   { kind: 'remove', clientID: ctx.args.id },
@@ -206,7 +206,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const migrate = await import('./run-config-migrate');
-                const config = await import('./shared/config');
+                const config = await import('@atc/config/config');
 
                 const code = migrate.runConfigMigrate(
                   ctx.args.file ?? config.configFile,
@@ -253,7 +253,7 @@ const main = defineCommand({
               async run() {
                 const id = await import('./run-daemon-id');
 
-                await id.runDaemonID(getBuild());
+                await id.runDaemonID(getATCBuild());
               },
             }),
           restart: () =>
@@ -544,14 +544,14 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   }
 
   const daemon = await import('./daemon/daemon');
-  const config = await import('./shared/config');
+  const config = await import('@atc/config/config');
   const adapterBuilder = await import('./agents/build-agent-adapters');
   const headless = await import('./agents/start-claude-headless-run');
   const targets = await import('./daemon/build-execution-targets');
   const sourceOrder = await import('./sources/build-sources');
   const builtinSources = await import('./sources/collect-builtin-sources');
   const zoxide = await import('./shared/collect-zoxide-dirs');
-  const home = await import('./shared/resolve-home-dir');
+  const home = await import('@atc/config/resolve-home-dir');
 
   // Test harnesses shrink the outbound queue to force overflow
   // deterministically; unset means the production default.
@@ -576,12 +576,6 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     ...cfg.agentErrors,
   ]) {
     console.error(`atc daemon: config: ${problem}`);
-  }
-
-  if (cfg.legacyAgentKeys.length > 0) {
-    console.error(
-      `atc daemon: config: config.json uses the old agent keys (${cfg.legacyAgentKeys.join(', ')}); run 'atc config migrate' to move them into agents`,
-    );
   }
 
   if (cfg.removedKeys.length > 0) {
@@ -626,7 +620,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       socketPath: config.daemonSocketPath,
       reporterSocketPath: config.socketPath,
       eventsSocketPath: config.eventsSocketPath,
-      build: getBuild(),
+      build: getATCBuild(),
       adapters,
       defaultAgent: cfg.defaultAgent,
       dbPath: config.dbFile,

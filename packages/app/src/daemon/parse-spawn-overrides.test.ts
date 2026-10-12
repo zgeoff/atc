@@ -1,20 +1,24 @@
 import { expect, test } from 'bun:test';
+import { parseConfig } from '@atc/config/config';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { ClaudeAdapter } from '../agents/claude-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
 import { GatewayAdapter } from '../agents/gateway-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
-import { parseConfig } from '../shared/config';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { buildAgentList } from './build-agent-list';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 
 test('it accepts every model and effort value agents.list advertises as available', () => {
   const config = parseConfig({
-    gateways: {
+    agents: {
+      claude: {},
+      grok: {},
+      codex: {},
       zai: {
+        kind: 'claude',
         baseURL: 'https://api.z.ai/api/anthropic',
         env: { ANTHROPIC_DEFAULT_OPUS_MODEL: 'glm-4.6', ANTHROPIC_DEFAULT_HAIKU_MODEL: 'glm-4.5' },
       },
@@ -174,7 +178,9 @@ test.each([
 });
 
 test('it accepts a gateway effort', () => {
-  const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
+  const config = parseConfig({
+    agents: { zai: { kind: 'claude', baseURL: 'https://api.z.ai/api/anthropic' } },
+  });
 
   const [zai] = buildAgentList(
     [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],
@@ -191,7 +197,9 @@ test('it accepts a gateway effort', () => {
 });
 
 test('it refuses a gateway effort outside the levels Claude Code accepts', () => {
-  const config = parseConfig({ gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } } });
+  const config = parseConfig({
+    agents: { zai: { kind: 'claude', baseURL: 'https://api.z.ai/api/anthropic' } },
+  });
 
   const [zai] = buildAgentList(
     [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],

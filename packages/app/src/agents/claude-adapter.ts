@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import type { AgentEntry } from '@atc/config/collect-agents';
+import type { Config } from '@atc/config/config';
+import { resolveAgentHome } from '@atc/config/resolve-agent-home';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
@@ -16,8 +19,6 @@ import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { z } from 'zod';
-import type { AgentEntry } from '../shared/collect-agents';
-import type { Config } from '../shared/config';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -54,7 +55,6 @@ import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
 import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planClaudeLineInput } from './plan-claude-line-input';
-import { resolveAgentHome } from './resolve-agent-home';
 import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';

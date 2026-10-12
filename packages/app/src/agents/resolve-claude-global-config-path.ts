@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
+import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 
 /**
  * The file the Claude CLI on the daemon's machine keeps its global state

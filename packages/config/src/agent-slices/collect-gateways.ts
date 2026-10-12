@@ -1,10 +1,11 @@
 import type { AgentID } from '@atc/core/agent-id';
+import { buildOptionalNonEmptyString } from '@atc/core/build-optional-non-empty-string';
 import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
 import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
+import type { AuthProfile } from '../collect-auth-profiles';
 import { checkGatewayAuth } from './check-gateway-auth';
 import type { GatewayAuth } from './check-gateway-auth';
-import type { AuthProfile } from './collect-auth-profiles';
 
 /**
  * A Claude-compatible backend the Claude CLI is pointed at: its own agent id,
@@ -123,13 +124,6 @@ function buildOptionalSettings() {
   return z.preprocess(
     (v) => (isRecord(v) ? v : undefined),
     z.record(z.string(), z.unknown()).optional(),
-  );
-}
-
-function buildOptionalNonEmptyString() {
-  return z.preprocess(
-    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
-    z.string().optional(),
   );
 }
 

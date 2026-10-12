@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { statusFile } from '@atc/config/config';
+import { resolveAgentHome } from '@atc/config/resolve-agent-home';
 import { isRecord } from '@atc/core/is-record';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
-import { resolveAgentHome } from './agents/resolve-agent-home';
-import { statusFile } from './shared/config';
 import { sendReport } from './shared/report';
 
 /**

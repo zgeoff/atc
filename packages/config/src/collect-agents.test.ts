@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockAuthProfile } from '../test-utils/build-mock-auth-profile';
+import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
 import { collectAgents } from './collect-agents';
 import type { AuthProfile } from './collect-auth-profiles';
 

@@ -1,5 +1,7 @@
+import { buildOptionalNonEmptyString } from '@atc/core/build-optional-non-empty-string';
 import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
+import { normalizeConfigDir } from './normalize-config-dir';
 import { resolveHomeDir } from './resolve-home-dir';
 
 /**
@@ -56,7 +58,9 @@ export function collectHooks(raw: unknown, home: string = resolveHomeDir()): Hoo
 
       entries.push({
         command: parsed.data.command,
-        ...(parsed.data.dir === undefined ? {} : { dir: normalizeHookDir(parsed.data.dir, home) }),
+        ...(parsed.data.dir === undefined
+          ? {}
+          : { dir: normalizeConfigDir(parsed.data.dir, home) }),
         ...(parsed.data.timeout === undefined ? {} : { timeout: parsed.data.timeout }),
       });
     }
@@ -67,20 +71,6 @@ export function collectHooks(raw: unknown, home: string = resolveHomeDir()): Hoo
   }
 
   return hooks;
-}
-
-function normalizeHookDir(dir: string, home: string): string {
-  const expanded = dir === '~' ? home : dir.replace(/^~\//u, `${home}/`);
-  const trimmed = expanded.replace(/\/+$/u, '');
-
-  return trimmed === '' ? '/' : trimmed;
-}
-
-function buildOptionalNonEmptyString() {
-  return z.preprocess(
-    (v) => (typeof v === 'string' && v !== '' ? v : undefined),
-    z.string().optional(),
-  );
 }
 
 function buildOptionalPositiveNumber() {

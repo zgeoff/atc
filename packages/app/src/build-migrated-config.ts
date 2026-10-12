@@ -1,10 +1,14 @@
+import type { AgentEntry } from '@atc/config/collect-agents';
+import { collectAuthProfiles } from '@atc/config/collect-auth-profiles';
+import { formatJSONKind } from '@atc/config/format-json-kind';
+import { formatMixedAgentKeys } from '@atc/config/format-mixed-agent-keys';
+import { LEGACY_AGENT_KEYS } from '@atc/config/legacy-agent-keys';
+import { REMOVED_CONFIG_KEYS } from '@atc/config/removed-config-keys';
+import { buildOptionalString } from '@atc/core/build-optional-string';
+import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
 import { isRecord } from '@atc/core/is-record';
-import type { AgentEntry } from './shared/collect-agents';
-import { parseConfig } from './shared/config';
-import { formatJSONKind } from './shared/format-json-kind';
-import { formatMixedAgentKeys } from './shared/format-mixed-agent-keys';
-import { LEGACY_AGENT_KEYS } from './shared/legacy-agent-keys';
-import { REMOVED_CONFIG_KEYS } from './shared/removed-config-keys';
+import { z } from 'zod';
+import { collectLegacyAgents } from './shared/collect-legacy-agents';
 
 /**
  * What `atc config migrate` makes of a config.json's decoded value: the file
@@ -15,6 +19,20 @@ type MigratedConfig =
   | { readonly kind: 'migrated'; readonly text: string; readonly notes: readonly string[] }
   | { readonly kind: 'current' }
   | { readonly kind: 'unusable'; readonly detail: string };
+
+// The old agent keys and the auth profiles they may name. An absent or
+// wrong-typed key parses to undefined and takes its default.
+const LEGACY_KEYS_SCHEMA = z.object({
+  claudeBin: buildOptionalString(),
+  claudeArgs: buildOptionalStringArray(),
+  claudeAuth: z.unknown().optional(),
+  grokBin: buildOptionalString(),
+  grokArgs: buildOptionalStringArray(),
+  codexBin: buildOptionalString(),
+  codexArgs: buildOptionalStringArray(),
+  gateways: z.unknown().optional(),
+  authProfiles: z.unknown().optional(),
+});
 
 /**
  * Rewrites a config.json that uses the old agent keys so it holds the same
@@ -55,10 +73,26 @@ export function buildMigratedConfig(raw: unknown): MigratedConfig {
     };
   }
 
-  const config = parseConfig(raw);
+  const keys = LEGACY_KEYS_SCHEMA.parse(raw);
+  const authProfiles = collectAuthProfiles(keys.authProfiles).profiles;
+
+  const legacy = collectLegacyAgents(
+    {
+      claudeBin: keys.claudeBin ?? 'claude',
+      claudeArgs: keys.claudeArgs ?? [],
+      claudeAuth: keys.claudeAuth,
+      grokBin: keys.grokBin ?? 'grok',
+      grokArgs: keys.grokArgs ?? [],
+      codexBin: keys.codexBin ?? 'codex',
+      codexArgs: keys.codexArgs ?? [],
+      gateways: keys.gateways,
+    },
+    authProfiles,
+  );
+
   const agents: Record<string, unknown> = {};
 
-  for (const entry of config.agents) {
+  for (const entry of legacy.agents) {
     agents[entry.id] = renderAgentEntry(entry);
   }
 
@@ -86,7 +120,7 @@ export function buildMigratedConfig(raw: unknown): MigratedConfig {
     kind: 'migrated',
     text: `${JSON.stringify(migrated, null, 2)}\n`,
     notes: [
-      ...collectDroppedGateways(raw['gateways'], config.agents, config.agentErrors),
+      ...collectDroppedGateways(raw['gateways'], legacy.agents, legacy.errors),
       ...removedNotes,
     ],
   };

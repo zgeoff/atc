@@ -1,9 +1,4 @@
 import { appendFileSync } from 'node:fs';
-import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { startClaudeHeadlessRun } from '../agents/start-claude-headless-run';
-import { buildExecutionTargets } from '../daemon/build-execution-targets';
-import { startDaemon } from '../daemon/daemon';
-import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import {
   daemonPidFile,
   daemonSocketPath,
@@ -11,9 +6,14 @@ import {
   eventsSocketPath,
   loadConfig,
   socketPath,
-} from '../shared/config';
-import { getBuild } from '../shared/get-build';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
+} from '@atc/config/config';
+import { resolveHomeDir } from '@atc/config/resolve-home-dir';
+import { buildAgentAdapters } from '../agents/build-agent-adapters';
+import { startClaudeHeadlessRun } from '../agents/start-claude-headless-run';
+import { buildExecutionTargets } from '../daemon/build-execution-targets';
+import { startDaemon } from '../daemon/daemon';
+import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
+import { getATCBuild } from '../shared/get-atc-build';
 import { buildSources } from '../sources/build-sources';
 import { collectBuiltinSources } from '../sources/collect-builtin-sources';
 import type { SourceProvider } from '../sources/types';
@@ -85,7 +85,7 @@ async function main() {
     socketPath: daemonSocketPath,
     reporterSocketPath: socketPath,
     eventsSocketPath,
-    build: getBuild(),
+    build: getATCBuild(),
     adapters,
     defaultAgent: config.defaultAgent,
     dbPath: dbFile,

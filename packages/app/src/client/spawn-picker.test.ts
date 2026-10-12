@@ -1,11 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
 import { buildStubDaemonRequests } from '@atc/test-utils/build-stub-daemon-requests';
 import { buildStubTerminal } from '@atc/test-utils/build-stub-terminal';
 import { KEYS } from '@atc/test-utils/keys';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
 import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
@@ -74,9 +74,11 @@ test('it drops the target and source answer that arrives after esc leaves the ag
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: process.execPath,
-      grokBin: process.execPath,
-      codexBin: 'no-codex',
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: process.execPath },
+        codex: { bin: 'no-codex' },
+      },
     }),
   );
 
@@ -117,7 +119,13 @@ test('it drops the directory history that arrives after esc leaves a daemon with
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -157,7 +165,13 @@ test('it drops a git listing that arrives after the leader leaves the flow', asy
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -202,7 +216,13 @@ test('it drops a directory listing that arrives after the leader leaves the flow
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -247,7 +267,13 @@ test('it drops a reading that arrives after the leader leaves the flow', async (
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -296,7 +322,13 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -347,7 +379,13 @@ test('it neither attaches nor draws a spawn that answers after esc stops waiting
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -394,7 +432,13 @@ test('it materializes a directory on the one target when that target is remote',
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -444,7 +488,13 @@ test("it shows the daemon's pick for the destination of a repository on a remote
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -495,7 +545,13 @@ test('it spawns a repository on a remote target with no destination typed and le
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -560,7 +616,13 @@ test('it sends the directory of a directory spawn after a flow left a repository
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -640,7 +702,13 @@ test('it shows the refusal of a remote target without a workspace root when the 
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -690,7 +758,13 @@ test('it sends no spawn to a remote target without a workspace root when the dae
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -740,7 +814,13 @@ test('it holds a session whose workspace left changes behind instead of attachin
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -787,7 +867,13 @@ test('it attaches a held session whose workspace left changes behind on enter', 
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -836,7 +922,13 @@ test('it shows the whole note of a workspace that left changes behind, wrapped t
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -888,7 +980,13 @@ test('it leaves a session whose workspace left changes behind running when esc r
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -951,7 +1049,13 @@ test('it attaches a session spawned without warnings at once', async () => {
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -992,7 +1096,13 @@ test('it runs a directory in place on the one target when that target is local',
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1041,7 +1151,13 @@ test('it adopts in place on the one local target it offers', async () => {
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open(true);
@@ -1097,7 +1213,13 @@ test('it offers an agent that takes the broker credential only the targets that 
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1156,7 +1278,13 @@ test('it offers an agent that takes no broker credential every target', async ()
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1215,7 +1343,13 @@ test('it offers every target to an agent whose broker credential is optional', a
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1274,7 +1408,13 @@ test('it lists a scope read from typed text once, on the target chosen after it'
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1331,7 +1471,13 @@ test('it starts a new flow on the default target, not the one the last flow chos
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1430,7 +1576,13 @@ test('it lists a git source again when the flow left it before its listing answe
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1476,7 +1628,13 @@ test('it reads the targets and sources at once when one agent is installed', () 
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1497,9 +1655,11 @@ test('it waits on the agent choice when more than one agent is installed', () =>
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: process.execPath,
-      grokBin: process.execPath,
-      codexBin: 'no-codex',
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: process.execPath },
+        codex: { bin: 'no-codex' },
+      },
     }),
   );
 
@@ -1520,7 +1680,13 @@ test('it shows how to install an agent when none is installed', () => {
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: 'no-claude', grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: 'no-claude' },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1542,9 +1708,11 @@ test('it reads the targets and sources once when enter repeats on the agent step
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: process.execPath,
-      grokBin: process.execPath,
-      codexBin: 'no-codex',
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: process.execPath },
+        codex: { bin: 'no-codex' },
+      },
     }),
   );
 
@@ -1569,9 +1737,11 @@ test('it returns esc from the directory step to the agent step when more than on
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: process.execPath,
-      grokBin: process.execPath,
-      codexBin: 'no-codex',
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: process.execPath },
+        codex: { bin: 'no-codex' },
+      },
     }),
   );
 
@@ -1613,7 +1783,13 @@ test('it leaves the flow on esc from the directory step when one agent is instal
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1650,7 +1826,13 @@ test('it opens the name step after the directory when one agent and one target l
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1692,7 +1874,13 @@ test('it returns esc from the name step to the directory step when one target le
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1734,7 +1922,13 @@ test('it lists a git source for the one target without a key when one agent and 
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1769,7 +1963,13 @@ test('it leaves the flow on esc from a git source when one agent and one target 
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1806,7 +2006,13 @@ test('it takes the one available target for a directory when the other is unavai
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1862,7 +2068,13 @@ test('it takes the one target that takes a workspace for a repository', async ()
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1896,7 +2108,13 @@ test('it offers both targets for a directory when only one takes a workspace', a
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1936,7 +2154,13 @@ test('it shows why no target can run a directory when the one target is unavaila
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -1978,7 +2202,13 @@ test('it shows why no target can run a repository when none takes a workspace', 
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -2006,7 +2236,13 @@ test('it shows why no target can run an agent whose broker no target reaches', a
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -2050,7 +2286,13 @@ test('it shows why no target can adopt when none runs on the daemon host', async
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open(true);
@@ -2090,7 +2332,13 @@ test('it returns esc from a target step with no usable target to the directory s
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -2132,7 +2380,13 @@ test('it drops the target and source answer of a flow that was left and opened a
 
   writeFileSync(
     ctx.configPath,
-    JSON.stringify({ claudeBin: process.execPath, grokBin: 'no-grok', codexBin: 'no-codex' }),
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
   );
 
   picker.open();
@@ -2173,9 +2427,11 @@ test('it returns esc from a git source to the agent step when one target left no
   writeFileSync(
     ctx.configPath,
     JSON.stringify({
-      claudeBin: process.execPath,
-      grokBin: process.execPath,
-      codexBin: 'no-codex',
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: process.execPath },
+        codex: { bin: 'no-codex' },
+      },
     }),
   );
 

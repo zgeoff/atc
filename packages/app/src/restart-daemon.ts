@@ -1,4 +1,6 @@
 import { resolve } from 'node:path';
+import { dbFile } from '@atc/config/config';
+import { loadListenerTokens } from '@atc/config/load-listener-tokens';
 import { buildOwnDaemonProcess } from './build-own-daemon-process';
 import { buildRestartFailure } from './build-restart-failure';
 import { collectRestartPlan } from './collect-restart-plan';
@@ -8,9 +10,7 @@ import { readDaemonProcess } from './read-daemon-process';
 import { readFleetSnapshot } from './read-fleet-snapshot';
 import { readStoredFleetFile } from './read-stored-fleet-file';
 import { runSystemctl } from './run-systemctl';
-import { dbFile } from './shared/config';
-import { getBuild } from './shared/get-build';
-import { loadListenerTokens } from './shared/load-listener-tokens';
+import { getATCBuild } from './shared/get-atc-build';
 import { startReplacementDaemon } from './start-replacement-daemon';
 import { stopDaemonProcess } from './stop-daemon-process';
 import { verifyRestoredFleet } from './verify-restored-fleet';
@@ -72,7 +72,7 @@ export async function restartDaemon(options: RestartOptions): Promise<RestartRes
       return buildFailure(`systemctl restart ${plan.replacement.unit} failed: ${restarted.stderr}`);
     }
   } else {
-    expectedBuild = getBuild();
+    expectedBuild = getATCBuild();
 
     const old = plan.pid === null ? buildOwnDaemonProcess() : readDaemonProcess(plan.pid);
 

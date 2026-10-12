@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/test-utils/update-env';
 import invariant from 'tiny-invariant';
-import { parseConfig } from '../shared/config';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { CodexAdapter } from './codex-adapter';
 
 // A folder for the files a test writes: a Codex home with its session index,
@@ -46,7 +46,7 @@ test('it spawns codex resume with the captured id', () => {
 });
 
 test('it keeps the configured codex arguments when a spawn sets no model', () => {
-  const config = parseConfig({ codexArgs: ['--model', 'gpt-a'] });
+  const config = parseConfig({ agents: { codex: { args: ['--model', 'gpt-a'] } } });
 
   const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
@@ -57,7 +57,7 @@ test('it keeps the configured codex arguments when a spawn sets no model', () =>
 });
 
 test("it replaces the configured codex model with a spawn's model passed as -m", () => {
-  const config = parseConfig({ codexArgs: ['--model', 'gpt-a', '--search'] });
+  const config = parseConfig({ agents: { codex: { args: ['--model', 'gpt-a', '--search'] } } });
 
   const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 
@@ -73,20 +73,19 @@ test.each([
   ['--remote', ['--remote', 'ws://127.0.0.1:4500']],
   ['--remote=', ['--remote=ws://127.0.0.1:4500']],
   ['--no-daemon', ['--no-daemon', '-m', 'gpt-a']],
-])(
-  'it adds no --no-daemon of its own when the configured arguments hold %s',
-  (_spelling, codexArgs) => {
-    const adapter = new CodexAdapter(getAgentEntry(parseConfig({ codexArgs }), 'codex'));
+])('it adds no --no-daemon of its own when the configured arguments hold %s', (_spelling, args) => {
+  const adapter = new CodexAdapter(
+    getAgentEntry(parseConfig({ agents: { codex: { args } } }), 'codex'),
+  );
 
-    expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
-      bin: 'codex',
-      args: codexArgs,
-    });
-  },
-);
+  expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
+    bin: 'codex',
+    args,
+  });
+});
 
 test('it advertises a codex model with the configured default and no effort', () => {
-  const config = parseConfig({ codexArgs: ['-m', 'gpt-a'] });
+  const config = parseConfig({ agents: { codex: { args: ['-m', 'gpt-a'] } } });
 
   const adapter = new CodexAdapter(getAgentEntry(config, 'codex'));
 

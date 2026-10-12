@@ -1,4 +1,4 @@
-import { eventsSocketPath } from './shared/config';
+import { eventsSocketPath } from '@atc/config/config';
 
 /**
  * Streams the daemon's events socket to stdout, one NDJSON wire event per

@@ -1,5 +1,5 @@
+import type { ClaudeMCPServer } from '@atc/config/agent-slices/collect-claude-auth';
 import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import type { ClaudeMCPServer } from '../shared/collect-claude-auth';
 
 /**
  * The MCP config file that gives a session each server over HTTP with the

@@ -1,7 +1,7 @@
 import { unlinkSync } from 'node:fs';
+import { socketPath } from '@atc/config/config';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { LineDecoder } from '@atc/protocol/line-decoder';
-import { socketPath } from '../shared/config';
 import { parseHookLine } from './parse-hook-line';
 
 // Per-connection read state: the connection's own line framing.

@@ -2,16 +2,16 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { KEYS } from '@atc/test-utils/keys';
 import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
-import { parseConfig } from '../shared/config';
-import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
 import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { ClaudeAdapter } from './claude-adapter';
 
@@ -173,7 +173,9 @@ test('it runs a headless turn through the configured claude binary under the aut
 });
 
 test('it advertises the documented model aliases and effort levels with the configured defaults', () => {
-  const config = parseConfig({ claudeArgs: ['--model', 'opus', '--effort=high'] });
+  const config = parseConfig({
+    agents: { claude: { args: ['--model', 'opus', '--effort=high'] } },
+  });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
@@ -217,7 +219,10 @@ test('it advertises no default model or effort when the configured arguments set
 test('it runs a headless turn under the permission mode its configured arguments set', () => {
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
-  const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
+
+  const config = parseConfig({
+    agents: { claude: { args: ['--permission-mode', 'plan'] } },
+  });
 
   const adapter = new ClaudeAdapter(
     getAgentEntry(config, 'claude'),
@@ -245,7 +250,9 @@ test('it runs a headless turn under the permission mode its configured arguments
 });
 
 test('it keeps the permission mode its configured arguments set in the command that resumes it outside atc', () => {
-  const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
+  const config = parseConfig({
+    agents: { claude: { args: ['--permission-mode', 'plan'] } },
+  });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
@@ -431,7 +438,9 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
 });
 
 test('it plans a remote spawn in the permission mode its configured arguments set', () => {
-  const config = parseConfig({ claudeArgs: ['--permission-mode', 'plan'] });
+  const config = parseConfig({
+    agents: { claude: { args: ['--permission-mode', 'plan'] } },
+  });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
 
@@ -681,13 +690,13 @@ test('it pastes a long line and submits it with a carriage return as a second wr
   ]);
 });
 
-test('it takes no credential from the broker when the config holds no claudeAuth', () => {
+test('it takes no credential from the broker when the config holds no Claude auth', () => {
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.findAuthSelection()).toBeNull();
 });
 
-test('it seeds no clone trust when the config holds no claudeAuth', () => {
+test('it seeds no clone trust when the config holds no Claude auth', () => {
   const adapter = new ClaudeAdapter(getAgentEntry(parseConfig({}), 'claude'), parseConfig({}));
 
   expect(adapter.planGuestWorkspaceTrust('/work/repo')).toBeNull();
@@ -703,7 +712,7 @@ test('it selects the subscription token on the Anthropic API with the placeholde
         scheme: 'bearer',
       },
     },
-    claudeAuth: { profiles: ['claude'] },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
@@ -726,7 +735,6 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
   const ctx = setupTest();
 
   const config = parseConfig({
-    claudeArgs: ['--permission-mode', 'plan', '--verbose'],
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -735,7 +743,12 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
         scheme: 'bearer',
       },
     },
-    claudeAuth: { profiles: ['claude'] },
+    agents: {
+      claude: {
+        args: ['--permission-mode', 'plan', '--verbose'],
+        auth: { profiles: ['claude'] },
+      },
+    },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
@@ -1129,7 +1142,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
         scheme: 'bearer',
       },
     },
-    claudeAuth: { profiles: ['claude'] },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
@@ -1243,7 +1256,6 @@ test.each([
   ['HTTPS_PROXY'],
 ])('it refuses a subscription guest spawn whose configured --settings sets %s', (variable) => {
   const config = parseConfig({
-    claudeArgs: ['--settings', JSON.stringify({ env: { [variable]: 'sk-test' } })],
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1252,7 +1264,12 @@ test.each([
         scheme: 'bearer',
       },
     },
-    claudeAuth: { profiles: ['claude'] },
+    agents: {
+      claude: {
+        args: ['--settings', JSON.stringify({ env: { [variable]: 'sk-test' } })],
+        auth: { profiles: ['claude'] },
+      },
+    },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
@@ -1353,7 +1370,6 @@ test('it refuses to start a subscription session in a host whose environment set
   const ctx = setupTest();
 
   const config = parseConfig({
-    claudeBin: 'true',
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1362,7 +1378,7 @@ test('it refuses to start a subscription session in a host whose environment set
         scheme: 'bearer',
       },
     },
-    claudeAuth: { profiles: ['claude'] },
+    agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
@@ -1418,7 +1434,6 @@ test.each([
     const ctx = setupTest();
 
     const config = parseConfig({
-      claudeBin: 'true',
       authProfiles: {
         claude: {
           secret: 'claude-setup-token',
@@ -1427,7 +1442,7 @@ test.each([
           scheme: 'bearer',
         },
       },
-      claudeAuth: { profiles: ['claude'] },
+      agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
     });
 
     const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
@@ -1464,7 +1479,6 @@ test('it starts a subscription session with a seeded config folder in a host who
   const ctx = setupTest();
 
   const config = parseConfig({
-    claudeBin: 'true',
     authProfiles: {
       claude: {
         secret: 'claude-setup-token',
@@ -1473,7 +1487,7 @@ test('it starts a subscription session with a seeded config folder in a host who
         scheme: 'bearer',
       },
     },
-    claudeAuth: { profiles: ['claude'] },
+    agents: { claude: { bin: 'true', auth: { profiles: ['claude'] } } },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
@@ -1524,7 +1538,7 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
         scheme: 'bearer',
       },
     },
-    claudeAuth: { profiles: ['claude'] },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config);
@@ -1562,7 +1576,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
         },
       },
     },
-    claudeAuth: { profiles: ['claude', 'op'] },
+    agents: { claude: { auth: { profiles: ['claude', 'op'] } } },
   });
 
   const adapter = new ClaudeAdapter(getAgentEntry(config, 'claude'), config, null, undefined, {
@@ -1697,7 +1711,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
         },
       },
     },
-    claudeAuth: { profiles: ['claude', 'op'] },
+    agents: { claude: { auth: { profiles: ['claude', 'op'] } } },
   });
 
   const adapter = new ClaudeAdapter(

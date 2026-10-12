@@ -2,18 +2,18 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadConfig, parseConfig } from '@atc/config/config';
 import { toSessionID } from '@atc/core/to-session-id';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { CodexAdapter } from '../agents/codex-adapter';
-import { loadConfig, parseConfig } from '../shared/config';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { buildStubTargets } from '../test-utils/build-stub-targets';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildTargetIdentity } from './build-target-identity';
 
@@ -561,7 +561,9 @@ test('it refuses a spawn of an agent missing from this host with the config prob
 
   // A codex binary that does not exist, so codex is registered but not
   // installed.
-  const codexConfig = parseConfig({ codexBin: join(ctx.dir, 'missing', 'codex') });
+  const codexConfig = parseConfig({
+    agents: { codex: { kind: 'codex', bin: join(ctx.dir, 'missing', 'codex') } },
+  });
 
   const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
 
@@ -602,7 +604,9 @@ test('it refuses a spawn of an agent missing from this host as not installed whe
 
   // A codex binary that does not exist, so codex is registered but not
   // installed.
-  const codexConfig = parseConfig({ codexBin: join(ctx.dir, 'missing', 'codex') });
+  const codexConfig = parseConfig({
+    agents: { codex: { kind: 'codex', bin: join(ctx.dir, 'missing', 'codex') } },
+  });
 
   const codex = new CodexAdapter(getAgentEntry(codexConfig, 'codex'));
 

@@ -2,6 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import type { HooksConfig } from '@atc/config/collect-hooks';
+import type { TargetConfigError } from '@atc/config/collect-targets';
+import type { InvalidGitTransports } from '@atc/config/collect-workspaces-config';
+import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
+import { formatListenRefusal } from '@atc/config/listen/format-listen-refusal';
+import { isAllowedListenHost } from '@atc/config/listen/is-allowed-listen-host';
+import { loadListenerTokens } from '@atc/config/load-listener-tokens';
+import { LOCAL_TARGET } from '@atc/config/local-target';
+import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 import type { AgentID } from '@atc/core/agent-id';
 import { ansi } from '@atc/core/ansi';
 import { isRecord } from '@atc/core/is-record';
@@ -26,13 +35,7 @@ import { SPAWN_ANSWER_SCHEMA } from '@atc/protocol/spawn-answer';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { planTypedLineInput } from '../agents/plan-typed-line-input';
 import { claimDaemonLock } from '../shared/claim-daemon-lock';
-import type { HooksConfig } from '../shared/collect-hooks';
-import type { TargetConfigError } from '../shared/collect-targets';
-import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
-import { DEFAULT_GIT_TRANSPORTS } from '../shared/default-git-transports';
 import { findDaemonRecord } from '../shared/find-daemon-record';
-import { loadListenerTokens } from '../shared/load-listener-tokens';
-import { resolveHomeDir } from '../shared/resolve-home-dir';
 import type { SourceProvider } from '../sources/types';
 import type { IdempotencyRecord } from '../store/idempotency-record';
 import type { MessageOwner } from '../store/message-owner';
@@ -77,7 +80,6 @@ import { EventSignal } from './event-signal';
 import { formatLogField } from './format-log-field';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
-import { isAllowedListenHost } from './is-allowed-listen-host';
 import { isOwnHookEvent } from './is-own-hook-event';
 import { isTreeInReach } from './is-tree-in-reach';
 import { loadTranscriptPage } from './load-transcript-page';
@@ -410,10 +412,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   idempotencySweep.unref();
 
-  const targets =
-    opts.targets ??
-    buildExecutionTargets([{ id: 'local', provider: 'local-pty', options: {} }]).targets;
-
+  const targets = opts.targets ?? buildExecutionTargets([LOCAL_TARGET]).targets;
   const targetErrors = opts.targetErrors ?? [];
   const principals = opts.principals ?? null;
   const gitTransports = opts.gitTransports ?? DEFAULT_GIT_TRANSPORTS;
@@ -422,7 +421,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const defaultTarget =
     opts.defaultTarget === undefined
-      ? (targets.find((target) => target.id === 'local')?.id ?? null)
+      ? (targets.find((target) => target.id === LOCAL_TARGET.id)?.id ?? null)
       : opts.defaultTarget;
 
   const configRevision = buildConfigRevision(targets, defaultTarget, targetErrors);
@@ -2506,12 +2505,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 // takes no token or binds where it must not.
 function requireListenTokens(listen: ListenOptions): readonly string[] {
   if (!isAllowedListenHost(listen.host)) {
-    throw Object.assign(
-      new Error(
-        `atc daemon: --listen refuses '${listen.host}': bind a loopback address or one in 100.64.0.0/10 or fd7a:115c:a1e4::/48`,
-      ),
-      { code: 'listen_refused' },
-    );
+    throw Object.assign(new Error(`atc daemon: ${formatListenRefusal(listen.host)}`), {
+      code: 'listen_refused',
+    });
   }
 
   const loaded = loadListenerTokens(listen.tokenFile);

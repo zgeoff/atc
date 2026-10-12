@@ -77,16 +77,14 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   const fakeGrok = createStubBin(home, 'fake-grok', buildStubTUIGrok());
 
   const bootConfig: Readonly<Record<string, unknown>> = {
-    claudeBin: fakeClaude,
-    claudeArgs: [],
-    grokBin: fakeGrok,
-    grokArgs: [],
+    agents: {
+      claude: { kind: 'claude', bin: fakeClaude },
+      grok: { kind: 'grok', bin: fakeGrok },
 
-    // No codex binary is written to the home, so the agent picker sees
-    // Codex as uninstalled whatever the host machine has.
-    codexBin: join(home, 'fake-codex'),
-    codexArgs: [],
-    gateways: [],
+      // No codex binary is written to the home, so the agent picker sees
+      // Codex as uninstalled whatever the host machine has.
+      codex: { kind: 'codex', bin: join(home, 'fake-codex') },
+    },
 
     // The fixture repositories are local paths and loopback HTTP, which the
     // default transports refuse.

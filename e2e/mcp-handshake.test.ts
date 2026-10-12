@@ -18,13 +18,13 @@ test('it answers initialize with the requested protocol version and its server n
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
 
-      // A codex binary on the host would change the served tool descriptions.
-      codexBin: '/nonexistent/codex',
+        // A codex binary on the host would change the served tool descriptions.
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -53,13 +53,13 @@ test('it answers an unsupported protocol version with the latest supported one',
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
 
-      // A codex binary on the host would change the served tool descriptions.
-      codexBin: '/nonexistent/codex',
+        // A codex binary on the host would change the served tool descriptions.
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -88,13 +88,13 @@ test('it answers an unknown rpc method with a json-rpc error', async () => {
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
 
-      // A codex binary on the host would change the served tool descriptions.
-      codexBin: '/nonexistent/codex',
+        // A codex binary on the host would change the served tool descriptions.
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -114,13 +114,13 @@ test('it lists the fleet tools', async () => {
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
 
-      // A codex binary on the host would change the served tool descriptions.
-      codexBin: '/nonexistent/codex',
+        // A codex binary on the host would change the served tool descriptions.
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -1433,13 +1433,13 @@ test('it lists every tool with its three safety hints', async () => {
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
 
-      // A codex binary on the host would change the served tool descriptions.
-      codexBin: '/nonexistent/codex',
+        // A codex binary on the host would change the served tool descriptions.
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -1590,13 +1590,13 @@ test('it marks the kill tool destructive and not read-only', async () => {
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
 
-      // A codex binary on the host would change the served tool descriptions.
-      codexBin: '/nonexistent/codex',
+        // A codex binary on the host would change the served tool descriptions.
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 
@@ -1626,13 +1626,13 @@ test('it keeps answering after a failed tool call', async () => {
   writeFileSync(
     join(ctx.home, '.config', 'atc', 'config.json'),
     JSON.stringify({
-      claudeBin: ctx.claudeBin,
-      claudeArgs: [],
-      grokBin: ctx.grokBin,
-      grokArgs: [],
+      agents: {
+        claude: { kind: 'claude', bin: ctx.claudeBin },
+        grok: { kind: 'grok', bin: ctx.grokBin },
 
-      // A codex binary on the host would change the served tool descriptions.
-      codexBin: '/nonexistent/codex',
+        // A codex binary on the host would change the served tool descriptions.
+        codex: { kind: 'codex', bin: '/nonexistent/codex' },
+      },
     }),
   );
 

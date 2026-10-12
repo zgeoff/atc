@@ -2,15 +2,15 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseConfig } from '@atc/config/config';
 import { createStubGuestCLIs } from '@atc/test-utils/create-stub-guest-clis';
+import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { parseConfig } from '../shared/config';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { getAgentEntry } from '../test-utils/get-agent-entry';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ImpProvider } from './imp-provider';
 
@@ -26,7 +26,7 @@ function setupTest() {
 
 test('it refuses a remote Claude spawn when the host has no atc and the daemon has none to copy', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ claudeBin: ctx.clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -70,7 +70,7 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
 
 test('it gives a remote Claude session settings, a statusline, and a mod that report through the atc in its host', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ claudeBin: ctx.clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -141,7 +141,7 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
 
 test("it takes a remote session's hook reports from a socket that serves that session alone", async () => {
   const ctx = setupTest();
-  const config = parseConfig({ claudeBin: ctx.clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -205,7 +205,7 @@ test("it takes a remote session's hook reports from a socket that serves that se
 
 test('it keeps a nested harness inside a remote session from rebinding that session', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ claudeBin: ctx.clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -270,7 +270,7 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
 
 test('it copies its own atc binary into an imp that has none', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ claudeBin: ctx.clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -499,7 +499,7 @@ test('it keeps the key of a spawn whose agent is not signed in on a host it cann
 
 test('it revives a slept remote session whose transcript only its imp holds', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ claudeBin: ctx.clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.
@@ -556,7 +556,7 @@ test('it revives a slept remote session whose transcript only its imp holds', as
 
 test('it refuses a remote Claude spawn when the atc the target names is missing from the host', async () => {
   const ctx = setupTest();
-  const config = parseConfig({ claudeBin: ctx.clis.claude });
+  const config = parseConfig({ agents: { claude: { bin: ctx.clis.claude } } });
 
   // A real daemon whose one target `box`, its default, runs on the imp
   // provider over the stub imp port.

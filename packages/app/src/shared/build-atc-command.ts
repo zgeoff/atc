@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { isCompiledBinary } from './is-compiled-binary';
+import { isCompiledBinary } from '@atc/config/is-compiled-binary';
 
 /**
  * The argv that runs this build of atc with `args`: the compiled binary is

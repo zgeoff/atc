@@ -8,6 +8,7 @@ import {
   statSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { restartsDir } from '@atc/config/config';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
@@ -17,7 +18,6 @@ import { collectRestartPlan } from './collect-restart-plan';
 import { formatRestartPreflight } from './format-restart-preflight';
 import { parseRestartResult } from './parse-restart-result';
 import { buildATCCommand } from './shared/build-atc-command';
-import { restartsDir } from './shared/config';
 import { isProcessAlive } from './shared/is-process-alive';
 import { spawnATCDetached } from './shared/spawn-atc-detached';
 

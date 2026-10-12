@@ -1,9 +1,8 @@
 import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import type { AgentID } from '@atc/core/agent-id';
 import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
 import { buildOptionalString } from '@atc/core/build-optional-string';
-import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
 import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
 import { collectAgents } from './collect-agents';
@@ -13,7 +12,6 @@ import type { AuthProfile } from './collect-auth-profiles';
 import { collectDirRoots } from './collect-dir-roots';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
-import { collectLegacyAgents } from './collect-legacy-agents';
 import { collectPrincipals } from './collect-principals';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
@@ -21,11 +19,14 @@ import { collectWorkspacesConfig } from './collect-workspaces-config';
 import type { WorkspacesConfig } from './collect-workspaces-config';
 import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 import { formatJSONKind } from './format-json-kind';
+import { formatLegacyAgentKeys } from './format-legacy-agent-keys';
 import { formatMixedAgentKeys } from './format-mixed-agent-keys';
 import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
+import { LOCAL_TARGET } from './local-target';
 import { pickDefaultAgent } from './pick-default-agent';
 import { REMOVED_CONFIG_KEYS } from './removed-config-keys';
 import { resolveHomeDir } from './resolve-home-dir';
+import { resolvePaths } from './resolve-paths';
 
 export interface Config {
   // The agents atc offers, in menu order, and the problems that left an
@@ -35,7 +36,6 @@ export interface Config {
 
   // The old agent keys a file without `agents` sets, in file order. Empty
   // for a file that uses `agents` or sets none of them.
-  legacyAgentKeys: readonly string[];
 
   // The agent a spawn without one runs.
   defaultAgent: AgentID;
@@ -100,7 +100,6 @@ const DEFAULTS: Config = {
     },
   ],
   agentErrors: [],
-  legacyAgentKeys: [],
   defaultAgent: 'claude',
   dirs: { roots: [] },
   workspaces: {
@@ -114,8 +113,8 @@ const DEFAULTS: Config = {
   authProfileErrors: [],
   hooks: {},
   leader: { code: 0, label: '^Space' },
-  targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-  defaultTarget: 'local',
+  targets: [LOCAL_TARGET],
+  defaultTarget: LOCAL_TARGET.id,
   targetErrors: [],
   principals: null,
   principalErrors: [],
@@ -124,43 +123,30 @@ const DEFAULTS: Config = {
   removedKeys: [],
 };
 
-const configDir = join(resolveHomeDir(), '.config', 'atc');
+// The paths of the environment this process started in.
+const paths = resolvePaths(process.env);
 
-export const configFile = join(configDir, 'config.json');
-export const stateDir = join(resolveHomeDir(), '.local', 'state', 'atc');
-export const socketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc.sock');
-export const daemonSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.sock');
-export const eventsSocketPath = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-events.sock');
-export const statusFile = join(stateDir, 'status.json');
-export const dbFile = join(stateDir, 'atc.db');
-export const mcpAuthDBFile = join(stateDir, 'mcp-auth.db');
-export const legacyFleetFile = join(stateDir, 'fleet.json');
-export const daemonPidFile = join(process.env['XDG_RUNTIME_DIR'] ?? stateDir, 'atc-daemon.pid');
-
-// Written by the running daemon: its pid and the socket paths it listens
-// on, for a client whose environment computes other socket paths.
-export const daemonRecordFile = join(stateDir, 'daemon.json');
-
-// Where `atc daemon restart` keeps its run logs and the record of the last
-// finished restart, and the lock that admits one restart at a time.
-export const restartsDir = join(stateDir, 'restarts');
-export const restartLockFile = join(stateDir, 'daemon-restart.lock');
+export const configFile = paths.configFile;
+export const stateDir = paths.stateDir;
+export const socketPath = paths.socketPath;
+export const daemonSocketPath = paths.daemonSocketPath;
+export const eventsSocketPath = paths.eventsSocketPath;
+export const statusFile = paths.statusFile;
+export const dbFile = paths.dbFile;
+export const mcpAuthDBFile = paths.mcpAuthDBFile;
+export const legacyFleetFile = paths.legacyFleetFile;
+export const daemonPidFile = paths.daemonPidFile;
+export const daemonRecordFile = paths.daemonRecordFile;
+export const restartsDir = paths.restartsDir;
+export const restartLockFile = paths.restartLockFile;
 
 // A user-written config.json's top-level keys. An absent or wrong-typed
 // field parses to undefined rather than failing the file, so a bad config
 // falls back to a default instead of refusing to start atc.
 const CONFIG_SCHEMA = z.object({
   agents: z.unknown().optional(),
-  claudeBin: buildOptionalString(),
-  claudeArgs: buildOptionalStringArray(),
-  claudeAuth: z.unknown().optional(),
-  grokBin: buildOptionalString(),
-  grokArgs: buildOptionalStringArray(),
-  codexBin: buildOptionalString(),
-  codexArgs: buildOptionalStringArray(),
   dirs: z.unknown().optional(),
   workspaces: z.unknown().optional(),
-  gateways: z.unknown().optional(),
   authProfiles: z.unknown().optional(),
   hooks: z.unknown().optional(),
   leader: buildOptionalString(),
@@ -274,7 +260,6 @@ export function renderDefaultConfig(): string {
   const {
     agents: _agents,
     agentErrors: _agentErrors,
-    legacyAgentKeys: _legacyAgentKeys,
     defaultAgent: _defaultAgent,
     authProfiles: _authProfiles,
     authProfileErrors: _authProfileErrors,
@@ -303,6 +288,14 @@ export function renderDefaultConfig(): string {
     2,
   )}\n`;
 }
+
+// The agents a config.json that sets no `agents` runs: one of each kind,
+// each on its defaults.
+const DEFAULT_AGENT_MAP = {
+  claude: { kind: 'claude' },
+  grok: { kind: 'grok' },
+  codex: { kind: 'codex' },
+};
 
 /**
  * Parses a user-written config.json's already-decoded JSON value into a
@@ -341,26 +334,15 @@ export function parseConfig(
     return buildUnusableConfig('config_malformed', file, formatMixedAgentKeys(present));
   }
 
+  if (present.length > 0) {
+    return buildUnusableConfig('config_malformed', file, formatLegacyAgentKeys(present));
+  }
+
   const dirs = { roots: collectDirRoots(parsed.data.dirs, home) };
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
-
-  const registry = Object.hasOwn(raw, 'agents')
-    ? collectAgents(parsed.data.agents, authProfiles.profiles)
-    : collectLegacyAgents(
-        {
-          claudeBin: parsed.data.claudeBin ?? 'claude',
-          claudeArgs: parsed.data.claudeArgs ?? [],
-          claudeAuth: parsed.data.claudeAuth,
-          grokBin: parsed.data.grokBin ?? 'grok',
-          grokArgs: parsed.data.grokArgs ?? [],
-          codexBin: parsed.data.codexBin ?? 'codex',
-          codexArgs: parsed.data.codexArgs ?? [],
-          gateways: parsed.data.gateways,
-        },
-        authProfiles.profiles,
-      );
-
+  const agentMap = Object.hasOwn(raw, 'agents') ? parsed.data.agents : DEFAULT_AGENT_MAP;
+  const registry = collectAgents(agentMap, authProfiles.profiles);
   const hooks = collectHooks(parsed.data.hooks, home);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
   const principals = collectPrincipals(parsed.data.principals);
@@ -371,7 +353,6 @@ export function parseConfig(
   return {
     agents: registry.agents,
     agentErrors: registry.errors,
-    legacyAgentKeys: present,
     defaultAgent: pickDefaultAgent(registry.agents),
     dirs,
     workspaces: workspaces.workspaces,

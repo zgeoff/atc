@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
+import { collectAuthProfiles } from '@atc/config/collect-auth-profiles';
+import { parseConfig } from '@atc/config/config';
 import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { buildMigratedConfig } from './build-migrated-config';
-import { parseConfig } from './shared/config';
+import { collectLegacyAgents } from './shared/collect-legacy-agents';
 
 test('it replaces the old keys with agents at the position of the first one', () => {
   const result = buildMigratedConfig({
@@ -136,8 +138,22 @@ test('it parses the migrated config into the entries the old keys gave', () => {
   const written: unknown = JSON.parse(result.text);
   const migrated = parseConfig(written);
 
+  const converted = collectLegacyAgents(
+    {
+      claudeBin: legacy.claudeBin,
+      claudeArgs: legacy.claudeArgs,
+      claudeAuth: legacy.claudeAuth,
+      grokBin: legacy.grokBin,
+      grokArgs: [],
+      codexBin: 'codex',
+      codexArgs: legacy.codexArgs,
+      gateways: legacy.gateways,
+    },
+    collectAuthProfiles(legacy.authProfiles).profiles,
+  );
+
   expect({ agents: migrated.agents, errors: migrated.agentErrors }).toStrictEqual({
-    agents: parseConfig(legacy).agents,
+    agents: converted.agents,
     errors: [],
   });
 });
@@ -178,7 +194,46 @@ test("it carries claudeAuth's MCP servers into the migrated claude entry", () =>
     },
   });
 
-  expect(parseConfig(written).agents).toStrictEqual(parseConfig(legacy).agents);
+  expect(parseConfig(written).agents).toStrictEqual([
+    {
+      id: 'claude',
+      kind: 'claude',
+      label: 'Claude',
+      mark: 'c',
+      bin: 'claude',
+      args: [],
+      env: {},
+      auth: {
+        profiles: ['claude', 'linear'],
+        placeholderEnv: {},
+      },
+      mcpServers: [
+        {
+          name: 'linear',
+          url: 'https://mcp.linear.app/mcp',
+          profile: 'linear',
+          header: 'authorization',
+        },
+      ],
+    },
+    { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+    { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+  ]);
+});
+
+test('it takes the default for an old key of the wrong type', () => {
+  const result = buildMigratedConfig({
+    claudeBin: 7,
+    claudeArgs: 'not-an-array',
+    grokBin: 'my-grok',
+    grokArgs: ['--yolo', 3, null],
+  });
+
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify({ agents: { claude: {}, grok: { bin: 'my-grok', args: ['--yolo'] }, codex: {} } }, null, 2)}\n`,
+    notes: [],
+  });
 });
 
 test('it reports a file that already uses agents as current', () => {

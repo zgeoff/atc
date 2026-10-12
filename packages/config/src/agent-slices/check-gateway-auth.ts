@@ -2,9 +2,9 @@ import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
 import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
 import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from './collect-auth-profiles';
-import { collectProfileEnvProblems } from './collect-profile-env-problems';
-import { resolveAuthProfiles } from './resolve-auth-profiles';
+import type { AuthProfile } from '../collect-auth-profiles';
+import { collectProfileEnvProblems } from '../collect-profile-env-problems';
+import { resolveAuthProfiles } from '../resolve-auth-profiles';
 
 /**
  * The auth profiles a gateway's sessions are bound to through impd's

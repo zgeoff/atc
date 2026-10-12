@@ -1,10 +1,10 @@
 import { mkdir } from 'node:fs/promises';
+import { collectCleanEnv } from '@atc/config/collect-clean-env';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { spawn } from 'bun-pty';
-import { collectCleanEnv } from '../shared/collect-clean-env';
 import { buildHarnessArgv } from './build-harness-argv';
 import type {
   CommandResult,

@@ -1,5 +1,6 @@
 import { isRecord } from '@atc/core/is-record';
 import { formatJSONKind } from './format-json-kind';
+import { LOCAL_TARGET } from './local-target';
 
 /**
  * A named place sessions run: the execution provider kind that serves it,
@@ -50,10 +51,6 @@ interface TargetsConfig {
   readonly errors: readonly TargetConfigError[];
 }
 
-// The target a config holds when it sets no targets of its own: the
-// daemon's own machine.
-const LOCAL_TARGET: TargetConfig = { id: 'local', provider: 'local-pty', options: {} };
-
 /**
  * Reads the `targets` map and `defaultTarget`. No `targets` key holds the
  * one implicit `local` target as the default. Otherwise the config fails
@@ -66,7 +63,7 @@ const LOCAL_TARGET: TargetConfig = { id: 'local', provider: 'local-pty', options
  */
 export function collectTargets(rawTargets: unknown, rawDefault: unknown): TargetsConfig {
   if (rawTargets === undefined && rawDefault === undefined) {
-    return { targets: [LOCAL_TARGET], defaultTarget: 'local', errors: [] };
+    return { targets: [LOCAL_TARGET], defaultTarget: LOCAL_TARGET.id, errors: [] };
   }
 
   const collected = collectTargetEntries(rawTargets);
@@ -76,7 +73,7 @@ export function collectTargets(rawTargets: unknown, rawDefault: unknown): Target
   if (rawDefault === undefined) {
     return {
       targets: collected.targets,
-      defaultTarget: ids.has('local') ? 'local' : null,
+      defaultTarget: ids.has(LOCAL_TARGET.id) ? LOCAL_TARGET.id : null,
       errors: collected.errors,
     };
   }
