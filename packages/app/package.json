@@ -9,6 +9,7 @@
     "@atc/core": "workspace:*",
     "@atc/harness-claude": "workspace:*",
     "@atc/harness-codex": "workspace:*",
+    "@atc/harness-grok": "workspace:*",
     "@atc/lifecycle": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",

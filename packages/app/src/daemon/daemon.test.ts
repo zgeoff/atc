@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { encodeCursor } from '@atc/protocol/encode-cursor';
 import { StateStore } from '@atc/store/state-store';
@@ -15,7 +16,6 @@ import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
 import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { GrokAdapter } from '../agents/grok-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 // A test that leaves every connection to itself turns the main client off.

@@ -4,9 +4,9 @@ import type { ClaudeHostPaths } from '@atc/harness-claude/claude-host-paths';
 import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import type { ClaudeHeadlessRun } from '@atc/harness-claude/headless/make-claude-headless-runner';
 import { CodexAdapter } from '@atc/harness-codex/codex-adapter';
+import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
 import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import type { HostServices } from '@atc/plugin-api/host-services';
-import { GrokAdapter } from './grok-adapter';
 
 /**
  * Where the Claude and gateway adapters write their settings file and their

@@ -4,11 +4,11 @@ import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
 import { CodexAdapter } from '@atc/harness-codex/codex-adapter';
+import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { GrokAdapter } from '../agents/grok-adapter';
 import { buildAgentList } from './build-agent-list';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 

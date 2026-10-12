@@ -1,0 +1,166 @@
+import { join } from 'node:path';
+import { buildOptionalString } from '@atc/core/build-optional-string';
+import { buildHeartbeatEvent } from '@atc/plugin-api/harness/build-heartbeat-event';
+import { buildNeedsInputEvent } from '@atc/plugin-api/harness/build-needs-input-event';
+import { buildPromptSubmittedEvent } from '@atc/plugin-api/harness/build-prompt-submitted-event';
+import { buildTurnDoneEvent } from '@atc/plugin-api/harness/build-turn-done-event';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import { normalizeHookEventName } from '@atc/protocol/normalize-hook-event';
+import { match } from 'ts-pattern';
+import { z } from 'zod';
+import { GROK_HOOKS } from './grok-hooks';
+import type { GrokHook } from './grok-hooks';
+
+// Grok's hook payload keys, camelCase. An absent or wrong-typed field parses
+// to undefined rather than failing the payload, so a broken reporter never
+// breaks the session it reports on.
+const GROK_HOOK_PAYLOAD_SCHEMA = z.object({
+  sessionId: buildOptionalString(),
+  cwd: buildOptionalString(),
+  promptId: buildOptionalString(),
+  subagentType: buildOptionalString(),
+  prompt: buildOptionalString(),
+  notificationType: buildOptionalString(),
+  message: buildOptionalString(),
+  reason: buildOptionalString(),
+  lastAssistantMessage: buildOptionalString(),
+});
+
+type GrokHookPayload = z.infer<typeof GROK_HOOK_PAYLOAD_SCHEMA>;
+
+// What a Grok session's earlier hook lines leave for its next one: the id
+// of the latest prompt a person submitted, and the kind of the last event
+// that changed the session's state.
+const GROK_HOOK_STATE_SCHEMA = z.object({
+  latestPromptID: z.string().optional(),
+  lastKind: z.enum([
+    'started',
+    'needs-input',
+    'turn-done',
+    'prompt-submitted',
+    'ended',
+    'heartbeat',
+  ]),
+});
+
+type GrokHookState = z.infer<typeof GROK_HOOK_STATE_SCHEMA>;
+
+interface GrokHookPlan {
+  readonly events: readonly [AdapterEvent];
+  readonly next?: GrokHookState;
+}
+
+/**
+ * The event one hook line of a Grok session means, and the state the
+ * session's next line reads. `prev` is the state the session's previous
+ * line left; anything else reads as none. Three rules need that state: a
+ * stop for a prompt older than the latest submitted one is stale and only a
+ * heartbeat, an idle notice right after a permission prompt shows nothing
+ * finished, and a subagent's line is only a heartbeat for its session. A
+ * session end leaves no state. `home` is the Grok home that holds the
+ * session summaries a name comes from.
+ */
+export function planGrokHookEvents(e: HookEvent, prev: unknown, home: string): GrokHookPlan {
+  const parsed = GROK_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
+  const payload: GrokHookPayload = parsed.success ? parsed.data : {};
+  const state = GROK_HOOK_STATE_SCHEMA.safeParse(prev).data;
+  const hook = findGrokHook(e.event);
+  const subagent = payload.subagentType !== undefined && payload.subagentType !== '';
+  const event = buildGrokEvent(hook, payload, state, home, subagent);
+
+  if (hook === 'SessionEnd' && !subagent) {
+    return { events: [event] };
+  }
+
+  // A session's own prompt submit records its prompt as the latest; every
+  // other line keeps the one before it.
+  const promptID = hook === 'UserPromptSubmit' && !subagent ? payload.promptId : undefined;
+  const latestPromptID = promptID ?? state?.latestPromptID;
+
+  return {
+    events: [event],
+    next: {
+      lastKind: isStateKind(event.kind) ? event.kind : (state?.lastKind ?? event.kind),
+      ...(latestPromptID === undefined ? {} : { latestPromptID }),
+    },
+  };
+}
+
+function findGrokHook(event: string): GrokHook | null {
+  const name = normalizeHookEventName(event);
+
+  return GROK_HOOKS.find((hook) => hook === name) ?? null;
+}
+
+function buildGrokEvent(
+  hook: GrokHook | null,
+  payload: GrokHookPayload,
+  state: GrokHookState | undefined,
+  home: string,
+  subagent: boolean,
+): AdapterEvent {
+  const base = buildHeartbeatEvent(payload.sessionId);
+
+  const named: AdapterEvent = {
+    ...base,
+    ...(payload.sessionId === undefined || payload.cwd === undefined
+      ? {}
+      : { nameSource: buildGrokNameSource(home, payload.sessionId, payload.cwd) }),
+  };
+
+  if (hook === null || subagent) {
+    return base;
+  }
+
+  const stale =
+    payload.promptId !== undefined &&
+    state?.latestPromptID !== undefined &&
+    payload.promptId !== state.latestPromptID;
+
+  return match(hook)
+    .with('SessionStart', (): AdapterEvent => ({ ...named, kind: 'started' }))
+    .with('UserPromptSubmit', () => buildPromptSubmittedEvent(named, payload.prompt))
+    .with('Notification', () => buildNotificationEvent(base, named, payload, state))
+    .with('Stop', () =>
+      payload.reason !== 'end_turn' || stale
+        ? base
+        : buildTurnDoneEvent(named, payload.lastAssistantMessage),
+    )
+    .with('StopFailure', 'StopCancelled', () =>
+      stale ? base : buildTurnDoneEvent(named, payload.lastAssistantMessage),
+    )
+    .with('SessionEnd', (): AdapterEvent => ({ ...base, kind: 'ended' }))
+    .exhaustive();
+}
+
+// A permission prompt waits on a person. An idle notice right after one
+// shows only that the prompt is still open; any other idle notice means the
+// turn finished.
+function buildNotificationEvent(
+  base: Readonly<AdapterEvent>,
+  named: Readonly<AdapterEvent>,
+  payload: GrokHookPayload,
+  state: GrokHookState | undefined,
+): AdapterEvent {
+  return match(payload.notificationType)
+    .with('permission_prompt', () => buildNeedsInputEvent(base, payload.message))
+    .with(
+      'idle_prompt',
+      (): AdapterEvent => ({
+        ...named,
+        kind: state?.lastKind === 'needs-input' ? 'heartbeat' : 'turn-done',
+      }),
+    )
+    .otherwise(() => ({ ...base }));
+}
+
+function buildGrokNameSource(home: string, sessionID: string, cwd: string): string {
+  return join(home, 'sessions', encodeURIComponent(cwd), sessionID, 'summary.json');
+}
+
+// The kinds that change what a session waits on, which a later idle notice
+// reads.
+function isStateKind(kind: AdapterEvent['kind']): boolean {
+  return kind === 'needs-input' || kind === 'prompt-submitted' || kind === 'turn-done';
+}

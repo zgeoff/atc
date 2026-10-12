@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
 import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
@@ -12,7 +13,6 @@ import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
 import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { GrokAdapter } from '../agents/grok-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**
