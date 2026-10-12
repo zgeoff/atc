@@ -62,7 +62,7 @@ jobs:
           echo "$SHFMT_SHA256  $RUNNER_TEMP/shfmt" | sha256sum -c -
           chmod +x "$RUNNER_TEMP/shfmt"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-          command -v shellcheck > /dev/null || sudo apt-get install -y shellcheck
+          command -v shellcheck > /dev/null || { sudo apt-get update && sudo apt-get install -y shellcheck; }
 
       - name: Shell Lint
         run: bun run lint:shell
@@ -130,6 +130,10 @@ jobs:
 
       - name: Install
         run: bun install --frozen-lockfile
+
+      # the embedded shell tests run shellcheck and fail without it
+      - name: Install shellcheck
+        run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
 
       - name: Test Isolation
         run: bun run test:isolation
