@@ -594,6 +594,7 @@ test('it keeps a headless run going when the forget of its session fails to dest
         resume: 'agent-1',
         sessionID: id,
         recordPath: join(daemon.dir, 'records', `${String(id)}.json`),
+        reporterSocket: join(daemon.dir, 'reporter.sock'),
       },
       stopped: false,
     },
