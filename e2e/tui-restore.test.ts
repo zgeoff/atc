@@ -2,11 +2,11 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
-import { spawnGrokSession } from '../src/test-utils/spawn-grok-session';
-import { startTUIHarness } from '../src/test-utils/start-tui-harness';
-import { waitFor } from '../src/test-utils/wait-for';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { spawnClaudeSession } from '../packages/app/src/test-utils/spawn-claude-session';
+import { spawnGrokSession } from '../packages/app/src/test-utils/spawn-grok-session';
+import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 function setupTest() {
   return startTUIHarness();

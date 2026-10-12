@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import invariant from 'tiny-invariant';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { runCommand } from '../src/test-utils/run-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { runCommand } from '../packages/app/src/test-utils/run-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 
 /**
  * A fresh home for the CLI, where its authorization database lands, and the

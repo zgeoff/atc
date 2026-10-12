@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import invariant from 'tiny-invariant';
-import { readJSONRecord } from '../src/test-utils/read-json-record';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { runCommand } from '../src/test-utils/run-command';
-import { runMCPAuthorization } from '../src/test-utils/run-mcp-authorization';
-import { setupMCPHTTP } from '../src/test-utils/setup-mcp-http';
+import { readJSONRecord } from '../packages/app/src/test-utils/read-json-record';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { runCommand } from '../packages/app/src/test-utils/run-command';
+import { runMCPAuthorization } from '../packages/app/src/test-utils/run-mcp-authorization';
+import { setupMCPHTTP } from '../packages/app/src/test-utils/setup-mcp-http';
 
 /**
  * A real daemon behind `atc mcp --http`, whose authorization database sits

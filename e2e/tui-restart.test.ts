@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '../src/protocol/protocol';
-import { toAgentSessionID } from '../src/shared/to-agent-session-id';
-import { StateStore } from '../src/store/state-store';
-import { buildMockFleetEntry } from '../src/test-utils/build-mock-fleet-entry';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { startTUIHarness } from '../src/test-utils/start-tui-harness';
+import { PROTOCOL_V } from '../packages/app/src/protocol/protocol';
+import { toAgentSessionID } from '../packages/app/src/shared/to-agent-session-id';
+import { StateStore } from '../packages/app/src/store/state-store';
+import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
 
 function setupTest() {
   return startTUIHarness();
@@ -40,7 +40,15 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'src', 'test-utils', 'run-stub-legacy-daemon.ts'),
+      join(
+        import.meta.dir,
+        '..',
+        'packages',
+        'app',
+        'src',
+        'test-utils',
+        'run-stub-legacy-daemon.ts',
+      ),
       socketPath,
       stateDir,
     ],

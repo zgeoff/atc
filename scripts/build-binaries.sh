@@ -27,10 +27,10 @@ mkdir -p dist
 compile=(bun build --compile --bytecode --format=esm --no-compile-autoload-dotenv)
 
 for target in "${targets[@]}"; do
-  "${compile[@]}" --target="bun-$target" src/cli.ts --outfile "dist/atc-$target"
+  "${compile[@]}" --target="bun-$target" packages/app/src/cli.ts --outfile "dist/atc-$target"
 
   if [ "$target" = linux-x64 ]; then
-    "${compile[@]}" --target=bun-linux-x64 src/gateway.ts --outfile dist/atc-gateway-linux-x64
+    "${compile[@]}" --target=bun-linux-x64 packages/app/src/gateway.ts --outfile dist/atc-gateway-linux-x64
   fi
 done
 

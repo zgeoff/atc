@@ -33,7 +33,7 @@ different protocol versions, and every live client and service unit starts the i
 Give a source build a home of its own, which moves its state directory, config and sockets with it:
 
 ```bash
-bash scripts/with-test-home.sh bun src/cli.ts
+bash scripts/with-test-home.sh bun packages/app/src/cli.ts
 ```
 
 `with-test-home.sh` points `HOME`, `XDG_RUNTIME_DIR` and the agent homes at a fresh temporary

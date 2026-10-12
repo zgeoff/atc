@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { KEYS } from '../src/test-utils/keys';
-import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
-import { startTUIHarness } from '../src/test-utils/start-tui-harness';
-import { waitFor } from '../src/test-utils/wait-for';
+import { KEYS } from '../packages/app/src/test-utils/keys';
+import { spawnClaudeSession } from '../packages/app/src/test-utils/spawn-claude-session';
+import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 function setupTest() {
   return startTUIHarness();

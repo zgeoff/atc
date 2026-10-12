@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**
  * An `atc daemon` process on a fresh home, with a client that has sent its

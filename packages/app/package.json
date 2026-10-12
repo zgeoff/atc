@@ -1,0 +1,28 @@
+{
+  "name": "@atc/app",
+  "version": "4.2.0",
+  "private": true,
+  "description": "The atc and atc-gateway entrypoints and the modules they wire together",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@better-auth/mcp": "catalog:",
+    "@better-auth/oauth-provider": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@xterm/addon-serialize": "catalog:",
+    "@xterm/headless": "catalog:",
+    "@zgeoff/imp-client": "catalog:",
+    "better-auth": "catalog:",
+    "bun-pty": "catalog:",
+    "citty": "catalog:",
+    "kysely": "catalog:",
+    "ts-pattern": "catalog:",
+    "xstate": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "catalog:",
+    "tiny-invariant": "catalog:",
+    "type-fest": "catalog:"
+  }
+}

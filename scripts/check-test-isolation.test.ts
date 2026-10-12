@@ -3,8 +3,8 @@ import { mkdirSync, symlinkSync } from 'node:fs';
 import { type } from 'node:os';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { runCommand } from '../src/test-utils/run-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
+import { runCommand } from '../packages/app/src/test-utils/run-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 
 /**
  * A temp directory for the stand-in tool directory a test builds.

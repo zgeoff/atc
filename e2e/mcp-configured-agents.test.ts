@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { isRecord } from '../src/shared/report';
-import { setupMCPHome } from '../src/test-utils/setup-mcp-home';
-import { startMCPStdio } from '../src/test-utils/start-mcp-stdio';
+import { isRecord } from '../packages/app/src/shared/report';
+import { setupMCPHome } from '../packages/app/src/test-utils/setup-mcp-home';
+import { startMCPStdio } from '../packages/app/src/test-utils/start-mcp-stdio';
 
 function setupTest() {
   const mcpHome = setupMCPHome();

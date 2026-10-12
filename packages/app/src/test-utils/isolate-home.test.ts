@@ -8,7 +8,7 @@ import { setupTempDir } from './setup-temp-dir';
 // repository root, where the bunfig preload applies to a nested `bun test`.
 function setupTest() {
   const tmp = setupTempDir('atc-isolate-home-');
-  const repo = join(import.meta.dir, '..', '..');
+  const repo = join(import.meta.dir, '..', '..', '..', '..');
 
   return { dir: tmp.dir, repo };
 }
@@ -21,7 +21,7 @@ test("it resolves every atc config and state path inside the run's own home", as
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { configFile, dbFile, legacyFleetFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'src', 'shared', 'config')}';
+import { configFile, dbFile, legacyFleetFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'app', 'src', 'shared', 'config')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home') + sep;
 
@@ -54,7 +54,7 @@ test("it resolves every atc socket and the daemon record inside the run's own ru
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'src', 'shared', 'config')}';
+import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'packages', 'app', 'src', 'shared', 'config')}';
 
 const runtime = join(process.env['ATC_TEST_HOME'] ?? '', 'runtime') + sep;
 
@@ -87,7 +87,7 @@ test("it resolves the grok and codex homes inside the run's own home", async () 
     fixture,
     `import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { resolveAgentHome } from '${join(ctx.repo, 'src', 'agents', 'resolve-agent-home')}';
+import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'resolve-agent-home')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home');
 
@@ -120,7 +120,7 @@ test("it resolves the Claude config folder inside the run's own home", async () 
     fixture,
     `import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { resolveAgentHome } from '${join(ctx.repo, 'src', 'agents', 'resolve-agent-home')}';
+import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'resolve-agent-home')}';
 
 test('it resolves the Claude config folder under the home', () => {
   expect(resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude')).toBe(
@@ -231,7 +231,7 @@ test('it runs git in a test without the git config of the host XDG config home',
   writeFileSync(
     fixture,
     `import { expect, test } from 'bun:test';
-import { runCommand } from '${join(ctx.repo, 'src', 'test-utils', 'run-command')}';
+import { runCommand } from '${join(ctx.repo, 'packages', 'app', 'src', 'test-utils', 'run-command')}';
 
 test('it reads no value for the host canary key', async () => {
   const read = await runCommand(['git', 'config', '--get', 'atc.canary']);
@@ -267,8 +267,8 @@ test("it writes a gateway's generated settings file inside the run's own home", 
     `import { expect, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { GatewayAdapter } from '${join(ctx.repo, 'src', 'agents', 'gateway-adapter')}';
-import { parseConfig, stateDir } from '${join(ctx.repo, 'src', 'shared', 'config')}';
+import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'gateway-adapter')}';
+import { parseConfig, stateDir } from '${join(ctx.repo, 'packages', 'app', 'src', 'shared', 'config')}';
 
 test('it writes the settings file under the home', () => {
   const adapter = new GatewayAdapter(
@@ -309,7 +309,7 @@ test("it writes the atc-bridge mod inside the run's own home by default", async 
     `import { expect, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { writeATCBridge } from '${join(ctx.repo, 'src', 'agents', 'write-atc-bridge')}';
+import { writeATCBridge } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'write-atc-bridge')}';
 
 test('it writes the mod under the home', () => {
   const dir = writeATCBridge();
@@ -343,7 +343,7 @@ test("it puts back an environment override before the run's next test", async ()
   writeFileSync(
     fixture,
     `import { expect, test } from 'bun:test';
-import { updateEnv } from '${join(ctx.repo, 'src', 'test-utils', 'update-env')}';
+import { updateEnv } from '${join(ctx.repo, 'packages', 'app', 'src', 'test-utils', 'update-env')}';
 
 test('it overrides a variable', () => {
   updateEnv('ATC_TEST_PRELOAD_RESTORE_PROBE', 'overridden');

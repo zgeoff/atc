@@ -2,12 +2,12 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { DaemonClient } from '../src/client/daemon-client';
-import { findDaemonRecord } from '../src/shared/find-daemon-record';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
+import { DaemonClient } from '../packages/app/src/client/daemon-client';
+import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**
  * A fresh home for the `atc daemon` that each test starts with a TCP

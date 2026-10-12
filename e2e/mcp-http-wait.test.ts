@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { DaemonClient } from '../src/client/daemon-client';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { waitFor } from '../src/test-utils/wait-for';
+import { DaemonClient } from '../packages/app/src/client/daemon-client';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 /**
  * A fresh home whose computed daemon socket sits in it, and the command atc

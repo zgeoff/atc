@@ -3,8 +3,8 @@ name: tool-contract
 description:
   The rules for atc's MCP tools and the atc-bridge tools — names, description order, result words,
   limits, output schemas, known-bug clauses, evidence, renames and vocabulary — each with an example
-  from the current tools. Load before adding, renaming, or redescribing a tool in src/mcp/ or
-  mods/atc-bridge/, or before reviewing such a change.
+  from the current tools. Load before adding, renaming, or redescribing a tool in
+  packages/app/src/mcp/ or mods/atc-bridge/, or before reviewing such a change.
 ---
 
 # atc tool contract
@@ -14,13 +14,14 @@ Many MCP clients never show the output schema to the model. The agent reads that
 moment it picks a tool, and acts on what it infers. A tool description therefore has two jobs: lead
 the agent to the right tool, and stop it from reading more into a result than the result shows.
 
-The tools live in three files: [`src/mcp/mcp-tools.ts`](../../../src/mcp/mcp-tools.ts) holds the
-names, descriptions, and schemas,
-[`src/mcp/build-spawn-descriptions.ts`](../../../src/mcp/build-spawn-descriptions.ts) builds the
-spawn description with the daemon's agents, and
+The tools live in three files:
+[`packages/app/src/mcp/mcp-tools.ts`](../../../packages/app/src/mcp/mcp-tools.ts) holds the names,
+descriptions, and schemas,
+[`packages/app/src/mcp/build-spawn-descriptions.ts`](../../../packages/app/src/mcp/build-spawn-descriptions.ts)
+builds the spawn description with the daemon's agents, and
 [`mods/atc-bridge/hooks/register.ts`](../../../mods/atc-bridge/hooks/register.ts) registers the
 bridge's `note` tool inside a Claude session. The handlers behind the MCP tools are in
-[`src/mcp/run-tool.ts`](../../../src/mcp/run-tool.ts).
+[`packages/app/src/mcp/run-tool.ts`](../../../packages/app/src/mcp/run-tool.ts).
 
 ## How the descriptions are written
 
@@ -144,8 +145,8 @@ A tool rename is a breaking change with no alias in code. The old name is refuse
 stdio, or a missing-scope refusal for a remote client without the `kill` scope, since a name atc
 does not know needs the strictest scope. A tool that depends on a daemon feature refuses a daemon
 without it, and never translates an old daemon's words.
-[`require-daemon-features.ts`](../../../src/mcp/require-daemon-features.ts) throws that refusal,
-which reads for the `vocabulary.note` feature:
+[`require-daemon-features.ts`](../../../packages/app/src/mcp/require-daemon-features.ts) throws that
+refusal, which reads for the `vocabulary.note` feature:
 
 > daemon_outdated: the running atc daemon is older than this atc and does not support the note and
 > queued words in the results of atc_events_read, atc_message_send, and atc_message_get. …

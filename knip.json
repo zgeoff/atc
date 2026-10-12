@@ -1,15 +1,21 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": [
-    "bin/atc",
-    "src/gateway.ts",
-    "e2e/**/*.test.ts",
-    "src/**/*.test.ts",
-    "src/test-utils/run-stub-source-daemon.ts",
-    "src/test-utils/run-listener-daemon.ts",
-    "src/test-utils/run-stub-legacy-daemon.ts"
-  ],
-  "project": ["src/**/*.ts", "e2e/**/*.ts"],
+  "workspaces": {
+    ".": {
+      "entry": ["bin/atc", "e2e/**/*.test.ts"],
+      "project": ["e2e/**/*.ts"]
+    },
+    "packages/app": {
+      "entry": [
+        "src/gateway.ts",
+        "src/**/*.test.ts",
+        "src/test-utils/run-stub-source-daemon.ts",
+        "src/test-utils/run-listener-daemon.ts",
+        "src/test-utils/run-stub-legacy-daemon.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    }
+  },
   "ignore": ["mods/**"],
   "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/oxlint-config"]
 }
