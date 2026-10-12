@@ -2428,7 +2428,11 @@ export class SessionManager {
 
     const rebind =
       provider.rebindChangedAuth === true && isSoleAgent
-        ? { log: (line: string) => this.log(line) }
+        ? {
+            log: (line: string) => {
+              this.log(line);
+            },
+          }
         : null;
 
     const row = await this.requireAuthBinder().verifyBinding(

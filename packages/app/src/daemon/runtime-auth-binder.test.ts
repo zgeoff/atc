@@ -2965,7 +2965,7 @@ test('it rebinds a changed selection at a verify given a rebind, granting the ad
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   const grants = await ctx.port.readGrants('atc-s1');
@@ -3015,7 +3015,7 @@ test('it logs one line for each rebind at a verify with the host, the revisions,
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  const log = mock();
+  const log = mock<(line: string) => void>();
 
   await ctx.binder.verifyBinding(
     ctx.host,
@@ -3099,7 +3099,7 @@ test('it revokes the grant of a dropped profile at a verify given a rebind', asy
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   const grants = await ctx.port.readGrants('atc-s1');
@@ -3169,7 +3169,7 @@ test('it refuses a changed selection at a verify given a rebind when the imp los
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_grant_missing' });
@@ -3244,7 +3244,7 @@ test('it refuses a changed selection at a verify given a rebind when the imp was
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_runtime_mismatch' });
@@ -3316,7 +3316,7 @@ test('it leaves a rebind that fails at a verify blocked as a failed rebind at th
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   expect(verified).rejects.toMatchObject({ code: 'auth_revocation_pending' });
@@ -3388,7 +3388,7 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   await expect(failed).toReject();
@@ -3409,7 +3409,7 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   const grants = await ctx.port.readGrants('atc-s1');
@@ -3491,7 +3491,7 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   await expect(failed).toReject();
@@ -3519,7 +3519,7 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   const grants = await ctx.port.readGrants('atc-s1');
@@ -3601,7 +3601,7 @@ test('it keeps the pending admission of another harness on the host through a re
       ],
       hash: 'h2',
     }),
-    { log: mock() },
+    { log: mock<(line: string) => void>() },
   );
 
   const [ticket] = tickets;
