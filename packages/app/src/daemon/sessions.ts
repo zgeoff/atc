@@ -61,6 +61,7 @@ import { pickSessionState } from './pick-session-state';
 import type { PublishedRecords } from './published-records';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
+import { toDaemonError } from './to-daemon-error';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
 
@@ -3348,7 +3349,11 @@ export class SessionManager {
 
     const removed = [...this.removedIDs];
 
-    await this.store.writeFleet(fleet, removed);
+    try {
+      await this.store.writeFleet(fleet, removed);
+    } catch (error) {
+      throw toDaemonError(error);
+    }
 
     for (const id of removed) {
       this.removedIDs.delete(id);
@@ -3377,7 +3382,7 @@ export class SessionManager {
     try {
       await this.store.updateFleetEntry(id, fields);
     } catch (error) {
-      this.logStoreFailure(id, error);
+      this.logStoreFailure(id, toDaemonError(error));
 
       return false;
     }

@@ -2600,7 +2600,7 @@ test("it rewrites only this daemon's fleet rows and leaves another daemon's in p
   expect(fleet).toStrictEqual([next]);
 });
 
-test('it rejects a fleet write for a session whose ownership epoch moved on as stale_epoch', async () => {
+test('it rejects a fleet write for a session whose ownership epoch moved on as stale', async () => {
   const ctx = await setupTest();
 
   const before = buildMockFleetEntry({ sessionID: toSessionID('s-1') });
@@ -2622,11 +2622,16 @@ test('it rejects a fleet write for a session whose ownership epoch moved on as s
 
   const fleet = await ctx.store.loadFleet();
 
-  expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
+  expect(write).rejects.toMatchObject({
+    name: 'StaleOwnershipError',
+    sessionID: 's-1',
+    ownerEpoch: 2,
+  });
+
   expect(fleet).toStrictEqual([before]);
 });
 
-test('it rejects a fleet write for a session another daemon owns as stale_epoch', async () => {
+test('it rejects a fleet write for a session another daemon owns as stale', async () => {
   const ctx = await setupTest();
 
   const other = new Database(ctx.dbPath);
@@ -2643,10 +2648,15 @@ test('it rejects a fleet write for a session another daemon owns as stale_epoch'
 
   const write = ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-theirs') })]);
 
-  expect(write).rejects.toMatchObject({ code: 'stale_epoch' });
+  expect(write).rejects.toMatchObject({
+    name: 'StaleOwnershipError',
+    sessionID: 's-theirs',
+    ownerDaemonID: 'd-other',
+    ownerEpoch: 1,
+  });
 });
 
-test('it rejects a fleet row update for a session whose ownership epoch moved on as stale_epoch', async () => {
+test('it rejects a fleet row update for a session whose ownership epoch moved on as stale', async () => {
   const ctx = await setupTest();
 
   await ctx.store.writeFleet([buildMockFleetEntry({ sessionID: toSessionID('s-1') })]);
@@ -2661,7 +2671,9 @@ test('it rejects a fleet row update for a session whose ownership epoch moved on
   other.close();
 
   expect(ctx.store.updateFleetEntry(toSessionID('s-1'), { result: 'late' })).rejects.toMatchObject({
-    code: 'stale_epoch',
+    name: 'StaleOwnershipError',
+    sessionID: 's-1',
+    ownerEpoch: 2,
   });
 });
 
@@ -3297,6 +3309,58 @@ test('it loads a fleet row with its ready workspace and withheld variables, and 
     },
     verifying,
     plain,
+  ]);
+});
+
+test('it loads a ready workspace whose withheld variables are malformed as withholding none', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: toSessionID('s-ready'),
+      target: 'local',
+      dir: '/w/s-ready',
+      sourceKind: 'git',
+      withheldEnv: ['APP_GIT_TOKEN'],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    toSessionID('s-ready'),
+    {
+      phase: 'ready',
+      repoURL: 'https://example.com/r.git',
+      sha: 'b'.repeat(40),
+      ref: null,
+      materializedAt: 2000,
+    },
+    2000,
+  );
+
+  const ready = buildMockFleetEntry({ sessionID: toSessionID('s-ready') });
+
+  await ctx.store.writeFleet([ready]);
+
+  const writer = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    writer.close();
+  });
+
+  writer.run('UPDATE workspace_materialization SET withheld_env = \'["APP_GIT_TOKEN"\'');
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([
+    {
+      ...ready,
+      workspace: {
+        repoURL: 'https://example.com/r.git',
+        sha: 'b'.repeat(40),
+        materializedAt: 2000,
+      },
+    },
   ]);
 });
 

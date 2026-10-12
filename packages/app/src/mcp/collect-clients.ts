@@ -1,5 +1,5 @@
+import { collectJSONStrings } from '@atc/store/sqlite/collect-json-strings';
 import type { Kysely } from 'kysely';
-import { collectJSONStrings } from './collect-json-strings';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 /**

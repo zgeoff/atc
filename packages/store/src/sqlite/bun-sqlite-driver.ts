@@ -4,10 +4,18 @@ import type { DatabaseConnection, Driver, QueryResult } from 'kysely';
 
 /**
  * A kysely `Driver` over one bun:sqlite handle. SQLite has a single
- * connection, so `acquireConnection` hands it out to one caller at a time
- * through a promise-chain mutex and `releaseConnection` lets the next
+ * connection, so `acquireConnection` hands it out to one caller at a time,
+ * in the order the callers asked, and `releaseConnection` lets the next
  * caller in — the ordering every transaction (and every plain query) relies
  * on once the store runs asynchronously.
+ *
+ * A transaction is a plain `begin`, `commit`, or `rollback` on that one
+ * connection. A statement that returns columns answers with its rows; any
+ * other statement answers with no rows, the count of rows it changed, and
+ * the last inserted row id. Streaming is not supported and throws.
+ *
+ * `destroy` waits for the caller that holds the connection to release it,
+ * and leaves the handle open: the caller that opened the handle closes it.
  */
 export class BunSqliteDriver implements Driver {
   private readonly connection: DatabaseConnection;
@@ -15,12 +23,6 @@ export class BunSqliteDriver implements Driver {
   private turn: Promise<void> = Promise.resolve();
 
   private releaseTurn: () => void = () => {};
-
-  /**
-   * How many acquires are waiting for an earlier caller to release the
-   * connection.
-   */
-  waiting = 0;
 
   constructor(sqlite: Database) {
     this.connection = buildConnection(sqlite);
@@ -38,11 +40,7 @@ export class BunSqliteDriver implements Driver {
       release = resolve;
     });
 
-    this.waiting += 1;
-
     await previous;
-
-    this.waiting -= 1;
 
     if (release !== undefined) {
       this.releaseTurn = release;

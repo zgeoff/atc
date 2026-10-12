@@ -1,7 +1,7 @@
+import { collectJSONStrings } from '@atc/store/sqlite/collect-json-strings';
 import type { Kysely } from 'kysely';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import type { GrantScope } from '../shared/grant-scope';
-import { collectJSONStrings } from './collect-json-strings';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 /**

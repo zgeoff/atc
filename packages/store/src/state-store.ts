@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import type { AgentID } from '@atc/core/agent-id';
@@ -13,11 +13,10 @@ import { toDaemonID } from '@atc/core/to-daemon-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import type { PublishedRecord } from '@atc/protocol/published-record';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
-import { Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, sql } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import type {
   CompiledQuery,
   Expression,
@@ -37,9 +36,12 @@ import type {
   RuntimeAuthBindingUpdate,
   RuntimeAuthGrant,
 } from './runtime-auth-binding';
-import { BunSqliteDriver } from './sqlite/bun-sqlite-driver';
+import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
+import { collectJSONStrings } from './sqlite/collect-json-strings';
+import { openSQLite } from './sqlite/open-sqlite';
 import { runMigrations } from './sqlite/run-migrations';
 import type { StateStoreSchema } from './sqlite/run-migrations';
+import { StaleOwnershipError } from './stale-ownership-error';
 import type { TrailEntry } from './trail-entry';
 import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
 
@@ -153,17 +155,10 @@ export class StateStore {
     legacyFleetPath?: string,
     onQuery?: (query: CompiledQuery) => void,
   ): Promise<StateStore> {
-    const sqlite = new Database(dbPath, { create: true });
-
-    sqlite.run('PRAGMA journal_mode = WAL;');
+    const sqlite = openSQLite(dbPath);
 
     const db = new Kysely<StateStoreSchema>({
-      dialect: {
-        createAdapter: () => new SqliteAdapter(),
-        createDriver: () => new BunSqliteDriver(sqlite),
-        createIntrospector: (kysely) => new SqliteIntrospector(kysely),
-        createQueryCompiler: () => new SqliteQueryCompiler(),
-      },
+      dialect: buildSQLiteDialect(sqlite),
       ...(onQuery === undefined
         ? {}
         : {
@@ -297,7 +292,7 @@ export class StateStore {
   // replaces by holding the same agent session id. Every other row stays as
   // it stands, so a row the daemon never loaded survives a write. A session
   // another daemon owns, or one whose stored ownership epoch has moved past
-  // this daemon's, rejects the whole write with stale_epoch.
+  // this daemon's, rejects the whole write as stale.
   async writeFleet(
     entries: readonly FleetEntry[],
     removed: readonly SessionID[] = [],
@@ -1282,12 +1277,10 @@ function buildWithheldEnvField(stored: string | null): { readonly withheldEnv?: 
   return names.length === 0 ? {} : { withheldEnv: names };
 }
 
+// A malformed column holds no names, so one bad row never stops the fleet
+// from loading.
 function parseWithheldEnv(stored: string | null): string[] {
-  const parsed: unknown = stored === null ? [] : JSON.parse(stored);
-
-  return Array.isArray(parsed)
-    ? parsed.filter((name): name is string => typeof name === 'string')
-    : [];
+  return stored === null ? [] : [...collectJSONStrings(stored)];
 }
 
 // Two sessions share an agent session id when one resumes the other's agent
@@ -1432,10 +1425,13 @@ async function requireCurrentOwnership(
     .executeTakeFirst();
 
   if (stale !== undefined) {
-    throw new DaemonError(
-      'stale_epoch',
-      `session '${stale.session_id}' is owned by daemon '${stale.daemon_id}' at epoch ${stale.owner_epoch}; this daemon writes as '${daemonID}' at epoch ${OWNER_EPOCH}`,
-    );
+    throw new StaleOwnershipError({
+      sessionID: toSessionID(stale.session_id),
+      ownerDaemonID: toDaemonID(stale.daemon_id),
+      ownerEpoch: stale.owner_epoch,
+      writerDaemonID: daemonID,
+      writerEpoch: OWNER_EPOCH,
+    });
   }
 }
 
