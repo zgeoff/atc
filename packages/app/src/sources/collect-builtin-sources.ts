@@ -1,7 +1,8 @@
+import type { HostServices } from '@atc/plugin-api/host-services';
 import type { SourceProvider } from '@atc/plugin-api/types';
-import { buildDirsSource } from './dirs/build-dirs-source';
-import { buildGitSource } from './git/build-git-source';
-import { buildGitHubSource } from './github/build-github-source';
+import { buildDirsSource } from '@atc/source-dirs/build-dirs-source';
+import { buildGitSource } from '@atc/source-git/build-git-source';
+import { buildGitHubSource } from '@atc/source-github/build-github-source';
 
 interface BuiltinSourceOptions {
   // The configured directory roots.
@@ -13,6 +14,9 @@ interface BuiltinSourceOptions {
 
   // The gh executable: a name looked up on PATH, or a path.
   readonly ghBin: string;
+
+  // The host's command runner, which runs gh.
+  readonly runCommand: HostServices['runCommand'];
 
   // The daemon user's home directory.
   readonly homeDir: string;
@@ -35,7 +39,13 @@ export function collectBuiltinSources(options: BuiltinSourceOptions): SourceProv
     }),
     ...(Bun.which(options.ghBin) === null
       ? []
-      : [buildGitHubSource({ bin: options.ghBin, owner: options.githubOwner })]),
+      : [
+          buildGitHubSource({
+            run: options.runCommand,
+            bin: options.ghBin,
+            owner: options.githubOwner,
+          }),
+        ]),
     buildGitSource(),
   ];
 }

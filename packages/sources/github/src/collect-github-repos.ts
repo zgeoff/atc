@@ -1,3 +1,4 @@
+import type { HostServices } from '@atc/plugin-api/host-services';
 import { z } from 'zod';
 import { readGitProtocol } from './read-git-protocol';
 import { runGH } from './run-gh';
@@ -34,6 +35,9 @@ interface GitHubUnavailable {
 }
 
 interface GitHubListRequest {
+  // The host's command runner, which runs gh.
+  readonly run: HostServices['runCommand'];
+
   // The gh executable: a name looked up on PATH, or a path.
   readonly bin: string;
 
@@ -76,20 +80,9 @@ const REPO_LIST_SCHEMA = z.array(
 export async function collectGitHubRepos(
   request: GitHubListRequest,
 ): Promise<GitHubRepoListing | GitHubUnavailable> {
-  const bin = Bun.which(request.bin);
-
-  if (bin === null) {
-    return {
-      ok: false,
-      code: 'github_unavailable',
-      problem: 'not_installed',
-      message: `gh is not installed on the daemon host (no '${request.bin}' on PATH)`,
-    };
-  }
-
   const timeoutMs = request.timeoutMs ?? GH_TIMEOUT_MS;
 
-  const listed = await runGH(bin, AbortSignal.timeout(timeoutMs), [
+  const listed = await runGH(request.run, request.bin, AbortSignal.timeout(timeoutMs), [
     'repo',
     'list',
     ...(request.owner === null ? [] : [request.owner]),
@@ -109,7 +102,7 @@ export async function collectGitHubRepos(
   }
 
   if (listed.exitCode !== 0) {
-    return buildUnavailable(listed);
+    return buildUnavailable(listed, request.bin);
   }
 
   const parsed = REPO_LIST_SCHEMA.safeParse(parseJSON(listed.stdout));
@@ -129,15 +122,26 @@ export async function collectGitHubRepos(
     ok: true,
     owner: request.owner ?? repos[0]?.nameWithOwner.split('/')[0] ?? null,
     repos,
-    gitProtocol: await readGitProtocol(bin, timeoutMs),
+    gitProtocol: await readGitProtocol(request.run, request.bin, timeoutMs),
   };
 }
 
-// gh exits 4 when it needs a sign-in it does not have.
+// gh exits 4 when it needs a sign-in it does not have, and the host's
+// runner reads a gh that could not start as exit code 127.
 const GH_AUTH_EXIT = 4;
+const NOT_STARTED_EXIT = 127;
 
-function buildUnavailable(run: GHRun): GitHubUnavailable {
+function buildUnavailable(run: GHRun, bin: string): GitHubUnavailable {
   const detail = run.stderr.trim();
+
+  if (run.exitCode === NOT_STARTED_EXIT) {
+    return {
+      ok: false,
+      code: 'github_unavailable',
+      problem: 'not_installed',
+      message: `gh is not installed on the daemon host (no '${bin}' on PATH)`,
+    };
+  }
 
   if (run.exitCode === GH_AUTH_EXIT) {
     return {

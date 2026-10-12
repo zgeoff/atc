@@ -11,7 +11,9 @@ test('it stops a daemon no unit runs with SIGTERM', async () => {
     daemon.kill('SIGKILL');
   });
 
-  const runSystemctl = mock(() => Promise.resolve({ code: 0, stdout: '', stderr: '' }));
+  const runSystemctl = mock(() =>
+    Promise.resolve({ code: 0, stdout: '', stderr: '', aborted: false }),
+  );
 
   const step = await restartDaemonProcess(
     { pid: daemon.pid, unit: null },
@@ -41,7 +43,7 @@ test('it kills a daemon that still runs once the wait after SIGTERM ends', async
     { pid: daemon.pid, unit: null },
     {
       clock: buildStubSkipClock(),
-      runSystemctl: () => Promise.resolve({ code: 0, stdout: '', stderr: '' }),
+      runSystemctl: () => Promise.resolve({ code: 0, stdout: '', stderr: '', aborted: false }),
     },
   );
 
@@ -58,7 +60,9 @@ test('it restarts the unit that runs the daemon and leaves the daemon to it', as
     daemon.kill('SIGKILL');
   });
 
-  const runSystemctl = mock(() => Promise.resolve({ code: 0, stdout: '', stderr: '' }));
+  const runSystemctl = mock(() =>
+    Promise.resolve({ code: 0, stdout: '', stderr: '', aborted: false }),
+  );
 
   const step = await restartDaemonProcess(
     { pid: daemon.pid, unit: 'atc-daemon.service' },
@@ -76,7 +80,8 @@ test('it rejects with the service manager output when the unit fails to restart'
       { pid: 2 ** 22 + 1, unit: 'atc-daemon.service' },
       {
         clock: systemClock,
-        runSystemctl: () => Promise.resolve({ code: 1, stdout: '', stderr: 'unit-masked' }),
+        runSystemctl: () =>
+          Promise.resolve({ code: 1, stdout: '', stderr: 'unit-masked', aborted: false }),
       },
     ),
   ).rejects.toThrowWithMessage(Error, 'systemctl restart atc-daemon.service failed: unit-masked');

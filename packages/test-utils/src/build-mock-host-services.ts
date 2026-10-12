@@ -22,7 +22,12 @@ export function buildMockHostServices(
       version,
       build: `${version}+bin.${faker.string.alphanumeric(8)}`,
       runCommand: (argv) =>
-        Promise.resolve({ code: 127, stdout: '', stderr: `${argv[0] ?? ''}: command not found` }),
+        Promise.resolve({
+          code: 127,
+          stdout: '',
+          stderr: `${argv[0] ?? ''}: command not found`,
+          aborted: false,
+        }),
       clock: systemClock,
       log: () => {},
     },

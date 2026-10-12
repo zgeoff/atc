@@ -10,6 +10,7 @@ import { expandHome } from '@atc/core/expand-home';
 import { isGitURL } from '@atc/core/is-git-url';
 import { isHomeRelative } from '@atc/core/is-home-relative';
 import { isRecord } from '@atc/core/is-record';
+import { runCommand } from '@atc/lifecycle/run-command';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { GIT_REF_SCHEMA } from '@atc/protocol/git-ref';
@@ -20,16 +21,16 @@ import type { SourceEntry } from '@atc/protocol/source-entry';
 import { SOURCE_INTERPRETATION_SCHEMA } from '@atc/protocol/source-interpretation';
 import type { SourceInterpretation } from '@atc/protocol/source-interpretation';
 import type { SourcePick } from '@atc/protocol/source-pick';
-import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
+import { collectZoxideDirs } from '@atc/source-dirs/collect-zoxide-dirs';
+import { collectPathCompletions } from '@atc/source-dirs/complete/collect-path-completions';
+import { resolvePathInput } from '@atc/source-dirs/complete/resolve-path-input';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';
-import { collectPathCompletions } from './collect-path-completions';
 import { collectTargetPicks } from './collect-target-picks';
 import type { TargetPick } from './collect-target-picks';
 import { collectDirs, formatDir, formatDirName, pickMatches } from './dirs';
 import { KEY, planTextEdit } from './keys';
 import { pickRefusalStep } from './pick-refusal-step';
-import { resolvePathInput } from './resolve-path-input';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { splitToWidth } from './split-to-width';
 import { cols, drawPicker, getPickerWidth } from './ui';
@@ -1880,7 +1881,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       }
     } catch {}
 
-    const zoxide = await collectZoxideDirs();
+    const zoxide = await collectZoxideDirs(runCommand);
 
     if (this.isStale(generation)) {
       this.deps.onDropAnswer?.('local directory listing');

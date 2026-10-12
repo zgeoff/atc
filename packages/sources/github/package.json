@@ -1,0 +1,17 @@
+{
+  "name": "@atc/source-github",
+  "private": true,
+  "description": "The GitHub source: the repositories gh on the daemon's host can see",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*"
+  }
+}

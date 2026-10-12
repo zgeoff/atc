@@ -1,0 +1,16 @@
+{
+  "name": "@atc/source-dirs",
+  "private": true,
+  "description": "The directories source: the daemon host's spawn history, configured roots, and zoxide list, and path completion",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*"
+  }
+}

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { collectBuiltinSources } from './collect-builtin-sources';
 
@@ -18,6 +19,7 @@ test('it leaves GitHub out when gh is not on the host', () => {
     roots: [],
     githubOwner: null,
     ghBin: ctx.gh,
+    runCommand: buildMockHostServices().runCommand,
     homeDir: ctx.homeDir,
     collectZoxideDirs: () => Promise.resolve([]),
   });
@@ -34,6 +36,7 @@ test('it offers GitHub when gh is on the host', () => {
     roots: [],
     githubOwner: null,
     ghBin: ctx.gh,
+    runCommand: buildMockHostServices().runCommand,
     homeDir: ctx.homeDir,
     collectZoxideDirs: () => Promise.resolve([]),
   });

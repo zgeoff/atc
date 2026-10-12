@@ -1,3 +1,4 @@
+import { runCommand } from '@atc/lifecycle/run-command';
 import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
@@ -6,8 +7,8 @@ import type {
   RecordedPullRequest,
   RecordedWorktree,
 } from '@atc/protocol/published-record';
+import { runGH } from '@atc/source-github/run-gh';
 import { z } from 'zod';
-import { runGH } from '../sources/github/run-gh';
 import { findHostBranch } from './find-host-branch';
 import { runHostGit } from './run-host-git';
 
@@ -190,14 +191,13 @@ async function checkPullRequest(
   number: number,
   ghBin: string,
 ): Promise<RecordedPullRequest> {
-  let run: Awaited<ReturnType<typeof runGH>>;
+  const run = await runGH(runCommand, ghBin, AbortSignal.timeout(GH_TIMEOUT_MS), [
+    'api',
+    `repos/${repo}/pulls/${number}`,
+  ]);
 
-  try {
-    run = await runGH(ghBin, AbortSignal.timeout(GH_TIMEOUT_MS), [
-      'api',
-      `repos/${repo}/pulls/${number}`,
-    ]);
-  } catch {
+  // The host's runner reads a gh that could not start as exit code 127.
+  if (run.exitCode === 127) {
     throw buildScopeRefusal(entry, 'cannot be checked: gh is not installed on the daemon host');
   }
 

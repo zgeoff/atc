@@ -82,6 +82,7 @@ test('it restarts the unit whose main process is the daemon behind the socket', 
       code: 0,
       stdout: args[0] === 'show' ? String(ctx.daemon.pid) : '',
       stderr: '',
+      aborted: false,
     }),
   );
 
@@ -103,7 +104,10 @@ test('it restarts the unit whose main process is the daemon behind the socket', 
 
 test('it leaves every process alone when no pid for the socket is found', async () => {
   const ctx = setupTest();
-  const runSystemctl = mock(() => Promise.resolve({ code: 0, stdout: '', stderr: '' }));
+
+  const runSystemctl = mock(() =>
+    Promise.resolve({ code: 0, stdout: '', stderr: '', aborted: false }),
+  );
 
   const host = buildMockLifecycleHost({
     paths: ctx.paths,
