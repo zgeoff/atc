@@ -3679,3 +3679,75 @@ test('it shows a running harness on the host that its auth revision applies at t
     lastMsg: 'auth revision 2 applies at the next launch',
   });
 });
+
+test('it shows a revived session that attached to its suspended harness that its auth revision applies at the next launch', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  // The kill puts the imp to sleep with the harness kept inside it.
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  judgeSelected = true;
+
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect(getRecord(got, 'session')).toMatchObject({
+    kind: 'pty',
+    lastMsg: 'auth revision 2 applies at the next launch',
+  });
+});

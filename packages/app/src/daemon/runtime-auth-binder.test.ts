@@ -5,7 +5,7 @@ import { ImpHarness } from '@atc/execution-imp/imp-harness';
 import { ImpProvider } from '@atc/execution-imp/imp-provider';
 import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
-import type { LaunchTicket } from '@atc/plugin-api/execution-provider';
+import type { HarnessStart, LaunchTicket } from '@atc/plugin-api/execution-provider';
 import { StateStore } from '@atc/store/state-store';
 import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
 import { buildStubCredentialBroker } from '@atc/test-utils/build-stub-credential-broker';
@@ -2302,7 +2302,7 @@ test('it returns the launch admission of each connection that fails before it op
   // Three connections in turn, each failing before it opens; an admission
   // only ever adds to the host's pending count, so a count of none after
   // the last shows every one of them returned its own.
-  const starts: PromiseSettledResult<void>[] = [];
+  const starts: PromiseSettledResult<HarnessStart>[] = [];
 
   for (const session of ['s2', 's3', 's4']) {
     const harness = new ImpHarness(

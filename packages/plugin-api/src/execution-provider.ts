@@ -248,10 +248,10 @@ export interface HarnessHandle {
   readonly killForced?: () => void;
 
   // Resolves once the harness's process has started, or a running one was
-  // attached, and rejects with the refusal when the host ends the harness
-  // or the daemon lets go of it first. Absent on a provider whose harness
-  // starts at once.
-  readonly waitForStart?: () => Promise<void>;
+  // attached, with whether the start made the process, and rejects with the
+  // refusal when the host ends the harness or the daemon lets go of it
+  // first. Absent on a provider whose harness starts at once.
+  readonly waitForStart?: () => Promise<HarnessStart>;
 
   // Resolves true once the harness's process has exited, and false when the
   // wait runs out first or the harness stops being followed without an
@@ -265,6 +265,14 @@ export interface HarnessHandle {
 }
 
 export type HarnessAttachment = 'attached' | 'reattaching';
+
+/**
+ * How a harness's start settled: whether it made a new process, or attached
+ * to one its host still ran, which keeps the settings it launched with.
+ */
+export interface HarnessStart {
+  readonly created: boolean;
+}
 
 interface HarnessSubscription {
   readonly dispose: () => void;
