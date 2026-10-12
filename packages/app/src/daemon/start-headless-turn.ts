@@ -9,7 +9,9 @@ import type { SessionManager } from './sessions';
  * Starts one headless turn for a session: finds its adapter's headless
  * runner, wires the run's output and completion into the session manager,
  * passes the turn's start and end to the event trail the way a terminal
- * turn's hooks do, and records the live handle on the session's runtime. Returns false
+ * turn's hooks do, and records the live handle on the session's runtime.
+ * The run reports its hooks to `reporterSocket`, the daemon's own reporter
+ * socket. Returns false
  * without starting anything when the session is unknown or exited, its
  * agent has no headless runner, its target does not serve headless turns,
  * or a turn is already running.
@@ -20,6 +22,7 @@ export function startHeadlessTurn(
   sessionID: SessionID,
   prompt: string,
   recordTurnEvent: (sessionID: SessionID, ev: Readonly<AdapterEvent>) => void,
+  reporterSocket: string,
 ): boolean {
   const s = mgr.sessions.find((x) => x.id === sessionID);
   const runner = s === undefined ? null : (mgr.findAdapter(s.agent)?.headlessRunner ?? null);
@@ -45,6 +48,7 @@ export function startHeadlessTurn(
       prompt,
       ...(s.agentSessionID === undefined ? {} : { resume: s.agentSessionID }),
       sessionID,
+      reporterSocket,
       ...(s.model === undefined ? {} : { model: s.model }),
       ...(s.effort === undefined ? {} : { effort: s.effort }),
       ...(s.withheldEnv.length === 0 ? {} : { withheldEnv: s.withheldEnv }),

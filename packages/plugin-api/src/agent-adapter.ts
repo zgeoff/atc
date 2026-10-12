@@ -169,6 +169,10 @@ export interface HeadlessRunRequest {
   // Where the session's published record lies, which the run's process
   // reads from its session environment.
   readonly recordPath?: string;
+
+  // The socket the daemon takes hook reports on, which the run's process
+  // reports to from its session environment.
+  readonly reporterSocket: string;
 }
 
 export interface HeadlessRunEvents {

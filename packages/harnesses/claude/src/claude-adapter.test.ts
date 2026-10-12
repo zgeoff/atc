@@ -69,12 +69,22 @@ test('it runs a headless turn through the configured claude binary under the aut
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
-  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go', model: 'opus', effort: 'high' }, events);
+  adapter.headlessRunner?.(
+    {
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      model: 'opus',
+      effort: 'high',
+    },
+    events,
+  );
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
       cwd: '/tmp',
       prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
       model: 'opus',
       effort: 'high',
       claudeBin: 'claude',
@@ -159,12 +169,16 @@ test('it runs a headless turn under the permission mode its configured arguments
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
-  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
+    events,
+  );
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
       cwd: '/tmp',
       prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
       claudeBin: 'claude',
       permissionMode: 'plan',
       pluginDir: join(ctx.dir, 'atc-bridge'),

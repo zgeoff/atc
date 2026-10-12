@@ -96,12 +96,16 @@ test("it runs a headless turn through the gateway's binary and settings file und
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
-  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
+    events,
+  );
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
       cwd: '/tmp',
       prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
       claudeBin: '/opt/zai/bin/claude',
       permissionMode: 'auto',
       pluginDir: join(ctx.dir, 'atc-bridge'),
@@ -192,12 +196,16 @@ test("it runs a headless turn under the permission mode the gateway's settings d
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
-  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
+    events,
+  );
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
       cwd: '/tmp',
       prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
       claudeBin: 'claude',
       permissionMode: 'default',
       pluginDir: join(ctx.dir, 'atc-bridge'),
@@ -230,12 +238,16 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
-  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
+    events,
+  );
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
       cwd: '/tmp',
       prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
       claudeBin: 'claude',
       permissionMode: 'default',
       pluginDir: join(ctx.dir, 'atc-bridge'),
@@ -333,7 +345,10 @@ test("it runs a headless turn with the gateway's settings file, its permission h
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
-  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
+    events,
+  );
 
   const settings: unknown = JSON.parse(
     readFileSync(join(ctx.dir, 'state', 'hook-settings-manual-hook.json'), 'utf8'),
@@ -343,6 +358,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     {
       cwd: '/tmp',
       prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
       claudeBin: 'claude',
       permissionMode: 'default',
       pluginDir: join(ctx.dir, 'atc-bridge'),
@@ -777,12 +793,16 @@ test("it runs a headless turn of a gateway with auth and a credential helper thr
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
 
-  adapter.headlessRunner?.({ cwd: '/tmp', prompt: 'go' }, events);
+  adapter.headlessRunner?.(
+    { cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
+    events,
+  );
 
   expect(runner).toHaveBeenCalledExactlyOnceWith(
     {
       cwd: '/tmp',
       prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
       claudeBin: 'claude',
       permissionMode: 'auto',
       pluginDir: join(ctx.dir, 'atc-bridge'),

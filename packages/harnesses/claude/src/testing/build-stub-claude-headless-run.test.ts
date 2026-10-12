@@ -7,7 +7,10 @@ test('it fires none of the event hooks', () => {
   const onDone = mock(() => {});
   const onNeedsYou = mock(() => {});
 
-  runner({ cwd: '/work', prompt: 'go', claudeBin: 'claude' }, { onOutput, onDone, onNeedsYou });
+  runner(
+    { cwd: '/work', prompt: 'go', reporterSocket: '/run/atc/atc.sock', claudeBin: 'claude' },
+    { onOutput, onDone, onNeedsYou },
+  );
 
   expect(onOutput).not.toHaveBeenCalled();
   expect(onDone).not.toHaveBeenCalled();
@@ -18,7 +21,7 @@ test('it returns a handle whose stop returns without throwing', () => {
   const runner = buildStubClaudeHeadlessRun();
 
   const handle = runner(
-    { cwd: '/work', prompt: 'go', claudeBin: 'claude' },
+    { cwd: '/work', prompt: 'go', reporterSocket: '/run/atc/atc.sock', claudeBin: 'claude' },
     { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} },
   );
 
