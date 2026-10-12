@@ -1,6 +1,8 @@
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { assertContractAnswer } from '@atc/test-utils/assert-contract-answer';
+import { assertContractEvent } from '@atc/test-utils/assert-contract-event';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { Socket } from 'bun';
@@ -133,6 +135,8 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   const openClient = async (hello: Readonly<Record<string, unknown>> = {}) => {
     const client = await DaemonClient.open(paths.socketPath);
 
+    client.onAnswer = assertContractAnswer;
+
     clients.add(client);
 
     await client.sendRequest('daemon.hello', {
@@ -186,6 +190,8 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
 
     client.onEvent = (event) => {
       events.push(event);
+
+      assertContractEvent(event);
     };
 
     return { daemon, client };
@@ -223,6 +229,8 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
       }
 
       const client = await DaemonClient.open({ hostname: '127.0.0.1', port });
+
+      client.onAnswer = assertContractAnswer;
 
       clients.add(client);
 

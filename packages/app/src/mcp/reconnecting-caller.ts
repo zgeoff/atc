@@ -1,33 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { DaemonChannel } from '@atc/protocol/daemon-channel';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { KEYED_METHOD_FEATURES } from '@atc/protocol/keyed-method-features';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
+import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { requireDaemonFeatures } from './require-daemon-features';
 import type { FleetCaller } from './types';
-
-// The daemon requests the read-only tools send. Each only reads, so running
-// one twice is harmless.
-const RETRYABLE_METHODS: ReadonlySet<string> = new Set([
-  'agents.list',
-  'dirs.list',
-  'events.read',
-  'message.get',
-  'note.get',
-  'session.get',
-  'session.list',
-  'session.read',
-  'session.resumeCommand',
-  'session.screen',
-]);
-
-// The effectful requests a daemon takes under an idempotency key, and the
-// feature it announces when it does. Under a key, a retry replays the first
-// answer instead of running the effect again.
-const KEYED_METHODS: ReadonlyMap<string, DaemonFeature> = new Map<string, DaemonFeature>([
-  ['session.spawn', 'spawn.idempotency'],
-  ['session.message', 'message.idempotency'],
-]);
 
 // One handshaken connection and the features its daemon announced.
 interface DaemonConnection {
@@ -80,14 +59,17 @@ export class ReconnectingCaller implements FleetCaller {
 
     requireDaemonFeatures(opened.features, required);
 
-    const keyFeature = KEYED_METHODS.get(m);
+    const keyFeature = KEYED_METHOD_FEATURES.get(m);
     const keyed = keyFeature !== undefined && opened.features.has(keyFeature);
     const params = keyed ? buildKeyedParams(p) : p;
 
     try {
       return await opened.client.sendRequest(m, params, principal);
     } catch (error) {
-      if (!this.closed.has(opened.client) || !(keyed || RETRYABLE_METHODS.has(m))) {
+      if (
+        !this.closed.has(opened.client) ||
+        !(keyed || PROCEDURE_TRAITS.get(m)?.readOnly === true)
+      ) {
         throw error;
       }
 

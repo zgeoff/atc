@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@atc/core": "workspace:*",
+    "@orpc/contract": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

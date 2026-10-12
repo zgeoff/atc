@@ -2,6 +2,7 @@ import type { AgentID } from '@atc/core/agent-id';
 import type { DaemonID } from '@atc/core/daemon-id';
 import type { MessageID } from '@atc/core/message-id';
 import type { SessionID } from '@atc/core/session-id';
+import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
 import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
 import type { EventMsg } from '@atc/protocol/protocol';
 import type { PublishedRecord } from '@atc/protocol/published-record';
@@ -244,7 +245,7 @@ export interface DaemonContext {
     plan: () => SpawnParams,
     keyed: KeyedRequest | null,
     access: TargetAccess | null,
-  ) => Promise<Readonly<Record<string, unknown>>>;
+  ) => Promise<DaemonAnswer<'session.spawn'>>;
 
   // Kills a session, or with stopOnly stops one that is live and leaves an
   // exited one alone. Answers what happened to it.
@@ -365,7 +366,7 @@ export interface DaemonContext {
     text: string,
     keyed: KeyedRequest | null,
     access: TargetAccess | null,
-  ) => Promise<Readonly<Record<string, unknown>> | MessageRefusal>;
+  ) => Promise<DaemonAnswer<'session.message'> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
 
   // Makes the client the session's inbox tap. Under an access, the tap

@@ -4,7 +4,6 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { REQUEST_ACCESS_CLASSES } from './request-access-classes';
 
 /**
  * A mock agent adapter for the daemon to boot with. It takes messages, so
@@ -15,61 +14,6 @@ function setupTest() {
 
   return { adapter };
 }
-
-test('it keeps the daemon-wide and credential methods, and only those, owner-only', () => {
-  const owned = Object.entries(REQUEST_ACCESS_CLASSES)
-    .filter(([, access]) => access === 'owner')
-    .map(([method]) => method);
-
-  expect(owned).toIncludeSameMembers([
-    'daemon.quit',
-    'fleet.restore',
-    'session.auth.revoke',
-    'session.auth.rebind',
-  ]);
-});
-
-test('it opens every other method to a principal', () => {
-  const open = Object.entries(REQUEST_ACCESS_CLASSES)
-    .filter(([, access]) => access === 'principal')
-    .map(([method]) => method);
-
-  expect(open).toIncludeSameMembers([
-    'daemon.hello',
-    'daemon.ping',
-    'session.list',
-    'dirs.list',
-    'agents.list',
-    'fleet.list',
-    'session.detach',
-    'events.read',
-    'sources.list',
-    'sources.interpret',
-    'git.probe',
-    'session.spawn',
-    'session.kill',
-    'session.ack',
-    'session.forget',
-    'session.resumeCommand',
-    'session.update',
-    'session.scope.add',
-    'session.attach',
-    'session.input',
-    'session.submit',
-    'session.resize',
-    'session.screen',
-    'session.eject',
-    'session.adopt',
-    'permission.respond',
-    'session.get',
-    'session.read',
-    'session.message',
-    'session.tap',
-    'message.get',
-    'note.get',
-    'message.ack',
-  ]);
-});
 
 test.each([['daemon.quit'], ['fleet.restore'], ['session.auth.revoke'], ['session.auth.rebind']])(
   'it refuses %s from a principal connection as owner-only',

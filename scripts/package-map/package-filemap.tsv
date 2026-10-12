@@ -162,6 +162,7 @@ src/daemon/is-allowed-listen-host.ts	config	listen	packages/config/src/listen/is
 src/daemon/is-binding-current.ts	daemon	auth	packages/daemon/src/auth/is-binding-current.ts	
 src/daemon/is-imp-name-allowed.ts	execution-imp		packages/execution/imp/src/is-imp-name-allowed.ts	execution-imp only; daemon/auth asks the CredentialBroker whether it owns a host name
 src/daemon/is-own-hook-event.ts	daemon	sessions	packages/daemon/src/sessions/is-own-hook-event.ts	
+src/daemon/is-owner-only-method.ts	daemon	auth	packages/daemon/src/auth/is-owner-only-method.ts	
 src/daemon/is-tree-in-reach.ts	daemon	auth	packages/daemon/src/auth/is-tree-in-reach.ts	
 src/daemon/load-oauth-states.ts	daemon	auth	packages/daemon/src/auth/load-oauth-states.ts	
 src/daemon/load-transcript-page.ts	daemon	sessions	packages/daemon/src/sessions/load-transcript-page.ts	
@@ -181,7 +182,6 @@ src/daemon/published-records.ts	daemon	sessions	packages/daemon/src/sessions/pub
 src/daemon/read-imp-token.ts	execution-imp		packages/execution/imp/src/read-imp-token.ts	
 src/daemon/read-native-env-keys.ts	execution-local		packages/execution/local/src/read-native-env-keys.ts	
 src/daemon/refusal-log.ts	daemon	transport	packages/daemon/src/transport/refusal-log.ts	
-src/daemon/request-access-classes.ts	daemon	auth	packages/daemon/src/auth/request-access-classes.ts	
 src/daemon/require-git-transports.ts	daemon	workspace	packages/daemon/src/workspace/require-git-transports.ts	
 src/daemon/resolve-restored-target-identity.ts	daemon	fleet	packages/daemon/src/fleet/resolve-restored-target-identity.ts	
 src/daemon/restore-fleet.ts	daemon	fleet	packages/daemon/src/fleet/restore-fleet.ts	
@@ -298,33 +298,62 @@ src/parse-port.ts	app	cli	packages/app/src/cli/parse-port.ts
 src/parse-restart-result.ts	lifecycle		packages/lifecycle/src/parse-restart-result.ts	
 src/parse-systemd-unit.ts	lifecycle		packages/lifecycle/src/parse-systemd-unit.ts	
 src/protocol/adapter-event.ts	protocol		packages/protocol/src/adapter-event.ts	
+src/protocol/agent-list.ts	protocol		packages/protocol/src/agent-list.ts	new in ticket 4
 src/protocol/build-session-env.ts	protocol		packages/protocol/src/build-session-env.ts	new in ticket 4
 src/protocol/control-character.ts	protocol		packages/protocol/src/control-character.ts	
 src/protocol/count-session-states.ts	protocol		packages/protocol/src/count-session-states.ts	
+src/protocol/daemon-answer.ts	protocol		packages/protocol/src/daemon-answer.ts	new in ticket 4
 src/protocol/daemon-channel.ts	protocol		packages/protocol/src/daemon-channel.ts	
+src/protocol/daemon-contract.ts	protocol		packages/protocol/src/daemon-contract.ts	new in ticket 4
+src/protocol/daemon-error-map.ts	protocol		packages/protocol/src/daemon-error-map.ts	new in ticket 4
 src/protocol/daemon-error.ts	protocol		packages/protocol/src/daemon-error.ts	
+src/protocol/daemon-event.ts	protocol		packages/protocol/src/daemon-event.ts	new in ticket 4
 src/protocol/daemon-features.ts	(deleted in ticket 24)		src/protocol/daemon-features.ts	
 src/protocol/decode-cursor.ts	protocol		packages/protocol/src/decode-cursor.ts	
 src/protocol/encode-cursor.ts	protocol		packages/protocol/src/encode-cursor.ts	
+src/protocol/find-answer-schema.ts	protocol		packages/protocol/src/find-answer-schema.ts	new in ticket 4
+src/protocol/fleet-entry-view.ts	protocol		packages/protocol/src/fleet-entry-view.ts	new in ticket 4
+src/protocol/fleet-event.ts	protocol		packages/protocol/src/fleet-event.ts	new in ticket 4
+src/protocol/git-probe-result.ts	protocol		packages/protocol/src/git-probe-result.ts	new in ticket 4
+src/protocol/git-ref.ts	protocol		packages/protocol/src/git-ref.ts	new in ticket 4
+src/protocol/hello-result.ts	protocol		packages/protocol/src/hello-result.ts	new in ticket 4
 src/protocol/hook-event.ts	protocol		packages/protocol/src/hook-event.ts	
+src/protocol/keyed-method-features.ts	protocol		packages/protocol/src/keyed-method-features.ts	new in ticket 4
 src/protocol/line-decoder.ts	protocol		packages/protocol/src/line-decoder.ts	
+src/protocol/message-answer.ts	protocol		packages/protocol/src/message-answer.ts	new in ticket 4
+src/protocol/message-status.ts	protocol		packages/protocol/src/message-status.ts	new in ticket 4
+src/protocol/message-view.ts	protocol		packages/protocol/src/message-view.ts	new in ticket 4
+src/protocol/note-view.ts	protocol		packages/protocol/src/note-view.ts	new in ticket 4
 src/protocol/open-bridge-socket.ts	protocol		packages/protocol/src/open-bridge-socket.ts	
 src/protocol/outbound-queue.ts	protocol		packages/protocol/src/outbound-queue.ts	
 src/protocol/parse-daemon-features.ts	(deleted in ticket 24)		src/protocol/parse-daemon-features.ts	
 src/protocol/parse-declared-scope.ts	protocol		packages/protocol/src/parse-declared-scope.ts	
 src/protocol/parse-request-params.ts	protocol		packages/protocol/src/parse-request-params.ts	
 src/protocol/pinned-group-key.ts	protocol		packages/protocol/src/pinned-group-key.ts	
+src/protocol/procedure-meta.ts	protocol		packages/protocol/src/procedure-meta.ts	new in ticket 4
+src/protocol/procedure-traits.ts	protocol		packages/protocol/src/procedure-traits.ts	new in ticket 4
 src/protocol/protocol.ts	protocol		packages/protocol/src/protocol.ts	
+src/protocol/published-record-schema.ts	protocol		packages/protocol/src/published-record-schema.ts	new in ticket 4
 src/protocol/published-record.ts	protocol		packages/protocol/src/published-record.ts	
 src/protocol/read-session-env.ts	protocol		packages/protocol/src/read-session-env.ts	new in ticket 4
 src/protocol/request-param-schemas.ts	protocol		packages/protocol/src/request-param-schemas.ts	
 src/protocol/send-bridge-request.ts	protocol		packages/protocol/src/send-bridge-request.ts	
+src/protocol/session-descriptor.ts	protocol		packages/protocol/src/session-descriptor.ts	new in ticket 4
 src/protocol/session-env-names.ts	protocol		packages/protocol/src/session-env-names.ts	new in ticket 4
 src/protocol/session-env.ts	protocol		packages/protocol/src/session-env.ts	new in ticket 4
+src/protocol/session-lifecycle.ts	protocol		packages/protocol/src/session-lifecycle.ts	new in ticket 4
 src/protocol/session-state.ts	protocol		packages/protocol/src/session-state.ts	
+src/protocol/session-workspace.ts	protocol		packages/protocol/src/session-workspace.ts	new in ticket 4
 src/protocol/sort-grouped-session-views.ts	protocol		packages/protocol/src/sort-grouped-session-views.ts	
 src/protocol/sort-session-views.ts	protocol		packages/protocol/src/sort-session-views.ts	
 src/protocol/sortable-session-view.ts	protocol		packages/protocol/src/sortable-session-view.ts	
+src/protocol/source-candidate.ts	protocol		packages/protocol/src/source-candidate.ts	new in ticket 4
+src/protocol/source-entry.ts	protocol		packages/protocol/src/source-entry.ts	new in ticket 4
+src/protocol/source-interpretation.ts	protocol		packages/protocol/src/source-interpretation.ts	new in ticket 4
+src/protocol/source-pick.ts	protocol		packages/protocol/src/source-pick.ts	new in ticket 4
+src/protocol/spawn-answer.ts	protocol		packages/protocol/src/spawn-answer.ts	new in ticket 4
+src/protocol/spawn-option-spec.ts	protocol		packages/protocol/src/spawn-option-spec.ts	new in ticket 4
+src/protocol/transcript-row.ts	protocol		packages/protocol/src/transcript-row.ts	new in ticket 4
 src/read-daemon-process.ts	lifecycle		packages/lifecycle/src/read-daemon-process.ts	
 src/read-fleet-snapshot.ts	lifecycle		packages/lifecycle/src/read-fleet-snapshot.ts	
 src/read-restart-result.ts	lifecycle		packages/lifecycle/src/read-restart-result.ts	
@@ -448,6 +477,8 @@ src/store/state-store.ts	store		packages/store/src/state-store.ts	legacy fleet.j
 src/store/trail-entry.ts	store		packages/store/src/trail-entry.ts	
 src/store/workspace-materialization.ts	store		packages/store/src/workspace-materialization.ts	
 src/tap.ts	reporters		packages/reporters/src/tap.ts	
+src/test-utils/assert-contract-answer.ts	test-utils		packages/test-utils/src/assert-contract-answer.ts	new in ticket 4
+src/test-utils/assert-contract-event.ts	test-utils		packages/test-utils/src/assert-contract-event.ts	new in ticket 4
 src/test-utils/build-mock-agent-adapter.ts	test-utils		packages/test-utils/src/build-mock-agent-adapter.ts	
 src/test-utils/build-mock-agent-entry.ts	test-utils		packages/test-utils/src/build-mock-agent-entry.ts	
 src/test-utils/build-mock-auth-binding.ts	daemon	testing	packages/daemon/src/testing/build-mock-auth-binding.ts	

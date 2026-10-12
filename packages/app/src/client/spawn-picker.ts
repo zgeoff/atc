@@ -8,6 +8,14 @@ import { isHomeRelative } from '@atc/core/is-home-relative';
 import { isRecord } from '@atc/core/is-record';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { GIT_REF_SCHEMA } from '@atc/protocol/git-ref';
+import type { GitRef } from '@atc/protocol/git-ref';
+import { SOURCE_CANDIDATE_SCHEMA } from '@atc/protocol/source-candidate';
+import { SOURCE_ENTRY_SCHEMA } from '@atc/protocol/source-entry';
+import type { SourceEntry } from '@atc/protocol/source-entry';
+import { SOURCE_INTERPRETATION_SCHEMA } from '@atc/protocol/source-interpretation';
+import type { SourceInterpretation } from '@atc/protocol/source-interpretation';
+import type { SourcePick } from '@atc/protocol/source-pick';
 import type { WorkspacesConfig } from '../shared/collect-workspaces-config';
 import { collectZoxideDirs } from '../shared/collect-zoxide-dirs';
 import { loadConfig } from '../shared/config';
@@ -91,35 +99,11 @@ export interface SpawnPickerDeps<TMirror> {
 }
 
 // One source `agents.list` returned, in the order the daemon offers them.
-interface AnnouncedSource {
-  readonly id: string;
-  readonly label: string;
-  readonly kind: 'git' | 'path';
-}
-
-// What a candidate or a reading of typed input resolves to.
-type SourcePick =
-  | { readonly kind: 'path'; readonly dir: string }
-  | { readonly kind: 'git'; readonly url: string };
-
 // One candidate `sources.list` returned.
 interface ListedCandidate {
   readonly label: string;
   readonly detail: string | null;
   readonly pick: SourcePick;
-}
-
-// What `sources.interpret` read typed input as.
-type Interpretation =
-  | { readonly kind: 'browse'; readonly scope: string }
-  | SourcePick
-  | { readonly kind: 'none' };
-
-// One branch or tag `git.probe` returned.
-interface ProbedRef {
-  readonly name: string;
-  readonly kind: 'branch' | 'tag';
-  readonly sha: string;
 }
 
 // The repository the probe proved the daemon's host can read.
@@ -131,7 +115,7 @@ interface ProbedRepo {
   // The URL the clone fetches, as the daemon resolved it.
   readonly url: string;
   readonly head: string | null;
-  readonly refs: readonly ProbedRef[];
+  readonly refs: readonly GitRef[];
 }
 
 // The commit the spawn checks out, and the branch or tag it came from.
@@ -189,7 +173,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   // The sources the daemon offers, or null when it offers none, and the
   // one the flow is on; -1 is the local directory flow of a daemon that
   // offers none.
-  private sources: readonly AnnouncedSource[] | null = null;
+  private sources: readonly SourceEntry[] | null = null;
 
   private sourceIndex = -1;
 
@@ -690,7 +674,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // The source the flow is on, or null on the local directory flow.
-  private findSource(): AnnouncedSource | null {
+  private findSource(): SourceEntry | null {
     return this.sources?.[this.sourceIndex] ?? null;
   }
 
@@ -1077,7 +1061,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // The ref step's rows: the default branch first, then every branch and
   // tag in the order the upstream lists them, filtered by name.
-  private collectRefItems(): ProbedRef[] {
+  private collectRefItems(): GitRef[] {
     const refs = this.repo?.refs ?? [];
     const head = this.repo?.head ?? null;
 
@@ -1401,7 +1385,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // Asks one source what typed text is. Null when Esc cancelled the
   // request; a refused request reads as nothing.
-  private async sendInterpret(index: number, typed: string): Promise<Interpretation | null> {
+  private async sendInterpret(index: number, typed: string): Promise<SourceInterpretation | null> {
     const source = this.sources?.[index];
 
     if (source === undefined) {
@@ -1423,7 +1407,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // Moves the flow to what a source read typed text as: its scope listed,
   // the directory chosen, or the repository probed.
-  private applyReading(index: number, reading: Interpretation, typed: string) {
+  private applyReading(index: number, reading: SourceInterpretation, typed: string) {
     if (reading.kind === 'none') {
       return;
     }
@@ -2103,13 +2087,13 @@ function findTargetRefusal(pick: TargetPick, git: boolean): string | null {
 // Whether a source of a kind can act on a reading: a scope it lists, or a
 // pick of its own kind.
 function canTakeReading(
-  kind: AnnouncedSource['kind'] | undefined,
-  reading: Interpretation,
+  kind: SourceEntry['kind'] | undefined,
+  reading: SourceInterpretation,
 ): boolean {
   return reading.kind === 'browse' || (reading.kind !== 'none' && reading.kind === kind);
 }
 
-function formatRef(ref: ProbedRef, head: string | null): string {
+function formatRef(ref: GitRef, head: string | null): string {
   const notes = [
     ...(ref.kind === 'tag' ? ['tag'] : []),
     ...(ref.kind === 'branch' && ref.name === head ? ['default'] : []),
@@ -2173,80 +2157,38 @@ function isBrokerAgent(raw: unknown, agent: AgentID): boolean {
   );
 }
 
-function parseAnnouncedSources(raw: unknown): AnnouncedSource[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.flatMap((entry: unknown): AnnouncedSource[] =>
-    isRecord(entry) &&
-    typeof entry['id'] === 'string' &&
-    typeof entry['label'] === 'string' &&
-    (entry['kind'] === 'git' || entry['kind'] === 'path')
-      ? [{ id: entry['id'], label: entry['label'], kind: entry['kind'] }]
-      : [],
-  );
+function parseAnnouncedSources(raw: unknown): SourceEntry[] {
+  return collectParsed(raw, (entry) => SOURCE_ENTRY_SCHEMA.safeParse(entry).data);
 }
 
 function parseCandidates(raw: unknown): ListedCandidate[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
+  return collectParsed(raw, (entry) => {
+    const candidate = SOURCE_CANDIDATE_SCHEMA.safeParse(entry).data;
 
-  return raw.flatMap((entry: unknown): ListedCandidate[] => {
-    if (!isRecord(entry) || typeof entry['label'] !== 'string') {
-      return [];
-    }
-
-    const pick = parsePick(entry['pick']);
-
-    return pick === null
-      ? []
-      : [
-          {
-            label: entry['label'],
-            detail: typeof entry['detail'] === 'string' ? entry['detail'] : null,
-            pick,
-          },
-        ];
+    return candidate === undefined
+      ? undefined
+      : { label: candidate.label, detail: candidate.detail ?? null, pick: candidate.pick };
   });
 }
 
-function parseInterpretation(answer: Readonly<Record<string, unknown>>): Interpretation {
-  if (answer['kind'] === 'browse' && typeof answer['scope'] === 'string') {
-    return { kind: 'browse', scope: answer['scope'] };
-  }
-
-  return parsePick(answer) ?? { kind: 'none' };
+function parseInterpretation(answer: Readonly<Record<string, unknown>>): SourceInterpretation {
+  return SOURCE_INTERPRETATION_SCHEMA.safeParse(answer).data ?? { kind: 'none' };
 }
 
-function parsePick(raw: unknown): SourcePick | null {
-  if (!isRecord(raw)) {
-    return null;
-  }
-
-  if (raw['kind'] === 'path' && typeof raw['dir'] === 'string') {
-    return { kind: 'path', dir: raw['dir'] };
-  }
-
-  if (raw['kind'] === 'git' && typeof raw['url'] === 'string') {
-    return { kind: 'git', url: raw['url'] };
-  }
-
-  return null;
+function parseProbedRefs(raw: unknown): GitRef[] {
+  return collectParsed(raw, (entry) => GIT_REF_SCHEMA.safeParse(entry).data);
 }
 
-function parseProbedRefs(raw: unknown): ProbedRef[] {
+// The entries of an answer's list that parse, in order, leaving out each
+// one that does not; a value that is no list has none.
+function collectParsed<T>(raw: unknown, parse: (entry: unknown) => T | undefined): T[] {
   if (!Array.isArray(raw)) {
     return [];
   }
 
-  return raw.flatMap((entry: unknown): ProbedRef[] =>
-    isRecord(entry) &&
-    typeof entry['name'] === 'string' &&
-    typeof entry['sha'] === 'string' &&
-    (entry['kind'] === 'branch' || entry['kind'] === 'tag')
-      ? [{ name: entry['name'], kind: entry['kind'], sha: entry['sha'] }]
-      : [],
-  );
+  return raw.flatMap((entry: unknown) => {
+    const parsed = parse(entry);
+
+    return parsed === undefined ? [] : [parsed];
+  });
 }

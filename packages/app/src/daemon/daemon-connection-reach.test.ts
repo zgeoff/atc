@@ -1,5 +1,6 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, mock, test } from 'bun:test';
+import { toDaemonID } from '@atc/core/to-daemon-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
@@ -564,7 +565,11 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
   canSeeSession.mockReturnValue(false);
 
   spawn.resolve({
-    session: { id: 's-new', name: 'secret', locator: { daemonID: 'd-1', targetID: 'local' } },
+    session: buildMockSessionDescriptor({
+      id: toSessionID('s-new'),
+      name: 'secret',
+      locator: { daemonID: toDaemonID('d-1'), targetID: 'local' },
+    }),
   });
 
   const answered = await held;

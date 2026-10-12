@@ -71,6 +71,7 @@
       "name": "@atc/protocol",
       "dependencies": {
         "@atc/core": "workspace:*",
+        "@orpc/contract": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -115,6 +116,7 @@
     "@commitlint/cli": "21.2.0",
     "@faker-js/faker": "10.6.0",
     "@modelcontextprotocol/sdk": "1.31.0",
+    "@orpc/contract": "1.15.4",
     "@stylistic/eslint-plugin": "5.10.0",
     "@tsconfig/strictest": "2.0.8",
     "@types/bun": "1.4.2",

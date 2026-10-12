@@ -7,6 +7,7 @@ import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol';
 import type { EventMsg, ResponseMsg } from '../protocol';
 
 interface Pending {
+  readonly method: string;
   readonly resolve: (ok: Readonly<Record<string, unknown>>) => void;
   readonly reject: (err: Readonly<DaemonError>) => void;
 }
@@ -20,6 +21,10 @@ export class DaemonClient implements DaemonChannel {
   onEvent: (event: EventMsg) => void = () => {};
 
   onClose: () => void = () => {};
+
+  // Sees each answer before its request resolves with it. A throw rejects
+  // the request with the thrown message as an `internal` error.
+  onAnswer: (method: string, ok: Readonly<Record<string, unknown>>) => void = () => {};
 
   private queue: OutboundQueue | null = null;
 
@@ -100,7 +105,7 @@ export class DaemonClient implements DaemonChannel {
     const id = this.nextID++;
     const resolvers = Promise.withResolvers<Readonly<Record<string, unknown>>>();
 
-    this.pending.set(id, { resolve: resolvers.resolve, reject: resolvers.reject });
+    this.pending.set(id, { method: m, resolve: resolvers.resolve, reject: resolvers.reject });
 
     this.queue?.send(
       encodeMessage({
@@ -153,10 +158,22 @@ export class DaemonClient implements DaemonChannel {
     this.pending.delete(msg.id);
 
     if (msg.err === undefined) {
-      waiter.resolve(msg.ok ?? {});
+      this.applyAnswer(waiter, msg.ok ?? {});
     } else {
       waiter.reject(new DaemonError(msg.err.code, msg.err.msg, msg.err.data));
     }
+  }
+
+  private applyAnswer(waiter: Pending, ok: Readonly<Record<string, unknown>>): void {
+    try {
+      this.onAnswer(waiter.method, ok);
+    } catch (error) {
+      waiter.reject(new DaemonError('internal', String(error)));
+
+      return;
+    }
+
+    waiter.resolve(ok);
   }
 
   private drainPending(reason: string): void {

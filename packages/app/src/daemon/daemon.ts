@@ -12,14 +12,17 @@ import type { Clock } from '@atc/core/system-clock';
 import { toMessageID } from '@atc/core/to-message-id';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
+import { MESSAGE_ANSWER_SCHEMA } from '@atc/protocol/message-answer';
 import { MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/protocol';
 import type { EventMsg } from '@atc/protocol/protocol';
 import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
 import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
 import type { SessionState } from '@atc/protocol/session-state';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
+import { SPAWN_ANSWER_SCHEMA } from '@atc/protocol/spawn-answer';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { planTypedLineInput } from '../agents/plan-typed-line-input';
 import { claimDaemonLock } from '../shared/claim-daemon-lock';
@@ -1084,7 +1087,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     p: SpawnParams,
     id: SessionID,
     requireInReach: () => void = () => {},
-  ): Promise<Readonly<Record<string, unknown>>> => {
+  ): Promise<DaemonAnswer<'session.spawn'>> => {
     const source = p.workspace;
     let warnings: readonly string[] = [];
 
@@ -1229,17 +1232,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // listed, else with the descriptor the first spawn answered. A key that
   // start-up reconciliation completed has no stored answer, and its session
   // lists only once the fleet is restored.
-  const loadSpawnReplay = (record: IdempotencyRecord): Readonly<Record<string, unknown>> => {
+  const loadSpawnReplay = (record: IdempotencyRecord): DaemonAnswer<'session.spawn'> => {
     const listed = mgr.collectDescriptors().find((d) => d.id === record.effectRef);
 
     if (listed !== undefined) {
       return { session: listed };
     }
 
-    const stored: unknown = record.result === null ? null : JSON.parse(record.result);
+    const result: unknown = record.result === null ? null : JSON.parse(record.result);
+    const stored = SPAWN_ANSWER_SCHEMA.safeParse(result);
 
-    if (isRecord(stored)) {
-      return stored;
+    if (stored.success) {
+      return stored.data;
     }
 
     throw new DaemonError(
@@ -1439,17 +1443,18 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // that lost the first answer learns where its message stands now.
   const loadMessageReplay = async (
     record: IdempotencyRecord,
-  ): Promise<Readonly<Record<string, unknown>>> => {
+  ): Promise<DaemonAnswer<'session.message'>> => {
     const current = await store.findMessageByID(toMessageID(record.effectRef));
 
     if (current !== null) {
       return { message: current.id, status: current.status };
     }
 
-    const stored: unknown = record.result === null ? null : JSON.parse(record.result);
+    const result: unknown = record.result === null ? null : JSON.parse(record.result);
+    const stored = MESSAGE_ANSWER_SCHEMA.safeParse(result);
 
-    if (isRecord(stored)) {
-      return stored;
+    if (stored.success) {
+      return stored.data;
     }
 
     throw new DaemonError(

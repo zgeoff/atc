@@ -12,7 +12,7 @@ export const PROTOCOL_V = 4;
 export const MAX_LINE = 1_048_576;
 export const MAX_CHUNK = 65_536;
 
-const ERROR_CODES = [
+export const ERROR_CODES = [
   'protocol_mismatch',
   'unauthorized',
   'unknown_method',
