@@ -280,25 +280,33 @@ async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | nu
 // waits out the state lock of one still shutting down.
 const BOOT_DEADLINE_MS = 8000;
 
-// One boot in flight per clock, which every boot of this process on that
-// clock shares.
-const bootFlights = new WeakMap<Clock, () => Promise<void>>();
+// One boot in flight per clock and daemon socket, which every boot of this
+// process on that clock for that socket shares.
+const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
 
 /**
  * Starts a daemon and waits on the clock until one answers at the paths,
- * sharing a boot already in flight on the same clock.
+ * sharing a boot already in flight on the same clock for the same socket.
  */
 function bootDaemonOnce(
   paths: DaemonPaths,
   clock: Clock,
   atcArgv: readonly string[],
 ): Promise<void> {
-  let flight = bootFlights.get(clock);
+  let flights = bootFlights.get(clock);
+
+  if (flights === undefined) {
+    flights = new Map();
+
+    bootFlights.set(clock, flights);
+  }
+
+  let flight = flights.get(paths.socketPath);
 
   if (flight === undefined) {
     flight = makeSingleFlight(() => bootDaemon(paths, clock, atcArgv));
 
-    bootFlights.set(clock, flight);
+    flights.set(paths.socketPath, flight);
   }
 
   return flight();

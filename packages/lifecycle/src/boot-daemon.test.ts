@@ -300,6 +300,42 @@ test('it waits for a daemon instead of starting one when the host finds an insta
   expect(step).toBe(100);
 });
 
+test('it waits for its own daemon while a boot on the same clock waits for another', async () => {
+  const first = setupTest();
+  const second = setupTest();
+  const clock = buildStubClock(0);
+
+  // The argv starts nothing, and the clock never reaches the end of the
+  // first boot's wait, so that boot neither settles nor rejects.
+  void bootDaemonClient(buildMockLifecycleHost({ paths: first.paths }), { clock });
+
+  await waitFor(() => {
+    if (clock.collectPending().length === 0) {
+      throw new Error('the first boot is not waiting yet');
+    }
+  });
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: second.paths }), { clock });
+
+  await waitFor(() => {
+    if (clock.collectPending().length < 2) {
+      throw new Error('the second boot is not waiting on its own daemon');
+    }
+  });
+
+  startStubLegacyDaemon(second.sockPath, { replies: { 'daemon.hello': { daemon: 'atc/1.2.3' } } });
+
+  clock.advance(100);
+
+  const boot = await booting;
+
+  registerTestCleanup(() => {
+    boot.client.stop();
+  });
+
+  expect(boot.socketPath).toBe(second.sockPath);
+});
+
 test('it rejects with the socket path it is given when a wait finds no daemon there', () => {
   const ctx = setupTest();
 

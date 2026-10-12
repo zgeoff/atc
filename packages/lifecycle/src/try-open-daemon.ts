@@ -40,9 +40,9 @@ interface DaemonProbeOptions {
 /**
  * Opens the daemon at the first of `socketPaths` that answers, sends this
  * build's hello, and runs `read` on the open client. The hello and `read`
- * together must finish by the deadline: a daemon that accepts the socket
- * and never answers has its client closed then, which rejects every request
- * still waiting. A hello the daemon's protocol refuses ends the probe with
+ * together must finish within the socket's share of the time left before
+ * the deadline: a daemon that accepts the socket and never answers has its
+ * client closed then, which rejects every request still waiting. A hello the daemon's protocol refuses ends the probe with
  * the refusal, since it still identifies the daemon; a socket that refuses
  * the connection, or a daemon that closes it before it answers, passes the
  * probe to the next socket. Resolves null when no socket answers. The
@@ -54,7 +54,7 @@ export async function tryOpenDaemon<T>(
   options: DaemonProbeOptions,
   read: (client: Readonly<DaemonClient>) => Promise<T>,
 ): Promise<DaemonProbe<T> | null> {
-  for (const socketPath of socketPaths) {
+  for (const [index, socketPath] of socketPaths.entries()) {
     let client: DaemonClient;
 
     try {
@@ -63,11 +63,15 @@ export async function tryOpenDaemon<T>(
       continue;
     }
 
+    // Each socket gets an equal share of the time left, so one that never
+    // answers leaves the sockets after it time to answer.
+    const remainingMs = Math.max(0, options.deadline - options.clock.now());
+
     const cancelExpiry = options.clock.schedule(
       () => {
         client.stop();
       },
-      Math.max(0, options.deadline - options.clock.now()),
+      remainingMs / (socketPaths.length - index),
     );
 
     let keep = false;

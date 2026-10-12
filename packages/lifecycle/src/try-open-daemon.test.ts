@@ -132,6 +132,46 @@ test('it gives up on a daemon that never answers once the deadline passes', asyn
   expect(step).toBe(3000);
 });
 
+test('it leaves the next socket time to answer when one never answers', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+
+  startStubUnansweringUnixListener(join(ctx.dir, 'atc-daemon.sock'));
+
+  startStubLegacyDaemon(join(ctx.dir, 'recorded.sock'), {
+    replies: { 'daemon.hello': { daemon: 'atc/1.2.3', daemonID: 'd-1' } },
+  });
+
+  const probing = tryOpenDaemon(
+    [join(ctx.dir, 'atc-daemon.sock'), join(ctx.dir, 'recorded.sock')],
+    { build: 'atc/test-build', deadline: 3000, clock },
+    () => Promise.resolve(null),
+  );
+
+  const step = await waitFor(() => {
+    const [pending] = clock.collectPending();
+
+    if (pending === undefined) {
+      throw new Error('no deadline is pending');
+    }
+
+    return pending;
+  });
+
+  clock.advance(step);
+
+  const probe = await probing;
+
+  expect(step).toBe(1500);
+
+  expect(probe).toStrictEqual({
+    kind: 'ok',
+    socketPath: join(ctx.dir, 'recorded.sock'),
+    hello: { build: 'atc/1.2.3', daemonID: 'd-1' },
+    value: null,
+  });
+});
+
 test('it closes the client once the read settles', async () => {
   const ctx = setupTest();
   const daemon = startStubLegacyDaemon(join(ctx.dir, 'atc-daemon.sock'));
