@@ -25,7 +25,7 @@ export function buildTargetIdentity(
       : options;
 
   const digest = createHash('sha256')
-    .update(JSON.stringify(sortJSONKeys(boundOptions)))
+    .update(JSON.stringify(sortJSONKeys(boundOptions, 'locale')))
     .digest('hex')
     .slice(0, 16);
 

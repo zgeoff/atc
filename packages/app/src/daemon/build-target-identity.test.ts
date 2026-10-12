@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test';
 import { buildTargetIdentity } from './build-target-identity';
 
+test('it builds the identity a stored session holds for the same options', () => {
+  expect(buildTargetIdentity('ssh', { Host: 'b', host: 'a', port: 22 })).toBe(
+    'ssh:701fa2ef7016a7cb',
+  );
+});
+
 test('it builds a versioned imp identity with a sixteen-digit hex digest', () => {
   expect(buildTargetIdentity('imp', { image: 'dev' })).toMatch(/^imp:reach-v1:[\da-f]{16}$/);
 });

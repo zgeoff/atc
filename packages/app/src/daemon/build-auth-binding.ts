@@ -57,7 +57,7 @@ export function buildAuthBinding(
       placeholderEnv: gateway.auth.placeholderEnv,
       profileEnv,
       hash: createHash('sha256')
-        .update(JSON.stringify(sortJSONKeys(hashed)))
+        .update(JSON.stringify(sortJSONKeys(hashed, 'locale')))
         .digest('hex'),
     },
   };

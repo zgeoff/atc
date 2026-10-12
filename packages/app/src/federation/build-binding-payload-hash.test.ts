@@ -1,6 +1,17 @@
 import { expect, test } from 'bun:test';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 
+test('it hashes params to the hash a stored binding holds', () => {
+  expect(
+    buildBindingPayloadHash({
+      name: 'é',
+      Zeta: 1,
+      alpha: { b: [{ Y: 1, x: 2 }], A: true },
+      idempotencyKey: 'k',
+    }),
+  ).toBe('0209c43032888ea0492c95773ac44684f1edd51e8666bb376e43bc85315bc402');
+});
+
 test('it hashes params the same whatever their key order or idempotency key', () => {
   expect(buildBindingPayloadHash({ cwd: '/tmp', name: 'a', idempotencyKey: 'k1' })).toBe(
     buildBindingPayloadHash({ name: 'a', cwd: '/tmp', idempotencyKey: 'k2' }),
