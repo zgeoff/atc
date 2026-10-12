@@ -1,0 +1,2807 @@
+{
+  "overrides": [
+    {
+      "files": ["packages/core/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(protocol|plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/core may depend only on external packages."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^(node|bun):",
+                "message": "@atc/core runs on any runtime: it imports no node: or bun: module."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/core/**/*.test.ts", "packages/core/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(protocol|plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/core may depend only on external packages."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/protocol/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/protocol may depend only on @atc/core."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/protocol/**/*.test.ts", "packages/protocol/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/protocol may depend only on @atc/core."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/plugin-api/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/plugin-api may depend only on @atc/core, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/plugin-api/**/*.test.ts", "packages/plugin-api/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(config|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/plugin-api may depend only on @atc/core, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/config/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(protocol|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/config may depend only on @atc/core, @atc/plugin-api."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/config/**/*.test.ts", "packages/config/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(protocol|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/config may depend only on @atc/core, @atc/plugin-api."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/store/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/store may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/store/**/*.test.ts", "packages/store/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/store may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/lifecycle/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/lifecycle may depend only on @atc/core, @atc/protocol, @atc/config, @atc/store."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/lifecycle/**/*.test.ts", "packages/lifecycle/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/lifecycle may depend only on @atc/core, @atc/protocol, @atc/config, @atc/store."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/daemon/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/daemon/**/*.test.ts", "packages/daemon/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/daemon may depend only on @atc/core, @atc/protocol, @atc/plugin-api, @atc/config, @atc/store, @atc/lifecycle."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/harnesses/claude/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/harnesses/claude/**/*.test.ts",
+        "packages/harnesses/claude/**/testing/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/harnesses/codex/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/harness-codex may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/harnesses/codex/**/*.test.ts",
+        "packages/harnesses/codex/**/testing/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/harness-codex may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/harnesses/grok/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/harness-grok may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/harnesses/grok/**/*.test.ts",
+        "packages/harnesses/grok/**/testing/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/harness-grok may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/local/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/execution-local may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/execution/local/**/*.test.ts",
+        "packages/execution/local/**/testing/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/execution-local may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/imp/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/imp/**/*.test.ts", "packages/execution/imp/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/sources/dirs/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/source-dirs may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/sources/dirs/**/*.test.ts", "packages/sources/dirs/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/source-dirs may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/sources/github/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/source-github may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/sources/github/**/*.test.ts",
+        "packages/sources/github/**/testing/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/source-github may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/sources/git/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/source-git may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/sources/git/**/*.test.ts", "packages/sources/git/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/source-git may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/tui/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/tui may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/tui/**/*.test.ts", "packages/tui/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "@atc/daemon",
+                "message": "A test in @atc/tui may use @atc/daemon/testing, never the daemon itself."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/tui may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/mcp/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/mcp may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/mcp/**/*.test.ts", "packages/mcp/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "@atc/daemon",
+                "message": "A test in @atc/mcp may use @atc/daemon/testing, never the daemon itself."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|gateway|reporters|app)(/|$)",
+                "message": "@atc/mcp may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/gateway/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|reporters|test-utils|app)(/|$)",
+                "message": "@atc/gateway may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/gateway/**/*.test.ts", "packages/gateway/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "@atc/daemon",
+                "message": "A test in @atc/gateway may use @atc/daemon/testing, never the daemon itself."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|reporters|app)(/|$)",
+                "message": "@atc/gateway may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/reporters/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|test-utils|app)(/|$)",
+                "message": "@atc/reporters may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/reporters/**/*.test.ts", "packages/reporters/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "@atc/daemon",
+                "message": "A test in @atc/reporters may use @atc/daemon/testing, never the daemon itself."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(plugin-api|store|lifecycle|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|app)(/|$)",
+                "message": "@atc/reporters may depend only on @atc/core, @atc/protocol, @atc/config."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/test-utils/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/test-utils/**/*.test.ts", "packages/test-utils/**/testing/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/app/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/app/**/*.test.ts",
+        "packages/app/**/testing/**/*.ts",
+        "packages/app/src/test-utils/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/imp/src/testing/create-stub-imp-port.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/test-utils/src/start-tui-harness.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/test-utils/src/create-stub-composer.test.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|app)(/|$)",
+                "message": "@atc/test-utils may depend only on @atc/core, @atc/protocol, @atc/config, @atc/plugin-api."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e2e/**/*.ts", "scripts/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to @atc/execution-local, @atc/app."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to @atc/execution-imp, @atc/app."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "No file imports proper-lockfile."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

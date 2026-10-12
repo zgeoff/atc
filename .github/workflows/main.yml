@@ -43,6 +43,15 @@ jobs:
       - name: Import Direction
         run: bun run check:imports
 
+      - name: Package Manifests
+        run: bun run check:manifests
+
+      - name: Gateway Reach
+        run: bun run check:reach
+
+      - name: Import Rule Disables
+        run: bun run check:disable-baseline
+
       - name: Format
         run: bun run format:check
 
