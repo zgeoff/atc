@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config/config';
+import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
+import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
+import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { ClaudeAdapter } from '../agents/claude-adapter';
 import { CodexAdapter } from '../agents/codex-adapter';
-import { GatewayAdapter } from '../agents/gateway-adapter';
 import { GrokAdapter } from '../agents/grok-adapter';
-import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { buildAgentList } from './build-agent-list';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import { encodeCursor } from '@atc/protocol/encode-cursor';
 import { decodeMessage } from '@atc/protocol/protocol';
 import type { EventMsg } from '@atc/protocol/protocol';
@@ -20,7 +21,6 @@ import { startStubTap } from '@atc/test-utils/start-stub-tap';
 import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { ClaudeAdapter } from '../agents/claude-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {

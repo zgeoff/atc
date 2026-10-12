@@ -8,9 +8,9 @@ import {
   socketPath,
 } from '@atc/config/config';
 import { resolveHomeDir } from '@atc/config/resolve-home-dir';
+import { startClaudeHeadlessRun } from '@atc/harness-claude/headless/start-claude-headless-run';
 import type { SourceProvider } from '@atc/plugin-api/types';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { startClaudeHeadlessRun } from '../agents/start-claude-headless-run';
 import { buildHostServices } from '../build-host-services';
 import { buildExecutionTargets } from '../daemon/build-execution-targets';
 import { startDaemon } from '../daemon/daemon';

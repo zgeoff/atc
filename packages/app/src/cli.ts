@@ -578,7 +578,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const daemon = await import('./daemon/daemon');
   const config = await import('@atc/config/config');
   const adapterBuilder = await import('./agents/build-agent-adapters');
-  const headless = await import('./agents/start-claude-headless-run');
+  const headless = await import('@atc/harness-claude/headless/start-claude-headless-run');
   const targets = await import('./daemon/build-execution-targets');
   const sourceOrder = await import('./sources/build-sources');
   const builtinSources = await import('./sources/collect-builtin-sources');

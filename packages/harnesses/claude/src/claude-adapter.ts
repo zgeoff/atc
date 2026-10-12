@@ -15,6 +15,31 @@ import type { SessionID } from '@atc/core/session-id';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
 import { truncateDetail } from '@atc/core/truncate-detail';
+import { buildATCBridgeFiles } from '@atc/harness-claude/bridge/build-atc-bridge-files';
+import { writeATCBridge } from '@atc/harness-claude/bridge/write-atc-bridge';
+import { buildClaudeOverrideArgs } from '@atc/harness-claude/build-claude-override-args';
+import { buildHookSettings } from '@atc/harness-claude/build-hook-settings';
+import type { HookSettingsProfile } from '@atc/harness-claude/build-hook-settings';
+import { buildRestoreModeArgs } from '@atc/harness-claude/build-restore-mode-args';
+import { buildScratchLaunch } from '@atc/harness-claude/build-scratch-launch';
+import type { ClaudeAdapterOptions } from '@atc/harness-claude/claude-adapter-options';
+import { CLAUDE_EFFORT_LEVELS } from '@atc/harness-claude/claude-effort-levels';
+import { createLocalScratchDir } from '@atc/harness-claude/create-local-scratch-dir';
+import { findClaudePermissionMode } from '@atc/harness-claude/find-claude-permission-mode';
+import { buildClaudeConfigSeed } from '@atc/harness-claude/guest/build-claude-config-seed';
+import { buildClaudeGuestLaunch } from '@atc/harness-claude/guest/build-claude-guest-launch';
+import { buildClaudeMCPConfig } from '@atc/harness-claude/guest/build-claude-mcp-config';
+import { buildClaudeProjectSettingsCheck } from '@atc/harness-claude/guest/build-claude-project-settings-check';
+import { CLAUDE_CONFIG_BUNDLE_FOLDER } from '@atc/harness-claude/guest/claude-config-bundle-folder';
+import { loadClaudeConfigBundle } from '@atc/harness-claude/guest/load-claude-config-bundle';
+import { makeClaudeHeadlessRunner } from '@atc/harness-claude/headless/make-claude-headless-runner';
+import { resolveClaudeGlobalConfigPath } from '@atc/harness-claude/local-trust/resolve-claude-global-config-path';
+import { updateClaudeProjectTrust } from '@atc/harness-claude/local-trust/update-claude-project-trust';
+import { parseClaudeTranscriptLine } from '@atc/harness-claude/parse-claude-transcript-line';
+import { planClaudeLineInput } from '@atc/harness-claude/plan-claude-line-input';
+import { resolveClaudePermissionMode } from '@atc/harness-claude/resolve-claude-permission-mode';
+import { SESSION_SCRATCH_FOLDER } from '@atc/harness-claude/session-scratch-folder';
+import { writeHookSettings } from '@atc/harness-claude/write-hook-settings';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -37,31 +62,6 @@ import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { z } from 'zod';
-import { buildATCBridgeFiles } from './build-atc-bridge-files';
-import { buildClaudeConfigSeed } from './build-claude-config-seed';
-import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
-import { buildClaudeMCPConfig } from './build-claude-mcp-config';
-import { buildClaudeOverrideArgs } from './build-claude-override-args';
-import { buildClaudeProjectSettingsCheck } from './build-claude-project-settings-check';
-import { buildHookSettings } from './build-hook-settings';
-import type { HookSettingsProfile } from './build-hook-settings';
-import { buildRestoreModeArgs } from './build-restore-mode-args';
-import { buildScratchLaunch } from './build-scratch-launch';
-import type { ClaudeAdapterOptions } from './claude-adapter-options';
-import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
-import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
-import { createLocalScratchDir } from './create-local-scratch-dir';
-import { findClaudePermissionMode } from './find-claude-permission-mode';
-import { loadClaudeConfigBundle } from './load-claude-config-bundle';
-import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
-import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
-import { planClaudeLineInput } from './plan-claude-line-input';
-import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
-import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
-import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
-import { updateClaudeProjectTrust } from './update-claude-project-trust';
-import { writeATCBridge } from './write-atc-bridge';
-import { writeHookSettings } from './write-hook-settings';
 
 // Claude's hook payload keys, snake_case. An absent or wrong-typed field
 // parses to undefined rather than failing the payload, so a broken reporter

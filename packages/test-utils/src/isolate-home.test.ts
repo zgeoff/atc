@@ -267,7 +267,7 @@ test("it writes a gateway's generated settings file inside the run's own home", 
     `import { expect, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'gateway-adapter')}';
+import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'gateway', 'gateway-adapter')}';
 import { parseConfig, stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
 
 test('it writes the settings file under the home', () => {
@@ -310,7 +310,7 @@ test("it writes the atc-bridge mod inside the run's own home by default", async 
     `import { expect, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { writeATCBridge } from '${join(ctx.repo, 'packages', 'app', 'src', 'agents', 'write-atc-bridge')}';
+import { writeATCBridge } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'bridge', 'write-atc-bridge')}';
 
 test('it writes the mod under the home', () => {
   const dir = writeATCBridge(['atc']);

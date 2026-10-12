@@ -1,8 +1,8 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import { socketPath } from '@atc/config/config';
 import type { HeadlessRunRequest } from '@atc/plugin-api/agent-adapter';
+import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
 import { buildHeadlessEnv } from './build-headless-env';
-import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 /**

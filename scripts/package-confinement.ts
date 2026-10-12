@@ -52,6 +52,6 @@ export const PACKAGE_CONFINEMENT: readonly Confinement[] = [
     specifier: 'proper-lockfile',
     owners: [],
     inTests: true,
-    exceptions: ['packages/app/src/agents/with-claude-config-lock.test.ts'],
+    exceptions: ['packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts'],
   },
 ];

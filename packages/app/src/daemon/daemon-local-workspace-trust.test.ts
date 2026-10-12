@@ -3,15 +3,15 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
+import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
+import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { ClaudeAdapter } from '../agents/claude-adapter';
-import { GatewayAdapter } from '../agents/gateway-adapter';
 import { buildStubPTYProvider } from '../test-utils/build-stub-pty-provider';
-import { getGatewayConfig } from '../test-utils/get-gateway-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { LocalPTYProvider } from './local-pty-provider';
 

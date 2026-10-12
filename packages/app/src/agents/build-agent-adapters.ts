@@ -1,12 +1,12 @@
 import type { Config } from '@atc/config/config';
+import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
+import type { ClaudeHostPaths } from '@atc/harness-claude/claude-host-paths';
+import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
+import type { ClaudeHeadlessRun } from '@atc/harness-claude/headless/make-claude-headless-runner';
 import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import type { HostServices } from '@atc/plugin-api/host-services';
-import { ClaudeAdapter } from './claude-adapter';
-import type { ClaudeHostPaths } from './claude-host-paths';
 import { CodexAdapter } from './codex-adapter';
-import { GatewayAdapter } from './gateway-adapter';
 import { GrokAdapter } from './grok-adapter';
-import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 
 /**
  * Where the Claude and gateway adapters write their settings file and their

@@ -58,7 +58,7 @@
   "type": "module",
   "scripts": {
     "start": "bun packages/app/src/cli.ts",
-    "build:atc-bridge": "bun scripts/build-atc-bridge.ts && oxfmt packages/app/src/agents/atc-bridge-files.ts && format-codemod --quiet packages/app/src/agents/atc-bridge-files.ts",
+    "build:atc-bridge": "bun scripts/build-atc-bridge.ts && oxfmt packages/harnesses/claude/src/bridge/atc-bridge-files.ts && format-codemod --quiet packages/harnesses/claude/src/bridge/atc-bridge-files.ts",
     "build:binaries": "bash scripts/build-binaries.sh",
     "build:import-rules": "bun scripts/build-import-rules.ts && oxfmt .oxlintrc.imports.json",
     "audit": "bun audit",

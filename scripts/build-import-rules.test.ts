@@ -153,7 +153,7 @@ test.each([
   ],
   [
     'proper-lockfile in the Claude config lock itself',
-    'packages/app/src/agents/with-claude-config-lock.ts',
+    'packages/harnesses/claude/src/local-trust/with-claude-config-lock.ts',
     'proper-lockfile',
     'No file imports proper-lockfile.',
   ],
@@ -205,7 +205,7 @@ test.each([
   ['bun-pty in a listed exception', 'packages/test-utils/src/start-tui-harness.ts', 'bun-pty'],
   [
     'proper-lockfile in the Claude config lock test',
-    'packages/app/src/agents/with-claude-config-lock.test.ts',
+    'packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts',
     'proper-lockfile',
   ],
   ['bun:sqlite in an e2e journey', 'e2e/a.test.ts', 'bun:sqlite'],

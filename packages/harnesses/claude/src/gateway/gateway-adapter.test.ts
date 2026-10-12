@@ -4,15 +4,15 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ATC_BRIDGE_FILES } from '@atc/harness-claude/bridge/atc-bridge-files';
+import { buildMockGatewayConfig } from '@atc/harness-claude/testing/build-mock-gateway-config';
+import { buildStubClaudeHeadlessRun } from '@atc/harness-claude/testing/build-stub-claude-headless-run';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { KEYS } from '@atc/test-utils/keys';
 import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/test-utils/update-env';
 import invariant from 'tiny-invariant';
-import { buildMockGatewayConfig } from '../test-utils/build-mock-gateway-config';
-import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
-import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { GatewayAdapter } from './gateway-adapter';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, or a

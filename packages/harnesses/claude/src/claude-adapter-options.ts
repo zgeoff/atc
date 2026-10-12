@@ -1,5 +1,5 @@
 import type { ClaudeHostPaths } from './claude-host-paths';
-import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
+import type { ClaudeHeadlessRun } from './headless/make-claude-headless-runner';
 
 /**
  * What a Claude-family adapter takes besides its entry and the host: the

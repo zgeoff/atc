@@ -2,12 +2,12 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
+import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from './build-agent-adapters';
-import { ClaudeAdapter } from './claude-adapter';
-import { GatewayAdapter } from './gateway-adapter';
 
 function setupTest() {
   const tmp = setupTempDir('agent-adapters-');

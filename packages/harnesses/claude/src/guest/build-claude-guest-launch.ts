@@ -1,7 +1,7 @@
 import type { SpawnPlan } from '@atc/plugin-api/agent-adapter';
+import { SESSION_SCRATCH_FOLDER } from '../session-scratch-folder';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
-import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
 
 /**
  * The launch of a Claude CLI that runs in a remote host with a config

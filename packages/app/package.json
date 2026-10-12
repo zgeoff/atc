@@ -5,16 +5,15 @@
   "description": "The atc and atc-gateway entrypoints and the modules they wire together",
   "type": "module",
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
+    "@atc/harness-claude": "workspace:*",
     "@atc/lifecycle": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atc/store": "workspace:*",
     "@better-auth/mcp": "catalog:",
     "@better-auth/oauth-provider": "catalog:",
-    "@modelcontextprotocol/sdk": "catalog:",
     "@xterm/addon-serialize": "catalog:",
     "@xterm/headless": "catalog:",
     "@zgeoff/imp-client": "catalog:",
@@ -30,8 +29,6 @@
   "devDependencies": {
     "@atc/test-utils": "workspace:*",
     "@faker-js/faker": "catalog:",
-    "@types/proper-lockfile": "catalog:",
-    "proper-lockfile": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }
