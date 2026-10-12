@@ -1,7 +1,7 @@
-// Checks the import graph under src/: no cycles (type-only imports count),
-// each directory imports only the directories its row allows, and the
-// packages that belong to one owner are imported nowhere else. Modules at the
-// src/ root have a row of their own. The composition root may import any
+// Checks the import graph under the app's source root, packages/app/src/: no
+// cycles (type-only imports count), each directory imports only the
+// directories its row allows, and the packages that belong to one owner are
+// imported nowhere else. Modules at the source root have a row of their own. The composition root may import any
 // directory, and test files are exempt from the direction rules. An import
 // or module reference whose specifier is not a literal is a finding, since no
 // rule can check it. Imports are read from the TypeScript scanner's tokens, so
@@ -17,7 +17,7 @@ import { SyntaxKind, createScanner, tokenIsIdentifierOrKeyword } from 'typescrip
 
 function main(): void {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
-  const files = collectSourceFiles(root, 'src');
+  const files = collectSourceFiles(root, SOURCE_ROOT);
 
   const known = new Set(files);
   const graph = new Map<string, string[]>();
@@ -76,7 +76,12 @@ function main(): void {
   }
 }
 
-// The directories outside src/ whose modules the confinement rule covers.
+// The app's source root, relative to the repo root that paths in findings
+// and rules start from.
+const SOURCE_ROOT = 'packages/app/src';
+
+// The directories outside the source root whose modules the confinement rule
+// covers.
 const OUTSIDE_DIRS = ['e2e', 'scripts', 'mods'];
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
 
@@ -394,16 +399,16 @@ const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
   // composer's raw-mode reads need a real terminal to run in, and the
   // environment probe reports the version it ran against
   'bun-pty': [
-    'src/daemon/local-pty-provider.ts',
-    'src/test-utils/create-stub-imp-port.ts',
-    'src/test-utils/start-tui-harness.ts',
-    'src/test-utils/create-stub-composer.test.ts',
+    'packages/app/src/daemon/local-pty-provider.ts',
+    'packages/app/src/test-utils/create-stub-imp-port.ts',
+    'packages/app/src/test-utils/start-tui-harness.ts',
+    'packages/app/src/test-utils/create-stub-composer.test.ts',
     'scripts/probe-pty-env.ts',
   ],
-  '@zgeoff/imp-client': ['src/daemon/imp-client-port.ts'],
+  '@zgeoff/imp-client': ['packages/app/src/daemon/imp-client-port.ts'],
   '@anthropic-ai/claude-agent-sdk': [
-    'src/agents/build-claude-query-options.ts',
-    'src/agents/start-claude-headless-run.ts',
+    'packages/app/src/agents/build-claude-query-options.ts',
+    'packages/app/src/agents/start-claude-headless-run.ts',
   ],
 };
 
@@ -425,7 +430,10 @@ function checkConfinement(file: string, specifier: string): string[] {
 
 // The entrypoints that wire concrete modules together, exempt from the
 // direction rules.
-const COMPOSITION_ROOTS: ReadonlySet<string> = new Set(['src/cli.ts', 'src/gateway.ts']);
+const COMPOSITION_ROOTS: ReadonlySet<string> = new Set([
+  'packages/app/src/cli.ts',
+  'packages/app/src/gateway.ts',
+]);
 
 const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   shared: [],
@@ -439,7 +447,7 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   mcp: ['shared', 'protocol'],
   federation: ['shared', 'protocol'],
 
-  // modules at the src/ root: the subcommand modules beside the entrypoints
+  // modules at the source root: the subcommand modules beside the entrypoints
   root: ['shared', 'protocol', 'agents', 'client', 'mcp', 'federation'],
 
   // the shared test helpers wire real modules together the way a test does,
@@ -470,7 +478,7 @@ function checkDirection(file: string, targets: readonly string[]): string[] {
   const allowed = ALLOWED_IMPORTS[from];
 
   if (allowed === undefined) {
-    return [`unknown directory: ${file} is in src/${from}/, which has no import rule`];
+    return [`unknown directory: ${file} is in ${SOURCE_ROOT}/${from}/, which has no import rule`];
   }
 
   const findings: string[] = [];
@@ -487,27 +495,28 @@ function checkDirection(file: string, targets: readonly string[]): string[] {
 }
 
 /**
- * The first directory under src/, or `root` for a module at the src/ root.
+ * The first directory under the source root, or `root` for a module at the
+ * source root.
  */
 function getLayer(file: string): string {
-  const parts = file.split('/');
+  const parts = relative(SOURCE_ROOT, file).split('/');
 
-  return parts.length > 2 ? (parts[1] ?? 'root') : 'root';
+  return parts.length > 1 ? (parts[0] ?? 'root') : 'root';
 }
 
 // The entrypoints whose binary must never run a daemon or a session on its
 // own machine, and the path prefixes nothing they import may reach, however
 // indirectly.
 const UNREACHABLE: Readonly<Record<string, readonly string[]>> = {
-  'src/gateway.ts': [
-    'src/cli.ts',
-    'src/daemon/',
-    'src/agents/',
-    'src/store/',
-    'src/workspace/',
-    'src/sources/',
-    'src/client/boot-daemon.ts',
-    'src/client/index.ts',
+  'packages/app/src/gateway.ts': [
+    'packages/app/src/cli.ts',
+    'packages/app/src/daemon/',
+    'packages/app/src/agents/',
+    'packages/app/src/store/',
+    'packages/app/src/workspace/',
+    'packages/app/src/sources/',
+    'packages/app/src/client/boot-daemon.ts',
+    'packages/app/src/client/index.ts',
   ],
 };
 

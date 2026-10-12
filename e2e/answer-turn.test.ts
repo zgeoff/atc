@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { runATC } from '../src/test-utils/run-atc';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startStubReporterSocket } from '../src/test-utils/start-stub-reporter-socket';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { runATC } from '../packages/app/src/test-utils/run-atc';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startStubReporterSocket } from '../packages/app/src/test-utils/start-stub-reporter-socket';
 
 /**
  * A home with a stub of the daemon's reporter socket in it, for the report

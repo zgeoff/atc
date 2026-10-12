@@ -2,23 +2,23 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { findDaemonRecord } from '../src/shared/find-daemon-record';
-import { isRecord } from '../src/shared/report';
-import { toAgentID } from '../src/shared/to-agent-id';
-import { toSessionID } from '../src/shared/to-session-id';
-import { StateStore } from '../src/store/state-store';
-import { buildMockFleetEntry } from '../src/test-utils/build-mock-fleet-entry';
-import { createStubClaude } from '../src/test-utils/create-stub-claude';
-import { createStubComposer } from '../src/test-utils/create-stub-composer';
-import { createStubSystemd } from '../src/test-utils/create-stub-systemd';
-import { getRecords } from '../src/test-utils/get-records';
-import { getString } from '../src/test-utils/get-string';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { runATC } from '../src/test-utils/run-atc';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
-import { waitFor } from '../src/test-utils/wait-for';
+import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
+import { isRecord } from '../packages/app/src/shared/report';
+import { toAgentID } from '../packages/app/src/shared/to-agent-id';
+import { toSessionID } from '../packages/app/src/shared/to-session-id';
+import { StateStore } from '../packages/app/src/store/state-store';
+import { buildMockFleetEntry } from '../packages/app/src/test-utils/build-mock-fleet-entry';
+import { createStubClaude } from '../packages/app/src/test-utils/create-stub-claude';
+import { createStubComposer } from '../packages/app/src/test-utils/create-stub-composer';
+import { createStubSystemd } from '../packages/app/src/test-utils/create-stub-systemd';
+import { getRecords } from '../packages/app/src/test-utils/get-records';
+import { getString } from '../packages/app/src/test-utils/get-string';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { runATC } from '../packages/app/src/test-utils/run-atc';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 /**
  * A home with a stub Claude CLI and an empty config directory, and a fake
@@ -554,7 +554,15 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'src', 'test-utils', 'run-stub-legacy-daemon.ts'),
+      join(
+        import.meta.dir,
+        '..',
+        'packages',
+        'app',
+        'src',
+        'test-utils',
+        'run-stub-legacy-daemon.ts',
+      ),
       daemon.socketPath,
       daemon.stateDir,
     ],

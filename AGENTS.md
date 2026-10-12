@@ -73,27 +73,30 @@ cover it too.
 
 ## Layout
 
-Single package, no workspaces. `src/` groups its modules by concern, each still one primary export
+A Bun workspace whose root package is private and holds the repo tooling. Every workspace package
+sits under `packages/`, is private, is named `@atc/<name>`, and takes each external dependency from
+the root catalog (`workspaces.catalog`). `packages/app` holds the app: both entrypoints and every
+module they wire together. Its `src/` groups its modules by concern, each still one primary export
 per file: `daemon/` owns the fleet and per-session runtime state; `client/` is the TUI and its
 connection to the daemon; `agents/` holds the `AgentAdapter` interface and the Claude, Grok, Codex,
 and gateway implementations; `store/` is the SQLite state store and its migrations; `workspace/`
 resolves a spawn's workspace source and clones, sanitizes, and archives it; `sources/` holds the
 spawn picker's discovery sources, the directories, GitHub, and git URL sources the daemon offers;
 `protocol/` is the wire format, the transport it rides, and the types both ends of it share;
-`shared/` holds id types, config, and other utilities used across the rest of `src/`. `cli.ts` is
-the CLI entrypoint, and `gateway.ts` is the entrypoint of the separate `atc-gateway` binary, which
-must never reach `daemon/`, `agents/`, or any module that starts a daemon. A module that exists only
-to back one of its subcommands stays beside it at `src/` root, while the `tui` and `daemon`
-subcommands load their subsystems from `client/` and `daemon/`. `bun run check:imports` fails on an
-import cycle and on an import a directory's rule forbids; the rules live in
-`scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and request handling that
-`mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
+`shared/` holds id types, config, and other utilities used across the rest of the app's `src/`.
+`cli.ts` is the CLI entrypoint, and `gateway.ts` is the entrypoint of the separate `atc-gateway`
+binary, which must never reach `daemon/`, `agents/`, or any module that starts a daemon. A module
+that exists only to back one of its subcommands stays beside it at the app's `src/` root, while the
+`tui` and `daemon` subcommands load their subsystems from `client/` and `daemon/`.
+`bun run check:imports` fails on an import cycle and on an import a directory's rule forbids; the
+rules live in `scripts/check-imports.ts`. `mcp/` holds the MCP tool definitions and request handling
+that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
 authorization server and its pages. `federation/` holds the gateway's daemon registry, per-daemon
 callers, and id and cursor rewriting, and imports only `shared/` and `protocol/`. `test-utils/`
 holds the shared test helpers, stand-ins, and factories, each with its test beside it, and no
 production module imports it. `e2e/` at the repo root holds the end-to-end suites that run the whole
-program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude Code mod.
-`scripts/` holds repo tooling, not app code.
+program, and `bin/atc` is the dev shim that runs the app's CLI entrypoint from a checkout. `mods/`
+holds the `atc-bridge` Claude Code mod. `scripts/` holds repo tooling, not app code.
 
 ## Runtime rules
 
@@ -104,15 +107,15 @@ program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude
   `\u001B` escapes, never raw bytes and never `\x1b`.
 - Everything the hooks and CI run is a root `package.json` script; invoke gates by script name,
   never by re-spelling the underlying command.
-- Releases ship compiled binaries (`bun build --compile`) next to the source package. Code that
-  needs a file outside the bundle at runtime (a package's native binary, the source tree) checks
-  `isCompiledBinary()` and takes the path that works without `node_modules`; the daemon suite runs
-  through each binary in CI with `ATC_BIN`, so that branch is tested.
+- Releases ship only compiled binaries (`bun build --compile`). Code that needs a file outside the
+  bundle at runtime (a package's native binary, the source tree) checks `isCompiledBinary()` and
+  takes the path that works without `node_modules`; the daemon suite runs through each binary in CI
+  with `ATC_BIN`, so that branch is tested.
 - The live install on a machine runs an installed release: the global MCP server entry, every
   service unit, and every long-running `atc` process start `~/.local/bin/atc` (or the release's
-  install path), never `bun src/cli.ts` from a checkout. A pull or branch switch in a checkout then
-  never changes the protocol a live client speaks. Run source builds against a daemon of their own,
-  in a state directory of their own.
+  install path), never `bun packages/app/src/cli.ts` from a checkout. A pull or branch switch in a
+  checkout then never changes the protocol a live client speaks. Run source builds against a daemon
+  of their own, in a state directory of their own.
 
 ## Agent integration contract
 
@@ -128,12 +131,13 @@ program, `bin/atc` is the executable shim. `mods/` holds the `atc-bridge` Claude
   `--add-dir` and as `TMPDIR`. Stock Claude's folder also takes an allow-listed copy of the daemon
   host's own Claude config at each launch; atc reads that config and never writes it.
 - The `atc-bridge` mod's source lives in `mods/atc-bridge/`. `bun run build:atc-bridge` regenerates
-  its embedded copy in `src/agents/atc-bridge-files.ts`, which compiled binaries write out. The mods
-  API is early access, so CI validates and tests the mod against one pinned Claude Code version.
-  Never write into the user's own agent config (Claude, Grok, or any future agent); instrumentation
-  an agent cannot take per-invocation is a documented self-install step. One exception: a local
-  launch that opts into clone trust adds one folder-trust entry for its verified clone root to the
-  user's Claude config, under Claude's own lock, since Claude takes trust no other way.
+  its embedded copy in `packages/app/src/agents/atc-bridge-files.ts`, which compiled binaries write
+  out. The mods API is early access, so CI validates and tests the mod against one pinned Claude
+  Code version. Never write into the user's own agent config (Claude, Grok, or any future agent);
+  instrumentation an agent cannot take per-invocation is a documented self-install step. One
+  exception: a local launch that opts into clone trust adds one folder-trust entry for its verified
+  clone root to the user's Claude config, under Claude's own lock, since Claude takes trust no other
+  way.
 - The config's `agents` map is the registry: one adapter per entry, keyed by the entry's id, so
   several entries of one kind coexist. A Claude-compatible backend is an entry with a `baseURL`, not
   a new adapter class per vendor: it gets its own agent id, its own generated settings file, and its

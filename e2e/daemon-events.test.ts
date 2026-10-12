@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getRecord } from '../src/shared/get-record';
-import { createStubClaude } from '../src/test-utils/create-stub-claude';
-import { createStubComposer } from '../src/test-utils/create-stub-composer';
-import { getRecords } from '../src/test-utils/get-records';
-import { getString } from '../src/test-utils/get-string';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
-import { waitFor } from '../src/test-utils/wait-for';
+import { getRecord } from '../packages/app/src/shared/get-record';
+import { createStubClaude } from '../packages/app/src/test-utils/create-stub-claude';
+import { createStubComposer } from '../packages/app/src/test-utils/create-stub-composer';
+import { getRecords } from '../packages/app/src/test-utils/get-records';
+import { getString } from '../packages/app/src/test-utils/get-string';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 /**
  * A home with a stub Claude CLI and an empty config directory, for the

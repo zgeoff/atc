@@ -2,12 +2,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { findDaemonRecord } from '../src/shared/find-daemon-record';
-import { getString } from '../src/test-utils/get-string';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { runATC } from '../src/test-utils/run-atc';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
+import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
+import { getString } from '../packages/app/src/test-utils/get-string';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { runATC } from '../packages/app/src/test-utils/run-atc';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**
  * A fresh home for the daemons and atc commands a test starts; a daemon

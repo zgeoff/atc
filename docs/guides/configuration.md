@@ -1215,5 +1215,5 @@ client whose environment lacks that variable.
 atc takes its environment from the process that starts it: a shell, a systemd unit, or an MCP client
 entry. A release binary never reads a `.env` file, so a `~/.env` line does not reach the daemon or
 the sessions it starts. A variable that the starting process exports reaches atc, a stale one
-included. Run from source with `bun src/cli.ts`, atc follows Bun's runtime default and loads a
-`.env` file from its working directory.
+included. Run from source with `bun packages/app/src/cli.ts`, atc follows Bun's runtime default and
+loads a `.env` file from its working directory.

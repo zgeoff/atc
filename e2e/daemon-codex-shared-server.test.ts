@@ -2,15 +2,15 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getRecord } from '../src/shared/get-record';
-import { createStubComposer } from '../src/test-utils/create-stub-composer';
-import { createStubSharedServerCodex } from '../src/test-utils/create-stub-shared-server-codex';
-import { getString } from '../src/test-utils/get-string';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
-import { waitFor } from '../src/test-utils/wait-for';
+import { getRecord } from '../packages/app/src/shared/get-record';
+import { createStubComposer } from '../packages/app/src/test-utils/create-stub-composer';
+import { createStubSharedServerCodex } from '../packages/app/src/test-utils/create-stub-shared-server-codex';
+import { getString } from '../packages/app/src/test-utils/get-string';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 /**
  * A home with a stub Codex CLI whose terminals share one background server,

@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemon } from '../src/daemon/daemon';
-import { getBuild } from '../src/shared/get-build';
-import { buildMockAgentAdapter } from '../src/test-utils/build-mock-agent-adapter';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { startStubLegacyDaemon } from '../src/test-utils/start-stub-legacy-daemon';
-import { startTUIHarness } from '../src/test-utils/start-tui-harness';
-import { waitFor } from '../src/test-utils/wait-for';
+import { startDaemon } from '../packages/app/src/daemon/daemon';
+import { getBuild } from '../packages/app/src/shared/get-build';
+import { buildMockAgentAdapter } from '../packages/app/src/test-utils/build-mock-agent-adapter';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { startStubLegacyDaemon } from '../packages/app/src/test-utils/start-stub-legacy-daemon';
+import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 function setupTest() {
   return startTUIHarness();

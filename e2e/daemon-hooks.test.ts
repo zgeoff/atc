@@ -2,20 +2,20 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { EventMsg } from '../src/protocol/protocol';
-import { getRecord } from '../src/shared/get-record';
-import { createStubClaude } from '../src/test-utils/create-stub-claude';
-import { createStubCodex } from '../src/test-utils/create-stub-codex';
-import { createStubComposer } from '../src/test-utils/create-stub-composer';
-import { createStubGrok } from '../src/test-utils/create-stub-grok';
-import { getString } from '../src/test-utils/get-string';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { runATC } from '../src/test-utils/run-atc';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { startDaemonProcess } from '../src/test-utils/start-daemon-process';
-import { waitFor } from '../src/test-utils/wait-for';
-import { waitForEvent } from '../src/test-utils/wait-for-event';
+import type { EventMsg } from '../packages/app/src/protocol/protocol';
+import { getRecord } from '../packages/app/src/shared/get-record';
+import { createStubClaude } from '../packages/app/src/test-utils/create-stub-claude';
+import { createStubCodex } from '../packages/app/src/test-utils/create-stub-codex';
+import { createStubComposer } from '../packages/app/src/test-utils/create-stub-composer';
+import { createStubGrok } from '../packages/app/src/test-utils/create-stub-grok';
+import { getString } from '../packages/app/src/test-utils/get-string';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { runATC } from '../packages/app/src/test-utils/run-atc';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
+import { waitForEvent } from '../packages/app/src/test-utils/wait-for-event';
 
 /**
  * A home with stub Claude, Grok, and Codex CLIs for the `atc daemon` that

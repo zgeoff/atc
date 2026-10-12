@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { resolveGatewayCommand } from '../src/test-utils/resolve-gateway-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { resolveGatewayCommand } from '../packages/app/src/test-utils/resolve-gateway-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 
 /**
  * A temp directory to run the gateway in, so a relative path lands there,

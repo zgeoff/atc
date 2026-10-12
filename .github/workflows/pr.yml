@@ -152,7 +152,7 @@ jobs:
       - name: Check Embedded Mod Drift
         run: |
           bun run build:atc-bridge
-          git diff --exit-code src/agents/atc-bridge-files.ts
+          git diff --exit-code packages/app/src/agents/atc-bridge-files.ts
 
       - name: Test Mod
         run: bun run test:atc-bridge

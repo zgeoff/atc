@@ -55,7 +55,7 @@ jq --arg root "$ROOT" --arg clone "$DEMO/home/projects/atc" \
   '.projects[$clone] = ((.projects[$root] // {}) + { hasTrustDialogAccepted: true, hasClaudeMdExternalIncludesApproved: true })' \
   "$REAL_HOME/.claude.json" > "$DEMO/home/.claude.json"
 printf '{ "leader": "ctrl-space" }\n' > "$DEMO/home/.config/atc/config.json"
-printf '#!/bin/sh\nexec bun "%s/src/cli.ts" "$@"\n' "$ROOT" > "$DEMO/home/bin/atc"
+printf '#!/bin/sh\nexec bun "%s/packages/app/src/cli.ts" "$@"\n' "$ROOT" > "$DEMO/home/bin/atc"
 chmod +x "$DEMO/home/bin/atc"
 
 export HOME="$DEMO/home"

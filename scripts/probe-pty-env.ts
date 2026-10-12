@@ -10,9 +10,9 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { arch, release, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LocalPTYProvider } from '../src/daemon/local-pty-provider';
-import { collectCleanEnv } from '../src/shared/collect-clean-env';
-import { isRecord } from '../src/shared/report';
+import { LocalPTYProvider } from '../packages/app/src/daemon/local-pty-provider';
+import { collectCleanEnv } from '../packages/app/src/shared/collect-clean-env';
+import { isRecord } from '../packages/app/src/shared/report';
 
 const INNER_FLAG = '--inner';
 
@@ -199,8 +199,9 @@ async function runInnerProbe(): Promise<void> {
     ),
   );
 
+  // the app package owns bun-pty, so its version resolves from there
   const pkg: unknown = await Bun.file(
-    Bun.resolveSync('bun-pty/package.json', import.meta.dir),
+    Bun.resolveSync('bun-pty/package.json', join(import.meta.dir, '..', 'packages', 'app')),
   ).json();
 
   const report: InnerReport = {

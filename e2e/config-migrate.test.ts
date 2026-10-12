@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import invariant from 'tiny-invariant';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { runATC } from '../src/test-utils/run-atc';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { runATC } from '../packages/app/src/test-utils/run-atc';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 
 /**
  * A temp directory for the config file under migration, which is also the

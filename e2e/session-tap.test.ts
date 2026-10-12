@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '../src/client/daemon-client';
-import { startDaemon } from '../src/daemon/daemon';
-import type { EventMsg } from '../src/protocol/protocol';
-import { buildMockAgentAdapter } from '../src/test-utils/build-mock-agent-adapter';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '../src/test-utils/resolve-atc-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
-import { spawnNamedSession } from '../src/test-utils/spawn-named-session';
-import { waitFor } from '../src/test-utils/wait-for';
+import { DaemonClient } from '../packages/app/src/client/daemon-client';
+import { startDaemon } from '../packages/app/src/daemon/daemon';
+import type { EventMsg } from '../packages/app/src/protocol/protocol';
+import { buildMockAgentAdapter } from '../packages/app/src/test-utils/build-mock-agent-adapter';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '../packages/app/src/test-utils/resolve-atc-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
+import { spawnNamedSession } from '../packages/app/src/test-utils/spawn-named-session';
+import { waitFor } from '../packages/app/src/test-utils/wait-for';
 
 /**
  * A real daemon listening at the socket path the tap subcommand computes

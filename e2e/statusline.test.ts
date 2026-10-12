@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '../src/test-utils/run-command';
-import { setupTempDir } from '../src/test-utils/setup-temp-dir';
+import { runCommand } from '../packages/app/src/test-utils/run-command';
+import { setupTempDir } from '../packages/app/src/test-utils/setup-temp-dir';
 
 function setupTest() {
   const tmp = setupTempDir('atc-statusline-');
@@ -28,7 +28,11 @@ test('it chains the user statusline and appends the fleet segment', async () => 
   );
 
   const proc = await runCommand(
-    [process.execPath, join(import.meta.dir, '..', 'src', 'cli.ts'), 'statusline'],
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'packages', 'app', 'src', 'cli.ts'),
+      'statusline',
+    ],
     {
       stdin: JSON.stringify({ session_id: 'sl-1' }),
       env: { ...process.env, HOME: ctx.dir, PATH: '/usr/sbin:/usr/bin:/bin' },
@@ -57,7 +61,11 @@ test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_
   );
 
   const proc = await runCommand(
-    [process.execPath, join(import.meta.dir, '..', 'src', 'cli.ts'), 'statusline'],
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'packages', 'app', 'src', 'cli.ts'),
+      'statusline',
+    ],
     {
       stdin: JSON.stringify({ session_id: 'sl-2' }),
       env: {

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '../src/client/daemon-client';
-import { KEYS } from '../src/test-utils/keys';
-import { registerTestCleanup } from '../src/test-utils/register-test-cleanup';
-import { spawnClaudeSession } from '../src/test-utils/spawn-claude-session';
-import { spawnNamedSession } from '../src/test-utils/spawn-named-session';
-import { startTUIHarness } from '../src/test-utils/start-tui-harness';
+import { DaemonClient } from '../packages/app/src/client/daemon-client';
+import { KEYS } from '../packages/app/src/test-utils/keys';
+import { registerTestCleanup } from '../packages/app/src/test-utils/register-test-cleanup';
+import { spawnClaudeSession } from '../packages/app/src/test-utils/spawn-claude-session';
+import { spawnNamedSession } from '../packages/app/src/test-utils/spawn-named-session';
+import { startTUIHarness } from '../packages/app/src/test-utils/start-tui-harness';
 
 function setupTest() {
   return startTUIHarness();
