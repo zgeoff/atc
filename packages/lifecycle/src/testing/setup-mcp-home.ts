@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core/system-clock';
 import { buildStubMCPClaude } from '@atc/test-utils/build-stub-mcp-claude';
 import { buildStubMCPGrok } from '@atc/test-utils/build-stub-mcp-grok';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
@@ -40,7 +41,7 @@ export function setupMCPHome() {
     const pid = findPidFilePID(join(home, 'atc-daemon.pid'));
 
     if (pid !== null) {
-      await stopDaemonProcess(pid);
+      await stopDaemonProcess(pid, systemClock);
     }
 
     await killProcessGroups([...(pid === null ? [] : [pid]), ...readStubPIDs(home)]);

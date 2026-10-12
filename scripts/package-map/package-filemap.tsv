@@ -73,6 +73,8 @@ src/agents/with-claude-config-lock.ts	harness-claude	local-trust	packages/harnes
 src/agents/write-atc-bridge.ts	harness-claude	bridge	packages/harnesses/claude/src/bridge/write-atc-bridge.ts	
 src/agents/write-hook-settings.ts	harness-claude		packages/harnesses/claude/src/write-hook-settings.ts	
 src/build-atc-invocation.ts	app		packages/app/src/build-atc-invocation.ts	new in ticket 8
+src/build-host-daemon-paths.ts	lifecycle		packages/lifecycle/src/build-host-daemon-paths.ts	
+src/build-lifecycle-host.ts	app		packages/app/src/build-lifecycle-host.ts	
 src/build-migrated-config.ts	app	cli/config-migrate	packages/app/src/cli/config-migrate/build-migrated-config.ts	the migrate command's converter; stays beside it in app
 src/build-own-daemon-process.ts	lifecycle		packages/lifecycle/src/build-own-daemon-process.ts	
 src/build-restart-failure.ts	lifecycle		packages/lifecycle/src/build-restart-failure.ts	
@@ -106,6 +108,7 @@ src/client/tui-host-slot.ts	tui		packages/tui/src/tui-host-slot.ts	new in ticket
 src/client/tui-host.ts	tui		packages/tui/src/tui-host.ts	new in ticket 8
 src/client/ui.ts	tui		packages/tui/src/ui.ts	
 src/clients.ts	mcp	entry	packages/mcp/src/entry/clients.ts	
+src/collect-daemon-socket-paths.ts	lifecycle		packages/lifecycle/src/collect-daemon-socket-paths.ts	
 src/collect-redirect-uris.ts	app	cli	packages/app/src/cli/collect-redirect-uris.ts	
 src/collect-restart-env.ts	lifecycle		packages/lifecycle/src/collect-restart-env.ts	
 src/collect-restart-plan.ts	lifecycle		packages/lifecycle/src/collect-restart-plan.ts	
@@ -245,6 +248,7 @@ src/federation/resolve-daemon-request.ts	gateway		packages/gateway/src/resolve-d
 src/federation/routing-caller.ts	gateway		packages/gateway/src/routing-caller.ts	
 src/federation/types.ts	gateway		packages/gateway/src/types.ts	
 src/federation/wait-for-outcome.ts	gateway		packages/gateway/src/wait-for-outcome.ts	
+src/find-daemon-pid.ts	lifecycle		packages/lifecycle/src/find-daemon-pid.ts	
 src/find-restart-unit.ts	lifecycle		packages/lifecycle/src/find-restart-unit.ts	
 src/format-restart-preflight.ts	lifecycle		packages/lifecycle/src/format-restart-preflight.ts	
 src/format-restart-report.ts	lifecycle		packages/lifecycle/src/format-restart-report.ts	
@@ -253,6 +257,7 @@ src/grants.ts	mcp	entry	packages/mcp/src/entry/grants.ts
 src/hook-report.ts	reporters		packages/reporters/src/hook-report.ts	
 src/is-daemon-command-line.ts	lifecycle		packages/lifecycle/src/is-daemon-command-line.ts	
 src/is-daemon-process.ts	lifecycle		packages/lifecycle/src/is-daemon-process.ts	
+src/lifecycle-host.ts	lifecycle		packages/lifecycle/src/lifecycle-host.ts	
 src/lifecycle/atc-invocation.ts	lifecycle		packages/lifecycle/src/atc-invocation.ts	new in ticket 8
 src/lifecycle/run-command.ts	lifecycle		packages/lifecycle/src/run-command.ts	new in ticket 8
 src/mcp-http-server.ts	mcp	entry	packages/mcp/src/entry/mcp-http-server.ts	
@@ -273,7 +278,7 @@ src/mcp/build-spawn-descriptions.ts	mcp	tools	packages/mcp/src/tools/build-spawn
 src/mcp/build-tool-list.ts	mcp	tools	packages/mcp/src/tools/build-tool-list.ts	
 src/mcp/collect-clients.ts	mcp	auth	packages/mcp/src/auth/collect-clients.ts	
 src/mcp/collect-grants.ts	mcp	auth	packages/mcp/src/auth/collect-grants.ts	
-src/mcp/collect-json-strings.ts	store	sqlite	packages/store/src/sqlite/parse-json-strings.ts	
+src/mcp/collect-json-strings.ts	core		packages/core/src/parse-json-strings.ts	
 src/mcp/derive-token-hash.ts	mcp	auth	packages/mcp/src/auth/derive-token-hash.ts	
 src/mcp/find-client-name.ts	mcp	auth	packages/mcp/src/auth/find-client-name.ts	
 src/mcp/find-owner-session-id.ts	mcp	tools	packages/mcp/src/tools/find-owner-session-id.ts	
@@ -281,6 +286,7 @@ src/mcp/format-tool-error.ts	mcp	tools	packages/mcp/src/tools/format-tool-error.
 src/mcp/is-allowed-redirect-uri.ts	mcp	auth	packages/mcp/src/auth/is-allowed-redirect-uri.ts	
 src/mcp/is-loopback-host.ts	mcp	http	packages/mcp/src/http/is-loopback-host.ts	
 src/mcp/is-supported-protocol-version.ts	mcp	tools	packages/mcp/src/tools/is-supported-protocol-version.ts	
+src/mcp/mcp-auth-database.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-database.ts	
 src/mcp/mcp-auth-schema.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-schema.ts	
 src/mcp/mcp-tools.ts	mcp	tools	packages/mcp/src/tools/mcp-tools.ts	
 src/mcp/mint-approval-code.ts	mcp	auth	packages/mcp/src/auth/mint-approval-code.ts	
@@ -304,12 +310,14 @@ src/mcp/types.ts	mcp	tools	packages/mcp/src/tools/types.ts
 src/mcp/verify-oauth-query.ts	mcp	auth	packages/mcp/src/auth/verify-oauth-query.ts	
 src/normalize-cli-args.ts	app	cli	packages/app/src/cli/normalize-cli-args.ts	
 src/note.ts	reporters		packages/reporters/src/note.ts	
+src/open-mcp-auth-database.ts	app		packages/app/src/open-mcp-auth-database.ts	
 src/parse-daemon-flags.ts	lifecycle		packages/lifecycle/src/parse-daemon-flags.ts	
 src/parse-gateway-state-dir.ts	app	cli	packages/app/src/cli/parse-gateway-state-dir.ts	
 src/parse-mismatch-build.ts	lifecycle		packages/lifecycle/src/parse-mismatch-build.ts	
 src/parse-port.ts	app	cli	packages/app/src/cli/parse-port.ts	
 src/parse-restart-result.ts	lifecycle		packages/lifecycle/src/parse-restart-result.ts	
 src/parse-systemd-unit.ts	lifecycle		packages/lifecycle/src/parse-systemd-unit.ts	
+src/parse-worker-pid.ts	lifecycle		packages/lifecycle/src/parse-worker-pid.ts	
 src/protocol/adapter-event.ts	protocol		packages/protocol/src/adapter-event.ts	
 src/protocol/agent-list.ts	protocol		packages/protocol/src/agent-list.ts	new in ticket 4
 src/protocol/build-session-env.ts	protocol		packages/protocol/src/build-session-env.ts	new in ticket 4
@@ -372,10 +380,13 @@ src/protocol/spawn-option-spec.ts	protocol		packages/protocol/src/spawn-option-s
 src/protocol/transcript-row.ts	protocol		packages/protocol/src/transcript-row.ts	new in ticket 4
 src/read-daemon-process.ts	lifecycle		packages/lifecycle/src/read-daemon-process.ts	
 src/read-fleet-snapshot.ts	lifecycle		packages/lifecycle/src/read-fleet-snapshot.ts	
+src/read-proc-process.ts	lifecycle		packages/lifecycle/src/read-proc-process.ts	
 src/read-restart-result.ts	lifecycle		packages/lifecycle/src/read-restart-result.ts	
 src/read-stored-fleet-file.ts	store	snapshot	packages/store/src/snapshot/read-stored-fleet-file.ts	
 src/read-stored-rows.ts	store	snapshot	packages/store/src/snapshot/read-stored-rows.ts	
 src/remove-restart-result.ts	lifecycle		packages/lifecycle/src/remove-restart-result.ts	
+src/restart-daemon-at-socket.ts	lifecycle		packages/lifecycle/src/restart-daemon-at-socket.ts	
+src/restart-daemon-process.ts	lifecycle		packages/lifecycle/src/restart-daemon-process.ts	
 src/restart-daemon.ts	lifecycle		packages/lifecycle/src/restart-daemon.ts	
 src/restart-plan.ts	lifecycle		packages/lifecycle/src/restart-plan.ts	
 src/run-bridge-tap.ts	reporters		packages/reporters/src/run-bridge-tap.ts	
@@ -445,6 +456,7 @@ src/shared/message-id.ts	core		packages/core/src/message-id.ts
 src/shared/normalize-client-name.ts	mcp	auth	packages/mcp/src/auth/normalize-client-name.ts	
 src/shared/note-kinds.ts	protocol		packages/protocol/src/note-kinds.ts	
 src/shared/outranking-variables.ts	core		packages/core/src/outranking-variables.ts	
+src/shared/parse-restore-boot-timeout-ms.ts	config		packages/config/src/parse-restore-boot-timeout-ms.ts	
 src/shared/pick-default-agent.ts	config		packages/config/src/pick-default-agent.ts	
 src/shared/read-managed-daemon-unit.ts	lifecycle		packages/lifecycle/src/read-managed-daemon-unit.ts	
 src/shared/removed-config-keys.ts	config		packages/config/src/removed-config-keys.ts	
@@ -453,7 +465,7 @@ src/shared/reset-input-modes.ts	core		packages/core/src/reset-input-modes.ts
 src/shared/resolve-auth-profiles.ts	config		packages/config/src/resolve-auth-profiles.ts	
 src/shared/resolve-home-dir.ts	config		packages/config/src/resolve-home-dir.ts	
 src/shared/resolve-repo-root.ts	daemon	sessions	packages/daemon/src/sessions/resolve-repo-root.ts	
-src/shared/restart-managed-daemon.ts	lifecycle		packages/lifecycle/src/restart-managed-daemon.ts	
+src/shared/resolve-state-dir.ts	config		packages/config/src/resolve-state-dir.ts	
 src/shared/sanitize-detail.ts	execution-imp		packages/execution/imp/src/sanitize-detail.ts	
 src/shared/session-id.ts	core		packages/core/src/session-id.ts	
 src/shared/sort-json-keys.ts	core		packages/core/src/sort-json-keys.ts	
@@ -511,6 +523,7 @@ src/test-utils/build-mock-gateway-config.ts	harness-claude	testing	packages/harn
 src/test-utils/build-mock-imp-identity.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-identity.ts	
 src/test-utils/build-mock-imp-session-request.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-session-request.ts	
 src/test-utils/build-mock-key-binding-claim.ts	gateway	testing	packages/gateway/src/testing/build-mock-key-binding-claim.ts	
+src/test-utils/build-mock-lifecycle-host.ts	lifecycle	testing	packages/lifecycle/src/testing/build-mock-lifecycle-host.ts	
 src/test-utils/build-mock-listed-agent.ts	test-utils		packages/test-utils/src/build-mock-listed-agent.ts	new in ticket 8
 src/test-utils/build-mock-message-record.ts	store	testing	packages/store/src/testing/build-mock-message-record.ts	
 src/test-utils/build-mock-mirror-session.ts	tui	testing	packages/tui/src/testing/build-mock-mirror-session.ts	
@@ -561,6 +574,7 @@ src/test-utils/build-stub-recording-filter.ts	test-utils		packages/test-utils/sr
 src/test-utils/build-stub-recording-git.ts	test-utils		packages/test-utils/src/build-stub-recording-git.ts	
 src/test-utils/build-stub-signed-in-gh.ts	test-utils		packages/test-utils/src/build-stub-signed-in-gh.ts	
 src/test-utils/build-stub-signed-out-gh.ts	test-utils		packages/test-utils/src/build-stub-signed-out-gh.ts	
+src/test-utils/build-stub-skip-clock.ts	test-utils		packages/test-utils/src/build-stub-skip-clock.ts	
 src/test-utils/build-stub-soft-kill-provider.ts	execution-local	testing	packages/execution/local/src/testing/build-stub-soft-kill-provider.ts	
 src/test-utils/build-stub-targets.ts	daemon	testing	packages/daemon/src/testing/build-stub-targets.ts	
 src/test-utils/build-stub-terminal.ts	test-utils		packages/test-utils/src/build-stub-terminal.ts	
@@ -654,6 +668,7 @@ src/test-utils/try-send-request.ts	test-utils		packages/test-utils/src/try-send-
 src/test-utils/update-env.ts	test-utils		packages/test-utils/src/update-env.ts	
 src/test-utils/wait-for-event.ts	test-utils		packages/test-utils/src/wait-for-event.ts	
 src/test-utils/wait-for.ts	test-utils		packages/test-utils/src/wait-for.ts	
+src/try-open-daemon.ts	lifecycle		packages/lifecycle/src/try-open-daemon.ts	
 src/verify-restored-fleet.ts	lifecycle		packages/lifecycle/src/verify-restored-fleet.ts	
 src/wait-for-replacement.ts	lifecycle		packages/lifecycle/src/wait-for-replacement.ts	
 src/workspace/check-git-transport.ts	daemon	workspace	packages/daemon/src/workspace/check-git-transport.ts	

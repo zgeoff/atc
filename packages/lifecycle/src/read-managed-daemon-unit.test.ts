@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { readManagedDaemonUnit } from './read-managed-daemon-unit';
@@ -14,7 +14,7 @@ test('it treats an installed inactive user unit as managed', () => {
 
   writeFileSync(path, '[Service]\nExecStart=atc daemon\n');
 
-  expect(readManagedDaemonUnit([ctx.dir])).toBe(path);
+  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.dir })).toBe(path);
 });
 
 test('it leaves an unrelated unit outside daemon ownership', () => {
@@ -22,7 +22,7 @@ test('it leaves an unrelated unit outside daemon ownership', () => {
 
   writeFileSync(join(ctx.dir, 'other.service'), '[Service]\nExecStart=true\n');
 
-  expect(readManagedDaemonUnit([ctx.dir])).toBeNull();
+  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.dir })).toBeNull();
 });
 
 test('it preserves ownership when a user unit is masked', () => {
@@ -31,5 +31,15 @@ test('it preserves ownership when a user unit is masked', () => {
 
   symlinkSync('/dev/null', path);
 
-  expect(readManagedDaemonUnit([ctx.dir])).toBe(path);
+  expect(readManagedDaemonUnit({ SYSTEMD_UNIT_PATH: ctx.dir })).toBe(path);
+});
+
+test('it finds a unit in the user config directory of the home it is given', () => {
+  const ctx = setupTest();
+  const path = join(ctx.dir, '.config', 'systemd', 'user', 'atc-daemon.service');
+
+  mkdirSync(join(ctx.dir, '.config', 'systemd', 'user'), { recursive: true });
+  writeFileSync(path, '[Service]\nExecStart=atc daemon\n');
+
+  expect(readManagedDaemonUnit({ HOME: ctx.dir })).toBe(path);
 });

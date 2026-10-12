@@ -1,7 +1,5 @@
 import { randomBytes } from 'node:crypto';
 import { chmodSync, closeSync, openSync } from 'node:fs';
-import { buildSQLiteDialect } from '@atc/store/sqlite/build-sqlite-dialect';
-import { openSQLite } from '@atc/store/sqlite/open-sqlite';
 import { mcp } from '@better-auth/mcp';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import type { OAuthOptions, Scope } from '@better-auth/oauth-provider';
@@ -13,6 +11,7 @@ import { GRANT_SCOPES } from '../shared/grant-scope';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildOwnerPlugin } from './build-owner-plugin';
 import { deriveTokenHash } from './derive-token-hash';
+import type { MCPAuthDatabase } from './mcp-auth-database';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 interface MCPAuthOptions {
@@ -26,6 +25,9 @@ interface MCPAuthOptions {
   // How long a rotated refresh token still answers with its successor; 0
   // treats any reuse as replay.
   readonly refreshReuseSeconds?: number;
+
+  // Opens the database file, which the entry wires to atc's SQLite opener.
+  readonly openDatabase: (path: string) => MCPAuthDatabase;
 }
 
 // The owner's session lives only to carry one approval from the code page
@@ -51,11 +53,9 @@ export async function openMCPAuth(options: MCPAuthOptions) {
   closeSync(openSync(options.dbPath, 'a', 0o600));
   chmodSync(options.dbPath, 0o600);
 
-  // The schema declares cascades from a client to its tokens and consent,
-  // which SQLite enforces only with foreign keys on.
-  const sqlite = openSQLite(options.dbPath, { busyTimeoutMs: 5000, foreignKeys: true });
+  const database = options.openDatabase(options.dbPath);
 
-  const db = new Kysely<MCPAuthSchema>({ dialect: buildSQLiteDialect(sqlite) });
+  const db = new Kysely<MCPAuthSchema>({ dialect: database.dialect });
 
   const providerOptions: OAuthOptions<Scope[]> = {
     loginPage: '/login',
@@ -124,7 +124,7 @@ export async function openMCPAuth(options: MCPAuthOptions) {
     async close(): Promise<void> {
       await db.destroy();
 
-      sqlite.close();
+      database.close();
     },
   };
 }

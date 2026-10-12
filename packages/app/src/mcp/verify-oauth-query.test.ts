@@ -3,13 +3,18 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
+import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { openMCPAuth } from './open-mcp-auth';
 import { verifyOAuthQuery } from './verify-oauth-query';
 
 async function setupTest() {
   const tmp = setupTempDir('atc-verify-oauth-query-');
 
-  const store = await openMCPAuth({ dbPath: join(tmp.dir, 'mcp-auth.db'), origin: null });
+  const store = await openMCPAuth({
+    dbPath: join(tmp.dir, 'mcp-auth.db'),
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
 
   registerTestCleanup(() => store.close());
 

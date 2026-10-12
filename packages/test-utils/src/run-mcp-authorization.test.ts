@@ -4,6 +4,7 @@ import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../../app/src/mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';
+import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runMCPAuthorization } from './run-mcp-authorization';
 import { setupTempDir } from './setup-temp-dir';
@@ -30,6 +31,7 @@ async function setupTest() {
     publicURL: null,
     allowedHosts: [],
     dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: (line) => {
       approvals.push(line);
     },
@@ -40,7 +42,7 @@ async function setupTest() {
 
   // The authorization database opened the way `atc clients` opens it, to
   // register clients through.
-  const store = await openMCPAuth({ dbPath, origin: null });
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
   registerTestCleanup(() => store.close());
 

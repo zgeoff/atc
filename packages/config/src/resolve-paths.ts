@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { resolveHomeDir } from './resolve-home-dir';
+import { resolveStateDir } from './resolve-state-dir';
 
 /**
  * Every file and socket atc keeps outside a checkout. `stateDir` holds the
@@ -33,7 +34,7 @@ export interface Paths {
  */
 export function resolvePaths(env: Readonly<Record<string, string | undefined>>): Paths {
   const home = resolveHomeDir(env);
-  const stateDir = join(home, '.local', 'state', 'atc');
+  const stateDir = resolveStateDir(home);
   const runtimeDir = env['XDG_RUNTIME_DIR'] ?? stateDir;
 
   return {

@@ -55,6 +55,7 @@ test('it reports the last answered list when the deadline overtakes a later list
       buildMockStoredRow({ id: 's-booting', name: 'booting' }),
     ],
     clock,
+    15_000,
   );
 
   // The first list answers with a row still without a terminal, so the
@@ -123,6 +124,7 @@ test('it fails a row at once when its agent is not in the config', async () => {
       buildMockStoredRow({ id: 's-dropped', name: 'dropped' }),
     ],
     clock,
+    15_000,
   );
 
   expect(outcome).toStrictEqual({
@@ -170,6 +172,7 @@ test('it keeps waiting on a row whose agent is in the config but not installed y
     60,
     [buildMockStoredRow({ id: 's-installing', name: 'installing' })],
     clock,
+    15_000,
   );
 
   await waitFor(() => {
@@ -219,6 +222,7 @@ test('it keeps waiting on every row when the daemon predates the agent list', as
     1,
     [buildMockStoredRow({ id: 's-dropped', name: 'dropped' })],
     clock,
+    15_000,
   );
 
   await waitFor(() => {
@@ -273,6 +277,7 @@ test('it keeps waiting on every row when the agent list answer holds no agents',
     60,
     [buildMockStoredRow({ id: 's-booting', name: 'booting' })],
     clock,
+    15_000,
   );
 
   await waitFor(() => {
@@ -302,6 +307,7 @@ test('it lists the rows within the deadline when the agent list gets no answer',
     60,
     [buildMockStoredRow({ id: 's-good', name: 'good' })],
     clock,
+    15_000,
   );
 
   // Nothing is queued, so the daemon withholds the agent list, which only
@@ -336,6 +342,7 @@ test('it rejects when the first list gets no answer before the deadline', async 
     1,
     [buildMockStoredRow({ id: 's-good', name: 'good' })],
     clock,
+    15_000,
   );
 
   await waitFor(() => {

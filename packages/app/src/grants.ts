@@ -4,6 +4,7 @@ import { mcpAuthDBFile } from '@atc/config/config';
 import { collectGrants } from './mcp/collect-grants';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { revokeGrant } from './mcp/revoke-grant';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 // Where the command's lines and its exit code go: the console and the
 // process by default.
@@ -39,7 +40,7 @@ export async function runGrants(
 ): Promise<void> {
   mkdirSync(dirname(dbPath), { recursive: true });
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
   try {
     if (revoke !== null) {

@@ -5,6 +5,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
+import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { collectClients } from './collect-clients';
 import { collectGrants } from './collect-grants';
 import { openMCPAuth } from './open-mcp-auth';
@@ -35,6 +36,7 @@ async function setupTest() {
     publicURL: null,
     allowedHosts: [],
     dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: (line) => {
       approvals.push(line);
     },
@@ -43,7 +45,7 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
   registerTestCleanup(() => store.close());
 

@@ -8,6 +8,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
+import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { collectGrants } from './collect-grants';
@@ -50,6 +51,7 @@ async function setupTest() {
     publicURL: null,
     allowedHosts: [],
     dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: (line) => {
       approvals.push(line);
     },
@@ -61,7 +63,7 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
   registerTestCleanup(() => store.close());
 
@@ -287,7 +289,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
   registerTestCleanup(() => store.close());
 
@@ -317,6 +319,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
     publicURL: null,
     allowedHosts: [],
     dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: (line) => {
       approvals.push(line);
     },
@@ -381,7 +384,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
   const dbPath = join(tmp.dir, 'mcp-auth.db');
   const approvals: string[] = [];
 
-  const store = await openMCPAuth({ dbPath, origin: null });
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
 
   registerTestCleanup(() => store.close());
 
@@ -411,6 +414,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
     publicURL: null,
     allowedHosts: [],
     dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: (line) => {
       approvals.push(line);
     },
@@ -1666,6 +1670,7 @@ test('it serves a request whose Host header is a configured allowed host', async
     publicURL: null,
     allowedHosts: ['pc.tailnet.example'],
     dbPath: join(ctx.dir, 'allowing-mcp-auth.db'),
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
   });
@@ -2018,6 +2023,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     publicURL: 'http://localhost:9',
     allowedHosts: [],
     dbPath: ctx.dbPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
   });
@@ -2054,6 +2060,7 @@ test.each([
     publicURL,
     allowedHosts: [],
     dbPath: join(tmp.dir, 'mcp-auth.db'),
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
   });
@@ -2078,6 +2085,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     publicURL: 'https://mcp.example.com',
     allowedHosts: [],
     dbPath: join(tmp.dir, 'mcp-auth.db'),
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
   });

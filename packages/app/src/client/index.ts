@@ -37,8 +37,7 @@ if (host === null) {
 }
 
 const bootDaemonClient = host.bootDaemon;
-const isDaemonManaged = host.isDaemonManaged;
-const restartManagedDaemon = host.restartManagedDaemon;
+const restartDaemonAt = host.restartDaemon;
 const logClientEvent = host.logEvent;
 
 // The time and the timers every wait of this client runs on.
@@ -882,6 +881,7 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
         next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus, clock });
 
         client = next.client;
+        daemonSocketPath = next.socketPath;
         daemonStale = next.stale;
         daemonFeatures = next.features;
         lastUsedAgent = next.lastUsedAgent;
@@ -935,6 +935,10 @@ const boot = await bootDaemonClient({
 });
 
 let client = boot.client;
+
+// The socket the daemon answered on, which a restart takes it out of
+// service by.
+let daemonSocketPath = boot.socketPath;
 let daemonStale = boot.stale;
 let daemonFeatures = boot.features;
 let daemonRestarting = false;
@@ -1034,12 +1038,27 @@ const restartDaemonOnce = makeSingleFlight(async () => {
 });
 
 async function restartDaemon() {
-  if (isDaemonManaged()) {
-    await restartManagedDaemon();
-  } else {
-    try {
-      await client.sendRequest('daemon.quit');
-    } catch {}
+  // The step `atc daemon restart` takes: the user service that runs the
+  // daemon restarts, or the daemon stops. A daemon that cannot be found or
+  // restarted stays in service, and the client stays on it.
+  let restarted: boolean;
+
+  try {
+    restarted = await restartDaemonAt(daemonSocketPath);
+  } catch (error) {
+    logClientEvent(
+      `restart: ${error instanceof Error ? error.message : String(error)}; the daemon was left running`,
+    );
+
+    return;
+  }
+
+  if (!restarted) {
+    logClientEvent(
+      `restart: no pid found for the daemon at ${daemonSocketPath}; it was left running`,
+    );
+
+    return;
   }
 
   client.stop();
@@ -1066,6 +1085,7 @@ async function restartDaemon() {
   );
 
   client = next.client;
+  daemonSocketPath = next.socketPath;
   daemonStale = next.stale;
   daemonFeatures = next.features;
   lastUsedAgent = next.lastUsedAgent;

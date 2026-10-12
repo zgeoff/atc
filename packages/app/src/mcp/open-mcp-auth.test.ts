@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubTelemetryCollector } from '@atc/test-utils/start-stub-telemetry-collector';
+import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { openMCPAuth } from './open-mcp-auth';
 
 // A temp directory for the store.
@@ -26,7 +27,8 @@ test('it sends no telemetry when the environment turns it on', async () => {
       process.execPath,
       '-e',
       `const { openMCPAuth } = await import(${JSON.stringify(join(import.meta.dir, 'open-mcp-auth.ts'))});
-const store = await openMCPAuth({ dbPath: ${JSON.stringify(ctx.dbPath)}, origin: null });
+const { openMCPAuthDatabase } = await import(${JSON.stringify(join(import.meta.dir, '..', 'open-mcp-auth-database.ts'))});
+const store = await openMCPAuth({ dbPath: ${JSON.stringify(ctx.dbPath)}, openDatabase: openMCPAuthDatabase, origin: null });
 await store.auth.$context;
 await store.close();`,
     ],
@@ -57,7 +59,11 @@ await store.close();`,
 test('it refuses a resource an earlier public URL served', async () => {
   const ctx = setupTest();
 
-  const before = await openMCPAuth({ dbPath: ctx.dbPath, origin: 'https://old.example' });
+  const before = await openMCPAuth({
+    dbPath: ctx.dbPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: 'https://old.example',
+  });
 
   const closeBefore = registerTestCleanup(() => before.close());
 
@@ -69,7 +75,11 @@ test('it refuses a resource an earlier public URL served', async () => {
 
   await closeBefore();
 
-  const after = await openMCPAuth({ dbPath: ctx.dbPath, origin: 'https://new.example' });
+  const after = await openMCPAuth({
+    dbPath: ctx.dbPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: 'https://new.example',
+  });
 
   registerTestCleanup(() => after.close());
 
@@ -95,7 +105,11 @@ test('it refuses a resource an earlier public URL served', async () => {
 test('it creates the database and its write-ahead log readable by their owner only', async () => {
   const ctx = setupTest();
 
-  const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
+  const store = await openMCPAuth({
+    dbPath: ctx.dbPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
 
   registerTestCleanup(() => store.close());
 
@@ -109,7 +123,11 @@ test('it makes an existing database readable by its owner only', async () => {
   writeFileSync(ctx.dbPath, '', { mode: 0o644 });
   chmodSync(ctx.dbPath, 0o644);
 
-  const store = await openMCPAuth({ dbPath: ctx.dbPath, origin: null });
+  const store = await openMCPAuth({
+    dbPath: ctx.dbPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
 
   registerTestCleanup(() => store.close());
 

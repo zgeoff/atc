@@ -5,6 +5,7 @@ import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { DaemonID } from '@atc/core/daemon-id';
 import type { MessageID } from '@atc/core/message-id';
+import { parseJSONStrings } from '@atc/core/parse-json-strings';
 import type { SessionID } from '@atc/core/session-id';
 import { systemClock } from '@atc/core/system-clock';
 import { toAgentID } from '@atc/core/to-agent-id';
@@ -38,7 +39,6 @@ import type {
 } from './runtime-auth-binding';
 import { buildSQLiteDialect } from './sqlite/build-sqlite-dialect';
 import { openSQLite } from './sqlite/open-sqlite';
-import { parseJSONStrings } from './sqlite/parse-json-strings';
 import { runMigrations } from './sqlite/run-migrations';
 import type { StateStoreSchema } from './sqlite/run-migrations';
 import { StaleOwnershipError } from './stale-ownership-error';

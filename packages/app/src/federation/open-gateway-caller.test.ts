@@ -14,6 +14,7 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
+import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -36,7 +37,11 @@ async function setupTest() {
   const tmp = setupTempDir('atc-gateway-');
   const authDBPath = join(tmp.dir, 'mcp-auth.db');
 
-  const auth = await openMCPAuth({ dbPath: authDBPath, origin: null });
+  const auth = await openMCPAuth({
+    dbPath: authDBPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
 
   registerTestCleanup(() => auth.close());
 
@@ -142,6 +147,7 @@ async function setupTest() {
     publicURL: null,
     allowedHosts: [],
     dbPath: authDBPath,
+    openAuthDatabase: openMCPAuthDatabase,
     printApproval: (line) => {
       approvals.push(line);
     },

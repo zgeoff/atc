@@ -5,6 +5,7 @@ import { loadGatewayRegistry } from './federation/load-gateway-registry';
 import { openGatewayCaller } from './federation/open-gateway-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
 import type { MCPHTTPServer } from './mcp/start-mcp-http-server';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 interface GatewayFlags {
   readonly host: string;
@@ -89,6 +90,7 @@ export async function runGateway(
       publicURL: flags.publicURL,
       allowedHosts: [],
       dbPath: join(flags.stateDir, 'mcp-auth.db'),
+      openAuthDatabase: openMCPAuthDatabase,
       probes: true,
 
       // The line carries a client's name, so control and format characters

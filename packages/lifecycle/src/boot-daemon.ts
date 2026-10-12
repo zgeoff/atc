@@ -1,7 +1,5 @@
 import type { ChildProcess } from 'node:child_process';
-import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '@atc/config/config';
 import { makeSingleFlight } from '@atc/core/make-single-flight';
-import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { toAgentID } from '@atc/core/to-agent-id';
 import { waitUntil } from '@atc/core/wait-until';
@@ -15,20 +13,15 @@ import type { ProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import type { ATCInvocation } from './atc-invocation';
+import { buildHostDaemonPaths } from './build-host-daemon-paths';
+import { collectDaemonSocketPaths } from './collect-daemon-socket-paths';
+import { findDaemonPID } from './find-daemon-pid';
 import { findDaemonRecord } from './find-daemon-record';
-import { findPidFilePID } from './find-pid-file-pid';
+import { findRestartUnit } from './find-restart-unit';
 import { isProcessAlive } from './is-process-alive';
-import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
-import { readManagedDaemonUnit } from './read-managed-daemon-unit';
-import { restartManagedDaemon } from './restart-managed-daemon';
+import type { LifecycleHost } from './lifecycle-host';
+import { restartDaemonProcess } from './restart-daemon-process';
 import { spawnATCDetached } from './spawn-atc-detached';
-
-const PROCESS_PATHS: DaemonPaths = {
-  socketPath: daemonSocketPath,
-  recordFile: daemonRecordFile,
-  pidFile: daemonPidFile,
-};
 
 /**
  * Opens a handshaken client to the daemon, booting the daemon first when
@@ -41,20 +34,22 @@ const PROCESS_PATHS: DaemonPaths = {
  * restart. A daemon on another protocol version stays in service too: the
  * boot rejects with `protocol_mismatch` and a message holding both builds,
  * both versions, and the way to restart it, unless the caller's
- * `onProtocolMismatch` confirms a restart. The expected build is read
- * through the invocation on every attempt: a long-lived caller holding a
- * build string from its own boot would otherwise flag daemons that are
- * already current. A daemon the boot starts runs through the invocation's
- * argv.
+ * `onProtocolMismatch` confirms a restart, which takes the refusing daemon
+ * out of service the way `atc daemon restart` does. The expected build is
+ * read through the host's invocation on every attempt: a long-lived caller
+ * holding a build string from its own boot would otherwise flag daemons
+ * that are already current. A daemon the boot starts runs through the
+ * invocation's argv, and the boot runs on the host's paths and clock unless
+ * the options give their own.
  */
 export async function bootDaemonClient(
-  invocation: ATCInvocation,
+  host: LifecycleHost,
   options: DaemonBootOptions = {},
 ): Promise<DaemonBoot> {
   let waited = false;
-  const clock = options.clock ?? systemClock;
-  const paths = options.paths ?? PROCESS_PATHS;
-  const managed = options.paths === undefined && readManagedDaemonUnit() !== null;
+  const clock = options.clock ?? host.clock;
+  const paths = options.paths ?? buildHostDaemonPaths(host);
+  const managed = options.paths === undefined && host.findManagedUnit() !== null;
   const waitMs = options.waitForDaemonMs ?? (managed ? Number.POSITIVE_INFINITY : undefined);
 
   const wait =
@@ -81,11 +76,11 @@ export async function bootDaemonClient(
         };
 
   for (let attempt = 0; attempt < 2; ) {
-    const build = invocation.readBuild();
+    const build = host.invocation.readBuild();
 
     const opened =
       wait === null
-        ? await openOrBootDaemon(paths, options.paths === undefined, clock, invocation.argv)
+        ? await openOrBootDaemon(paths, options.paths === undefined, clock, host.invocation.argv)
         : await waitForDaemon(wait);
 
     const client = opened.client;
@@ -129,7 +124,11 @@ export async function bootDaemonClient(
 
       const mismatch: ProtocolMismatch = {
         socketPath: opened.socketPath,
-        daemonPID: findDaemonPID(opened.socketPath, paths),
+        daemonPID: findDaemonPID(opened.socketPath, {
+          paths,
+          stateDir: host.paths.stateDir,
+          procRoot: host.procRoot,
+        }),
         clientBuild: build,
         clientProtocol: PROTOCOL_V,
         daemonMessage: error.message,
@@ -145,9 +144,12 @@ export async function bootDaemonClient(
         throw new DaemonError('protocol_mismatch', formatProtocolMismatch(mismatch));
       }
 
-      const restart = managed ? restartManagedDaemon() : stopDaemon(mismatch.daemonPID, clock);
+      const unit = await findRestartUnit(mismatch.daemonPID, host);
 
-      await restart;
+      await restartDaemonProcess(
+        { pid: mismatch.daemonPID, unit },
+        { clock, runSystemctl: host.runSystemctl },
+      );
 
       attempt++;
     }
@@ -182,7 +184,7 @@ async function openOrBootDaemon(
     throw new Error(formatGivenPathsFailure(paths));
   }
 
-  await bootDaemonOnce(clock, atcArgv);
+  await bootDaemonOnce(paths, clock, atcArgv);
 
   const booted = await tryOpenKnownDaemon(paths);
 
@@ -260,65 +262,66 @@ async function waitForHello(
   }
 }
 
-/**
- * Tries the socket this environment computes, then the one the running
- * daemon recorded in the state directory: a client whose environment lacks
- * XDG_RUNTIME_DIR computes a different path from the daemon's.
- */
+// Opens the first socket a running daemon may answer on that takes the
+// connection, sending no handshake.
 async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
-  const computed = await tryOpenDaemon(paths.socketPath);
-
-  if (computed !== null) {
-    return computed;
+  for (const socketPath of collectDaemonSocketPaths(paths)) {
+    try {
+      return { client: await DaemonClient.open(socketPath), socketPath };
+    } catch {
+      // A socket that refuses the connection passes the boot to the next.
+    }
   }
 
-  const record = findDaemonRecord(paths.recordFile);
-
-  if (record === null || record.socketPath === paths.socketPath) {
-    return null;
-  }
-
-  return tryOpenDaemon(record.socketPath);
-}
-
-async function tryOpenDaemon(socketPath: string): Promise<OpenedDaemon | null> {
-  try {
-    return { client: await DaemonClient.open(socketPath), socketPath };
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 // How long a boot waits for a daemon to answer. It covers a daemon that
 // waits out the state lock of one still shutting down.
 const BOOT_DEADLINE_MS = 8000;
 
-// One boot in flight per clock, which every boot of this process on that
-// clock shares.
-const bootFlights = new WeakMap<Clock, () => Promise<void>>();
+// One boot in flight per clock and daemon socket, which every boot of this
+// process on that clock for that socket shares.
+const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
 
 /**
- * Starts a daemon and waits on the clock until one answers at the known
- * paths, sharing a boot already in flight on the same clock.
+ * Starts a daemon and waits on the clock until one answers at the paths,
+ * sharing a boot already in flight on the same clock for the same socket.
  */
-function bootDaemonOnce(clock: Clock, atcArgv: readonly string[]): Promise<void> {
-  let flight = bootFlights.get(clock);
+function bootDaemonOnce(
+  paths: DaemonPaths,
+  clock: Clock,
+  atcArgv: readonly string[],
+): Promise<void> {
+  let flights = bootFlights.get(clock);
+
+  if (flights === undefined) {
+    flights = new Map();
+
+    bootFlights.set(clock, flights);
+  }
+
+  let flight = flights.get(paths.socketPath);
 
   if (flight === undefined) {
-    flight = makeSingleFlight(() => bootDaemon(clock, atcArgv));
+    flight = makeSingleFlight(() => bootDaemon(paths, clock, atcArgv));
 
-    bootFlights.set(clock, flight);
+    flights.set(paths.socketPath, flight);
   }
 
   return flight();
 }
 
-async function bootDaemon(clock: Clock, atcArgv: readonly string[]): Promise<void> {
+async function bootDaemon(
+  paths: DaemonPaths,
+  clock: Clock,
+  atcArgv: readonly string[],
+): Promise<void> {
   let child = spawnDaemonDetached(atcArgv);
 
   await waitUntil(
     async () => {
-      const probe = await tryOpenKnownDaemon(PROCESS_PATHS);
+      const probe = await tryOpenKnownDaemon(paths);
 
       if (probe !== null) {
         probe.client.stop();
@@ -373,37 +376,6 @@ function formatWaitFailure(wait: DaemonWait): string {
   return (
     formatUnreachableDaemon(wait.paths) ??
     `no atc daemon answered at ${wait.paths.socketPath} within ${wait.timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
-  );
-}
-
-// The pid of the daemon behind the socket that refused the handshake.
-function findDaemonPID(socketPath: string, paths: DaemonPaths): number | null {
-  return pickStaleDaemonPID({
-    socketPath,
-    record: findDaemonRecord(paths.recordFile),
-    pidFileSocketPath: paths.socketPath,
-    pidFilePID: findPidFilePID(paths.pidFile),
-  });
-}
-
-async function stopDaemon(pid: number, clock: Clock): Promise<void> {
-  try {
-    process.kill(pid, 'SIGTERM');
-  } catch {
-    return;
-  }
-
-  await waitUntil(
-    () => {
-      try {
-        process.kill(pid, 0);
-
-        return false;
-      } catch {
-        return true;
-      }
-    },
-    { clock, intervalMs: 50, deadlineMs: clock.now() + 3000 },
   );
 }
 

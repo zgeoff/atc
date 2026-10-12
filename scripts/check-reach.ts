@@ -68,6 +68,7 @@ const GATEWAY_APP_MODULES: ReadonlySet<string> = new Set([
   'src/gateway.ts',
   'src/run-gateway-cli.ts',
   'src/run-gateway.ts',
+  'src/open-mcp-auth-database.ts',
   'src/parse-gateway-state-dir.ts',
   'src/parse-port.ts',
   'src/collect-redirect-uris.ts',

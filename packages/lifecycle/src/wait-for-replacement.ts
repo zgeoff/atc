@@ -1,17 +1,14 @@
-import { daemonRecordFile } from '@atc/config/config';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
+import type { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { findDaemonRecord } from './find-daemon-record';
 import { isProcessAlive } from './is-process-alive';
+import type { LifecycleHost } from './lifecycle-host';
+import { tryOpenDaemon } from './try-open-daemon';
 
 type ReplacementOutcome =
   | {
       readonly ok: true;
-      readonly client: DaemonClient;
+      readonly client: Readonly<DaemonClient>;
       readonly pid: number;
       readonly build: string;
       readonly listenPort: number | null;
@@ -19,19 +16,19 @@ type ReplacementOutcome =
   | { readonly ok: false; readonly reason: string };
 
 /**
- * Waits up to `waitMs` on the clock for a daemon to answer whose pid differs
- * from the one that was stopped and whose record in the state directory
- * matches it. With `expectedBuild`, the answering daemon must run that
- * build: another client that won the start with a different build is a
+ * Waits up to `waitMs` on the host's clock for a daemon to answer whose pid
+ * differs from the one that was stopped and whose record in the state
+ * directory matches it. With `expectedBuild`, the answering daemon must run
+ * that build: another client that won the start with a different build is a
  * failure.
  */
 export async function waitForReplacement(
+  host: LifecycleHost,
   oldPID: number | null,
-  clientBuild: string,
   expectedBuild: string | null,
   waitMs: number,
-  clock: Clock = systemClock,
 ): Promise<ReplacementOutcome> {
+  const clock = host.clock;
   const deadline = clock.now() + waitMs;
 
   // The answer that ends the wait, and the last handshake a replacement
@@ -40,28 +37,34 @@ export async function waitForReplacement(
 
   await waitUntil(
     async () => {
-      const record = findDaemonRecord(daemonRecordFile);
+      const record = findDaemonRecord(host.paths.daemonRecordFile);
 
       if (record === null || record.pid === oldPID || !isProcessAlive(record.pid)) {
         return false;
       }
 
-      const attempt = await tryHello(record.socketPath, clientBuild, deadline, clock);
+      // A daemon that accepts the socket and never answers must not outlast
+      // the startup deadline.
+      const attempt = await tryOpenDaemon(
+        [record.socketPath],
+        { build: host.invocation.readBuild(), deadline, clock, keepOpen: true },
+        (client) => Promise.resolve(client),
+      );
 
-      if (attempt.kind === 'refused') {
+      if (attempt?.kind === 'refused') {
         settled.refusal = attempt.message;
       }
 
-      if (attempt.kind !== 'ok') {
+      if (attempt?.kind !== 'ok') {
         return false;
       }
 
-      if (expectedBuild !== null && attempt.build !== expectedBuild) {
-        attempt.client.stop();
+      if (expectedBuild !== null && attempt.hello.build !== expectedBuild) {
+        attempt.value.stop();
 
         settled.outcome = {
           ok: false,
-          reason: `the daemon that came up (pid ${record.pid}) runs build ${attempt.build}, not ${expectedBuild}; another client started it first`,
+          reason: `the daemon that came up (pid ${record.pid}) runs build ${attempt.hello.build}, not ${expectedBuild}; another client started it first`,
         };
 
         return true;
@@ -69,9 +72,9 @@ export async function waitForReplacement(
 
       settled.outcome = {
         ok: true,
-        client: attempt.client,
+        client: attempt.value,
         pid: record.pid,
-        build: attempt.build,
+        build: attempt.hello.build,
         listenPort: record.listenPort,
       };
 
@@ -89,51 +92,4 @@ export async function waitForReplacement(
           : `the replacement daemon refused the handshake: ${settled.refusal}`,
     }
   );
-}
-
-type Hello =
-  | { readonly kind: 'ok'; readonly client: DaemonClient; readonly build: string }
-  | { readonly kind: 'refused'; readonly message: string }
-  | { readonly kind: 'none' };
-
-async function tryHello(
-  socketPath: string,
-  clientBuild: string,
-  deadline: number,
-  clock: Clock,
-): Promise<Hello> {
-  let client: DaemonClient;
-
-  try {
-    client = await DaemonClient.open(socketPath);
-  } catch {
-    return { kind: 'none' };
-  }
-
-  // A daemon that accepts the socket and never answers must not outlast the
-  // startup deadline: closing the client rejects the handshake.
-  const cancelExpiry = clock.schedule(
-    () => {
-      client.stop();
-    },
-    Math.max(0, deadline - clock.now()),
-  );
-
-  try {
-    const hello = await client.sendHello(clientBuild, {
-      session: readSessionEnv(process.env).sessionID,
-    });
-
-    const build = hello['daemon'];
-
-    return { kind: 'ok', client, build: typeof build === 'string' ? build : 'unknown' };
-  } catch (error) {
-    client.stop();
-
-    return error instanceof DaemonError && error.code === 'protocol_mismatch'
-      ? { kind: 'refused', message: error.message }
-      : { kind: 'none' };
-  } finally {
-    cancelExpiry();
-  }
 }

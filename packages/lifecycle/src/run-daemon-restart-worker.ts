@@ -1,9 +1,8 @@
 import { mkdirSync } from 'node:fs';
-import { restartLockFile, restartsDir } from '@atc/config/config';
-import type { ATCInvocation } from './atc-invocation';
 import { buildRestartFailure } from './build-restart-failure';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { formatRestartReport } from './format-restart-report';
+import type { LifecycleHost } from './lifecycle-host';
 import type { RestartResult } from './parse-restart-result';
 import { readRestartResult } from './read-restart-result';
 import { removeRestartResult } from './remove-restart-result';
@@ -18,36 +17,39 @@ const JOIN_WAIT_MS = 15 * 60_000;
  * Runs one restart as the handoff worker: it takes the restart lock and
  * restarts the daemon, or, when another restart holds the lock, waits for
  * that restart to finish and reports its result without touching the
- * daemon. Prints each step to stdout, which the caller follows in the run
- * log, and ends the log with the result record. Resolves the exit code.
+ * daemon. Prints its pid as a JSON record first, then each step, to stdout,
+ * which the caller follows in the run log, and ends the log with the result
+ * record. Resolves the exit code.
  */
 export async function runDaemonRestartWorker(
-  invocation: ATCInvocation,
+  host: LifecycleHost,
   options: RestartOptions,
 ): Promise<number> {
-  console.log(`worker pid ${process.pid}`);
+  console.log(JSON.stringify({ workerPID: process.pid }));
+
+  const restartsDir = host.paths.restartsDir;
 
   mkdirSync(restartsDir, { recursive: true });
 
-  const lock = await claimDaemonLock(restartLockFile, 0);
+  const lock = await claimDaemonLock(host.paths.restartLockFile, 0);
 
   let result: RestartResult;
 
   if (lock === null) {
-    result = await waitForRestartInFlight(options.runID);
+    result = await waitForRestartInFlight(host, options.runID);
   } else {
     try {
       // A joiner reads last.json once it gets the lock, so a result left by
       // an earlier restart must not outlive this run's start.
-      removeRestartResult();
+      removeRestartResult(restartsDir);
 
-      result = await restartDaemon(invocation, options).catch((error: unknown) => {
+      result = await restartDaemon(host, options).catch((error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);
 
         return buildRestartFailure(options.runID, reason);
       });
 
-      writeRestartResult(result);
+      writeRestartResult(restartsDir, result);
     } finally {
       lock.dispose();
     }
@@ -62,16 +64,16 @@ export async function runDaemonRestartWorker(
   return result.code;
 }
 
-async function waitForRestartInFlight(runID: string): Promise<RestartResult> {
+async function waitForRestartInFlight(host: LifecycleHost, runID: string): Promise<RestartResult> {
   console.log('another restart is in flight; this run joins it and reports its result');
 
-  const held = await claimDaemonLock(restartLockFile, JOIN_WAIT_MS);
+  const held = await claimDaemonLock(host.paths.restartLockFile, JOIN_WAIT_MS);
 
   if (held === null) {
     return buildRestartFailure(runID, 'timed out waiting for the restart in flight to finish');
   }
 
-  const finished = readRestartResult();
+  const finished = readRestartResult(host.paths.restartsDir);
 
   held.dispose();
 

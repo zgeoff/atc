@@ -1,4 +1,3 @@
-import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
 import { isProcessAlive } from './is-process-alive';
@@ -10,10 +9,7 @@ const EXIT_WAIT_MS = 10_000;
  * sends SIGKILL when it is still running. Resolves `killed` when SIGKILL was
  * needed and `exited` when SIGTERM was enough. The waits run on the clock.
  */
-export async function stopDaemonProcess(
-  pid: number,
-  clock: Clock = systemClock,
-): Promise<'exited' | 'killed'> {
+export async function stopDaemonProcess(pid: number, clock: Clock): Promise<'exited' | 'killed'> {
   try {
     process.kill(pid, 'SIGTERM');
   } catch {
