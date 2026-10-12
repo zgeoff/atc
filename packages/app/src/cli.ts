@@ -578,12 +578,6 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     console.error(`atc daemon: config: ${problem}`);
   }
 
-  if (cfg.legacyAgentKeys.length > 0) {
-    console.error(
-      `atc daemon: config: config.json uses the old agent keys (${cfg.legacyAgentKeys.join(', ')}); run 'atc config migrate' to move them into agents`,
-    );
-  }
-
   if (cfg.removedKeys.length > 0) {
     console.error(
       `atc daemon: config: config.json sets ${cfg.removedKeys.join(', ')}, which atc no longer reads; run 'atc config migrate' to drop it`,

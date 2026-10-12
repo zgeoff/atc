@@ -14,6 +14,7 @@ import { collectWorkspacesConfig } from '@atc/config/collect-workspaces-config';
 import type { WorkspacesConfig } from '@atc/config/collect-workspaces-config';
 import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
 import { formatJSONKind } from '@atc/config/format-json-kind';
+import { formatLegacyAgentKeys } from '@atc/config/format-legacy-agent-keys';
 import { formatMixedAgentKeys } from '@atc/config/format-mixed-agent-keys';
 import { LEGACY_AGENT_KEYS } from '@atc/config/legacy-agent-keys';
 import { pickDefaultAgent } from '@atc/config/pick-default-agent';
@@ -22,10 +23,8 @@ import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 import type { AgentID } from '@atc/core/agent-id';
 import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
 import { buildOptionalString } from '@atc/core/build-optional-string';
-import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
 import { isRecord } from '@atc/core/is-record';
 import { z } from 'zod';
-import { collectLegacyAgents } from './collect-legacy-agents';
 
 export interface Config {
   // The agents atc offers, in menu order, and the problems that left an
@@ -35,7 +34,6 @@ export interface Config {
 
   // The old agent keys a file without `agents` sets, in file order. Empty
   // for a file that uses `agents` or sets none of them.
-  legacyAgentKeys: readonly string[];
 
   // The agent a spawn without one runs.
   defaultAgent: AgentID;
@@ -100,7 +98,6 @@ const DEFAULTS: Config = {
     },
   ],
   agentErrors: [],
-  legacyAgentKeys: [],
   defaultAgent: 'claude',
   dirs: { roots: [] },
   workspaces: {
@@ -151,16 +148,8 @@ export const restartLockFile = join(stateDir, 'daemon-restart.lock');
 // falls back to a default instead of refusing to start atc.
 const CONFIG_SCHEMA = z.object({
   agents: z.unknown().optional(),
-  claudeBin: buildOptionalString(),
-  claudeArgs: buildOptionalStringArray(),
-  claudeAuth: z.unknown().optional(),
-  grokBin: buildOptionalString(),
-  grokArgs: buildOptionalStringArray(),
-  codexBin: buildOptionalString(),
-  codexArgs: buildOptionalStringArray(),
   dirs: z.unknown().optional(),
   workspaces: z.unknown().optional(),
-  gateways: z.unknown().optional(),
   authProfiles: z.unknown().optional(),
   hooks: z.unknown().optional(),
   leader: buildOptionalString(),
@@ -274,7 +263,6 @@ export function renderDefaultConfig(): string {
   const {
     agents: _agents,
     agentErrors: _agentErrors,
-    legacyAgentKeys: _legacyAgentKeys,
     defaultAgent: _defaultAgent,
     authProfiles: _authProfiles,
     authProfileErrors: _authProfileErrors,
@@ -303,6 +291,14 @@ export function renderDefaultConfig(): string {
     2,
   )}\n`;
 }
+
+// The agents a config.json that sets no `agents` runs: one of each kind,
+// each on its defaults.
+const DEFAULT_AGENT_MAP = {
+  claude: { kind: 'claude' },
+  grok: { kind: 'grok' },
+  codex: { kind: 'codex' },
+};
 
 /**
  * Parses a user-written config.json's already-decoded JSON value into a
@@ -341,26 +337,15 @@ export function parseConfig(
     return buildUnusableConfig('config_malformed', file, formatMixedAgentKeys(present));
   }
 
+  if (present.length > 0) {
+    return buildUnusableConfig('config_malformed', file, formatLegacyAgentKeys(present));
+  }
+
   const dirs = { roots: collectDirRoots(parsed.data.dirs, home) };
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
-
-  const registry = Object.hasOwn(raw, 'agents')
-    ? collectAgents(parsed.data.agents, authProfiles.profiles)
-    : collectLegacyAgents(
-        {
-          claudeBin: parsed.data.claudeBin ?? 'claude',
-          claudeArgs: parsed.data.claudeArgs ?? [],
-          claudeAuth: parsed.data.claudeAuth,
-          grokBin: parsed.data.grokBin ?? 'grok',
-          grokArgs: parsed.data.grokArgs ?? [],
-          codexBin: parsed.data.codexBin ?? 'codex',
-          codexArgs: parsed.data.codexArgs ?? [],
-          gateways: parsed.data.gateways,
-        },
-        authProfiles.profiles,
-      );
-
+  const agentMap = Object.hasOwn(raw, 'agents') ? parsed.data.agents : DEFAULT_AGENT_MAP;
+  const registry = collectAgents(agentMap, authProfiles.profiles);
   const hooks = collectHooks(parsed.data.hooks, home);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
   const principals = collectPrincipals(parsed.data.principals);
@@ -371,7 +356,6 @@ export function parseConfig(
   return {
     agents: registry.agents,
     agentErrors: registry.errors,
-    legacyAgentKeys: present,
     defaultAgent: pickDefaultAgent(registry.agents),
     dirs,
     workspaces: workspaces.workspaces,

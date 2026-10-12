@@ -24,7 +24,6 @@ test('#parseConfig leaves every target unusable, local included, and grants no p
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -69,11 +68,9 @@ test.each([
 
 test('#parseConfig falls back field by field when a field is wrong-typed instead of failing the whole file', () => {
   const config = parseConfig({
-    claudeBin: 7,
-    claudeArgs: 'not-an-array',
-    grokBin: 'my-grok',
-    grokArgs: ['--yolo', 3, null],
     leader: 3,
+    restoreFleetOnRestart: 'no',
+    dirs: 7,
   });
 
   expect(config).toStrictEqual({
@@ -87,19 +84,10 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
         args: [],
         env: {},
       },
-      {
-        id: 'grok',
-        kind: 'grok',
-        label: 'Grok',
-        mark: 'g',
-        bin: 'my-grok',
-        args: ['--yolo'],
-        env: {},
-      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
       { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
     ],
     agentErrors: [],
-    legacyAgentKeys: ['claudeBin', 'claudeArgs', 'grokBin', 'grokArgs'],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -132,12 +120,15 @@ test('#parseConfig falls back to the default leader key for an unknown one', () 
   expect(parseConfig({ leader: 'ctrl-nope' }).leader).toStrictEqual({ code: 0, label: '^Space' });
 });
 
-test('#parseConfig translates the old gateway map into agents using the parsed claude bin and args', () => {
-  const config = parseConfig({
-    claudeBin: '/opt/claude',
-    claudeArgs: ['--verbose'],
-    gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } },
-  });
+test('#parseConfig leaves every target unusable and names the migrate command for a config that sets old agent keys', () => {
+  const config = parseConfig(
+    {
+      claudeBin: '/opt/claude',
+      claudeArgs: ['--verbose'],
+      gateways: { zai: { baseURL: 'https://api.z.ai/api/anthropic' } },
+    },
+    '/c.json',
+  );
 
   expect(config).toStrictEqual({
     agents: [
@@ -146,25 +137,12 @@ test('#parseConfig translates the old gateway map into agents using the parsed c
         kind: 'claude',
         label: 'Claude',
         mark: 'c',
-        bin: '/opt/claude',
-        args: ['--verbose'],
-        env: {},
-      },
-      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
-      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
-      {
-        id: 'zai',
-        kind: 'claude',
-        label: 'zai',
-        mark: 'z',
-        bin: '/opt/claude',
-        args: ['--verbose'],
-        baseURL: 'https://api.z.ai/api/anthropic',
+        bin: 'claude',
+        args: [],
         env: {},
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: ['claudeBin', 'claudeArgs', 'gateways'],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -178,15 +156,43 @@ test('#parseConfig translates the old gateway map into agents using the parsed c
     authProfileErrors: [],
     hooks: {},
     leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
+    targets: [],
+    defaultTarget: null,
+    targetErrors: [
+      {
+        scope: 'config',
+        problem: 'config_malformed',
+        path: '/c.json',
+        detail:
+          "config.json uses the old agent keys (claudeBin, claudeArgs, gateways); run 'atc config migrate' to move them into agents",
+      },
+    ],
+    principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
+});
+
+test.each([
+  ['claudeBin', 'claude'],
+  ['claudeArgs', []],
+  ['claudeAuth', {}],
+  ['grokBin', 'grok'],
+  ['grokArgs', []],
+  ['codexBin', 'codex'],
+  ['codexArgs', []],
+  ['gateways', {}],
+])('#parseConfig refuses the old agent key %s, whatever its value', (key, value) => {
+  expect(parseConfig({ [key]: value }, '/c.json').targetErrors).toStrictEqual([
+    {
+      scope: 'config',
+      problem: 'config_malformed',
+      path: '/c.json',
+      detail: `config.json uses the old agent keys (${key}); run 'atc config migrate' to move them into agents`,
+    },
+  ]);
 });
 
 test('#parseConfig collects the configured hooks map', () => {
@@ -242,7 +248,6 @@ test('#parseConfig reads the targets and default target a config sets', () => {
       { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -288,7 +293,6 @@ test('#parseConfig reads the principals a config sets', () => {
       { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -329,7 +333,6 @@ test('#parseConfig holds no targets and an error instead of throwing for a malfo
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -372,7 +375,6 @@ test('#parseConfig reads the config a first run writes back as the defaults, wit
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -432,7 +434,6 @@ test('#parseConfig reads the auth profiles a config sets and registers a claude 
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'glm',
     dirs: { roots: [] },
     workspaces: {
@@ -490,7 +491,6 @@ test('#parseConfig refuses a gateway whose auth selects a profile the config ref
     agentErrors: [
       'agents.glm: profile glm is selected, but authProfiles has no usable profile by that name',
     ],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -501,123 +501,6 @@ test('#parseConfig refuses a gateway whose auth selects a profile the config ref
       targetRoots: new Map(),
     },
     authProfiles: new Map(),
-    authProfileErrors: ['authProfiles.glm: scheme must be bearer or raw, the schemes atc binds'],
-    hooks: {},
-    leader: { code: 0, label: '^Space' },
-    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
-    defaultTarget: 'local',
-    targetErrors: [],
-    principals: null,
-    principalErrors: [],
-    workspaceErrors: [],
-    restoreFleetOnRestart: true,
-    removedKeys: [],
-  });
-});
-
-test('#parseConfig translates the old agent keys into agents in a fixed order and records the keys', () => {
-  const config = parseConfig({
-    claudeBin: '/opt/claude',
-    claudeArgs: ['--verbose'],
-    claudeAuth: { profiles: ['claude'] },
-    grokBin: 'my-grok',
-    codexArgs: ['--search'],
-    authProfiles: {
-      claude: {
-        secret: 'claude-setup-token',
-        host: 'api.anthropic.com',
-        header: 'authorization',
-        scheme: 'bearer',
-      },
-      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'basic' },
-    },
-    gateways: {
-      inherits: { baseURL: 'https://one.example.com' },
-      own: {
-        baseURL: 'https://two.example.com',
-        bin: '/opt/other',
-        args: ['--x'],
-        label: 'Two',
-        mark: 'T',
-        env: { A: 'b', C: 3 },
-      },
-      noURL: { label: 'No URL' },
-      claude: { baseURL: 'https://three.example.com' },
-      glm: { baseURL: 'https://api.z.ai/api/anthropic', auth: { profiles: ['glm'] } },
-    },
-  });
-
-  expect(config).toStrictEqual({
-    agents: [
-      {
-        id: 'claude',
-        kind: 'claude',
-        label: 'Claude',
-        mark: 'c',
-        bin: '/opt/claude',
-        args: ['--verbose'],
-        env: {},
-        auth: { profiles: ['claude'], placeholderEnv: {} },
-      },
-      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'my-grok', args: [], env: {} },
-      {
-        id: 'codex',
-        kind: 'codex',
-        label: 'Codex',
-        mark: 'c',
-        bin: 'codex',
-        args: ['--search'],
-        env: {},
-      },
-      {
-        id: 'inherits',
-        kind: 'claude',
-        label: 'inherits',
-        mark: 'i',
-        bin: '/opt/claude',
-        args: ['--verbose'],
-        baseURL: 'https://one.example.com',
-        env: {},
-      },
-      {
-        id: 'own',
-        kind: 'claude',
-        label: 'Two',
-        mark: 'T',
-        bin: '/opt/other',
-        args: ['--x'],
-        baseURL: 'https://two.example.com',
-        env: { A: 'b' },
-      },
-    ],
-    agentErrors: [
-      'gateways.glm: profile glm is selected, but authProfiles has no usable profile by that name',
-    ],
-    legacyAgentKeys: ['claudeBin', 'claudeArgs', 'claudeAuth', 'grokBin', 'codexArgs', 'gateways'],
-    defaultAgent: 'claude',
-    dirs: { roots: [] },
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-    },
-    authProfiles: new Map([
-      [
-        'claude',
-        {
-          name: 'claude',
-          secret: 'claude-setup-token',
-          kind: 'custom',
-          host: 'api.anthropic.com',
-          header: 'authorization',
-          scheme: 'bearer',
-          env: {},
-          dependencies: [],
-        },
-      ],
-    ]),
     authProfileErrors: ['authProfiles.glm: scheme must be bearer or raw, the schemes atc binds'],
     hooks: {},
     leader: { code: 0, label: '^Space' },
@@ -650,7 +533,6 @@ test('#parseConfig gives a file with no agent keys at all the three built-in age
       { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -694,7 +576,6 @@ test('#parseConfig loads exactly the agents an agents map holds and records no o
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'codex',
     dirs: { roots: [] },
     workspaces: {
@@ -731,7 +612,6 @@ test('#parseConfig keeps reporting claude as the default agent for an empty regi
   expect(config).toStrictEqual({
     agents: [],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -762,7 +642,6 @@ test('#parseConfig leaves the registry empty with one error when agents is not a
   expect(config).toStrictEqual({
     agents: [],
     agentErrors: ['agents must be an object of agent entries'],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -803,7 +682,6 @@ test('#parseConfig refuses a config that sets agents beside an old agent key', (
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -871,7 +749,6 @@ test('#parseConfig restores the fleet on restart by default', () => {
       { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -918,7 +795,6 @@ test('#parseConfig loads a config that still sets resumeInterruptedTurns and rep
       { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -1008,7 +884,6 @@ test('#loadConfig returns the defaults when the file is missing', () => {
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -1055,7 +930,6 @@ test('#loadConfig reads an existing file against the home it is given', () => {
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [join(ctx.dir, 'home', 'projects')] },
     workspaces: {
@@ -1118,7 +992,6 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {
@@ -1162,7 +1035,6 @@ test('#loadConfig leaves every target unusable when the file is not valid JSON',
       },
     ],
     agentErrors: [],
-    legacyAgentKeys: [],
     defaultAgent: 'claude',
     dirs: { roots: [] },
     workspaces: {

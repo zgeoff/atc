@@ -105,6 +105,7 @@ src/clients.ts	mcp	entry	packages/mcp/src/entry/clients.ts
 src/collect-redirect-uris.ts	app	cli	packages/app/src/cli/collect-redirect-uris.ts	
 src/collect-restart-env.ts	lifecycle		packages/lifecycle/src/collect-restart-env.ts	
 src/collect-restart-plan.ts	lifecycle		packages/lifecycle/src/collect-restart-plan.ts	
+src/config/format-legacy-agent-keys.ts	config		packages/config/src/format-legacy-agent-keys.ts	new in ticket 5
 src/daemon-process.ts	lifecycle		packages/lifecycle/src/daemon-process.ts	
 src/daemon/answer-byte-cap.ts	daemon	transport	packages/daemon/src/transport/answer-byte-cap.ts	
 src/daemon/attach-registry.ts	daemon	sessions	packages/daemon/src/sessions/attach-registry.ts	
