@@ -12,9 +12,11 @@
 // Usage: bun scripts/run-wave-move.ts <wave> [root]
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
+import { SyntaxKind } from 'typescript/unstable/ast';
 import { z } from 'zod';
-import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
+import type { Token } from './collect-tokens';
+import { collectTokens } from './collect-tokens';
 
 function main(): void {
   const wave = Number(process.argv[2]);
@@ -54,7 +56,8 @@ function main(): void {
   console.log(`run-wave-move: wave ${wave}, ${moved} files moved, ${rewritten} files rewritten`);
 }
 
-const SOURCE_DIRS = ['packages', 'e2e', 'scripts'];
+// src/ holds the sources that wave 1 moves into packages/app
+const SOURCE_DIRS = ['src', 'packages', 'e2e', 'scripts'];
 const MAP_DIR = 'scripts/package-map';
 
 /**
@@ -151,28 +154,61 @@ function buildMovedSource(
   target: string,
   ctx: RewriteContext,
 ): string {
+  const tokens = collectTokens(source);
   let updated = source;
 
-  for (const specifier of collectImports(source).specifiers) {
-    const imported = specifier.startsWith('.') ? findModule(ctx.known, file, specifier) : null;
+  // from the end, so each edit leaves the earlier offsets in place
+  for (const [i, token] of [...tokens.entries()].toReversed()) {
+    const imported =
+      isSpecifierToken(tokens, i) && token.value.startsWith('.')
+        ? findModule(ctx.known, file, token.value)
+        : null;
 
     if (imported !== null) {
       const next = buildSpecifier(
         target,
         ctx.moves.get(imported) ?? imported,
-        specifier,
+        token.value,
         ctx.entries,
       );
 
-      if (next !== specifier) {
-        updated = updated
-          .replaceAll(`'${specifier}'`, `'${next}'`)
-          .replaceAll(`"${specifier}"`, `"${next}"`);
-      }
+      const quote = token.text[0] ?? "'";
+
+      updated =
+        updated.slice(0, token.start) +
+        quote +
+        next +
+        quote +
+        updated.slice(token.start + token.text.length);
     }
   }
 
   return updated;
+}
+
+/**
+ * Whether token i is the specifier of an import, an export, or an
+ * `import(...)` or `require(...)` call, rather than any other string.
+ */
+function isSpecifierToken(tokens: readonly Token[], i: number): boolean {
+  const token = tokens[i];
+  const previous = tokens[i - 1]?.kind;
+
+  if (token?.kind !== SyntaxKind.StringLiteral) {
+    return false;
+  }
+
+  if (previous === SyntaxKind.FromKeyword || previous === SyntaxKind.ImportKeyword) {
+    return true;
+  }
+
+  const callee = tokens[i - 2]?.kind;
+
+  return (
+    previous === SyntaxKind.OpenParenToken &&
+    (callee === SyntaxKind.ImportKeyword || callee === SyntaxKind.RequireKeyword) &&
+    tokens[i - 3]?.kind !== SyntaxKind.DotToken
+  );
 }
 
 function findModule(known: ReadonlySet<string>, file: string, specifier: string): string | null {
