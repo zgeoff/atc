@@ -3,12 +3,14 @@ import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
 
 // What a module imports: every literal specifier, the ones among them that
-// only a resolve form names, and the line of each module reference whose
-// specifier is computed.
+// only a resolve form names, the line of each module reference whose
+// specifier is computed, and the line of each module load whose specifier is
+// a template literal, which oxlint's import rules do not read.
 export interface ImportList {
   readonly specifiers: readonly string[];
   readonly resolveOnly: readonly string[];
   readonly nonLiteralLines: readonly number[];
+  readonly templateLines: readonly number[];
 }
 
 // Static imports and re-exports, type-only ones included, side-effect
@@ -26,6 +28,7 @@ export function collectImports(source: string): ImportList {
   const loaded = new Set<string>();
 
   const nonLiteralLines: number[] = [];
+  const templateLines: number[] = [];
 
   for (const [i, token] of tokens.entries()) {
     const next = tokens[i + 1];
@@ -49,8 +52,14 @@ export function collectImports(source: string): ImportList {
       if (isLiteral) {
         specifiers.add(argument.value);
 
-        if (!isResolveForm(tokens, i)) {
+        const isLoad = !isResolveForm(tokens, i);
+
+        if (isLoad) {
           loaded.add(argument.value);
+        }
+
+        if (isLoad && argument.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
+          templateLines.push(getLineNumber(source, token.start));
         }
       } else {
         nonLiteralLines.push(getLineNumber(source, token.start));
@@ -62,6 +71,7 @@ export function collectImports(source: string): ImportList {
     specifiers: [...specifiers],
     resolveOnly: [...specifiers].filter((specifier) => !loaded.has(specifier)),
     nonLiteralLines,
+    templateLines,
   };
 }
 

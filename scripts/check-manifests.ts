@@ -4,7 +4,9 @@
 // dependencies for production files, in either list for tests and testing
 // modules. Each `@atc/*` entry is `workspace:*`, each other entry `catalog:`,
 // and a package's `@atc/*` dependencies stay inside its row of the package
-// rules. A relative specifier, literal `import()` included, must resolve
+// rules. A module load whose specifier is a template literal fails, since
+// oxlint's import rules read only quoted specifiers and so would never apply
+// the package rules to it. A relative specifier, literal `import()` included, must resolve
 // inside the importing file's package. Bun links every workspace package
 // where any package can resolve it, so only the manifest proves a package
 // meant to depend on another. A specifier that only resolves a path, such as
@@ -43,6 +45,12 @@ function main(): void {
         if (!imports.resolveOnly.includes(specifier)) {
           findings.push(...checkSpecifier(pkg, packages, file, specifier));
         }
+      }
+
+      for (const line of imports.templateLines) {
+        findings.push(
+          `template specifier: ${file}:${line} loads a module through a template literal, which the import lint rules cannot read; quote the specifier`,
+        );
       }
     }
   }

@@ -94,7 +94,8 @@ internal packages each may depend on, and three gates read it. The oxlint overri
 `.oxlintrc.imports.json`, which `bun run build:import-rules` generates, refuse an import outside a
 package's row, a deep import into another package's `src/`, a test helper in production code, and a
 confined external package outside its owner. `bun run check:manifests` fails on an import the
-manifest does not declare and on a relative path into another package. `bun run check:reach` fails
+manifest does not declare, on a relative path into another package, and on a module load whose
+specifier is a template literal, which the oxlint overrides cannot read. `bun run check:reach` fails
 when the gateway entry reaches a module the gateway must never load.
 `bun run check:disable-baseline` fails when more directives switch off an import rule than
 `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool definitions and request handling

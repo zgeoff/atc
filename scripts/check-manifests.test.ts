@@ -97,6 +97,42 @@ test('it fails on a relative import into another package', async () => {
   });
 });
 
+test('it fails on a module load whose specifier is a template literal', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core' }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/src/a.ts'),
+    'export const FS = await import(`node:fs`);\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 2 packages, 1 files, 1 findings\n',
+    stderr:
+      'template specifier: packages/core/src/a.ts:1 loads a module through a template literal, which the import lint rules cannot read; quote the specifier\n',
+  });
+});
+
 test('it fails on a literal dynamic import into another package', async () => {
   const ctx = setupTest();
 
