@@ -1,8 +1,8 @@
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '../protocol/daemon-error';
-import type { DaemonFeature } from '../protocol/daemon-features';
-import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
 import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import { GatewayError } from './gateway-error';
 import type { RegistryDaemon } from './types';

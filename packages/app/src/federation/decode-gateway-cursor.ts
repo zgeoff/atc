@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core/is-record';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
 import type { GatewayRegistry } from './types';
 

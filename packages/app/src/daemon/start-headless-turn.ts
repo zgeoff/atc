@@ -1,7 +1,7 @@
 import type { SessionID } from '@atc/core/session-id';
 import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateSummary } from '@atc/core/truncate-summary';
-import type { AdapterEvent } from '../protocol/adapter-event';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
 

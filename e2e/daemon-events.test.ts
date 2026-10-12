@@ -3,12 +3,12 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
+import { getRecord } from '@atc/test-utils/get-record';
+import { getRecords } from '@atc/test-utils/get-records';
 import { getString } from '@atc/test-utils/get-string';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { getRecord } from '../packages/app/src/shared/get-record';
-import { getRecords } from '../packages/app/src/test-utils/get-records';
 import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**

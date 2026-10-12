@@ -11,6 +11,10 @@
 // that are not import specifiers are left for the move's author. Each
 // `--package <name>` limits the move to the files that land in that package,
 // so a wave that several tickets share moves one ticket's package at a time.
+// A file that would leave the app while it imports a module that stays there
+// waits for a later run, and so does each file that imports it, until no
+// move leaves an import behind in the app. A test may still reach into the
+// app, so a test waits only for a module of the move that waits.
 // Usage: bun scripts/run-wave-move.ts <wave> [root] [--package <name>]...
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
@@ -30,11 +34,12 @@ function main(): void {
     throw new Error(USAGE);
   }
 
-  const moves = collectMoves(root, wave, args.packageDirs);
   const files = SOURCE_DIRS.flatMap((dir) => collectSourceFiles(root, dir));
+  const planned = collectMoves(root, wave, args.packageDirs);
 
-  const known = new Set([...files, ...moves.keys()]);
+  const known = new Set([...files, ...planned.keys()]);
 
+  const moves = collectReadyMoves(root, planned, known);
   const entries = collectEntries(root);
   let rewritten = 0;
 
@@ -56,8 +61,66 @@ function main(): void {
   }
 
   const moved = files.filter((file) => moves.has(file)).length;
+  const held = [...planned.keys()].filter((file) => !moves.has(file));
 
   console.log(`run-wave-move: wave ${wave}, ${moved} files moved, ${rewritten} files rewritten`);
+
+  for (const file of held) {
+    console.log(`held: ${file} imports a module that stays in packages/app`);
+  }
+}
+
+const APP_DIR = 'packages/app/';
+
+/**
+ * The planned moves less every file that would leave the app while one of
+ * its relative imports stays there, repeated until a pass holds nothing
+ * more, since a held file keeps its importers in the app too.
+ */
+function collectReadyMoves(
+  root: string,
+  planned: ReadonlyMap<string, string>,
+  known: ReadonlySet<string>,
+): Map<string, string> {
+  const ready = new Map(planned);
+
+  for (let changed = true; changed; ) {
+    changed = false;
+
+    for (const [file, target] of ready) {
+      const source = readFileSync(join(root, file), 'utf8');
+      const imports = collectRelativeImports(source, file, known);
+
+      // a test may reach into the app, so only a held module holds it
+      const isBlocked =
+        !target.startsWith(APP_DIR) &&
+        (file.endsWith('.test.ts')
+          ? imports.some((imported) => planned.has(imported) && !ready.has(imported))
+          : imports.some((imported) => (ready.get(imported) ?? imported).startsWith(APP_DIR)));
+
+      if (isBlocked) {
+        ready.delete(file);
+
+        changed = true;
+      }
+    }
+  }
+
+  return ready;
+}
+
+// The files a source's relative specifiers name, among the known files.
+function collectRelativeImports(
+  source: string,
+  file: string,
+  known: ReadonlySet<string>,
+): string[] {
+  const tokens = collectTokens(source);
+
+  return [...tokens.entries()]
+    .filter(([i, token]) => isSpecifierToken(tokens, i) && token.value.startsWith('.'))
+    .map(([, token]) => findModule(known, file, token.value))
+    .filter((imported) => imported !== null);
 }
 
 const USAGE = 'usage: run-wave-move.ts <wave> [root] [--package <name>]...';

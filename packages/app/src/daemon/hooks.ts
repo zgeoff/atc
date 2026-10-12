@@ -1,6 +1,6 @@
 import { unlinkSync } from 'node:fs';
-import type { HookEvent } from '../protocol/hook-event';
-import { LineDecoder } from '../protocol/line-decoder';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import { LineDecoder } from '@atc/protocol/line-decoder';
 import { socketPath } from '../shared/config';
 import { parseHookLine } from './parse-hook-line';
 

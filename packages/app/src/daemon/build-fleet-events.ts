@@ -1,7 +1,7 @@
 import type { MessageID } from '@atc/core/message-id';
-import { encodeCursor } from '../protocol/encode-cursor';
+import { encodeCursor } from '@atc/protocol/encode-cursor';
+import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
 import type { StoredEvent } from '../store/state-store';
-import type { SessionDescriptor } from './sessions';
 
 export interface FleetEvent {
   readonly cursor: string;

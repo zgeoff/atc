@@ -2,11 +2,11 @@
 import { expect, mock, test } from 'bun:test';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
 import { buildStubPeerSocket } from '@atc/test-utils/build-stub-peer-socket';
-import { PROTOCOL_V } from '../protocol/protocol';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
 import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
-import { buildMockSessionDescriptor } from '../test-utils/build-mock-session-descriptor';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-context';

@@ -1,7 +1,8 @@
 import type { SessionID } from '@atc/core/session-id';
-import { PROTOCOL_V } from '../protocol/protocol';
-import type { EventMsg } from '../protocol/protocol';
-import type { Session, SessionDescriptor, SessionEventKind, SessionManager } from './sessions';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
+import type { EventMsg } from '@atc/protocol/protocol';
+import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
+import type { Session, SessionEventKind, SessionManager } from './sessions';
 
 /**
  * Builds the wire event for a session-manager notification, or null when the

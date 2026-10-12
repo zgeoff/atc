@@ -87,6 +87,7 @@
   },
   "devDependencies": {
     "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
     "@atc/test-utils": "workspace:*",
     "@commitlint/cli": "catalog:",
     "@stylistic/eslint-plugin": "catalog:",

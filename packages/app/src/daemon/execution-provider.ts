@@ -1,5 +1,5 @@
 import type { StepTimer } from '@atc/core/create-step-timer';
-import type { DaemonError } from '../protocol/daemon-error';
+import type { DaemonError } from '@atc/protocol/daemon-error';
 import type { BrokerAuthHost } from './broker-auth-host';
 
 /**

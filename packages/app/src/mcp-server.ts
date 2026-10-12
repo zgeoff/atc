@@ -1,8 +1,8 @@
+import { LineDecoder } from '@atc/protocol/line-decoder';
 import { bootDaemonClient } from './client/boot-daemon';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
 import { requireDaemonFeatures } from './mcp/require-daemon-features';
 import type { FleetCaller, ToolContext } from './mcp/types';
-import { LineDecoder } from './protocol/line-decoder';
 
 /**
  * An MCP server over stdio bridging to the atc daemon: any MCP client —

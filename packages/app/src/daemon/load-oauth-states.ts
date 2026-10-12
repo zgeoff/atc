@@ -1,5 +1,5 @@
+import { DaemonError } from '@atc/protocol/daemon-error';
 import type { GuestOAuthState } from '../agents/agent-adapter';
-import { DaemonError } from '../protocol/daemon-error';
 import type { BrokerAuthHost } from './broker-auth-host';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';

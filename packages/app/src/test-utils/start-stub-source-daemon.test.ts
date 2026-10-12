@@ -1,9 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { DaemonClient } from '../client/daemon-client';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { startStubSourceDaemon } from './start-stub-source-daemon';
 

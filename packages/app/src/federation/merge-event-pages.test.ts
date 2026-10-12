@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { isRecord } from '@atc/core/is-record';
+import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
-import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

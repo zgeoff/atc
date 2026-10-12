@@ -1,4 +1,4 @@
-import type { SessionLifecycle } from './build-session-lifecycle';
+import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
 
 type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 

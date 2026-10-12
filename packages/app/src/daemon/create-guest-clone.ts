@@ -1,4 +1,4 @@
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { collectCredentialConfigKeys } from '../workspace/collect-credential-config-keys';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import type { ExecutionProvider } from './execution-provider';

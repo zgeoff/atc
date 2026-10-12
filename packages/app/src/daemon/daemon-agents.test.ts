@@ -2,9 +2,9 @@
 import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
+import { getRecords } from '@atc/test-utils/get-records';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { parseConfig } from '../shared/config';
-import { getRecords } from '../test-utils/get-records';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it lists each registered agent with what it can do and the host it runs on', async () => {

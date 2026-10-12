@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { DaemonChannel } from '../protocol/daemon-channel';
-import type { DaemonFeature } from '../protocol/daemon-features';
-import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
+import type { DaemonChannel } from '@atc/protocol/daemon-channel';
+import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
 import { requireDaemonFeatures } from './require-daemon-features';
 import type { FleetCaller } from './types';
 

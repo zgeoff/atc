@@ -1,6 +1,6 @@
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { z } from 'zod';
-import { DaemonClient } from './client/daemon-client';
-import { DaemonError } from './protocol/daemon-error';
 import { runBridgeTap } from './run-bridge-tap';
 import { daemonSocketPath } from './shared/config';
 import { getBuild } from './shared/get-build';

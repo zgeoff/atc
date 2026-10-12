@@ -1,6 +1,6 @@
+import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
 import type { FleetCaller, FleetFeature } from '../mcp/types';
-import type { DaemonFeature } from '../protocol/daemon-features';
-import { DAEMON_FEATURES } from '../protocol/daemon-features';
 
 /**
  * One request a stub fleet caller received: the method and each further

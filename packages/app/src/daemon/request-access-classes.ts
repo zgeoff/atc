@@ -1,4 +1,4 @@
-import type { RequestMethod } from '../protocol/parse-request-params';
+import type { RequestMethod } from '@atc/protocol/parse-request-params';
 
 /**
  * Who may make a request: `owner` is the daemon's owner alone, and

@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { buildMigratedConfig } from './build-migrated-config';
 import { parseConfig } from './shared/config';
-import { getRecord } from './shared/get-record';
 
 test('it replaces the old keys with agents at the position of the first one', () => {
   const result = buildMigratedConfig({

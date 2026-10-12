@@ -1,5 +1,5 @@
+import { CONTROL_CHARACTER } from '@atc/protocol/control-character';
 import type { SpawnOverrides } from '../agents/agent-adapter';
-import { CONTROL_CHARACTER } from '../protocol/control-character';
 import type { AgentEntry, SpawnOptionEntry } from './build-agent-list';
 
 interface RequestedOverrides {

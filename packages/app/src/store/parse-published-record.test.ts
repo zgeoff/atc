@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import type { PublishedRecord } from '../protocol/published-record';
+import type { PublishedRecord } from '@atc/protocol/published-record';
 import { parsePublishedRecord } from './parse-published-record';
 
 test('it reads back a version 1 record', () => {

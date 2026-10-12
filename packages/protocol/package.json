@@ -1,0 +1,16 @@
+{
+  "name": "@atc/protocol",
+  "private": true,
+  "description": "The wire contract between atc's processes: the request and event schemas, the line framing, and the daemon client",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/core": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*"
+  }
+}

@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle } from '../daemon/daemon';
 import { openMCPAuth } from '../mcp/open-mcp-auth';

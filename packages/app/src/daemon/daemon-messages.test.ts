@@ -4,23 +4,23 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
 import { toSessionID } from '@atc/core/to-session-id';
+import { encodeCursor } from '@atc/protocol/encode-cursor';
+import { decodeMessage } from '@atc/protocol/protocol';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
+import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
+import { startStubTap } from '@atc/test-utils/start-stub-tap';
+import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { ClaudeAdapter } from '../agents/claude-adapter';
-import { encodeCursor } from '../protocol/encode-cursor';
-import { decodeMessage } from '../protocol/protocol';
-import type { EventMsg } from '../protocol/protocol';
-import { getRecord } from '../shared/get-record';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockAgentEntry } from '../test-utils/build-mock-agent-entry';
 import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
-import { spawnNamedSession } from '../test-utils/spawn-named-session';
-import { startStubTap } from '../test-utils/start-stub-tap';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {
   // The Claude adapter's own hook reading marks a session started.

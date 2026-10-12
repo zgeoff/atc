@@ -1,9 +1,9 @@
 import type { MessageID } from '@atc/core/message-id';
 import type { SessionID } from '@atc/core/session-id';
 import { toMessageID } from '@atc/core/to-message-id';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { z } from 'zod';
-import type { HookEvent } from '../protocol/hook-event';
-import type { EventMsg } from '../protocol/protocol';
 import type { MessageRecord } from '../store/message-record';
 import type { TapClient } from './daemon-context';
 import type { HarnessRelay } from './execution-provider';

@@ -2,9 +2,9 @@
 import { expect, mock, test } from 'bun:test';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
+import type { EventMsg } from '@atc/protocol/protocol';
+import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
-import type { EventMsg } from '../protocol/protocol';
-import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

@@ -1,12 +1,12 @@
 import { isRecord } from '@atc/core/is-record';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
-import { DaemonClient } from './client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { pickStaleDaemonPID } from './client/pick-stale-daemon-pid';
 import { findRestartUnit } from './find-restart-unit';
 import { isDaemonProcess } from './is-daemon-process';
-import { DaemonError } from './protocol/daemon-error';
-import { PROTOCOL_V } from './protocol/protocol';
 import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
 import { runSystemctl } from './run-systemctl';
 import { buildATCCommand } from './shared/build-atc-command';

@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core/is-record';
-import { normalizeHookEventName } from './agents/normalize-hook-event';
+import { normalizeHookEventName } from '@atc/protocol/normalize-hook-event';
 import { sendReport } from './shared/report';
 
 // Where the reporter reads its event and how it exits: stdin and the

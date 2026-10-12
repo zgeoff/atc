@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { DaemonClient } from '../../app/src/client/daemon-client';
-import { startStubTCPDaemon } from '../../app/src/test-utils/start-stub-tcp-daemon';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { startCutProxy } from './start-cut-proxy';
+import { startStubTCPDaemon } from './start-stub-tcp-daemon';
 import { waitFor } from './wait-for';
 
 // The stand-in daemon the proxy forwards to.

@@ -3,10 +3,10 @@ import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubReporterSocket } from '@atc/test-utils/start-stub-reporter-socket';
+import { startStubSessionBridge } from '@atc/test-utils/start-stub-session-bridge';
 import { updateEnv } from '@atc/test-utils/update-env';
 import invariant from 'tiny-invariant';
 import { runNote } from './note';
-import { startStubSessionBridge } from './test-utils/start-stub-session-bridge';
 
 /**
  * A stub of the daemon's reporter socket in a temp directory, for the

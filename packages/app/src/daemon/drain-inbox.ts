@@ -1,5 +1,5 @@
 import type { SessionID } from '@atc/core/session-id';
-import { PROTOCOL_V } from '../protocol/protocol';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
 import type { MessageOwner } from '../store/message-owner';
 import type { MessageRecord } from '../store/message-record';
 import type { TapClient } from './daemon-context';

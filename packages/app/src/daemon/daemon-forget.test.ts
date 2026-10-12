@@ -1,8 +1,8 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { getRecord } from '../shared/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildStubExecutionProvider } from '../test-utils/build-stub-execution-provider';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';

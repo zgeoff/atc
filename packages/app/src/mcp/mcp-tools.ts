@@ -1,5 +1,5 @@
+import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
 import { z } from 'zod';
-import { REQUEST_PARAM_SCHEMAS } from '../protocol/request-param-schemas';
 import type { GrantScope } from '../shared/grant-scope';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import { IDEMPOTENCY_KEY_FIELD } from './parse-idempotency-key';

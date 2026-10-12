@@ -3,26 +3,26 @@ import type { AgentID } from '@atc/core/agent-id';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
 import { toSessionID } from '@atc/core/to-session-id';
-import { CONTROL_CHARACTER } from '../protocol/control-character';
-import { DaemonError } from '../protocol/daemon-error';
-import { DAEMON_FEATURES } from '../protocol/daemon-features';
-import { decodeCursor } from '../protocol/decode-cursor';
-import { encodeCursor } from '../protocol/encode-cursor';
-import { LineDecoder } from '../protocol/line-decoder';
-import { OutboundQueue } from '../protocol/outbound-queue';
-import type { SocketWriter } from '../protocol/outbound-queue';
-import { parseDeclaredScope } from '../protocol/parse-declared-scope';
-import type { DeclaredScope } from '../protocol/parse-declared-scope';
-import { parseRequestParams } from '../protocol/parse-request-params';
-import type { RequestMethod } from '../protocol/parse-request-params';
+import { CONTROL_CHARACTER } from '@atc/protocol/control-character';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
+import { decodeCursor } from '@atc/protocol/decode-cursor';
+import { encodeCursor } from '@atc/protocol/encode-cursor';
+import { LineDecoder } from '@atc/protocol/line-decoder';
+import { OutboundQueue } from '@atc/protocol/outbound-queue';
+import type { SocketWriter } from '@atc/protocol/outbound-queue';
+import { parseDeclaredScope } from '@atc/protocol/parse-declared-scope';
+import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
+import { parseRequestParams } from '@atc/protocol/parse-request-params';
+import type { RequestMethod } from '@atc/protocol/parse-request-params';
 import {
   MAX_CHUNK,
   MAX_LINE,
   PROTOCOL_V,
   decodeMessage,
   encodeMessage,
-} from '../protocol/protocol';
-import type { ErrorCode, EventMsg, RequestMsg } from '../protocol/protocol';
+} from '@atc/protocol/protocol';
+import type { ErrorCode, EventMsg, RequestMsg } from '@atc/protocol/protocol';
 import type { SourceProvider, SourceRequest } from '../sources/types';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';

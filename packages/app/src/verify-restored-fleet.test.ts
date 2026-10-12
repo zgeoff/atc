@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { startStubRestoreDaemon } from '@atc/test-utils/start-stub-restore-daemon';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { DaemonClient } from './client/daemon-client';
 import { buildAgentList } from './daemon/build-agent-list';
 import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
-import { buildMockSessionDescriptor } from './test-utils/build-mock-session-descriptor';
 import { buildMockStoredRow } from './test-utils/build-mock-stored-row';
-import { startStubRestoreDaemon } from './test-utils/start-stub-restore-daemon';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
 async function setupTest() {

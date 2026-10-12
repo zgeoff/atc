@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { DaemonClient } from '../client/daemon-client';
 
 // A home and a runtime directory in a temp directory for the daemon
 // process each test starts, which stops before the directory goes; `env`

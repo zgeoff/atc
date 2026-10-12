@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { connect } from 'node:net';
 import { join } from 'node:path';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
 import { waitFor } from '@atc/test-utils/wait-for';
-import type { EventMsg } from '../protocol/protocol';
-import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 import { startEventsServer } from './start-events-server';
 
 // A socket path in a fresh temp directory, and a snapshot collector for the

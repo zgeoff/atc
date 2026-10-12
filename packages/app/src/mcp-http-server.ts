@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { bootDaemonClient } from './client/boot-daemon';
 import type { DaemonBoot, DaemonPaths } from './client/boot-daemon';
-import { DaemonClient } from './client/daemon-client';
 import { collectClients } from './mcp/collect-clients';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';

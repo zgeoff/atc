@@ -1,4 +1,4 @@
-import { DaemonClient } from './client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { readStoredRows } from './read-stored-rows';
 import type { StoredRow } from './read-stored-rows';
 import { getBuild } from './shared/get-build';

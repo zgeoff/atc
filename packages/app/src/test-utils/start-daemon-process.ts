@@ -1,9 +1,9 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import type { Subprocess } from 'bun';
-import { DaemonClient } from '../client/daemon-client';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 
 interface DaemonProcessConfig {

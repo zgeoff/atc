@@ -1,4 +1,4 @@
-import { DaemonClient } from './client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { daemonRecordFile, daemonSocketPath } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 

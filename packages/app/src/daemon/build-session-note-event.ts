@@ -1,6 +1,6 @@
 import type { SessionID } from '@atc/core/session-id';
-import { PROTOCOL_V } from '../protocol/protocol';
-import type { EventMsg } from '../protocol/protocol';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
+import type { EventMsg } from '@atc/protocol/protocol';
 import type { SentNote } from './parse-note';
 
 /**

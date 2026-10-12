@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '../../app/src/client/daemon-client';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { spawnClaudeSession } from './spawn-claude-session';
 import { startTUIHarness } from './start-tui-harness';

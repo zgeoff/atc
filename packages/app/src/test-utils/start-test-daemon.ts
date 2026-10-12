@@ -1,11 +1,11 @@
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import type { Socket } from 'bun';
-import { DaemonClient } from '../client/daemon-client';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle, DaemonOptions } from '../daemon/daemon';
-import type { EventMsg } from '../protocol/protocol';
 
 /**
  * Where a test daemon keeps its sockets and state, all inside one temp

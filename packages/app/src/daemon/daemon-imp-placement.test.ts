@@ -2,7 +2,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStubEchoClaude } from '@atc/test-utils/create-stub-echo-claude';
-import { getRecord } from '../shared/get-record';
+import { getRecord } from '@atc/test-utils/get-record';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

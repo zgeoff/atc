@@ -1,8 +1,8 @@
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
-import { DaemonClient } from './client/daemon-client';
-import { DaemonError } from './protocol/daemon-error';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { daemonRecordFile } from './shared/config';
 import { findDaemonRecord } from './shared/find-daemon-record';
 import { getBuild } from './shared/get-build';

@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
+import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
 import { resolveAgentHome } from './agents/resolve-agent-home';
-import { sendBridgeRequest } from './protocol/send-bridge-request';
 import { statusFile } from './shared/config';
 import { sendReport } from './shared/report';
 

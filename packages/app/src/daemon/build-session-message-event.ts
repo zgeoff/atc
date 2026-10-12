@@ -1,7 +1,7 @@
 import type { SessionID } from '@atc/core/session-id';
 import { truncateDetail } from '@atc/core/truncate-detail';
-import { PROTOCOL_V } from '../protocol/protocol';
-import type { EventMsg } from '../protocol/protocol';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
+import type { EventMsg } from '@atc/protocol/protocol';
 import type { MessageRecord } from '../store/message-record';
 
 /**

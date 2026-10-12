@@ -1,4 +1,4 @@
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 
 /**
  * The refusal of a spawn to a target the principal may not use, which a

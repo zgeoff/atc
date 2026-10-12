@@ -1,7 +1,7 @@
 import type { SessionID } from '@atc/core/session-id';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import type { FleetEntry } from '../store/fleet-entry';
 import type { StateStore } from '../store/state-store';
 import type { SessionRuntime } from './session-runtime';

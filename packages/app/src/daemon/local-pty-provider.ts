@@ -2,8 +2,8 @@ import { mkdir } from 'node:fs/promises';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { spawn } from 'bun-pty';
-import { DaemonError } from '../protocol/daemon-error';
 import { collectCleanEnv } from '../shared/collect-clean-env';
 import { buildHarnessArgv } from './build-harness-argv';
 import type {

@@ -1,11 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import type { HookEvent } from '@atc/protocol/hook-event';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { DaemonClient } from '../client/daemon-client';
-import type { HookEvent } from '../protocol/hook-event';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 import { buildMockFleetEntry } from './build-mock-fleet-entry';

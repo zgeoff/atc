@@ -1,9 +1,9 @@
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { SessionID } from '@atc/core/session-id';
-import type { AdapterEvent } from '../protocol/adapter-event';
-import type { DaemonError } from '../protocol/daemon-error';
-import type { HookEvent } from '../protocol/hook-event';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import type { DaemonError } from '@atc/protocol/daemon-error';
+import type { HookEvent } from '@atc/protocol/hook-event';
 import type { GatewayAuth } from '../shared/check-gateway-auth';
 import type { AuthProfile } from '../shared/collect-auth-profiles';
 import type { GatewayConfig } from '../shared/collect-gateways';

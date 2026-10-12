@@ -5,13 +5,24 @@ import type { AgentSessionID } from '@atc/core/agent-session-id';
 import { buildTarArchive } from '@atc/core/build-tar-archive';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import type { StepTimer } from '@atc/core/create-step-timer';
-import type { DaemonID } from '@atc/core/daemon-id';
 import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import type { SessionID } from '@atc/core/session-id';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
+import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { countSessionStates } from '@atc/protocol/count-session-states';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { HookEvent } from '@atc/protocol/hook-event';
+import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
+import type { ErrorCode } from '@atc/protocol/protocol';
+import type { PublishedRecord } from '@atc/protocol/published-record';
+import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
+import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
+import type { SessionState } from '@atc/protocol/session-state';
+import type { SessionWorkspace } from '@atc/protocol/session-workspace';
+import { sortSessionViews } from '@atc/protocol/sort-session-views';
 import type {
   AgentAdapter,
   GuestPaths,
@@ -20,27 +31,16 @@ import type {
   SpawnOverrides,
   SpawnPlan,
 } from '../agents/agent-adapter';
-import type { AdapterEvent } from '../protocol/adapter-event';
-import { countSessionStates } from '../protocol/count-session-states';
-import { DaemonError } from '../protocol/daemon-error';
-import type { HookEvent } from '../protocol/hook-event';
-import type { DeclaredScope } from '../protocol/parse-declared-scope';
-import type { ErrorCode } from '../protocol/protocol';
-import type { PublishedRecord } from '../protocol/published-record';
-import type { SessionState } from '../protocol/session-state';
-import { sortSessionViews } from '../protocol/sort-session-views';
 import type { TargetConfigError } from '../shared/collect-targets';
 import { socketPath, statusFile } from '../shared/config';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '../store/fleet-entry';
-import type { SessionWorkspace } from '../store/workspace-materialization';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import type { BrokerAuthHost } from './broker-auth-host';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
-import type { SessionLifecycle } from './build-session-lifecycle';
 import { buildTargetIdentity } from './build-target-identity';
 import { EffectRemainsError } from './effect-remains-error';
 import type {
@@ -61,56 +61,6 @@ import { resolveRestoredTargetIdentity } from './resolve-restored-target-identit
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
-
-// The over-the-wire view of a session: everything but the harness handle,
-// plus the surface kind.
-export interface SessionDescriptor {
-  readonly id: SessionID;
-  readonly name: string;
-  readonly cwd: string;
-  readonly state: SessionState;
-  readonly unread: boolean;
-  readonly lastMsg: string;
-  readonly lastDetail?: string;
-  readonly agentSessionID?: AgentSessionID;
-  readonly agent: AgentID;
-  readonly pinned: boolean;
-  readonly lastAttachedAt: number;
-  readonly repoRoot: string;
-  readonly namedBy: 'user' | 'auto' | 'agent';
-  readonly createdAt: number;
-  readonly kind: 'pty' | 'headless';
-  readonly alive: boolean;
-
-  // Whether this session's agent can run a headless turn, so the client can
-  // offer the eject action without knowing which agent it is.
-  readonly canEject: boolean;
-
-  // The session this one is a sub-session of, when it has one: it lists
-  // under that session and takes its pin from it.
-  readonly parent?: SessionID;
-
-  // Where the session runs: the daemon hosting it, and the execution target
-  // on that daemon's host.
-  readonly locator: SessionLocator;
-
-  // What the session's working directory was materialized from, for a
-  // session spawned with a workspace source.
-  readonly workspace?: SessionWorkspace;
-
-  // What the operator asked for, the host, the harness, and the daemon's
-  // connection to it; the state derives from these and the attention.
-  readonly lifecycle: SessionLifecycle;
-
-  // The model the session was spawned with; absent when it runs the
-  // agent's default.
-  readonly model?: string;
-}
-
-interface SessionLocator {
-  readonly daemonID: DaemonID;
-  readonly targetID: string;
-}
 
 export interface Session {
   id: SessionID;

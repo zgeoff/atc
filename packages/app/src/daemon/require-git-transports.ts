@@ -1,4 +1,4 @@
-import { DaemonError } from '../protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import type { InvalidGitTransports } from '../shared/collect-workspaces-config';
 
 /**

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
+import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { getRecord } from '../shared/get-record';
 import { MCP_TOOLS } from './mcp-tools';
 
 test('it declares an agents result whose kind can be any string an adapter declares', () => {

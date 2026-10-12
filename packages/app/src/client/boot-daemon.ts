@@ -5,10 +5,13 @@ import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { toAgentID } from '@atc/core/to-agent-id';
 import { waitUntil } from '@atc/core/wait-until';
-import { DaemonError } from '../protocol/daemon-error';
-import type { DaemonFeature } from '../protocol/daemon-features';
-import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
-import { PROTOCOL_V } from '../protocol/protocol';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { DaemonError } from '@atc/protocol/daemon-error';
+import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { formatProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
+import type { ProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
+import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { daemonPidFile, daemonRecordFile, daemonSocketPath } from '../shared/config';
 import { findDaemonRecord } from '../shared/find-daemon-record';
 import { findPidFilePID } from '../shared/find-pid-file-pid';
@@ -17,9 +20,6 @@ import { isProcessAlive } from '../shared/is-process-alive';
 import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
 import { restartManagedDaemon } from '../shared/restart-managed-daemon';
 import { spawnATCDetached } from '../shared/spawn-atc-detached';
-import { DaemonClient } from './daemon-client';
-import { formatProtocolMismatch } from './format-protocol-mismatch';
-import type { ProtocolMismatch } from './format-protocol-mismatch';
 import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
 
 export interface DaemonBoot {

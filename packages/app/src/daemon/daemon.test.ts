@@ -2,21 +2,21 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { encodeCursor } from '@atc/protocol/encode-cursor';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
+import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
+import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { GrokAdapter } from '../agents/grok-adapter';
-import { DaemonClient } from '../client/daemon-client';
-import { encodeCursor } from '../protocol/encode-cursor';
 import { parseConfig } from '../shared/config';
-import { getRecord } from '../shared/get-record';
 import { StateStore } from '../store/state-store';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { getAgentEntry } from '../test-utils/get-agent-entry';
-import { spawnNamedSession } from '../test-utils/spawn-named-session';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { subscribeToSocketLines } from '../test-utils/subscribe-to-socket-lines';
 
 // A test that leaves every connection to itself turns the main client off.
 interface DaemonTestConfig {

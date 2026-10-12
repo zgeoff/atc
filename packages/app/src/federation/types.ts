@@ -1,4 +1,4 @@
-import type { DaemonFeature } from '../protocol/daemon-features';
+import type { DaemonFeature } from '@atc/protocol/daemon-features';
 
 /**
  * One daemon the gateway routes to: its logical name, the TCP address it
