@@ -183,10 +183,15 @@ export interface HeadlessRunEvents {
   readonly onNeedsYou: (msg: string) => void;
 }
 
+// A live headless turn; stop aborts it.
+export interface HeadlessRunHandle {
+  readonly stop: () => void;
+}
+
 export type HeadlessRunner = (
   opts: HeadlessRunRequest,
-  hooks: HeadlessRunEvents,
-) => { readonly stop: () => void };
+  events: HeadlessRunEvents,
+) => HeadlessRunHandle;
 
 /**
  * How `agents.list` describes an agent. It holds no secret: never an

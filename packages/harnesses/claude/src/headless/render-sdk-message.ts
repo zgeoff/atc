@@ -1,57 +1,60 @@
-import { isRecord } from '@atc/core/is-record';
+import type {
+  SDKAssistantMessage,
+  SDKMessage,
+  SDKResultError,
+  SDKResultSuccess,
+} from '@anthropic-ai/claude-agent-sdk';
 import { truncateSummary } from '@atc/core/truncate-summary';
+import { match } from 'ts-pattern';
 
-interface RenderableMessage {
-  readonly type: string;
-  readonly subtype?: string;
-  readonly result?: string;
-  readonly message?: unknown;
-}
+type ContentBlock = SDKAssistantMessage['message']['content'][number];
+
+// The fields of an SDK content block that the output line reads.
+type RenderableBlock =
+  | Pick<Extract<ContentBlock, { type: 'text' }>, 'type' | 'text'>
+  | Pick<Extract<ContentBlock, { type: 'tool_use' }>, 'type' | 'name' | 'input'>
+  | Pick<Exclude<ContentBlock, { type: 'text' | 'tool_use' }>, 'type'>;
+
+/**
+ * The fields of an SDK message that its output line reads. Every SDK
+ * message carries them.
+ */
+export type RenderableSDKMessage =
+  | {
+      readonly type: SDKAssistantMessage['type'];
+      readonly message: { readonly content: readonly RenderableBlock[] };
+    }
+  | Pick<SDKResultSuccess, 'type' | 'subtype' | 'result'>
+  | Pick<SDKResultError, 'type' | 'subtype'>
+  | Pick<Exclude<SDKMessage, { type: 'assistant' | 'result' }>, 'type'>;
 
 /**
  * One structured SDK message → zero or one plain-text line for the session's
  * output pipe: assistant text verbatim, tool calls as compact one-liners,
  * results as a closing line.
  */
-export function renderSDKMessage(message: RenderableMessage): string | null {
-  if (message.type === 'assistant') {
-    const inner = message.message;
+export function renderSDKMessage(message: RenderableSDKMessage): string | null {
+  return match(message)
+    .with({ type: 'assistant' }, (m) => renderAssistantContent(m.message.content))
+    .with(
+      { type: 'result', subtype: 'success' },
+      (m) => `— headless turn done: ${truncateSummary(m.result)}`,
+    )
+    .with({ type: 'result' }, (m) => `— headless turn stopped: ${m.subtype}`)
+    .otherwise(() => null);
+}
 
-    if (!isRecord(inner) || !Array.isArray(inner['content'])) {
-      return null;
-    }
+function renderAssistantContent(content: readonly RenderableBlock[]): string | null {
+  const lines = content.flatMap((block) =>
+    match(block)
+      .with({ type: 'text' }, (b) =>
+        b.text.trim() === '' ? [] : [b.text.replaceAll('\n', '\r\n')],
+      )
+      .with({ type: 'tool_use' }, (b) => [
+        `⚙ ${b.name} ${truncateSummary(JSON.stringify(b.input ?? {}))}`,
+      ])
+      .otherwise(() => []),
+  );
 
-    const content = inner['content'];
-    const lines: string[] = [];
-
-    for (const raw of content) {
-      const block: unknown = raw;
-
-      if (!isRecord(block)) {
-        continue;
-      }
-
-      if (
-        block['type'] === 'text' &&
-        typeof block['text'] === 'string' &&
-        block['text'].trim() !== ''
-      ) {
-        lines.push(block['text'].replaceAll('\n', '\r\n'));
-      }
-
-      if (block['type'] === 'tool_use' && typeof block['name'] === 'string') {
-        lines.push(`⚙ ${block['name']} ${truncateSummary(JSON.stringify(block['input'] ?? {}))}`);
-      }
-    }
-
-    return lines.length === 0 ? null : lines.join('\r\n');
-  }
-
-  if (message.type === 'result') {
-    return message.subtype === 'success'
-      ? `— headless turn done: ${truncateSummary(message.result ?? '')}`
-      : `— headless turn stopped: ${message.subtype ?? 'unknown'}`;
-  }
-
-  return null;
+  return lines.length === 0 ? null : lines.join('\r\n');
 }

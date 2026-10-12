@@ -1,18 +1,9 @@
 import { isCompiledBinary } from '@atc/config/is-compiled-binary';
 import { truncateSummary } from '@atc/core/truncate-summary';
+import type { HeadlessRunEvents, HeadlessRunHandle } from '@atc/plugin-api/agent-adapter';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 import { renderSDKMessage } from './render-sdk-message';
-
-interface HeadlessRunHooks {
-  readonly onOutput: (text: string) => void;
-  readonly onDone: (summary: string) => void;
-  readonly onNeedsYou: (msg: string) => void;
-}
-
-interface HeadlessRunHandle {
-  readonly stop: () => void;
-}
 
 /**
  * Runs one headless Agent SDK turn over a session, rendering its structured
@@ -22,7 +13,7 @@ interface HeadlessRunHandle {
  */
 export function startClaudeHeadlessRun(
   opts: ClaudeHeadlessRunRequest,
-  hooks: HeadlessRunHooks,
+  events: HeadlessRunEvents,
 ): HeadlessRunHandle {
   const controller = new AbortController();
 
@@ -50,7 +41,7 @@ export function startClaudeHeadlessRun(
         const rendered = renderSDKMessage(message);
 
         if (rendered !== null) {
-          hooks.onOutput(`${rendered}\r\n`);
+          events.onOutput(`${rendered}\r\n`);
         }
 
         if (message.type !== 'result') {
@@ -58,22 +49,22 @@ export function startClaudeHeadlessRun(
         }
 
         if (message.subtype === 'success') {
-          hooks.onDone(message.result);
+          events.onDone(message.result);
           continue;
         }
 
         if (stderrTail.trim() !== '') {
-          hooks.onOutput(`headless stderr: ${stderrTail.trim()}\r\n`);
+          events.onOutput(`headless stderr: ${stderrTail.trim()}\r\n`);
         }
 
-        hooks.onNeedsYou(`headless run stopped: ${message.subtype}`);
+        events.onNeedsYou(`headless run stopped: ${message.subtype}`);
       }
     } catch (error) {
       if (!controller.signal.aborted) {
         const msg = error instanceof Error ? error.message : String(error);
 
-        hooks.onOutput(`headless run failed: ${msg}\r\n`);
-        hooks.onNeedsYou(`headless run failed: ${truncateSummary(msg)}`);
+        events.onOutput(`headless run failed: ${msg}\r\n`);
+        events.onNeedsYou(`headless run failed: ${truncateSummary(msg)}`);
       }
     }
   })();
