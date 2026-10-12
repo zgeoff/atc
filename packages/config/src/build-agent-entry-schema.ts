@@ -108,34 +108,45 @@ function collectFieldProblems(
   return problems;
 }
 
-// The problem with one field's value, or null. `kind` is checked before
-// the entry reaches its kind, and `auth` by the kind's own check.
+interface FieldCheck {
+  readonly schema: z.ZodType;
+  readonly problem: string;
+}
+
+const NON_EMPTY_STRING = z.string().min(1);
+
+// The type of each field that takes a plain type check, with the problem a
+// value of another type reports. `kind` is checked before the entry
+// reaches its kind, and `auth` by the kind's own check.
+const FIELD_CHECKS: ReadonlyMap<string, FieldCheck> = new Map([
+  ['label', { schema: NON_EMPTY_STRING, problem: 'label must be a non-empty string' }],
+  ['mark', { schema: NON_EMPTY_STRING, problem: 'mark must be a non-empty string' }],
+  ['bin', { schema: NON_EMPTY_STRING, problem: 'bin must be a non-empty string' }],
+  ['baseURL', { schema: NON_EMPTY_STRING, problem: 'baseURL must be a non-empty string' }],
+  [
+    'apiKeyHelper',
+    { schema: NON_EMPTY_STRING, problem: 'apiKeyHelper must be a non-empty string' },
+  ],
+  ['args', { schema: z.array(z.string()), problem: 'args must be an array of strings' }],
+  [
+    'env',
+    { schema: z.record(z.string(), z.string()), problem: 'env must be an object of strings' },
+  ],
+  [
+    'settings',
+    { schema: z.record(z.string(), z.unknown()), problem: 'settings must be an object' },
+  ],
+]);
+
+// The problem with one field's value, or null.
 function findFieldProblem(name: string, value: unknown): string | null {
-  switch (name) {
-    case 'label':
-    case 'mark':
-    case 'bin':
-    case 'baseURL':
-    case 'apiKeyHelper': {
-      return typeof value === 'string' && value !== ''
-        ? null
-        : `${name} must be a non-empty string`;
-    }
-    case 'args': {
-      return Array.isArray(value) && value.every((arg) => typeof arg === 'string')
-        ? null
-        : 'args must be an array of strings';
-    }
-    case 'env': {
-      return isStringRecord(value) ? null : 'env must be an object of strings';
-    }
-    case 'settings': {
-      return isRecord(value) && !Array.isArray(value) ? null : 'settings must be an object';
-    }
-    default: {
-      return null;
-    }
+  const check = FIELD_CHECKS.get(name);
+
+  if (check === undefined || check.schema.safeParse(value).success) {
+    return null;
   }
+
+  return check.problem;
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
