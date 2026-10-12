@@ -17,16 +17,14 @@ import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubImpd } from '@atc/test-utils/start-stub-impd';
 import invariant from 'tiny-invariant';
+import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpClientPort } from './imp-client-port';
-import {
-  CHECK_GUEST_ATC_SCRIPT,
-  ImpProvider,
-  LINK_GUEST_ATC_SCRIPT,
-  READ_GUEST_ATC_SCRIPT,
-  UNPACK_SCRIPT,
-} from './imp-provider';
+import { ImpProvider } from './imp-provider';
+import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
+import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
 import { buildMockImpIdentity } from './testing/build-mock-imp-identity';
 import { createStubImpPort } from './testing/create-stub-imp-port';
+import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 
 /**
  * A stub imp port and a temp directory.
@@ -109,12 +107,7 @@ test('it destroys the imp a failed prepare created, since no session holds it', 
     'imps.get atc-s1',
     'imps.create atc-s1',
     'leases.acquire atc-s1 atc-d1',
-    `exec.run atc-s1 sh -c mkdir -p "$1/run" "$1/bin" || exit 1
-image=$("$2" --version 2>/dev/null) || image=
-copied=$("$1/bin/atc" --version 2>/dev/null) || copied=
-printf '%s\\n%s\\n' "$image" "$copied"
-[ -n "$image" ] && [ "$image" = "$3" ] || exit 0
-[ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc" sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
+    `exec.run atc-s1 sh -c ${READ_GUEST_ATC_SCRIPT} sh ${join(ctx.dir, 'g')} ${join(ctx.dir, 'missing-atc')} 1.0.0`,
     'imps.destroy atc-s1',
   ]);
 

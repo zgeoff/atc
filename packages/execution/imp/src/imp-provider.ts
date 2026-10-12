@@ -24,9 +24,13 @@ import { LineDecoder } from '@atc/protocol/line-decoder';
 import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { buildImpName } from './build-imp-name';
+import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpHarness } from './imp-harness';
 import type { ImpPort, ImpRelayConnection } from './imp-port';
 import { ImpPortError } from './imp-port-error';
+import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
+import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
+import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
 
 /**
  * The options an `imp` target takes beside its provider: the image a new
@@ -86,32 +90,6 @@ const GZIP_LEVEL = 2;
 // The exit an imp without gzip answers a transfer with: EX_UNAVAILABLE,
 // which neither mkdir nor tar uses.
 const NO_GZIP_CODE = 69;
-
-// Checks for gzip before the archive is read, then creates the directory
-// and unpacks into it.
-export const UNPACK_SCRIPT = `command -v gzip >/dev/null 2>&1 || exit ${NO_GZIP_CODE}; mkdir -p "$1" && tar -x -z --no-same-owner -f - -C "$1"`;
-
-// Readies the guest folder, prints the version of the image's atc and of
-// the atc at `bin/atc`, one per line and empty for one that is missing,
-// and links `bin/atc` to the image's atc when that one prints the
-// daemon's version and lives elsewhere.
-export const READ_GUEST_ATC_SCRIPT = [
-  'mkdir -p "$1/run" "$1/bin" || exit 1',
-  'image=$("$2" --version 2>/dev/null) || image=',
-  'copied=$("$1/bin/atc" --version 2>/dev/null) || copied=',
-  String.raw`printf '%s\n%s\n' "$image" "$copied"`,
-  '[ -n "$image" ] && [ "$image" = "$3" ] || exit 0',
-  '[ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc"',
-].join('\n');
-
-// Readies the guest folder and links `bin/atc` to the image's atc again,
-// as a cold boot of an imp leaves it without the link.
-export const LINK_GUEST_ATC_SCRIPT =
-  'mkdir -p "$1/run" "$1/bin" && { [ "$2" = "$1/bin/atc" ] || ln -sfn "$2" "$1/bin/atc"; }';
-
-// Readies the guest folder and exits 0 only when `bin/atc` is an
-// executable it can run.
-export const CHECK_GUEST_ATC_SCRIPT = 'mkdir -p "$1/run" && [ -x "$1/bin/atc" ]';
 
 /**
  * The `imp` provider: one imp, a VM that impd hosts, per top-level session,
@@ -392,7 +370,7 @@ export class ImpProvider implements ExecutionProvider {
     // root, and root's tar keeps those owners, which git there then refuses
     // as dubious ownership, so the unpacked files take the guest user's owner.
     const result = await this.runOnHost(host, {
-      argv: ['sh', '-c', UNPACK_SCRIPT, 'sh', dir],
+      argv: ['sh', '-c', UNPACK_SCRIPT, 'sh', dir, String(NO_GZIP_CODE)],
       stdin: compressed,
     });
 
