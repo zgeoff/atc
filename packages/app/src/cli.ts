@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { parseListenAddress } from '@atc/config/listen/parse-listen-address';
 import { defineCommand, runMain } from 'citty';
 import pkg from '../package.json';
+import { buildATCInvocation } from './build-atc-invocation';
 import { collectRedirectURIs } from './collect-redirect-uris';
 import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
@@ -37,6 +38,11 @@ const main = defineCommand({
           hidden: true,
         },
         async run() {
+          const host = await import('./build-tui-host');
+          const slot = await import('./client/tui-host-slot');
+
+          slot.tuiHostSlot.current = host.buildTUIHost(buildATCInvocation());
+
           await import('./client');
         },
       }),
@@ -74,10 +80,16 @@ const main = defineCommand({
           },
         },
         async run(ctx) {
+          const boot = await import('@atc/lifecycle/boot-daemon');
+
+          const invocation = buildATCInvocation();
+
           if (!ctx.args.http) {
             const server = await import('./mcp-server');
 
-            await server.runMCPServer(getATCBuild());
+            await server.runMCPServer(invocation.readBuild(), () =>
+              boot.bootDaemonClient(invocation),
+            );
 
             return;
           }
@@ -91,12 +103,16 @@ const main = defineCommand({
 
           const http = await import('./mcp-http-server');
 
-          await http.runMCPHTTPServer(getATCBuild(), {
-            host: ctx.args.host ?? null,
-            port: port === null ? null : port.port,
-            publicURL: ctx.args['public-url'] ?? null,
-            waitForDaemon: ctx.args['wait-for-daemon'],
-          });
+          await http.runMCPHTTPServer(
+            invocation.readBuild(),
+            {
+              host: ctx.args.host ?? null,
+              port: port === null ? null : port.port,
+              publicURL: ctx.args['public-url'] ?? null,
+              waitForDaemon: ctx.args['wait-for-daemon'],
+            },
+            (options) => boot.bootDaemonClient(invocation, options),
+          );
         },
       }),
     clients: () =>
@@ -251,7 +267,7 @@ const main = defineCommand({
                 description: "Print the running daemon's daemonID",
               },
               async run() {
-                const id = await import('./run-daemon-id');
+                const id = await import('@atc/lifecycle/run-daemon-id');
 
                 await id.runDaemonID(getATCBuild());
               },
@@ -277,9 +293,9 @@ const main = defineCommand({
               async run(ctx) {
                 const options = parseRestartArgs(ctx.args);
 
-                const restart = await import('./run-daemon-restart');
+                const restart = await import('@atc/lifecycle/run-daemon-restart');
 
-                const code = await restart.runDaemonRestart({
+                const code = await restart.runDaemonRestart(buildATCInvocation(), {
                   ...options,
                   dryRun: ctx.args['dry-run'],
                 });
@@ -303,9 +319,9 @@ const main = defineCommand({
               async run(ctx) {
                 const options = parseRestartArgs(ctx.args);
 
-                const worker = await import('./run-daemon-restart-worker');
+                const worker = await import('@atc/lifecycle/run-daemon-restart-worker');
 
-                const code = await worker.runDaemonRestartWorker({
+                const code = await worker.runDaemonRestartWorker(buildATCInvocation(), {
                   ...options,
                   runID: ctx.args.runID,
                   callerSession: ctx.args.session ?? null,

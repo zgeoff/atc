@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubClaude } from '@atc/test-utils/create-stub-claude';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
@@ -11,7 +12,6 @@ import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
-import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**
  * A home with a stub Claude CLI and an empty config directory, for a test

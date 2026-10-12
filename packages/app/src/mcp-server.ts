@@ -1,6 +1,6 @@
+import type { DaemonBoot } from '@atc/protocol/daemon-boot';
 import { LineDecoder } from '@atc/protocol/line-decoder';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { bootDaemonClient } from './client/boot-daemon';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
 import { requireDaemonFeatures } from './mcp/require-daemon-features';
 import type { FleetCaller, ToolContext } from './mcp/types';
@@ -8,10 +8,14 @@ import type { FleetCaller, ToolContext } from './mcp/types';
 /**
  * An MCP server over stdio bridging to the atc daemon: any MCP client —
  * including a wrangled session — can list, spawn, and drive the fleet.
- * stdout carries only JSON-RPC lines; the daemon is booted on demand.
+ * stdout carries only JSON-RPC lines; the daemon is booted on demand,
+ * through the boot the entry wires in.
  */
-export async function runMCPServer(build: string): Promise<void> {
-  const boot = await bootDaemonClient();
+export async function runMCPServer(
+  build: string,
+  bootDaemon: () => Promise<DaemonBoot>,
+): Promise<void> {
+  const boot = await bootDaemon();
 
   const client = boot.client;
 

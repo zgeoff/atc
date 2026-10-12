@@ -72,9 +72,11 @@ src/agents/update-claude-project-trust.ts	harness-claude	local-trust	packages/ha
 src/agents/with-claude-config-lock.ts	harness-claude	local-trust	packages/harnesses/claude/src/local-trust/with-claude-config-lock.ts	
 src/agents/write-atc-bridge.ts	harness-claude	bridge	packages/harnesses/claude/src/bridge/write-atc-bridge.ts	
 src/agents/write-hook-settings.ts	harness-claude		packages/harnesses/claude/src/write-hook-settings.ts	
+src/build-atc-invocation.ts	app		packages/app/src/build-atc-invocation.ts	new in ticket 8
 src/build-migrated-config.ts	app	cli/config-migrate	packages/app/src/cli/config-migrate/build-migrated-config.ts	the migrate command's converter; stays beside it in app
 src/build-own-daemon-process.ts	lifecycle		packages/lifecycle/src/build-own-daemon-process.ts	
 src/build-restart-failure.ts	lifecycle		packages/lifecycle/src/build-restart-failure.ts	
+src/build-tui-host.ts	app		packages/app/src/build-tui-host.ts	new in ticket 8
 src/cli.ts	app		packages/app/src/cli.ts	
 src/client/boot-daemon.ts	lifecycle		packages/lifecycle/src/boot-daemon.ts	moves to lifecycle; tui receives connect/boot injected from app
 src/client/build-client-machine.ts	tui		packages/tui/src/build-client-machine.ts	
@@ -100,6 +102,8 @@ src/client/resolve-workspace-root.ts	tui		packages/tui/src/resolve-workspace-roo
 src/client/spawn-picker.ts	tui		packages/tui/src/spawn-picker.ts	
 src/client/split-to-width.ts	tui		packages/tui/src/split-to-width.ts	
 src/client/to-mirror-session.ts	tui		packages/tui/src/to-mirror-session.ts	
+src/client/tui-host-slot.ts	tui		packages/tui/src/tui-host-slot.ts	new in ticket 8
+src/client/tui-host.ts	tui		packages/tui/src/tui-host.ts	new in ticket 8
 src/client/ui.ts	tui		packages/tui/src/ui.ts	
 src/clients.ts	mcp	entry	packages/mcp/src/entry/clients.ts	
 src/collect-redirect-uris.ts	app	cli	packages/app/src/cli/collect-redirect-uris.ts	
@@ -249,6 +253,8 @@ src/grants.ts	mcp	entry	packages/mcp/src/entry/grants.ts
 src/hook-report.ts	reporters		packages/reporters/src/hook-report.ts	
 src/is-daemon-command-line.ts	lifecycle		packages/lifecycle/src/is-daemon-command-line.ts	
 src/is-daemon-process.ts	lifecycle		packages/lifecycle/src/is-daemon-process.ts	
+src/lifecycle/atc-invocation.ts	lifecycle		packages/lifecycle/src/atc-invocation.ts	new in ticket 8
+src/lifecycle/run-command.ts	lifecycle		packages/lifecycle/src/run-command.ts	new in ticket 8
 src/mcp-http-server.ts	mcp	entry	packages/mcp/src/entry/mcp-http-server.ts	
 src/mcp-server.ts	mcp	entry	packages/mcp/src/entry/mcp-server.ts	
 src/mcp/answer-authorize-request.ts	mcp	auth	packages/mcp/src/auth/answer-authorize-request.ts	
@@ -310,12 +316,15 @@ src/protocol/build-session-env.ts	protocol		packages/protocol/src/build-session-
 src/protocol/control-character.ts	protocol		packages/protocol/src/control-character.ts	
 src/protocol/count-session-states.ts	protocol		packages/protocol/src/count-session-states.ts	
 src/protocol/daemon-answer.ts	protocol		packages/protocol/src/daemon-answer.ts	new in ticket 4
+src/protocol/daemon-boot-options.ts	protocol		packages/protocol/src/daemon-boot-options.ts	new in ticket 8
+src/protocol/daemon-boot.ts	protocol		packages/protocol/src/daemon-boot.ts	new in ticket 8
 src/protocol/daemon-channel.ts	protocol		packages/protocol/src/daemon-channel.ts	
 src/protocol/daemon-contract.ts	protocol		packages/protocol/src/daemon-contract.ts	new in ticket 4
 src/protocol/daemon-error-map.ts	protocol		packages/protocol/src/daemon-error-map.ts	new in ticket 4
 src/protocol/daemon-error.ts	protocol		packages/protocol/src/daemon-error.ts	
 src/protocol/daemon-event.ts	protocol		packages/protocol/src/daemon-event.ts	new in ticket 4
 src/protocol/daemon-features.ts	(deleted in ticket 24)		src/protocol/daemon-features.ts	
+src/protocol/daemon-paths.ts	protocol		packages/protocol/src/daemon-paths.ts	new in ticket 8
 src/protocol/decode-cursor.ts	protocol		packages/protocol/src/decode-cursor.ts	
 src/protocol/encode-cursor.ts	protocol		packages/protocol/src/encode-cursor.ts	
 src/protocol/find-answer-schema.ts	protocol		packages/protocol/src/find-answer-schema.ts	new in ticket 4
@@ -502,6 +511,7 @@ src/test-utils/build-mock-gateway-config.ts	harness-claude	testing	packages/harn
 src/test-utils/build-mock-imp-identity.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-identity.ts	
 src/test-utils/build-mock-imp-session-request.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-session-request.ts	
 src/test-utils/build-mock-key-binding-claim.ts	gateway	testing	packages/gateway/src/testing/build-mock-key-binding-claim.ts	
+src/test-utils/build-mock-listed-agent.ts	test-utils		packages/test-utils/src/build-mock-listed-agent.ts	new in ticket 8
 src/test-utils/build-mock-message-record.ts	store	testing	packages/store/src/testing/build-mock-message-record.ts	
 src/test-utils/build-mock-mirror-session.ts	tui	testing	packages/tui/src/testing/build-mock-mirror-session.ts	
 src/test-utils/build-mock-published-record.ts	test-utils		packages/test-utils/src/build-mock-published-record.ts	

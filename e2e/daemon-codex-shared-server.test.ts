@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 import { createStubComposer } from '@atc/test-utils/create-stub-composer';
 import { createStubSharedServerCodex } from '@atc/test-utils/create-stub-shared-server-codex';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -10,7 +11,6 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**
  * A home with a stub Codex CLI whose terminals share one background server,

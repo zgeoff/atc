@@ -20,6 +20,9 @@ import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { toMessageID } from '@atc/core/to-message-id';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
+import { claimDaemonLock } from '@atc/lifecycle/claim-daemon-lock';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
+import { writeDaemonRecord } from '@atc/lifecycle/write-daemon-record';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
 import { DaemonError } from '@atc/protocol/daemon-error';
@@ -40,8 +43,6 @@ import type { EventScope } from '@atc/store/state-store';
 import type { TrailEntry } from '@atc/store/trail-entry';
 import type { AgentAdapter } from '../agents/agent-adapter';
 import { planTypedLineInput } from '../agents/plan-typed-line-input';
-import { claimDaemonLock } from '../shared/claim-daemon-lock';
-import { findDaemonRecord } from '../shared/find-daemon-record';
 import type { SourceProvider } from '../sources/types';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
@@ -108,7 +109,6 @@ import { startTCPListener } from './start-tcp-listener';
 import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
 import type { TargetAccess } from './target-access';
-import { writeDaemonRecord } from './write-daemon-record';
 import { writeLineSteps } from './write-line-steps';
 
 export interface DaemonOptions {

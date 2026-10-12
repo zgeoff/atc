@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
@@ -9,7 +10,6 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
-import { isProcessAlive } from '../shared/is-process-alive';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubImpPort } from './create-stub-imp-port';
 

@@ -1,0 +1,21 @@
+{
+  "name": "@atc/lifecycle",
+  "private": true,
+  "description": "atc daemon process control: the lock, pid and record files, detached spawn, systemctl, and booting, stopping, restarting, and probing a daemon",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@atc/store": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:",
+    "tiny-invariant": "catalog:"
+  }
+}

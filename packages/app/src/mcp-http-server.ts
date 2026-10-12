@@ -4,8 +4,9 @@ import type { MCPHTTPConfig } from '@atc/config/collect-mcp-http-config';
 import { mcpAuthDBFile } from '@atc/config/config';
 import { loadMCPHTTPConfig } from '@atc/config/load-mcp-http-config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { bootDaemonClient } from './client/boot-daemon';
-import type { DaemonBoot, DaemonPaths } from './client/boot-daemon';
+import type { DaemonBoot } from '@atc/protocol/daemon-boot';
+import type { DaemonBootOptions } from '@atc/protocol/daemon-boot-options';
+import type { DaemonPaths } from '@atc/protocol/daemon-paths';
 import { collectClients } from './mcp/collect-clients';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
@@ -60,12 +61,14 @@ const DAEMON_WAIT_MS = 30_000;
 /**
  * Runs `atc mcp --http` in the foreground: boots the daemon when it is down,
  * or with `--wait-for-daemon` waits for one and exits when none answers, and
- * serves MCP over HTTP until Ctrl-C. Approval codes print here, so the
- * terminal running it is where the operator approves a client.
+ * serves MCP over HTTP until Ctrl-C, through the boot the entry wires in.
+ * Approval codes print here, so the terminal running it is where the
+ * operator approves a client.
  */
 export async function runMCPHTTPServer(
   build: string,
   flags: MCPHTTPFlags,
+  bootDaemon: (options: DaemonBootOptions) => Promise<DaemonBoot>,
   io: MCPHTTPServerIO = PROCESS_IO,
 ): Promise<void> {
   const config = io.loadConfig();
@@ -87,7 +90,7 @@ export async function runMCPHTTPServer(
   let boot: DaemonBoot;
 
   try {
-    boot = await bootDaemonClient(bootOptions);
+    boot = await bootDaemon(bootOptions);
   } catch (error) {
     io.printError(`atc mcp --http: ${error instanceof Error ? error.message : String(error)}`);
     io.exit(1);

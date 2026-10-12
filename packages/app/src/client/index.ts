@@ -6,6 +6,7 @@ import { makeSingleFlight } from '@atc/core/make-single-flight';
 import { systemClock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
 import { countSessionStates } from '@atc/protocol/count-session-states';
+import type { DaemonBoot } from '@atc/protocol/daemon-boot';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import type { ProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
@@ -14,23 +15,31 @@ import { sortGroupedSessionViews } from '@atc/protocol/sort-grouped-session-view
 import { sortSessionViews } from '@atc/protocol/sort-session-views';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
-import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
-import { restartManagedDaemon } from '../shared/restart-managed-daemon';
-import { bootDaemonClient } from './boot-daemon';
-import type { DaemonBoot } from './boot-daemon';
 import { buildClientMachine } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
 import { collectTargetPicks } from './collect-target-picks';
 import { findFuzzyScore, formatDir } from './dirs';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
-import { logClientEvent } from './log-client-event';
 import { parseDaemonEvent } from './parse-daemon-event';
 import { pickTabTarget } from './pick-tab-target';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
+import { tuiHostSlot } from './tui-host-slot';
 import { cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
+
+// The daemon boot, restart, and event log the entry wired in.
+const host = tuiHostSlot.current;
+
+if (host === null) {
+  throw new Error('the TUI started without a host');
+}
+
+const bootDaemonClient = host.bootDaemon;
+const isDaemonManaged = host.isDaemonManaged;
+const restartManagedDaemon = host.restartManagedDaemon;
+const logClientEvent = host.logEvent;
 
 // The time and the timers every wait of this client runs on.
 const clock = systemClock;
@@ -1025,12 +1034,12 @@ const restartDaemonOnce = makeSingleFlight(async () => {
 });
 
 async function restartDaemon() {
-  if (readManagedDaemonUnit() === null) {
+  if (isDaemonManaged()) {
+    await restartManagedDaemon();
+  } else {
     try {
       await client.sendRequest('daemon.quit');
     } catch {}
-  } else {
-    await restartManagedDaemon();
   }
 
   client.stop();

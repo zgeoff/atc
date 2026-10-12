@@ -4,6 +4,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 import type { EventMsg } from '@atc/protocol/protocol';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
@@ -20,8 +22,6 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { waitForEvent } from '@atc/test-utils/wait-for-event';
 import invariant from 'tiny-invariant';
-import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
-import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
 
 /**
  * A home with stub Claude and Grok CLIs for the `atc daemon` that each test
