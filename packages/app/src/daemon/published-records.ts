@@ -67,7 +67,7 @@ export class PublishedRecords {
 
   // The change under way for each session, which the next change to the
   // same record waits on, so two additions never write over each other.
-  private readonly withSessionTurn = makeKeyedLock<SessionID>();
+  private readonly withSessionTurn = makeKeyedLock();
 
   constructor(options: PublishedRecordsOptions) {
     this.options = options;

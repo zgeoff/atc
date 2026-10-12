@@ -71,7 +71,7 @@ export class RuntimeAuthBinder {
   private readonly now: () => number;
 
   // Runs each call on a host after the one before it on that host.
-  private readonly withHostLock = makeKeyedLock<SessionID>();
+  private readonly withHostLock = makeKeyedLock();
 
   // The admissions on each host whose request has not gone out yet. A
   // revoke, a rebind or a forget cancels them before it writes anything,

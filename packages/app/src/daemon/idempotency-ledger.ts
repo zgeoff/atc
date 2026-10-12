@@ -71,7 +71,7 @@ export class IdempotencyLedger {
 
   // One promise chain per key, so two requests under the same key never
   // interleave their claim and completion on one daemon.
-  private readonly withKeyLock = makeKeyedLock<string>();
+  private readonly withKeyLock = makeKeyedLock();
 
   constructor(
     store: StateStore,

@@ -3,10 +3,10 @@
  * has settled, and calls with different keys run at once. A call that throws
  * still releases the key. A key with nothing queued holds no memory.
  */
-export function makeKeyedLock<K>(): <T>(key: K, run: () => Promise<T>) => Promise<T> {
-  const tails = new Map<K, Promise<void>>();
+export function makeKeyedLock(): <T>(key: string, run: () => Promise<T>) => Promise<T> {
+  const tails = new Map<string, Promise<void>>();
 
-  return async <T>(key: K, run: () => Promise<T>): Promise<T> => {
+  return async <T>(key: string, run: () => Promise<T>): Promise<T> => {
     const before = tails.get(key);
     const turn = Promise.withResolvers<void>();
 

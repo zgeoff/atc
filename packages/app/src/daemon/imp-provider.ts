@@ -158,7 +158,7 @@ export class ImpProvider implements ExecutionProvider {
   // Each imp's readyings, sleeps, and lease returns run one after another,
   // in the order they were asked for, so none of them gives back the lease
   // a readying just took.
-  private readonly withHostTurn = makeKeyedLock<string>();
+  private readonly withHostTurn = makeKeyedLock();
 
   // The readyings of each imp still waiting for their turn.
   private readonly waitingPrepares = new Map<string, number>();

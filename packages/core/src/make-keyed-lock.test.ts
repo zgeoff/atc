@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { makeKeyedLock } from './make-keyed-lock';
 
 test('it runs a call with a key after the earlier call with that key settles', async () => {
-  const withLock = makeKeyedLock<string>();
+  const withLock = makeKeyedLock();
   const order: string[] = [];
   const first = Promise.withResolvers<void>();
 
@@ -22,7 +22,7 @@ test('it runs a call with a key after the earlier call with that key settles', a
 });
 
 test('it runs calls with different keys at once', async () => {
-  const withLock = makeKeyedLock<string>();
+  const withLock = makeKeyedLock();
   const order: string[] = [];
   const first = Promise.withResolvers<void>();
 
@@ -42,7 +42,7 @@ test('it runs calls with different keys at once', async () => {
 });
 
 test('it releases the key when a call throws', async () => {
-  const withLock = makeKeyedLock<string>();
+  const withLock = makeKeyedLock();
   const failed = withLock('a', () => Promise.reject(new Error('boom')));
   const next = withLock('a', () => Promise.resolve('ran'));
 
@@ -54,7 +54,7 @@ test('it releases the key when a call throws', async () => {
 });
 
 test('it returns the value of the call it runs', async () => {
-  const withLock = makeKeyedLock<string>();
+  const withLock = makeKeyedLock();
 
   const value = await withLock('a', () => Promise.resolve(42));
 
