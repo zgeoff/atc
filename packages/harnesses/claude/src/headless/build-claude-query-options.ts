@@ -1,5 +1,4 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
-import { socketPath } from '@atc/config/config';
 import type { HeadlessRunRequest } from '@atc/plugin-api/agent-adapter';
 import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
 import { buildHeadlessEnv } from './build-headless-env';
@@ -49,7 +48,7 @@ export function buildClaudeQueryOptions(
   return {
     cwd: opts.cwd,
     env: buildHeadlessEnv({
-      socketPath,
+      socketPath: opts.reporterSocket,
       ...(opts.pluginDir === undefined ? {} : { pluginDir: opts.pluginDir }),
       ...(opts.sessionID === undefined ? {} : { sessionID: opts.sessionID }),
       ...(opts.withheldEnv === undefined ? {} : { withheldEnv: opts.withheldEnv }),

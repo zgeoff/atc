@@ -1,7 +1,9 @@
 import type { AgentID } from '@atc/core/agent-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
 import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
+import { buildHookEntry } from '@atc/plugin-api/harness/build-hook-entry';
 import { z } from 'zod';
+import { CLAUDE_HOOKS } from './claude-hooks';
 
 /**
  * What one agent id needs on top of the shared instrumentation. The
@@ -22,9 +24,9 @@ export interface HookSettingsProfile {
  * `claude --settings`. The user's own settings are untouched; these hooks
  * only exist in sessions atc spawns, and identify themselves via the
  * session id in their session environment and the agent id on their
- * command line. A
- * nested harness inherits the env but not the command line, so the agent id
- * keeps its reports from passing as the session's own.
+ * command line. A nested harness inherits the env but not the command
+ * line, so the agent id keeps its reports from passing as the session's
+ * own.
  *
  * A settings-file env block outranks a shell export of the same variable, so
  * a session's backend is decided here rather than by whatever the terminal
@@ -40,30 +42,12 @@ export function buildHookSettings(
   statuslinePadding: number,
   cliArgv: readonly string[],
 ): Record<string, unknown> {
-  const entry = [
-    {
-      hooks: [
-        {
-          type: 'command',
-          command: buildHookCommand(`hook-report --agent ${toShellArg(profile.id)}`, cliArgv),
-          timeout: 5,
-        },
-      ],
-    },
-  ];
+  const command = buildHookCommand(`hook-report --agent ${toShellArg(profile.id)}`, cliArgv);
+  const entry = [buildHookEntry(command, 5)];
 
   const own = {
     hooks: mergeSessionHooks(
-      {
-        // SessionStart carries the session id at spawn/resume time, before any
-        // interaction — without it a session only enters the fleet file after
-        // its first prompt/notification.
-        SessionStart: entry,
-        Notification: entry,
-        Stop: entry,
-        UserPromptSubmit: entry,
-        SessionEnd: entry,
-      },
+      Object.fromEntries(Object.keys(CLAUDE_HOOKS).map((event) => [event, entry])),
       profile.settings?.['hooks'],
     ),
 

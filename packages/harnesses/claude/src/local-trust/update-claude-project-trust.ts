@@ -2,8 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
+import { z } from 'zod';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 import type { ClaudeConfigLockOptions } from './with-claude-config-lock';
+
+// A project entry the CLI's trust dialog has already accepted.
+const TrustedEntrySchema = z.looseObject({ hasTrustDialogAccepted: z.literal(true) });
 
 /**
  * Accepts the Claude CLI's folder trust for one exact directory in its
@@ -17,6 +21,10 @@ import type { ClaudeConfigLockOptions } from './with-claude-config-lock';
  * fails before the CLI starts: it puts back the entry as it was, unless
  * something has changed the entry since, which leaves it as it stands.
  * The lock options apply to both the trust and its taking back.
+ *
+ * The config is written back from the values as read, never from a zod
+ * parse's output, since a parse drops a `__proto__` key and reorders keys
+ * the CLI wrote.
  */
 export async function updateClaudeProjectTrust(
   configPath: string,
@@ -31,7 +39,7 @@ export async function updateClaudeProjectTrust(
       const projects = isRecord(config['projects']) ? config['projects'] : {};
       const entry = projects[root];
 
-      if (isRecord(entry) && entry['hasTrustDialogAccepted'] === true) {
+      if (TrustedEntrySchema.safeParse(entry).success) {
         return null;
       }
 

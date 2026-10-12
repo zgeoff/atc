@@ -9,24 +9,6 @@ import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import { isRecord } from '@atc/core/is-record';
 import type { SessionID } from '@atc/core/session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
-import { buildATCBridgeFiles } from '@atc/harness-claude/bridge/build-atc-bridge-files';
-import { writeATCBridge } from '@atc/harness-claude/bridge/write-atc-bridge';
-import { buildClaudeOverrideArgs } from '@atc/harness-claude/build-claude-override-args';
-import { buildHookSettings } from '@atc/harness-claude/build-hook-settings';
-import { buildRestoreModeArgs } from '@atc/harness-claude/build-restore-mode-args';
-import type { ClaudeAdapterOptions } from '@atc/harness-claude/claude-adapter-options';
-import { CLAUDE_EFFORT_LEVELS } from '@atc/harness-claude/claude-effort-levels';
-import { createLocalScratchDir } from '@atc/harness-claude/create-local-scratch-dir';
-import { findClaudePermissionMode } from '@atc/harness-claude/find-claude-permission-mode';
-import { buildClaudeConfigSeed } from '@atc/harness-claude/guest/build-claude-config-seed';
-import { buildClaudeGuestLaunch } from '@atc/harness-claude/guest/build-claude-guest-launch';
-import { buildClaudeProjectSettingsCheck } from '@atc/harness-claude/guest/build-claude-project-settings-check';
-import { makeClaudeHeadlessRunner } from '@atc/harness-claude/headless/make-claude-headless-runner';
-import { parseClaudeTranscriptLine } from '@atc/harness-claude/parse-claude-transcript-line';
-import { planClaudeLineInput } from '@atc/harness-claude/plan-claude-line-input';
-import { resolveClaudePermissionMode } from '@atc/harness-claude/resolve-claude-permission-mode';
-import { SESSION_SCRATCH_FOLDER } from '@atc/harness-claude/session-scratch-folder';
-import { writeHookSettings } from '@atc/harness-claude/write-hook-settings';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -42,19 +24,38 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from '@atc/plugin-api/agent-adapter';
+import { buildAuthRevisionFolder } from '@atc/plugin-api/harness/build-auth-revision-folder';
+import { canResumeFromTranscript } from '@atc/plugin-api/harness/can-resume-from-transcript';
 import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
 import type { HostServices } from '@atc/plugin-api/host-services';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
-import { ClaudeAdapter } from '../claude-adapter';
+import { buildGuestBridgeFiles } from '../bridge/build-guest-bridge-files';
+import { buildClaudeArgs } from '../build-claude-args';
+import { buildClaudeHookEvent } from '../build-claude-hook-event';
+import { buildHookSettings } from '../build-hook-settings';
+import { buildRestoreModeArgs } from '../build-restore-mode-args';
+import type { ClaudeAdapterOptions } from '../claude-adapter-options';
+import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
+import { ClaudeLaunchFiles } from '../claude-launch-files';
+import { createLocalScratchDir } from '../create-local-scratch-dir';
+import { findClaudePermissionMode } from '../find-claude-permission-mode';
+import { buildClaudeConfigSeed } from '../guest/build-claude-config-seed';
+import { buildClaudeGuestLaunch } from '../guest/build-claude-guest-launch';
+import { buildClaudeProjectSettingsCheck } from '../guest/build-claude-project-settings-check';
+import { makeClaudeHeadlessRunner } from '../headless/make-claude-headless-runner';
+import { loadClaudeName } from '../load-claude-name';
+import { parseClaudeTranscriptLine } from '../parse-claude-transcript-line';
+import { planClaudeLineInput } from '../plan-claude-line-input';
+import { resolveClaudePermissionMode } from '../resolve-claude-permission-mode';
+import { SESSION_SCRATCH_FOLDER } from '../session-scratch-folder';
 
 /**
  * The Claude CLI pointed at a Claude-compatible backend other than the
- * default one. Hooks, transcripts, and resume semantics are the CLI's, so
- * they come straight from the Claude adapter; only the spawn plan and the
- * resume command differ, because both have to name the settings file that
- * carries the backend.
+ * default one. Hooks, transcripts, naming, and resume semantics are the
+ * CLI's, so the gateway reads them as stock Claude does; only the spawn
+ * plan and the resume command differ, because both have to name the
+ * settings file that carries the backend.
  */
 export class GatewayAdapter implements AgentAdapter {
   readonly id: AgentID;
@@ -75,27 +76,24 @@ export class GatewayAdapter implements AgentAdapter {
 
   readonly takesMessages = true;
 
+  readonly loadName: (
+    source: string,
+    namedBy: 'user' | 'auto' | 'agent',
+  ) => Promise<NameUpdate | null> = loadClaudeName;
+
+  readonly canResume: (session: ResumeCheck) => boolean = canResumeFromTranscript;
+
   readonly profile: AgentProfile;
 
   private readonly gateway: GatewayConfig;
 
   private readonly config: Config;
 
-  private readonly claude: ClaudeAdapter;
+  private readonly options: ClaudeAdapterOptions;
 
-  // Written on first spawn so constructing the adapter touches no state.
-  private settingsFile: string | undefined;
-
-  // Written on first spawn so constructing the adapter touches no state.
-  private bridgeDir: string | undefined;
-
-  private readonly bridgeTarget: string | undefined;
-
-  private readonly hostPaths: ClaudeAdapterOptions;
-
-  // The argv that runs this atc's CLI, which the settings file's hooks and
-  // the mod's commands run.
-  private readonly atcArgv: readonly string[];
+  // The settings file carries the backend's base URL, its environment, its
+  // credential helper, and its settings.
+  private readonly files: ClaudeLaunchFiles;
 
   constructor(
     gateway: GatewayConfig,
@@ -105,12 +103,21 @@ export class GatewayAdapter implements AgentAdapter {
   ) {
     const headlessRun = options.headlessRun ?? null;
 
-    this.bridgeTarget = options.bridgeTarget;
-    this.hostPaths = options;
-    this.atcArgv = host.atcArgv;
+    this.options = options;
     this.gateway = gateway;
     this.config = config;
     this.id = gateway.id;
+
+    this.files = new ClaudeLaunchFiles(
+      {
+        id: gateway.id,
+        env: { ANTHROPIC_BASE_URL: gateway.baseURL, ...gateway.env },
+        ...(gateway.apiKeyHelper === undefined ? {} : { apiKeyHelper: gateway.apiKeyHelper }),
+        ...(gateway.settings === undefined ? {} : { settings: gateway.settings }),
+      },
+      host.atcArgv,
+      options,
+    );
 
     const models = pickModels(gateway.env);
 
@@ -122,32 +129,14 @@ export class GatewayAdapter implements AgentAdapter {
       spawnOptions: buildGatewaySpawnOptions(gateway.args, models),
     };
 
-    this.claude = new ClaudeAdapter(
-      {
-        id: gateway.id,
-        kind: 'claude',
-        label: gateway.label,
-        mark: gateway.mark,
-        bin: gateway.bin,
-        args: gateway.args,
-        env: {},
-      },
-      config,
-      host,
-      {
-        ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
-        ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
-      },
-    );
-
     this.headlessRunner =
       headlessRun === null || isBrokerOnlyGateway(gateway)
         ? null
         : makeClaudeHeadlessRunner(headlessRun, {
             claudeBin: gateway.bin,
             permissionMode: resolveClaudePermissionMode(gateway.args, gateway.settings),
-            pluginDir: () => this.writeBridge(),
-            settings: () => this.writeSettings(),
+            pluginDir: () => this.files.writeBridge(),
+            settings: () => this.files.writeSettings(),
           });
   }
 
@@ -197,18 +186,16 @@ export class GatewayAdapter implements AgentAdapter {
       opts.resume === false ? [] : buildRestoreModeArgs(this.gateway.args, this.gateway.settings);
 
     const scratch =
-      session === undefined ? null : createLocalScratchDir(session, this.hostPaths.stateDir);
+      session === undefined ? null : createLocalScratchDir(session, this.options.stateDir);
 
     return {
       bin: this.gateway.bin,
-      args: this.buildArgs(
-        this.gateway.args,
-        opts,
-        modeArgs,
+      args: buildClaudeArgs(this.gateway.args, opts, {
+        leadArgs: modeArgs,
         scratch,
-        this.writeSettings(),
-        this.writeBridge(),
-      ),
+        settings: this.files.writeSettings(),
+        pluginDir: this.files.writeBridge(),
+      }),
       ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
     };
   }
@@ -247,11 +234,7 @@ export class GatewayAdapter implements AgentAdapter {
     }
 
     const argv = [guest.atc];
-    const settingsPath = `auth-r${guest.auth.revision}/settings.json`;
-
-    const bridge = Object.entries(buildATCBridgeFiles(argv)).map(
-      ([path, content]): [string, string] => [`atc-bridge/${path}`, content],
-    );
+    const settingsPath = `${buildAuthRevisionFolder(guest.auth.revision)}/settings.json`;
 
     const settings = buildHookSettings(
       {
@@ -279,14 +262,12 @@ export class GatewayAdapter implements AgentAdapter {
       guest.dir,
       [
         this.gateway.bin,
-        ...this.buildArgs(
-          args,
-          opts,
-          this.buildGuestModeArgs(args),
-          `${guest.dir}/${SESSION_SCRATCH_FOLDER}`,
-          `${guest.dir}/${settingsPath}`,
-          `${guest.dir}/atc-bridge`,
-        ),
+        ...buildClaudeArgs(args, opts, {
+          leadArgs: this.buildGuestModeArgs(args),
+          scratch: `${guest.dir}/${SESSION_SCRATCH_FOLDER}`,
+          settings: `${guest.dir}/${settingsPath}`,
+          pluginDir: `${guest.dir}/atc-bridge`,
+        }),
       ],
       refusedEnv,
     );
@@ -297,7 +278,7 @@ export class GatewayAdapter implements AgentAdapter {
       files: {
         [settingsPath]: JSON.stringify(settings, null, 2),
         ...buildClaudeConfigSeed(null, approvedAPIKey),
-        ...Object.fromEntries(bridge),
+        ...buildGuestBridgeFiles(argv),
       },
       env: { ...launch.env, ...guest.auth.profileEnv, ...guest.auth.env },
     };
@@ -313,27 +294,17 @@ export class GatewayAdapter implements AgentAdapter {
     return buildClaudeConfigSeed(root, approvedAPIKey);
   }
 
+  // The gateway runs the Claude CLI, whose hook lines it reads as stock
+  // Claude does, with no state across a session's lines.
   planHookEvents(e: HookEvent): HookPlan {
-    return { events: [this.normalizeHook(e)] };
-  }
-
-  normalizeHook(e: HookEvent): AdapterEvent {
-    return this.claude.normalizeHook(e);
-  }
-
-  loadName(source: string, namedBy: 'user' | 'auto' | 'agent'): Promise<NameUpdate | null> {
-    return this.claude.loadName(source, namedBy);
-  }
-
-  canResume(session: ResumeCheck): boolean {
-    return this.claude.canResume(session);
+    return { events: [buildClaudeHookEvent(e)] };
   }
 
   // Shell command that re-opens this session outside atc. It carries the
   // gateway's configured arguments and its configured permission mode as an
   // explicit flag, so that mode overrides the one the CLI would restore, and
-  // the generated settings file, because
-  // without it the CLI would resume the session against the default backend.
+  // the generated settings file, because without it the CLI would resume
+  // the session against the default backend.
   // A gateway whose credential comes through impd's broker alone has none,
   // since outside atc the broker never reaches it.
   buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
@@ -348,35 +319,10 @@ export class GatewayAdapter implements AgentAdapter {
       .map((arg) => ` ${toShellArg(arg)}`)
       .join('');
 
-    const settings = toShellArg(this.writeSettings());
+    const settings = toShellArg(this.files.writeSettings());
     const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
 
     return `cd ${toShellArg(cwd)} && ${this.gateway.bin}${args} --settings ${settings} --resume${resume}`;
-  }
-
-  // The scratch folder is a working directory of the session's own, so the
-  // CLI reads and writes there without a prompt. Its variadic flag sits
-  // ahead of the settings flag, so it never takes the prompt as a value.
-  private buildArgs(
-    args: readonly string[],
-    opts: SpawnOptions,
-    modeArgs: readonly string[],
-    scratch: string | null,
-    settings: string,
-    pluginDir: string,
-  ): string[] {
-    return [
-      ...buildClaudeOverrideArgs(args, opts),
-      ...modeArgs,
-      ...(scratch === null ? [] : ['--add-dir', scratch]),
-      '--settings',
-      settings,
-      '--plugin-dir',
-      pluginDir,
-      ...(opts.resume === true ? ['--resume'] : []),
-      ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
-      ...(opts.prompt === '' ? [] : [opts.prompt]),
-    ];
   }
 
   // A brokered session's Claude config is fresh, so the CLI's own default
@@ -498,30 +444,6 @@ export class GatewayAdapter implements AgentAdapter {
     return new DaemonError('auth_placeholder_unsupported', `gateway '${this.id}' ${problem}`, {
       agent: this.id,
     });
-  }
-
-  private writeSettings(): string {
-    this.settingsFile ??= writeHookSettings(
-      {
-        id: this.id,
-        env: { ANTHROPIC_BASE_URL: this.gateway.baseURL, ...this.gateway.env },
-        ...(this.gateway.apiKeyHelper === undefined
-          ? {}
-          : { apiKeyHelper: this.gateway.apiKeyHelper }),
-        ...(this.gateway.settings === undefined ? {} : { settings: this.gateway.settings }),
-      },
-      this.atcArgv,
-      this.hostPaths.stateDir,
-      this.hostPaths.homeDir,
-    );
-
-    return this.settingsFile;
-  }
-
-  private writeBridge(): string {
-    this.bridgeDir ??= writeATCBridge(this.atcArgv, this.bridgeTarget);
-
-    return this.bridgeDir;
   }
 }
 

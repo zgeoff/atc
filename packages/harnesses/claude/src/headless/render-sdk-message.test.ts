@@ -36,7 +36,7 @@ test('it renders a failed result with its subtype', () => {
 });
 
 test('it renders nothing for a system message', () => {
-  expect(renderSDKMessage({ type: 'system', subtype: 'init' })).toBeNull();
+  expect(renderSDKMessage({ type: 'system' })).toBeNull();
 });
 
 test('it renders nothing for an assistant message without content', () => {

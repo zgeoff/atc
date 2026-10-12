@@ -1,4 +1,8 @@
-import type { HeadlessRunEvents, HeadlessRunner } from '@atc/plugin-api/agent-adapter';
+import type {
+  HeadlessRunEvents,
+  HeadlessRunHandle,
+  HeadlessRunner,
+} from '@atc/plugin-api/agent-adapter';
 import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 
 /**
@@ -7,8 +11,8 @@ import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
  */
 export type ClaudeHeadlessRun = (
   opts: ClaudeHeadlessRunRequest,
-  hooks: HeadlessRunEvents,
-) => { readonly stop: () => void };
+  events: HeadlessRunEvents,
+) => HeadlessRunHandle;
 
 /**
  * Where and how a Claude CLI headless turn runs: the binary, the permission
@@ -32,7 +36,7 @@ export function makeClaudeHeadlessRunner(
   run: ClaudeHeadlessRun,
   target: ClaudeHeadlessTarget,
 ): HeadlessRunner {
-  return (opts, hooks) =>
+  return (opts, events) =>
     run(
       {
         ...opts,
@@ -41,6 +45,6 @@ export function makeClaudeHeadlessRunner(
         pluginDir: target.pluginDir(),
         ...(target.settings === undefined ? {} : { settings: target.settings() }),
       },
-      hooks,
+      events,
     );
 }

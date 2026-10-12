@@ -1,45 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import type { AgentEntry } from '@atc/config/collect-agents';
 import type { Config } from '@atc/config/config';
+import { parseClaudeStatusLine } from '@atc/config/parse-claude-statusline';
 import { resolveAgentHome } from '@atc/config/resolve-agent-home';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import { buildOptionalString } from '@atc/core/build-optional-string';
 import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
 import { isRecord } from '@atc/core/is-record';
 import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
 import { OUTRANKING_VARIABLES } from '@atc/core/outranking-variables';
 import type { SessionID } from '@atc/core/session-id';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toShellArg } from '@atc/core/to-shell-arg';
-import { truncateDetail } from '@atc/core/truncate-detail';
-import { buildATCBridgeFiles } from '@atc/harness-claude/bridge/build-atc-bridge-files';
-import { writeATCBridge } from '@atc/harness-claude/bridge/write-atc-bridge';
-import { buildClaudeOverrideArgs } from '@atc/harness-claude/build-claude-override-args';
-import { buildHookSettings } from '@atc/harness-claude/build-hook-settings';
-import type { HookSettingsProfile } from '@atc/harness-claude/build-hook-settings';
-import { buildRestoreModeArgs } from '@atc/harness-claude/build-restore-mode-args';
-import { buildScratchLaunch } from '@atc/harness-claude/build-scratch-launch';
-import type { ClaudeAdapterOptions } from '@atc/harness-claude/claude-adapter-options';
-import { CLAUDE_EFFORT_LEVELS } from '@atc/harness-claude/claude-effort-levels';
-import { createLocalScratchDir } from '@atc/harness-claude/create-local-scratch-dir';
-import { findClaudePermissionMode } from '@atc/harness-claude/find-claude-permission-mode';
-import { buildClaudeConfigSeed } from '@atc/harness-claude/guest/build-claude-config-seed';
-import { buildClaudeGuestLaunch } from '@atc/harness-claude/guest/build-claude-guest-launch';
-import { buildClaudeMCPConfig } from '@atc/harness-claude/guest/build-claude-mcp-config';
-import { buildClaudeProjectSettingsCheck } from '@atc/harness-claude/guest/build-claude-project-settings-check';
-import { CLAUDE_CONFIG_BUNDLE_FOLDER } from '@atc/harness-claude/guest/claude-config-bundle-folder';
-import { loadClaudeConfigBundle } from '@atc/harness-claude/guest/load-claude-config-bundle';
-import { makeClaudeHeadlessRunner } from '@atc/harness-claude/headless/make-claude-headless-runner';
-import { resolveClaudeGlobalConfigPath } from '@atc/harness-claude/local-trust/resolve-claude-global-config-path';
-import { updateClaudeProjectTrust } from '@atc/harness-claude/local-trust/update-claude-project-trust';
-import { parseClaudeTranscriptLine } from '@atc/harness-claude/parse-claude-transcript-line';
-import { planClaudeLineInput } from '@atc/harness-claude/plan-claude-line-input';
-import { resolveClaudePermissionMode } from '@atc/harness-claude/resolve-claude-permission-mode';
-import { SESSION_SCRATCH_FOLDER } from '@atc/harness-claude/session-scratch-folder';
-import { writeHookSettings } from '@atc/harness-claude/write-hook-settings';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -56,26 +28,39 @@ import type {
   SpawnPlan,
 } from '@atc/plugin-api/agent-adapter';
 import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
+import { buildAuthRevisionFolder } from '@atc/plugin-api/harness/build-auth-revision-folder';
+import { canResumeFromTranscript } from '@atc/plugin-api/harness/can-resume-from-transcript';
 import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
 import type { HostServices } from '@atc/plugin-api/host-services';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
 import { z } from 'zod';
-
-// Claude's hook payload keys, snake_case. An absent or wrong-typed field
-// parses to undefined rather than failing the payload, so a broken reporter
-// never breaks the session it reports on.
-const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
-  session_id: buildOptionalString(),
-  transcript_path: buildOptionalString(),
-  message: buildOptionalString(),
-  notification_type: buildOptionalString(),
-  last_assistant_message: buildOptionalString(),
-  prompt: buildOptionalString(),
-});
-
-type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;
+import { buildGuestBridgeFiles } from './bridge/build-guest-bridge-files';
+import { buildClaudeArgs } from './build-claude-args';
+import { buildClaudeHookEvent } from './build-claude-hook-event';
+import { buildHookSettings } from './build-hook-settings';
+import type { HookSettingsProfile } from './build-hook-settings';
+import { buildRestoreModeArgs } from './build-restore-mode-args';
+import { buildScratchLaunch } from './build-scratch-launch';
+import type { ClaudeAdapterOptions } from './claude-adapter-options';
+import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
+import { ClaudeLaunchFiles } from './claude-launch-files';
+import { createLocalScratchDir } from './create-local-scratch-dir';
+import { findClaudePermissionMode } from './find-claude-permission-mode';
+import { buildClaudeConfigSeed } from './guest/build-claude-config-seed';
+import { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
+import { buildClaudeMCPConfig } from './guest/build-claude-mcp-config';
+import { buildClaudeProjectSettingsCheck } from './guest/build-claude-project-settings-check';
+import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './guest/claude-config-bundle-folder';
+import { loadClaudeConfigBundle } from './guest/load-claude-config-bundle';
+import { makeClaudeHeadlessRunner } from './headless/make-claude-headless-runner';
+import { loadClaudeName } from './load-claude-name';
+import { resolveClaudeGlobalConfigPath } from './local-trust/resolve-claude-global-config-path';
+import { updateClaudeProjectTrust } from './local-trust/update-claude-project-trust';
+import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
+import { planClaudeLineInput } from './plan-claude-line-input';
+import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
+import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
 
 /**
  * The Claude Code adapter: spawn arguments, `--settings` instrumentation,
@@ -96,6 +81,13 @@ export class ClaudeAdapter implements AgentAdapter {
   // leading slash command's name typed so the command still runs.
   readonly planLineInput = planClaudeLineInput;
 
+  readonly loadName: (
+    source: string,
+    namedBy: 'user' | 'auto' | 'agent',
+  ) => Promise<NameUpdate | null> = loadClaudeName;
+
+  readonly canResume: (session: ResumeCheck) => boolean = canResumeFromTranscript;
+
   readonly profile: AgentProfile;
 
   readonly takesMessages = true;
@@ -104,19 +96,9 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private readonly authProfiles: Config['authProfiles'];
 
-  // Written on first spawn so constructing the adapter touches no state.
-  private settingsFile: string | undefined;
+  private readonly options: ClaudeAdapterOptions;
 
-  // Written on first spawn so constructing the adapter touches no state.
-  private bridgeDir: string | undefined;
-
-  private readonly bridgeTarget: string | undefined;
-
-  private readonly hostPaths: ClaudeAdapterOptions;
-
-  // The argv that runs this atc's CLI, which the settings file's hooks and
-  // the mod's commands run.
-  private readonly atcArgv: readonly string[];
+  private readonly files: ClaudeLaunchFiles;
 
   constructor(
     entry: AgentEntry,
@@ -126,12 +108,12 @@ export class ClaudeAdapter implements AgentAdapter {
   ) {
     const headlessRun = options.headlessRun ?? null;
 
-    this.bridgeTarget = options.bridgeTarget;
-    this.hostPaths = options;
-    this.atcArgv = host.atcArgv;
+    this.options = options;
     this.entry = entry;
     this.authProfiles = config.authProfiles;
     this.id = entry.id;
+
+    this.files = new ClaudeLaunchFiles(this.buildSettingsProfile({}), host.atcArgv, options);
 
     this.profile = {
       label: entry.label,
@@ -147,30 +129,25 @@ export class ClaudeAdapter implements AgentAdapter {
         : makeClaudeHeadlessRunner(headlessRun, {
             claudeBin: entry.bin,
             permissionMode: resolveClaudePermissionMode(entry.args, entry.settings),
-            pluginDir: () => this.writeBridge(),
-            settings: () => this.writeSettings(),
+            pluginDir: () => this.files.writeBridge(),
+            settings: () => this.files.writeSettings(),
           });
   }
 
   // A session's scratch folder lies under its own folder in atc's state
   // folder, and is its temporary folder too.
   planSpawn(opts: SpawnOptions, session?: SessionID): SpawnPlan {
-    const modeArgs =
-      opts.resume === false ? [] : buildRestoreModeArgs(this.entry.args, this.entry.settings);
-
     const scratch =
-      session === undefined ? null : createLocalScratchDir(session, this.hostPaths.stateDir);
+      session === undefined ? null : createLocalScratchDir(session, this.options.stateDir);
 
     return {
       bin: this.entry.bin,
-      args: this.buildArgs(
-        this.entry.args,
-        opts,
-        modeArgs,
+      args: buildClaudeArgs(this.entry.args, opts, {
+        leadArgs: this.buildModeArgs(opts),
         scratch,
-        this.writeSettings(),
-        this.writeBridge(),
-      ),
+        settings: this.files.writeSettings(),
+        pluginDir: this.files.writeBridge(),
+      }),
       ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
     };
   }
@@ -213,40 +190,29 @@ export class ClaudeAdapter implements AgentAdapter {
 
     const argv = [guest.atc];
 
-    const modeArgs =
-      opts.resume === false ? [] : buildRestoreModeArgs(this.entry.args, this.entry.settings);
-
-    const bridge = Object.entries(buildATCBridgeFiles(argv)).map(
-      ([path, content]): [string, string] => [`atc-bridge/${path}`, content],
-    );
-
     if (guest.auth !== undefined) {
-      return this.planSubscriptionGuestSpawn(opts, guest.dir, guest.auth, argv, bridge);
+      return this.planSubscriptionGuestSpawn(opts, guest.dir, guest.auth, argv);
     }
 
     const scratch = `${guest.dir}/${SESSION_SCRATCH_FOLDER}`;
 
     const launch = buildScratchLaunch(scratch, [
       this.entry.bin,
-      ...this.buildArgs(
-        this.entry.args,
-        opts,
-        modeArgs,
+      ...buildClaudeArgs(this.entry.args, opts, {
+        leadArgs: this.buildModeArgs(opts),
         scratch,
-        `${guest.dir}/settings.json`,
-        `${guest.dir}/atc-bridge`,
-      ),
+        settings: `${guest.dir}/settings.json`,
+        pluginDir: `${guest.dir}/atc-bridge`,
+      }),
     ]);
+
+    const settings = buildHookSettings(this.buildSettingsProfile({}), 0, argv);
 
     return {
       ...launch,
       files: {
-        'settings.json': JSON.stringify(
-          buildHookSettings(this.buildSettingsProfile({}), 0, argv),
-          null,
-          2,
-        ),
-        ...Object.fromEntries(bridge),
+        'settings.json': JSON.stringify(settings, null, 2),
+        ...buildGuestBridgeFiles(argv),
       },
     };
   }
@@ -268,24 +234,60 @@ export class ClaudeAdapter implements AgentAdapter {
     return buildClaudeProjectSettingsCheck(this.id);
   }
 
+  // A session on the daemon's machine reads the user's own Claude config,
+  // so trust for the clone is that config's entry for the clone alone.
+  updateLocalWorkspaceTrust(root: string): Promise<() => Promise<void>> {
+    return updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(this.options.homeDir), root);
+  }
+
+  // Claude keeps no state across a session's hook lines.
+  planHookEvents(e: HookEvent): HookPlan {
+    return { events: [buildClaudeHookEvent(e)] };
+  }
+
+  // Shell command that re-opens this session outside atc (or anywhere). A
+  // permission mode the configured arguments set travels as an explicit
+  // flag, so it overrides the mode the CLI would restore. The generated
+  // settings file travels only for an entry that sets its own settings or
+  // environment, since the file sits on the daemon's machine and an entry
+  // without either needs nothing from it.
+  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
+    const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
+    const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
+    const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
+
+    const settings =
+      this.entry.settings === undefined && Object.keys(this.entry.env).length === 0
+        ? ''
+        : ` --settings ${toShellArg(this.files.writeSettings())}`;
+
+    return `cd ${toShellArg(cwd)} && ${formatShellWord(this.entry.bin)}${mode}${settings} --resume${resume}`;
+  }
+
+  // A resumed session restores the permission mode the configured
+  // arguments or settings set.
+  private buildModeArgs(opts: SpawnOptions): string[] {
+    return opts.resume === false ? [] : buildRestoreModeArgs(this.entry.args, this.entry.settings);
+  }
+
   // A settings file of the session's own per binding revision carries the
   // placeholder, and so does the CLI's environment. The configured
   // arguments go without a permission mode, so the mode the session's own
   // user settings set applies. Those user settings, with the rest of the
   // config bundle, come from the host's own Claude config folder as it is
-  // at this launch, staged under a key of this launch's own. A credential, endpoint, or provider variable in the
-  // configured settings, or in the host's environment, would keep the CLI
-  // from sending the placeholder, so either refuses the start. The entry's
-  // MCP servers reach the CLI through an MCP config file of the binding
-  // revision, each with the placeholder in its header. Their flag and the
-  // scratch folder's sit ahead of the settings flag, so neither variadic
-  // flag takes the prompt as one of its values.
+  // at this launch, staged under a key of this launch's own. A credential,
+  // endpoint, or provider variable in the configured settings, or in the
+  // host's environment, would keep the CLI from sending the placeholder, so
+  // either refuses the start. The entry's MCP servers reach the CLI through
+  // an MCP config file of the binding revision, each with the placeholder
+  // in its header. Their flag and the scratch folder's sit ahead of the
+  // settings flag, so neither variadic flag takes the prompt as one of its
+  // values.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
     auth: NonNullable<GuestPaths['auth']>,
     argv: readonly string[],
-    bridge: readonly (readonly [string, string])[],
   ): GuestSpawnPlan {
     const refusal = this.findCredentialOverride();
 
@@ -293,9 +295,10 @@ export class ClaudeAdapter implements AgentAdapter {
       throw refusal;
     }
 
-    const settingsPath = `auth-r${auth.revision}/settings.json`;
+    const revisionFolder = buildAuthRevisionFolder(auth.revision);
+    const settingsPath = `${revisionFolder}/settings.json`;
     const mcpServers = this.entry.mcpServers ?? [];
-    const mcpPath = `auth-r${auth.revision}/mcp.json`;
+    const mcpPath = `${revisionFolder}/mcp.json`;
     const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${dir}/${mcpPath}`];
     const bundleKey = randomUUID();
 
@@ -303,27 +306,29 @@ export class ClaudeAdapter implements AgentAdapter {
       dir,
       [
         this.entry.bin,
-        ...this.buildArgs(
-          buildArgsWithoutFlags(this.entry.args, ['--permission-mode']),
-          opts,
-          mcpArgs,
-          `${dir}/${SESSION_SCRATCH_FOLDER}`,
-          `${dir}/${settingsPath}`,
-          `${dir}/atc-bridge`,
-        ),
+        ...buildClaudeArgs(buildArgsWithoutFlags(this.entry.args, ['--permission-mode']), opts, {
+          leadArgs: mcpArgs,
+          scratch: `${dir}/${SESSION_SCRATCH_FOLDER}`,
+          settings: `${dir}/${settingsPath}`,
+          pluginDir: `${dir}/atc-bridge`,
+        }),
       ],
       [...OUTRANKING_VARIABLES],
       bundleKey,
     );
 
     const bundle = loadClaudeConfigBundle(
-      resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude', this.hostPaths.homeDir),
+      resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude', this.options.homeDir),
       launch.env.CLAUDE_CONFIG_DIR,
-      this.hostPaths.homeDir,
+      this.options.homeDir,
     );
 
+    // atc's statusline renders the one the bundle's user settings set
+    // first, so it mirrors that one's padding.
     const userSettings = bundle['settings.json'];
-    const padding = typeof userSettings === 'string' ? findStatuslinePadding(userSettings) : 0;
+
+    const padding =
+      typeof userSettings === 'string' ? (parseClaudeStatusLine(userSettings).padding ?? 0) : 0;
 
     const settings = buildHookSettings(
       this.buildSettingsProfile({
@@ -350,7 +355,7 @@ export class ClaudeAdapter implements AgentAdapter {
             content,
           ]),
         ),
-        ...Object.fromEntries(bridge),
+        ...buildGuestBridgeFiles(argv),
       },
       env: { ...launch.env, ...auth.profileEnv, ...auth.env },
     };
@@ -366,7 +371,7 @@ export class ClaudeAdapter implements AgentAdapter {
     const sources: readonly (readonly [string, readonly string[]])[] = [
       ['env', Object.keys(this.entry.env)],
       ['settings.env', isRecord(settingsEnv) ? Object.keys(settingsEnv) : []],
-      ['args in --settings', this.findInlineSettingsKeys()],
+      ['args in --settings', findInlineSettingsKeys(this.entry.args)],
     ];
 
     for (const [source, keys] of sources) {
@@ -382,24 +387,6 @@ export class ClaudeAdapter implements AgentAdapter {
     }
 
     return null;
-  }
-
-  // The variables an inline `--settings` argument sets in its env block.
-  private findInlineSettingsKeys(): string[] {
-    const inline = findFlagValue(this.entry.args, ['--settings']);
-
-    if (inline === null) {
-      return [];
-    }
-
-    try {
-      const parsed: unknown = JSON.parse(inline);
-      const env = isRecord(parsed) ? parsed['env'] : undefined;
-
-      return isRecord(env) ? Object.keys(env) : [];
-    } catch {
-      return [];
-    }
   }
 
   // What the generated settings file holds for this entry: its hooks and
@@ -420,205 +407,35 @@ export class ClaudeAdapter implements AgentAdapter {
       ...(this.entry.settings === undefined ? {} : { settings: this.entry.settings }),
     };
   }
-
-  // The scratch folder is a working directory of the session's own, so the
-  // CLI reads and writes there without a prompt.
-  private buildArgs(
-    configured: readonly string[],
-    opts: SpawnOptions,
-    leadArgs: readonly string[],
-    scratch: string | null,
-    settings: string,
-    pluginDir: string,
-  ): string[] {
-    return [
-      ...buildClaudeOverrideArgs(configured, opts),
-      ...leadArgs,
-      ...(scratch === null ? [] : ['--add-dir', scratch]),
-      '--settings',
-      settings,
-      '--plugin-dir',
-      pluginDir,
-      ...(opts.resume === true ? ['--resume'] : []),
-      ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
-      ...(opts.prompt === '' ? [] : [opts.prompt]),
-    ];
-  }
-
-  private writeSettings(): string {
-    this.settingsFile ??= writeHookSettings(
-      this.buildSettingsProfile({}),
-      this.atcArgv,
-      this.hostPaths.stateDir,
-      this.hostPaths.homeDir,
-    );
-
-    return this.settingsFile;
-  }
-
-  private writeBridge(): string {
-    this.bridgeDir ??= writeATCBridge(this.atcArgv, this.bridgeTarget);
-
-    return this.bridgeDir;
-  }
-
-  // A session on the daemon's machine reads the user's own Claude config,
-  // so trust for the clone is that config's entry for the clone alone.
-  updateLocalWorkspaceTrust(root: string): Promise<() => Promise<void>> {
-    return updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(this.hostPaths.homeDir), root);
-  }
-
-  planHookEvents(e: HookEvent): HookPlan {
-    return { events: [this.normalizeHook(e)] };
-  }
-
-  normalizeHook(e: HookEvent): AdapterEvent {
-    const parsed = CLAUDE_HOOK_PAYLOAD_SCHEMA.safeParse(e.payload);
-    const payload: ClaudeHookPayload = parsed.success ? parsed.data : {};
-
-    const base: AdapterEvent = {
-      kind: 'heartbeat',
-      ...(payload.session_id === undefined
-        ? {}
-        : { agentSessionID: toAgentSessionID(payload.session_id) }),
-    };
-
-    const named: AdapterEvent = {
-      ...base,
-      ...(payload.transcript_path === undefined
-        ? {}
-        : { nameSource: payload.transcript_path, transcriptSource: payload.transcript_path }),
-    };
-
-    switch (e.event) {
-      case 'SessionStart': {
-        return { ...named, kind: 'started' };
-      }
-      case 'Notification': {
-        const message = payload.message;
-
-        return {
-          ...base,
-          kind: 'needs-input',
-          ...buildPermissionPending(payload.notification_type),
-          ...(message !== undefined && message !== ''
-            ? { message, detail: truncateDetail(message) }
-            : {}),
-        };
-      }
-      case 'Stop': {
-        const lastMessage = payload.last_assistant_message;
-
-        return {
-          ...named,
-          kind: 'turn-done',
-          ...(lastMessage !== undefined && lastMessage !== ''
-            ? { detail: truncateDetail(lastMessage), result: lastMessage }
-            : {}),
-        };
-      }
-      case 'UserPromptSubmit': {
-        const preview = payload.prompt === undefined ? '' : payload.prompt.slice(0, 80);
-
-        return {
-          ...named,
-          kind: 'prompt-submitted',
-          ...(preview === '' ? {} : { message: preview, detail: truncateDetail(preview) }),
-        };
-      }
-      case 'SessionEnd': {
-        return { ...base, kind: 'ended' };
-      }
-      default: {
-        return base;
-      }
-    }
-  }
-
-  // Claude is the naming authority: /rename writes custom-title lines to the
-  // transcript, auto-summaries write summary lines. A custom title always
-  // wins; a summary never overrides a user-typed name.
-  async loadName(source: string, namedBy: 'user' | 'auto' | 'agent'): Promise<NameUpdate | null> {
-    try {
-      const proc = Bun.spawn(['grep', '-E', '"type":"(custom-title|summary)"', source], {
-        stdout: 'pipe',
-        stderr: 'ignore',
-      });
-
-      const text = await new Response(proc.stdout).text();
-
-      let title: string | undefined;
-      let summary: string | undefined;
-
-      for (const line of text.split('\n')) {
-        if (line.trim() === '') {
-          continue;
-        }
-
-        try {
-          const parsed: unknown = JSON.parse(line);
-
-          if (!isRecord(parsed)) {
-            continue;
-          }
-
-          const customTitle = parsed['customTitle'];
-          const summaryText = parsed['summary'];
-
-          if (parsed['type'] === 'custom-title' && typeof customTitle === 'string') {
-            title = customTitle;
-          }
-
-          if (parsed['type'] === 'summary' && typeof summaryText === 'string') {
-            summary = summaryText;
-          }
-        } catch {}
-      }
-
-      if (title !== undefined && title !== '') {
-        return { name: title, namedBy: 'agent' };
-      }
-
-      if (namedBy !== 'user' && summary !== undefined && summary !== '') {
-        return { name: summary };
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  canResume(session: ResumeCheck): boolean {
-    if (session.transcriptSource === undefined) {
-      return true;
-    }
-
-    return existsSync(session.transcriptSource);
-  }
-
-  // Shell command that re-opens this session outside atc (or anywhere). A
-  // permission mode the configured arguments set travels as an explicit
-  // flag, so it overrides the mode the CLI would restore. The generated
-  // settings file travels only for an entry that sets its own settings or
-  // environment, since the file sits on the daemon's machine and an entry
-  // without either needs nothing from it.
-  buildResumeCommand(cwd: string, agentSessionID: AgentSessionID | undefined): string | null {
-    const configured = findClaudePermissionMode(this.entry.args, this.entry.settings);
-    const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;
-    const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
-
-    const settings =
-      this.entry.settings === undefined && Object.keys(this.entry.env).length === 0
-        ? ''
-        : ` --settings ${toShellArg(this.writeSettings())}`;
-
-    return `cd ${toShellArg(cwd)} && ${formatShellWord(this.entry.bin)}${mode}${settings} --resume${resume}`;
-  }
 }
 
 // The endpoint Claude Code sends a subscription token to.
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
+
+// An inline `--settings` argument's env block; any other shape holds no
+// variables.
+const INLINE_SETTINGS_SCHEMA = z.object({ env: z.record(z.string(), z.unknown()) });
+
+// The variables an inline `--settings` argument sets in its env block.
+function findInlineSettingsKeys(args: readonly string[]): string[] {
+  const inline = findFlagValue(args, ['--settings']);
+
+  if (inline === null) {
+    return [];
+  }
+
+  let json: unknown;
+
+  try {
+    json = JSON.parse(inline);
+  } catch {
+    return [];
+  }
+
+  const parsed = INLINE_SETTINGS_SCHEMA.safeParse(json);
+
+  return parsed.success ? Object.keys(parsed.data.env) : [];
+}
 
 // The string values of an object, which is all a session's environment holds.
 function toStringEntries(value: Readonly<Record<string, unknown>>): Record<string, string> {
@@ -627,20 +444,6 @@ function toStringEntries(value: Readonly<Record<string, unknown>>): Record<strin
       (entry): entry is [string, string] => typeof entry[1] === 'string',
     ),
   );
-}
-
-// The padding of the statusline the bundle's user settings set, which atc's
-// own statusline mirrors since it renders that one first, or none.
-function findStatuslinePadding(settings: string): number {
-  try {
-    const parsed: unknown = JSON.parse(settings);
-    const statusLine = isRecord(parsed) ? parsed['statusLine'] : undefined;
-    const padding = isRecord(statusLine) ? statusLine['padding'] : undefined;
-
-    return typeof padding === 'number' ? padding : 0;
-  } catch {
-    return 0;
-  }
 }
 
 // The aliases Claude Code documents for `--model`, each resolving to a model
@@ -655,20 +458,6 @@ const CLAUDE_MODEL_ALIASES = [
   'sonnet[1m]',
   'opusplan',
 ];
-
-// A permission prompt waits on a person; an idle notice shows that no prompt
-// is open. Any other notice says neither, so it leaves the field out.
-function buildPermissionPending(type: string | undefined): { permissionPending?: boolean } {
-  if (type === 'permission_prompt') {
-    return { permissionPending: true };
-  }
-
-  if (type === 'idle_prompt') {
-    return { permissionPending: false };
-  }
-
-  return {};
-}
 
 // What a Claude spawn can override. Each default is the value the configured
 // arguments pass, or null when the CLI picks its own.

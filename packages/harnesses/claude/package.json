@@ -13,6 +13,7 @@
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
+    "ts-pattern": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

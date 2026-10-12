@@ -52,6 +52,28 @@ test('it summarises a tool use with no known input key as its JSON', () => {
   });
 });
 
+test('it reads the blocks it knows from a line that also holds malformed and unknown blocks', () => {
+  const line = JSON.stringify({
+    type: 'assistant',
+    message: {
+      content: [
+        { type: 'thinking', thinking: 'hm' },
+        { type: 'text', text: 42 },
+        { type: 'tool_use', id: 't1' },
+        'stray',
+        { type: 'text', text: 'kept' },
+      ],
+    },
+  });
+
+  expect(parseClaudeTranscriptLine(line)).toStrictEqual({
+    role: 'assistant',
+    text: 'kept',
+    tools: [],
+    at: null,
+  });
+});
+
 test.each([
   [
     '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}',

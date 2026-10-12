@@ -1,80 +1,81 @@
-import { isRecord } from '@atc/core/is-record';
 import { truncate } from '@atc/core/truncate';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type { TranscriptRow } from '@atc/protocol/transcript-row';
+import { match } from 'ts-pattern';
+import { z } from 'zod';
 
 // One row must stay far under the protocol's line cap.
 const MAX_ROW_TEXT_BYTES = 16_384;
 
+// A user or assistant line of the transcript. Its content is the prompt's
+// text or a list of blocks, each read on its own so a block of another
+// kind leaves the rest of the line readable.
+const ContentSchema = z.string().or(z.array(z.unknown()));
+
+const TranscriptLineSchema = z.object({
+  type: z.enum(['user', 'assistant']),
+  isSidechain: z.unknown().optional(),
+  isMeta: z.unknown().optional(),
+  timestamp: z.unknown().optional(),
+  message: z.object({ content: ContentSchema }),
+});
+
+const ContentBlockSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({ type: z.literal('tool_use'), name: z.string(), input: z.unknown().optional() }),
+]);
+
 export function parseClaudeTranscriptLine(line: string): TranscriptRow | null {
-  let parsed: unknown;
+  let raw: unknown;
 
   try {
-    parsed = JSON.parse(line);
+    raw = JSON.parse(line);
   } catch {
     return null;
   }
 
-  if (!isRecord(parsed)) {
+  const parsed = TranscriptLineSchema.safeParse(raw);
+
+  if (!parsed.success || parsed.data.isSidechain === true || parsed.data.isMeta === true) {
     return null;
   }
 
-  const type = parsed['type'];
+  const content = parsed.data.message.content;
+  const blocks = typeof content === 'string' ? [] : collectContentBlocks(content);
 
-  if (type !== 'user' && type !== 'assistant') {
-    return null;
-  }
+  const text =
+    typeof content === 'string'
+      ? content
+      : blocks.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n');
 
-  if (parsed['isSidechain'] === true || parsed['isMeta'] === true) {
-    return null;
-  }
-
-  const message = parsed['message'];
-
-  if (!isRecord(message)) {
-    return null;
-  }
-
-  const content = message['content'];
-  const texts: string[] = [];
-  const tools: TranscriptRow['tools'][number][] = [];
-
-  if (typeof content === 'string') {
-    texts.push(content);
-  } else if (Array.isArray(content)) {
-    for (const block of content as unknown[]) {
-      if (!isRecord(block)) {
-        continue;
-      }
-
-      const text = block['text'];
-      const name = block['name'];
-
-      if (block['type'] === 'text' && typeof text === 'string') {
-        texts.push(text);
-      } else if (block['type'] === 'tool_use' && typeof name === 'string') {
-        tools.push({ name, input: formatToolInput(block['input']) });
-      }
-    }
-  } else {
-    return null;
-  }
-
-  const text = texts.join('\n');
+  const tools = blocks.flatMap((block) =>
+    match(block)
+      .with({ type: 'tool_use' }, (b) => [{ name: b.name, input: formatToolInput(b.input) }])
+      .with({ type: 'text' }, () => [])
+      .exhaustive(),
+  );
 
   if (text === '' && tools.length === 0) {
     return null;
   }
 
-  const timestamp = parsed['timestamp'];
+  const timestamp = parsed.data.timestamp;
   const parsedAt = typeof timestamp === 'string' ? Date.parse(timestamp) : Number.NaN;
 
   return {
-    role: type,
+    role: parsed.data.type,
     text: truncateToBytes(text, MAX_ROW_TEXT_BYTES),
     tools,
     at: Number.isNaN(parsedAt) ? null : parsedAt,
   };
+}
+
+function collectContentBlocks(content: readonly unknown[]): z.infer<typeof ContentBlockSchema>[] {
+  return content.flatMap((block) => {
+    const parsed = ContentBlockSchema.safeParse(block);
+
+    return parsed.success ? [parsed.data] : [];
+  });
 }
 
 const TOOL_INPUT_KEYS = [
@@ -88,21 +89,18 @@ const TOOL_INPUT_KEYS = [
   'prompt',
 ];
 
+const ToolInputSchema = z.record(z.string(), z.unknown());
+
 function formatToolInput(input: unknown): string {
-  if (!isRecord(input)) {
+  const parsed = ToolInputSchema.safeParse(input);
+
+  if (!parsed.success) {
     return '';
   }
 
-  let summary = JSON.stringify(input);
-
-  for (const key of TOOL_INPUT_KEYS) {
-    const value = input[key];
-
-    if (typeof value === 'string') {
-      summary = value;
-      break;
-    }
-  }
+  const fields = parsed.data;
+  const key = TOOL_INPUT_KEYS.find((k) => typeof fields[k] === 'string');
+  const summary = key === undefined ? JSON.stringify(fields) : String(fields[key]);
 
   return truncate(summary, 200);
 }

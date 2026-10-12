@@ -1,7 +1,7 @@
-import { isRecord } from '@atc/core/is-record';
 import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
 import type { ProjectSettingsCheck } from '@atc/plugin-api/agent-adapter';
 import { DaemonError } from '@atc/protocol/daemon-error';
+import { z } from 'zod';
 
 /**
  * The check of a Claude CLI session's project settings before a launch
@@ -44,31 +44,39 @@ export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsC
 const LOCAL_SETTINGS_FILE = '.claude/settings.local.json';
 const UNPARSEABLE = '(unparseable)';
 
+// The two keys of a project settings file that can carry a sign-in
+// override. An `env` that is not an object sets no variable.
+const ProjectSettingsSchema = z.looseObject({
+  apiKeyHelper: z.unknown().optional(),
+  env: z.unknown().optional(),
+});
+
+const EnvSchema = z.record(z.string(), z.unknown());
+
 // The first setting a project settings file holds that would override the
 // sign-in, as `env.<variable>` or `apiKeyHelper`, the unparseable marker
 // for content that is not a JSON object, or null when it holds none.
 function findOverrideSetting(content: string): string | null {
-  let parsed: unknown;
+  let raw: unknown;
 
   try {
-    parsed = JSON.parse(content);
+    raw = JSON.parse(content);
   } catch {
     return UNPARSEABLE;
   }
 
-  if (!isRecord(parsed) || Array.isArray(parsed)) {
+  const parsed = ProjectSettingsSchema.safeParse(raw);
+
+  if (!parsed.success) {
     return UNPARSEABLE;
   }
 
-  if (parsed['apiKeyHelper'] !== undefined) {
+  if (parsed.data.apiKeyHelper !== undefined) {
     return 'apiKeyHelper';
   }
 
-  const env = parsed['env'];
-
-  const variable = isRecord(env)
-    ? Object.keys(env).find((key) => isSubscriptionOverrideVariable(key))
-    : undefined;
+  const env = EnvSchema.safeParse(parsed.data.env).data ?? {};
+  const variable = Object.keys(env).find((key) => isSubscriptionOverrideVariable(key));
 
   return variable === undefined ? null : `env.${variable}`;
 }

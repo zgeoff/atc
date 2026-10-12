@@ -1807,7 +1807,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         scheduleSettle: opts.scheduleEjectSettle,
         runtime,
         startHeadlessTurn: (sid, p) =>
-          startHeadlessTurn(mgr, findRuntime, sid, p, recordHeadlessTurnEvent),
+          startHeadlessTurn(
+            mgr,
+            findRuntime,
+            sid,
+            p,
+            recordHeadlessTurnEvent,
+            opts.reporterSocketPath,
+          ),
       });
 
       return 'ok';
@@ -1938,6 +1945,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           sessionID,
           data.trimEnd(),
           recordHeadlessTurnEvent,
+          opts.reporterSocketPath,
         )
           ? 'ok'
           : 'dead';

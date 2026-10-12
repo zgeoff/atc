@@ -85,6 +85,7 @@ test('it ejects a terminal session into a headless run with its agent id', async
         resume: toAgentSessionID('sess-123'),
         sessionID,
         recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
+        reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
       },
     ]);
   });
@@ -152,6 +153,7 @@ test('it starts the headless run of an ejected workspace session without its wor
         sessionID,
         withheldEnv: ['ATC_TEST_WORKSPACE_CRED', 'GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'],
         recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
+        reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
       },
     ]);
   });
@@ -457,6 +459,7 @@ test('it starts the next headless turn from session input once idle', async () =
       resume: toAgentSessionID('sess-123'),
       sessionID,
       recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
+      reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
     },
     {
       cwd: ctx.daemon.dir,
@@ -464,6 +467,7 @@ test('it starts the next headless turn from session input once idle', async () =
       resume: toAgentSessionID('sess-123'),
       sessionID,
       recordPath: join(ctx.daemon.dir, 'records', `${sessionID}.json`),
+      reporterSocket: join(ctx.daemon.dir, 'reporter.sock'),
     },
   ]);
 });

@@ -1,16 +1,10 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { updateEnv } from '@atc/test-utils/update-env';
-import invariant from 'tiny-invariant';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 
 test('it runs a session turn in its directory, resumed, under the auto permission mode, with its model, effort, and mod', () => {
-  const testHome = process.env['ATC_TEST_HOME'];
-
-  invariant(testHome !== undefined, 'the test home sets ATC_TEST_HOME');
-
   const options = buildClaudeQueryOptions(
     {
       claudeBin: 'claude',
@@ -19,6 +13,7 @@ test('it runs a session turn in its directory, resumed, under the auto permissio
       resume: toAgentSessionID('sess-123'),
       permissionMode: 'auto',
       sessionID: toSessionID('s-1'),
+      reporterSocket: '/run/atc/atc.sock',
       pluginDir: '/state/atc-bridge',
       model: 'opus',
       effort: 'xhigh',
@@ -39,7 +34,7 @@ test('it runs a session turn in its directory, resumed, under the auto permissio
   expect(env).toMatchObject({
     CLAUDE_CODE_PLUGIN_DIRS: '/state/atc-bridge',
     ATC_SESSION_ID: 's-1',
-    ATC_SOCKET: join(testHome, 'runtime', 'atc.sock'),
+    ATC_SOCKET: '/run/atc/atc.sock',
   });
 });
 
@@ -47,7 +42,13 @@ test.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto', 'dontA
   'it passes the %s permission mode to the SDK as given',
   (mode) => {
     const options = buildClaudeQueryOptions(
-      { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', permissionMode: mode },
+      {
+        claudeBin: 'claude',
+        cwd: '/tmp',
+        prompt: 'go',
+        reporterSocket: '/run/atc/atc.sock',
+        permissionMode: mode,
+      },
       false,
     );
 
@@ -57,7 +58,13 @@ test.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto', 'dontA
 
 test('it leaves out a permission mode the SDK does not accept', () => {
   const options = buildClaudeQueryOptions(
-    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', permissionMode: 'yolo' },
+    {
+      claudeBin: 'claude',
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      permissionMode: 'yolo',
+    },
     false,
   );
 
@@ -66,7 +73,7 @@ test('it leaves out a permission mode the SDK does not accept', () => {
 
 test('it leaves the permission mode to the SDK when the turn names none', () => {
   const options = buildClaudeQueryOptions(
-    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go' },
+    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
     false,
   );
 
@@ -75,7 +82,13 @@ test('it leaves the permission mode to the SDK when the turn names none', () => 
 
 test('it leaves out an effort the SDK does not accept', () => {
   const options = buildClaudeQueryOptions(
-    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', effort: 'turbo' },
+    {
+      claudeBin: 'claude',
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      effort: 'turbo',
+    },
     false,
   );
 
@@ -84,7 +97,13 @@ test('it leaves out an effort the SDK does not accept', () => {
 
 test('it starts the CLI with the settings file a turn carries', () => {
   const options = buildClaudeQueryOptions(
-    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', settings: '/state/settings-zai.json' },
+    {
+      claudeBin: 'claude',
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+      settings: '/state/settings-zai.json',
+    },
     false,
   );
 
@@ -93,7 +112,7 @@ test('it starts the CLI with the settings file a turn carries', () => {
 
 test('it passes no extra CLI arguments for a turn without a settings file', () => {
   const options = buildClaudeQueryOptions(
-    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go' },
+    { claudeBin: 'claude', cwd: '/tmp', prompt: 'go', reporterSocket: '/run/atc/atc.sock' },
     false,
   );
 
@@ -102,7 +121,12 @@ test('it passes no extra CLI arguments for a turn without a settings file', () =
 
 test('it runs a compiled binary turn under the claude binary it is given', () => {
   const options = buildClaudeQueryOptions(
-    { claudeBin: '/opt/claude/bin/claude', cwd: '/tmp', prompt: 'go' },
+    {
+      claudeBin: '/opt/claude/bin/claude',
+      cwd: '/tmp',
+      prompt: 'go',
+      reporterSocket: '/run/atc/atc.sock',
+    },
     true,
   );
 
@@ -118,6 +142,7 @@ test('it starts a turn without the variables its session withholds', () => {
       cwd: '/work/repo',
       prompt: 'keep going',
       sessionID: toSessionID('s-1'),
+      reporterSocket: '/run/atc/atc.sock',
       withheldEnv: ['ATC_TEST_WORKSPACE_CRED'],
     },
     false,
