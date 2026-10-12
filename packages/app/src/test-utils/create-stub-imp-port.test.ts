@@ -9,7 +9,7 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
-import { isProcessAlive } from '../shared/is-process-alive';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubImpPort } from './create-stub-imp-port';
 

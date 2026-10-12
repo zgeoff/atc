@@ -1,5 +1,5 @@
 import { renameSync, writeFileSync } from 'node:fs';
-import type { DaemonRecord } from '../shared/find-daemon-record';
+import type { DaemonRecord } from './find-daemon-record';
 
 /**
  * Writes the running daemon's record through a temporary file and a

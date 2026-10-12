@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { isProcessAlive } from '../shared/is-process-alive';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
 import { startStubSourceDaemon } from './start-stub-source-daemon';
 
 // A temp directory for the daemon's home and sockets.

@@ -13,13 +13,13 @@ import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { collectRestartEnv } from './collect-restart-env';
+import { collectRestartEnv } from '@atc/lifecycle/collect-restart-env';
 import { collectRestartPlan } from './collect-restart-plan';
-import { formatRestartPreflight } from './format-restart-preflight';
-import { parseRestartResult } from './parse-restart-result';
-import { buildATCCommand } from './shared/build-atc-command';
-import { isProcessAlive } from './shared/is-process-alive';
-import { spawnATCDetached } from './shared/spawn-atc-detached';
+import { formatRestartPreflight } from '@atc/lifecycle/format-restart-preflight';
+import { parseRestartResult } from '@atc/lifecycle/parse-restart-result';
+import { buildATCCommand } from '@atc/lifecycle/build-atc-command';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
+import { spawnATCDetached } from '@atc/lifecycle/spawn-atc-detached';
 
 interface DaemonRestartOptions {
   readonly listen: string | null;

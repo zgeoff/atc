@@ -6,16 +6,16 @@ import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { pickStaleDaemonPID } from './client/pick-stale-daemon-pid';
-import { findRestartUnit } from './find-restart-unit';
-import { isDaemonProcess } from './is-daemon-process';
-import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
-import { runSystemctl } from './run-systemctl';
-import { buildATCCommand } from './shared/build-atc-command';
-import { findDaemonRecord } from './shared/find-daemon-record';
-import { findPidFilePID } from './shared/find-pid-file-pid';
+import { pickStaleDaemonPID } from '@atc/lifecycle/pick-stale-daemon-pid';
+import { findRestartUnit } from '@atc/lifecycle/find-restart-unit';
+import { isDaemonProcess } from '@atc/lifecycle/is-daemon-process';
+import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from '@atc/lifecycle/restart-plan';
+import { runSystemctl } from '@atc/lifecycle/run-systemctl';
+import { buildATCCommand } from '@atc/lifecycle/build-atc-command';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
+import { findPidFilePID } from '@atc/lifecycle/find-pid-file-pid';
 import { getATCBuild } from './shared/get-atc-build';
-import { isProcessAlive } from './shared/is-process-alive';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
 
 // How long the handshake and the session list may take together.
 const PROBE_DEADLINE_MS = 3000;

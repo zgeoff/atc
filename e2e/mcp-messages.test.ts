@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { setupMCPHome } from '../packages/app/src/test-utils/setup-mcp-home';
+import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();

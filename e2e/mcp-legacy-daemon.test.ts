@@ -4,7 +4,7 @@ import { getRecord } from '@atc/test-utils/get-record';
 import { getRecords } from '@atc/test-utils/get-records';
 import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
 import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
-import { setupMCPHome } from '../packages/app/src/test-utils/setup-mcp-home';
+import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();

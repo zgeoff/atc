@@ -1,7 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isProcessAlive } from '../../app/src/shared/is-process-alive';
 import { buildStubWaitClock } from './build-stub-wait-clock';
 import { KEYS } from './keys';
 import { startTUIHarness } from './start-tui-harness';
@@ -81,7 +80,7 @@ test('it kills a client a later boot replaced on stop', async () => {
   await tui.stop();
 
   await waitFor(() => {
-    expect(isProcessAlive(first.pid)).toBeFalse();
+    expect(() => process.kill(first.pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
   });
 });
 

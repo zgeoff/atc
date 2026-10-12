@@ -14,14 +14,14 @@ import type { ProtocolMismatch } from '@atc/protocol/format-protocol-mismatch';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { findDaemonRecord } from '../shared/find-daemon-record';
-import { findPidFilePID } from '../shared/find-pid-file-pid';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
+import { findPidFilePID } from '@atc/lifecycle/find-pid-file-pid';
 import { getATCBuild } from '../shared/get-atc-build';
-import { isProcessAlive } from '../shared/is-process-alive';
-import { readManagedDaemonUnit } from '../shared/read-managed-daemon-unit';
-import { restartManagedDaemon } from '../shared/restart-managed-daemon';
-import { spawnATCDetached } from '../shared/spawn-atc-detached';
-import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
+import { readManagedDaemonUnit } from '@atc/lifecycle/read-managed-daemon-unit';
+import { restartManagedDaemon } from '@atc/lifecycle/restart-managed-daemon';
+import { spawnATCDetached } from '@atc/lifecycle/spawn-atc-detached';
+import { pickStaleDaemonPID } from '@atc/lifecycle/pick-stale-daemon-pid';
 
 export interface DaemonBoot {
   readonly client: DaemonClient;

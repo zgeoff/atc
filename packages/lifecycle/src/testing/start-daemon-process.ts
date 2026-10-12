@@ -4,7 +4,7 @@ import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/test-utils/wait-for';
 import type { Subprocess } from 'bun';
-import { findDaemonRecord } from '../shared/find-daemon-record';
+import { findDaemonRecord } from '../find-daemon-record';
 
 interface DaemonProcessConfig {
   // The command atc runs as, such as the source entry under bun or a

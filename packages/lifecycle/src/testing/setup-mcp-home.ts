@@ -6,7 +6,7 @@ import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { findPidFilePID } from '../shared/find-pid-file-pid';
+import { findPidFilePID } from '../find-pid-file-pid';
 import { stopDaemonProcess } from '../stop-daemon-process';
 
 /**

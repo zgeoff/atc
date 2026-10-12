@@ -5,9 +5,9 @@ import { waitUntil } from '@atc/core/wait-until';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { findDaemonRecord } from './shared/find-daemon-record';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
 import { getATCBuild } from './shared/get-atc-build';
-import { isProcessAlive } from './shared/is-process-alive';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
 
 type ReplacementOutcome =
   | {

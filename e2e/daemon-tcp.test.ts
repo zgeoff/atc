@@ -6,8 +6,8 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { z } from 'zod';
-import { findDaemonRecord } from '../packages/app/src/shared/find-daemon-record';
-import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 
 /**
  * A fresh home for the `atc daemon` that each test starts with a TCP

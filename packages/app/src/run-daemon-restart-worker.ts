@@ -1,14 +1,14 @@
 import { mkdirSync } from 'node:fs';
 import { restartLockFile, restartsDir } from '@atc/config/config';
-import { buildRestartFailure } from './build-restart-failure';
-import { formatRestartReport } from './format-restart-report';
-import type { RestartResult } from './parse-restart-result';
-import { readRestartResult } from './read-restart-result';
-import { removeRestartResult } from './remove-restart-result';
+import { buildRestartFailure } from '@atc/lifecycle/build-restart-failure';
+import { formatRestartReport } from '@atc/lifecycle/format-restart-report';
+import type { RestartResult } from '@atc/lifecycle/parse-restart-result';
+import { readRestartResult } from '@atc/lifecycle/read-restart-result';
+import { removeRestartResult } from '@atc/lifecycle/remove-restart-result';
 import { restartDaemon } from './restart-daemon';
 import type { RestartOptions } from './restart-daemon';
-import { claimDaemonLock } from './shared/claim-daemon-lock';
-import { writeRestartResult } from './write-restart-result';
+import { claimDaemonLock } from '@atc/lifecycle/claim-daemon-lock';
+import { writeRestartResult } from '@atc/lifecycle/write-restart-result';
 
 // How long a restart that finds another in flight waits for it to finish.
 const JOIN_WAIT_MS = 15 * 60_000;

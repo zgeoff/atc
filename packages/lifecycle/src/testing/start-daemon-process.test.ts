@@ -7,8 +7,8 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { findDaemonRecord } from '../shared/find-daemon-record';
-import { isProcessAlive } from '../shared/is-process-alive';
+import { findDaemonRecord } from '../find-daemon-record';
+import { isProcessAlive } from '../is-process-alive';
 import { startDaemonProcess } from './start-daemon-process';
 
 /**

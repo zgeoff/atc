@@ -13,7 +13,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { tryCreateListeners } from '@atc/test-utils/try-create-listeners';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { claimDaemonLock } from '../shared/claim-daemon-lock';
+import { claimDaemonLock } from '@atc/lifecycle/claim-daemon-lock';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { startDaemon } from './daemon';

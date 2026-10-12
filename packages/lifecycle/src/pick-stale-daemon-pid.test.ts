@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockDaemonRecord } from '../test-utils/build-mock-daemon-record';
+import { buildMockDaemonRecord } from './testing/build-mock-daemon-record';
 import { pickStaleDaemonPID } from './pick-stale-daemon-pid';
 
 test('it picks the recorded pid when the record lists the refusing socket', () => {

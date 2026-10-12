@@ -251,7 +251,7 @@ const main = defineCommand({
                 description: "Print the running daemon's daemonID",
               },
               async run() {
-                const id = await import('./run-daemon-id');
+                const id = await import('@atc/lifecycle/run-daemon-id');
 
                 await id.runDaemonID(getATCBuild());
               },

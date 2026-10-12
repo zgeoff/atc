@@ -6,7 +6,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { isProcessAlive } from '../shared/is-process-alive';
+import { isProcessAlive } from '../is-process-alive';
 import { setupMCPHome } from './setup-mcp-home';
 
 test('it writes a config that registers the stand-in agents', async () => {

@@ -3,14 +3,13 @@ import { join } from 'node:path';
 import { toSessionID } from '@atc/core/to-session-id';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { buildMockStoredRow } from '@atc/store/testing/build-mock-stored-row';
+import { buildMockListedAgent } from '@atc/test-utils/build-mock-listed-agent';
 import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubRestoreDaemon } from '@atc/test-utils/start-stub-restore-daemon';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { buildAgentList } from './daemon/build-agent-list';
-import { buildMockAgentAdapter } from './test-utils/build-mock-agent-adapter';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
 async function setupTest() {
@@ -32,7 +31,7 @@ test('it reports the last answered list when the deadline overtakes a later list
   const clock = buildStubClock(0);
 
   ctx.daemon.lists.push(
-    { agents: buildAgentList([buildMockAgentAdapter({ id: 'claude' })], () => true, false) },
+    { agents: [buildMockListedAgent({ id: 'claude' })] },
     {
       sessions: [
         buildMockSessionDescriptor({ id: toSessionID('s-good'), kind: 'pty', alive: true }),
@@ -100,7 +99,7 @@ test('it fails a row at once when its agent is not in the config', async () => {
   const clock = buildStubClock(0);
 
   ctx.daemon.lists.push(
-    { agents: buildAgentList([buildMockAgentAdapter({ id: 'claude' })], () => true, false) },
+    { agents: [buildMockListedAgent({ id: 'claude' })] },
     {
       sessions: [
         buildMockSessionDescriptor({ id: toSessionID('s-good'), kind: 'pty', alive: true }),
@@ -145,15 +144,12 @@ test('it keeps waiting on a row whose agent is in the config but not installed y
 
   const clock = buildStubClock(0);
 
-  // A mock adapter carries no profile, so the list shows each one as not
-  // installed.
   ctx.daemon.lists.push(
     {
-      agents: buildAgentList(
-        [buildMockAgentAdapter({ id: 'claude' }), buildMockAgentAdapter({ id: 'codex' })],
-        () => true,
-        false,
-      ),
+      agents: [
+        buildMockListedAgent({ id: 'claude', installed: false }),
+        buildMockListedAgent({ id: 'codex', installed: false }),
+      ],
     },
     {
       sessions: [
@@ -332,7 +328,7 @@ test('it rejects when the first list gets no answer before the deadline', async 
   const clock = buildStubClock(0);
 
   ctx.daemon.lists.push({
-    agents: buildAgentList([buildMockAgentAdapter({ id: 'claude' })], () => true, false),
+    agents: [buildMockListedAgent({ id: 'claude' })],
   });
 
   const verdict = verifyRestoredFleet(

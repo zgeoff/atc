@@ -502,6 +502,7 @@ src/test-utils/build-mock-gateway-config.ts	harness-claude	testing	packages/harn
 src/test-utils/build-mock-imp-identity.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-identity.ts	
 src/test-utils/build-mock-imp-session-request.ts	execution-imp	testing	packages/execution/imp/src/testing/build-mock-imp-session-request.ts	
 src/test-utils/build-mock-key-binding-claim.ts	gateway	testing	packages/gateway/src/testing/build-mock-key-binding-claim.ts	
+src/test-utils/build-mock-listed-agent.ts	test-utils		packages/test-utils/src/build-mock-listed-agent.ts	new in ticket 8
 src/test-utils/build-mock-message-record.ts	store	testing	packages/store/src/testing/build-mock-message-record.ts	
 src/test-utils/build-mock-mirror-session.ts	tui	testing	packages/tui/src/testing/build-mock-mirror-session.ts	
 src/test-utils/build-mock-published-record.ts	test-utils		packages/test-utils/src/build-mock-published-record.ts	

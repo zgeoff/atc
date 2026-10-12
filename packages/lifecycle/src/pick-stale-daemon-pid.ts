@@ -1,4 +1,4 @@
-import type { DaemonRecord } from '../shared/find-daemon-record';
+import type { DaemonRecord } from './find-daemon-record';
 
 export interface StaleDaemonEvidence {
   // The socket whose daemon refused the handshake.

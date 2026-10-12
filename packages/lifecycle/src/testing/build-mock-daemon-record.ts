@@ -1,7 +1,7 @@
 import { mergeDeep } from '@atc/test-utils/merge-deep';
 import type { MockOverrides } from '@atc/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
-import type { DaemonRecord } from '../shared/find-daemon-record';
+import type { DaemonRecord } from '../find-daemon-record';
 
 /**
  * The record a daemon writes beside its state directory, for a daemon with

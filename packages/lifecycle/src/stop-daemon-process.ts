@@ -1,7 +1,7 @@
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
-import { isProcessAlive } from './shared/is-process-alive';
+import { isProcessAlive } from './is-process-alive';
 
 const EXIT_WAIT_MS = 10_000;
 

@@ -1,7 +1,7 @@
 import { daemonRecordFile, daemonSocketPath } from '@atc/config/config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { findDaemonRecord } from './shared/find-daemon-record';
+import { findDaemonRecord } from './find-daemon-record';
 
 /**
  * Prints the running daemon's `daemonID`, the identity a gateway registry

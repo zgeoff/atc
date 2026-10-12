@@ -10,7 +10,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
-import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 
 /**
  * A home with a stub Codex CLI whose terminals share one background server,

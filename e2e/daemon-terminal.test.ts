@@ -17,7 +17,7 @@ import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { waitForEvent } from '@atc/test-utils/wait-for-event';
-import { startDaemonProcess } from '../packages/app/src/test-utils/start-daemon-process';
+import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
 
 /**
  * A home with stub Claude, Grok, and Codex CLIs and an empty config
