@@ -8,6 +8,8 @@ import type { StepTimer } from '@atc/core/create-step-timer';
 import type { DaemonID } from '@atc/core/daemon-id';
 import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import type {
@@ -372,6 +374,9 @@ export class SessionManager {
   // The clock each remote launch's step timing reads, in milliseconds.
   now: () => number = () => performance.now();
 
+  // The clock a session's creation and last attach are stamped with.
+  clock: Clock = systemClock;
+
   // Binds the runtime auth of each host whose agent takes its credential
   // from impd's broker; with none, every such start is refused.
   authBinder: RuntimeAuthBinder | null = null;
@@ -644,10 +649,10 @@ export class SessionManager {
       ...(entry.agentSessionID === undefined ? {} : { agentSessionID: entry.agentSessionID }),
       agent: entry.agent,
       pinned: entry.pinned ?? false,
-      lastAttachedAt: entry.lastAttachedAt ?? Date.now(),
+      lastAttachedAt: entry.lastAttachedAt ?? this.clock.now(),
       repoRoot: this.pickRestoredRepoRoot(entry.cwd, exited, target),
       namedBy: 'auto',
-      createdAt: Date.now(),
+      createdAt: this.clock.now(),
       parent: parent !== null && this.sessions.some((s) => s.id === parent) ? parent : null,
       ...(entry.prompt === undefined ? {} : { prompt: entry.prompt }),
       ...(entry.result === undefined ? {} : { result: entry.result }),
@@ -1387,10 +1392,10 @@ export class SessionManager {
       ...(typeof resume === 'string' ? { agentSessionID: resume } : {}),
       agent,
       pinned: false,
-      lastAttachedAt: Date.now(),
+      lastAttachedAt: this.clock.now(),
       repoRoot: dir === cwd ? repoRoot : dir,
       namedBy,
-      createdAt: Date.now(),
+      createdAt: this.clock.now(),
       parent,
       ...(prompt === '' ? {} : { prompt }),
       ...(overrides.model === undefined ? {} : { model: overrides.model }),
@@ -2941,7 +2946,7 @@ export class SessionManager {
     }
 
     s.unread = false;
-    s.lastAttachedAt = Date.now();
+    s.lastAttachedAt = this.clock.now();
     void this.tryWriteFleet(s.id);
 
     // Attaching answers the attention request: a still-pending prompt

@@ -1,3 +1,5 @@
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
@@ -32,12 +34,6 @@ export interface DaemonHello {
   readonly retentionMs: number | null;
 }
 
-/**
- * Runs `onTimeout` once `ms` milliseconds have passed, and returns what
- * cancels it.
- */
-export type TimeoutScheduler = (onTimeout: () => void, ms: number) => () => void;
-
 interface DaemonCallerOptions {
   readonly daemon: RegistryDaemon;
   readonly build: string;
@@ -50,8 +46,8 @@ interface DaemonCallerOptions {
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
 
-  // Starts the connect and response timers; real timers when unset.
-  readonly scheduleTimeout?: TimeoutScheduler;
+  // Runs the connect and response timers; the system clock when unset.
+  readonly clock?: Clock;
 }
 
 // One handshaken connection and what its handshake returned.
@@ -316,7 +312,7 @@ export class DaemonCaller {
   }
 
   private scheduleTimeout(onTimeout: () => void, ms: number): () => void {
-    return (this.opts.scheduleTimeout ?? scheduleRealTimeout)(onTimeout, ms);
+    return (this.opts.clock ?? systemClock).schedule(onTimeout, ms);
   }
 
   private buildOutcomeUnknown(m: string): DaemonError {
@@ -482,13 +478,5 @@ function buildDaemonHello(
     daemonID,
     features: parseDaemonFeatures(answer),
     retentionMs: typeof retention === 'number' && retention > 0 ? retention : null,
-  };
-}
-
-function scheduleRealTimeout(onTimeout: () => void, ms: number): () => void {
-  const timer = setTimeout(onTimeout, ms);
-
-  return () => {
-    clearTimeout(timer);
   };
 }

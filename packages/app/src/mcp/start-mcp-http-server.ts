@@ -1,4 +1,6 @@
 import { isRecord } from '@atc/core/is-record';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { MAX_LINE } from '../protocol/protocol';
 import { answerAuthorizeRequest } from './answer-authorize-request';
 import { answerConsentRequest } from './answer-consent-request';
@@ -40,9 +42,9 @@ interface MCPHTTPServerOptions {
   // Serves `/healthz` and `/readyz` for an orchestrator's probes.
   readonly probes?: boolean;
 
-  // The time pending approvals and the limit on approval starts run on, in
-  // epoch milliseconds; the wall clock when unset.
-  readonly now?: () => number;
+  // The time pending approvals, the limit on approval starts, and the
+  // routes' expiries run on; the system clock when unset.
+  readonly clock?: Clock;
 }
 
 /**
@@ -75,6 +77,8 @@ export interface MCPHTTPServer {
  * nothing about the fleet.
  */
 export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
+  const clock = options.clock ?? systemClock;
+
   // Normalized before binding, so an invalid public URL throws with no port
   // left bound.
   const publicOrigin = options.publicURL === null ? null : normalizePublicURL(options.publicURL);
@@ -176,11 +180,9 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       origin,
       resource: `${origin}/mcp`,
       store,
-      approvals: new ApprovalState(
-        APPROVAL_WINDOW_SECONDS * 1000,
-        options.now ?? (() => Date.now()),
-      ),
+      approvals: new ApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
       printApproval: options.printApproval,
+      clock,
     },
   };
 

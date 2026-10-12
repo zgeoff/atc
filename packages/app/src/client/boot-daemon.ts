@@ -4,6 +4,7 @@ import { makeSingleFlight } from '@atc/core/make-single-flight';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { toAgentID } from '@atc/core/to-agent-id';
+import { waitUntil } from '@atc/core/wait-until';
 import { DaemonError } from '../protocol/daemon-error';
 import type { DaemonFeature } from '../protocol/daemon-features';
 import { parseDaemonFeatures } from '../protocol/parse-daemon-features';
@@ -130,7 +131,7 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
 
     const opened =
       wait === null
-        ? await openOrBootDaemon(paths, options.paths === undefined)
+        ? await openOrBootDaemon(paths, options.paths === undefined, clock)
         : await waitForDaemon(wait);
 
     const client = opened.client;
@@ -187,7 +188,7 @@ export async function bootDaemonClient(options: DaemonBootOptions = {}): Promise
         throw new DaemonError('protocol_mismatch', formatProtocolMismatch(mismatch));
       }
 
-      const restart = managed ? restartManagedDaemon() : stopDaemon(mismatch.daemonPID);
+      const restart = managed ? restartManagedDaemon() : stopDaemon(mismatch.daemonPID, clock);
 
       await restart;
 
@@ -208,7 +209,11 @@ interface OpenedDaemon {
  * answers and the boot may start one. A boot that may not start one, since
  * a daemon it started would listen elsewhere, rejects instead.
  */
-async function openOrBootDaemon(paths: DaemonPaths, canStart: boolean): Promise<OpenedDaemon> {
+async function openOrBootDaemon(
+  paths: DaemonPaths,
+  canStart: boolean,
+  clock: Clock,
+): Promise<OpenedDaemon> {
   const opened = await tryOpenKnownDaemon(paths);
 
   if (opened !== null) {
@@ -219,7 +224,7 @@ async function openOrBootDaemon(paths: DaemonPaths, canStart: boolean): Promise<
     throw new Error(formatGivenPathsFailure(paths));
   }
 
-  await bootDaemonOnce();
+  await bootDaemonOnce(clock);
 
   const booted = await tryOpenKnownDaemon(paths);
 
@@ -330,28 +335,50 @@ async function tryOpenDaemon(socketPath: string): Promise<OpenedDaemon | null> {
 // waits out the state lock of one still shutting down.
 const BOOT_DEADLINE_MS = 8000;
 
-const bootDaemonOnce = makeSingleFlight(async () => {
-  let child = spawnDaemonDetached();
-  const deadline = Date.now() + BOOT_DEADLINE_MS;
+// One boot in flight per clock, which every boot of this process on that
+// clock shares.
+const bootFlights = new WeakMap<Clock, () => Promise<void>>();
 
-  while (Date.now() < deadline) {
-    await Bun.sleep(100);
+/**
+ * Starts a daemon and waits on the clock until one answers at the known
+ * paths, sharing a boot already in flight on the same clock.
+ */
+function bootDaemonOnce(clock: Clock): Promise<void> {
+  let flight = bootFlights.get(clock);
 
-    const probe = await tryOpenKnownDaemon(PROCESS_PATHS);
+  if (flight === undefined) {
+    flight = makeSingleFlight(() => bootDaemon(clock));
 
-    if (probe !== null) {
-      probe.client.stop();
-
-      return;
-    }
-
-    // A daemon that found the state lock still held by one shutting down
-    // exits; once the old one is gone, a fresh spawn takes the lock.
-    if (child.exitCode !== null || child.signalCode !== null) {
-      child = spawnDaemonDetached();
-    }
+    bootFlights.set(clock, flight);
   }
-});
+
+  return flight();
+}
+
+async function bootDaemon(clock: Clock): Promise<void> {
+  let child = spawnDaemonDetached();
+
+  await waitUntil(
+    async () => {
+      const probe = await tryOpenKnownDaemon(PROCESS_PATHS);
+
+      if (probe !== null) {
+        probe.client.stop();
+
+        return true;
+      }
+
+      // A daemon that found the state lock still held by one shutting down
+      // exits; once the old one is gone, a fresh spawn takes the lock.
+      if (child.exitCode !== null || child.signalCode !== null) {
+        child = spawnDaemonDetached();
+      }
+
+      return false;
+    },
+    { clock, intervalMs: 100, deadlineMs: clock.now() + BOOT_DEADLINE_MS },
+  );
+}
 
 // A live daemon this process cannot reach, such as one whose runtime
 // directory a sandbox hides, needs a different fix than one that never
@@ -401,24 +428,25 @@ function findDaemonPID(socketPath: string, paths: DaemonPaths): number | null {
   });
 }
 
-async function stopDaemon(pid: number): Promise<void> {
+async function stopDaemon(pid: number, clock: Clock): Promise<void> {
   try {
     process.kill(pid, 'SIGTERM');
   } catch {
     return;
   }
 
-  const deadline = Date.now() + 3000;
+  await waitUntil(
+    () => {
+      try {
+        process.kill(pid, 0);
 
-  while (Date.now() < deadline) {
-    try {
-      process.kill(pid, 0);
-    } catch {
-      return;
-    }
-
-    await Bun.sleep(50);
-  }
+        return false;
+      } catch {
+        return true;
+      }
+    },
+    { clock, intervalMs: 50, deadlineMs: clock.now() + 3000 },
+  );
 }
 
 function spawnDaemonDetached(): ChildProcess {

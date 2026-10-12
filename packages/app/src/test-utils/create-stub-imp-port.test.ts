@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runCommand } from '@atc/test-utils/run-command';
@@ -10,7 +11,6 @@ import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../daemon/imp-port';
 import { isProcessAlive } from '../shared/is-process-alive';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
-import { buildStubClock } from './build-stub-clock';
 import { createStubImpPort } from './create-stub-imp-port';
 
 // The port under test and a temp directory its sessions and guest sockets

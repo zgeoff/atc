@@ -2,6 +2,7 @@ import { mkdir, rmdir, stat, utimes } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Clock } from '@atc/core/system-clock';
 import { systemClock } from '@atc/core/system-clock';
+import { waitUntil } from '@atc/core/wait-until';
 
 // A lock older than this belongs to a holder that died: the Claude CLI's
 // lock library refreshes a held lock's age well inside it.
@@ -15,9 +16,10 @@ const WAIT_MS = 5000;
 const RETRY_MS = 50;
 
 /**
- * Tuning a caller may pass: the clock that times and stamps each refresh of
- * a held lock's age, and a callback run each time the lock is found held by
- * someone else.
+ * Tuning a caller may pass: the clock that times the wait for the lock,
+ * judges whether a held lock went stale, and times and stamps each refresh
+ * of a held lock's age, and a callback run each time the lock is found held
+ * by someone else.
  */
 export interface ClaudeConfigLockOptions {
   readonly clock?: Clock;
@@ -40,26 +42,34 @@ export async function withClaudeConfigLock<T>(
   options: ClaudeConfigLockOptions = {},
 ): Promise<T> {
   const lockPath = `${configPath}.lock`;
-  const deadline = Date.now() + WAIT_MS;
+  const clock = options.clock ?? systemClock;
 
   await mkdir(dirname(configPath), { recursive: true });
 
-  let held = await tryCreateLockDir(lockPath);
+  const acquired: { lock?: OwnedLock } = {};
 
-  while (held === null) {
-    options.onBusy?.();
+  await waitUntil(
+    async () => {
+      const held = await tryCreateLockDir(lockPath, clock);
 
-    if (Date.now() > deadline) {
-      throw new Error(`timed out waiting for the Claude config lock ${lockPath}`);
-    }
+      if (held !== null) {
+        acquired.lock = held;
 
-    await Bun.sleep(RETRY_MS);
+        return true;
+      }
 
-    held = await tryCreateLockDir(lockPath);
+      options.onBusy?.();
+
+      return false;
+    },
+    { clock, intervalMs: RETRY_MS, deadlineMs: clock.now() + WAIT_MS },
+  );
+
+  if (acquired.lock === undefined) {
+    throw new Error(`timed out waiting for the Claude config lock ${lockPath}`);
   }
 
-  const clock = options.clock ?? systemClock;
-  let owned: OwnedLock = held;
+  let owned: OwnedLock = acquired.lock;
   let refreshing = Promise.resolve();
 
   const scheduleRefresh = (): (() => void) =>
@@ -100,7 +110,7 @@ interface OwnedLock {
 
 // Creates the lock directory and resolves to it while this call holds the
 // lock, or null; a stale directory is removed so the next try can take it.
-async function tryCreateLockDir(lockPath: string): Promise<OwnedLock | null> {
+async function tryCreateLockDir(lockPath: string, clock: Clock): Promise<OwnedLock | null> {
   try {
     await mkdir(lockPath);
 
@@ -115,7 +125,7 @@ async function tryCreateLockDir(lockPath: string): Promise<OwnedLock | null> {
 
   const existing = await stat(lockPath).catch(() => null);
 
-  if (existing !== null && Date.now() - existing.mtimeMs > STALE_MS) {
+  if (existing !== null && clock.now() - existing.mtimeMs > STALE_MS) {
     await rmdir(lockPath).catch(() => {});
   }
 

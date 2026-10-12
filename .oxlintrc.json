@@ -149,13 +149,19 @@
     // Bun's synchronous spawn can lose a child's exit and spin its caller
     // forever (oven-sh/bun#34069); an async spawn keeps the caller's event
     // loop and its timeouts alive. The property rule catches access and
-    // destructuring on `Bun` itself, not on an alias of it.
+    // destructuring on `Bun` itself, not on an alias of it. Production code
+    // reads the time through a clock it is given, so a test can step it.
     "no-restricted-properties": [
       "error",
       {
         "object": "Bun",
         "property": "spawnSync",
         "message": "Use an async spawn: Bun.spawnSync can lose a child's exit and hang (oven-sh/bun#34069)."
+      },
+      {
+        "object": "Date",
+        "property": "now",
+        "message": "Read the time through an injected Clock (@atc/core/system-clock)."
       }
     ],
     "no-restricted-imports": [
@@ -186,5 +192,30 @@
     "promise/avoid-new": "off",
     "require-unicode-regexp": "off"
   },
+  "overrides": [
+    {
+      // the system clock itself, tests, test helpers, and tooling read the
+      // wall clock directly; an override replaces the rule's options, so it
+      // repeats the spawn entry
+      "files": [
+        "packages/core/src/system-clock.ts",
+        "**/*.test.ts",
+        "packages/test-utils/**",
+        "packages/app/src/test-utils/**",
+        "e2e/**",
+        "scripts/**"
+      ],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "Bun",
+            "property": "spawnSync",
+            "message": "Use an async spawn: Bun.spawnSync can lose a child's exit and hang (oven-sh/bun#34069)."
+          }
+        ]
+      }
+    }
+  ],
   "ignorePatterns": [".claude/**", "mods/**"]
 }

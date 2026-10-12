@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { DaemonClient } from '../client/daemon-client';
 import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
-import { buildStubClock } from '../test-utils/build-stub-clock';
 import { readJSONRecord } from '../test-utils/read-json-record';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { collectGrants } from './collect-grants';
@@ -56,7 +56,7 @@ async function setupTest() {
     printRequest: (line) => {
       requests.push(line);
     },
-    now: clock.now,
+    clock,
   });
 
   registerTestCleanup(() => server.stop());

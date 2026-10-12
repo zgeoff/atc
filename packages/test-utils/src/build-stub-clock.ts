@@ -13,13 +13,17 @@ interface StubTimer {
  * one a callback schedules within the step. `collectPending` returns, in
  * due order, how many milliseconds each callback still waiting has left,
  * which lets a test wait until the code under test has scheduled one and
- * check its delay.
+ * check its delay. `collectDelays` returns the delay of every callback ever
+ * scheduled, in the order the code scheduled them, whether it ran, was
+ * cancelled, or still waits.
  */
 export function buildStubClock(startMs: number) {
   let time = startMs;
   let nextID = 0;
 
   const timers = new Map<number, StubTimer>();
+
+  const delays: number[] = [];
 
   const findDue = (until: number): [number, StubTimer] | null => {
     let due: [number, StubTimer] | null = null;
@@ -38,6 +42,7 @@ export function buildStubClock(startMs: number) {
     schedule: (callback, delayMs) => {
       const id = nextID++;
 
+      delays.push(delayMs);
       timers.set(id, { dueAt: time + Math.max(0, delayMs), callback });
 
       return () => {
@@ -63,5 +68,6 @@ export function buildStubClock(startMs: number) {
     },
     collectPending: (): number[] =>
       [...timers.values()].map((timer) => timer.dueAt - time).toSorted((a, b) => a - b),
+    collectDelays: (): number[] => [...delays],
   };
 }

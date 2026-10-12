@@ -1,6 +1,8 @@
 import type { AgentID } from '@atc/core/agent-id';
 import { ansi } from '@atc/core/ansi';
 import { makeSingleFlight } from '@atc/core/make-single-flight';
+import { systemClock } from '@atc/core/system-clock';
+import { waitUntil } from '@atc/core/wait-until';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { countSessionStates } from '../protocol/count-session-states';
@@ -30,6 +32,8 @@ import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 import { cols, drawHelp, drawHome, drawOverlay, drawPicker, drawStatusBar, rows } from './ui';
 
+// The time and the timers every wait of this client runs on.
+const clock = systemClock;
 let overlaySelected = 0;
 let confirmKill = false;
 
@@ -468,7 +472,7 @@ function applyDaemonEvent(raw: EventMsg) {
 
       if (existing !== undefined) {
         if (e.session.state === 'done' && existing.state !== 'done') {
-          doneAt.set(e.session.id, Date.now());
+          doneAt.set(e.session.id, clock.now());
         }
 
         if (e.session.resumable && !existing.resumable) {
@@ -866,7 +870,7 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
       let next: DaemonBoot | null = null;
 
       try {
-        next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus });
+        next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus, clock });
 
         client = next.client;
         daemonStale = next.stale;
@@ -913,6 +917,7 @@ function handleDaemonClose() {
 }
 
 const boot = await bootDaemonClient({
+  clock,
   onProtocolMismatch: async (mismatch) => {
     restartedOnBoot = await waitForRestartConsent(mismatch);
 
@@ -1030,19 +1035,26 @@ async function restartDaemon() {
 
   client.stop();
 
-  const deadline = Date.now() + 8000;
+  const deadline = clock.now() + 8000;
 
-  let next = await bootDaemonClient();
+  let next = await bootDaemonClient({ clock });
 
-  while (next.stale && Date.now() < deadline) {
-    next.client.stop();
+  let attempts = 0;
 
-    await new Promise((resolve) => {
-      setTimeout(resolve, 200);
-    });
+  // A stale answer means the old daemon still holds the socket, so each
+  // retry drops it and boots again.
+  await waitUntil(
+    async () => {
+      if (attempts++ > 0) {
+        next.client.stop();
 
-    next = await bootDaemonClient();
-  }
+        next = await bootDaemonClient({ clock });
+      }
+
+      return !next.stale;
+    },
+    { clock, intervalMs: 200, deadlineMs: deadline },
+  );
 
   client = next.client;
   daemonStale = next.stale;

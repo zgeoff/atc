@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { buildStubLog } from '@atc/test-utils/build-stub-log';
-import { buildStubClock } from '../test-utils/build-stub-clock';
 import { RefusalLog } from './refusal-log';
 
 test('it logs the first refusal of a window at once with a count of one', () => {

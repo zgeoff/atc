@@ -6,6 +6,7 @@ import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { DaemonID } from '@atc/core/daemon-id';
 import type { MessageID } from '@atc/core/message-id';
 import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
 import { toAgentID } from '@atc/core/to-agent-id';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toDaemonID } from '@atc/core/to-daemon-id';
@@ -348,7 +349,7 @@ export class StateStore {
           .execute();
       }
 
-      const updatedAt = Date.now();
+      const updatedAt = systemClock.now();
 
       for (const entry of kept) {
         await trx
@@ -441,11 +442,11 @@ export class StateStore {
   }
 
   // Records a hook event in the trail, stamped with the given time in epoch
-  // milliseconds, or the wall clock's when absent.
+  // milliseconds, or the system clock's when absent.
   async recordEvent(
     e: HookEvent,
     ev: Readonly<AdapterEvent> | null = null,
-    at: number = Date.now(),
+    at: number = systemClock.now(),
   ): Promise<void> {
     const rawMessage = e.payload['message'];
     const rawSessionID = e.payload['session_id'] ?? e.payload['sessionId'];

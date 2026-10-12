@@ -1,4 +1,6 @@
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '../protocol/daemon-error';
 import type { EffectTarget, IdempotencyRecord } from '../store/idempotency-record';
 import type { StateStore } from '../store/state-store';
@@ -64,14 +66,23 @@ export class IdempotencyLedger {
   // Where a failed write to the ledger is reported, one line at a time.
   private readonly log: (line: string) => void;
 
+  // The time each claim and outcome is stamped with.
+  private readonly clock: Clock;
+
   // One promise chain per key, so two requests under the same key never
   // interleave their claim and completion on one daemon.
   private readonly withKeyLock = makeKeyedLock<string>();
 
-  constructor(store: StateStore, principal: string, log: (line: string) => void) {
+  constructor(
+    store: StateStore,
+    principal: string,
+    log: (line: string) => void,
+    clock: Clock = systemClock,
+  ) {
     this.store = store;
     this.principal = principal;
     this.log = log;
+    this.clock = clock;
   }
 
   run<T extends Readonly<Record<string, unknown>>>(call: IdempotentCall<T>): Promise<T> {
@@ -110,7 +121,7 @@ export class IdempotencyLedger {
       ...id,
       payloadHash: call.keyed.payloadHash,
       effectRef: call.effectRef,
-      at: Date.now(),
+      at: this.clock.now(),
     });
 
     if (held !== null) {
@@ -152,7 +163,7 @@ export class IdempotencyLedger {
       await this.store.updateIdempotencyCompleted(
         id,
         JSON.stringify(result),
-        Date.now(),
+        this.clock.now(),
         call.findEffectTarget?.(result) ?? null,
       );
     } catch (error) {
@@ -170,7 +181,7 @@ export class IdempotencyLedger {
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ): Promise<void> {
     try {
-      await this.store.updateIdempotencyOutcomeUnknown(id, Date.now());
+      await this.store.updateIdempotencyOutcomeUnknown(id, this.clock.now());
     } catch (error) {
       this.logFailure(call, 'outcome_unknown write', error);
     }

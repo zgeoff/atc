@@ -68,6 +68,7 @@
     "packages/test-utils": {
       "name": "@atc/test-utils",
       "dependencies": {
+        "@atc/core": "workspace:*",
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
         "kysely": "catalog:",

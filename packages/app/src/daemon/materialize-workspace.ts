@@ -3,6 +3,8 @@ import { dirname, join, resolve } from 'node:path';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import type { StepTimer } from '@atc/core/create-step-timer';
 import type { SessionID } from '@atc/core/session-id';
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '../protocol/daemon-error';
 import type { ErrorCode } from '../protocol/protocol';
 import type { SpawnWorkspaceSource } from '../protocol/request-param-schemas';
@@ -85,6 +87,10 @@ interface MaterializeDeps {
   // The git identity written into the checkout's own config, for a host that
   // holds none of its own; unset or null writes nothing.
   readonly gitIdentity?: GitIdentity | null;
+
+  // The clock each phase of the row is stamped with; the system clock when
+  // unset.
+  readonly clock?: Clock;
 }
 
 type MaterializedWorkspace = { readonly kind: 'in_place' } | ReadyWorkspace;
@@ -176,7 +182,7 @@ export async function materializeWorkspace(
       sourceKind: source.kind,
       withheldEnv,
     },
-    Date.now(),
+    (deps.clock ?? systemClock).now(),
   );
 
   // The staging directory exists only once the row does, and only inside
@@ -326,7 +332,7 @@ async function runMaterialization(
 
   await timer.withStep('verify', () => verifyTargetHead(request, deps, landing, cloned.sha));
 
-  const materializedAt = Date.now();
+  const materializedAt = (deps.clock ?? systemClock).now();
 
   await recordPhase(request, deps, updateProgress, 'ready', { materializedAt });
 
@@ -566,7 +572,11 @@ async function recordPhase(
     materializedAt?: number;
   }>,
 ): Promise<void> {
-  await deps.store.updateMaterialization(request.sessionID, { phase, ...fields }, Date.now());
+  await deps.store.updateMaterialization(
+    request.sessionID,
+    { phase, ...fields },
+    (deps.clock ?? systemClock).now(),
+  );
 
   updateProgress({ phase });
 }
@@ -952,7 +962,7 @@ async function tryUpdateFailed(
     await deps.store.updateMaterialization(
       request.sessionID,
       { phase: 'failed', errorCode: code },
-      Date.now(),
+      (deps.clock ?? systemClock).now(),
     );
   } catch {
     // A row left short of failed is failed as interrupted at the next start.

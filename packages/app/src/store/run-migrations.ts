@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { systemClock } from '@atc/core/system-clock';
 import { sql } from 'kysely';
 import type { Generated, Kysely } from 'kysely';
 import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';
@@ -723,7 +724,7 @@ async function createSessionOwners(db: Kysely<StateStoreSchema>): Promise<void> 
 
   await sql`
     INSERT OR IGNORE INTO session_owner (session_id, daemon_id, updated_at)
-    SELECT fleet.session_id, prefs.value, ${Date.now()}
+    SELECT fleet.session_id, prefs.value, ${systemClock.now()}
     FROM fleet JOIN prefs ON prefs.key = 'daemon_id'
   `.execute(db);
 }

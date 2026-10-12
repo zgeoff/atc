@@ -1,3 +1,6 @@
+import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core/system-clock';
+import { waitUntil } from '@atc/core/wait-until';
 import { DaemonClient } from './client/daemon-client';
 import { DaemonError } from './protocol/daemon-error';
 import { daemonRecordFile } from './shared/config';
@@ -16,59 +19,75 @@ type ReplacementOutcome =
   | { readonly ok: false; readonly reason: string };
 
 /**
- * Waits up to `waitMs` for a daemon to answer whose pid differs from the one
- * that was stopped and whose record in the state directory matches it. With
- * `expectedBuild`, the answering daemon must run that build: another client
- * that won the start with a different build is a failure.
+ * Waits up to `waitMs` on the clock for a daemon to answer whose pid differs
+ * from the one that was stopped and whose record in the state directory
+ * matches it. With `expectedBuild`, the answering daemon must run that
+ * build: another client that won the start with a different build is a
+ * failure.
  */
 export async function waitForReplacement(
   oldPID: number | null,
   expectedBuild: string | null,
   waitMs: number,
+  clock: Clock = systemClock,
 ): Promise<ReplacementOutcome> {
-  const deadline = Date.now() + waitMs;
-  let refusal: string | null = null;
+  const deadline = clock.now() + waitMs;
 
-  while (Date.now() < deadline) {
-    const record = findDaemonRecord(daemonRecordFile);
+  // The answer that ends the wait, and the last handshake a replacement
+  // refused.
+  const settled: { outcome?: ReplacementOutcome; refusal?: string } = {};
 
-    if (record !== null && record.pid !== oldPID && isProcessAlive(record.pid)) {
-      const attempt = await tryHello(record.socketPath, deadline);
+  await waitUntil(
+    async () => {
+      const record = findDaemonRecord(daemonRecordFile);
 
-      if (attempt.kind === 'ok') {
-        if (expectedBuild !== null && attempt.build !== expectedBuild) {
-          attempt.client.stop();
-
-          return {
-            ok: false,
-            reason: `the daemon that came up (pid ${record.pid}) runs build ${attempt.build}, not ${expectedBuild}; another client started it first`,
-          };
-        }
-
-        return {
-          ok: true,
-          client: attempt.client,
-          pid: record.pid,
-          build: attempt.build,
-          listenPort: record.listenPort,
-        };
+      if (record === null || record.pid === oldPID || !isProcessAlive(record.pid)) {
+        return false;
       }
+
+      const attempt = await tryHello(record.socketPath, deadline, clock);
 
       if (attempt.kind === 'refused') {
-        refusal = attempt.message;
+        settled.refusal = attempt.message;
       }
+
+      if (attempt.kind !== 'ok') {
+        return false;
+      }
+
+      if (expectedBuild !== null && attempt.build !== expectedBuild) {
+        attempt.client.stop();
+
+        settled.outcome = {
+          ok: false,
+          reason: `the daemon that came up (pid ${record.pid}) runs build ${attempt.build}, not ${expectedBuild}; another client started it first`,
+        };
+
+        return true;
+      }
+
+      settled.outcome = {
+        ok: true,
+        client: attempt.client,
+        pid: record.pid,
+        build: attempt.build,
+        listenPort: record.listenPort,
+      };
+
+      return true;
+    },
+    { clock, intervalMs: 100, deadlineMs: deadline },
+  );
+
+  return (
+    settled.outcome ?? {
+      ok: false,
+      reason:
+        settled.refusal === undefined
+          ? `no replacement daemon answered within ${Math.round(waitMs / 1000)} s`
+          : `the replacement daemon refused the handshake: ${settled.refusal}`,
     }
-
-    await Bun.sleep(100);
-  }
-
-  return {
-    ok: false,
-    reason:
-      refusal === null
-        ? `no replacement daemon answered within ${Math.round(waitMs / 1000)} s`
-        : `the replacement daemon refused the handshake: ${refusal}`,
-  };
+  );
 }
 
 type Hello =
@@ -76,7 +95,7 @@ type Hello =
   | { readonly kind: 'refused'; readonly message: string }
   | { readonly kind: 'none' };
 
-async function tryHello(socketPath: string, deadline: number): Promise<Hello> {
+async function tryHello(socketPath: string, deadline: number, clock: Clock): Promise<Hello> {
   let client: DaemonClient;
 
   try {
@@ -87,11 +106,11 @@ async function tryHello(socketPath: string, deadline: number): Promise<Hello> {
 
   // A daemon that accepts the socket and never answers must not outlast the
   // startup deadline: closing the client rejects the handshake.
-  const expiry = setTimeout(
+  const cancelExpiry = clock.schedule(
     () => {
       client.stop();
     },
-    Math.max(0, deadline - Date.now()),
+    Math.max(0, deadline - clock.now()),
   );
 
   try {
@@ -107,6 +126,6 @@ async function tryHello(socketPath: string, deadline: number): Promise<Hello> {
       ? { kind: 'refused', message: error.message }
       : { kind: 'none' };
   } finally {
-    clearTimeout(expiry);
+    cancelExpiry();
   }
 }

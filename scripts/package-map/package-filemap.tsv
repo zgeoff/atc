@@ -419,6 +419,7 @@ src/shared/truncate-detail.ts	core		packages/core/src/truncate-detail.ts
 src/shared/truncate-summary.ts	core		packages/core/src/truncate-summary.ts	
 src/shared/truncate-to-bytes.ts	core		packages/core/src/truncate-to-bytes.ts	
 src/shared/truncate.ts	core		packages/core/src/truncate.ts	new in ticket 3
+src/shared/wait-until.ts	core		packages/core/src/wait-until.ts	new in ticket 3
 src/sources/build-sources.ts	daemon	sources	packages/daemon/src/sources/build-sources.ts	daemon source orchestration over the plugin list
 src/sources/collect-builtin-sources.ts	app	plugins	packages/app/src/plugins/collect-builtin-sources.ts	registry: becomes the app plugin list
 src/sources/dirs/build-dirs-source.ts	source-dirs		packages/sources/dirs/src/build-dirs-source.ts	
