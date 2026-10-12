@@ -100,6 +100,46 @@ test('it leaves a string that matches a rewritten specifier unchanged', async ()
   );
 });
 
+test('it moves the tests that wave 1 takes from src beside their modules', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/cli.ts\tapp\tpackages/app/src/cli.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-testmap.tsv'),
+    'test\tpath_wave1\nsrc/cli.test.ts\tpackages/app/src/cli.test.ts\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'src/cli.ts'), 'export const CLI = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'src/cli.test.ts'),
+    "import { CLI } from './cli';\n\nexport const A = CLI;\n",
+  );
+
+  const moved = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'run-wave-move.ts'),
+    '1',
+    ctx.dir,
+  ]);
+
+  expect({ exitCode: moved.exitCode, stdout: moved.stdout, stderr: moved.stderr }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'run-wave-move: wave 1, 2 files moved, 0 files rewritten\n',
+    stderr: '',
+  });
+
+  expect(existsSync(join(ctx.dir, 'src/cli.test.ts'))).toBe(false);
+
+  expect(readFileSync(join(ctx.dir, 'packages/app/src/cli.test.ts'), 'utf8')).toBe(
+    "import { CLI } from './cli';\n\nexport const A = CLI;\n",
+  );
+});
+
 test('it moves the sources that wave 1 takes from src', async () => {
   const ctx = setupTest();
 

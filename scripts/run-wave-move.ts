@@ -60,6 +60,12 @@ function main(): void {
 const SOURCE_DIRS = ['src', 'packages', 'e2e', 'scripts'];
 const MAP_DIR = 'scripts/package-map';
 
+// Each map table and the column that holds a file's path before wave 1.
+const MAP_TABLES = [
+  ['package-stagemap.tsv', 'source'],
+  ['package-testmap.tsv', 'test'],
+] as const;
+
 /**
  * Each path this wave moves a file from, keyed to the path it moves to. A
  * file already at its new path is no longer a move.
@@ -67,10 +73,11 @@ const MAP_DIR = 'scripts/package-map';
 function collectMoves(root: string, wave: number): Map<string, string> {
   const moves = new Map<string, string>();
 
-  const from = wave === 1 ? 'source' : `path_wave${wave - 1}`;
   const to = `path_wave${wave}`;
 
-  for (const table of ['package-stagemap.tsv', 'package-testmap.tsv']) {
+  for (const [table, original] of MAP_TABLES) {
+    const from = wave === 1 ? original : `path_wave${wave - 1}`;
+
     for (const row of readTable(join(root, MAP_DIR, table))) {
       const before = row[from] ?? '';
       const after = row[to] ?? '';
