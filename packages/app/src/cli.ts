@@ -380,7 +380,7 @@ const main = defineCommand({
           description: 'Print the Grok hook file to install at $GROK_HOME/hooks/atc-reporter.json',
         },
         async run() {
-          const hook = await import('./agents/print-grok-hook-file');
+          const hook = await import('@atc/harness-grok/print-grok-hook-file');
 
           hook.printGrokHookFile(hostServices.atcArgv);
         },

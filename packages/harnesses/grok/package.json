@@ -1,0 +1,20 @@
+{
+  "name": "@atc/harness-grok",
+  "private": true,
+  "description": "The Grok Build harness: the adapter, its hook mapping, and its hook file",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "ts-pattern": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@atc/test-utils": "workspace:*"
+  }
+}

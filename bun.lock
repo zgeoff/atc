@@ -37,6 +37,7 @@
         "@atc/core": "workspace:*",
         "@atc/harness-claude": "workspace:*",
         "@atc/harness-codex": "workspace:*",
+        "@atc/harness-grok": "workspace:*",
         "@atc/lifecycle": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
@@ -114,6 +115,20 @@
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
         "tiny-invariant": "catalog:",
+      },
+    },
+    "packages/harnesses/grok": {
+      "name": "@atc/harness-grok",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "ts-pattern": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@atc/test-utils": "workspace:*",
       },
     },
     "packages/lifecycle": {
@@ -268,6 +283,8 @@
     "@atc/harness-claude": ["@atc/harness-claude@workspace:packages/harnesses/claude"],
 
     "@atc/harness-codex": ["@atc/harness-codex@workspace:packages/harnesses/codex"],
+
+    "@atc/harness-grok": ["@atc/harness-grok@workspace:packages/harnesses/grok"],
 
     "@atc/lifecycle": ["@atc/lifecycle@workspace:packages/lifecycle"],
 
