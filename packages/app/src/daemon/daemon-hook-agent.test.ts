@@ -2,6 +2,7 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config/config';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { getRecord } from '@atc/test-utils/get-record';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
@@ -68,6 +69,7 @@ test('it accepts a hook line carrying the kind for a second codex entry', async 
             'codex-fast': { kind: 'codex', bin: 'sleep', args: ['30'] },
           },
         }),
+        buildMockHostServices(),
       ),
     }),
   });
@@ -112,6 +114,7 @@ test('it drops a hook line carrying the entry id for a codex entry', async () =>
             'codex-fast': { kind: 'codex', bin: 'sleep', args: ['30'] },
           },
         }),
+        buildMockHostServices(),
       ),
     }),
   });
@@ -164,6 +167,7 @@ test('it drops a hook line from another agent at a claude session', async () => 
             claude: { bin: 'bash', args: ['-c', 'sleep 30'] },
           },
         }),
+        buildMockHostServices(),
       ),
     }),
   });

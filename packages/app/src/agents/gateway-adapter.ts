@@ -25,6 +25,7 @@ import type {
   SpawnPlan,
 } from '@atc/plugin-api/agent-adapter';
 import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
+import type { HostServices } from '@atc/plugin-api/host-services';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
@@ -36,12 +37,11 @@ import { buildClaudeProjectSettingsCheck } from './build-claude-project-settings
 import { buildHookSettings } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { ClaudeAdapter } from './claude-adapter';
+import type { ClaudeAdapterOptions } from './claude-adapter-options';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
-import type { ClaudeHostPaths } from './claude-host-paths';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
-import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
@@ -91,17 +91,23 @@ export class GatewayAdapter implements AgentAdapter {
 
   private readonly bridgeTarget: string | undefined;
 
-  private readonly hostPaths: ClaudeHostPaths;
+  private readonly hostPaths: ClaudeAdapterOptions;
+
+  // The argv that runs this atc's CLI, which the settings file's hooks and
+  // the mod's commands run.
+  private readonly atcArgv: readonly string[];
 
   constructor(
     gateway: GatewayConfig,
     config: Config,
-    headlessRun: ClaudeHeadlessRun | null = null,
-    bridgeTarget?: string,
-    hostPaths: ClaudeHostPaths = {},
+    host: Pick<HostServices, 'atcArgv'>,
+    options: ClaudeAdapterOptions = {},
   ) {
-    this.bridgeTarget = bridgeTarget;
-    this.hostPaths = hostPaths;
+    const headlessRun = options.headlessRun ?? null;
+
+    this.bridgeTarget = options.bridgeTarget;
+    this.hostPaths = options;
+    this.atcArgv = host.atcArgv;
     this.gateway = gateway;
     this.config = config;
     this.id = gateway.id;
@@ -127,9 +133,11 @@ export class GatewayAdapter implements AgentAdapter {
         env: {},
       },
       config,
-      null,
-      undefined,
-      hostPaths,
+      host,
+      {
+        ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
+        ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
+      },
     );
 
     this.headlessRunner =
@@ -502,6 +510,7 @@ export class GatewayAdapter implements AgentAdapter {
           : { apiKeyHelper: this.gateway.apiKeyHelper }),
         ...(this.gateway.settings === undefined ? {} : { settings: this.gateway.settings }),
       },
+      this.atcArgv,
       this.hostPaths.stateDir,
       this.hostPaths.homeDir,
     );
@@ -510,7 +519,7 @@ export class GatewayAdapter implements AgentAdapter {
   }
 
   private writeBridge(): string {
-    this.bridgeDir ??= writeATCBridge(this.bridgeTarget);
+    this.bridgeDir ??= writeATCBridge(this.atcArgv, this.bridgeTarget);
 
     return this.bridgeDir;
   }

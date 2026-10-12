@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
-import { getSourceEntry } from '@atc/test-utils/get-source-entry';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from './build-agent-adapters';
@@ -25,7 +25,7 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
     },
   });
 
-  const [first, second] = buildAgentAdapters(config, null, {
+  const [first, second] = buildAgentAdapters(config, buildMockHostServices(), null, {
     stateDir: join(ctx.dir, 'state'),
     homeDir: join(ctx.dir, 'home'),
     bridgeTarget: join(ctx.dir, 'atc-bridge'),
@@ -66,7 +66,6 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
 });
 
 test('it hands a gateway entry the settings folder, home and mod folder it is given', () => {
-  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
 
   mkdirSync(join(ctx.dir, 'home', '.claude'), { recursive: true });
@@ -80,11 +79,16 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     agents: { zai: { kind: 'claude', bin: 'gw', baseURL: 'https://api.z.ai/api/anthropic' } },
   });
 
-  const [gateway] = buildAgentAdapters(config, null, {
-    stateDir: join(ctx.dir, 'state'),
-    homeDir: join(ctx.dir, 'home'),
-    bridgeTarget: join(ctx.dir, 'atc-bridge'),
-  });
+  const [gateway] = buildAgentAdapters(
+    config,
+    buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
+    null,
+    {
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+    },
+  );
 
   invariant(gateway instanceof GatewayAdapter, 'expected a gateway adapter');
 
@@ -111,7 +115,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -122,7 +126,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -133,7 +137,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -144,7 +148,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -155,7 +159,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'zai'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'zai'`,
               timeout: 5,
             },
           ],
@@ -164,7 +168,7 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'zai'`,
+      command: `"/opt/atc/bin/atc" statusline --agent 'zai'`,
       padding: 3,
     },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },

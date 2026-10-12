@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -96,6 +97,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
             },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',
@@ -177,6 +179,7 @@ test('it revives a rebound session under the settings file of the next revision'
             },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',
@@ -244,6 +247,7 @@ test('it refuses to revive a revoked session and starts no harness under its old
             },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',
@@ -304,6 +308,7 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
             },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',
@@ -394,6 +399,7 @@ test('it refuses a brokered gateway whose env sets a proxy variable before any i
               env: { HTTPS_PROXY: 'http://proxy.example:3128' },
             },
             config,
+            buildMockHostServices(),
           ),
         ],
         targets: ctx.targets,
@@ -466,7 +472,7 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
 
       return {
         adapters: [
-          ...buildAgentAdapters(config),
+          ...buildAgentAdapters(config, buildMockHostServices()),
 
           // A proxy variable in a gateway's env, which the config would refuse.
           new GatewayAdapter(
@@ -476,6 +482,7 @@ test('it lists a brokered gateway with the bearer placeholder as spawnable and o
               env: { HTTPS_PROXY: 'http://proxy.example:3128' },
             },
             config,
+            buildMockHostServices(),
           ),
         ],
         targets: ctx.targets,
@@ -529,6 +536,7 @@ test('it refuses a brokered gateway with an unsupported placeholder before mater
             },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',
@@ -593,6 +601,7 @@ test('it refuses a brokered gateway on the local target before materializing its
             },
           },
         }),
+        buildMockHostServices(),
       ),
       targets: ctx.targets,
       defaultTarget: 'box',

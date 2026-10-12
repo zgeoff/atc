@@ -1,5 +1,6 @@
 import type { Config } from '@atc/config/config';
 import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
+import type { HostServices } from '@atc/plugin-api/host-services';
 import { ClaudeAdapter } from './claude-adapter';
 import type { ClaudeHostPaths } from './claude-host-paths';
 import { CodexAdapter } from './codex-adapter';
@@ -18,14 +19,16 @@ interface AgentAdapterPaths extends ClaudeHostPaths {
 
 /**
  * One adapter per registry entry, in registry order. A Claude entry with a
- * base URL is a gateway, and one without is stock Claude.
+ * base URL is a gateway, and one without is stock Claude. The Claude-family
+ * adapters run the atc CLI that the host's argv runs.
  */
 export function buildAgentAdapters(
   config: Config,
+  host: Pick<HostServices, 'atcArgv'>,
   headlessRun: ClaudeHeadlessRun | null = null,
   paths: AgentAdapterPaths = {},
 ): AgentAdapter[] {
-  const { bridgeTarget, ...hostPaths } = paths;
+  const options = { ...paths, headlessRun };
 
   return config.agents.map((entry): AgentAdapter => {
     if (entry.kind === 'codex') {
@@ -37,15 +40,9 @@ export function buildAgentAdapters(
     }
 
     if (entry.baseURL === undefined) {
-      return new ClaudeAdapter(entry, config, headlessRun, bridgeTarget, hostPaths);
+      return new ClaudeAdapter(entry, config, host, options);
     }
 
-    return new GatewayAdapter(
-      { ...entry, baseURL: entry.baseURL },
-      config,
-      headlessRun,
-      bridgeTarget,
-      hostPaths,
-    );
+    return new GatewayAdapter({ ...entry, baseURL: entry.baseURL }, config, host, options);
   });
 }

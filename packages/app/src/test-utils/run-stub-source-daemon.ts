@@ -31,7 +31,7 @@ import { collectBuiltinSources } from '../sources/collect-builtin-sources';
  */
 async function main() {
   const config = loadConfig();
-  const adapters = buildAgentAdapters(config, startClaudeHeadlessRun);
+  const adapters = buildAgentAdapters(config, buildHostServices(), startClaudeHeadlessRun);
 
   const builtin = buildSources(
     collectBuiltinSources({

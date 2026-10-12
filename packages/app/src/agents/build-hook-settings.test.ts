@@ -91,6 +91,7 @@ test('it carries the backend in an env block, which outranks a shell export', ()
         },
       },
       0,
+      ['/usr/local/bin/atc'],
     )['env'],
   ).toStrictEqual({
     ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
@@ -99,17 +100,19 @@ test('it carries the backend in an env block, which outranks a shell export', ()
 });
 
 test('it leaves out the env block and the helper for an agent that needs neither', () => {
-  const settings = buildHookSettings({ id: 'claude' }, 0);
+  const settings = buildHookSettings({ id: 'claude' }, 0, ['/usr/local/bin/atc']);
 
   expect(settings).toContainAllKeys(['hooks', 'statusLine']);
 });
 
 test('it leaves out an env block that was given with nothing in it', () => {
-  expect(buildHookSettings({ id: 'zai', env: {} }, 0)).not.toContainKey('env');
+  expect(buildHookSettings({ id: 'zai', env: {} }, 0, ['/usr/local/bin/atc'])).not.toContainKey(
+    'env',
+  );
 });
 
 test('it reports every hook the fleet needs to track a session', () => {
-  const settings = buildHookSettings({ id: 'claude' }, 0);
+  const settings = buildHookSettings({ id: 'claude' }, 0, ['/usr/local/bin/atc']);
 
   expect(settings['hooks']).toContainAllKeys([
     'SessionStart',
@@ -136,6 +139,7 @@ test('it registers a configured hook on an event of its own', () => {
   const settings = buildHookSettings(
     { id: 'zai', settings: { hooks: { PermissionRequest: [entry] } } },
     0,
+    ['/usr/local/bin/atc'],
   );
 
   expect(settings['hooks']).toContainEntry(['PermissionRequest', [entry]]);
@@ -192,6 +196,7 @@ test('it passes through a configured key it sets nothing of its own for', () => 
   const settings = buildHookSettings(
     { id: 'zai', settings: { permissions: { allow: ['Bash(ls:*)'] } } },
     0,
+    ['/usr/local/bin/atc'],
   );
 
   expect(settings['permissions']).toStrictEqual({ allow: ['Bash(ls:*)'] });
@@ -199,7 +204,9 @@ test('it passes through a configured key it sets nothing of its own for', () => 
 
 // A hooks block that is not one costs its own entries and none of atc's.
 test('it keeps its own hooks when the configured ones are malformed', () => {
-  const settings = buildHookSettings({ id: 'zai', settings: { hooks: 'all of them' } }, 0);
+  const settings = buildHookSettings({ id: 'zai', settings: { hooks: 'all of them' } }, 0, [
+    '/usr/local/bin/atc',
+  ]);
 
   expect(settings['hooks']).toContainAllKeys([
     'SessionStart',

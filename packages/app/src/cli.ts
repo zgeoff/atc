@@ -640,7 +640,13 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   // How long a started session may go without a tap before a message
   // to it is refused. Tests pin it to 0 to reach the refusal at once.
   const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
-  const adapters = adapterBuilder.buildAgentAdapters(cfg, headless.startClaudeHeadlessRun);
+
+  const adapters = adapterBuilder.buildAgentAdapters(
+    cfg,
+    hostServices,
+    headless.startClaudeHeadlessRun,
+  );
+
   let handle: Awaited<ReturnType<typeof daemon.startDaemon>>;
 
   try {

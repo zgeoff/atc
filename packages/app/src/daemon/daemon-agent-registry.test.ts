@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
@@ -25,7 +26,10 @@ test('it spawns two claude entries each with its own args and settings file', as
         },
       });
 
-      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+      return {
+        adapters: buildAgentAdapters(parsed, buildMockHostServices()),
+        defaultAgent: parsed.defaultAgent,
+      };
     },
   });
 
@@ -85,7 +89,10 @@ test('it lists no agent and defaults spawns to claude for an empty registry', as
     options: () => {
       const parsed = parseConfig({ agents: {} });
 
-      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+      return {
+        adapters: buildAgentAdapters(parsed, buildMockHostServices()),
+        defaultAgent: parsed.defaultAgent,
+      };
     },
   });
 
@@ -101,7 +108,10 @@ test('it refuses a spawn for an empty registry', async () => {
     options: () => {
       const parsed = parseConfig({ agents: {} });
 
-      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+      return {
+        adapters: buildAgentAdapters(parsed, buildMockHostServices()),
+        defaultAgent: parsed.defaultAgent,
+      };
     },
   });
 
@@ -123,7 +133,10 @@ test('it defaults spawns to the first entry when the registry holds no claude', 
         },
       });
 
-      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+      return {
+        adapters: buildAgentAdapters(parsed, buildMockHostServices()),
+        defaultAgent: parsed.defaultAgent,
+      };
     },
   });
 
@@ -142,7 +155,10 @@ test('it spawns the first entry when the registry holds no claude and the spawn 
         },
       });
 
-      return { adapters: buildAgentAdapters(parsed), defaultAgent: parsed.defaultAgent };
+      return {
+        adapters: buildAgentAdapters(parsed, buildMockHostServices()),
+        defaultAgent: parsed.defaultAgent,
+      };
     },
   });
 

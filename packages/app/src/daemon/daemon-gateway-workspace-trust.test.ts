@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createGitFixture } from '@atc/test-utils/create-git-fixture';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
@@ -105,8 +106,8 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
@@ -208,8 +209,8 @@ test.each([
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
@@ -288,8 +289,8 @@ test('it refuses trust for an existing folder before touching the imp', async ()
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
@@ -360,8 +361,8 @@ test.each([
 
         return {
           adapters: [
-            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
           ],
           gitTransports: ['file'],
           defaultTarget: 'box',
@@ -462,8 +463,8 @@ test.each([
 
         return {
           adapters: [
-            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
           ],
           gitTransports: ['file'],
           defaultTarget: 'box',
@@ -558,8 +559,8 @@ test('it refuses clone trust for stock Claude on an imp target before preparing 
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
@@ -630,8 +631,8 @@ test('it refuses clone trust for a gateway on the local target before cloning', 
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
@@ -706,8 +707,8 @@ test.each([
 
         return {
           adapters: [
-            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
           ],
           gitTransports: ['file'],
           defaultTarget: 'box',
@@ -815,8 +816,8 @@ test.each([
 
         return {
           adapters: [
-            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
           ],
           gitTransports: ['file'],
           defaultTarget: 'box',
@@ -932,8 +933,8 @@ test.each([
 
         return {
           adapters: [
-            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
           ],
           gitTransports: ['file'],
           defaultTarget: 'box',
@@ -1065,8 +1066,8 @@ test.each([
 
         return {
           adapters: [
-            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
           ],
           gitTransports: ['file'],
           defaultTarget: 'box',
@@ -1159,8 +1160,8 @@ test.each([
 
         return {
           adapters: [
-            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+            new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+            new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
           ],
           gitTransports: ['file'],
           defaultTarget: 'box',
@@ -1249,8 +1250,8 @@ test('it refuses an inherited trust default without a clone before touching the 
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
@@ -1321,8 +1322,8 @@ test('it refuses inherited clone trust for stock Claude on an imp target', async
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
@@ -1394,8 +1395,8 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
 
       return {
         adapters: [
-          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents),
-          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents),
+          new GatewayAdapter(getGatewayConfig(agents, 'glm'), agents, buildMockHostServices()),
+          new ClaudeAdapter(getAgentEntry(agents, 'claude'), agents, buildMockHostServices()),
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config/config';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
@@ -25,7 +26,11 @@ test('it accepts every model and effort value agents.list advertises as availabl
     },
   });
 
-  const agents = buildAgentList(buildAgentAdapters(config), () => true, false);
+  const agents = buildAgentList(
+    buildAgentAdapters(config, buildMockHostServices()),
+    () => true,
+    false,
+  );
 
   const advertised = agents.flatMap((agent) =>
     (['model', 'effort'] as const)
@@ -70,7 +75,7 @@ test('it refuses as unsupported every option agents.list does not advertise as a
 
   const agents = buildAgentList(
     [
-      new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       new GrokAdapter(getAgentEntry(config, 'grok')),
       new CodexAdapter(getAgentEntry(config, 'codex')),
     ],
@@ -102,7 +107,7 @@ test('it refuses as unsupported every option agents.list does not advertise as a
 
 test('it refuses a model for a registered agent that is not installed', () => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
     () => false,
     false,
   );
@@ -118,7 +123,7 @@ test('it refuses a model for a registered agent that is not installed', () => {
 
 test('it passes a full model name through as given', () => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
     () => true,
     false,
   );
@@ -142,7 +147,7 @@ test.each([
   ['m'.repeat(201), 'model must be 1 to 200 characters'],
 ])('it refuses the model %p as bad_args', (model, message) => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
     () => true,
     false,
   );
@@ -163,7 +168,7 @@ test.each([
   ['--max', "effort must not start with '-' or hold control characters"],
 ])('it refuses the effort %p that Claude Code does not accept', (effort, message) => {
   const [claude] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { claude: {} } })),
+    buildAgentAdapters(parseConfig({ agents: { claude: {} } }), buildMockHostServices()),
     () => true,
     false,
   );
@@ -183,7 +188,7 @@ test('it accepts a gateway effort', () => {
   });
 
   const [zai] = buildAgentList(
-    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],
+    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config, buildMockHostServices())],
     () => true,
     false,
   );
@@ -202,7 +207,7 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
   });
 
   const [zai] = buildAgentList(
-    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config)],
+    [new GatewayAdapter(getGatewayConfig(config, 'zai'), config, buildMockHostServices())],
     () => true,
     false,
   );
@@ -218,7 +223,7 @@ test('it refuses a gateway effort outside the levels Claude Code accepts', () =>
 
 test('it refuses a codex effort', () => {
   const [codex] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { codex: {} } })),
+    buildAgentAdapters(parseConfig({ agents: { codex: {} } }), buildMockHostServices()),
     () => true,
     false,
   );
@@ -234,7 +239,7 @@ test('it refuses a codex effort', () => {
 
 test('it accepts a codex model', () => {
   const [codex] = buildAgentList(
-    buildAgentAdapters(parseConfig({ agents: { codex: {} } })),
+    buildAgentAdapters(parseConfig({ agents: { codex: {} } }), buildMockHostServices()),
     () => true,
     false,
   );

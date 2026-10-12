@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
-import { getSourceEntry } from '@atc/test-utils/get-source-entry';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { KEYS } from '@atc/test-utils/keys';
 import { runCommand } from '@atc/test-utils/run-command';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -24,19 +24,31 @@ function setupTest() {
 }
 
 test('it answers to the id its backend was configured under', () => {
-  const adapter = new GatewayAdapter(buildMockGatewayConfig({ id: 'zai' }), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({ id: 'zai' }),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.id).toBe('zai');
 });
 
 test('it runs no headless turn when the daemon gave it no runner', () => {
-  const adapter = new GatewayAdapter(buildMockGatewayConfig(), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.headlessRunner).toBeNull();
 });
 
 test('it reads a session id and transcript out of a Claude hook payload', () => {
-  const adapter = new GatewayAdapter(buildMockGatewayConfig(), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(
     adapter.normalizeHook({
@@ -58,7 +70,11 @@ test('it resumes while the reported transcript is still on disk', () => {
 
   writeFileSync(transcript, '');
 
-  const adapter = new GatewayAdapter(buildMockGatewayConfig(), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.canResume({ transcriptSource: transcript })).toBeTrue();
 });
@@ -66,13 +82,21 @@ test('it resumes while the reported transcript is still on disk', () => {
 test('it does not resume once the reported transcript is gone', () => {
   const ctx = setupTest();
 
-  const adapter = new GatewayAdapter(buildMockGatewayConfig(), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.canResume({ transcriptSource: join(ctx.dir, 'missing.jsonl') })).toBeFalse();
 });
 
 test('it takes inbox messages', () => {
-  const adapter = new GatewayAdapter(buildMockGatewayConfig(), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.takesMessages).toBeTrue();
 });
@@ -84,9 +108,13 @@ test("it runs a headless turn through the gateway's binary and settings file und
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'zai', bin: '/opt/zai/bin/claude' }),
     parseConfig({}),
-    runner,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
@@ -123,6 +151,7 @@ test('it profiles a gateway with only the model names its env sets', () => {
       },
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   expect(adapter.profile).toStrictEqual({
@@ -155,7 +184,11 @@ test('it profiles a gateway with only the model names its env sets', () => {
 });
 
 test('it profiles a gateway whose env sets no model with no models', () => {
-  const adapter = new GatewayAdapter(buildMockGatewayConfig({ env: {} }), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig({ env: {} }),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.profile.models).toBeNull();
 });
@@ -171,9 +204,13 @@ test("it runs a headless turn under the permission mode the gateway's settings d
       settings: { permissions: { defaultMode: 'default' } },
     }),
     parseConfig({}),
-    runner,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
@@ -205,9 +242,13 @@ test("it runs a headless turn under a gateway's explicit permission-mode argumen
       settings: { permissions: { defaultMode: 'acceptEdits' } },
     }),
     parseConfig({}),
-    runner,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
@@ -238,9 +279,12 @@ test("it starts a gateway's terminal run under its explicit permission-mode argu
       settings: { permissions: { defaultMode: 'acceptEdits' } },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: false });
@@ -269,9 +313,12 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
       baseURL: 'https://gateway.example/anthropic',
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
@@ -282,7 +329,6 @@ test("it keeps the gateway's arguments, its permission mode included, in the com
 });
 
 test("it runs a headless turn with the gateway's settings file, its permission hook and mode included", () => {
-  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
   const runner = buildStubClaudeHeadlessRun();
 
@@ -299,9 +345,13 @@ test("it runs a headless turn with the gateway's settings file, its permission h
       },
     }),
     parseConfig({}),
-    runner,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
@@ -332,7 +382,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -343,7 +393,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -354,7 +404,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -365,7 +415,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -376,7 +426,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'manual-hook'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'manual-hook'`,
               timeout: 5,
             },
           ],
@@ -386,7 +436,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'manual-hook'`,
+      command: `"/opt/atc/bin/atc" statusline --agent 'manual-hook'`,
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic' },
@@ -403,9 +453,12 @@ test("it restores a session in the permission mode the gateway's settings defaul
       settings: { permissions: { defaultMode: 'default' } },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -436,9 +489,12 @@ test("it keeps the gateway's settings default mode in the command that resumes i
       settings: { permissions: { defaultMode: 'default' } },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
@@ -459,9 +515,12 @@ test('it restores a gateway in its explicit permission-mode argument over its se
       settings: { permissions: { defaultMode: 'default' } },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: toAgentSessionID('sess-1') });
@@ -492,9 +551,12 @@ test('it resumes a gateway outside atc in its explicit permission-mode argument 
       settings: { permissions: { defaultMode: 'default' } },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const command = adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'));
@@ -516,6 +578,7 @@ test("it refuses to start a gateway with auth on the daemon's machine", () => {
       },
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   expect(() => adapter.planSpawn({ prompt: '', resume: false })).toThrow(
@@ -527,7 +590,8 @@ test('it gives a gateway with auth no headless runner', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
     parseConfig({}),
-    buildStubClaudeHeadlessRun(),
+    buildMockHostServices(),
+    { headlessRun: buildStubClaudeHeadlessRun() },
   );
 
   expect(adapter.headlessRunner).toBeNull();
@@ -537,14 +601,14 @@ test('it gives a gateway with auth no resume command', () => {
   const adapter = new GatewayAdapter(
     buildMockGatewayConfig({ id: 'glm', auth: { profiles: ['glm'], placeholderEnv: {} } }),
     parseConfig({}),
-    buildStubClaudeHeadlessRun(),
+    buildMockHostServices(),
+    { headlessRun: buildStubClaudeHeadlessRun() },
   );
 
   expect(adapter.buildResumeCommand('/work', toAgentSessionID('a1'))).toBeNull();
 });
 
 test("it starts a gateway with auth and a credential helper on the daemon's machine under that helper", () => {
-  const cliEntry = getSourceEntry('atc');
   const ctx = setupTest();
 
   const adapter = new GatewayAdapter(
@@ -562,9 +626,12 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
       },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices({ atcArgv: ['/opt/atc/bin/atc'] }),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const plan = adapter.planSpawn({ prompt: '', resume: false });
@@ -592,7 +659,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -603,7 +670,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -614,7 +681,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -625,7 +692,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -636,7 +703,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
           hooks: [
             {
               type: 'command',
-              command: `"${process.execPath}" "${cliEntry}" hook-report --agent 'glm-local'`,
+              command: `"/opt/atc/bin/atc" hook-report --agent 'glm-local'`,
               timeout: 5,
             },
           ],
@@ -645,7 +712,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
     },
     statusLine: {
       type: 'command',
-      command: `"${process.execPath}" "${cliEntry}" statusline --agent 'glm-local'`,
+      command: `"/opt/atc/bin/atc" statusline --agent 'glm-local'`,
       padding: 0,
     },
     env: { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic' },
@@ -669,9 +736,12 @@ test('it writes no broker placeholder into the local settings of a gateway with 
       },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   adapter.planSpawn({ prompt: '', resume: false });
@@ -700,6 +770,7 @@ test('it lets a gateway with auth and a credential helper start on a target with
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   expect(adapter.findAuthSelection()?.brokerRequired).toBe(false);
@@ -718,9 +789,13 @@ test("it runs a headless turn of a gateway with auth and a credential helper thr
       auth: { profiles: ['glm'], placeholderEnv: {} },
     }),
     parseConfig({}),
-    runner,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      headlessRun: runner,
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   const events = { onOutput: () => {}, onDone: () => {}, onNeedsYou: () => {} };
@@ -753,9 +828,12 @@ test('it resumes a gateway with auth and a credential helper outside atc through
       auth: { profiles: ['glm'], placeholderEnv: {} },
     }),
     parseConfig({}),
-    null,
-    join(ctx.dir, 'atc-bridge'),
-    { stateDir: join(ctx.dir, 'state'), homeDir: join(ctx.dir, 'home') },
+    buildMockHostServices(),
+    {
+      bridgeTarget: join(ctx.dir, 'atc-bridge'),
+      stateDir: join(ctx.dir, 'state'),
+      homeDir: join(ctx.dir, 'home'),
+    },
   );
 
   expect(adapter.buildResumeCommand('/work/repo', toAgentSessionID('sess-1'))).toBe(
@@ -782,6 +860,7 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -845,6 +924,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1012,6 +1092,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1157,6 +1238,7 @@ test.each([
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   expect(() =>
@@ -1199,6 +1281,7 @@ test('it allows the start of a gateway with auth that sets an extra placeholder 
         },
       },
     }),
+    buildMockHostServices(),
   );
 
   expect(adapter.findSpawnRefusal()).toBeNull();
@@ -1230,6 +1313,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
         },
       },
     }),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1379,6 +1463,7 @@ test("it refuses a brokered guest spawn whose profile sets a header other than a
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   expect(() =>
@@ -1411,6 +1496,7 @@ test('it refuses a brokered guest spawn on a host that gave it no broker binding
       },
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   expect(() =>
@@ -1430,6 +1516,7 @@ test('it plans no guest spawn for a gateway whose credential helper runs on the 
       apiKeyHelper: 'zai-key',
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1460,6 +1547,7 @@ test('it plans no brokered guest spawn on a host without atc', () => {
       },
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1504,6 +1592,7 @@ test('it keeps a credential held on the daemon side out of every file, argument 
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1544,6 +1633,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1598,6 +1688,7 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1657,6 +1748,7 @@ test('it starts a brokered guest in the permission mode its configured arguments
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1709,6 +1801,7 @@ test("it starts a fresh spawn of a brokered guest in Claude's manual mode when t
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1761,6 +1854,7 @@ test("it starts a resume of a brokered guest in Claude's manual mode when the ga
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -1817,6 +1911,7 @@ test('it selects the credential a gateway with auth takes from the broker, with 
       },
     }),
     config,
+    buildMockHostServices(),
   );
 
   expect(adapter.findAuthSelection()).toStrictEqual({
@@ -1841,6 +1936,7 @@ test('it selects no broker credential for a gateway without auth', () => {
       baseURL: 'https://api.z.ai/api/anthropic',
     }),
     parseConfig({}),
+    buildMockHostServices(),
   );
 
   expect(adapter.findAuthSelection()).toBeNull();
@@ -1862,6 +1958,7 @@ test('it allows the start of a gateway with auth whose placeholder pairs with th
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   expect(adapter.findSpawnRefusal()).toBeNull();
@@ -1883,6 +1980,7 @@ test('it refuses every start of a gateway with auth whose API key placeholder me
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   expect(adapter.findSpawnRefusal()).toMatchObject({
@@ -1907,6 +2005,7 @@ test('it allows the start of a gateway with auth whose API key placeholder pairs
         muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
       },
     }),
+    buildMockHostServices(),
   );
 
   expect(adapter.findSpawnRefusal()).toBeNull();
@@ -1942,6 +2041,7 @@ test.each([
       parseConfig({
         authProfiles: { muse: { secret: 'muse', host: 'api.meta.ai', ...rule } },
       }),
+      buildMockHostServices(),
     );
 
     expect(adapter.findSpawnRefusal()).toMatchObject({
@@ -1967,6 +2067,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
         muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
       },
     }),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -2028,6 +2129,7 @@ test('it seeds the approval of the API key placeholder beside the clone trust of
         muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
       },
     }),
+    buildMockHostServices(),
   );
 
   const seedFile = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
@@ -2067,6 +2169,7 @@ test.each([
           muse: { secret: 'muse', host: 'api.meta.ai', header: 'x-api-key', scheme: 'raw' },
         },
       }),
+      buildMockHostServices(),
     );
 
     const plan = adapter.planGuestSpawn(
@@ -2114,6 +2217,7 @@ test('it refuses every start of a gateway with auth whose env sets a proxy varia
         glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
       },
     }),
+    buildMockHostServices(),
   );
 
   expect(adapter.findSpawnRefusal()).toMatchObject({
@@ -2123,7 +2227,11 @@ test('it refuses every start of a gateway with auth whose env sets a proxy varia
 });
 
 test('it pastes a long line and submits it with a carriage return as a second write', () => {
-  const adapter = new GatewayAdapter(buildMockGatewayConfig(), parseConfig({}));
+  const adapter = new GatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig({}),
+    buildMockHostServices(),
+  );
 
   expect(adapter.planLineInput('a'.repeat(1600), { bracketedPaste: true })).toStrictEqual([
     `${KEYS.pasteOpen}${'a'.repeat(1600)}${KEYS.pasteClose}`,
@@ -2157,6 +2265,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
         },
       },
     }),
+    buildMockHostServices(),
   );
 
   const plan = adapter.planGuestSpawn(
@@ -2291,6 +2400,7 @@ test('it refuses a local plan of a gateway whose profile sets variables', () => 
         },
       },
     }),
+    buildMockHostServices(),
   );
 
   expect(() => adapter.planSpawn({ prompt: '', resume: false })).toThrow(

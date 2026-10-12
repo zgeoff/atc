@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
 import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createStubGuestCLIs } from '@atc/test-utils/create-stub-guest-clis';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -31,7 +32,7 @@ async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-bridge-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',

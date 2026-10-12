@@ -32,6 +32,7 @@ import type {
 } from '@atc/plugin-api/agent-adapter';
 import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
 import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
+import type { HostServices } from '@atc/plugin-api/host-services';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
@@ -46,14 +47,13 @@ import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 import { buildRestoreModeArgs } from './build-restore-mode-args';
 import { buildScratchLaunch } from './build-scratch-launch';
+import type { ClaudeAdapterOptions } from './claude-adapter-options';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
-import type { ClaudeHostPaths } from './claude-host-paths';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 import { makeClaudeHeadlessRunner } from './make-claude-headless-runner';
-import type { ClaudeHeadlessRun } from './make-claude-headless-runner';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
 import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
@@ -112,17 +112,23 @@ export class ClaudeAdapter implements AgentAdapter {
 
   private readonly bridgeTarget: string | undefined;
 
-  private readonly hostPaths: ClaudeHostPaths;
+  private readonly hostPaths: ClaudeAdapterOptions;
+
+  // The argv that runs this atc's CLI, which the settings file's hooks and
+  // the mod's commands run.
+  private readonly atcArgv: readonly string[];
 
   constructor(
     entry: AgentEntry,
     config: Pick<Config, 'authProfiles'>,
-    headlessRun: ClaudeHeadlessRun | null = null,
-    bridgeTarget?: string,
-    hostPaths: ClaudeHostPaths = {},
+    host: Pick<HostServices, 'atcArgv'>,
+    options: ClaudeAdapterOptions = {},
   ) {
-    this.bridgeTarget = bridgeTarget;
-    this.hostPaths = hostPaths;
+    const headlessRun = options.headlessRun ?? null;
+
+    this.bridgeTarget = options.bridgeTarget;
+    this.hostPaths = options;
+    this.atcArgv = host.atcArgv;
     this.entry = entry;
     this.authProfiles = config.authProfiles;
     this.id = entry.id;
@@ -442,6 +448,7 @@ export class ClaudeAdapter implements AgentAdapter {
   private writeSettings(): string {
     this.settingsFile ??= writeHookSettings(
       this.buildSettingsProfile({}),
+      this.atcArgv,
       this.hostPaths.stateDir,
       this.hostPaths.homeDir,
     );
@@ -450,7 +457,7 @@ export class ClaudeAdapter implements AgentAdapter {
   }
 
   private writeBridge(): string {
-    this.bridgeDir ??= writeATCBridge(this.bridgeTarget);
+    this.bridgeDir ??= writeATCBridge(this.atcArgv, this.bridgeTarget);
 
     return this.bridgeDir;
   }

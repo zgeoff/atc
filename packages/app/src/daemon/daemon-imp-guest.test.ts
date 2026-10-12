@@ -4,6 +4,7 @@ import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { createStubGuestCLIs } from '@atc/test-utils/create-stub-guest-clis';
 import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
 import { getRecord } from '@atc/test-utils/get-record';
@@ -34,7 +35,7 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',
@@ -79,7 +80,7 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',
@@ -151,7 +152,7 @@ test("it takes a remote session's hook reports from a socket that serves that se
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',
@@ -216,7 +217,7 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',
@@ -282,7 +283,7 @@ test('it copies its own atc binary into an imp that has none', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',
@@ -516,7 +517,7 @@ test('it revives a slept remote session whose transcript only its imp holds', as
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',
@@ -574,7 +575,7 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
-      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config),
+      adapter: new ClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
       targets: [
         {
           id: 'box',
