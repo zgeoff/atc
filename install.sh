@@ -11,13 +11,19 @@ dir="${ATC_INSTALL_DIR:-$HOME/.local/bin}"
 case "$(uname -s)" in
   Darwin) os="darwin" ;;
   Linux) os="linux" ;;
-  *) echo "atc: no binary for $(uname -s)" >&2; exit 1 ;;
+  *)
+    echo "atc: no binary for $(uname -s)" >&2
+    exit 1
+    ;;
 esac
 
 case "$(uname -m)" in
   arm64 | aarch64) arch="arm64" ;;
   x86_64 | amd64) arch="x64" ;;
-  *) echo "atc: no binary for $(uname -m)" >&2; exit 1 ;;
+  *)
+    echo "atc: no binary for $(uname -m)" >&2
+    exit 1
+    ;;
 esac
 
 asset="atc-$os-$arch"

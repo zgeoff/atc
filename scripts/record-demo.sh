@@ -22,16 +22,16 @@ DONE=
 teardown() {
   [ -n "$DONE" ] && return
   DONE=1
-  [ -n "$VHS_PID" ] && kill -- "-$VHS_PID" 2>/dev/null || true
-  bun "$ROOT/scripts/stage-demo-sessions.ts" kill-all 2>/dev/null || true
+  [ -n "$VHS_PID" ] && kill -- "-$VHS_PID" 2> /dev/null || true
+  bun "$ROOT/scripts/stage-demo-sessions.ts" kill-all 2> /dev/null || true
   if [ -n "$DAEMON_PID" ]; then
     for _ in $(seq 1 100); do
       pgrep -P "$DAEMON_PID" > /dev/null || break
       sleep 0.1
     done
-    pkill -TERM -P "$DAEMON_PID" 2>/dev/null || true
-    kill "$DAEMON_PID" 2>/dev/null || true
-    wait "$DAEMON_PID" 2>/dev/null || true
+    pkill -TERM -P "$DAEMON_PID" 2> /dev/null || true
+    kill "$DAEMON_PID" 2> /dev/null || true
+    wait "$DAEMON_PID" 2> /dev/null || true
   fi
   rm -rf "$DEMO"
 }

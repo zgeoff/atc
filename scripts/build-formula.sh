@@ -14,7 +14,7 @@ sha() {
 
 base="https://github.com/zgeoff/atc/releases/download/@zgeoff/atc@$version"
 
-cat <<FORMULA
+cat << FORMULA
 class Atc < Formula
   desc "Terminal control tower for coding-agent sessions"
   homepage "https://github.com/zgeoff/atc"
