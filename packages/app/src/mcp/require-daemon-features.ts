@@ -9,6 +9,8 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'events.session': "atc_events_read's session filter",
   'message.idempotency': "atc_message_send's idempotencyKey",
   'message.turn': "atc_message_get's turn and answeredWith",
+  'message.unanswered':
+    'the unanswered status in the results of atc_message_send and atc_message_get',
   'message.wait': "atc_message_get's waitMs",
   'session.forget': 'atc_session_forget',
   'session.forget.preconditions': "atc_session_forget's pinned and live checks in the daemon",

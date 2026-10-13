@@ -48,7 +48,7 @@ test('it sends a message from a fixed sender whatever sender the call gives', as
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello', from: 'dots' },
-      required: ['vocabulary.note'],
+      required: ['vocabulary.note', 'message.unanswered'],
     },
   ]);
 });
@@ -67,7 +67,7 @@ test('it sends a message from the sender the call gives over a default sender', 
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello', from: 'reviewer' },
-      required: ['vocabulary.note'],
+      required: ['vocabulary.note', 'message.unanswered'],
     },
   ]);
 });
@@ -86,7 +86,7 @@ test('it sends a message from a default sender when the call gives none', async 
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello', from: 'mcp' },
-      required: ['vocabulary.note'],
+      required: ['vocabulary.note', 'message.unanswered'],
     },
   ]);
 });
@@ -105,7 +105,7 @@ test('it forwards a message wait to the daemon', async () => {
     {
       m: 'message.get',
       p: { message: 'm1', waitMs: 20_000 },
-      required: ['vocabulary.note', 'message.wait'],
+      required: ['vocabulary.note', 'message.unanswered', 'message.wait'],
     },
   ]);
 });
@@ -287,7 +287,7 @@ test('it sends a message under the key the call gives and needs a daemon that ta
     {
       m: 'session.message',
       p: { session: 's1', text: 'hello', from: 'mcp', idempotencyKey: 'k-1' },
-      required: ['vocabulary.note', 'message.idempotency'],
+      required: ['vocabulary.note', 'message.unanswered', 'message.idempotency'],
     },
   ]);
 });

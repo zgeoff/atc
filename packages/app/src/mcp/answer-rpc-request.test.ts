@@ -432,7 +432,7 @@ test('it lists the message tool in its older form when the connected daemon anno
   expect(messageGet).toStrictEqual({
     name: 'atc_message_get',
     description:
-      'Read one message sent with atc_message_send: status (queued, delivered or answered), the answer once answered, turn, answeredWith and timestamps. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered message returns at once. Ids and statuses persist, so call again after a timeout.',
+      'Read one message sent with atc_message_send: status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.',
     inputSchema: {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       type: 'object',
@@ -549,7 +549,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
   const tmp = setupTempDir('atc-answer-rpc-');
 
   startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
-    features: ['vocabulary.note'],
+    features: ['vocabulary.note', 'message.unanswered'],
     replies: {
       'message.get': {
         message: 'm-legacy',
