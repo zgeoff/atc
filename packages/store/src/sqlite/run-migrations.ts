@@ -609,14 +609,16 @@ const MIGRATIONS: Record<string, Migration> = {
   },
   '031_rebuild_fleet_without_unique_agent_session_id': {
     async up(db: Kysely<StateStoreSchema>) {
-      await updateFleetAgentSessionIDToShared(db);
+      await withImmediateTransaction(db, async () => {
+        await updateFleetAgentSessionIDToShared(db);
 
-      await db.schema
-        .createIndex('fleet_agent_session_id')
-        .ifNotExists()
-        .on('fleet')
-        .column('agent_session_id')
-        .execute();
+        await db.schema
+          .createIndex('fleet_agent_session_id')
+          .ifNotExists()
+          .on('fleet')
+          .column('agent_session_id')
+          .execute();
+      });
     },
   },
 };

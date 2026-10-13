@@ -134,6 +134,63 @@ test('it keeps a live entry on another target beside a later entry that holds it
   expect(fleet).toStrictEqual([remote, local]);
 });
 
+test('it keeps the later of two live entries on one target when a live entry on another target follows them', async () => {
+  const ctx = await setupTest();
+
+  const first = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const second = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const remote = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'box',
+    targetIdentity: 'imp:box',
+  });
+
+  await ctx.store.writeFleet([first, second, remote]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([second, remote]);
+});
+
+test('it drops a stored live row on the target of a written entry when a live entry on another target follows it', async () => {
+  const ctx = await setupTest();
+
+  const first = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const second = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const remote = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'box',
+    targetIdentity: 'imp:box',
+  });
+
+  await ctx.store.writeFleet([first]);
+  await ctx.store.writeFleet([second, remote]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([second, remote]);
+});
+
 test('it drops a stored exited row on another target whose agent session id a written entry holds', async () => {
   const ctx = await setupTest();
 

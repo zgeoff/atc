@@ -316,14 +316,8 @@ export class StateStore {
       entry.agentSessionID === undefined ? [] : [entry.agentSessionID],
     );
 
-    const writtenIDs = new Set(entries.map((entry) => entry.sessionID));
-    const keptIDs = new Set(kept.map((entry) => entry.sessionID));
-
-    const laterByAgentSessionID = new Map(
-      kept.flatMap((entry) =>
-        entry.agentSessionID === undefined ? [] : [[entry.agentSessionID, entry] as const],
-      ),
-    );
+    const writtenIndex = new Map(entries.map((entry, index) => [entry.sessionID, index]));
+    const keptByID = new Map(kept.map((entry) => [entry.sessionID, entry]));
 
     await this.db.transaction().execute(async (trx) => {
       await requireCurrentOwnership(
@@ -341,32 +335,36 @@ export class StateStore {
               .where('agent_session_id', 'in', agentSessionIDs)
               .execute();
 
-      // A row this write covers is replaced when the write drops its entry;
-      // any other row by the same rule against the entry written last.
-      const replaced = candidates.filter((row) => {
-        if (writtenIDs.has(toSessionID(row.session_id))) {
-          return !keptIDs.has(toSessionID(row.session_id));
-        }
+      // A stored row is replaced by the rule its entry follows in this write,
+      // or as a row written before every entry when the write does not
+      // cover it.
+      const replaced = candidates.flatMap((row) => {
+        const index = writtenIndex.get(toSessionID(row.session_id));
+        const written = index === undefined ? undefined : entries[index];
 
-        const later =
-          row.agent_session_id === null
-            ? undefined
-            : laterByAgentSessionID.get(toAgentSessionID(row.agent_session_id));
+        const replacement =
+          index === undefined || written === undefined
+            ? findReplacement(
+                {
+                  ...(row.agent_session_id === null
+                    ? {}
+                    : { agentSessionID: toAgentSessionID(row.agent_session_id) }),
+                  exited: row.exited === 1,
+                  ...(row.target === null ? {} : { target: row.target }),
+                  ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
+                },
+                entries,
+                0,
+              )
+            : findReplacement(written, entries, index + 1);
 
-        return (
-          later !== undefined &&
-          isReplaceableBy(
-            {
-              exited: row.exited === 1,
-              ...(row.target === null ? {} : { target: row.target }),
-              ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
-            },
-            later,
-          )
-        );
+        const survivor =
+          replacement === undefined ? undefined : keptByID.get(replacement.sessionID);
+
+        return survivor === undefined ? [] : [{ sessionID: row.session_id, survivor }];
       });
 
-      const dropped = [...new Set([...sessionIDs, ...replaced.map((row) => row.session_id)])];
+      const dropped = [...new Set([...sessionIDs, ...replaced.map((row) => row.sessionID)])];
 
       if (dropped.length > 0) {
         await trx
@@ -430,19 +428,10 @@ export class StateStore {
       // to the session that replaced it, or to that session's own parent
       // when the replacement is itself a sub-session.
       for (const row of replaced) {
-        const survivor =
-          row.agent_session_id === null
-            ? undefined
-            : laterByAgentSessionID.get(toAgentSessionID(row.agent_session_id));
-
-        if (survivor === undefined || survivor.sessionID === row.session_id) {
-          continue;
-        }
-
         await trx
           .updateTable('fleet')
-          .set({ parent_session_id: survivor.parent ?? survivor.sessionID })
-          .where('parent_session_id', '=', row.session_id)
+          .set({ parent_session_id: row.survivor.parent ?? row.survivor.sessionID })
+          .where('parent_session_id', '=', row.sessionID)
           .where('session_id', 'in', (eb) =>
             eb
               .selectFrom('session_owner')
@@ -1376,18 +1365,39 @@ function parseWithheldEnv(stored: string | null): string[] | null {
 // A row without a target restores on the `local` target.
 const LOCAL_TARGET_ID = 'local';
 
+type ReplaceableRow = Pick<FleetEntry, 'agentSessionID' | 'exited' | 'target' | 'targetIdentity'>;
+
 // Whether a later row that holds the same agent session id takes this row's
 // place. A live row on another target stays: that target may still run its
 // session, and atc must not forget it.
-function isReplaceableBy(
-  row: Pick<FleetEntry, 'exited' | 'target' | 'targetIdentity'>,
-  later: Pick<FleetEntry, 'target' | 'targetIdentity'>,
-): boolean {
+function isReplaceableBy(row: ReplaceableRow, later: ReplaceableRow): boolean {
   return (
-    row.exited === true ||
-    ((row.target ?? LOCAL_TARGET_ID) === (later.target ?? LOCAL_TARGET_ID) &&
-      row.targetIdentity === later.targetIdentity)
+    row.agentSessionID !== undefined &&
+    row.agentSessionID === later.agentSessionID &&
+    (row.exited === true ||
+      ((row.target ?? LOCAL_TARGET_ID) === (later.target ?? LOCAL_TARGET_ID) &&
+        row.targetIdentity === later.targetIdentity))
   );
+}
+
+// The entry that takes the place of a row written before entries[from], or
+// undefined when the row stays. A row is replaced by the last later entry
+// that may replace it, and that entry in turn by its own, so the result is
+// always an entry the fleet keeps.
+function findReplacement(
+  row: ReplaceableRow,
+  entries: readonly FleetEntry[],
+  from: number,
+): FleetEntry | undefined {
+  for (let index = entries.length - 1; index >= from; index--) {
+    const entry = entries[index];
+
+    if (entry !== undefined && isReplaceableBy(row, entry)) {
+      return findReplacement(entry, entries, index + 1) ?? entry;
+    }
+  }
+
+  return undefined;
 }
 
 // Two sessions share an agent session id when one resumes the other's agent
@@ -1405,30 +1415,13 @@ function isReplaceableBy(
 //
 // Every walk takes at most one step per entry, so it ends on any input.
 function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
-  const survivors = new Map<AgentSessionID, SessionID>();
-
-  for (const entry of entries) {
-    if (entry.agentSessionID !== undefined) {
-      survivors.set(entry.agentSessionID, entry.sessionID);
-    }
-  }
-
-  const bySessionID = new Map(entries.map((entry) => [entry.sessionID, entry]));
   const replaced = new Map<SessionID, SessionID>();
 
-  for (const entry of entries) {
-    const survivor =
-      entry.agentSessionID === undefined ? undefined : survivors.get(entry.agentSessionID);
+  for (const [index, entry] of entries.entries()) {
+    const replacement = findReplacement(entry, entries, index + 1);
 
-    const replacing = survivor === undefined ? undefined : bySessionID.get(survivor);
-
-    if (
-      survivor !== undefined &&
-      survivor !== entry.sessionID &&
-      replacing !== undefined &&
-      isReplaceableBy(entry, replacing)
-    ) {
-      replaced.set(entry.sessionID, survivor);
+    if (replacement !== undefined) {
+      replaced.set(entry.sessionID, replacement.sessionID);
     }
   }
 
