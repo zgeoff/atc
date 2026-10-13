@@ -30,12 +30,12 @@ recorded, the restart only starts a daemon and restores the fleet.
 
 The worker restarts through a systemd user unit only when two facts hold: the daemon's cgroup is a
 service under the user's manager, and that service's main pid is exactly the daemon's pid. The
-cgroup alone proves nothing, since every process started from a session inside the unit shares the
-unit's cgroup without being the process the unit runs.
+cgroup alone proves nothing, since a process can sit in the unit's cgroup without being the process
+the unit runs.
 
-- **The unit path.** The worker restarts the unit. `systemctl restart` stops the unit's whole
-  cgroup, which holds the hosted caller and its children, so the command starts the worker as a
-  transient unit of its own. That transient unit takes the caller's home, runtime directory, path
+- **The unit path.** The worker restarts the unit. The stopping daemon stops the scope of every
+  local session, which holds the hosted caller and its children, so the command starts the worker as
+  a transient unit of its own. That transient unit takes the caller's home, runtime directory, path
   and atc variables explicitly, because it would otherwise inherit the user manager's environment
   and with it the real state directory. The unit decides the build.
 - **The plain path.** The worker sends the daemon SIGTERM, then SIGKILL when it does not exit in

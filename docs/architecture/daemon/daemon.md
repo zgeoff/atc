@@ -97,9 +97,11 @@ attached to, and the fleet runs on. Each client keeps its own focused session, a
 to every attached client.
 
 A daemon that stops on purpose closes its connections and ends every local session, since a local
-harness is the daemon's own child. It leaves every remote harness running and gives back the leases
-it held on remote hosts, so the next daemon can attach to those harnesses again. It removes its
-record, pid file and sockets, and keeps the lock file. A daemon that crashes leaves the same outcome
-for its local sessions, because the pseudo-terminals close with it, and the next daemon restores
-them from the stored fleet. Hook reports sent while no daemon runs are lost, so a restored session's
-attention is current only from its next hook event.
+harness is the daemon's own child. Under a systemd service it also stops each local session's scope,
+which [execution targets](../execution/targets.md#local-harnesses-under-a-systemd-service) covers.
+It leaves every remote harness running and gives back the leases it held on remote hosts, so the
+next daemon can attach to those harnesses again. It removes its record, pid file and sockets, and
+keeps the lock file. A daemon that crashes leaves the same outcome for its local sessions, because
+the pseudo-terminals close with it, and the next daemon restores them from the stored fleet. Hook
+reports sent while no daemon runs are lost, so a restored session's attention is current only from
+its next hook event.

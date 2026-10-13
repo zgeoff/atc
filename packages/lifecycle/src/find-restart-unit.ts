@@ -9,9 +9,8 @@ import type { LifecycleHost } from './lifecycle-host';
  *
  * Two facts must hold. The daemon's cgroup sits in a `<name>.service` below
  * the user manager, and the manager reports that unit's `MainPID` as this
- * pid. The cgroup alone proves nothing: every process started from a
- * session inside the unit, such as a daemon a test starts, shares the
- * unit's cgroup without being the process the unit runs. The cgroup is read
+ * pid. The cgroup alone proves nothing: a process can sit in the unit's
+ * cgroup without being the process the unit runs. The cgroup is read
  * under the host's `/proc`, and the manager is asked through its
  * `systemctl`.
  */
