@@ -12,12 +12,11 @@ interface BridgeState {
   runningTurnID: string | null;
   delivering: Promise<void>;
   reporting: Promise<void>;
+  // A submitted message waits here until the turn that carries it starts.
+  // Another turn that ends without an answer leaves it waiting, because the
+  // host can still run its queued prompt; only a hook's drop shows it never
+  // will.
   readonly awaitingTurn: Map<string, TapMessage>;
-
-  // The ids in awaitingTurn whose prompt submit has resolved, so the prompt
-  // is queued or running and a main-loop turn that ends without an answer
-  // proves no turn carried it.
-  readonly submitted: Set<string>;
   readonly carried: Map<string, TapMessage[]>;
   readonly unseen: Set<string>;
 }
@@ -53,7 +52,6 @@ export const register: Register = (on) => {
     delivering: Promise.resolve(),
     reporting: Promise.resolve(),
     awaitingTurn: new Map(),
-    submitted: new Set(),
     carried: new Map(),
     unseen: new Set(),
   };
@@ -263,14 +261,6 @@ async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessa
     $.ui.log(`atc-bridge: a hook dropped ${msg.id} (${submitted.drop})`, { to: 'debug' });
 
     scheduleUnansweredReport($, state, [msg.id], 'not_started', null);
-
-    return;
-  }
-
-  // A turn can start from this submit before it resolves, and that turn has
-  // already taken the message.
-  if (state.awaitingTurn.has(msg.id)) {
-    state.submitted.add(msg.id);
   }
 }
 
@@ -318,7 +308,6 @@ function updateTurnStarted(state: BridgeState, turnID: string, text: string): vo
 
     if (msg !== undefined) {
       state.awaitingTurn.delete(msg.id);
-      state.submitted.delete(msg.id);
       carried.push(msg);
     }
   }
@@ -362,10 +351,6 @@ function updateTurnCompleted(
   if (unanswered.length > 0) {
     scheduleUnansweredReport($, state, unanswered, toUnansweredReason(reason), turnID);
   }
-
-  if (!isAnswered) {
-    reportNeverStarted($, state);
-  }
 }
 
 function toUnansweredReason(reason: string): string {
@@ -374,25 +359,6 @@ function toUnansweredReason(reason: string): string {
   }
 
   return reason === 'refusal' ? 'refusal' : 'error';
-}
-
-// A main-loop turn that ended without an answer did not carry any message
-// whose prompt was submitted and is still waiting for a turn, and the
-// bridge will not see a turn for it, so those messages are reported now.
-function reportNeverStarted($: EngineInterface, state: BridgeState): void {
-  const neverStarted: string[] = [];
-
-  for (const id of state.submitted) {
-    if (state.awaitingTurn.delete(id)) {
-      neverStarted.push(id);
-    }
-  }
-
-  state.submitted.clear();
-
-  if (neverStarted.length > 0) {
-    scheduleUnansweredReport($, state, neverStarted, 'not_started', null);
-  }
 }
 
 function scheduleAnsweredReport(
