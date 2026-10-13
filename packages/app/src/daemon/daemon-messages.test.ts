@@ -22,6 +22,7 @@ import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-line
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
+import type { RestoreSettled } from './restore-fleet';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {
   // The Claude adapter's own hook reading marks a session started.
@@ -277,7 +278,9 @@ test('it lists a session the fleet restore has not reached yet as waiting to res
   });
 });
 
-test('it queues a message for a session waiting to restore', async () => {
+test('it queues a message for a session that waits for its restore boot after a restart', async () => {
+  const clock = buildStubClock(0);
+
   const daemon = await startTestDaemon({
     options: async (paths) => {
       const seed = await StateStore.open(paths.dbPath);
@@ -287,22 +290,106 @@ test('it queues a message for a session waiting to restore', async () => {
       await seed.writeFleet([
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
         buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-c'), cwd: paths.dir }),
       ]);
 
       await stopSeed();
 
-      return { adapter: buildMockAgentAdapter({ takesMessages: true }) };
+      // The fake agent never reports it booted, so each later session
+      // waits out the boot cap of the one before it on the stub clock.
+      return {
+        adapter: buildMockAgentAdapter({ takesMessages: true }),
+        restoreFleetOnRestart: true,
+        restoreBootTimeoutMs: 10,
+        clock,
+      };
     },
   });
 
-  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([10]);
+  });
 
   const ok = await daemon.client.sendRequest('session.message', {
-    session: 's-agent-b',
+    session: 's-agent-c',
     text: 'hello',
+    from: 'alice',
   });
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
+});
+
+test('it hands a message queued during the restore to the session once its terminal boots', async () => {
+  const clock = buildStubClock(0);
+  const settles: RestoreSettled[] = [];
+
+  const daemon = await startTestDaemon({
+    options: async (paths) => {
+      const seed = await StateStore.open(paths.dbPath);
+
+      const stopSeed = registerTestCleanup(() => seed.stop());
+
+      await seed.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-a'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-b'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-agent-c'), cwd: paths.dir }),
+      ]);
+
+      await stopSeed();
+
+      // The fake agent never reports it booted, so each later session
+      // waits out the boot cap of the one before it on the stub clock.
+      return {
+        adapter: buildMockAgentAdapter({ takesMessages: true }),
+        restoreFleetOnRestart: true,
+        restoreBootTimeoutMs: 10,
+        clock,
+        onRestoreSettled: (settled) => {
+          settles.push(settled);
+        },
+      };
+    },
+  });
+
+  const tap = await daemon.openClient();
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([10]);
+  });
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: 's-agent-c',
+    text: 'hello',
+    from: 'alice',
+  });
+
+  clock.advance(10);
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([10]);
+  });
+
+  clock.advance(10);
+
+  await waitFor(() => {
+    expect(settles).toStrictEqual([{ restored: 3, outcome: 'finished' }]);
+  });
+
+  const inbox = await startStubTap(tap, 's-agent-c');
+
+  await waitFor(() => {
+    expect(inbox.messages).toStrictEqual([
+      {
+        v: 4,
+        ev: 'InboxMessage',
+        s: 's-agent-c',
+        message: sent['message'],
+        from: 'alice',
+        text: 'hello',
+        sentAt: expect.any(Number),
+      },
+    ]);
+  });
 });
 
 test('it drains pending messages to a tap in the order they were sent', async () => {
