@@ -121,7 +121,7 @@ const SEED_CONFIG_SCRIPT = [
   '{ [ -e "$1/.claude.json" ] || cp "$2" "$1/.claude.json"; }',
   SEEN_OFFER_STEP,
   SEEN_OFFER_CHECK,
-  '{ [ ! -d "$4" ] || { rm -rf "$1/CLAUDE.md" "$1/settings.json" "$1/statusline.sh" "$1/agents" "$1/output-styles" "$1/skills" && cp -R "$4/." "$1/" && rm -rf "$3"; }; }',
+  '{ [ ! -d "$4" ] || { rm -rf "$1/.credentials.json" "$1/CLAUDE.md" "$1/settings.json" "$1/statusline.sh" "$1/agents" "$1/output-styles" "$1/skills" && cp -R "$4/." "$1/" && rm -rf "$3"; }; }',
   'shift 5',
   'exec "$@"',
 ].join(' && ');

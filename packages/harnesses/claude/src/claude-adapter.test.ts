@@ -1079,6 +1079,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
   expect(plan.files).toContainAllKeys([
     'auth-r1/settings.json',
     'claude-config-seed.json',
+    `${bundleKey}/.credentials.json`,
     `${bundleKey}/settings.json`,
     `${bundleKey}/statusline.sh`,
     `${bundleKey}/skills/delegate/SKILL.md`,

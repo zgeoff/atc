@@ -877,9 +877,12 @@ On an imp target, each session gets the same guest folder a brokered gateway get
 for its binding revision that holds the placeholder, and a Claude config folder of its own that atc
 seeds with first-run onboarding state and the outside-read offer mark, plus folder trust with
 [clone trust](#clone-trust). atc fills that folder with the
-[Claude config bundle](#claude-config-bundle). The CLI starts without `--permission-mode`, and atc
-drops one from the entry's `args`, so the auto mode the bundle sets applies. A headless turn is
-refused there, as on every imp session.
+[Claude config bundle](#claude-config-bundle) and a `.credentials.json` that holds the placeholder
+as its access token. Claude Code removes the placeholder variable from the environment of every tool
+it runs, so a `claude -p` that a tool starts, with any setting sources, signs in through the broker
+from that file. The CLI starts without `--permission-mode`, and atc drops one from the entry's
+`args`, so the auto mode the bundle sets applies. A headless turn is refused there, as on every imp
+session.
 
 Three kinds of variable keep Claude Code from sending the subscription token to the Anthropic API:
 `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` outrank it, `ANTHROPIC_BASE_URL` moves the endpoint,

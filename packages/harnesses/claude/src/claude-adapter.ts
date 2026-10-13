@@ -16,6 +16,7 @@ import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
+  GuestFile,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -48,6 +49,7 @@ import { ClaudeLaunchFiles } from './claude-launch-files';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { buildClaudeConfigSeed } from './guest/build-claude-config-seed';
+import { buildClaudeCredentialsFile } from './guest/build-claude-credentials-file';
 import { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
 import { buildClaudeMCPConfig } from './guest/build-claude-mcp-config';
 import { buildClaudeProjectSettingsCheck } from './guest/build-claude-project-settings-check';
@@ -335,11 +337,14 @@ export class ClaudeAdapter implements AgentAdapter {
       codexHome.unsetEnv,
     );
 
-    const bundle = loadClaudeConfigBundle(
-      resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude', this.options.homeDir),
-      launch.env.CLAUDE_CONFIG_DIR,
-      this.options.homeDir,
-    );
+    const bundle: Record<string, GuestFile> = {
+      ...loadClaudeConfigBundle(
+        resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude', this.options.homeDir),
+        launch.env.CLAUDE_CONFIG_DIR,
+        this.options.homeDir,
+      ),
+      '.credentials.json': buildClaudeCredentialsFile(),
+    };
 
     // atc's statusline renders the one the bundle's user settings set
     // first, so it mirrors that one's padding.

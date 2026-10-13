@@ -50,6 +50,25 @@ test("it replaces the config folder's bundle with the one each launch stages", a
   expect(existsSync(staged)).toBeFalse();
 });
 
+test("it replaces the config folder's credentials file with the staged one and its mode", async () => {
+  const ctx = setupTest();
+  const launch = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'k1');
+  const config = join(ctx.dir, 'claude-config');
+  const staged = join(ctx.dir, 'claude-config-bundle', 'k1');
+
+  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
+  mkdirSync(config, { recursive: true });
+  writeFileSync(join(config, '.credentials.json'), '{"written":"by the CLI"}', { mode: 0o644 });
+  mkdirSync(staged, { recursive: true });
+  writeFileSync(join(staged, '.credentials.json'), '{"staged":true}', { mode: 0o600 });
+
+  const run = await runCommand([launch.bin, ...launch.args]);
+
+  expect(run.exitCode).toBe(0);
+  expect(readFileSync(join(config, '.credentials.json'), 'utf8')).toBe('{"staged":true}');
+  expect(statSync(join(config, '.credentials.json')).mode & 0o777).toBe(0o600);
+});
+
 test('it never copies a bundle an earlier launch staged and left behind', async () => {
   const ctx = setupTest();
   const launch = buildClaudeGuestLaunch(ctx.dir, ['true'], [], 'current');
