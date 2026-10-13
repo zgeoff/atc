@@ -704,6 +704,15 @@ export class ImpProvider implements ExecutionProvider {
           return;
         }
 
+        // A sleep that started during the wait would wake again at the listen.
+        if (host.suspending) {
+          host.log?.(
+            `imp ${host.name} went to sleep before session ${spec.session}'s hooks listened again; a wake listens again`,
+          );
+
+          return;
+        }
+
         current = openForward();
 
         try {

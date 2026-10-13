@@ -990,3 +990,66 @@ test('it leaves a hook forward that impd lost with the guest ended, so the imp s
     `reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`,
   ]);
 });
+
+test('it leaves a hook forward ended when the imp starts to sleep during the wait to listen again', async () => {
+  const ctx = setupTest();
+  const lines: string[] = [];
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const suspends: Promise<void>[] = [];
+
+  await provider.prepareHost({
+    host: 's1',
+    daemonID: 'd1',
+    log: (line) => {
+      lines.push(line);
+
+      if (line.endsWith('listening again in 0ms')) {
+        suspends.push(provider.suspendHost('s1'));
+      }
+    },
+  });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
+
+  await harness.waitForStart();
+
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  await waitFor(() => {
+    expect(lines).toContain(
+      "imp atc-s1 went to sleep before session s1's hooks listened again; a wake listens again",
+    );
+  });
+
+  await Promise.all(suspends);
+
+  expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toStrictEqual([
+    `reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`,
+  ]);
+});
