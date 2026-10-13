@@ -319,7 +319,7 @@ test('it queues a message for a session that waits for its restore boot after a 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });
 
-test('it hands a message queued during the restore to the session once its terminal boots', async () => {
+test('it hands a message queued during the restore to the session tap that attaches after its boot', async () => {
   const clock = buildStubClock(0);
   const settles: RestoreSettled[] = [];
 
