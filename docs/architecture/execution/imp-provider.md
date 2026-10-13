@@ -78,6 +78,12 @@ imp is the proof. One imp is one trust domain, so a sub-session in its parent's 
 parent's socket too. The per-session socket and binding stop accidental crossings between sessions,
 never a hostile process inside the same imp.
 
+Every hook report and note opens a connection of its own, so the bridge closes each connection once
+the guest has written its last line and the bridge has answered the lines before it. impd keeps a
+relayed connection open until both ends have finished, and caps how many one forward holds open. A
+bridge that waited for the guest alone would fill that cap within one long turn, and impd would then
+close each new connection unread: hooks would be lost, and notes would wait in the outbox.
+
 ## Reconnecting
 
 A connection to a harness that ends without an exit reconnects without waking the imp, and the

@@ -988,6 +988,9 @@ function toHarnessRelay(connection: ImpRelayConnection): HarnessRelay {
     onClose: (listener) => {
       connection.onClose(listener);
     },
+    onEnd: (listener) => {
+      connection.onEnd(listener);
+    },
     writeLine: (line) => connection.write(encoder.encode(`${line}\n`)),
     close: () => {
       connection.close();

@@ -142,6 +142,50 @@ test('it opens a guest connection relay with the token its token file holds when
   );
 });
 
+test("it ends a guest connection relay's input after the guest's last line once impd sends the guest's eof", async () => {
+  const ctx = setupTest();
+  const seen: string[] = [];
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  const forward = port.openReverseForward('imp-a', '/tmp/atc/report.sock', (connection) => {
+    connection.onData((data) => {
+      seen.push(new TextDecoder().decode(data));
+    });
+
+    connection.onEnd(() => {
+      seen.push('end');
+    });
+  });
+
+  registerTestCleanup(() => {
+    forward.stop();
+  });
+
+  await forward.listening;
+
+  const [control] = ctx.impd.controls;
+
+  invariant(control !== undefined, 'expected a tunnel control socket');
+
+  control.send(JSON.stringify({ type: 'connection', id: 1 }));
+
+  await waitFor(() => {
+    expect(ctx.impd.relays).toHaveLength(1);
+  });
+
+  const [relay] = ctx.impd.relays;
+
+  invariant(relay !== undefined, 'expected a relay socket');
+
+  relay.send(new TextEncoder().encode('{"event":"Stop"}\n'));
+  relay.send(JSON.stringify({ type: 'eof' }));
+
+  await waitFor(() => {
+    expect(seen).toStrictEqual(['{"event":"Stop"}\n', 'end']);
+  });
+});
+
 test('it ends a reverse forward as closed with the code when impd closes its tunnel socket', async () => {
   const ctx = setupTest();
   const tmp = setupTempDir('atc-imp-client-port-');

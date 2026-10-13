@@ -7,11 +7,13 @@ import type { HarnessRelay } from '@atc/plugin-api/execution-provider';
  * to the guest, parsed, in order, and `isClosed` turns true once the relay
  * is closed. A write settles at once, as a relay with room does. `emitClose`
  * runs every close listener, as a guest that hangs up does; closing the
- * relay from the daemon's end runs none.
+ * relay from the daemon's end runs none. `emitEnd` runs every end listener,
+ * as a guest that has written its last line does.
  */
 export function buildStubHarnessRelay() {
   const lineListeners: ((line: string) => void)[] = [];
   const closeListeners: (() => void)[] = [];
+  const endListeners: (() => void)[] = [];
   const written: unknown[] = [];
   let closed = false;
 
@@ -21,6 +23,9 @@ export function buildStubHarnessRelay() {
     },
     onClose: (listener) => {
       closeListeners.push(listener);
+    },
+    onEnd: (listener) => {
+      endListeners.push(listener);
     },
     writeLine: (line) => {
       written.push(JSON.parse(line));
@@ -43,6 +48,11 @@ export function buildStubHarnessRelay() {
     },
     emitClose: () => {
       for (const listener of closeListeners) {
+        listener();
+      }
+    },
+    emitEnd: () => {
+      for (const listener of endListeners) {
         listener();
       }
     },

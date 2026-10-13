@@ -169,6 +169,32 @@ test('it answers a tunnel listen as listening and keeps its control socket', asy
   expect<unknown[]>(impd.controls).toStrictEqual([expect.anything()]);
 });
 
+test('it answers a relay accept as opened and keeps its relay socket', async () => {
+  const impd = startStubImpd();
+
+  const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/tunnel`);
+
+  registerTestCleanup(() => {
+    socket.close();
+  });
+
+  const answered = Promise.withResolvers<unknown>();
+
+  socket.addEventListener('open', () => {
+    socket.send(JSON.stringify({ type: 'accept', name: 'imp-a', listener: 'l1', connection: 1 }));
+  });
+
+  socket.addEventListener('message', (event) => {
+    answered.resolve(JSON.parse(String(event.data)));
+  });
+
+  const answer = await answered.promise;
+
+  expect(answer).toStrictEqual({ type: 'opened' });
+  expect<unknown[]>(impd.relays).toStrictEqual([expect.anything()]);
+  expect(impd.controls).toBeEmpty();
+});
+
 test('it records the authorization header of a WebSocket upgrade and no call', async () => {
   const impd = startStubImpd();
 
