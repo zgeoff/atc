@@ -103,6 +103,12 @@ export async function runGateway(
       printRequest: (line) => {
         io.printError(line);
       },
+
+      // Security events go to stderr too: a log shipper matches their
+      // `atc security ` prefix there and never reads stdout.
+      printSecurity: (line) => {
+        io.printError(line);
+      },
     });
   } catch (error) {
     await gateway.stop();

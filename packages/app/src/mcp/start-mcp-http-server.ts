@@ -14,7 +14,8 @@ import type { MCPAuthDatabase } from './mcp-auth-database';
 import { normalizePublicURL } from './normalize-public-url';
 import { openMCPAuth } from './open-mcp-auth';
 import { pickErrorMessage } from './pick-error-message';
-import type { FleetCaller, HTTPServerContext } from './types';
+import { SecurityEventLog } from './security-event-log';
+import type { FleetCaller, HTTPServerContext, Requester } from './types';
 
 interface MCPHTTPServerOptions {
   readonly caller: FleetCaller;
@@ -38,6 +39,9 @@ interface MCPHTTPServerOptions {
 
   // Receives one line per request the server answers.
   readonly printRequest: (line: string) => void;
+
+  // Receives one `atc security {json}` line per sign-in outcome.
+  readonly printSecurity: (line: string) => void;
 
   // How long a rotated refresh token still answers with its successor.
   readonly refreshReuseSeconds?: number;
@@ -73,7 +77,9 @@ export interface MCPHTTPServer {
  * method, path, JSON-RPC method and tool, status, duration, and MCP protocol
  * version, and never a body, query, credential, or address. A request whose Host header is not the server's own is
  * refused, so a DNS rebinding page cannot reach it through a browser, and a
- * browser form post from any other origin is refused too. With `probes`,
+ * browser form post from any other origin is refused too. Each sign-in
+ * outcome, those two refusals included, prints one `atc security {json}`
+ * line, capped per kind of event and minute. With `probes`,
  * `/healthz` answers 200 while the server serves and `/readyz` answers 200
  * once the authorization server's database is open, else 503; both pass
  * the Host check first and answer with an empty body, so they disclose
@@ -98,6 +104,8 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     );
   }
 
+  const security = new SecurityEventLog({ print: options.printSecurity, clock });
+
   const holder: { ready: ServerState | null; hosts: ReadonlySet<string> } = {
     ready: null,
     hosts: new Set(),
@@ -118,20 +126,33 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
 
       const path = new URL(request.url).pathname;
 
+      // The socket's peer is the requester, or the proxy or tunnel in front
+      // of atc.
+      const requester: Requester = {
+        socketAddress: bunServer.requestIP(request)?.address ?? null,
+        connectingIP: request.headers.get('cf-connecting-ip'),
+        userAgent: request.headers.get('user-agent'),
+      };
+
       if (options.probes === true && PROBE_PATHS.has(path)) {
         response = answerProbeRequest(request, path, holder.hosts, state !== null);
+
+        if (response.status === 403) {
+          security.record({
+            kind: 'authorize_invalid',
+            outcome: 'rejected',
+            reason: 'bad_host',
+            path,
+            requester,
+          });
+        }
       } else if (state === null) {
         response = new Response(null, { status: 503 });
       } else {
         try {
-          response = await answerHTTPRequest(
-            state,
-            request,
-            bunServer.requestIP(request)?.address ?? null,
-            (label) => {
-              rpc = label;
-            },
-          );
+          response = await answerHTTPRequest(state, request, requester, (label) => {
+            rpc = label;
+          });
         } catch {
           response = new Response(null, { status: 503 });
         }
@@ -186,6 +207,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       store,
       approvals: new ApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
       printApproval: options.printApproval,
+      security,
       clock,
     },
   };
@@ -197,6 +219,8 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     stop: async () => {
       await server.stop(true);
       await store.close();
+
+      security.drain();
     },
   };
 }
@@ -313,24 +337,32 @@ const RESOURCE_METADATA: ReadonlySet<string> = new Set([
   'GET /.well-known/oauth-protected-resource/mcp',
 ]);
 
-// `socketAddress` is the peer the request arrived from: the requester, or the
-// proxy or tunnel in front of atc. `onRPC` receives an accepted MCP request's
-// JSON-RPC method and tool, for its request line.
+// `requester` is where the request came from, for its security events.
+// `onRPC` receives an accepted MCP request's JSON-RPC method and tool, for
+// its request line.
 async function answerHTTPRequest(
   state: ServerState,
   request: Request,
-  socketAddress: string | null,
+  requester: Requester,
   onRPC: (label: RPCLabel | null) => void,
 ): Promise<Response> {
-  const host = request.headers.get('host');
-
-  if (host === null || !state.hosts.has(host)) {
-    return new Response(null, { status: 403 });
-  }
-
   const ctx = state.ctx;
 
   const url = new URL(request.url);
+
+  const host = request.headers.get('host');
+
+  if (host === null || !state.hosts.has(host)) {
+    ctx.security.record({
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'bad_host',
+      path: url.pathname,
+      requester,
+    });
+
+    return new Response(null, { status: 403 });
+  }
 
   const route = `${request.method} ${url.pathname}`;
   const requestOrigin = request.headers.get('origin');
@@ -345,11 +377,7 @@ async function answerHTTPRequest(
   }
 
   if (route === 'GET /oauth2/authorize') {
-    return answerAuthorizeRequest(ctx, url, {
-      socketAddress,
-      connectingIP: request.headers.get('cf-connecting-ip'),
-      userAgent: request.headers.get('user-agent'),
-    });
+    return answerAuthorizeRequest(ctx, url, requester);
   }
 
   if (route === 'POST /oauth2/token') {
@@ -363,6 +391,14 @@ async function answerHTTPRequest(
   const isPage = url.pathname === '/login' || url.pathname === '/consent';
 
   if (isPage && request.method === 'POST' && (requestOrigin === null || isForeignOrigin)) {
+    ctx.security.record({
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'bad_origin',
+      path: url.pathname,
+      requester,
+    });
+
     return buildPageResponse(403, { message: 'The form came from an unexpected origin.' });
   }
 
@@ -370,17 +406,26 @@ async function answerHTTPRequest(
     const body = request.method === 'POST' ? await request.text() : '';
 
     return url.pathname === '/login'
-      ? answerLoginRequest(ctx, request.method, url, body)
+      ? answerLoginRequest(ctx, request.method, url, body, requester)
       : answerConsentRequest(ctx, {
           method: request.method,
           url,
           cookie: request.headers.get('cookie'),
           body,
+          requester,
         });
   }
 
   if (MCP_PATHS.has(url.pathname)) {
     if (isForeignOrigin) {
+      ctx.security.record({
+        kind: 'authorize_invalid',
+        outcome: 'rejected',
+        reason: 'bad_origin',
+        path: url.pathname,
+        requester,
+      });
+
       return new Response(null, { status: 403 });
     }
 

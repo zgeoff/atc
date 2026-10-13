@@ -20,6 +20,32 @@ test('it approves a pending request with its code typed in any case and with a d
   expect(state.findPending('q1')).toBeNull();
 });
 
+test('it gives each pending request a random correlation id unrelated to its key', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  const first = state.createPending({
+    key: 'q1',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  const second = state.createPending({
+    key: 'q2',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  invariant(first !== null && second !== null, 'an approval was refused');
+
+  expect(first.correlationID).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+
+  expect(second.correlationID).not.toBe(first.correlationID);
+});
+
 test('it locks a pending request on the fifth wrong code', () => {
   const state = new ApprovalState(600_000, () => 1000);
 
@@ -149,18 +175,22 @@ test('it starts approvals again a minute after the limit was reached', () => {
   ).not.toBeNull();
 });
 
-test('it holds the binding an owner session approved', () => {
+test('it holds the binding and correlation id an owner session approved', () => {
   const state = new ApprovalState(600_000, () => 1000);
 
-  state.recordApproved('session-1', 'binding-1');
+  state.recordApproved('session-1', { binding: 'binding-1', correlationID: 'corr-1' });
 
-  expect(state.findApproved('session-1')).toBe('binding-1');
+  expect(state.findApproved('session-1')).toStrictEqual({
+    binding: 'binding-1',
+    correlationID: 'corr-1',
+    expiresAt: 601_000,
+  });
 });
 
 test('it holds no binding for an owner session other than the one that approved', () => {
   const state = new ApprovalState(600_000, () => 1000);
 
-  state.recordApproved('session-1', 'binding-1');
+  state.recordApproved('session-1', { binding: 'binding-1', correlationID: 'corr-1' });
 
   expect(state.findApproved('session-2')).toBeNull();
 });
@@ -170,7 +200,7 @@ test('it forgets an approved binding once it expires', () => {
 
   const state = new ApprovalState(600_000, () => now);
 
-  state.recordApproved('session-1', 'binding-1');
+  state.recordApproved('session-1', { binding: 'binding-1', correlationID: 'corr-1' });
 
   now = 601_000;
 

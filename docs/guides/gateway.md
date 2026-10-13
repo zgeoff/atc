@@ -90,9 +90,11 @@ when two `--state-dir` flags disagree, when a flag it does not know appears, or 
 separate value is missing or starts with `-`; write such a value as `--<flag>=<value>`.
 
 `/healthz` and `/readyz` return 200 for a request whose `Host` header is the public URL's host, and
-403 for any other host, so an orchestrator's probe sets that header. Approval lines go to stdout and
-request lines to stderr, so you read the approval code in the gateway's log. SIGTERM stops the
-gateway and exits 0.
+403 for any other host, so an orchestrator's probe sets that header. Approval lines go to stdout,
+and request lines and `atc security` sign-in events go to stderr, so you read the approval code in
+the gateway's log and point a log shipper at stderr alone
+([security events](../architecture/remote/oauth.md#security-events)). SIGTERM stops the gateway and
+exits 0.
 
 ## Clients
 

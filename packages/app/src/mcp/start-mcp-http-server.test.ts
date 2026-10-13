@@ -19,7 +19,8 @@ import { revokeGrant } from './revoke-grant';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 
 // A real daemon, `atc mcp --http` in front of it on a free port with every
-// approval line and request line it prints collected, and the authorization
+// approval line, request line, and security event line it prints collected,
+// the clock it runs on, and the authorization
 // server's database opened a second time the way `atc clients` opens it.
 // The caller, the server, and the database live in the daemon's directory,
 // so each registers its release to run before that directory goes.
@@ -32,6 +33,7 @@ async function setupTest() {
   const dbPath = join(daemon.dir, 'mcp-auth.db');
   const approvals: string[] = [];
   const requests: string[] = [];
+  const security: string[] = [];
 
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
@@ -58,6 +60,9 @@ async function setupTest() {
     printRequest: (line) => {
       requests.push(line);
     },
+    printSecurity: (line) => {
+      security.push(line);
+    },
     clock,
   });
 
@@ -75,6 +80,8 @@ async function setupTest() {
     origin: server.origin,
     approvals,
     requests,
+    security,
+    clock,
     caller,
     store,
   };
@@ -324,6 +331,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
       approvals.push(line);
     },
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => server.stop());
@@ -419,6 +427,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
       approvals.push(line);
     },
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => server.stop());
@@ -1673,6 +1682,7 @@ test('it serves a request whose Host header is a configured allowed host', async
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => allowing.stop());
@@ -2026,6 +2036,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => moved.stop());
@@ -2063,6 +2074,7 @@ test.each([
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   expect(started).rejects.toThrow(/needs an https public URL/);
@@ -2088,6 +2100,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => listening.stop());
@@ -2992,4 +3005,787 @@ test('it prints a refused MCP request without reading its JSON-RPC method', asyn
   expect(refused.status).toBe(403);
   expect(ctx.requests).toHaveLength(1);
   expect(ctx.requests[0]).toMatch(/^POST \/mcp 403 \d+ms$/);
+});
+
+test('it writes an accepted start, an owner sign-in, and an allowed consent as security events', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  expect(ctx.security).toSatisfyAll((line: string) => line.startsWith('atc security {'));
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'authorize_started',
+      outcome: 'accepted',
+      route: '/oauth2/authorize',
+      client: { id: clientID, name: 'Claude' },
+      redirectHost: 'claude.ai',
+      correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'owner_auth',
+      outcome: 'succeeded',
+      method: 'approval_code',
+      route: '/login',
+      client: { id: clientID, name: 'Claude' },
+      correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'consent',
+      outcome: 'allowed',
+      route: '/consent',
+      client: { id: clientID, name: 'Claude' },
+      redirectHost: 'claude.ai',
+      correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it carries one correlation id from the start of an authorization through its consent', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  await runMCPAuthorization(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await runMCPAuthorization(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const correlationIDs = ctx.security.map(
+    (line) => /"correlationID":"(?<id>[^"]+)"/u.exec(line)?.groups?.['id'],
+  );
+
+  const first = correlationIDs.at(0);
+  const second = correlationIDs.at(3);
+
+  expect(correlationIDs).toStrictEqual([first, first, first, second, second, second]);
+  expect(second).not.toBe(first);
+});
+
+test('it writes a start refused by the limit on starts as rate_limited', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  for (let started = 0; started < 11; started += 1) {
+    await fetch(authorize, { redirect: 'manual' });
+  }
+
+  expect(ctx.security).toBeArrayOfSize(11);
+
+  expect(JSON.parse(ctx.security.at(-1)?.slice('atc security '.length) ?? '')).toStrictEqual({
+    v: 1,
+    ts: new Date(ctx.clock.now()).toISOString(),
+    kind: 'authorize_started',
+    outcome: 'rejected',
+    reason: 'rate_limited',
+    route: '/oauth2/authorize',
+    client: { id: clientID, name: 'Claude' },
+    redirectHost: 'claude.ai',
+    peer: { address: '127.0.0.1', provenance: 'socket' },
+    userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+  });
+});
+
+test('it writes an authorization better-auth refuses with its error code', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'state-1',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+    resource: 'https://other.example/mcp',
+  }).toString();
+
+  await fetch(authorize, { redirect: 'manual' });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'invalid_target',
+      route: '/oauth2/authorize',
+      client: { id: clientID, name: 'Claude' },
+      redirectHost: 'claude.ai',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes an authorization for an unknown client as invalid_client without the client', async () => {
+  const ctx = await setupTest();
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: 'no-such-client',
+    redirect_uri: 'https://evil.example/cb',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  await fetch(authorize, { redirect: 'manual' });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'invalid_client',
+      route: '/oauth2/authorize',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes a request whose Host header it does not serve as bad_host', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/.well-known/oauth-authorization-server`, {
+    headers: { host: 'rebound.example' },
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'bad_host',
+      route: '/.well-known/oauth-authorization-server',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes a form post from another origin as bad_origin', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      origin: 'https://evil.example',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ oauth_query: 'client_id=x', code: 'AAAA-BBBB' }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'bad_origin',
+      route: '/login',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes an MCP request from a browser on another origin as bad_origin', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { origin: 'https://evil.example' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'bad_origin',
+      route: '/mcp',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes a wrong approval code as a failed owner sign-in with the start correlation id', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
+
+  await fetch(`${ctx.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: 'WRONG-CODE' }),
+  });
+
+  const started = /"correlationID":"(?<id>[^"]+)"/u.exec(ctx.security[0] ?? '')?.groups?.['id'];
+
+  invariant(started !== undefined, `no correlation id in: ${ctx.security[0]}`);
+
+  expect(JSON.parse(ctx.security[1]?.slice('atc security '.length) ?? '')).toStrictEqual({
+    v: 1,
+    ts: new Date(ctx.clock.now()).toISOString(),
+    kind: 'owner_auth',
+    outcome: 'failed',
+    reason: 'wrong_code',
+    method: 'approval_code',
+    route: '/login',
+    client: { id: clientID, name: 'Claude' },
+    correlationID: started,
+    peer: { address: '127.0.0.1', provenance: 'socket' },
+    userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+  });
+});
+
+test('it writes the fifth wrong approval code as a locked owner sign-in', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: created.clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await fetch(`${ctx.url}/login`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ oauth_query: login.search.slice(1), code: 'WRONG-CODE' }),
+    });
+  }
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([
+    { kind: 'authorize_started', outcome: 'accepted' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'locked' },
+  ]);
+});
+
+test('it writes a code posted for an approval that no longer waits as an expired owner sign-in', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: 'client_id=gone&sig=gone', code: 'AAAA-BBBB' }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'owner_auth',
+      outcome: 'failed',
+      reason: 'expired',
+      method: 'approval_code',
+      route: '/login',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes no security event for the approval page itself', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/login?client_id=gone&sig=gone`, { redirect: 'manual' });
+
+  expect(ctx.security).toBeEmpty();
+});
+
+test('it writes an allow sent with no scope ticked as a denied consent with none_ticked', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${ctx.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  await fetch(`${ctx.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'approve' }),
+  });
+
+  expect(JSON.parse(ctx.security.at(-1)?.slice('atc security '.length) ?? '')).toStrictEqual({
+    v: 1,
+    ts: new Date(ctx.clock.now()).toISOString(),
+    kind: 'consent',
+    outcome: 'denied',
+    reason: 'none_ticked',
+    route: '/consent',
+    client: { id: clientID, name: 'Claude' },
+    redirectHost: 'claude.ai',
+    correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
+    peer: { address: '127.0.0.1', provenance: 'socket' },
+    userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+  });
+});
+
+test('it writes a deny as a denied consent with no reason', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: created.clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: createHash('sha256')
+      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
+      .digest('base64url'),
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  const signedIn = await fetch(`${ctx.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode ?? '' }),
+  });
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
+
+  const cookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  await fetch(`${ctx.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      oauth_query: consent.search.slice(1),
+      decision: 'deny',
+      scope: 'read',
+    }),
+  });
+
+  expect(JSON.parse(ctx.security.at(-1)?.slice('atc security '.length) ?? '')).toMatchObject({
+    kind: 'consent',
+    outcome: 'denied',
+  });
+
+  expect(ctx.security.at(-1)).not.toInclude('"reason"');
+});
+
+test('it writes one suppressed event with the dropped count once a burst past the cap ends its minute', async () => {
+  const ctx = await setupTest();
+
+  for (let sent = 0; sent < 26; sent += 1) {
+    await fetch(`${ctx.url}/mcp`, { method: 'POST', headers: { host: 'rebound.example' } });
+  }
+
+  ctx.clock.advance(60_000);
+
+  expect(ctx.security).toBeArrayOfSize(21);
+  expect(ctx.security.slice(0, 20)).toSatisfyAll((line: string) => line.includes('"bad_host"'));
+
+  expect(JSON.parse(ctx.security[20]?.slice('atc security '.length) ?? '')).toStrictEqual({
+    v: 1,
+    ts: new Date(ctx.clock.now()).toISOString(),
+    kind: 'suppressed',
+    reason: 'authorize_invalid',
+    count: 6,
+  });
+});
+
+test('it marks every forwarded address unverified and keeps every secret of a full sign-in out of its events', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  // Every request carries a forwarded address, a cookie, and a bearer token
+  // of its own that no event may hold.
+  const sent = {
+    'cf-connecting-ip': '198.51.100.23',
+    cookie: 'canary_cookie=canary-cookie-value-5e1d',
+    authorization: 'Bearer canary-bearer-value-77ab',
+  };
+
+  const verifier = 'canary-verifier-0123456789-abcdefghijklmnopqrstuvwxyz';
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    state: 'canary-state-value-3c9f',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    resource: `${ctx.origin}/mcp`,
+    canary_secret: 'canary-query-secret-a41c',
+  }).toString();
+
+  const authorized = await fetch(authorize, { redirect: 'manual', headers: sent });
+
+  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
+
+  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(ctx.approvals.at(-1) ?? '')?.groups?.[
+    'code'
+  ];
+
+  invariant(approvalCode !== undefined, 'the server printed no approval code');
+
+  await fetch(`${ctx.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { ...sent, origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: 'CANARYWRONG' }),
+  });
+
+  const signedIn = await fetch(`${ctx.url}/login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { ...sent, origin: ctx.url, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode }),
+  });
+
+  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
+
+  const sessionCookie = signedIn.headers
+    .getSetCookie()
+    .map((line) => line.split(';')[0])
+    .join('; ');
+
+  await fetch(consent, {
+    redirect: 'manual',
+    headers: { ...sent, cookie: sessionCookie },
+  });
+
+  const consented = await fetch(`${ctx.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      ...sent,
+      origin: ctx.url,
+      cookie: sessionCookie,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      oauth_query: consent.search.slice(1),
+      decision: 'approve',
+      scope: 'read',
+    }),
+  });
+
+  const callback = new URL(consented.headers.get('location') ?? '/');
+
+  const code = callback.searchParams.get('code');
+
+  invariant(code !== null, `no authorization code in: ${callback.href}`);
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'cf-connecting-ip': sent['cf-connecting-ip'] },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: verifier,
+      resource: `${ctx.origin}/mcp`,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  const accessToken = tokens['access_token'];
+  const refreshToken = tokens['refresh_token'];
+
+  invariant(typeof accessToken === 'string' && typeof refreshToken === 'string', 'no tokens');
+
+  const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'cf-connecting-ip': sent['cf-connecting-ip'] },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientID,
+      resource: `${ctx.origin}/mcp`,
+    }),
+  });
+
+  const rotated = await readJSONRecord(refreshed);
+
+  const rotatedAccess = rotated['access_token'];
+  const rotatedRefresh = rotated['refresh_token'];
+
+  invariant(typeof rotatedAccess === 'string' && typeof rotatedRefresh === 'string', 'no refresh');
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      'cf-connecting-ip': sent['cf-connecting-ip'],
+      authorization: `Bearer ${rotatedAccess}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  // The refusals carry the same secrets: an authorization for another
+  // resource, a request to a Host atc does not serve, and a consent form
+  // from another origin.
+  const invalid = new URL(authorize);
+
+  invalid.searchParams.set('resource', 'https://other.example/mcp');
+
+  await fetch(invalid, { redirect: 'manual', headers: sent });
+
+  await fetch(`${ctx.url}/mcp?canary_secret=canary-query-secret-a41c`, {
+    method: 'POST',
+    headers: { ...sent, host: 'rebound.example' },
+  });
+
+  await fetch(`${ctx.url}/consent`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      ...sent,
+      origin: 'https://evil.example',
+      cookie: sessionCookie,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'approve' }),
+  });
+
+  const secrets = [
+    rotatedAccess,
+    rotatedRefresh,
+    sent.cookie,
+    'canary-cookie-value-5e1d',
+    'canary-bearer-value-77ab',
+    verifier,
+    challenge,
+    'canary-state-value-3c9f',
+    'canary-query-secret-a41c',
+    'CANARYWRONG',
+    approvalCode,
+    approvalCode.replace('-', ''),
+    login.search.slice(1),
+    login.searchParams.get('sig') ?? 'no-sig',
+    consent.search.slice(1),
+    consent.searchParams.get('sig') ?? 'no-sig',
+    sessionCookie,
+    sessionCookie.split('=').slice(1).join('='),
+    code,
+    accessToken,
+    refreshToken,
+  ];
+
+  const forwarded = {
+    address: '198.51.100.23',
+    header: 'cf-connecting-ip',
+    provenance: 'unverified',
+  };
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([
+    { kind: 'authorize_started', forwarded },
+    { kind: 'owner_auth', forwarded },
+    { kind: 'owner_auth', forwarded },
+    { kind: 'consent', forwarded },
+    { kind: 'authorize_invalid', forwarded },
+    { kind: 'authorize_invalid', forwarded },
+    { kind: 'authorize_invalid', forwarded },
+  ]);
+
+  expect(ctx.security).toSatisfyAll((line: string) =>
+    secrets.every((secret) => !line.includes(secret)),
+  );
 });

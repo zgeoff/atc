@@ -93,3 +93,47 @@ The server logs one line per request to stderr with the method, the path, the st
 and the MCP method and tool. A line never holds a request body, a query, a cookie or an address.
 better-auth's telemetry stays off: atc sets its environment before better-auth starts, so a variable
 the owner sets cannot turn it on.
+
+## Security events
+
+Each sign-in outcome writes one line to stderr: `atc security ` followed by a JSON object. A log
+shipper matches that prefix alone and never reads stdout, because stdout carries the approval line
+and its code. The events come from the shared server code, so `atc mcp --http` and
+`atc-gateway serve` write the same lines, and atc holds no delivery credential: sign-in never waits
+on an alert.
+
+| `kind`              | `outcome`              | `reason`                                                                        |
+| ------------------- | ---------------------- | ------------------------------------------------------------------------------- |
+| `authorize_started` | `accepted`, `rejected` | `rate_limited` when the limit on approval starts refused it                     |
+| `authorize_invalid` | `rejected`             | better-auth's error code from a fixed list, `bad_host`, `bad_origin` or `other` |
+| `owner_auth`        | `succeeded`, `failed`  | `wrong_code`, `locked` or `expired`                                             |
+| `consent`           | `allowed`, `denied`    | `none_ticked` when allow came with no scope ticked                              |
+| `suppressed`        | none                   | the kind the burst cap dropped, with the dropped `count`                        |
+
+A consent is `allowed` only when the answer issued an authorization code. The Host and origin checks
+under [request checks](#request-checks) write `authorize_invalid` for every route they refuse, and
+an `owner_auth` event comes only from a posted code, never from showing the page.
+
+An accepted start mints a random correlation id with its pending approval. The approval code carries
+it to the owner session it signs in, and the consent event repeats it, so one authorization's events
+can be joined. The id never derives from the code, the signed query, the state or the PKCE values.
+
+The line holds only the fields of the security-event contract, and the formatter picks each one by
+name, so a value added to an event never reaches the line by accident:
+
+- `v`, `ts`, `kind`, `outcome` and `reason`, with `method` set to `approval_code` on `owner_auth`.
+- `route`: the request's path when it is one atc serves, else `other`, and never a query.
+- `client` with its id and name, only for a client atc holds, and `redirectHost` only once
+  better-auth validated the redirect URI.
+- `peer`, the socket's address with provenance `socket`, and `forwarded`, the `CF-Connecting-IP`
+  header with provenance `unverified`, since anyone can send that header.
+- `userAgent`, cut short, with provenance `client`.
+
+Every string from the client loses its control and format characters and is cut to a bound. No line
+holds an approval or authorization code, a token, a cookie, an `Authorization` header, a body, a
+signed query, the state, PKCE material or a URL with a query.
+
+A burst cap bounds each kind per window, so a flood of bad requests cannot flood the journal. Past
+the cap the log drops events and counts them, and when the window ends it writes one `suppressed`
+event with the count. The window's end is scheduled when its first event drops, so the count arrives
+even when no further request comes, and stopping the server writes any count still pending.
