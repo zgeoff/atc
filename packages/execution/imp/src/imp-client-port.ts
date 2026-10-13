@@ -250,7 +250,11 @@ export class ImpClientPort implements ImpPort {
     const token = this.tryReadToken();
 
     if (token instanceof ImpPortError) {
-      return { listening: Promise.reject(token), stop: () => {} };
+      return {
+        listening: Promise.reject(token),
+        ended: Promise.resolve({ kind: 'failed', code: token.code, message: token.message }),
+        stop: () => {},
+      };
     }
 
     const forward = openReverseForward({
@@ -278,6 +282,7 @@ export class ImpClientPort implements ImpPort {
 
     return {
       listening: waitForListening(forward.listening),
+      ended: forward.ended,
       stop: () => {
         forward.stop();
       },

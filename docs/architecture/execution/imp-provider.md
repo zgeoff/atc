@@ -94,3 +94,10 @@ impd's answer to the reconnect decides how the harness ended:
   generation.
 - A process lost to a cold boot ended with the cause of the first boot after the daemon's own, such
   as a watchdog reboot, or with the cause unknown when impd no longer remembers the daemon's boot.
+
+The session bridge's socket comes back on a reconnect of its own. impd ends the reverse forward
+behind it for good when the forward's tunnel socket closes, while the harness runs on. The provider
+therefore listens on the same socket again until the harness ends. A hook that runs in the gap finds
+no socket and is lost, while a note waits in the outbox beside the socket for the next connection. A
+forward that the imp's sleep ended stays ended, because a listen wakes a sleeping imp; the harness
+that a wake revives opens a forward of its own.

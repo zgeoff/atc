@@ -763,6 +763,68 @@ test('it closes every guest connection on its forwards', async () => {
   await expect(closed.promise).toResolve();
 });
 
+test('it ends every forward as closed with the code when its forwards stop', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  expect(forward.ended).resolves.toStrictEqual({ kind: 'closed', code: 1006, reason: '' });
+});
+
+test('it ends every forward as lost when its forwards stop as lost', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+
+  ctx.port.stopForwards({ kind: 'lost' });
+
+  expect(forward.ended).resolves.toStrictEqual({ kind: 'lost' });
+});
+
+test('it removes the guest socket of every forward when its forwards stop', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const guestPath = join(ctx.dir, 'guest.sock');
+
+  ctx.port.openReverseForward('imp-a', guestPath, () => {});
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  expect(existsSync(guestPath)).toBeFalse();
+});
+
+test('it ends a forward as stopped when the forward stops itself', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+
+  forward.stop();
+
+  expect(forward.ended).resolves.toStrictEqual({ kind: 'stopped' });
+});
+
+test('it keeps the first end of a forward that its forwards stop after it stopped itself', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const forward = ctx.port.openReverseForward('imp-a', join(ctx.dir, 'guest.sock'), () => {});
+
+  forward.stop();
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  expect(forward.ended).resolves.toStrictEqual({ kind: 'stopped' });
+});
+
 test('it keeps listening for the next guest connection after it closes every one', async () => {
   const ctx = setupTest();
 

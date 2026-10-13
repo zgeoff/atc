@@ -16,6 +16,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubImpd } from '@atc/test-utils/start-stub-impd';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpClientPort } from './imp-client-port';
@@ -837,4 +838,155 @@ test.each([
   const result = await runShellcheck(script);
 
   expect(result).toStrictEqual({ exitCode: 0, findings: [] });
+});
+
+test("it logs the end of a harness's hook forward and listens on the guest socket again", async () => {
+  const ctx = setupTest();
+  const lines: string[] = [];
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({
+    host: 's1',
+    daemonID: 'd1',
+    log: (line) => {
+      lines.push(line);
+    },
+  });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
+
+  await harness.waitForStart();
+
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  await waitFor(() => {
+    expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeTrue();
+  });
+
+  expect(lines).toContain(
+    "imp atc-s1 stopped listening for session s1's hooks (closed 1006); listening again in 0ms",
+  );
+});
+
+test('it listens on the guest socket no more once the harness ended', async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'true',
+    args: [],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  const exited = Promise.withResolvers<void>();
+
+  harness.onExit(() => {
+    exited.resolve();
+  });
+
+  await exited.promise;
+
+  const reverseCalls = ctx.port.calls.filter((call) => call.startsWith('reverse '));
+
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeFalse();
+  expect(reverseCalls).toStrictEqual([`reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`]);
+});
+
+test('it leaves a hook forward that impd lost with the guest ended, so the imp sleeps on', async () => {
+  const ctx = setupTest();
+  const lines: string[] = [];
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({
+    host: 's1',
+    daemonID: 'd1',
+    log: (line) => {
+      lines.push(line);
+    },
+  });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
+
+  await harness.waitForStart();
+
+  ctx.port.stopForwards({ kind: 'lost' });
+
+  await waitFor(() => {
+    expect(lines).toContain(
+      "imp atc-s1 stopped listening for session s1's hooks (the imp went away); a wake listens again",
+    );
+  });
+
+  expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toStrictEqual([
+    `reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`,
+  ]);
 });

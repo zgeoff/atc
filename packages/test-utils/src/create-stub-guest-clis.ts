@@ -11,6 +11,7 @@ import { getSourceEntry } from './get-source-entry';
  * - `start <id>`: a SessionStart for agent session `<id>`, with a
  *   transcript at a path only the host holds;
  * - `notify <text>`: a Notification carrying the text;
+ * - `stop`: a Stop, as at the end of a turn;
  * - `nested <id>`: a SessionStart for agent session `<id>` from a Codex
  *   harness nested inside the session;
  * - `forge <session>`: a Notification as atc session `<session>` instead
@@ -40,6 +41,7 @@ while read -r line; do
   case "$line" in
     start\\ *) printf '{"hook_event_name":"SessionStart","session_id":"%s","transcript_path":"/guest/only/transcript.jsonl"}' "\${line#start }" | "${atc}" hook-report --agent claude ;;
     notify\\ *) printf '{"hook_event_name":"Notification","message":"%s"}' "\${line#notify }" | "${atc}" hook-report --agent claude ;;
+    stop) echo '{"hook_event_name":"Stop"}' | "${atc}" hook-report --agent claude ;;
     nested\\ *) printf '{"hook_event_name":"SessionStart","session_id":"%s","source":"startup"}' "\${line#nested }" | "${atc}" hook-report --agent codex ;;
     forge\\ *) echo '{"hook_event_name":"Notification","message":"forged"}' | ATC_SESSION_ID="\${line#forge }" "${atc}" hook-report --agent claude ;;
     tap\\ *) "${atc}" tap --session "$ATC_SESSION_ID" >> "\${line#tap }" 2>&1 & ;;

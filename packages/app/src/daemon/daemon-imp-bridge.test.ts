@@ -1,6 +1,6 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config/config';
 import { ImpProvider } from '@atc/execution-imp/imp-provider';
@@ -375,4 +375,61 @@ test('it prints a message whose ack was lost once, and acks it again when the ta
   });
 
   expect(unacked['status']).toBe('queued');
+});
+
+test("it records a remote session's note, needs-input and turn-done after impd closes its hook forward", async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  // The bridge socket is named for the session id, lowercased, with only
+  // letters and digits kept, cut to 16 characters.
+  const socketName = id
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/g, '')
+    .slice(0, 16);
+
+  const socketPath = join(ctx.guestDir, 'run', `${socketName}.sock`);
+
+  await waitFor(() => {
+    expect(existsSync(socketPath)).toBeTrue();
+  });
+
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  const closedSocket = existsSync(socketPath);
+
+  await waitFor(() => {
+    expect(existsSync(socketPath)).toBeTrue();
+  });
+
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: id,
+    d: 'note after the forward closed\r',
+  });
+
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: id,
+    d: 'notify Claude needs your permission to use Bash\r',
+  });
+
+  await ctx.daemon.client.sendRequest('session.input', { session: id, d: 'stop\r' });
+
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('events.read', { session: id });
+
+    expect(read['events']).toMatchObject([
+      { kind: 'note', label: 'progress', detail: 'after the forward closed' },
+      { kind: 'needs-input', detail: 'Claude needs your permission to use Bash' },
+      { kind: 'turn-done', detail: null },
+    ]);
+  });
+
+  expect(closedSocket).toBeFalse();
 });
