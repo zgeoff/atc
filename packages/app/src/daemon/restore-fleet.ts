@@ -86,7 +86,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const isStopped = () => params.isStopped?.() === true;
 
   // A session an earlier restore registered and could not start a
-  // terminal for is not live, so this restore tries it again.
+  // terminal for is not live until a headless turn starts for it, so this
+  // restore tries it again.
   const hasLiveSession = (entry: FleetEntry) =>
     mgr.sessions.some(
       (s) =>

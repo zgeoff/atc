@@ -38,6 +38,7 @@ export function startHeadlessTurn(
     return false;
   }
 
+  mgr.removeUnrestoredMark(sessionID);
   mgr.updateSurfaceState(sessionID, 'running', 'headless turn running');
 
   recordTurnEvent(sessionID, { kind: 'prompt-submitted', detail: truncateDetail(prompt) });
