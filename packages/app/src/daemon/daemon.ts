@@ -2606,8 +2606,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // Every harness on the daemon's own machine ended with the daemon before
   // this one, so the messages its sessions held delivered get no answer. A
-  // row whose agent session id another row holds marks only its own
-  // messages: the other row's session may still run on its target.
+  // row whose agent session id a live row on a remote target holds marks
+  // only its own messages: that session may still run there.
   try {
     const fleet = await store.loadFleet();
 
@@ -2616,7 +2616,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         (x) =>
           x.sessionID !== entry.sessionID &&
           x.agentSessionID !== undefined &&
-          x.agentSessionID === entry.agentSessionID,
+          x.agentSessionID === entry.agentSessionID &&
+          x.exited !== true &&
+          !mgr.isLocalTarget(x.target ?? LOCAL_TARGET.id),
       );
 
       if (mgr.isLocalTarget(entry.target ?? LOCAL_TARGET.id)) {
