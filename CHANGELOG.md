@@ -1,5 +1,25 @@
 # Changelog
 
+## [4.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.3.0...@zgeoff/atc@4.4.0) (2026-10-13)
+
+### Features
+
+- **geo-481:** sign in the codex cli a claude session runs on an imp
+  ([#553](https://github.com/zgeoff/atc/issues/553))
+  ([c201efb](https://github.com/zgeoff/atc/commit/c201efb99f1c1fb69f61d4219ca9bba079f784a0))
+
+### Bug Fixes
+
+- **geo-748:** mark delivered messages unanswered on session exit
+  ([#551](https://github.com/zgeoff/atc/issues/551))
+  ([066b348](https://github.com/zgeoff/atc/commit/066b34877521152dab1d2c886bea6cc2f63c6963))
+- **geo-749:** keep queued messages after another turn fails
+  ([#555](https://github.com/zgeoff/atc/issues/555))
+  ([25b9e4a](https://github.com/zgeoff/atc/commit/25b9e4a51a36e985f55bb36c5df02decd4620f13))
+- **geo-753:** listen again when impd fails a pending destroy
+  ([#552](https://github.com/zgeoff/atc/issues/552))
+  ([5e7c94d](https://github.com/zgeoff/atc/commit/5e7c94dd0623070625aa2e6826f4d55597d3c128))
+
 ## [4.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.2.0...@zgeoff/atc@4.3.0) (2026-10-13)
 
 ### Features
