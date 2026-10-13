@@ -1318,7 +1318,7 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "status": {
-                  "description": "queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer); a later daemon may add a value",
+                  "description": "queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer, or the process of the session ended while the message was delivered); a later daemon may add a value",
                   "type": "string",
                 },
               },
@@ -1387,7 +1387,7 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "status": {
-                  "description": "queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer); a later daemon may add a value",
+                  "description": "queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer, or the process of the session ended while the message was delivered); a later daemon may add a value",
                   "type": "string",
                 },
                 "text": {

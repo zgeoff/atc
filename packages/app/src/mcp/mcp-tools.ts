@@ -194,7 +194,7 @@ const MESSAGE_OUTPUT: Readonly<Record<string, unknown>> = {
     status: {
       type: 'string',
       description:
-        'queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer); a later daemon may add a value',
+        'queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer, or the process of the session ended while the message was delivered); a later daemon may add a value',
     },
     answer: { type: 'string' },
     turn: { type: ['string', 'null'] },
@@ -222,7 +222,7 @@ const MESSAGE_SENT_OUTPUT: Readonly<Record<string, unknown>> = {
     status: {
       type: 'string',
       description:
-        'queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer); a later daemon may add a value',
+        'queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer, or the process of the session ended while the message was delivered); a later daemon may add a value',
     },
   },
   required: ['message', 'status'],
