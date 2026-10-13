@@ -5,7 +5,8 @@ another a task. The daemon keeps each message in the session's inbox in `atc.db`
 takes it, so a message survives a daemon restart and a fleet restore. The daemon never types a
 message into the session's terminal: a process inside the session takes it through a tap, and the
 `atc-bridge` mod inside Claude Code hands it to the model. The answer to a message is the final
-output of the turn that carried it, which the mod reports when the turn ends.
+output of the turn that carried it, which the mod reports when the turn ends. A turn that ends
+without a reply leaves the message unanswered.
 
 [Agent integration](../agents/agent-integration.md#the-atc-bridge-mod) covers the mod, and
 [events](./events.md) covers the trail that records each status change.
@@ -15,6 +16,8 @@ stateDiagram-v2
     [*] --> queued: message sent
     queued --> delivered: tap prints it and acks
     delivered --> answered: the carrying turn ends with a reply
+    queued --> unanswered: the carrying turn ends without a reply
+    delivered --> unanswered: the carrying turn ends without a reply
 ```
 
 ## Sending
@@ -43,8 +46,8 @@ closing event and exits, so one session never has two consumers.
 
 Delivered means the tap printed the message to the mod, not that the model saw it. The mod keeps the
 messages it holds for the current turn in memory, so a Claude Code process that dies after the ack
-leaves the message delivered and never answered. A caller that waits on a message therefore waits
-with a deadline and treats a long-delivered message as lost.
+leaves the message delivered, because no report is made. A caller that waits on a message therefore
+waits with a deadline and treats a long-delivered message as lost.
 
 A message belongs to the session it was sent to, and follows the agent session when the session
 resumes or clears it, so a resumed session keeps its queue.
@@ -57,7 +60,18 @@ the message to that turn. One turn can therefore carry several messages, and eac
 same answer: the turn's final reply. When the turn ends with a reply, the mod sends one answer that
 holds every message the turn carried and the turn's id, and the daemon marks them all answered in
 one statement, so a reader that finds one of them answered finds the whole group answered. A turn
-that aborts or fails leaves its messages delivered.
+that ends without a reply, because a person interrupted it, it failed, or the model refused, gets
+one `unanswered` report instead, with the turn's id and a one-word reason: `interrupted`, `error` or
+`refusal`. A message the mod submitted as a prompt that no turn ever carried, because a hook dropped
+the prompt or a turn ended without a reply before it started one, is reported `unanswered` with the
+reason `not_started`. A message the model never saw, one added to a running turn that ended before
+its next step, is delivered again instead.
+
+Unanswered is final. A later answer for that message changes nothing, and atc never delivers the
+message again, because redelivering after an interrupt would restart work a person stopped, and
+redelivering after an error would repeat the failure. A caller that wants the work done sends the
+message again. A read of an unanswered message returns `unansweredAt` and `unansweredReason`, and a
+read that waits returns as soon as the status becomes answered or unanswered.
 
 A caller reads a message's status, answer and turn by its id, and can hold the read open until the
 status moves. Message ids and statuses live in `atc.db`, so a caller whose wait ended, or whose

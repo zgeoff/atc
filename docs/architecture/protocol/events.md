@@ -28,7 +28,7 @@ The trail holds three groups of events, oldest first:
 - **Hook events**, as the adapter normalized them: a start, a submitted prompt, a pending input, a
   finished turn and an end. Statusline heartbeats are stored for agent session id capture and left
   out of every read.
-- **Message status changes**: queued, delivered and answered, each with its message id.
+- **Message status changes**: queued, delivered, answered and unanswered, each with its message id.
 - **Notes**, each with its label and its text up to a cap, kept once under the id the session helper
   gave it, so a resent note lands once.
 

@@ -65,7 +65,8 @@ inside an `<atc-message>` envelope that holds the sender and the message id, as 
 session is idle and inside the running turn otherwise. The mod adds a section to the system prompt
 that says what the envelope means, so the model treats a relayed message as one from another tool
 rather than the owner's own words. When a turn that carried messages ends with a reply, the mod
-reports every message the turn carried as answered with that reply and the turn's id, in one call
+reports every message the turn carried as answered with that reply and the turn's id, in one call; a
+turn that ends without a reply is reported as unanswered, with the cause
 ([messages](../protocol/messages.md#answers)).
 
 The `note` tool sends progress mid-turn, labelled `progress`, `blocked` or `decision`, and never
