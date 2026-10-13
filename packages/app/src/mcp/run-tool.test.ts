@@ -794,6 +794,70 @@ test('it detaches a session through an update that needs a daemon that takes a n
   ]);
 });
 
+test('it renames a session through an update that needs a daemon that reports a skipped rename', async () => {
+  const caller = buildStubFleetCaller({ answer: () => ({}) });
+
+  const result = await runTool(
+    caller,
+    'atc_session_update',
+    { session: 's1', name: 'from-mcp' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(result).toStrictEqual({ text: 'updated', structured: null });
+
+  expect(caller.requests).toStrictEqual([
+    {
+      m: 'session.update',
+      p: { session: 's1', name: 'from-mcp' },
+      required: ['session.update.renameSkipped'],
+    },
+  ]);
+});
+
+test('it reports a rename the daemon skipped because the agent named the session', async () => {
+  const caller = buildStubFleetCaller({ answer: () => ({ renameSkipped: 'agent_named' }) });
+
+  const result = await runTool(
+    caller,
+    'atc_session_update',
+    { session: 's1', name: 'from-mcp' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(result).toStrictEqual({
+    text: 'updated, not renamed: the agent named this session itself with /rename, and a name the agent sets wins over one set here. Any pin or detach in the call applied.',
+    structured: null,
+  });
+});
+
+test('it refuses a rename unsent when the daemon predates a reported skipped rename', () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.update.renameSkipped'),
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const update = runTool(
+    caller,
+    'atc_session_update',
+    { session: 's1', name: 'from-mcp' },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(update).rejects.toThrow(
+    /^daemon_outdated: .*atc_session_update's report of a skipped rename/,
+  );
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
 test('it refuses a detach unsent when the daemon predates a null parent on update', () => {
   const tmp = setupTempDir('atc-run-tool-');
 

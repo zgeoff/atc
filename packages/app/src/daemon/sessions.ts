@@ -1058,9 +1058,14 @@ export class SessionManager {
    * A null parent makes a sub-session top-level before any pin applies, so
    * its pin, kill, and forget no longer follow its former parent. A
    * sub-session that runs in its parent's host is refused one, since the
-   * host owner's kill and forget would still end it.
+   * host owner's kill and forget would still end it. A rename of a session
+   * the agent named itself is skipped and returns 'agent_named', after any
+   * other change applies.
    */
-  updateSession(id: SessionID, changes: SessionChanges): boolean | 'child_pin' | 'shared_host' {
+  updateSession(
+    id: SessionID,
+    changes: SessionChanges,
+  ): boolean | 'child_pin' | 'shared_host' | 'agent_named' {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
@@ -1081,7 +1086,10 @@ export class SessionManager {
       this.onEvent('state', s);
     }
 
-    if (changes.name !== undefined && changes.name !== '' && s.namedBy !== 'agent') {
+    const renameSkipped =
+      changes.name !== undefined && changes.name !== '' && s.namedBy === 'agent';
+
+    if (changes.name !== undefined && changes.name !== '' && !renameSkipped) {
       s.name = changes.name;
       s.namedBy = 'user';
 
@@ -1098,7 +1106,7 @@ export class SessionManager {
     this.writeStatus();
     this.emitChange();
 
-    return true;
+    return renameSkipped ? 'agent_named' : true;
   }
 
   // A result, when given, becomes the session's latest result the way a

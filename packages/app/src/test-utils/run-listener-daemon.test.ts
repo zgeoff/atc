@@ -101,6 +101,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
       'session.kill.stopOnly',
       'message.unanswered',
       'session.update.parent',
+      'session.update.renameSkipped',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',

@@ -271,11 +271,13 @@ export interface DaemonContext {
 
   // Renames, pins, or makes top-level a session; false for no such session,
   // 'child_pin' for a pin of a session that stays a sub-session, and
-  // 'shared_host' for a detach of a sub-session in its parent's host.
+  // 'shared_host' for a detach of a sub-session in its parent's host, and
+  // 'agent_named' when the other changes applied but the rename was skipped
+  // because the agent named the session itself.
   readonly updateSession: (
     id: SessionID,
     changes: SessionChanges,
-  ) => boolean | 'child_pin' | 'shared_host';
+  ) => boolean | 'child_pin' | 'shared_host' | 'agent_named';
 
   // Adds a checked scope to a session's published record and returns the
   // record as it stands after; 'missing' for no such session.
