@@ -123,7 +123,12 @@ export const DAEMON_CONTRACT = {
         .input(P['session.auth.rebind'])
         .output(z.object({ revision: z.number() })),
     },
-    update: base.input(P['session.update']).output(EMPTY),
+
+    // renameSkipped holds why a requested rename did not apply: 'agent_named'
+    // when the agent named the session itself. Other changes still applied.
+    update: base
+      .input(P['session.update'])
+      .output(z.object({ renameSkipped: z.string().optional() })),
     scope: {
       add: base.input(P['session.scope.add']).output(z.object({ record: PUBLISHED_RECORD_SCHEMA })),
     },

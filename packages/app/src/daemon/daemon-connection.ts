@@ -643,6 +643,8 @@ export class DaemonConnection {
             'bad_args',
             `session '${sessionID}' runs in its parent's host and cannot be detached from it`,
           );
+        } else if (updated === 'agent_named') {
+          this.sendOk(req.id, 'session.update', { renameSkipped: 'agent_named' });
         } else if (updated) {
           this.sendOk(req.id, 'session.update', {});
         } else {

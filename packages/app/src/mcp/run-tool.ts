@@ -139,11 +139,13 @@ export function runTool(
     })
     .with('atc_session_update', async () => {
       // An older daemon would drop the parent and answer as if it had
-      // made the session top-level.
-      const parentFeatures: readonly DaemonFeature[] =
-        args['parent'] === null ? ['session.update.parent'] : [];
+      // made the session top-level, and would skip a rename without saying.
+      const required: readonly DaemonFeature[] = [
+        ...(args['parent'] === null ? (['session.update.parent'] as const) : []),
+        ...(typeof args['name'] === 'string' ? (['session.update.renameSkipped'] as const) : []),
+      ];
 
-      await caller.sendRequest(
+      const ok = await caller.sendRequest(
         'session.update',
         {
           session: args['session'],
@@ -151,8 +153,15 @@ export function runTool(
           ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
           ...(args['parent'] === null ? { parent: null } : {}),
         },
-        parentFeatures,
+        required,
       );
+
+      if (ok['renameSkipped'] === 'agent_named') {
+        return {
+          text: 'updated, not renamed: the agent named this session itself with /rename, and a name the agent sets wins over one set here. Any pin or detach in the call applied.',
+          structured: null,
+        };
+      }
 
       return { text: 'updated', structured: null };
     })

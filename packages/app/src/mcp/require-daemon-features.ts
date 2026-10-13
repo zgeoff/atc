@@ -32,6 +32,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'session.kill.stopOnly': 'atc_session_stop',
   'session.record': "atc_session_scope_add and atc_session_spawn's scope",
   'session.update.parent': "atc_session_update's parent",
+  'session.update.renameSkipped': "atc_session_update's report of a skipped rename",
   'vocabulary.note':
     'the note and queued words in the results of atc_events_read, atc_message_send, and atc_message_get',
 };

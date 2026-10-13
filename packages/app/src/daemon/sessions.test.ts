@@ -1235,6 +1235,50 @@ test("it keeps a finished turn's last message as the session result", async () =
   ]);
 });
 
+test('it keeps a name the agent set and reports the rename it skipped', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [
+      buildMockAgentAdapter({
+        planHookEvents: () => ({ events: [{ kind: 'started', nameSource: '/t/c-1.jsonl' }] }),
+        loadName: () => Promise.resolve({ name: 'claude-named', namedBy: 'agent' }),
+      }),
+    ],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  const s = await mgr.spawn(ctx.dir, 'worker', 'go', 80, 24, toAgentSessionID('c-1'));
+
+  mgr.applyHook({ atcId: s.id, event: 'SessionStart', payload: {} });
+
+  await waitFor(() => {
+    expect(s.namedBy).toBe('agent');
+  });
+
+  const updated = mgr.updateSession(s.id, { name: 'typed', pinned: true });
+
+  expect(updated).toBe('agent_named');
+  expect(s.name).toBe('claude-named');
+  expect(s.pinned).toBeTrue();
+});
+
 test('it truncates a stored result past 16 KiB', async () => {
   const ctx = await setupTest();
 
