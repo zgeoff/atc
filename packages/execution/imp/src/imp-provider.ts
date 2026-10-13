@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { isCompiledBinary } from '@atc/config/is-compiled-binary';
@@ -22,13 +23,14 @@ import { buildSessionEnv } from '@atc/protocol/build-session-env';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import { LineDecoder } from '@atc/protocol/line-decoder';
 import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
+import { match } from 'ts-pattern';
 import { z } from 'zod';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { buildImpName } from './build-imp-name';
 import { buildShortName } from './build-short-name';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpHarness } from './imp-harness';
-import type { ImpCreateSpec, ImpPort, ImpRelayConnection } from './imp-port';
+import type { ImpCreateSpec, ImpForwardEnd, ImpPort, ImpRelayConnection } from './imp-port';
 import { ImpPortError } from './imp-port-error';
 import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
 import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
@@ -208,6 +210,8 @@ export class ImpProvider implements ExecutionProvider {
       renewTimer: null,
       suspending: false,
       isIdle: null,
+      log: null,
+      sleepRefusals: new Set(),
     };
 
     this.hosts.set(hostKey, host);
@@ -311,6 +315,7 @@ export class ImpProvider implements ExecutionProvider {
 
     host.suspending = false;
     host.isIdle = request.isIdle ?? null;
+    host.log = request.log ?? null;
 
     this.startRenewal(host, label);
   };
@@ -343,11 +348,11 @@ export class ImpProvider implements ExecutionProvider {
       {
         offsets: this.offsets,
         reconnectDelaysMs: this.reconnectDelaysMs,
-        ...(reporter === null ? {} : { ready: reporter.forward.listening }),
+        ...(reporter === null ? {} : { ready: reporter.listening }),
         ...(spec.admit === undefined ? {} : { admit: spec.admit }),
         isSuspending: () => host.suspending,
         onDone: () => {
-          reporter?.forward.stop();
+          reporter?.stop();
           host.harnesses -= 1;
 
           if (host.harnesses === 0 && !host.suspending) {
@@ -426,6 +431,8 @@ export class ImpProvider implements ExecutionProvider {
         if (isBusy()) {
           host.suspending = false;
 
+          emitSleepRefusal(host);
+
           await this.restoreLease(host);
 
           throw buildBusyRefusal(host.name);
@@ -434,6 +441,8 @@ export class ImpProvider implements ExecutionProvider {
         await this.port.suspendImp(host.name);
       } catch (error) {
         host.suspending = false;
+
+        emitSleepRefusal(host);
 
         if (error instanceof ImpPortError && error.code === 'LEASED') {
           await this.restoreLease(host);
@@ -644,19 +653,137 @@ export class ImpProvider implements ExecutionProvider {
 
   // A socket inside the imp that serves one harness: each connection a
   // process opens there reaches the daemon as that harness's relay, and
-  // nothing else reaches the daemon through it.
+  // nothing else reaches the daemon through it. impd ends a forward for
+  // good when its tunnel socket closes while the harness keeps running, so
+  // a forward that ends before the harness does listens again on the same
+  // path, after the provider's reconnect delays, until the harness ends.
+  // Hooks that run in between find no socket and are lost. A forward the
+  // imp's sleep ended stays ended, since a listen wakes a sleeping imp; the
+  // harness a wake revives opens a forward of its own.
   private openReporter(host: ImpHost, spec: HarnessSpec) {
     const base = `${this.guest.dir}/run/${buildSocketName(spec.session)}`;
     const path = `${base}.sock`;
     const onRelay = spec.onRelay;
 
-    const forward = this.port.openReverseForward(host.name, path, (connection) => {
-      onRelay?.(toHarnessRelay(connection));
-    });
+    const stopping = new AbortController();
+
+    const openForward = () =>
+      this.port.openReverseForward(host.name, path, (connection) => {
+        onRelay?.(toHarnessRelay(connection));
+      });
+
+    let current = openForward();
+
+    // Settles true once a sleep the provider asked for is refused, so the
+    // imp stays awake, and false once the reporter stops first.
+    const waitForRefusedSleep = () =>
+      new Promise<boolean>((resolve) => {
+        if (stopping.signal.aborted) {
+          resolve(false);
+
+          return;
+        }
+
+        const onAbort = () => {
+          host.sleepRefusals.delete(onRefusal);
+
+          resolve(false);
+        };
+
+        const onRefusal = () => {
+          stopping.signal.removeEventListener('abort', onAbort);
+
+          resolve(true);
+        };
+
+        host.sleepRefusals.add(onRefusal);
+        stopping.signal.addEventListener('abort', onAbort, { once: true });
+      });
+
+    // A listen during a sleep the provider asked for would wake the imp, so
+    // the forward waits for the sleep's outcome and listens again only when
+    // impd refuses it.
+    const waitForAwakeHost = (): Promise<boolean> => {
+      if (!host.suspending) {
+        return Promise.resolve(true);
+      }
+
+      host.log?.(
+        `imp ${host.name} is going to sleep; session ${spec.session}'s hooks listen again if the sleep is refused`,
+      );
+
+      return waitForRefusedSleep();
+    };
+
+    const restoreForward = async (): Promise<void> => {
+      let failures = 0;
+
+      for (;;) {
+        const end = await current.ended;
+
+        if (stopping.signal.aborted || end.kind === 'stopped') {
+          return;
+        }
+
+        // A forward impd ended with an error can keep its tunnel socket open.
+        current.stop();
+
+        if (end.kind === 'lost') {
+          host.log?.(
+            `imp ${host.name} stopped listening for session ${spec.session}'s hooks (${formatForwardEnd(end)}); a wake listens again`,
+          );
+
+          return;
+        }
+
+        if (!(await waitForAwakeHost())) {
+          return;
+        }
+
+        const delay =
+          this.reconnectDelaysMs[Math.min(failures, this.reconnectDelaysMs.length - 1)] ?? 0;
+
+        failures += 1;
+
+        host.log?.(
+          `imp ${host.name} stopped listening for session ${spec.session}'s hooks (${formatForwardEnd(end)}); listening again in ${delay}ms`,
+        );
+
+        try {
+          await sleep(delay, undefined, { signal: stopping.signal, ref: false });
+        } catch {
+          return;
+        }
+
+        if (!(await waitForAwakeHost())) {
+          return;
+        }
+
+        current = openForward();
+
+        try {
+          await current.listening;
+
+          failures = 0;
+        } catch {
+          // Its end follows, and takes the next delay.
+        }
+      }
+    };
+
+    void restoreForward();
 
     // Notes and answers the guest has not seen answered wait in the outbox beside
     // the socket, for the next connection to send again.
-    return { path, outbox: `${base}.outbox`, forward };
+    return {
+      path,
+      outbox: `${base}.outbox`,
+      listening: current.listening,
+      stop: () => {
+        stopping.abort();
+        current.stop();
+      },
+    };
   }
 
   private async runOnHost(
@@ -783,6 +910,13 @@ interface ImpHost {
   // The daemon's check that nothing runs or starts on the host, from its
   // latest readying; null until one gives it.
   isIdle: (() => boolean) | null;
+
+  // Where the latest readying asked the provider to report, or null.
+  log: ((line: string) => void) | null;
+
+  // Called once each when impd refuses a sleep the provider asked for, and
+  // the host stays awake.
+  readonly sleepRefusals: Set<() => void>;
 }
 
 // The imp a target creates: its image and memory when the target sets them,
@@ -793,6 +927,29 @@ function buildCreateImpSpec(name: string, target: ImpTargetOptions): ImpCreateSp
     ...(target.image === undefined ? {} : { image: target.image }),
     ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
   };
+}
+
+function emitSleepRefusal(host: ImpHost): void {
+  const listeners = [...host.sleepRefusals];
+
+  host.sleepRefusals.clear();
+
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
+function formatForwardEnd(end: Exclude<ImpForwardEnd, { kind: 'stopped' }>): string {
+  return match(end)
+    .with({ kind: 'lost' }, () => 'the imp went away')
+    .with({ kind: 'closed' }, (closed) =>
+      closed.reason === '' ? `closed ${closed.code}` : `closed ${closed.code}: ${closed.reason}`,
+    )
+    .with(
+      { kind: 'failed' },
+      (failed) => `refused ${failed.code ?? 'without a code'}: ${failed.message}`,
+    )
+    .exhaustive();
 }
 
 function buildImpSessionName(sessionID: string): string {

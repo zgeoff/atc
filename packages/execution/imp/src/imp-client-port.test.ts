@@ -105,6 +105,7 @@ test('it refuses a reverse forward as unauthorized without reaching impd when th
   const forward = port.openReverseForward('imp-a', '/tmp/atc/report.sock', () => {});
 
   expect(forward.listening).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  expect(forward.ended).resolves.toMatchObject({ kind: 'failed', code: 'UNAUTHORIZED' });
   expect(ctx.impd.authorizations).toStrictEqual([]);
 });
 
@@ -139,6 +140,36 @@ test('it opens a guest connection relay with the token its token file holds when
     },
     { timeoutMs: 2000 },
   );
+});
+
+test('it ends a reverse forward as closed with the code when impd closes its tunnel socket', async () => {
+  const ctx = setupTest();
+  const tmp = setupTempDir('atc-imp-client-port-');
+  const tokenPath = join(tmp.dir, 'imp-token');
+
+  writeFileSync(tokenPath, 'first-token\n');
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => readImpToken(tokenPath) });
+
+  const forward = port.openReverseForward('imp-a', '/tmp/atc/report.sock', () => {});
+
+  registerTestCleanup(() => {
+    forward.stop();
+  });
+
+  await forward.listening;
+
+  const [control] = ctx.impd.controls;
+
+  invariant(control !== undefined, 'expected a tunnel control socket');
+
+  control.close(4001, 'tunnel gone');
+
+  expect(forward.ended).resolves.toStrictEqual({
+    kind: 'closed',
+    code: 4001,
+    reason: 'tunnel gone',
+  });
 });
 
 test.each([

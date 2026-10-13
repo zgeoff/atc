@@ -14,6 +14,7 @@ import type {
   ImpCommandResult,
   ImpCreateSpec,
   ImpFeatures,
+  ImpForwardEnd,
   ImpIdentity,
   ImpLease,
   ImpPort,
@@ -304,7 +305,11 @@ class StubImpPort implements ImpPort {
 
   private readonly imps = new Map<string, StubImp>();
 
-  private readonly forwards = new Set<{ stop: () => void; stopRelays: () => void }>();
+  private readonly forwards = new Set<{
+    stop: () => void;
+    stopRelays: () => void;
+    end: (end: ImpForwardEnd) => void;
+  }>();
 
   // Takes one line per guest command a stop finds still running.
   private readonly report: (line: string) => void;
@@ -879,13 +884,24 @@ class StubImpPort implements ImpPort {
 
     const relays = new Set<{ readonly end: () => void }>();
 
+    const ended = Promise.withResolvers<ImpForwardEnd>();
+
+    // The first end counts, as each end stops the listener and removes the
+    // guest socket.
     const forward = {
-      stop: () => {
+      end: (end: ImpForwardEnd) => {
+        if (!this.forwards.delete(forward)) {
+          return;
+        }
+
         server.stop(true);
 
         rmSync(guestPath, { force: true });
 
-        this.forwards.delete(forward);
+        ended.resolve(end);
+      },
+      stop: () => {
+        forward.end({ kind: 'stopped' });
       },
       stopRelays: () => {
         for (const relay of relays) {
@@ -896,7 +912,7 @@ class StubImpPort implements ImpPort {
 
     this.forwards.add(forward);
 
-    return { listening: Promise.resolve(), stop: forward.stop };
+    return { listening: Promise.resolve(), ended: ended.promise, stop: forward.stop };
   }
 
   /**
@@ -1012,6 +1028,17 @@ class StubImpPort implements ImpPort {
   stopRelays(): void {
     for (const forward of this.forwards) {
       forward.stopRelays();
+    }
+  }
+
+  /**
+   * Ends every reverse forward as impd does when the forward's tunnel
+   * socket closes under it, or when impd loses the guest: the guest socket
+   * goes away, and each forward settles its end with the one given.
+   */
+  stopForwards(end: Exclude<ImpForwardEnd, { kind: 'stopped' }>): void {
+    for (const forward of this.forwards) {
+      forward.end(end);
     }
   }
 

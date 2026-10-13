@@ -345,5 +345,18 @@ export interface ImpRelayConnection {
 export interface ImpReverseForward {
   // Settles once impd listens on the guest path.
   readonly listening: Promise<void>;
+
+  // Settles once the forward listens no more, with why. A forward never
+  // listens again after it ends, so a guest connection after that reaches
+  // nothing until a new forward listens on the path.
+  readonly ended: Promise<ImpForwardEnd>;
   readonly stop: () => void;
 }
+
+// Why a reverse forward ended: its own stop, the imp going away (lost), its
+// tunnel socket closing with a code, or impd refusing it.
+export type ImpForwardEnd =
+  | { readonly kind: 'stopped' }
+  | { readonly kind: 'lost' }
+  | { readonly kind: 'closed'; readonly code: number; readonly reason: string }
+  | { readonly kind: 'failed'; readonly code: string | null; readonly message: string };

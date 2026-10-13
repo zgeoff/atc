@@ -83,6 +83,23 @@ test('it reports a Notification carrying the text for notify', async () => {
   );
 });
 
+test('it reports a Stop for stop', async () => {
+  const ctx = setupTest();
+  const clis = createStubGuestCLIs(ctx.dir);
+  const log = join(ctx.dir, 'atc.log');
+
+  createStubBin(ctx.dir, 'atc', buildStubRecordingATC(log));
+
+  await runCommand([clis.claude], {
+    stdin: Buffer.from('stop\n'),
+    env: { ...process.env, ATC_SESSION_ID: 's-own' },
+  });
+
+  expect(readFileSync(log, 'utf8')).toBe(
+    'args:hook-report --agent claude\nsession:s-own\nstdin:{"hook_event_name":"Stop"}\n\n',
+  );
+});
+
 test('it reports a SessionStart from a nested Codex harness for nested', async () => {
   const ctx = setupTest();
   const clis = createStubGuestCLIs(ctx.dir);
