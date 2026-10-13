@@ -2,10 +2,13 @@
 import { expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
+import { LOCAL_TARGET } from '@atc/config/local-target';
 import { toSessionID } from '@atc/core/to-session-id';
 import { ImpProvider } from '@atc/execution-imp/imp-provider';
 import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { buildTargetIdentity } from '@atc/store/build-target-identity';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
@@ -39,6 +42,13 @@ async function setupTest() {
         }),
         targets: [
           {
+            id: LOCAL_TARGET.id,
+            kind: LOCAL_TARGET.provider,
+            options: LOCAL_TARGET.options,
+            identity: buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options),
+            provider: new LocalPTYProvider(),
+          },
+          {
             id: 'box',
             kind: 'imp',
             options: {},
@@ -68,6 +78,7 @@ async function setupTest() {
     build: daemon.build,
     logs: daemon.logs,
     openClient: daemon.openClient,
+    sendHookLines: daemon.sendHookLines,
     restart: daemon.restart,
     port,
   };
@@ -615,6 +626,51 @@ test('it keeps a message delivered when its tap acks it after the connection to 
   const acked = await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
 
   expect(acked).toStrictEqual({ message: sent['message'], status: 'delivered' });
+});
+
+test('it keeps an imp session message delivered across a daemon restart beside a local session of the same agent session, then answers it', async () => {
+  const ctx = await setupTest();
+
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    target: 'local',
+  });
+
+  const remote = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const remoteID = getRecord(remote, 'session')['id'];
+
+  const tap = await ctx.openClient();
+  const sent = await ctx.client.sendRequest('session.message', { session: remoteID, text: 'hi' });
+
+  await tap.sendRequest('session.tap', { session: remoteID });
+  await tap.sendRequest('message.ack', { session: remoteID, message: sent['message'] });
+  await ctx.restart();
+
+  const client = await ctx.openClient();
+  const afterRestart = await client.sendRequest('message.get', { message: sent['message'] });
+
+  await ctx.sendHookLines({
+    atcId: remoteID,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'done' },
+  });
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read['status']).toBe('answered');
+  });
+
+  expect(afterRestart['status']).toBe('delivered');
 });
 
 test('it lists a session whose imp another owner put to sleep as asleep', async () => {
