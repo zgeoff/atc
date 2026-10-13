@@ -138,11 +138,21 @@ export function runTool(
       };
     })
     .with('atc_session_update', async () => {
-      await caller.sendRequest('session.update', {
-        session: args['session'],
-        ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
-        ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
-      });
+      // An older daemon would drop the parent and answer as if it had
+      // made the session top-level.
+      const parentFeatures: readonly DaemonFeature[] =
+        args['parent'] === null ? ['session.update.parent'] : [];
+
+      await caller.sendRequest(
+        'session.update',
+        {
+          session: args['session'],
+          ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
+          ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
+          ...(args['parent'] === null ? { parent: null } : {}),
+        },
+        parentFeatures,
+      );
 
       return { text: 'updated', structured: null };
     })
@@ -336,7 +346,7 @@ function buildObjectResult(value: unknown): ToolResult {
 
 // The refusals of a forget, worded for an MCP client.
 const SESSION_PINNED_REFUSAL =
-  'session_pinned: the session is pinned, or is a sub-session of a pinned session. Unpin it with atc_session_update before forgetting it.';
+  'session_pinned: the session is pinned, or is a sub-session of a pinned session. Unpin it, or detach the sub-session with parent null, through atc_session_update before forgetting it.';
 
 const SESSION_LIVE_REFUSAL =
   'session_live: the session is live. Pass stop: true to stop and forget it.';

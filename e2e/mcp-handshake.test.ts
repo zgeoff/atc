@@ -154,7 +154,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller (listed under it, stopped with it) unless detached is true. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.",
+            "description": "Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true: listed under it, pinned and stopped with it, not forgettable while it is pinned, and reached by a remote client only when the client reaches the caller. atc_session_update with parent null detaches it later. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -170,7 +170,7 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "detached": {
-                  "description": "Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, stopped with it.",
+                  "description": "Spawn a top-level session with no parent, whose pin and forget stand on their own. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, stopped with it, and not forgettable while it is pinned. atc_session_update with parent null detaches a sub-session later.",
                   "type": "boolean",
                 },
                 "effort": {
@@ -503,13 +503,17 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Rename or pin a session. A name set here replaces auto-summaries, but a name the agent set with /rename wins: the rename is skipped and the call still returns updated. A pinned session leads every list and cannot be forgotten. A sub-session pins with its parent, so pin the parent.",
+            "description": "Rename, pin, or detach a session. A name set here replaces auto-summaries, but a name the agent set with /rename wins: the rename is skipped and the call still returns updated. A pinned session leads every list and cannot be forgotten. A sub-session follows its parent: it pins with the parent and cannot be forgotten while the parent is pinned, it stops when the parent stops, and a remote client reaches it only when the client reaches the parent and every sub-session of it. Pinning a sub-session is refused; pin the parent, or detach the sub-session first. parent null detaches a sub-session: it becomes top-level, so its own pin and forget apply and the former parent keeps its pin. Detaching a top-level session changes nothing. A session cannot move under another parent. A sub-session that runs in its parent's imp is refused with bad_args, since that imp sleeps and is destroyed with its parent.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
                 "name": {
                   "description": "New display name; omit to keep",
                   "type": "string",
+                },
+                "parent": {
+                  "description": "null detaches the session from its parent and makes it top-level; omit to keep. No other value is taken.",
+                  "type": "null",
                 },
                 "pinned": {
                   "description": "Pin or unpin; omit to keep",
@@ -568,7 +572,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Remove a session from the list for good. On an imp target this destroys the host and everything on it, so it takes two calls: the first changes nothing and returns confirmToken, valid for 60 seconds; the second, with that token, returns { forgotten: true, destroyed: true }. A sub-session that shares its parent's imp host needs the token too but keeps the host (destroyed: false). On any other target one call returns { forgotten: true, destroyed: false }. Refused: a live session unless stop is true, and a pinned session or a sub-session of one (unpin it with atc_session_update first). Live sub-sessions on a host that survives move to the top level.",
+            "description": "Remove a session from the list for good. On an imp target this destroys the host and everything on it, so it takes two calls: the first changes nothing and returns confirmToken, valid for 60 seconds; the second, with that token, returns { forgotten: true, destroyed: true }. A sub-session that shares its parent's imp host needs the token too but keeps the host (destroyed: false). On any other target one call returns { forgotten: true, destroyed: false }. Refused: a live session unless stop is true, and a pinned session or a sub-session of one (unpin it, or detach the sub-session with parent null, through atc_session_update first). Live sub-sessions on a host that survives move to the top level.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {

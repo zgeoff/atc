@@ -144,7 +144,7 @@ export function buildScopedContext(
         : Promise.resolve('missing' as const),
     revokeSessionAuth: (id) => (canSee(id) ? ctx.revokeSessionAuth(id) : Promise.resolve(false)),
     updateSessionAuth: (id) => (canSee(id) ? ctx.updateSessionAuth(id) : Promise.resolve(null)),
-    updateSession: (id, name, pinned) => canSee(id) && ctx.updateSession(id, name, pinned),
+    updateSession: (id, changes) => canSee(id) && ctx.updateSession(id, changes),
     updateSessionScope: (id, scope) =>
       canSee(id) ? ctx.updateSessionScope(id, scope) : Promise.resolve('missing' as const),
     ackSession: (id) => canSee(id) && ctx.ackSession(id),

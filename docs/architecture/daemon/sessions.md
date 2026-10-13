@@ -82,9 +82,16 @@ parent. The parent link holds a set of sessions together:
 
 - A sub-session lists under its parent and sorts among its siblings alone, so its attention never
   moves the parent's row.
-- It pins with its parent, and a kill of the parent ends its live sub-sessions.
+- It pins with its parent, so a forget that refuses pinned sessions refuses it while the parent is
+  pinned, and a kill of the parent ends its live sub-sessions.
 - The set stays one level deep: a spawn whose parent is itself a sub-session lands beside it.
 - The fleet stores the link by the parent's atc session id, so a restore brings the whole set back.
+
+An update with a null parent detaches a sub-session: it becomes top-level, so its own pin, kill and
+forget apply, and the former parent keeps its pin. The update moves no session under another parent.
+A sub-session inside its parent's imp is refused, because a kill or forget of the parent still
+sleeps or destroys that imp with the sub-session in it. Detaching splits one tree in two, which can
+bring the parent back within a principal's reach ([principals](../protocol/principals.md#reach)).
 
 A sub-session runs on the default target unless its spawn sets one, and never inherits its parent's
 target. On an imp target it shares its parent's host only when its target matches the parent's

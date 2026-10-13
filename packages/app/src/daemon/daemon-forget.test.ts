@@ -434,6 +434,94 @@ test('it refuses a forget that refuses a pinned session of a sub-session of a pi
   });
 });
 
+test('it forgets a detached sub-session of a pinned session and keeps the former parent pinned', async () => {
+  const provider = new LocalPTYProvider();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
+
+  const spawnedParent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const parent = getRecord(spawnedParent, 'session')['id'];
+
+  const spawnedChild = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    parent,
+  });
+
+  const child = getRecord(spawnedChild, 'session')['id'];
+
+  await daemon.client.sendRequest('session.update', { session: parent, pinned: true });
+  await daemon.client.sendRequest('session.kill', { session: child, stopOnly: true });
+  await daemon.client.sendRequest('session.update', { session: child, parent: null });
+
+  const forgotten = await daemon.client.sendRequest('session.forget', {
+    session: child,
+    refusePinned: true,
+    refuseLive: true,
+  });
+
+  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id: parent, pinned: true })],
+  });
+});
+
+test('it refuses an update whose parent is not null and leaves the sub-session under its parent', async () => {
+  const provider = new LocalPTYProvider();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+    }),
+  });
+
+  const spawnedParent = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const parent = getRecord(spawnedParent, 'session')['id'];
+
+  const spawnedChild = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    parent,
+  });
+
+  const child = getRecord(spawnedChild, 'session')['id'];
+  const refused = daemon.client.sendRequest('session.update', { session: child, parent });
+
+  expect(refused).rejects.toMatchObject({ code: 'bad_args' });
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [
+      expect.objectContaining({ id: parent }),
+      expect.objectContaining({ id: child, parent }),
+    ],
+  });
+});
+
 test('it refuses a forget that refuses a live session when the session is live', async () => {
   const provider = new LocalPTYProvider();
 

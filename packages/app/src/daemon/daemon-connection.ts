@@ -624,13 +624,24 @@ export class DaemonConnection {
         }
 
         const sessionID = parsed.data.session;
-        const updated = ctx.updateSession(sessionID, parsed.data.name, parsed.data.pinned);
+
+        const updated = ctx.updateSession(sessionID, {
+          ...(parsed.data.name === undefined ? {} : { name: parsed.data.name }),
+          ...(parsed.data.pinned === undefined ? {} : { pinned: parsed.data.pinned }),
+          ...(parsed.data.parent === null ? { parent: null } : {}),
+        });
 
         if (updated === 'child_pin') {
           this.sendErr(
             req.id,
             'bad_args',
             `session '${sessionID}' is a sub-session and takes its pin from its parent`,
+          );
+        } else if (updated === 'shared_host') {
+          this.sendErr(
+            req.id,
+            'bad_args',
+            `session '${sessionID}' runs in its parent's host and cannot be detached from it`,
           );
         } else if (updated) {
           this.sendOk(req.id, 'session.update', {});

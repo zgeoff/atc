@@ -1750,7 +1750,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         },
       });
     },
-    updateSession: (id, name, pinned) => mgr.updateSession(id, name, pinned),
+    updateSession: (id, changes) => mgr.updateSession(id, changes),
     updateSessionScope: (id, scope) => mgr.updateScope(id, scope),
     isCallerTree: (id, caller) => mgr.isCallerTree(id, caller),
     quitDaemon: () => {

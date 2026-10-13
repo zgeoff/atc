@@ -64,6 +64,7 @@ import { pickSessionState } from './pick-session-state';
 import type { PublishedRecords } from './published-records';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
+import type { SessionChanges } from './session-changes';
 import { toDaemonError } from './to-daemon-error';
 
 export type SessionEventKind = 'added' | 'state' | 'renamed' | 'removed';
@@ -1027,27 +1028,41 @@ export class SessionManager {
    * user strength, so auto-summaries stop overwriting it while an
    * in-session rename still wins. Pinned sessions lead every list. A
    * sub-session takes its pin from its parent, so pinning one is refused.
+   * A null parent makes a sub-session top-level before any pin applies, so
+   * its pin, kill, and forget no longer follow its former parent. A
+   * sub-session that runs in its parent's host is refused one, since the
+   * host owner's kill and forget would still end it.
    */
-  updateSession(id: SessionID, name?: string, pinned?: boolean): boolean | 'child_pin' {
+  updateSession(id: SessionID, changes: SessionChanges): boolean | 'child_pin' | 'shared_host' {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
       return false;
     }
 
-    if (pinned !== undefined && s.parent !== null) {
+    if (changes.parent === null && s.parent !== null && s.hostKey !== s.id) {
+      return 'shared_host';
+    }
+
+    if (changes.pinned !== undefined && s.parent !== null && changes.parent !== null) {
       return 'child_pin';
     }
 
-    if (name !== undefined && name !== '' && s.namedBy !== 'agent') {
-      s.name = name;
+    if (changes.parent === null && s.parent !== null) {
+      s.parent = null;
+
+      this.onEvent('state', s);
+    }
+
+    if (changes.name !== undefined && changes.name !== '' && s.namedBy !== 'agent') {
+      s.name = changes.name;
       s.namedBy = 'user';
 
       this.onEvent('renamed', s);
     }
 
-    if (pinned !== undefined && pinned !== s.pinned) {
-      s.pinned = pinned;
+    if (changes.pinned !== undefined && changes.pinned !== s.pinned) {
+      s.pinned = changes.pinned;
 
       this.onEvent('state', s);
     }

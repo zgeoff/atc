@@ -7,6 +7,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { spawnClaudeSession } from '@atc/test-utils/spawn-claude-session';
 import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
+import { waitFor } from '@atc/test-utils/wait-for';
 
 function setupTest() {
   return startTUIHarness();
@@ -195,6 +196,51 @@ test('it lists a sub-session indented under its parent', async () => {
   await ctx.waitFor('↳ worker');
 
   expect(ctx.read()).toMatch(/wrangler[\s\S]*↳ worker/u);
+}, 15_000);
+
+test('it lists a detached sub-session as top-level', async () => {
+  const ctx = setupTest();
+
+  ctx.boot();
+
+  await ctx.waitFor('atc — control tower');
+
+  const daemon = await DaemonClient.open(join(ctx.home, 'atc-daemon.sock'));
+
+  registerTestCleanup(() => {
+    daemon.stop();
+  });
+
+  await daemon.sendHello('atc/test');
+
+  const parentID = await spawnNamedSession(
+    (m, p) => daemon.sendRequest(m, p),
+    'wrangler',
+    ctx.home,
+  );
+
+  const workerID = await spawnNamedSession(
+    (m, p) => daemon.sendRequest(m, { ...p, parent: parentID }),
+    'worker',
+    ctx.home,
+  );
+
+  ctx.write(KEYS.ctrlSpace);
+
+  await ctx.waitFor('↳ worker');
+
+  ctx.reset();
+
+  await daemon.sendRequest('session.update', { session: workerID, parent: null });
+
+  // Another session's state can repaint the overlay before the detach
+  // does, so only the latest frame counts.
+  await waitFor(() => {
+    const frame = ctx.read().split('┌ sessions ').at(-1);
+
+    expect(frame).toInclude('worker');
+    expect(frame).not.toInclude('↳');
+  });
 }, 15_000);
 
 test('it preselects the focused session when the overlay opens', async () => {

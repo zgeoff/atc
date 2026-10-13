@@ -106,6 +106,10 @@ export const DAEMON_FEATURES = [
   // `message.get` and `session.message` can return status `unanswered`, with
   // `unansweredAt` and `unansweredReason`.
   'message.unanswered',
+
+  // `session.update` takes `parent: null`, which makes a sub-session
+  // top-level.
+  'session.update.parent',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
