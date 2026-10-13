@@ -284,13 +284,13 @@ test('it loads a stock claude entry without an MCP server that breaks a rule, an
   });
 });
 
-test('it refuses a stock entry whose auth sets placeholderEnv', () => {
+test("it loads a stock claude entry whose placeholder stands in for a non-Anthropic profile's key", () => {
   const result = collectAgents(
     {
       claude: {
         auth: {
-          profiles: ['claude'],
-          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+          profiles: ['claude', 'jev'],
+          placeholderEnv: { TYPESAFE_API_KEY: { profile: 'jev' } },
         },
       },
     },
@@ -304,6 +304,117 @@ test('it refuses a stock entry whose auth sets placeholderEnv', () => {
           scheme: 'bearer',
         }),
       ],
+      [
+        'jev',
+        buildMockAuthProfile({
+          name: 'jev',
+          host: 'api.typesafe.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+        auth: {
+          profiles: ['claude', 'jev'],
+          placeholderEnv: { TYPESAFE_API_KEY: 'imp-broker-placeholder' },
+        },
+      },
+    ],
+    errors: [],
+  });
+});
+
+test.each([
+  [
+    'an Anthropic key',
+    { ANTHROPIC_AUTH_TOKEN: { profile: 'jev' } },
+    'agents.claude: auth.placeholderEnv.ANTHROPIC_AUTH_TOKEN: atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable',
+  ],
+  [
+    'a key on no profile',
+    { TYPESAFE_API_KEY: 'imp-broker-placeholder' },
+    'agents.claude: auth.placeholderEnv.TYPESAFE_API_KEY: a placeholder must be an object with the profile whose credential it stands in for',
+  ],
+  [
+    'a key on the Anthropic profile',
+    { TYPESAFE_API_KEY: { profile: 'claude' } },
+    'agents.claude: auth.placeholderEnv.TYPESAFE_API_KEY: profile claude sends its credential to api.anthropic.com, and atc fixes the placeholder of a credential sent to Anthropic',
+  ],
+])('it refuses a stock entry whose placeholder is for %s', (_label, placeholderEnv, error) => {
+  const result = collectAgents(
+    { claude: { auth: { profiles: ['claude', 'jev'], placeholderEnv } } },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'jev',
+        buildMockAuthProfile({
+          name: 'jev',
+          host: 'api.typesafe.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({ agents: [], errors: [error] });
+});
+
+test.each([
+  ['env', { env: { TYPESAFE_API_KEY: 'sk-typesafe' } }],
+  ['settings.env', { settings: { env: { TYPESAFE_API_KEY: 'sk-typesafe' } } }],
+])('it refuses a stock entry whose %s also sets a placeholder', (source, overrides) => {
+  const result = collectAgents(
+    {
+      claude: {
+        ...overrides,
+        auth: {
+          profiles: ['claude', 'jev'],
+          placeholderEnv: { TYPESAFE_API_KEY: { profile: 'jev' } },
+        },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'jev',
+        buildMockAuthProfile({
+          name: 'jev',
+          host: 'api.typesafe.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
     ]),
     [buildClaudePlugin()],
   );
@@ -311,7 +422,7 @@ test('it refuses a stock entry whose auth sets placeholderEnv', () => {
   expect(result).toStrictEqual({
     agents: [],
     errors: [
-      'agents.claude: auth.placeholderEnv cannot be set: atc fixes the endpoint and the placeholder of a Claude subscription session',
+      `agents.claude: auth.placeholderEnv.TYPESAFE_API_KEY is also set in ${source}, which would override it`,
     ],
   });
 });

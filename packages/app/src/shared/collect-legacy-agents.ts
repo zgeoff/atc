@@ -1,4 +1,5 @@
 import type { AgentEntry } from '@atc/config/agent-entry';
+import { isRecord } from '@atc/core/is-record';
 import { collectClaudeAuth } from '@atc/harness-claude/config/collect-claude-auth';
 import { collectGateways } from '@atc/harness-claude/config/collect-gateways';
 import type { AuthProfile } from '@atc/plugin-api/auth-profile';
@@ -36,7 +37,7 @@ export function collectLegacyAgents(
   keys: LegacyAgentKeys,
   authProfiles: ReadonlyMap<string, AuthProfile>,
 ): LegacyAgents {
-  const claudeAuth = collectClaudeAuth(keys.claudeAuth, authProfiles);
+  const claudeAuth = collectLegacyClaudeAuth(keys.claudeAuth, authProfiles);
   const gateways = collectGateways(keys.gateways, keys.claudeBin, keys.claudeArgs, authProfiles);
 
   const agents: AgentEntry[] = [
@@ -77,4 +78,22 @@ export function collectLegacyAgents(
   ];
 
   return { agents, errors: [...claudeAuth.errors, ...gateways.errors] };
+}
+
+// The old key's Claude auth, which never takes placeholders: only an entry
+// in the agents map binds a variable to a profile.
+function collectLegacyClaudeAuth(
+  raw: unknown,
+  authProfiles: ReadonlyMap<string, AuthProfile>,
+): ReturnType<typeof collectClaudeAuth> {
+  if (isRecord(raw) && Object.hasOwn(raw, 'placeholderEnv')) {
+    return {
+      auth: null,
+      errors: [
+        'claudeAuth.placeholderEnv cannot be set: atc fixes the endpoint and the placeholder of a Claude subscription session',
+      ],
+    };
+  }
+
+  return collectClaudeAuth(raw, authProfiles);
 }

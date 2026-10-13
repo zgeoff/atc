@@ -124,3 +124,68 @@ test('it gives each built-in agent its default bin and no args for keys left at 
     errors: [],
   });
 });
+
+test('it leaves out an old Claude auth that sets placeholders, which only the agents map takes', () => {
+  const legacy = collectLegacyAgents(
+    {
+      claudeBin: 'claude',
+      claudeArgs: [],
+      claudeAuth: {
+        profiles: ['claude', 'jev'],
+        placeholderEnv: { TYPESAFE_API_KEY: { profile: 'jev' } },
+      },
+      grokBin: 'grok',
+      grokArgs: [],
+      codexBin: 'codex',
+      codexArgs: [],
+      gateways: undefined,
+    },
+    new Map([
+      [
+        'claude',
+        {
+          name: 'claude',
+          secret: 'claude-setup-token',
+          kind: 'custom',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+      [
+        'jev',
+        {
+          name: 'jev',
+          secret: 'jev-imp-agents',
+          kind: 'custom',
+          host: 'api.typesafe.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          dependencies: [],
+        },
+      ],
+    ]),
+  );
+
+  expect(legacy).toStrictEqual({
+    agents: [
+      {
+        id: 'claude',
+        kind: 'claude',
+        label: 'Claude',
+        mark: 'c',
+        bin: 'claude',
+        args: [],
+        env: {},
+      },
+      { id: 'grok', kind: 'grok', label: 'Grok', mark: 'g', bin: 'grok', args: [], env: {} },
+      { id: 'codex', kind: 'codex', label: 'Codex', mark: 'c', bin: 'codex', args: [], env: {} },
+    ],
+    errors: [
+      'claudeAuth.placeholderEnv cannot be set: atc fixes the endpoint and the placeholder of a Claude subscription session',
+    ],
+  });
+});

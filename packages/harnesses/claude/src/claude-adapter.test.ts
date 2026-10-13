@@ -719,6 +719,55 @@ test('it selects the subscription token on the Anthropic API with the placeholde
   });
 });
 
+test("it selects the entry's own placeholders beside the subscription token's", () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      jev: {
+        secret: 'jev-imp-agents',
+        host: 'api.typesafe.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      claude: {
+        auth: {
+          profiles: ['claude', 'jev'],
+          placeholderEnv: { TYPESAFE_API_KEY: { profile: 'jev' } },
+        },
+      },
+    },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  expect(adapter.findAuthSelection()).toStrictEqual({
+    gateway: {
+      id: 'claude',
+      baseURL: 'https://api.anthropic.com',
+      auth: {
+        profiles: ['claude', 'jev'],
+        placeholderEnv: {
+          TYPESAFE_API_KEY: 'imp-broker-placeholder',
+          CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+        },
+      },
+    },
+    profiles: config.authProfiles,
+    brokerRequired: false,
+  });
+});
+
 test('it plans a subscription guest spawn with its own config folder, the placeholder, and no permission mode', () => {
   const ctx = setupTest();
 
