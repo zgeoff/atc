@@ -47,10 +47,8 @@ closing event and exits, so one session never has two consumers.
 
 Delivered means the tap printed the message to the mod, not that the model saw it. The mod keeps the
 messages it holds for the current turn in memory, so a Claude Code process that dies after the ack
-makes no report. The daemon marks each message the session holds delivered `unanswered` with the
-reason `session_ended` when the session's process exits or the session is killed or removed. A
-message still queued stays queued for the session's next process. A host that goes to sleep with the
-process inside ends nothing, so its delivered messages wait for the wake.
+makes no report. The daemon settles those messages itself, as
+[the end of a process](#the-end-of-a-process) describes.
 
 A message belongs to the session it was sent to, and follows the agent session when the session
 resumes or clears it, so a resumed session keeps its queue.
@@ -70,11 +68,6 @@ the prompt or a turn ended without a reply before it started one, is reported `u
 reason `not_started`. A message the model never saw, one added to a running turn that ended before
 its next step, is delivered again instead.
 
-A message whose session's process ends while it is delivered is marked `unanswered` with the reason
-`session_ended`, not delivered again when the session revives. Nothing promises a revive, so a
-caller would otherwise wait on the message for good, and the ended turn may have done part of the
-work, which a second delivery would repeat.
-
 Unanswered is final. A later answer for that message changes nothing, and atc never delivers the
 message again, because redelivering after an interrupt would restart work a person stopped, and
 redelivering after an error would repeat the failure. A caller that wants the work done sends the
@@ -84,6 +77,25 @@ read that waits returns as soon as the status becomes answered or unanswered.
 A caller reads a message's status, answer and turn by its id, and can hold the read open until the
 status moves. Message ids and statuses live in `atc.db`, so a caller whose wait ended, or whose
 connection dropped, reads again with the same id.
+
+### The end of a process
+
+When a session's process exits, or a person kills or removes the session, the daemon marks each
+message the session holds delivered `unanswered` with the reason `session_ended`. The mod's state
+died with the process, so no report about those messages can arrive. The daemon marks them rather
+than delivering them again when the session revives, because nothing promises a revive, and the
+ended turn may have done part of the work that a second delivery would repeat. A message still
+queued stays queued for the session's next process.
+
+Every local process ends with the daemon that started it, so a daemon that starts marks the
+delivered messages of every fleet session on its own machine the same way. Three ends mark nothing,
+because the process may still run:
+
+- A host that goes to sleep with the process inside, which a wake resumes.
+- A connection to a remote host that is lost for good, since a revive can attach to the same
+  process.
+- The end of a session while another live session resumes the same agent session, since the daemon
+  cannot tell which of the two processes holds a message.
 
 ## Progress notes
 

@@ -959,30 +959,46 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   // A session whose process ended leaves no turn to report on the messages
-  // it was given, so each one it holds delivered becomes unanswered. A host
-  // asleep with the process inside keeps them for its wake.
-  const updateEndedSessionMessages = async (s: Session) => {
+  // it was given, so each one it holds delivered becomes unanswered.
+  const updateEndedMessages = async (sessionID: SessionID, owner: MessageOwner) => {
     try {
       const unanswered = await store.updateDeliveredMessagesUnanswered(
-        buildMessageOwner(s),
+        owner,
         'session_ended',
         clock.now(),
       );
 
       for (const record of unanswered) {
-        await recordMessageStatus(s.id, record);
+        await recordMessageStatus(sessionID, record);
       }
     } catch {}
   };
 
-  mgr.onEvent = (kind, s) => {
-    const ended =
-      kind === 'removed' ||
-      (s.state === 'exited' && !s.suspended && lastStates.get(s.id) !== 'exited');
+  // While another live session resumes the same agent session, the store
+  // cannot tell which process holds a message, so none is marked.
+  const updateEndedSessionMessages = async (s: Session) => {
+    const shared =
+      s.agentSessionID !== undefined &&
+      mgr.sessions.some(
+        (x) =>
+          x.id !== s.id &&
+          x.agentSessionID === s.agentSessionID &&
+          (x.pty !== null || (x.kind === 'headless' && x.state !== 'exited')),
+      );
 
+    if (!shared) {
+      await updateEndedMessages(s.id, buildMessageOwner(s));
+    }
+  };
+
+  mgr.onProcessEnded = (s) => {
+    void updateEndedSessionMessages(s);
+  };
+
+  mgr.onEvent = (kind, s) => {
     recordAttention(kind, s);
 
-    if (ended) {
+    if (kind === 'removed') {
       void updateEndedSessionMessages(s);
     }
 
@@ -2556,6 +2572,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       );
     }
   };
+
+  // Every harness on the daemon's own machine ended with the daemon before
+  // this one, so the messages its sessions held delivered get no answer.
+  try {
+    for (const entry of await store.loadFleet()) {
+      if (mgr.isLocalTarget(entry.target ?? LOCAL_TARGET.id)) {
+        await updateEndedMessages(entry.sessionID, {
+          atcID: entry.sessionID,
+          ...(entry.agentSessionID === undefined ? {} : { agentSessionID: entry.agentSessionID }),
+        });
+      }
+    }
+  } catch {}
 
   if (opts.restoreFleetOnRestart === true) {
     const stored = await store.loadFleet();
