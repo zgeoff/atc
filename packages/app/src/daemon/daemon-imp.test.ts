@@ -751,6 +751,39 @@ test('it marks a local session message unanswered across a daemon restart after 
   expect(afterRestart['status']).toBe('unanswered');
 });
 
+test('it restores an imp session after a daemon restart when a local spawn resumed its agent session first', async () => {
+  const ctx = await setupTest();
+
+  const remote = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const remoteID = getRecord(remote, 'session')['id'];
+
+  await ctx.restart();
+
+  const client = await ctx.openClient();
+
+  await client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    target: 'local',
+  });
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id: remoteID, alive: true, kind: 'pty' });
+  });
+});
+
 test('it lists a session whose imp another owner put to sleep as asleep', async () => {
   const ctx = await setupTest();
 

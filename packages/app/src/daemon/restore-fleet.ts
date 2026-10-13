@@ -87,11 +87,14 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
   // A session an earlier restore registered and could not start a
   // terminal for is not live until a headless turn starts for it, so this
-  // restore tries it again.
+  // restore tries it again. A live session that resumed the entry's agent
+  // session on another target leaves the entry to restore, because the fleet
+  // keeps a live row on each target.
   const hasLiveSession = (entry: FleetEntry) =>
     mgr.sessions.some(
       (s) =>
         isSameSession(s, entry) &&
+        (s.id === entry.sessionID || isOnEntryTarget(s, entry)) &&
         (s.pty !== null ||
           (s.kind === 'headless' && s.state !== 'exited' && !mgr.isUnrestored(s.id))),
     );
@@ -396,6 +399,16 @@ function isSameSession(s: Session, entry: FleetEntry): boolean {
   return (
     s.id === entry.sessionID ||
     (entry.agentSessionID !== undefined && s.agentSessionID === entry.agentSessionID)
+  );
+}
+
+// Whether a listed session runs on the target and identity a stored entry
+// was bound to. An entry without a target was bound to the `local` target,
+// and one without an identity matches any identity of its target.
+function isOnEntryTarget(s: Session, entry: FleetEntry): boolean {
+  return (
+    s.target === (entry.target ?? 'local') &&
+    (entry.targetIdentity === undefined || s.targetIdentity === entry.targetIdentity)
   );
 }
 

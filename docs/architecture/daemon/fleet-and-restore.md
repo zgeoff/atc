@@ -49,8 +49,9 @@ A daemon restores the fleet itself once it is listening, unless the config turns
 client can ask for a restore at any time. The daemon keeps one restore in flight: a request that
 arrives during one joins it and starts nothing. A later request, after it finishes, revives every
 session that died since and every session an earlier restore could not start a terminal for, and
-skips every live one. A headless turn makes such a session live, so a later restore never starts a
-terminal beside the turn.
+skips every live one. A live session that resumed a row's agent session on another target does not
+stand for that row, because the fleet keeps a live row on each target, so the row still restores. A
+headless turn makes such a session live, so a later restore never starts a terminal beside the turn.
 
 1. **Register every row.** Each row becomes a session without a terminal before any process starts,
    so every client lists the whole incoming fleet at once, marked "waiting to restore". A row whose
