@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
@@ -2309,6 +2309,40 @@ test('it lets lease acquisitions through again after the one failure', async () 
   });
 
   expect(lease.owner.label).toBe('atc-d1');
+});
+
+test('it calls a lease acquire listener in the turn of the acquisition, before it settles', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const heard: string[] = [];
+
+  ctx.port.subscribeToLeaseAcquires((name, label) => {
+    heard.push(`${name} ${label}`);
+  });
+
+  const acquiring = ctx.port.acquireLease('imp-a', 'atc-d1', 60);
+  const heardInTurn = [...heard];
+
+  await acquiring;
+
+  expect(heardInTurn).toStrictEqual(['imp-a atc-d1']);
+});
+
+test('it calls a lease acquire listener no more once it unsubscribes', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const listener = mock();
+  const unsubscribe = ctx.port.subscribeToLeaseAcquires(listener);
+
+  unsubscribe();
+
+  await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
+
+  expect(listener).not.toHaveBeenCalled();
 });
 
 test('it holds a lease acquisition while the lease hold lasts', async () => {

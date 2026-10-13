@@ -1100,25 +1100,17 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
 
   // The sleep holds at its lease release until the forward has ended, so the
   // end arrives while the sleep is pending.
-  const releasing = Promise.withResolvers<void>();
-  const proceed = Promise.withResolvers<void>();
-  const releaseLease = ctx.port.releaseLease.bind(ctx.port);
-
-  ctx.port.releaseLease = async (name, label) => {
-    releasing.resolve();
-
-    await proceed.promise;
-
-    return releaseLease(name, label);
-  };
+  ctx.port.startReleaseHold();
 
   registerTestCleanup(() => {
-    proceed.resolve();
+    ctx.port.stopReleaseHold();
   });
 
   const suspend = provider.suspendHost('s1');
 
-  await releasing.promise;
+  await waitFor(() => {
+    expect(ctx.port.countHeldReleases()).toBe(1);
+  });
 
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
 
@@ -1128,7 +1120,7 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
     );
   });
 
-  proceed.resolve();
+  ctx.port.stopReleaseHold();
 
   expect(suspend).rejects.toThrow();
 
@@ -1139,7 +1131,7 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toHaveLength(2);
 });
 
-test('it listens on the guest socket no more when the harness ends as impd refuses the sleep its hook forward waits on', async () => {
+test('it listens on the guest socket no more when the daemon lets go of the harness as impd refuses the sleep its hook forward waits on', async () => {
   const ctx = setupTest();
   const lines: string[] = [];
 
@@ -1198,15 +1190,13 @@ test('it listens on the guest socket no more when the harness ends as impd refus
   });
 
   // The refused sleep takes the daemon's lease back in the same turn that
-  // settles the forward's wait, so the harness ends before the wait's
-  // continuation runs.
-  const acquireLease = ctx.port.acquireLease.bind(ctx.port);
-
-  ctx.port.acquireLease = (name, label, ttlSeconds) => {
+  // settles the forward's wait, so the daemon lets go of the harness before
+  // the wait's continuation runs.
+  const unsubscribe = ctx.port.subscribeToLeaseAcquires(() => {
     harness.detach();
+  });
 
-    return acquireLease(name, label, ttlSeconds);
-  };
+  registerTestCleanup(unsubscribe);
 
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
 
