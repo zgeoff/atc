@@ -2304,6 +2304,86 @@ test('it lists the other messages answered in the same turn as siblings', async 
   expect(siblings).toStrictEqual([{ id: two.id, atcID: toSessionID('s1') }]);
 });
 
+test('it lists no siblings for a message its turn left unanswered beside another', async () => {
+  const ctx = await setupTest();
+
+  const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
+  const two = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
+
+  await ctx.store.writeMessage(one);
+  await ctx.store.writeMessage(two);
+
+  await ctx.store.updateMessagesUnanswered(
+    [one.id, two.id],
+    { atcID: toSessionID('s1') },
+    'error',
+    3000,
+    't-1',
+  );
+
+  const unanswered = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
+
+  invariant(unanswered !== null, 'unanswered message missing');
+
+  const siblings = await ctx.store.collectTurnSiblings(unanswered);
+
+  expect(siblings).toStrictEqual([]);
+});
+
+test('it keeps the turn of a message its turn left unanswered', async () => {
+  const ctx = await setupTest();
+
+  const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
+
+  await ctx.store.writeMessage(one);
+
+  await ctx.store.updateMessagesUnanswered(
+    [one.id],
+    { atcID: toSessionID('s1') },
+    'error',
+    3000,
+    't-1',
+  );
+
+  const unanswered = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
+
+  expect(unanswered?.turn).toBe('t-1');
+});
+
+test('it leaves an unanswered message of the same turn out of the siblings of an answered one', async () => {
+  const ctx = await setupTest();
+
+  const answeredOne = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
+  const unansweredOne = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
+
+  await ctx.store.writeMessage(answeredOne);
+  await ctx.store.writeMessage(unansweredOne);
+
+  await ctx.store.updateMessagesAnswered(
+    [answeredOne.id],
+    { atcID: toSessionID('s1') },
+    'done',
+    3000,
+    't-1',
+  );
+
+  await ctx.store.updateMessagesUnanswered(
+    [unansweredOne.id],
+    { atcID: toSessionID('s1') },
+    'error',
+    3000,
+    't-1',
+  );
+
+  const answered = await ctx.store.findMessage(answeredOne.id, { atcID: toSessionID('s1') });
+
+  invariant(answered !== null, 'answered message missing');
+
+  const siblings = await ctx.store.collectTurnSiblings(answered);
+
+  expect(siblings).toStrictEqual([]);
+});
+
 test('it lists the other messages of one turn in send order when they share a send time', async () => {
   const ctx = await setupTest();
 

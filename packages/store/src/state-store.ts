@@ -685,9 +685,10 @@ export class StateStore {
   }
 
   // The other messages of the same session the given message's turn
-  // answered, oldest first; none when the message has no turn.
+  // answered, oldest first; none when the message has no turn or no answer.
+  // A message left unanswered keeps its turn but shares no answer.
   async collectTurnSiblings(record: MessageRecord): Promise<TurnSibling[]> {
-    if (record.turn === undefined) {
+    if (record.turn === undefined || record.status !== 'answered') {
       return [];
     }
 
@@ -700,6 +701,7 @@ export class StateStore {
       .selectFrom('messages')
       .select(['id', 'atc_id'])
       .where('turn_id', '=', record.turn)
+      .where('status', '=', 'answered')
       .where('id', '!=', record.id)
       .where((eb) => buildOwnerFilter(eb, owner))
       .orderBy('sent_at', 'asc')
