@@ -1,4 +1,4 @@
-import { expect, mock, onTestFinished, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
@@ -2335,14 +2335,17 @@ test('it calls a lease acquire listener no more once it unsubscribes', async () 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  const listener = mock();
-  const unsubscribe = ctx.port.subscribeToLeaseAcquires(listener);
+  const heard: string[] = [];
+
+  const unsubscribe = ctx.port.subscribeToLeaseAcquires((name, label) => {
+    heard.push(`${name} ${label}`);
+  });
 
   unsubscribe();
 
   await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
 
-  expect(listener).not.toHaveBeenCalled();
+  expect(heard).toStrictEqual([]);
 });
 
 test('it holds a lease acquisition while the lease hold lasts', async () => {
