@@ -243,6 +243,11 @@ class StubImpPort implements ImpPort {
 
   private heldReleases = 0;
 
+  // The imp destroys wait for this hold to end, while one is held.
+  private destroyHold: PromiseWithResolvers<void> | null = null;
+
+  private heldDestroys = 0;
+
   // Called at the start of every lease acquisition, in the caller's turn.
   private readonly leaseAcquireListeners = new Set<(name: string, label: string) => void>();
 
@@ -593,6 +598,20 @@ class StubImpPort implements ImpPort {
   destroyImp(name: string): Promise<void> {
     this.calls.push(`imps.destroy ${name}`);
 
+    return this.destroyHold === null ? this.applyDestroy(name) : this.waitForDestroy(name);
+  }
+
+  private async waitForDestroy(name: string): Promise<void> {
+    this.heldDestroys += 1;
+
+    await this.destroyHold?.promise;
+
+    this.heldDestroys -= 1;
+
+    return this.applyDestroy(name);
+  }
+
+  private applyDestroy(name: string): Promise<void> {
     if (this.destroyFailure !== null) {
       return Promise.reject(
         new ImpPortError(this.destroyFailure, `impd could not destroy ${name}`),
@@ -1227,6 +1246,26 @@ class StubImpPort implements ImpPort {
   stopReleaseHold(): void {
     this.releaseHold?.resolve();
     this.releaseHold = null;
+  }
+
+  /**
+   * Holds every imp destroy until the hold stops.
+   */
+  startDestroyHold(): void {
+    this.destroyHold ??= Promise.withResolvers<void>();
+  }
+
+  // How many imp destroys wait for the destroy hold to stop.
+  countHeldDestroys(): number {
+    return this.heldDestroys;
+  }
+
+  /**
+   * Lets every held imp destroy go through, and the next at once.
+   */
+  stopDestroyHold(): void {
+    this.destroyHold?.resolve();
+    this.destroyHold = null;
   }
 
   /**

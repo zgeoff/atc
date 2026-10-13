@@ -471,6 +471,8 @@ export class ImpProvider implements ExecutionProvider {
       if (!(error instanceof ImpPortError && error.code === 'NOT_FOUND')) {
         if (host !== undefined) {
           host.suspending = false;
+
+          emitSleepRefusal(host);
         }
 
         throw toHostRefusal(error, name);
