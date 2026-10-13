@@ -2,7 +2,6 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { isCompiledBinary } from '@atc/config/is-compiled-binary';
-import { buildTarArchive } from '@atc/core/build-tar-archive';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import { makeKeyedLock } from '@atc/core/make-keyed-lock';
 import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
@@ -34,6 +33,7 @@ import type { ImpCreateSpec, ImpForwardEnd, ImpPort, ImpRelayConnection } from '
 import { ImpPortError } from './imp-port-error';
 import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
 import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
+import { readGuestATCArchive } from './read-guest-atc-archive';
 import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
 import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
 import UNPACK_SCRIPT from './unpack-archive.sh' with { type: 'text' };
@@ -640,13 +640,19 @@ export class ImpProvider implements ExecutionProvider {
   }
 
   // Copies the binary to `bin/atc`, replacing a link to the image's atc.
+  // The binary crosses the network to impd, so it goes over gzipped, and an
+  // imp without gzip refuses the copy before it reads any input.
   private async copyATCBinary(name: string, atcBinary: string): Promise<void> {
-    const binary = await Bun.file(atcBinary).bytes();
-
     const unpacked = await this.port.runCommand(name, {
-      argv: ['sh', '-c', INSTALL_GUEST_ATC_SCRIPT, 'sh', this.guest.dir],
-      stdin: buildTarArchive([{ path: 'bin/atc', content: binary, mode: 0o755 }]),
+      argv: ['sh', '-c', INSTALL_GUEST_ATC_SCRIPT, 'sh', this.guest.dir, String(NO_GZIP_CODE)],
+      stdin: await readGuestATCArchive(atcBinary),
     });
+
+    if (unpacked.code === NO_GZIP_CODE) {
+      throw new Error(
+        `imp ${name} has no gzip, which installing atc in ${this.guest.dir} needs; install gzip in its image`,
+      );
+    }
 
     if (unpacked.code !== 0) {
       throw new Error(`tar exited ${unpacked.code ?? 'by a signal'} installing atc in ${name}`);
