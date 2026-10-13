@@ -226,11 +226,15 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
   };
 
-  const tryAdoptQueued = async (s: Session, canRetry: boolean): Promise<boolean> => {
+  const tryAdoptQueued = async (
+    s: Session,
+    canRetry: boolean,
+    isEligible: (s: Session) => boolean,
+  ): Promise<boolean> => {
     let adopted: AdoptResult;
 
     try {
-      adopted = await tryAdoptTerminal(mgr, s.id, cols, rows, () => !isStopped());
+      adopted = await tryAdoptTerminal(mgr, s.id, cols, rows, () => !isStopped() && isEligible(s));
     } catch (error) {
       failed = true;
 
@@ -260,6 +264,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     sessions: readonly Session[],
     previous: Session | null,
     canRetry: boolean,
+    isEligible: (s: Session) => boolean,
   ): Promise<boolean> => {
     let prev = previous;
 
@@ -272,7 +277,12 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         return false;
       }
 
-      const booted = await tryAdoptQueued(s, canRetry);
+      if (!isEligible(s)) {
+        prev = null;
+        continue;
+      }
+
+      const booted = await tryAdoptQueued(s, canRetry, isEligible);
 
       if (isStopped()) {
         return false;
@@ -299,10 +309,14 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   };
 
   // Each round tries again only the sessions still listed under the
-  // refusal of their last try, so one a caller revived, killed, or forgot
-  // meanwhile is left as it is.
+  // refusal of their last try, checked before each try and while its host
+  // readies, so one a caller revived, killed, or forgot meanwhile is left
+  // as it is.
+  const isStillRefused = (s: Session) =>
+    s.pty === null && mgr.sessions.includes(s) && s.lastMsg === refusals.get(s);
+
   const adoptRest = async (previous: Session | null): Promise<RestoreOutcome> => {
-    if (!(await adoptEach(rest, previous, retryDelaysMs.length > 0))) {
+    if (!(await adoptEach(rest, previous, retryDelaysMs.length > 0, () => true))) {
       return 'stopped';
     }
 
@@ -319,11 +333,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         return 'stopped';
       }
 
-      const still = due.filter(
-        (s) => s.pty === null && mgr.sessions.includes(s) && s.lastMsg === refusals.get(s),
-      );
-
-      if (!(await adoptEach(still, null, round + 1 < retryDelaysMs.length))) {
+      if (!(await adoptEach(due, null, round + 1 < retryDelaysMs.length, isStillRefused))) {
         return 'stopped';
       }
     }
@@ -335,7 +345,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return { restored: registered.length, settled: Promise.resolve('stopped') };
   }
 
-  const firstAdopted = await tryAdoptQueued(first, retryDelaysMs.length > 0);
+  const firstAdopted = await tryAdoptQueued(first, retryDelaysMs.length > 0, () => true);
 
   if (isStopped()) {
     return { restored: registered.length, settled: Promise.resolve('stopped') };

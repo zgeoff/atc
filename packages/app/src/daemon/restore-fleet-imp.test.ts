@@ -9,9 +9,11 @@ import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { buildStubLog } from '@atc/test-utils/build-stub-log';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { restoreFleet } from './restore-fleet';
 import { SessionManager } from './sessions';
@@ -332,6 +334,69 @@ test('it revives a session on a later try once its imp stops refusing it', async
     `atc could not revive session s-busy (imp ${ctx.provider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
     expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /),
   ]);
+});
+
+test('it leaves stopped a refused session a caller stops while its retry readies the imp', async () => {
+  const ctx = await setupTest();
+
+  const clock = buildStubClock(Date.now());
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-busy'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+  ]);
+
+  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [5000],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1000]);
+  });
+
+  ctx.port.startLeaseHold();
+  clock.advance(5000);
+
+  await waitFor(() => {
+    expect(ctx.port.countHeldLeases()).toBe(1);
+  });
+
+  await mgr.kill(toSessionID('s-busy'), true);
+
+  ctx.port.stopLeaseHold();
+
+  await restored.settled;
+
+  expect(mgr.sessions).toMatchObject([
+    { id: 's-busy', state: 'exited', lastMsg: 'killed', pty: null },
+  ]);
+
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
 test('it revives on a later restore a session an earlier restore left without a terminal', async () => {
