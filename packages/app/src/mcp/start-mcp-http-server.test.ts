@@ -3023,13 +3023,11 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
     ticked: ['read'],
   });
 
-  const events: unknown = ctx.security.map((line) =>
-    JSON.parse(line.slice('atc security '.length)),
-  );
-
   expect(ctx.security).toSatisfyAll((line: string) => line.startsWith('atc security {'));
 
-  expect(events).toStrictEqual([
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
     {
       v: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
@@ -3038,9 +3036,9 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
       route: '/oauth2/authorize',
       client: { id: clientID, name: 'Claude' },
       redirectHost: 'claude.ai',
-      correlationID: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+      correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
     {
       v: 1,
@@ -3050,9 +3048,9 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
       method: 'approval_code',
       route: '/login',
       client: { id: clientID, name: 'Claude' },
-      correlationID: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+      correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
     {
       v: 1,
@@ -3062,9 +3060,9 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
       route: '/consent',
       client: { id: clientID, name: 'Claude' },
       redirectHost: 'claude.ai',
-      correlationID: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+      correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
   ]);
 });
@@ -3139,7 +3137,7 @@ test('it writes a start refused by the limit on starts as rate_limited', async (
     client: { id: clientID, name: 'Claude' },
     redirectHost: 'claude.ai',
     peer: { address: '127.0.0.1', provenance: 'socket' },
-    userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+    userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
   });
 });
 
@@ -3169,7 +3167,9 @@ test('it writes an authorization better-auth refuses with its error code', async
 
   await fetch(authorize, { redirect: 'manual' });
 
-  expect(ctx.security.map((line) => JSON.parse(line.slice('atc security '.length)))).toStrictEqual([
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
     {
       v: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
@@ -3180,7 +3180,7 @@ test('it writes an authorization better-auth refuses with its error code', async
       client: { id: clientID, name: 'Claude' },
       redirectHost: 'claude.ai',
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
   ]);
 });
@@ -3203,7 +3203,9 @@ test('it writes an authorization for an unknown client as invalid_client without
 
   await fetch(authorize, { redirect: 'manual' });
 
-  expect(ctx.security.map((line) => JSON.parse(line.slice('atc security '.length)))).toStrictEqual([
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
     {
       v: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
@@ -3212,7 +3214,7 @@ test('it writes an authorization for an unknown client as invalid_client without
       reason: 'invalid_client',
       route: '/oauth2/authorize',
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
   ]);
 });
@@ -3224,7 +3226,9 @@ test('it writes a request whose Host header it does not serve as bad_host', asyn
     headers: { host: 'rebound.example' },
   });
 
-  expect(ctx.security.map((line) => JSON.parse(line.slice('atc security '.length)))).toStrictEqual([
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
     {
       v: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
@@ -3233,7 +3237,7 @@ test('it writes a request whose Host header it does not serve as bad_host', asyn
       reason: 'bad_host',
       route: '/.well-known/oauth-authorization-server',
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
   ]);
 });
@@ -3251,7 +3255,9 @@ test('it writes a form post from another origin as bad_origin', async () => {
     body: new URLSearchParams({ oauth_query: 'client_id=x', code: 'AAAA-BBBB' }),
   });
 
-  expect(ctx.security.map((line) => JSON.parse(line.slice('atc security '.length)))).toStrictEqual([
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
     {
       v: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
@@ -3260,7 +3266,32 @@ test('it writes a form post from another origin as bad_origin', async () => {
       reason: 'bad_origin',
       route: '/login',
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
+    },
+  ]);
+});
+
+test('it writes an MCP request from a browser on another origin as bad_origin', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/mcp`, {
+    method: 'POST',
+    headers: { origin: 'https://evil.example' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+  });
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
+    {
+      v: 1,
+      ts: new Date(ctx.clock.now()).toISOString(),
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'bad_origin',
+      route: '/mcp',
+      peer: { address: '127.0.0.1', provenance: 'socket' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
   ]);
 });
@@ -3313,7 +3344,7 @@ test('it writes a wrong approval code as a failed owner sign-in with the start c
     client: { id: clientID, name: 'Claude' },
     correlationID: started,
     peer: { address: '127.0.0.1', provenance: 'socket' },
-    userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+    userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
   });
 });
 
@@ -3350,17 +3381,15 @@ test('it writes the fifth wrong approval code as a locked owner sign-in', async 
     });
   }
 
-  const reasons = ctx.security.map(
-    (line) => (JSON.parse(line.slice('atc security '.length)) as { reason?: string }).reason,
-  );
-
-  expect(reasons).toStrictEqual([
-    undefined,
-    'wrong_code',
-    'wrong_code',
-    'wrong_code',
-    'wrong_code',
-    'locked',
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([
+    { kind: 'authorize_started', outcome: 'accepted' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'wrong_code' },
+    { kind: 'owner_auth', outcome: 'failed', reason: 'locked' },
   ]);
 });
 
@@ -3374,7 +3403,9 @@ test('it writes a code posted for an approval that no longer waits as an expired
     body: new URLSearchParams({ oauth_query: 'client_id=gone&sig=gone', code: 'AAAA-BBBB' }),
   });
 
-  expect(ctx.security.map((line) => JSON.parse(line.slice('atc security '.length)))).toStrictEqual([
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
     {
       v: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
@@ -3384,7 +3415,7 @@ test('it writes a code posted for an approval that no longer waits as an expired
       method: 'approval_code',
       route: '/login',
       peer: { address: '127.0.0.1', provenance: 'socket' },
-      userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+      userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
   ]);
 });
@@ -3457,9 +3488,9 @@ test('it writes an allow sent with no scope ticked as a denied consent with none
     route: '/consent',
     client: { id: clientID, name: 'Claude' },
     redirectHost: 'claude.ai',
-    correlationID: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+    correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
     peer: { address: '127.0.0.1', provenance: 'socket' },
-    userAgent: { summary: expect.stringMatching(/^Bun\//u), provenance: 'client' },
+    userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
   });
 });
 
@@ -3736,31 +3767,23 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
     refreshToken,
   ];
 
-  const events = ctx.security.map(
-    (line) =>
-      JSON.parse(line.slice('atc security '.length)) as {
-        kind: string;
-        forwarded?: { provenance: string };
-      },
-  );
+  const forwarded = {
+    address: '198.51.100.23',
+    header: 'cf-connecting-ip',
+    provenance: 'unverified',
+  };
 
-  expect(events.map((event) => event.kind)).toStrictEqual([
-    'authorize_started',
-    'owner_auth',
-    'owner_auth',
-    'consent',
-    'authorize_invalid',
-    'authorize_invalid',
-    'authorize_invalid',
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([
+    { kind: 'authorize_started', forwarded },
+    { kind: 'owner_auth', forwarded },
+    { kind: 'owner_auth', forwarded },
+    { kind: 'consent', forwarded },
+    { kind: 'authorize_invalid', forwarded },
+    { kind: 'authorize_invalid', forwarded },
+    { kind: 'authorize_invalid', forwarded },
   ]);
-
-  expect(events.map((event) => event.forwarded)).toStrictEqual(
-    Array.from({ length: 7 }, () => ({
-      address: '198.51.100.23',
-      header: 'cf-connecting-ip',
-      provenance: 'unverified',
-    })),
-  );
 
   expect(ctx.security).toSatisfyAll((line: string) =>
     secrets.every((secret) => !line.includes(secret)),

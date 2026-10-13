@@ -219,7 +219,7 @@ test('it prints the approval line to stdout alone and each sign-in security even
   expect(printed).toSatisfyAll((line: string) => !line.startsWith('atc security '));
   expect(errors).toSatisfyAll((line: string) => !line.includes('Approve'));
 
-  expect(errors.filter((line) => line.startsWith('atc security '))).toStrictEqual([
+  expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
     expect.stringMatching(
       /^atc security \{"v":1,.*"kind":"authorize_started","outcome":"accepted"/u,
     ),

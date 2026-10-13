@@ -90,7 +90,11 @@ export class SecurityEventLog {
     }
   }
 
-  private printSuppressed(kind: SecurityEvent['kind'], window: KindWindow, now: number): void {
+  private printSuppressed(
+    kind: SecurityEvent['kind'],
+    window: Readonly<KindWindow>,
+    now: number,
+  ): void {
     window.cancelFlush?.();
 
     if (window.dropped > 0) {

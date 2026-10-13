@@ -126,20 +126,33 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
 
       const path = new URL(request.url).pathname;
 
+      // The socket's peer is the requester, or the proxy or tunnel in front
+      // of atc.
+      const requester: Requester = {
+        socketAddress: bunServer.requestIP(request)?.address ?? null,
+        connectingIP: request.headers.get('cf-connecting-ip'),
+        userAgent: request.headers.get('user-agent'),
+      };
+
       if (options.probes === true && PROBE_PATHS.has(path)) {
         response = answerProbeRequest(request, path, holder.hosts, state !== null);
+
+        if (response.status === 403) {
+          security.record({
+            kind: 'authorize_invalid',
+            outcome: 'rejected',
+            reason: 'bad_host',
+            path,
+            requester,
+          });
+        }
       } else if (state === null) {
         response = new Response(null, { status: 503 });
       } else {
         try {
-          response = await answerHTTPRequest(
-            state,
-            request,
-            bunServer.requestIP(request)?.address ?? null,
-            (label) => {
-              rpc = label;
-            },
-          );
+          response = await answerHTTPRequest(state, request, requester, (label) => {
+            rpc = label;
+          });
         } catch {
           response = new Response(null, { status: 503 });
         }
@@ -324,24 +337,18 @@ const RESOURCE_METADATA: ReadonlySet<string> = new Set([
   'GET /.well-known/oauth-protected-resource/mcp',
 ]);
 
-// `socketAddress` is the peer the request arrived from: the requester, or the
-// proxy or tunnel in front of atc. `onRPC` receives an accepted MCP request's
-// JSON-RPC method and tool, for its request line.
+// `requester` is where the request came from, for its security events.
+// `onRPC` receives an accepted MCP request's JSON-RPC method and tool, for
+// its request line.
 async function answerHTTPRequest(
   state: ServerState,
   request: Request,
-  socketAddress: string | null,
+  requester: Requester,
   onRPC: (label: RPCLabel | null) => void,
 ): Promise<Response> {
   const ctx = state.ctx;
 
   const url = new URL(request.url);
-
-  const requester: Requester = {
-    socketAddress,
-    connectingIP: request.headers.get('cf-connecting-ip'),
-    userAgent: request.headers.get('user-agent'),
-  };
 
   const host = request.headers.get('host');
 
@@ -411,6 +418,14 @@ async function answerHTTPRequest(
 
   if (MCP_PATHS.has(url.pathname)) {
     if (isForeignOrigin) {
+      ctx.security.record({
+        kind: 'authorize_invalid',
+        outcome: 'rejected',
+        reason: 'bad_origin',
+        path: url.pathname,
+        requester,
+      });
+
       return new Response(null, { status: 403 });
     }
 

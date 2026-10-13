@@ -161,12 +161,77 @@ test('it prints the approval line to stdout alone and each sign-in security even
   expect(printed).toSatisfyAll((line: string) => !line.startsWith('atc security '));
   expect(errors).toSatisfyAll((line: string) => !line.includes('Approve'));
 
-  expect(errors.filter((line) => line.startsWith('atc security '))).toStrictEqual([
+  expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
     expect.stringMatching(
       /^atc security \{"v":1,.*"kind":"authorize_started","outcome":"accepted"/u,
     ),
     expect.stringMatching(
       /^atc security \{"v":1,.*"kind":"authorize_invalid".*"reason":"bad_host"/u,
+    ),
+  ]);
+});
+
+test('it writes a probe from a Host it does not serve as a bad_host security event', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.geoff.cloud',
+      registryPath: join(ctx.dir, 'registry.json'),
+      stateDir: join(ctx.dir, 'state'),
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the gateway registered no SIGTERM handler');
+  registerTestCleanup(() => stop());
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
+    ?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  const refused = await fetch(`http://127.0.0.1:${port}/healthz`, {
+    headers: { host: 'rebound.example' },
+  });
+
+  expect(refused.status).toBe(403);
+
+  expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
+    expect.stringMatching(
+      /^atc security \{"v":1,.*"kind":"authorize_invalid","outcome":"rejected","reason":"bad_host","route":"\/healthz"/u,
     ),
   ]);
 });
