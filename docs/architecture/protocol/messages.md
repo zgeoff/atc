@@ -89,8 +89,10 @@ ended turn may have done part of the work that a second delivery would repeat. A
 queued stays queued for the session's next process.
 
 Every local process ends with the daemon that started it, so a daemon that starts marks the
-delivered messages of every fleet session on its own machine the same way. Three ends mark nothing,
-because the process may still run:
+delivered messages of every fleet session on its own machine the same way. A session whose agent
+session id a live fleet row on a remote target holds marks only the messages sent to it, because
+that row's session may still run there and hold its own. Three ends mark nothing, because the
+process may still run:
 
 - A host that goes to sleep with the process inside, which a wake resumes.
 - A connection to a remote host that is lost for good, since a revive can attach to the same

@@ -89,6 +89,132 @@ test('it drops a stored row whose agent session id a written entry holds', async
   expect(fleet).toStrictEqual([resumed]);
 });
 
+test('it keeps a stored live row on another target whose agent session id a written entry holds', async () => {
+  const ctx = await setupTest();
+
+  const remote = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'box',
+    targetIdentity: 'imp:box',
+  });
+
+  const local = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  await ctx.store.writeFleet([remote]);
+  await ctx.store.writeFleet([local]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([remote, local]);
+});
+
+test('it keeps a live entry on another target beside a later entry that holds its agent session id', async () => {
+  const ctx = await setupTest();
+
+  const remote = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'box',
+    targetIdentity: 'imp:box',
+  });
+
+  const local = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  await ctx.store.writeFleet([remote, local]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([remote, local]);
+});
+
+test('it keeps the later of two live entries on one target when a live entry on another target follows them', async () => {
+  const ctx = await setupTest();
+
+  const first = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const second = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const remote = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'box',
+    targetIdentity: 'imp:box',
+  });
+
+  await ctx.store.writeFleet([first, second, remote]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([second, remote]);
+});
+
+test('it drops a stored live row on the target of a written entry when a live entry on another target follows it', async () => {
+  const ctx = await setupTest();
+
+  const first = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const second = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  const remote = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'box',
+    targetIdentity: 'imp:box',
+  });
+
+  await ctx.store.writeFleet([first]);
+  await ctx.store.writeFleet([second, remote]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([second, remote]);
+});
+
+test('it drops a stored exited row on another target whose agent session id a written entry holds', async () => {
+  const ctx = await setupTest();
+
+  const remote = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'box',
+    targetIdentity: 'imp:box',
+    exited: true,
+  });
+
+  const local = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:local',
+  });
+
+  await ctx.store.writeFleet([remote]);
+  await ctx.store.writeFleet([local]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([local]);
+});
+
 test('it relinks a stored sub-session to the session that replaced its parent', async () => {
   const ctx = await setupTest();
 
@@ -891,6 +1017,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '028_rename_reports_to_notes_and_accepted_to_queued',
     '029_add_fleet_auth_revision',
     '030_add_messages_unanswered',
+    '031_rebuild_fleet_without_unique_agent_session_id',
   ]);
 });
 
@@ -940,7 +1067,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 30 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 31 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -3698,7 +3825,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-6, -3);
+    .slice(-7, -4);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();
@@ -3717,6 +3844,50 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     '026_add_fleet_resume_interrupted_turns',
     '027_create_published_record',
   ]);
+});
+
+test('it carries every fleet row and column across the rebuild that lets two rows share an agent session id', async () => {
+  const ctx = await setupTest();
+
+  const entry = buildMockFleetEntry({
+    pinned: true,
+    lastAttachedAt: 1000,
+    exited: true,
+    prompt: 'do it',
+    result: 'done',
+    transcriptPath: '/t.jsonl',
+    model: 'opus',
+    effort: 'high',
+    target: 'box',
+    targetIdentity: 'imp:0123456789abcdef',
+    desired: 'sleep',
+    hostKey: toSessionID('s-host'),
+    authRevision: 2,
+  });
+
+  await ctx.store.writeFleet([entry]);
+  await ctx.store.stop();
+
+  const older = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  older.run(
+    "DELETE FROM kysely_migration WHERE name = '031_rebuild_fleet_without_unique_agent_session_id'",
+  );
+
+  older.run('DROP INDEX fleet_agent_session_id');
+  older.close();
+
+  const upgraded = await StateStore.open(ctx.dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const fleet = await upgraded.loadFleet();
+
+  expect(fleet).toStrictEqual([entry]);
 });
 
 test('it records a runtime auth binding as provisioning at its first revision', async () => {
