@@ -35,14 +35,18 @@ When a systemd user service runs the daemon, the `local-pty` provider starts eac
 transient scope of its own, so the service's cgroup holds only the daemon. A process that a harness
 leaves behind and that cannot exit, such as one stuck in an uninterruptible wait on a hung
 filesystem, then keeps only its own scope stopping, and a stop or restart of the service never waits
-for it. The provider takes this path only when the daemon is the service's main process. A daemon
-started from a shell, a test, or a session runs its harnesses as plain children in its own cgroup.
+for it. The provider takes this path only when the daemon is the service's main process, and only
+with a `systemd-run` that can leave a harness's arguments as they are, since a scope otherwise
+expands each `$` reference in them. A daemon started from a shell, a test, or a session runs its
+harnesses as plain children in its own cgroup.
 
 A local harness in a scope still ends with the daemon. Each scope binds to the service, so systemd
 stops the scope when the service stops or fails. A restart of the service stops no bound scope, so
-the daemon stops every scope it started as it stops, and stops any scope an earlier daemon in the
-service left behind as it starts. Each of these stops only queues the scope's stop with systemd, so
-a scope that cannot empty delays nothing but itself.
+the daemon stops every scope it started as it stops, and stops any scope an earlier run of the
+service left behind as it starts. Each scope's name holds the run that started it, so the startup
+sweep never takes a live scope of the current run for a leftover. Each of these stops only queues
+the scope's stop with systemd, so a scope that cannot empty delays nothing but itself, and the
+daemon waits only for systemd to take the stops before it exits.
 
 `local-pty` declares every capability except `suspend` and `destroy`, since its host is the daemon's
 own machine. What a session's kill and forget do follows from these two: a target that can suspend

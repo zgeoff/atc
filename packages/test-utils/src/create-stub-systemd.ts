@@ -41,7 +41,9 @@ interface StubSystemd {
  * as a transient unit sees them, and appends its output to the
  * `StandardOutput=append:` file. `systemd-run --scope` instead replaces
  * itself with the command, which keeps its environment, its terminal, and
- * the pid, as a scope does. Every call is logged. The stand-ins' directory is removed once the
+ * the pid, as a scope does. The `systemd-run` file holds the name of the
+ * `libsystemd-shared-261` library, as a program of systemd 261 does. Every
+ * call is logged. The stand-ins' directory is removed once the
  * current test finishes, so it must run inside a test; `remove` removes it
  * sooner, and a second removal does nothing.
  */
@@ -89,6 +91,7 @@ exit 0
   writeFileSync(
     join(binDir, 'systemd-run'),
     `#!/usr/bin/env bash
+# Stands in for a systemd-run linked against libsystemd-shared-261.so.
 echo "$*" >> "${root}/systemd-run.log"
 case " $* " in
   *" --scope "*)

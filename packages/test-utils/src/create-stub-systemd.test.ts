@@ -210,6 +210,14 @@ test('it replaces systemd-run with the scope command in its own process and envi
   ]);
 });
 
+test('it writes a systemd-run that holds the name of the systemd 261 shared library', () => {
+  const fake = createStubSystemd(['/bin/true']);
+
+  expect(readFileSync(join(fake.binDir, 'systemd-run'), 'utf8')).toInclude(
+    'libsystemd-shared-261.so',
+  );
+});
+
 test('it writes a cgroup file that places a pid in a user service', () => {
   const fake = createStubSystemd(['/bin/true']);
 

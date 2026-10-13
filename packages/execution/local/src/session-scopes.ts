@@ -8,7 +8,12 @@ interface SessionScopesConfig {
   // `atc-daemon.service`.
   readonly unit: string;
 
-  // Absolute paths of the manager's `systemctl` and `systemd-run`.
+  // The daemon run's own token, such as the start of its `INVOCATION_ID`,
+  // which every scope it starts holds in its name.
+  readonly run: string;
+
+  // Absolute paths of the manager's `systemctl` and of a `systemd-run` that
+  // takes `--expand-environment`.
   readonly systemctl: string;
   readonly systemdRun: string;
 }
@@ -35,27 +40,33 @@ export class SessionScopes {
   // one.
   private readonly prefix: string;
 
-  // The scopes this daemon started harnesses in, ended or not: a process a
-  // harness left behind outlives the harness.
+  // Every scope this daemon run starts, from any of its targets, starts
+  // with this.
+  private readonly runPrefix: string;
+
+  // The scopes this provider started harnesses in, ended or not: a process
+  // a harness left behind outlives the harness.
   private readonly started = new Set<string>();
 
   constructor(config: SessionScopesConfig) {
     this.config = config;
     this.prefix = `${config.unit.replace(/\.service$/, '')}-session-`;
+    this.runPrefix = `${this.prefix}${config.run}-`;
   }
 
   /**
    * The program and its arguments that start `argv` in a new scope for the
    * session. `systemd-run` moves itself into the scope and replaces itself
-   * with the program, so the pid stays the program's own. Each scope takes a
-   * name of its own, so a scope that a stop still holds never blocks the
-   * session's next start.
+   * with the program, so the pid stays the program's own. It would also
+   * expand each `$` reference in the program's arguments, so expansion is
+   * switched off. Each scope takes a name of its own, so a scope that a stop
+   * still holds never blocks the session's next start.
    */
   buildCommand(
     session: string,
     argv: readonly string[],
   ): Readonly<{ file: string; args: string[] }> {
-    const name = `${this.prefix}${session.replaceAll(/[^\w.-]/g, '_')}-${randomUUID().slice(0, 8)}.scope`;
+    const name = `${this.runPrefix}${session.replaceAll(/[^\w.-]/g, '_')}-${randomUUID().slice(0, 8)}.scope`;
 
     this.started.add(name);
 
@@ -66,6 +77,7 @@ export class SessionScopes {
         '--scope',
         '--quiet',
         '--collect',
+        '--expand-environment=no',
         `--unit=${name}`,
         `--description=atc session ${session}`,
         `--property=BindsTo=${this.config.unit}`,
@@ -76,8 +88,8 @@ export class SessionScopes {
   }
 
   /**
-   * Stops the scopes bound to the service that an earlier daemon in it
-   * started and left behind, and none this daemon started. A manager that
+   * Stops the scopes bound to the service that an earlier daemon run in it
+   * started and left behind, and none this run started from any target. A manager that
    * does not answer leaves each leftover scope to its own stop, and the
    * returned promise never rejects.
    */
@@ -111,14 +123,16 @@ export class SessionScopes {
       .split(/\s+/)
       .filter(
         (name) =>
-          name.startsWith(this.prefix) && name.endsWith('.scope') && !this.started.has(name),
+          name.startsWith(this.prefix) &&
+          !name.startsWith(this.runPrefix) &&
+          name.endsWith('.scope'),
       );
 
     await this.runStop(names);
   }
 
   /**
-   * Stops every scope this daemon started. The stop starts one `systemctl`
+   * Stops every scope this provider started. The stop starts one `systemctl`
    * before this returns, so a daemon that exits at once still queues every
    * stop. A scope that already ended is skipped, and the returned promise
    * never rejects.

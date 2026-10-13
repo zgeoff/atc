@@ -181,9 +181,10 @@ export class LocalPTYProvider implements ExecutionProvider {
     Promise.reject(new Error(`the local-pty provider cannot destroy host ${host}`));
 
   // The harnesses have ended or been told to end, so a process one left
-  // behind is all a scope still holds.
-  readonly dispose = (): void => {
-    void this.scopes?.stop();
+  // behind is all a scope still holds. The returned promise settles once
+  // the service manager has queued each stop.
+  readonly dispose = async (): Promise<void> => {
+    await this.scopes?.stop();
   };
 
   private async runCommandWithInput(

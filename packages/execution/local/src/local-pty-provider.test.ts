@@ -552,6 +552,7 @@ test('it starts a harness in a scope of its own bound to the daemon service', as
     systemClock,
     new SessionScopes({
       unit: 'atc-daemon.service',
+      run: '0a1b2c3d',
       systemctl: join(systemd.binDir, 'systemctl'),
       systemdRun: join(systemd.binDir, 'systemd-run'),
     }),
@@ -588,7 +589,7 @@ test('it starts a harness in a scope of its own bound to the daemon service', as
 
   // One call per line, so the anchored pattern matches exactly one call.
   expect(systemd.readSystemdRunCalls().join('\n')).toMatch(
-    /^--user --scope --quiet --collect --unit=atc-daemon-session-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/usr\/bin\/env [^\n]* \/usr\/bin\/bash -c echo READY; sleep 30$/,
+    /^--user --scope --quiet --collect --expand-environment=no --unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/usr\/bin\/env [^\n]* \/usr\/bin\/bash -c echo READY; sleep 30$/,
   );
 });
 
@@ -600,6 +601,7 @@ test('it stops the scope of each harness it started as it is disposed', async ()
     systemClock,
     new SessionScopes({
       unit: 'atc-daemon.service',
+      run: '0a1b2c3d',
       systemctl: join(systemd.binDir, 'systemctl'),
       systemdRun: join(systemd.binDir, 'systemd-run'),
     }),
@@ -626,9 +628,7 @@ test('it stops the scope of each harness it started as it is disposed', async ()
 
   const scope = systemd.readSystemdRunCalls()[0]?.match(/--unit=(?<unit>\S+)/)?.groups?.['unit'];
 
-  provider.dispose();
+  await provider.dispose();
 
-  await waitFor(() => {
-    expect(systemd.readSystemctlCalls()).toStrictEqual([`--user stop --no-block ${scope}`]);
-  });
+  expect(systemd.readSystemctlCalls()).toStrictEqual([`--user stop --no-block ${scope}`]);
 });
