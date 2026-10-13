@@ -157,8 +157,7 @@ One concept keeps one word across the tools, the event kinds, the CLI, the wire 
 docs. A rename of the concept covers all of them in one change. A session's progress message is a
 note in the bridge `note` tool, the `atc note` command, the `note` event kind, and
 `atc_events_read`'s "notes (note, with its label and full text)". A message waiting in atc's inbox
-is `queued` in the status, the `message-queued` event, and the docs. One exception: the hidden
-`atc report` command takes notes and answers from sessions that loaded an older mod.
+is `queued` in the status, the `message-queued` event, and the docs.
 
 ## Checking a change
 
