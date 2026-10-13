@@ -646,6 +646,7 @@ export class SessionManager {
       attachment: this.hasHostLifecycle(target) ? 'detached' : 'local',
       hostKey: entry.hostKey ?? entry.sessionID,
       bridgeEpoch: 0,
+      ...(entry.authRevision === undefined ? {} : { authRevision: entry.authRevision }),
     };
 
     this.sessions.push(session);
@@ -2161,14 +2162,21 @@ export class SessionManager {
   // settles. A start that made the process launched under the plan's; one
   // that attached to a process the host still ran keeps the revision that
   // process launched under, or the one the host held before this launch,
-  // and shows that the newer one applies at its next launch.
+  // and shows that the newer one applies at its next launch. A changed
+  // revision is written to the fleet, so a restore after a daemon restart
+  // finds the revision the process launched under.
   private updateLaunchRevision(
     s: Session,
     revision: number,
     heldRevision: number | null,
     created: boolean,
   ): void {
-    s.authRevision = created ? revision : (s.authRevision ?? heldRevision ?? revision);
+    const launched = created ? revision : (s.authRevision ?? heldRevision ?? revision);
+
+    if (s.authRevision !== launched) {
+      s.authRevision = launched;
+      void this.tryWriteFleet(s.id);
+    }
 
     if (s.pty !== null && this.isAuthOutdated(s)) {
       s.lastMsg = formatAuthNotice(this.authRevisions.get(s.hostKey) ?? revision);
@@ -3474,6 +3482,7 @@ export class SessionManager {
         targetIdentity: s.targetIdentity,
         ...(s.desired === 'run' ? {} : { desired: s.desired }),
         ...(s.hostKey === s.id ? {} : { hostKey: s.hostKey }),
+        ...(s.authRevision === undefined ? {} : { authRevision: s.authRevision }),
       });
     }
 

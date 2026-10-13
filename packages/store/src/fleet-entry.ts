@@ -67,6 +67,11 @@ export interface FleetEntry {
   // parent's when the two share one host. A row without one runs on a host
   // of its own.
   readonly hostKey?: SessionID;
+
+  // The runtime auth revision the session's latest harness launched under,
+  // so a harness a restore attaches to keeps it; absent for a harness that
+  // takes no credential from impd's broker.
+  readonly authRevision?: number;
 }
 
 export interface FleetStore {

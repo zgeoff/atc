@@ -36,6 +36,11 @@ interface FleetTable {
   // its parent's when the two share one host. Null for a row from before
   // hosts were recorded, which runs on its own.
   host_key: string | null;
+
+  // The runtime auth revision the session's latest harness launched under.
+  // Null for a harness that takes no credential from impd's broker, and for
+  // a row from before launch revisions were recorded.
+  auth_revision: number | null;
 }
 
 interface EventsTable {
@@ -587,6 +592,11 @@ const MIGRATIONS: Record<string, Migration> = {
           AND json_valid(result)
           AND json_extract(result, '$.status') = 'accepted'
       `.execute(db);
+    },
+  },
+  '029_add_fleet_auth_revision': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('auth_revision', 'integer').execute();
     },
   },
 };

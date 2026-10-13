@@ -460,6 +460,19 @@ test('it round-trips a fleet row with what the operator asked of it and its host
   expect(fleet).toStrictEqual([sleeper, helper]);
 });
 
+test('it round-trips a fleet row with the auth revision its harness launched under', async () => {
+  const ctx = await setupTest();
+
+  const brokered = buildMockFleetEntry({ authRevision: 3 });
+  const unbrokered = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([brokered, unbrokered]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([brokered, unbrokered]);
+});
+
 test('it round-trips a fleet row with its execution target and identity', async () => {
   const ctx = await setupTest();
 
@@ -876,6 +889,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '026_add_fleet_resume_interrupted_turns',
     '027_create_published_record',
     '028_rename_reports_to_notes_and_accepted_to_queued',
+    '029_add_fleet_auth_revision',
   ]);
 });
 
@@ -925,7 +939,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 28 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 29 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -3433,7 +3447,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-4, -1);
+    .slice(-5, -2);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();

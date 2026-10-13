@@ -3680,6 +3680,216 @@ test('it shows a running harness on the host that its auth revision applies at t
   });
 });
 
+test('it shows every restored harness on a host that rebinds during the first restore that its auth revision applies at the next launch', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      restoreBootTimeoutMs: 10,
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  const child = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a2',
+    parent: parentID,
+  });
+
+  const childID = String(getRecord(child, 'session')['id']);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+
+  const logged = daemon.logs.length;
+
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  // A revive logs its wake once its harness's start settles and its launch
+  // revision is recorded. The stub agent never reports it booted, so the
+  // restore starts the sub-session once the parent's boot cap runs out.
+  await waitFor(() => {
+    const woken = daemon.logs.slice(logged).filter((line) => line.startsWith('atc: wake of'));
+
+    expect(woken).toHaveLength(2);
+  });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({
+    sessions: expect.toIncludeSameMembers([
+      expect.objectContaining({
+        id: parentID,
+        kind: 'pty',
+        lastMsg: 'auth revision 2 applies at the next launch',
+      }),
+      expect.objectContaining({
+        id: childID,
+        kind: 'pty',
+        lastMsg: 'auth revision 2 applies at the next launch',
+      }),
+    ]),
+  });
+});
+
+test('it shows a harness restored after a daemon restart that its auth revision applies at the next launch, and not a harness that launched under the rebind', async () => {
+  const ctx = setupTest({ rebindChangedAuth: true });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+      restoreBootTimeoutMs: 10,
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  const child = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a2',
+    parent: parentID,
+  });
+
+  const childID = String(getRecord(child, 'session')['id']);
+
+  await daemon.client.sendRequest('session.kill', { session: childID });
+
+  judgeSelected = true;
+
+  // The revive rebinds the host to revision 2 and starts the sub-session's
+  // harness under it, while the parent's harness keeps revision 1.
+  await daemon.client.sendRequest('session.adopt', { session: childID, cols: 80, rows: 24 });
+  await daemon.restart();
+
+  const logged = daemon.logs.length;
+
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  // A revive logs its wake once its harness's start settles and its launch
+  // revision is recorded.
+  await waitFor(() => {
+    const woken = daemon.logs.slice(logged).filter((line) => line.startsWith('atc: wake of'));
+
+    expect(woken).toHaveLength(2);
+  });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed).toStrictEqual({
+    sessions: expect.toIncludeSameMembers([
+      expect.objectContaining({
+        id: parentID,
+        kind: 'pty',
+        lastMsg: 'auth revision 2 applies at the next launch',
+      }),
+      expect.objectContaining({
+        id: childID,
+        kind: 'pty',
+        lastMsg: 'revived',
+      }),
+    ]),
+  });
+});
+
 test('it shows a revived session that attached to its suspended harness that its auth revision applies at the next launch', async () => {
   const ctx = setupTest({ rebindChangedAuth: true });
   let judgeSelected = false;

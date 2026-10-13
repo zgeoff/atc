@@ -229,6 +229,7 @@ export class StateStore {
         'workspace.withheld_env',
         'fleet.desired',
         'fleet.host_key',
+        'fleet.auth_revision',
       ])
       .execute();
 
@@ -267,6 +268,7 @@ export class StateStore {
         ...(withheldEnv.length === 0 ? {} : { withheldEnv }),
         ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
         ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
+        ...(row.auth_revision === null ? {} : { authRevision: row.auth_revision }),
       });
     }
 
@@ -374,6 +376,7 @@ export class StateStore {
             target_identity: entry.targetIdentity ?? null,
             desired: entry.desired ?? null,
             host_key: entry.hostKey ?? null,
+            auth_revision: entry.authRevision ?? null,
           })
           .execute();
 
