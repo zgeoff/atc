@@ -870,9 +870,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // The sessions whose process end the daemon saw, until a harness starts
+  // for them again.
+  const endedProcesses = new Set<SessionID>();
+
   // A spawned terminal starts on a fresh screen; a revived one keeps the
   // screen its session already had.
   mgr.onBoot = (s, cols, rows) => {
+    endedProcesses.delete(s.id);
+
     const runtime = runtimes.get(s.id);
 
     if (runtime === undefined) {
@@ -992,6 +998,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   };
 
   mgr.onProcessEnded = (s) => {
+    endedProcesses.add(s.id);
     void updateEndedSessionMessages(s);
   };
 
@@ -999,6 +1006,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     recordAttention(kind, s);
 
     if (kind === 'removed') {
+      endedProcesses.delete(s.id);
       void updateEndedSessionMessages(s);
     }
 
@@ -2376,11 +2384,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         // A tap can outlive its process for a moment, so an ack can land
         // after the process ended and after its end marked the messages it
-        // held. Only a local session's process is surely gone once its
-        // terminal is.
+        // held. A process is surely gone when its exit was seen, or when a
+        // local session has no terminal; a remote host that lost the
+        // connection or went to sleep may still run it.
         const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
 
-        if (!live && mgr.isLocalTarget(s.target)) {
+        if (!live && (endedProcesses.has(s.id) || mgr.isLocalTarget(s.target))) {
           await updateEndedSessionMessages(s);
 
           const settled = await store.findMessage(messageID, owner);
