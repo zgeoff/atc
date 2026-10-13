@@ -24,8 +24,8 @@ import { z } from 'zod';
 import { buildPrincipalCaller } from '../mcp/build-principal-caller';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { runTool } from '../mcp/run-tool';
-import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { buildStubTargets } from './testing/build-stub-targets';
 
 test('it refuses a client a configured target other than local when the config has no principals', async () => {
   const harnesses: string[] = [];

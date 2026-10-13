@@ -1,16 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { buildStubTargets } from './build-stub-targets';
 
-function setupTest() {
-  const tmp = setupTempDir('atc-stub-targets-');
-
-  return { dir: tmp.dir };
-}
-
-test('it builds a target with a provider for each local-pty entry and none for another kind', () => {
+test('it builds a target with an in-memory provider for each local-pty entry and none for another kind', () => {
   const [local, box] = buildStubTargets(
     [
       { id: 'local', provider: 'local-pty', options: {} },
@@ -24,18 +15,7 @@ test('it builds a target with a provider for each local-pty entry and none for a
     kind: 'local-pty',
     options: {},
     identity: 'local-pty:44136fa355b3678a',
-    provider: {
-      kind: 'local-pty',
-      remote: false,
-      capabilities: new LocalPTYProvider().capabilities,
-      prepareHost: expect.toBeFunction(),
-      spawnHarness: expect.toBeFunction(),
-      transferArchive: expect.toBeFunction(),
-      runCommand: expect.toBeFunction(),
-      suspendHost: expect.toBeFunction(),
-      destroyHost: expect.toBeFunction(),
-      dispose: expect.toBeFunction(),
-    },
+    provider: expect.objectContaining({ kind: 'local-pty', remote: false, harnesses: [] }),
   });
 
   expect(box).toStrictEqual({
@@ -48,26 +28,21 @@ test('it builds a target with a provider for each local-pty entry and none for a
 });
 
 test('it records the target of each spawn', () => {
-  const ctx = setupTest();
   const spawned: string[] = [];
 
   const [target] = buildStubTargets([{ id: 'box', provider: 'local-pty', options: {} }], {
     spawned,
   });
 
-  const harness = target?.provider?.spawnHarness({
+  target?.provider?.spawnHarness({
     session: 's-1',
     host: 's-1',
-    bin: 'true',
+    bin: 'stub-harness',
     args: [],
-    cwd: ctx.dir,
+    cwd: '/work',
     env: {},
     cols: 80,
     rows: 24,
-  });
-
-  registerTestCleanup(() => {
-    harness?.kill();
   });
 
   expect(spawned).toStrictEqual(['box']);
@@ -84,5 +59,5 @@ test('it gives a target the host operations named for it', async () => {
   await target?.provider?.suspendHost('h-1');
 
   expect(target?.provider?.capabilities.suspend).toBeTrue();
-  expect(suspendHost).toHaveBeenCalledExactlyOnceWith('h-1');
+  expect(suspendHost).toHaveBeenCalledExactlyOnceWith('h-1', undefined);
 });
