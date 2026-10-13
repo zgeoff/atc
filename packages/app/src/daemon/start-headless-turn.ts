@@ -82,5 +82,9 @@ export function startHeadlessTurn(
 
   runtime.headlessRun = handle;
 
+  // A runner that throws before it returns leaves the mark, so a later
+  // restore still tries the session again.
+  mgr.removeUnrestoredMark(sessionID);
+
   return true;
 }

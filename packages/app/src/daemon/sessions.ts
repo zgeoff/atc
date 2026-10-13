@@ -395,9 +395,9 @@ export class SessionManager {
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
 
-  // Sessions a restore registered that have not had a terminal since, so a
-  // later restore tries them again rather than taking them for live
-  // headless runs.
+  // Sessions a restore registered that have had neither a terminal nor a
+  // headless turn since, so a later restore tries them again rather than
+  // taking them for live headless runs.
   private readonly unrestored = new Set<SessionID>();
 
   // The launches readying each host, by host key. A launch counts from its
@@ -679,10 +679,16 @@ export class SessionManager {
     return session;
   }
 
-  // Whether a restore registered the session and no terminal has started
-  // for it since.
+  // Whether a restore registered the session and neither a terminal nor a
+  // headless turn has started for it since.
   isUnrestored(id: SessionID): boolean {
     return this.unrestored.has(id);
+  }
+
+  // Counts the session as a live headless session from now on, so a later
+  // restore never starts a terminal beside the headless turn it runs.
+  removeUnrestoredMark(id: SessionID): void {
+    this.unrestored.delete(id);
   }
 
   // Lists why a restore could not start a session's terminal, in place of
