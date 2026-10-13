@@ -1100,25 +1100,17 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
 
   // The sleep holds at its lease release until the forward has ended, so the
   // end arrives while the sleep is pending.
-  const releasing = Promise.withResolvers<void>();
-  const proceed = Promise.withResolvers<void>();
-  const releaseLease = ctx.port.releaseLease.bind(ctx.port);
-
-  ctx.port.releaseLease = async (name, label) => {
-    releasing.resolve();
-
-    await proceed.promise;
-
-    return releaseLease(name, label);
-  };
+  ctx.port.startReleaseHold();
 
   registerTestCleanup(() => {
-    proceed.resolve();
+    ctx.port.stopReleaseHold();
   });
 
   const suspend = provider.suspendHost('s1');
 
-  await releasing.promise;
+  await waitFor(() => {
+    expect(ctx.port.countHeldReleases()).toBe(1);
+  });
 
   ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
 
@@ -1128,7 +1120,7 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
     );
   });
 
-  proceed.resolve();
+  ctx.port.stopReleaseHold();
 
   expect(suspend).rejects.toThrow();
 
@@ -1137,4 +1129,89 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
   });
 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toHaveLength(2);
+});
+
+test('it listens on the guest socket no more when the daemon lets go of the harness as impd refuses the sleep its hook forward waits on', async () => {
+  const ctx = setupTest();
+  const lines: string[] = [];
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const suspends: Promise<void>[] = [];
+
+  await provider.prepareHost({
+    host: 's1',
+    daemonID: 'd1',
+    log: (line) => {
+      lines.push(line);
+
+      if (line.endsWith('listening again in 0ms')) {
+        suspends.push(provider.suspendHost('s1'));
+      }
+    },
+  });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
+
+  await harness.waitForStart();
+
+  ctx.port.acquireOtherLease('atc-s1', 'token:other', 'build', 60);
+
+  // The sleep holds at its lease release until the forward waits on it to
+  // listen again, so the refusal settles that wait.
+  ctx.port.startReleaseHold();
+
+  registerTestCleanup(() => {
+    ctx.port.stopReleaseHold();
+  });
+
+  // The refused sleep takes the daemon's lease back in the same turn that
+  // settles the forward's wait, so the daemon lets go of the harness before
+  // the wait's continuation runs.
+  const unsubscribe = ctx.port.subscribeToLeaseAcquires(() => {
+    harness.detach();
+  });
+
+  registerTestCleanup(unsubscribe);
+
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  await waitFor(() => {
+    expect(lines).toContain(
+      "imp atc-s1 is going to sleep; session s1's hooks listen again if the sleep is refused",
+    );
+  });
+
+  ctx.port.stopReleaseHold();
+
+  expect(Promise.all(suspends)).rejects.toThrow();
+  expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeFalse();
+
+  expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toStrictEqual([
+    `reverse atc-s1 ${join(ctx.dir, 'g', 'run', 's1.sock')}`,
+  ]);
 });

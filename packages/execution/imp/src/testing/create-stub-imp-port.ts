@@ -243,6 +243,9 @@ class StubImpPort implements ImpPort {
 
   private heldReleases = 0;
 
+  // Called at the start of every lease acquisition, in the caller's turn.
+  private readonly leaseAcquireListeners = new Set<(name: string, label: string) => void>();
+
   // The directory a relative or missing working directory resolves
   // against inside every imp, as a guest's home does; null for the test's
   // own working directory.
@@ -457,6 +460,10 @@ class StubImpPort implements ImpPort {
 
   acquireLease(name: string, label: string, ttlSeconds: number): Promise<ImpLease> {
     this.calls.push(`leases.acquire ${name} ${label}`);
+
+    for (const listener of this.leaseAcquireListeners) {
+      listener(name, label);
+    }
 
     return this.leaseHold === null
       ? this.applyLease(name, label, ttlSeconds)
@@ -1166,6 +1173,19 @@ class StubImpPort implements ImpPort {
     for (const send of upgrades) {
       send();
     }
+  }
+
+  /**
+   * Calls listener at the start of every lease acquisition, before the
+   * acquisition returns or waits on a hold, so the caller's turn has not
+   * yet ended. Returns the call that stops it.
+   */
+  subscribeToLeaseAcquires(listener: (name: string, label: string) => void): () => void {
+    this.leaseAcquireListeners.add(listener);
+
+    return () => {
+      this.leaseAcquireListeners.delete(listener);
+    };
   }
 
   /**

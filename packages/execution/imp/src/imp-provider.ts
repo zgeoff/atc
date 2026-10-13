@@ -755,7 +755,9 @@ export class ImpProvider implements ExecutionProvider {
           return;
         }
 
-        if (!(await waitForAwakeHost())) {
+        // The harness can end in the turn that settles the wait, before this
+        // continuation runs, and a forward opened then has no stop to reach it.
+        if (!(await waitForAwakeHost()) || stopping.signal.aborted) {
           return;
         }
 

@@ -2311,6 +2311,43 @@ test('it lets lease acquisitions through again after the one failure', async () 
   expect(lease.owner.label).toBe('atc-d1');
 });
 
+test('it calls a lease acquire listener in the turn of the acquisition, before it settles', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const heard: string[] = [];
+
+  ctx.port.subscribeToLeaseAcquires((name, label) => {
+    heard.push(`${name} ${label}`);
+  });
+
+  const acquiring = ctx.port.acquireLease('imp-a', 'atc-d1', 60);
+  const heardInTurn = [...heard];
+
+  await acquiring;
+
+  expect(heardInTurn).toStrictEqual(['imp-a atc-d1']);
+});
+
+test('it calls a lease acquire listener no more once it unsubscribes', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const heard: string[] = [];
+
+  const unsubscribe = ctx.port.subscribeToLeaseAcquires((name, label) => {
+    heard.push(`${name} ${label}`);
+  });
+
+  unsubscribe();
+
+  await ctx.port.acquireLease('imp-a', 'atc-d1', 60);
+
+  expect(heard).toStrictEqual([]);
+});
+
 test('it holds a lease acquisition while the lease hold lasts', async () => {
   const ctx = setupTest();
 
