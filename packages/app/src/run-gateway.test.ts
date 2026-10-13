@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
+import { openMCPAuth } from './mcp/open-mcp-auth';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runGateway } from './run-gateway';
 
 /**
@@ -70,6 +72,103 @@ test('it answers the liveness probe for the host of its public URL', async () =>
   });
 
   expect(health.status).toBe(200);
+});
+
+test('it prints the approval line to stdout alone and each sign-in security event to stderr', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.dir, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.geoff.cloud',
+      registryPath: join(ctx.dir, 'registry.json'),
+      stateDir: join(ctx.dir, 'state'),
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stop = signals.get('SIGTERM');
+
+  invariant(stop, 'the gateway registered no SIGTERM handler');
+  registerTestCleanup(() => stop());
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
+    ?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  // The gateway's database, opened the way `atc-gateway clients` opens it.
+  const store = await openMCPAuth({
+    dbPath: join(ctx.dir, 'state', 'mcp-auth.db'),
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
+
+  registerTestCleanup(() => store.close());
+
+  const created = await store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const authorize = new URL(`http://127.0.0.1:${port}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: created.clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  }).toString();
+
+  await fetch(authorize, { redirect: 'manual', headers: { host: 'atc.geoff.cloud' } });
+
+  await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+    headers: { host: 'rebound.example' },
+  });
+
+  expect(printed).toIncludeAllMembers([expect.stringMatching(/^Approve Claude /u)]);
+  expect(printed).toSatisfyAll((line: string) => !line.startsWith('atc security '));
+  expect(errors).toSatisfyAll((line: string) => !line.includes('Approve'));
+
+  expect(errors.filter((line) => line.startsWith('atc security '))).toStrictEqual([
+    expect.stringMatching(
+      /^atc security \{"v":1,.*"kind":"authorize_started","outcome":"accepted"/u,
+    ),
+    expect.stringMatching(
+      /^atc security \{"v":1,.*"kind":"authorize_invalid".*"reason":"bad_host"/u,
+    ),
+  ]);
 });
 
 test('it answers the readiness probe for the host of its public URL', async () => {

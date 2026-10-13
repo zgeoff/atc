@@ -144,6 +144,91 @@ test('it prints no hint to add a client once one can connect', async () => {
   );
 });
 
+test('it prints the approval line to stdout alone and each sign-in security event to stderr', async () => {
+  const ctx = await setupTest();
+
+  const store = await openMCPAuth({
+    dbPath: ctx.dbPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
+
+  registerTestCleanup(() => store.close());
+
+  const created = await store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  const authorize = new URL(`http://127.0.0.1:${port}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: created.clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  }).toString();
+
+  await fetch(authorize, { redirect: 'manual' });
+
+  await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+    headers: { host: 'rebound.example' },
+  });
+
+  expect(printed).toIncludeAllMembers([expect.stringMatching(/^Approve Claude /u)]);
+  expect(printed).toSatisfyAll((line: string) => !line.startsWith('atc security '));
+  expect(errors).toSatisfyAll((line: string) => !line.includes('Approve'));
+
+  expect(errors.filter((line) => line.startsWith('atc security '))).toStrictEqual([
+    expect.stringMatching(
+      /^atc security \{"v":1,.*"kind":"authorize_started","outcome":"accepted"/u,
+    ),
+    expect.stringMatching(
+      /^atc security \{"v":1,.*"kind":"authorize_invalid".*"reason":"bad_host"/u,
+    ),
+  ]);
+});
+
 test('it registers its SIGINT and SIGTERM handlers before it prints the serving line', async () => {
   const ctx = await setupTest();
 

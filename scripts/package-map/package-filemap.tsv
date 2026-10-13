@@ -289,6 +289,7 @@ src/mcp/collect-json-strings.ts	core		packages/core/src/parse-json-strings.ts
 src/mcp/derive-token-hash.ts	mcp	auth	packages/mcp/src/auth/derive-token-hash.ts	
 src/mcp/find-client-name.ts	mcp	auth	packages/mcp/src/auth/find-client-name.ts	
 src/mcp/find-owner-session-id.ts	mcp	tools	packages/mcp/src/tools/find-owner-session-id.ts	
+src/mcp/format-security-event.ts	mcp	auth	packages/mcp/src/auth/format-security-event.ts	
 src/mcp/format-tool-error.ts	mcp	tools	packages/mcp/src/tools/format-tool-error.ts	
 src/mcp/is-allowed-redirect-uri.ts	mcp	auth	packages/mcp/src/auth/is-allowed-redirect-uri.ts	
 src/mcp/is-loopback-host.ts	mcp	http	packages/mcp/src/http/is-loopback-host.ts	
@@ -311,6 +312,7 @@ src/mcp/render-login-page.ts	mcp	auth	packages/mcp/src/auth/render-login-page.ts
 src/mcp/require-daemon-features.ts	(deleted in ticket 24)		src/mcp/require-daemon-features.ts	
 src/mcp/revoke-grant.ts	mcp	auth	packages/mcp/src/auth/revoke-grant.ts	
 src/mcp/run-tool.ts	mcp	tools	packages/mcp/src/tools/run-tool.ts	
+src/mcp/security-event-log.ts	mcp	auth	packages/mcp/src/auth/security-event-log.ts	
 src/mcp/start-mcp-http-server.ts	mcp	http	packages/mcp/src/http/start-mcp-http-server.ts	
 src/mcp/to-html-text.ts	mcp	http	packages/mcp/src/http/to-html-text.ts	
 src/mcp/types.ts	mcp	tools	packages/mcp/src/tools/types.ts	
