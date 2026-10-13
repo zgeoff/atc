@@ -152,6 +152,7 @@ async function setupTest() {
       approvals.push(line);
     },
     printRequest: () => {},
+    printSecurity: () => {},
     probes: true,
   });
 

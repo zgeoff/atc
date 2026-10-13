@@ -14,6 +14,10 @@ interface ApprovalRequest {
  */
 export interface PendingApproval extends ApprovalRequest {
   readonly approvalCode: string;
+
+  // Random, minted with the approval and never taken from the request, so
+  // the security events of one authorization can be matched up.
+  readonly correlationID: string;
   attempts: number;
   readonly expiresAt: number;
 }
@@ -26,6 +30,16 @@ const MAX_PENDING_PER_CLIENT = 3;
 const MAX_STARTS_PER_MINUTE = 10;
 const MAX_ATTEMPTS = 5;
 const MINUTE_MS = 60_000;
+
+/**
+ * The request an owner session's approval code approved: its consent
+ * binding and the correlation id of its security events.
+ */
+export interface ApprovedRequest {
+  readonly binding: string;
+  readonly correlationID: string;
+  readonly expiresAt: number;
+}
 
 /**
  * The approvals waiting for the operator, held in memory by the HTTP process.
@@ -44,7 +58,7 @@ export class ApprovalState {
   private readonly pending = new Map<string, PendingApproval>();
 
   // Owner session id to the binding of the request its approval code approved.
-  private readonly approved = new Map<string, { binding: string; expiresAt: number }>();
+  private readonly approved = new Map<string, ApprovedRequest>();
 
   // Approval start times within the last minute, oldest first.
   private startedAt: readonly number[] = [];
@@ -82,6 +96,7 @@ export class ApprovalState {
     const approval: PendingApproval = {
       ...request,
       approvalCode: mintApprovalCode(),
+      correlationID: crypto.randomUUID(),
       attempts: 0,
       expiresAt: now + this.pendingMs,
     };
@@ -124,15 +139,15 @@ export class ApprovalState {
     return 'wrong';
   }
 
-  recordApproved(sessionID: string, binding: string): void {
-    this.approved.set(sessionID, { binding, expiresAt: this.now() + this.pendingMs });
+  recordApproved(sessionID: string, approved: Omit<ApprovedRequest, 'expiresAt'>): void {
+    this.approved.set(sessionID, { ...approved, expiresAt: this.now() + this.pendingMs });
   }
 
-  // The binding an owner session approved, or null once it expired or went.
-  findApproved(sessionID: string): string | null {
+  // What an owner session approved, or null once it expired or went.
+  findApproved(sessionID: string): ApprovedRequest | null {
     this.removeExpired(this.now());
 
-    return this.approved.get(sessionID)?.binding ?? null;
+    return this.approved.get(sessionID) ?? null;
   }
 
   removeApproved(sessionID: string): void {

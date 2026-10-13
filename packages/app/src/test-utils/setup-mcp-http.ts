@@ -18,8 +18,8 @@ interface MCPHTTPSetupOptions {
 
 /**
  * A real daemon in a temp directory and `atc mcp --http` in front of it on a
- * free port, with every approval line and request line the server prints
- * collected. The authorization server's database sits where atc keeps it
+ * free port, with every approval line, request line, and security event
+ * line the server prints collected. The authorization server's database sits where atc keeps it
  * under `home`, so a CLI run with that home opens the same file. `store` is
  * the authorization server's database opened a second time the way
  * `atc clients` and `atc grants` open it, and `createClient` adds a client
@@ -50,6 +50,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   const dbPath = join(stateDir, 'mcp-auth.db');
   const approvals: string[] = [];
   const requests: string[] = [];
+  const security: string[] = [];
 
   const startTestDaemon = (principals: ReadonlyMap<string, readonly string[]> | null = null) =>
     startDaemon({
@@ -87,6 +88,9 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     printRequest: (line) => {
       requests.push(line);
     },
+    printSecurity: (line) => {
+      security.push(line);
+    },
   });
 
   stack.defer(() => server.stop());
@@ -102,6 +106,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     dbPath,
     approvals,
     requests,
+    security,
     caller,
     store,
     async createClient(name: string, redirectURIs: readonly string[]): Promise<string> {

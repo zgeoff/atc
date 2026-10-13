@@ -7,7 +7,7 @@ import { buildPageResponse } from './build-page-response';
 import { findClientName } from './find-client-name';
 import { findOwnerSessionID } from './find-owner-session-id';
 import { renderConsentPage } from './render-consent-page';
-import type { HTTPServerContext } from './types';
+import type { HTTPServerContext, Requester, SecurityOutcome } from './types';
 import { verifyOAuthQuery } from './verify-oauth-query';
 
 interface ConsentRequest {
@@ -15,6 +15,7 @@ interface ConsentRequest {
   readonly url: URL;
   readonly cookie: string | null;
   readonly body: string;
+  readonly requester: Requester;
 }
 
 /**
@@ -32,6 +33,10 @@ interface ConsentRequest {
  * deletes the session outright. One that issues a code leaves the session
  * only until the code expires, since the code exchange needs it, and the
  * exchange deletes it.
+ *
+ * Each answer writes one `consent` security event with the request's
+ * correlation id: `allowed` when the answer issued an authorization code,
+ * else `denied`, with `none_ticked` when allow came with no scope ticked.
  */
 export async function answerConsentRequest(
   ctx: HTTPServerContext,
@@ -42,9 +47,9 @@ export async function answerConsentRequest(
   const oauthQuery =
     request.method === 'GET' ? request.url.search.slice(1) : (form.get('oauth_query') ?? '');
 
-  const sessionID = await verifyConsentRequest(ctx, oauthQuery, request.cookie);
+  const verified = await verifyConsentRequest(ctx, oauthQuery, request.cookie);
 
-  if (sessionID === null) {
+  if (verified === null) {
     return buildPageResponse(400, {
       message: 'This approval expired or was already used. Start again from the client.',
     });
@@ -72,11 +77,14 @@ export async function answerConsentRequest(
     return buildPageResponse(200, { page }, formTargets);
   }
 
+  const sessionID = verified.sessionID;
+
   ctx.approvals.removeApproved(sessionID);
 
   const ticked = form.getAll('scope');
   const scopes = GRANT_SCOPES.filter((scope) => ticked.includes(scope));
-  const accept = form.get('decision') === 'approve' && scopes.length > 0;
+  const allow = form.get('decision') === 'approve';
+  const accept = allow && scopes.length > 0;
 
   const choice = JSON.stringify({
     accept,
@@ -113,6 +121,22 @@ export async function answerConsentRequest(
         .execute()
     : ctx.store.db.deleteFrom('session').where('id', '=', sessionID).execute());
 
+  const params = new URLSearchParams(oauthQuery);
+
+  const clientID = params.get('client_id') ?? '';
+  const redirectURI = params.get('redirect_uri') ?? '';
+
+  const storedName = await findClientName(ctx.store.db, clientID);
+
+  ctx.security.record({
+    ...pickConsentOutcome(issuedCode, allow && !accept),
+    path: request.url.pathname,
+    requester: request.requester,
+    client: { id: clientID, name: normalizeClientName(storedName) },
+    ...(URL.canParse(redirectURI) ? { redirectHost: new URL(redirectURI).host } : {}),
+    correlationID: verified.correlationID,
+  });
+
   if (!consented.ok || typeof next !== 'string') {
     return buildPageResponse(400, {
       message: 'atc could not record this choice. Start again from the client.',
@@ -133,14 +157,15 @@ export async function answerConsentRequest(
   });
 }
 
-// The owner session id when the request may reach consent, else null. A
-// query still asking for a login is one better-auth signed for the login
-// page, which the approval code never carried past.
+// The owner session id and the request's correlation id when the request
+// may reach consent, else null. A query still asking for a login is one
+// better-auth signed for the login page, which the approval code never
+// carried past.
 async function verifyConsentRequest(
   ctx: HTTPServerContext,
   oauthQuery: string,
   cookie: string | null,
-): Promise<string | null> {
+): Promise<{ sessionID: string; correlationID: string } | null> {
   const authContext = await ctx.store.auth.$context;
 
   if (!(await verifyOAuthQuery(oauthQuery, authContext.secret, ctx.clock.now()))) {
@@ -155,12 +180,26 @@ async function verifyConsentRequest(
 
   const sessionID = await findOwnerSessionID(ctx, cookie);
 
+  const approved = sessionID === null ? null : ctx.approvals.findApproved(sessionID);
+
   if (
     sessionID === null ||
-    ctx.approvals.findApproved(sessionID) !== buildConsentBinding(oauthQuery)
+    approved === null ||
+    approved.binding !== buildConsentBinding(oauthQuery)
   ) {
     return null;
   }
 
-  return sessionID;
+  return { sessionID, correlationID: approved.correlationID };
+}
+
+// `noneTicked` is an allow sent with no scope ticked, which denies.
+function pickConsentOutcome(issuedCode: boolean, noneTicked: boolean): SecurityOutcome {
+  if (issuedCode) {
+    return { kind: 'consent', outcome: 'allowed' };
+  }
+
+  return noneTicked
+    ? { kind: 'consent', outcome: 'denied', reason: 'none_ticked' }
+    : { kind: 'consent', outcome: 'denied' };
 }

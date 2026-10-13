@@ -19,7 +19,8 @@ import { revokeGrant } from './revoke-grant';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 
 // A real daemon, `atc mcp --http` in front of it on a free port with every
-// approval line and request line it prints collected, and the authorization
+// approval line, request line, and security event line it prints collected,
+// the clock it runs on, and the authorization
 // server's database opened a second time the way `atc clients` opens it.
 // The caller, the server, and the database live in the daemon's directory,
 // so each registers its release to run before that directory goes.
@@ -32,6 +33,7 @@ async function setupTest() {
   const dbPath = join(daemon.dir, 'mcp-auth.db');
   const approvals: string[] = [];
   const requests: string[] = [];
+  const security: string[] = [];
 
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
@@ -58,6 +60,9 @@ async function setupTest() {
     printRequest: (line) => {
       requests.push(line);
     },
+    printSecurity: (line) => {
+      security.push(line);
+    },
     clock,
   });
 
@@ -75,6 +80,8 @@ async function setupTest() {
     origin: server.origin,
     approvals,
     requests,
+    security,
+    clock,
     caller,
     store,
   };
@@ -324,6 +331,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
       approvals.push(line);
     },
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => server.stop());
@@ -419,6 +427,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
       approvals.push(line);
     },
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => server.stop());
@@ -1673,6 +1682,7 @@ test('it serves a request whose Host header is a configured allowed host', async
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => allowing.stop());
@@ -2026,6 +2036,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => moved.stop());
@@ -2063,6 +2074,7 @@ test.each([
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   expect(started).rejects.toThrow(/needs an https public URL/);
@@ -2088,6 +2100,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
     openAuthDatabase: openMCPAuthDatabase,
     printApproval: () => {},
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => listening.stop());

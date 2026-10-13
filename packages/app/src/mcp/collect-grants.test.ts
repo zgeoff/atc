@@ -40,6 +40,7 @@ async function setupTest() {
       approvals.push(line);
     },
     printRequest: () => {},
+    printSecurity: () => {},
   });
 
   registerTestCleanup(() => server.stop());
