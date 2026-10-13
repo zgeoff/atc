@@ -51,25 +51,10 @@ export interface BridgeContext {
 
 const REQUEST_SCHEMA = z.looseObject({ v: z.literal(1), id: z.string().min(1), op: z.string() });
 
-// A note's ID arrives as `noteID`, or as `reportID` from a tap or mod that
-// uses the older field name.
-const NOTE_SCHEMA = z
-  .looseObject({
-    noteID: z.string().min(1).max(128).optional(),
-    reportID: z.string().min(1).max(128).optional(),
-    payload: z.record(z.string(), z.unknown()),
-  })
-  .transform((request, ctx) => {
-    const noteID = request.noteID ?? request.reportID;
-
-    if (noteID === undefined) {
-      ctx.addIssue({ code: 'custom', message: 'a note needs an ID' });
-
-      return z.NEVER;
-    }
-
-    return { noteID, payload: request.payload };
-  });
+const NOTE_SCHEMA = z.looseObject({
+  noteID: z.string().min(1).max(128),
+  payload: z.record(z.string(), z.unknown()),
+});
 
 const ACK_SCHEMA = z.looseObject({ message: z.string().min(1) });
 
@@ -162,7 +147,7 @@ export function startSessionBridge(
     id: string,
     op: string,
   ) => {
-    if (op === 'note' || op === 'report') {
+    if (op === 'note') {
       const parsed = NOTE_SCHEMA.safeParse(request);
 
       if (
