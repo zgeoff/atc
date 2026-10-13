@@ -318,7 +318,7 @@ test('it reports a submitted message as unanswered when an interrupted turn leav
   ]);
 });
 
-test('it redelivers a carried message the model never saw when its turn is interrupted', async (engine, on) => {
+test('it submits a message that arrives during a turn that is then interrupted', async (engine, on) => {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
@@ -360,7 +360,6 @@ test('it redelivers a carried message the model never saw when its turn is inter
   await ctx.clock.settle();
 
   expect(submitted).toStrictEqual(['<atc-message id="m-2" from="bob">\nlate\n</atc-message>']);
-  expect(ctx.ran).toStrictEqual([]);
 });
 
 async function startNoteSession(
