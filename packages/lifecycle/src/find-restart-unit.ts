@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseSystemdUnit } from '@atc/core/parse-systemd-unit';
 import type { LifecycleHost } from './lifecycle-host';
-import { parseSystemdUnit } from './parse-systemd-unit';
 
 /**
  * The user service whose main process is the daemon with this pid, or null

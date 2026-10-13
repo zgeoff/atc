@@ -24,6 +24,9 @@ interface StubSystemd {
   // daemon run by a user manager reads.
   readonly writeUnitCgroup: (pid: number, unit: string) => void;
 
+  // Makes `systemctl show --property=BoundBy` print these unit names.
+  readonly writeBoundBy: (units: readonly string[]) => void;
+
   readonly remove: () => void;
 }
 
@@ -32,10 +35,13 @@ interface StubSystemd {
  * manager. Without a MainPID, `systemctl show -p MainPID` prints a pid no
  * process holds, so no daemon is ever a unit's main process. With
  * `writeMainPID`, `systemctl restart` stops that pid with SIGTERM and starts
- * `atcCommand daemon` in the background. `systemd-run` runs the command after
- * `--` in the background with only the `--setenv` variables, as a transient
- * unit sees them, and appends its output to the `StandardOutput=append:`
- * file. Every call is logged. The stand-ins' directory is removed once the
+ * `atcCommand daemon` in the background. `systemctl show --property=BoundBy`
+ * prints the units `writeBoundBy` wrote, or nothing. `systemd-run` runs the
+ * command after `--` in the background with only the `--setenv` variables,
+ * as a transient unit sees them, and appends its output to the
+ * `StandardOutput=append:` file. `systemd-run --scope` instead replaces
+ * itself with the command, which keeps its environment, its terminal, and
+ * the pid, as a scope does. Every call is logged. The stand-ins' directory is removed once the
  * current test finishes, so it must run inside a test; `remove` removes it
  * sooner, and a second removal does nothing.
  */
@@ -61,6 +67,9 @@ case "$*" in
   *"show -p MainPID"*)
     if [ -f "${root}/mainpid" ]; then cat "${root}/mainpid"; else echo 999999; fi
     ;;
+  *"show --property=BoundBy"*)
+    if [ -f "${root}/boundby" ]; then cat "${root}/boundby"; fi
+    ;;
   *"show -p ExecStart"*)
     echo "{ path=/fake/bin/atc ; argv[]=/fake/bin/atc daemon ; }"
     ;;
@@ -81,6 +90,13 @@ exit 0
     join(binDir, 'systemd-run'),
     `#!/usr/bin/env bash
 echo "$*" >> "${root}/systemd-run.log"
+case " $* " in
+  *" --scope "*)
+    while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done
+    shift
+    exec "$@"
+    ;;
+esac
 envargs=()
 log=/dev/null
 while [ $# -gt 0 ]; do
@@ -125,6 +141,9 @@ exit 0
         join(procRoot, String(pid), 'cgroup'),
         `0::/user.slice/user-${process.getuid?.() ?? 0}.slice/user@${process.getuid?.() ?? 0}.service/app.slice/${unit}\n`,
       );
+    },
+    writeBoundBy: (units) => {
+      writeFileSync(join(root, 'boundby'), `${units.join(' ')}\n`);
     },
     remove,
   };

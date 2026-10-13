@@ -15,12 +15,14 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import { spawn } from 'bun-pty';
 import { buildHarnessArgv } from './build-harness-argv';
 import { readNativeEnvKeys } from './read-native-env-keys';
+import type { SessionScopes } from './session-scopes';
 
 /**
  * The `local-pty` provider: harnesses run as child processes of the daemon
  * on a `bun-pty` pseudo-terminal, and files and commands touch the daemon's
  * own host. The host is the daemon's machine, so there is nothing to
- * suspend or destroy.
+ * suspend or destroy. Given scopes, each harness starts in a scope of its
+ * own, and a disposal stops every scope.
  */
 export class LocalPTYProvider implements ExecutionProvider {
   readonly kind = 'local-pty';
@@ -43,8 +45,13 @@ export class LocalPTYProvider implements ExecutionProvider {
   // The clock a harness's exit is waited on.
   private readonly clock: Clock;
 
-  constructor(clock: Clock = systemClock) {
+  // The scopes harnesses start in, or null when they start as the daemon's
+  // plain children.
+  private readonly scopes: SessionScopes | null;
+
+  constructor(clock: Clock = systemClock, scopes: SessionScopes | null = null) {
     this.clock = clock;
+    this.scopes = scopes;
   }
 
   // The daemon's own machine is always ready.
@@ -67,17 +74,23 @@ export class LocalPTYProvider implements ExecutionProvider {
     const bin = resolveHarnessBin(spec.bin, env, spec.cwd);
     const unset = buildUnsetNames(env, [...readNativeEnvKeys(), ...Object.keys(process.env)]);
 
-    const pty = spawn(
+    const argv = [
       ENV_BIN,
-      buildHarnessArgv({ unset, env, platform: process.platform, bin, args: spec.args }),
-      {
-        name: 'xterm-256color',
-        cols: spec.cols,
-        rows: spec.rows,
-        cwd: spec.cwd,
-        env,
-      },
-    );
+      ...buildHarnessArgv({ unset, env, platform: process.platform, bin, args: spec.args }),
+    ];
+
+    const command = this.scopes?.buildCommand(spec.session, argv) ?? {
+      file: ENV_BIN,
+      args: argv.slice(1),
+    };
+
+    const pty = spawn(command.file, command.args, {
+      name: 'xterm-256color',
+      cols: spec.cols,
+      rows: spec.rows,
+      cwd: spec.cwd,
+      env,
+    });
 
     const subscriptions = new Set<{ readonly dispose: () => void }>();
 
@@ -166,7 +179,11 @@ export class LocalPTYProvider implements ExecutionProvider {
   readonly destroyHost = (host: string): Promise<void> =>
     Promise.reject(new Error(`the local-pty provider cannot destroy host ${host}`));
 
-  readonly dispose = (): void => {};
+  // The harnesses have ended or been told to end, so a process one left
+  // behind is all a scope still holds.
+  readonly dispose = (): void => {
+    void this.scopes?.stop();
+  };
 
   private async runCommandWithInput(
     argv: readonly string[],

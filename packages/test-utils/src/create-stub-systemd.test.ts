@@ -152,6 +152,64 @@ test('it records every systemd-run call', async () => {
   ]);
 });
 
+test('it prints no bound units while none are written', async () => {
+  const fake = createStubSystemd(['/bin/true']);
+
+  const show = await runCommand([
+    join(fake.binDir, 'systemctl'),
+    '--user',
+    'show',
+    '--property=BoundBy',
+    '--value',
+    'a.service',
+  ]);
+
+  expect(show.stdout).toBe('');
+});
+
+test('it prints the bound units that were written', async () => {
+  const fake = createStubSystemd(['/bin/true']);
+
+  fake.writeBoundBy(['a-session-1.scope', 'other.scope']);
+
+  const show = await runCommand([
+    join(fake.binDir, 'systemctl'),
+    '--user',
+    'show',
+    '--property=BoundBy',
+    '--value',
+    'a.service',
+  ]);
+
+  expect(show.stdout).toBe('a-session-1.scope other.scope\n');
+});
+
+test('it replaces systemd-run with the scope command in its own process and environment', async () => {
+  const fake = createStubSystemd(['/bin/true']);
+
+  const run = Bun.spawn(
+    [
+      join(fake.binDir, 'systemd-run'),
+      '--user',
+      '--scope',
+      '--unit=a-session-1.scope',
+      '--',
+      'bash',
+      '-c',
+      'echo "pid:$$ scoped:$SCOPED"',
+    ],
+    { env: { PATH: process.env['PATH'], SCOPED: 'yes' }, stdout: 'pipe' },
+  );
+
+  const stdout = await new Response(run.stdout).text();
+
+  expect(stdout).toBe(`pid:${run.pid} scoped:yes\n`);
+
+  expect(fake.readSystemdRunCalls()).toStrictEqual([
+    '--user --scope --unit=a-session-1.scope -- bash -c echo "pid:$$ scoped:$SCOPED"',
+  ]);
+});
+
 test('it writes a cgroup file that places a pid in a user service', () => {
   const fake = createStubSystemd(['/bin/true']);
 
