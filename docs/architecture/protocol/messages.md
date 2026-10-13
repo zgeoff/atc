@@ -63,10 +63,11 @@ holds every message the turn carried and the turn's id, and the daemon marks the
 one statement, so a reader that finds one of them answered finds the whole group answered. A turn
 that ends without a reply, because a person interrupted it, it failed, or the model refused, gets
 one `unanswered` report instead, with the turn's id and a one-word reason: `interrupted`, `error` or
-`refusal`. A message the mod submitted as a prompt that no turn ever carried, because a hook dropped
-the prompt or a turn ended without a reply before it started one, is reported `unanswered` with the
-reason `not_started`. A message the model never saw, one added to a running turn that ended before
-its next step, is delivered again instead.
+`refusal`. A message whose prompt a hook dropped is reported `unanswered` with the reason
+`not_started`, because no turn will ever carry it. A prompt queued behind a running turn keeps
+waiting when that turn ends without a reply, because the session can still run the queued prompt as
+a turn of its own. A message the model never saw, one added to a running turn that ended before its
+next step, is delivered again instead.
 
 Unanswered is final. A later answer for that message changes nothing, and atc never delivers the
 message again, because redelivering after an interrupt would restart work a person stopped, and

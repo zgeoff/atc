@@ -273,7 +273,65 @@ test('it reports a message a hook dropped as unanswered because no turn started'
   ]);
 });
 
-test('it reports a submitted message as unanswered when an interrupted turn leaves it without a turn', async (engine, on) => {
+test('it answers a queued message from its own turn after the turn ahead of it fails', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('session.append', () => ({ deny: 'not now' }));
+  on('prompt.submit', ($, e) => ({ text: e.text }));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'error',
+  });
+
+  await engine.turn.start({
+    text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>',
+    turnId: 't-2',
+  });
+
+  await engine.turn.complete({
+    answer: 'hello',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-2',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'answer', '--messages', 'm-1', '--turn', 't-2'],
+      stdin: 'hello',
+    },
+  ]);
+});
+
+test('it answers a queued message from its own turn after the turn ahead of it is interrupted', async (engine, on) => {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
@@ -306,6 +364,122 @@ test('it reports a submitted message as unanswered when an interrupted turn leav
     isAborted: true,
     turnId: 't-1',
     reason: 'aborted',
+  });
+
+  await engine.turn.start({
+    text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>',
+    turnId: 't-2',
+  });
+
+  await engine.turn.complete({
+    answer: 'hello',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-2',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'answer', '--messages', 'm-1', '--turn', 't-2'],
+      stdin: 'hello',
+    },
+  ]);
+});
+
+test('it reports a queued message as interrupted once when its own turn is interrupted after the turn ahead of it fails', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('session.append', () => ({ deny: 'not now' }));
+  on('prompt.submit', ($, e) => ({ text: e.text }));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'error',
+  });
+
+  await engine.turn.start({
+    text: '<atc-message id="m-1" from="alice">\nhi\n</atc-message>',
+    turnId: 't-2',
+  });
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: true,
+    turnId: 't-2',
+    reason: 'aborted',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'unanswered', '--messages', 'm-1', '--turn', 't-2', '--reason', 'interrupted'],
+      stdin: undefined,
+    },
+  ]);
+});
+
+test('it reports a mid-turn message as not started when a hook drops its queued prompt', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('session.append', () => ({ deny: 'not now' }));
+  on('prompt.submit', () => ({ drop: 'another hook refused it' }));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'error',
   });
 
   await ctx.clock.settle();
