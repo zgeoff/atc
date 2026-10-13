@@ -213,15 +213,20 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // skips a session that something else has changed since.
   const refusals = new Map<Session, string>();
 
-  const recordRefusal = (s: Session, reason: string, retry: boolean) => {
-    mgr.log(`atc could not revive session ${s.id} (${reason})${retry ? '; trying again' : ''}`);
+  // A session a caller stopped, revived, or forgot while the try ran keeps
+  // what the caller left, and gets no further try.
+  const recordRefusal = (s: Session, reason: string, retry: boolean, unchanged: boolean) => {
+    const listed = unchanged && s.pty === null && mgr.sessions.includes(s);
+    const retried = retry && listed;
 
-    if (s.pty === null && mgr.sessions.includes(s)) {
+    mgr.log(`atc could not revive session ${s.id} (${reason})${retried ? '; trying again' : ''}`);
+
+    if (listed) {
       mgr.updateRestoreRefusal(s, reason);
       refusals.set(s, reason);
     }
 
-    if (retry) {
+    if (retried) {
       retrying.push(s);
     }
   };
@@ -232,6 +237,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     isEligible: (s: Session) => boolean,
   ): Promise<boolean> => {
     let adopted: AdoptResult;
+    const before = { state: s.state, lastMsg: s.lastMsg };
+    const isUnchanged = () => s.state === before.state && s.lastMsg === before.lastMsg;
 
     try {
       adopted = await tryAdoptTerminal(mgr, s.id, cols, rows, () => !isStopped() && isEligible(s));
@@ -240,7 +247,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
       const reason = error instanceof Error ? error.message : String(error);
 
-      recordRefusal(s, reason, false);
+      recordRefusal(s, reason, false, isUnchanged());
 
       return false;
     }
@@ -250,6 +257,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         s,
         adopted.refusal.message,
         canRetry && RETRIED_ADOPT_CODES.has(adopted.refusal.code),
+        isUnchanged(),
       );
 
       return false;

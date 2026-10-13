@@ -399,6 +399,68 @@ test('it leaves stopped a refused session a caller stops while its retry readies
   expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
+test('it leaves stopped a session a caller stops while a try its imp then refuses readies the imp', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-busy'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+  ]);
+
+  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+  ctx.port.startLeaseHold();
+
+  const restoring = restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [0],
+  });
+
+  await waitFor(() => {
+    expect(ctx.port.countHeldLeases()).toBe(1);
+  });
+
+  await mgr.kill(toSessionID('s-busy'), true);
+
+  ctx.port.stopLeaseHold();
+
+  const restored = await restoring;
+
+  await restored.settled;
+
+  expect(mgr.sessions).toMatchObject([
+    { id: 's-busy', state: 'exited', lastMsg: 'killed', pty: null },
+  ]);
+
+  expect(ctx.port.sessionRequests).toStrictEqual([]);
+
+  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    `atc could not revive session s-busy (imp ${ctx.provider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE))`,
+  ]);
+});
+
 test('it revives on a later restore a session an earlier restore left without a terminal', async () => {
   const ctx = await setupTest();
 
