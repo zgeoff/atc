@@ -44,6 +44,8 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     deliveredAt: z.number().optional(),
     answeredAt: z.number().optional(),
     answerPreview: z.string().optional(),
+    unansweredAt: z.number().optional(),
+    unansweredReason: z.string().optional(),
   }),
   z.object({
     ev: z.literal('SessionNote'),

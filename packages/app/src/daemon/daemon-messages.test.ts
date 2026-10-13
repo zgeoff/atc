@@ -1629,6 +1629,265 @@ test('it answers message.get for an answered message at once whatever the wait',
   });
 });
 
+test('it moves a delivered message to unanswered from an unanswered Note line', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+    from: 'alice',
+  });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: {
+      kind: 'unanswered',
+      messages: [sent['message']],
+      reason: 'interrupted',
+      turn: 't-1',
+    },
+  });
+
+  await waitFor(() => {
+    expect(daemon.events).toContainEqual({
+      v: 4,
+      ev: 'SessionMessage',
+      s: id,
+      message: sent['message'],
+      status: 'unanswered',
+      from: 'alice',
+      textPreview: 'hello',
+      sentAt: expect.any(Number),
+      deliveredAt: expect.any(Number),
+      unansweredAt: expect.any(Number),
+      unansweredReason: 'interrupted',
+    });
+  });
+});
+
+test('it reads an unanswered message back through message.get with its reason and turn', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: [sent['message']], reason: 'error', turn: 't-9' },
+  });
+
+  const got = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read['status']).toBe('unanswered');
+
+    return read;
+  });
+
+  expect(got).toStrictEqual({
+    message: sent['message'],
+    session: id,
+    from: 'unknown',
+    text: 'hello',
+    status: 'unanswered',
+    sentAt: expect.any(Number),
+    unansweredAt: expect.any(Number),
+    unansweredReason: 'error',
+    turn: 't-9',
+    answeredWith: [],
+  });
+});
+
+test('it records an unanswered message in events.read', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: [sent['message']], reason: 'refusal' },
+  });
+
+  const read = await waitFor(async () => {
+    const answer = await daemon.client.sendRequest('events.read', {});
+
+    expect(answer['events']).toHaveLength(2);
+
+    return answer;
+  });
+
+  expect(read['events']).toStrictEqual([
+    expect.objectContaining({ kind: 'message-queued' }),
+    {
+      cursor: expect.toBeString(),
+      at: expect.toBeNumber(),
+      session: id,
+      name: 'one',
+      kind: 'message-unanswered',
+      detail: 'hello',
+      message: sent['message'],
+    },
+  ]);
+});
+
+test('it ignores an unanswered note from another session', async () => {
+  const ignored: [string, string][] = [];
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+      onNoteIgnored: (sessionID, kind) => {
+        ignored.push([sessionID, kind]);
+      },
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const other = await spawnNamedSession(
+    (m, p) => daemon.client.sendRequest(m, p),
+    'two',
+    daemon.dir,
+  );
+
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.sendHookLines({
+    atcId: other,
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: [sent['message']], reason: 'error' },
+  });
+
+  await waitFor(() => {
+    expect(ignored).toStrictEqual([[other, 'unanswered']]);
+  });
+
+  const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+  expect(got['status']).toBe('queued');
+});
+
+test('it wakes a held message.get when the message turns unanswered', async () => {
+  const clock = buildStubClock(0);
+
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  const pending = daemon.client.sendRequest('message.get', {
+    message: sent['message'],
+    waitMs: 10_000,
+  });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([10_000]);
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: [sent['message']], reason: 'interrupted' },
+  });
+
+  const got = await pending;
+
+  expect(got).toMatchObject({ status: 'unanswered', unansweredReason: 'interrupted' });
+});
+
+test('it answers message.get for an unanswered message at once whatever the wait', async () => {
+  const clock = buildStubClock(0);
+
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }), clock }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: [sent['message']], reason: 'error' },
+  });
+
+  await waitFor(async () => {
+    const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(got['status']).toBe('unanswered');
+  });
+
+  // The clock never moves, so only a read that waits on no timer answers.
+  const got = await daemon.client.sendRequest('message.get', {
+    message: sent['message'],
+    waitMs: 10_000,
+  });
+
+  expect(got['status']).toBe('unanswered');
+});
+
+test('it keeps a message unanswered when an answer arrives later', async () => {
+  const ignored: [string, string][] = [];
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+      onNoteIgnored: (sessionID, kind) => {
+        ignored.push([sessionID, kind]);
+      },
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: [sent['message']], reason: 'interrupted' },
+  });
+
+  await waitFor(async () => {
+    const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(got['status']).toBe('unanswered');
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'late' },
+  });
+
+  await waitFor(() => {
+    expect(ignored).toStrictEqual([[id, 'answered']]);
+  });
+
+  const got = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+  expect(got['status']).toBe('unanswered');
+});
+
 test('it rejects message.get for an unknown message as bad_args', async () => {
   const daemon = await startTestDaemon({
     options: () => ({

@@ -94,3 +94,42 @@ test('it rejects a note with an empty label', () => {
 test('it rejects a note label longer than 64 characters', () => {
   expect(parseNote({ kind: 'note', label: 'x'.repeat(65), text: 'need review' })).toBeNull();
 });
+
+test('it parses an unanswered note with its turn', () => {
+  const note = parseNote({
+    kind: 'unanswered',
+    messages: ['m-1', 'm-2'],
+    reason: 'interrupted',
+    turn: 't-1',
+  });
+
+  expect(note).toStrictEqual({
+    kind: 'unanswered',
+    messages: [toMessageID('m-1'), toMessageID('m-2')],
+    reason: 'interrupted',
+    turn: 't-1',
+  });
+});
+
+test('it parses an unanswered note without a turn', () => {
+  const note = parseNote({ kind: 'unanswered', messages: ['m-1'], reason: 'not_started' });
+
+  expect(note).toStrictEqual({
+    kind: 'unanswered',
+    messages: [toMessageID('m-1')],
+    reason: 'not_started',
+    turn: null,
+  });
+});
+
+test('it rejects an unanswered note without messages', () => {
+  expect(parseNote({ kind: 'unanswered', messages: [], reason: 'error' })).toBeNull();
+});
+
+test('it rejects an unanswered note with an empty reason', () => {
+  expect(parseNote({ kind: 'unanswered', messages: ['m-1'], reason: '' })).toBeNull();
+});
+
+test('it rejects an unanswered note reason longer than 64 characters', () => {
+  expect(parseNote({ kind: 'unanswered', messages: ['m-1'], reason: 'x'.repeat(65) })).toBeNull();
+});

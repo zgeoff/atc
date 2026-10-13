@@ -1,1 +1,1 @@
-export const NOTE_KINDS = ['answered', 'note'] as const;
+export const NOTE_KINDS = ['answered', 'unanswered', 'note'] as const;

@@ -182,9 +182,11 @@ interface MessagesTable {
   delivered_at: number | null;
   answered_at: number | null;
   answer: string | null;
+  unanswered_at: number | null;
+  unanswered_reason: string | null;
 
-  // The turn whose final reply is the answer; null for a message answered
-  // without one.
+  // The turn whose final reply is the answer, or the turn that ended without
+  // one; null for a message settled without one.
   turn_id: string | null;
 }
 
@@ -597,6 +599,12 @@ const MIGRATIONS: Record<string, Migration> = {
   '029_add_fleet_auth_revision': {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema.alterTable('fleet').addColumn('auth_revision', 'integer').execute();
+    },
+  },
+  '030_add_messages_unanswered': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('unanswered_at', 'integer').execute();
+      await db.schema.alterTable('messages').addColumn('unanswered_reason', 'text').execute();
     },
   },
 };

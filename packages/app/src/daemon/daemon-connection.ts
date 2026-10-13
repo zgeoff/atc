@@ -1647,6 +1647,10 @@ export class DaemonConnection {
       ...(record.deliveredAt === undefined ? {} : { deliveredAt: record.deliveredAt }),
       ...(record.answeredAt === undefined ? {} : { answeredAt: record.answeredAt }),
       ...(record.answer === undefined ? {} : { answer: record.answer }),
+      ...(record.unansweredAt === undefined ? {} : { unansweredAt: record.unansweredAt }),
+      ...(record.unansweredReason === undefined
+        ? {}
+        : { unansweredReason: record.unansweredReason }),
       turn: record.turn ?? null,
       answeredWith,
     });

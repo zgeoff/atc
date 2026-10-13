@@ -111,6 +111,112 @@ test('it forwards one answered envelope for every message a turn answered', asyn
   });
 });
 
+test('it forwards an unanswered envelope with the messages, reason, and turn', async () => {
+  const ctx = setupTest();
+
+  updateEnv('ATC_SOCKET', ctx.sock);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  const codes: number[] = [];
+
+  await runNote(
+    'unanswered',
+    { message: '', messages: 'm-1,m-2', label: '', turn: 't-7', reason: 'interrupted' },
+    {
+      readStdin: () => Promise.resolve('ignored'),
+      exit: (code) => {
+        codes.push(code);
+      },
+    },
+  );
+
+  const line = await ctx.reporter.waitForLine();
+
+  expect(codes).toStrictEqual([0]);
+
+  expect(JSON.parse(line) as unknown).toStrictEqual({
+    atcId: 's1',
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: ['m-1', 'm-2'], reason: 'interrupted', turn: 't-7' },
+  });
+});
+
+test('it forwards an unanswered envelope without a turn', async () => {
+  const ctx = setupTest();
+
+  updateEnv('ATC_SOCKET', ctx.sock);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  const codes: number[] = [];
+
+  await runNote(
+    'unanswered',
+    { message: '', messages: 'm-1', label: '', turn: '', reason: 'not_started' },
+    {
+      readStdin: () => Promise.resolve('ignored'),
+      exit: (code) => {
+        codes.push(code);
+      },
+    },
+  );
+
+  const line = await ctx.reporter.waitForLine();
+
+  expect(codes).toStrictEqual([0]);
+
+  expect(JSON.parse(line) as unknown).toStrictEqual({
+    atcId: 's1',
+    event: 'Note',
+    payload: { kind: 'unanswered', messages: ['m-1'], reason: 'not_started' },
+  });
+});
+
+test('it sends nothing for an unanswered envelope without messages', async () => {
+  const ctx = setupTest();
+
+  updateEnv('ATC_SOCKET', ctx.sock);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  const codes: number[] = [];
+
+  await runNote(
+    'unanswered',
+    { message: '', messages: '', label: '', turn: 't-7', reason: 'error' },
+    {
+      readStdin: () => Promise.resolve('ignored'),
+      exit: (code) => {
+        codes.push(code);
+      },
+    },
+  );
+
+  expect(codes).toStrictEqual([0]);
+  expect(ctx.reporter.lines).toStrictEqual([]);
+});
+
+test('it sends nothing for an unanswered envelope without a reason', async () => {
+  const ctx = setupTest();
+
+  updateEnv('ATC_SOCKET', ctx.sock);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  const codes: number[] = [];
+
+  await runNote(
+    'unanswered',
+    { message: '', messages: 'm-1', label: '', turn: 't-7', reason: '' },
+    {
+      readStdin: () => Promise.resolve('ignored'),
+      exit: (code) => {
+        codes.push(code);
+      },
+    },
+  );
+
+  expect(codes).toStrictEqual([0]);
+  expect(ctx.reporter.lines).toStrictEqual([]);
+});
+
 test('it exits 0 when nothing listens at the socket', async () => {
   const tmp = setupTempDir('atc-note-');
 

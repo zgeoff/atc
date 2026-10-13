@@ -644,6 +644,8 @@ export class StateStore {
         delivered_at: record.deliveredAt ?? null,
         answered_at: record.answeredAt ?? null,
         answer: record.answer ?? null,
+        unanswered_at: record.unansweredAt ?? null,
+        unanswered_reason: record.unansweredReason ?? null,
       })
       .execute();
   }
@@ -750,6 +752,33 @@ export class StateStore {
     return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
   }
 
+  // Marks every given message the owner holds unsettled as unanswered in one
+  // statement, so a reader sees all of one turn's messages settled or none of
+  // them. A message already answered or unanswered is left as it is. Returns
+  // the messages it marked, oldest first.
+  async updateMessagesUnanswered(
+    ids: readonly MessageID[],
+    owner: MessageOwner,
+    reason: string,
+    at: number,
+    turn: string | null = null,
+  ): Promise<MessageRecord[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const rows = await this.db
+      .updateTable('messages')
+      .set({ status: 'unanswered', unanswered_at: at, unanswered_reason: reason, turn_id: turn })
+      .where('id', 'in', ids)
+      .where('status', 'in', ['queued', 'delivered'])
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .returningAll()
+      .execute();
+
+    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+  }
+
   // Messages sent before the agent reported its session id carry no agent
   // session id; this stamps them once it is known, and moves every message
   // from a previous agent session id to a changed one.
@@ -780,7 +809,13 @@ export class StateStore {
       .set({ session_id: next })
       .where('atc_id', '=', atcID)
       .where('session_id', 'is', null)
-      .where('kind', 'in', ['message-queued', 'message-delivered', 'message-answered', 'note'])
+      .where('kind', 'in', [
+        'message-queued',
+        'message-delivered',
+        'message-answered',
+        'message-unanswered',
+        'note',
+      ])
       .execute();
   }
 
@@ -1509,6 +1544,7 @@ const MESSAGE_TRAIL_KINDS: ReadonlySet<string> = new Set([
   'message-queued',
   'message-delivered',
   'message-answered',
+  'message-unanswered',
 ]);
 
 // Message and note rows keep their message id or label where hook rows keep
@@ -1572,6 +1608,8 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
     ...(row.delivered_at === null ? {} : { deliveredAt: row.delivered_at }),
     ...(row.answered_at === null ? {} : { answeredAt: row.answered_at }),
     ...(row.answer === null ? {} : { answer: row.answer }),
+    ...(row.unanswered_at === null ? {} : { unansweredAt: row.unanswered_at }),
+    ...(row.unanswered_reason === null ? {} : { unansweredReason: row.unanswered_reason }),
     ...(row.turn_id === null ? {} : { turn: row.turn_id }),
   };
 }

@@ -2,7 +2,7 @@ import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { MessageID } from '@atc/core/message-id';
 import type { SessionID } from '@atc/core/session-id';
 
-export type MessageStatus = 'queued' | 'delivered' | 'answered';
+export type MessageStatus = 'queued' | 'delivered' | 'answered' | 'unanswered';
 
 export interface MessageRecord {
   readonly id: MessageID;
@@ -15,7 +15,13 @@ export interface MessageRecord {
   readonly deliveredAt?: number;
   readonly answeredAt?: number;
   readonly answer?: string;
+  readonly unansweredAt?: number;
 
-  // The turn whose final reply the answer is, when the reporter gave one.
+  // One word for why the turn that carried the message ended without an
+  // answer: interrupted, error, refusal, or not_started.
+  readonly unansweredReason?: string;
+
+  // The turn whose final reply the answer is, or the turn that ended without
+  // one, when the reporter gave one.
   readonly turn?: string;
 }

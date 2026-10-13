@@ -15,6 +15,10 @@ interface NoteOptions {
 
   // The turn whose final reply an `answered` envelope carries; empty when unknown.
   readonly turn: string;
+
+  // Why the turn behind an `unanswered` envelope ended without an answer; empty
+  // when unknown.
+  readonly reason?: string;
 }
 
 // Where the reporter reads its text and how it exits: stdin and the process
@@ -36,7 +40,9 @@ const PROCESS_IO: NoteIO = {
  * atc socket as a Note envelope of the given kind. An `answered` envelope
  * carries stdin as the final reply of the turn that carried the given
  * message, or every given message at once, plus that turn's id when one is
- * given; a `note` carries it as text for the user under the given label,
+ * given; an `unanswered` envelope reports that the turn that carried the given
+ * messages ended without an answer, with the reason and no stdin; a `note`
+ * carries it as text for the user under the given label,
  * `progress` when none is given. Inside a remote host it goes to the session bridge instead. Always
  * exits 0 so it never blocks the session it reports on.
  */
@@ -51,8 +57,7 @@ export async function runNote(
     const atcId = session.sessionID;
 
     if (sock !== undefined && atcId !== undefined && NOTE_KINDS.some((known) => known === kind)) {
-      const stdin = await io.readStdin();
-
+      const stdin = kind === 'unanswered' ? '' : await io.readStdin();
       const payload = buildNotePayload(kind, options, stdin);
 
       if (payload !== null && session.bridge === true) {
@@ -112,6 +117,14 @@ function buildNotePayload(
     return options.message === ''
       ? null
       : { kind, message: options.message, answer: stdin, ...turn };
+  }
+
+  if (kind === 'unanswered') {
+    const messages = options.messages.split(',').filter((id) => id !== '');
+    const reason = options.reason ?? '';
+    const turn = options.turn === '' ? {} : { turn: options.turn };
+
+    return messages.length === 0 || reason === '' ? null : { kind, messages, reason, ...turn };
   }
 
   if (kind === 'note') {

@@ -84,6 +84,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'session.record',
       'vocabulary.note',
       'session.kill.stopOnly',
+      'message.unanswered',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
