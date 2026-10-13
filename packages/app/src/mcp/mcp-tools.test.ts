@@ -243,9 +243,11 @@ test('it gives each tool the scope the MCP architecture doc lists for it', async
 
   const rows = doc.matchAll(/^\| `(?<tool>atc_[a-z_]+)` +\| `(?<scope>[a-z]+)` +\|$/gm);
 
-  expect(Object.fromEntries(MCP_TOOLS.map((tool) => [tool.name, tool.scope]))).toStrictEqual(
-    Object.fromEntries([...rows].map((row) => [row.groups?.['tool'], row.groups?.['scope']])),
-  );
+  expect(
+    Object.fromEntries(
+      [...rows].map((row) => [row.groups?.['tool'] ?? '', row.groups?.['scope']] as const),
+    ),
+  ).toStrictEqual(Object.fromEntries(MCP_TOOLS.map((tool) => [tool.name, tool.scope])));
 });
 
 test('it names every tool once', () => {
