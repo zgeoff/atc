@@ -55,9 +55,7 @@ test('it lists an imp target as reaching the broker', () => {
 test('it lists the local target and a target without a provider as reaching no broker', () => {
   const local = new LocalPTYProvider();
 
-  onTestFinished(() => {
-    local.dispose();
-  });
+  onTestFinished(() => local.dispose());
 
   const entries = buildTargetList(
     [

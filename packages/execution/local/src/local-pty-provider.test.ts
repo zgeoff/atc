@@ -20,9 +20,7 @@ function setupTest() {
 
   const provider = new LocalPTYProvider();
 
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
+  registerTestCleanup(() => provider.dispose());
 
   return { dir: tmp.dir, provider };
 }
@@ -558,9 +556,7 @@ test('it starts a harness in a scope of its own bound to the daemon service', as
     }),
   );
 
-  registerTestCleanup(() => {
-    provider.dispose();
-  });
+  registerTestCleanup(() => provider.dispose());
 
   const output: string[] = [];
 

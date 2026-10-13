@@ -41,9 +41,7 @@ async function setupTest() {
 
   const local = new LocalPTYProvider();
 
-  registerTestCleanup(() => {
-    local.dispose();
-  });
+  registerTestCleanup(() => local.dispose());
 
   const recorder = buildStubLog();
 
@@ -744,9 +742,7 @@ test('it keeps an exited sub-session on a host-destroying target when a second k
 
   const box = buildStubHostProvider();
 
-  registerTestCleanup(() => {
-    box.dispose();
-  });
+  registerTestCleanup(() => box.dispose());
 
   const mgr = new SessionManager(
     buildMockAgentAdapter(),
@@ -814,9 +810,7 @@ test("it refuses to forget a session kept asleep inside its parent's host and ke
 
   const box = buildStubHostProvider();
 
-  registerTestCleanup(() => {
-    box.dispose();
-  });
+  registerTestCleanup(() => box.dispose());
 
   const mgr = new SessionManager(
     buildMockAgentAdapter(),
@@ -893,9 +887,7 @@ test("it forgets an exited session on its parent's host while that host is not a
 
   const box = buildStubHostProvider();
 
-  registerTestCleanup(() => {
-    box.dispose();
-  });
+  registerTestCleanup(() => box.dispose());
 
   const mgr = new SessionManager(
     buildMockAgentAdapter(),
