@@ -155,7 +155,9 @@ export class ClaudeAdapter implements AgentAdapter {
 
   // With `auth` configured, Claude signs in with the subscription
   // token impd's broker holds on a target that reaches the broker, and
-  // with the sign-in of the host it runs on anywhere else.
+  // with the sign-in of the host it runs on anywhere else. The entry's own
+  // placeholders stand in for the credentials of its other profiles, and
+  // the subscription token's placeholder is always atc's.
   findAuthSelection(): AuthSelection | null {
     const auth = this.entry.auth;
 
@@ -169,7 +171,10 @@ export class ClaudeAdapter implements AgentAdapter {
         baseURL: ANTHROPIC_API_URL,
         auth: {
           profiles: auth.profiles,
-          placeholderEnv: { [CLAUDE_CREDENTIAL_VARIABLES.oauthToken]: BROKER_PLACEHOLDER },
+          placeholderEnv: {
+            ...auth.placeholderEnv,
+            [CLAUDE_CREDENTIAL_VARIABLES.oauthToken]: BROKER_PLACEHOLDER,
+          },
         },
       },
       profiles: this.authProfiles,

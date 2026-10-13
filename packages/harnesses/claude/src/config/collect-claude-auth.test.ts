@@ -18,7 +18,7 @@ test('it reads a selection whose profiles send a bearer authorization header to 
   ]);
 
   expect(collectClaudeAuth({ profiles: ['claude', 'github'] }, profiles)).toStrictEqual({
-    auth: { profiles: ['claude', 'github'], mcpServers: [] },
+    auth: { profiles: ['claude', 'github'], placeholderEnv: {}, mcpServers: [] },
     errors: [],
   });
 });
@@ -40,7 +40,7 @@ test.each([
   });
 });
 
-test('it refuses an entry that sets the endpoint or the placeholder itself', () => {
+test('it refuses an entry that sets a key atc does not read', () => {
   const profiles = new Map<string, AuthProfile>([
     [
       'claude',
@@ -54,16 +54,182 @@ test('it refuses an entry that sets the endpoint or the placeholder itself', () 
   ]);
 
   expect(
-    collectClaudeAuth(
-      { profiles: ['claude'], placeholderEnv: { ANTHROPIC_API_KEY: 'imp-broker-placeholder' } },
-      profiles,
-    ),
+    collectClaudeAuth({ profiles: ['claude'], baseURL: 'https://api.z.ai' }, profiles),
   ).toStrictEqual({
     auth: null,
     errors: [
-      'claudeAuth.placeholderEnv cannot be set: atc fixes the endpoint and the placeholder of a Claude subscription session',
+      'claudeAuth.baseURL cannot be set: atc fixes the endpoint and the placeholder of a Claude subscription session',
     ],
   });
+});
+
+test("it reads a placeholder that stands in for a selected non-Anthropic profile's key", () => {
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'claude',
+      buildMockAuthProfile({
+        name: 'claude',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
+    ],
+    [
+      'jev',
+      buildMockAuthProfile({
+        name: 'jev',
+        host: 'api.typesafe.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
+    ],
+  ]);
+
+  expect(
+    collectClaudeAuth(
+      { profiles: ['claude', 'jev'], placeholderEnv: { TYPESAFE_API_KEY: { profile: 'jev' } } },
+      profiles,
+    ),
+  ).toStrictEqual({
+    auth: {
+      profiles: ['claude', 'jev'],
+      placeholderEnv: { TYPESAFE_API_KEY: 'imp-broker-placeholder' },
+      mcpServers: [],
+    },
+    errors: [],
+  });
+});
+
+test.each([
+  [
+    { ANTHROPIC_API_KEY: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.ANTHROPIC_API_KEY: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { ANTHROPIC_BASE_URL: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.ANTHROPIC_BASE_URL: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { CLAUDE_CODE_OAUTH_TOKEN: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.CLAUDE_CODE_OAUTH_TOKEN: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { anthropic_custom_key: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.anthropic_custom_key: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { https_proxy: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.https_proxy: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { TMPDIR: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.TMPDIR: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { CODEX_HOME: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.CODEX_HOME: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { OPENAI_API_KEY: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.OPENAI_API_KEY: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { ATC_SESSION_ID: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.ATC_SESSION_ID: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { TYPESAFE_BASE_URL: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.TYPESAFE_BASE_URL: profile base sets TYPESAFE_BASE_URL, which the placeholder would replace',
+  ],
+  [
+    { TYPESAFE_API_KEY: 'imp-broker-placeholder' },
+    'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: a placeholder must be an object with the profile whose credential it stands in for',
+  ],
+  [
+    { TYPESAFE_API_KEY: {} },
+    'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: profile must be one of claudeAuth.profiles',
+  ],
+  [
+    { TYPESAFE_API_KEY: { profile: 'unselected' } },
+    'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: profile must be one of claudeAuth.profiles',
+  ],
+  [
+    { TYPESAFE_API_KEY: { profile: 'claude' } },
+    'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: profile claude sends its credential to api.anthropic.com, and atc fixes the placeholder of a credential sent to Anthropic',
+  ],
+  [
+    { TYPESAFE_API_KEY: { profile: 'console' } },
+    'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: profile console sends its credential to Console.Anthropic.com, and atc fixes the placeholder of a credential sent to Anthropic',
+  ],
+  [
+    { TYPESAFE_API_KEY: { profile: 'claudeai' } },
+    'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: profile claudeai sends its credential to claude.ai, and atc fixes the placeholder of a credential sent to Anthropic',
+  ],
+  [
+    { GH_TOKEN: { profile: 'github' } },
+    'claudeAuth.placeholderEnv.GH_TOKEN: profile must be a custom or oauth profile, which sets one header for one host',
+  ],
+  [
+    { TYPESAFE_API_KEY: { profile: 'jev', value: 'sk-typesafe' } },
+    'claudeAuth.placeholderEnv.TYPESAFE_API_KEY: value cannot be set: atc fixes the placeholder value',
+  ],
+  [
+    { '1KEY': { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.1KEY: a variable name must be letters, digits or underscores, and not start with a digit',
+  ],
+  [['TYPESAFE_API_KEY'], 'claudeAuth.placeholderEnv must be an object of variable names'],
+])('it refuses the whole entry for the placeholders %p', (placeholderEnv, error) => {
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'claude',
+      buildMockAuthProfile({
+        name: 'claude',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
+    ],
+    [
+      'jev',
+      buildMockAuthProfile({
+        name: 'jev',
+        host: 'api.typesafe.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
+    ],
+    [
+      'unselected',
+      buildMockAuthProfile({
+        name: 'unselected',
+        host: 'api.typesafe.ai',
+        header: 'authorization',
+        scheme: 'bearer',
+      }),
+    ],
+    [
+      'console',
+      buildMockAuthProfile({ name: 'console', host: 'Console.Anthropic.com', header: 'x-api-key' }),
+    ],
+    ['claudeai', buildMockAuthProfile({ name: 'claudeai', host: 'claude.ai', header: 'cookie' })],
+    ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    [
+      'base',
+      buildMockAuthProfile({
+        name: 'base',
+        host: 'base.typesafe.ai',
+        header: 'authorization',
+        env: { TYPESAFE_BASE_URL: 'https://api.typesafe.ai' },
+      }),
+    ],
+  ]);
+
+  expect(
+    collectClaudeAuth(
+      { profiles: ['claude', 'jev', 'console', 'claudeai', 'github', 'base'], placeholderEnv },
+      profiles,
+    ),
+  ).toStrictEqual({ auth: null, errors: [error] });
 });
 
 test('it refuses a selection that reaches a profile the config does not hold', () => {
@@ -137,6 +303,7 @@ test("it reads an MCP server on a selected profile's host with that profile's he
   ).toStrictEqual({
     auth: {
       profiles: ['claude', 'linear'],
+      placeholderEnv: {},
       mcpServers: [
         {
           name: 'linear',
@@ -229,7 +396,7 @@ test.each([
   expect(
     collectClaudeAuth({ profiles: ['claude', 'linear', 'github'], mcpServers }, profiles),
   ).toStrictEqual({
-    auth: { profiles: ['claude', 'linear', 'github'], mcpServers: [] },
+    auth: { profiles: ['claude', 'linear', 'github'], placeholderEnv: {}, mcpServers: [] },
     errors: [error],
   });
 });

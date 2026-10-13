@@ -63,6 +63,7 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
 
   problems.push(
     ...collectEntryProfileEnvProblems(entry, collected.auth.profiles, args.authProfiles),
+    ...collectPlaceholderOverrideProblems(entry, collected.auth.placeholderEnv),
   );
 
   if (problems.length > 0) {
@@ -72,7 +73,7 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
   return {
     entry: {
       ...entry,
-      auth: { profiles: collected.auth.profiles, placeholderEnv: {} },
+      auth: { profiles: collected.auth.profiles, placeholderEnv: collected.auth.placeholderEnv },
       ...(collected.auth.mcpServers.length === 0 ? {} : { mcpServers: collected.auth.mcpServers }),
     },
     warnings: collected.errors,
@@ -102,6 +103,32 @@ function collectEntryProfileEnvProblems(
       ],
     ],
     resolution.resolved.envOwners,
+  );
+}
+
+// The placeholders a stock entry's env or settings env also sets, whose
+// value would replace the placeholder.
+function collectPlaceholderOverrideProblems(
+  entry: AgentEntry,
+  placeholderEnv: Readonly<Record<string, string>>,
+): string[] {
+  const settingsEnv = entry.settings?.['env'];
+
+  const sources = [
+    ['env', Object.keys(entry.env)],
+    [
+      'settings.env',
+      isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [],
+    ],
+  ] as const;
+
+  return Object.keys(placeholderEnv).flatMap((key) =>
+    sources
+      .filter(([, keys]) => keys.includes(key))
+      .map(
+        ([source]) =>
+          `auth.placeholderEnv.${key} is also set in ${source}, which would override it`,
+      ),
   );
 }
 

@@ -864,8 +864,9 @@ keeps the sign-in of your own Claude config.
    }
    ```
 
-`auth` on a stock entry holds `profiles` and the optional [`mcpServers`](#mcp-servers-on-imps), and
-`placeholderEnv` is refused there: atc fixes the endpoint, `https://api.anthropic.com`, and the
+`auth` on a stock entry holds `profiles`, the optional [`mcpServers`](#mcp-servers-on-imps), and the
+optional [`placeholderEnv`](#api-keys-for-a-sessions-own-tools), which binds a variable to a profile
+that is not Anthropic's. atc fixes the endpoint, `https://api.anthropic.com`, and the subscription
 placeholder, `CLAUDE_CODE_OAUTH_TOKEN=imp-broker-placeholder`. Claude Code sends that variable as a
 bearer `authorization` header to `api.anthropic.com` and to no other host, and impd swaps the
 placeholder for the token there. atc leaves the entry out and prints the reason when the daemon
@@ -961,6 +962,57 @@ A revoked grant leaves the placeholder in the request, and the server returns `4
 then fails with `MCP server "linear" rejected the Authorization header in its config`, and `/mcp`
 lists the server as `needs authentication`. The session has no other credential for the server. On
 the local target, Claude keeps the MCP servers of your own Claude config.
+
+#### API keys for a session's own tools
+
+`placeholderEnv` in a stock entry's `auth` gives each subscription session on an imp a variable that
+holds `imp-broker-placeholder` in place of an API key impd holds, for the scripts and tools the
+session runs. impd swaps in the key when a request carries the placeholder to the profile's host, so
+the key never enters the imp. To give a session's eval scripts the Jev key in `TYPESAFE_API_KEY`:
+
+1. Add the key to impd as a `custom` secret on `api.typesafe.ai`:
+
+   ```bash
+   imp secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai
+   ```
+
+2. List the secret in the `--grantable` secrets of the target's impd token.
+3. Add a profile for the secret, select it in the entry's `auth`, and bind the variable to it:
+
+   ```json
+   {
+     "authProfiles": {
+       "jev": {
+         "secret": "jev-imp-agents",
+         "host": "api.typesafe.ai",
+         "header": "authorization",
+         "scheme": "bearer"
+       }
+     },
+     "agents": {
+       "claude": {
+         "auth": {
+           "profiles": ["claude", "jev"],
+           "placeholderEnv": { "TYPESAFE_API_KEY": { "profile": "jev" } }
+         }
+       }
+     }
+   }
+   ```
+
+Each variable holds `profile` alone, and atc sets its value. A placeholder can never stand in for an
+Anthropic credential, so atc refuses the entry and prints the reason when the daemon starts when any
+of these holds:
+
+- The variable starts with `ANTHROPIC_`, `CLAUDE_`, `CODEX_`, `OPENAI_`, or `ATC_`, is `HOME`,
+  `PATH`, or `TMPDIR`, or is a proxy or CA variable, in either case. Claude Code, the Codex CLI the
+  session runs, atc, or impd reads each of these.
+- `profile` is not in the entry's `auth.profiles`, or is not a `custom` or `oauth` profile.
+- The profile's `host` is `anthropic.com`, `claude.ai`, `claude.com`, or a host under one of them.
+- The entry's `env` or `settings.env`, or a selected profile's `env`, sets the variable, which would
+  replace the placeholder or be replaced by it.
+
+The old `claudeAuth` key takes no `placeholderEnv`.
 
 #### Claude config bundle
 
