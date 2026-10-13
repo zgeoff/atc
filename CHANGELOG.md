@@ -2,20 +2,32 @@
 
 ## [4.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.2.0...@zgeoff/atc@4.3.0) (2026-10-13)
 
-
 ### Features
 
-* **geo-441:** rebind a changed auth selection on opted-in imp targets ([#545](https://github.com/zgeoff/atc/issues/545)) ([0dd3ce3](https://github.com/zgeoff/atc/commit/0dd3ce3e5895368af48c58c56f9ca2c50ace6abd))
-
+- **geo-441:** rebind a changed auth selection on opted-in imp targets
+  ([#545](https://github.com/zgeoff/atc/issues/545))
+  ([0dd3ce3](https://github.com/zgeoff/atc/commit/0dd3ce3e5895368af48c58c56f9ca2c50ace6abd))
 
 ### Bug Fixes
 
-* **geo-290:** mark a message unanswered when its turn ends without an answer ([#548](https://github.com/zgeoff/atc/issues/548)) ([fbb1fa6](https://github.com/zgeoff/atc/commit/fbb1fa6e4fb248e07fcd51abab2f4aac12cad8f1))
-* **geo-347:** start each local session in a systemd scope of its own ([#549](https://github.com/zgeoff/atc/issues/549)) ([9c48a4a](https://github.com/zgeoff/atc/commit/9c48a4a4c7696969c1943672ee20e3e36addcb11))
-* **geo-554:** wait for every thread of a stopped daemon to exit ([#532](https://github.com/zgeoff/atc/issues/532)) ([a7fec72](https://github.com/zgeoff/atc/commit/a7fec7250870c6ee39cc687d005391aea3278bbc))
-* **geo-732:** listen again when impd ends an imp session's hook forward ([#546](https://github.com/zgeoff/atc/issues/546)) ([4a59ad8](https://github.com/zgeoff/atc/commit/4a59ad87fb050fbe2e5835fe3ac746029298b47c))
-* **geo-734:** keep each harness's launch auth revision across a restore ([#547](https://github.com/zgeoff/atc/issues/547)) ([63d0460](https://github.com/zgeoff/atc/commit/63d0460520c73b35e5c662429832a7566f9b27de))
-* **geo-739:** open no hook forward once the harness has ended ([#550](https://github.com/zgeoff/atc/issues/550)) ([2f278d5](https://github.com/zgeoff/atc/commit/2f278d5eaa3770be987004ec869122087d3e20df))
+- **geo-290:** mark a message unanswered when its turn ends without an answer
+  ([#548](https://github.com/zgeoff/atc/issues/548))
+  ([fbb1fa6](https://github.com/zgeoff/atc/commit/fbb1fa6e4fb248e07fcd51abab2f4aac12cad8f1))
+- **geo-347:** start each local session in a systemd scope of its own
+  ([#549](https://github.com/zgeoff/atc/issues/549))
+  ([9c48a4a](https://github.com/zgeoff/atc/commit/9c48a4a4c7696969c1943672ee20e3e36addcb11))
+- **geo-554:** wait for every thread of a stopped daemon to exit
+  ([#532](https://github.com/zgeoff/atc/issues/532))
+  ([a7fec72](https://github.com/zgeoff/atc/commit/a7fec7250870c6ee39cc687d005391aea3278bbc))
+- **geo-732:** listen again when impd ends an imp session's hook forward
+  ([#546](https://github.com/zgeoff/atc/issues/546))
+  ([4a59ad8](https://github.com/zgeoff/atc/commit/4a59ad87fb050fbe2e5835fe3ac746029298b47c))
+- **geo-734:** keep each harness's launch auth revision across a restore
+  ([#547](https://github.com/zgeoff/atc/issues/547))
+  ([63d0460](https://github.com/zgeoff/atc/commit/63d0460520c73b35e5c662429832a7566f9b27de))
+- **geo-739:** open no hook forward once the harness has ended
+  ([#550](https://github.com/zgeoff/atc/issues/550))
+  ([2f278d5](https://github.com/zgeoff/atc/commit/2f278d5eaa3770be987004ec869122087d3e20df))
 
 ## [4.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.1.0...@zgeoff/atc@4.2.0) (2026-10-11)
 
