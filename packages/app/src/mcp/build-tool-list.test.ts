@@ -202,6 +202,27 @@ test('it lists the spawn tool without a workspace for a daemon that predates wor
   expect(getRecord(spawn.inputSchema, 'properties')).not.toContainKey('workspace');
 });
 
+test('it lists the update tool with a name for a daemon that reports a skipped rename', () => {
+  const update = buildToolList(new Set(DAEMON_FEATURES), null).find(
+    (tool) => tool.name === 'atc_session_update',
+  );
+
+  invariant(update !== undefined, 'update tool missing');
+
+  expect(update.inputSchema['properties']).toContainKey('name');
+});
+
+test('it lists the update tool without a name for a daemon that predates a reported skipped rename', () => {
+  const update = buildToolList(
+    new Set(DAEMON_FEATURES.filter((feature) => feature !== 'session.update.renameSkipped')),
+    null,
+  ).find((tool) => tool.name === 'atc_session_update');
+
+  invariant(update !== undefined, 'update tool missing');
+
+  expect(getRecord(update.inputSchema, 'properties')).not.toContainKey('name');
+});
+
 test('it leaves out the forget tool for a daemon that does not announce session forgets', () => {
   const features = new Set(DAEMON_FEATURES.filter((feature) => feature !== 'session.forget'));
 

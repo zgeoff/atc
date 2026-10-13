@@ -658,7 +658,9 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       required: ['session'],
       additionalProperties: false,
     },
-    requires: { inputs: { parent: 'session.update.parent' } },
+    requires: {
+      inputs: { parent: 'session.update.parent', name: 'session.update.renameSkipped' },
+    },
   },
   {
     name: 'atc_session_stop',
