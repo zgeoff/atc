@@ -80,7 +80,8 @@ once the rest of the fleet is through.
 
 Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
 "waiting to restore", and its descriptor reads as a running headless session. Input sent to a Claude
-Code session in that window starts a headless turn rather than waiting for the terminal.
+Code session in that window starts a headless turn rather than waiting for the terminal. The restore
+then starts no terminal for that session, and it checks again after each wait while a host wakes.
 
 ## What each failure costs
 

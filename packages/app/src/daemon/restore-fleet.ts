@@ -171,6 +171,14 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     .filter((r) => r.revive || r.session.state !== 'exited')
     .map((r) => r.session);
 
+  // A headless turn removes the unrestored mark from its session, so a
+  // queued session that loses the mark without a terminal runs a turn that
+  // began during this restore, and the restore starts no terminal beside it.
+  const markedAtQueue = new Set(queued.filter((s) => mgr.isUnrestored(s.id)));
+
+  const hasHeadlessTurnStarted = (s: Session) =>
+    markedAtQueue.has(s) && s.pty === null && !mgr.isUnrestored(s.id);
+
   // A session that announced itself, or whose terminal died, before the
   // wait began has nothing left to wait for.
   const waitForBoot = (sessionID: SessionID): Promise<void> => {
@@ -252,7 +260,13 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     const isUnchanged = () => s.state === before.state && s.lastMsg === before.lastMsg;
 
     try {
-      adopted = await tryAdoptTerminal(mgr, s.id, cols, rows, () => !isStopped() && isEligible(s));
+      adopted = await tryAdoptTerminal(
+        mgr,
+        s.id,
+        cols,
+        rows,
+        () => !isStopped() && isEligible(s) && !hasHeadlessTurnStarted(s),
+      );
     } catch (error) {
       failed = true;
 
@@ -298,7 +312,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         return { stopped: true };
       }
 
-      if (!isEligible(s)) {
+      if (!isEligible(s) || hasHeadlessTurnStarted(s)) {
         prev = null;
         continue;
       }

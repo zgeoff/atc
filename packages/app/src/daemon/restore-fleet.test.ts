@@ -472,3 +472,80 @@ test('it revives on a later restore a session an earlier restore left without a 
 
   expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'pty', lastMsg: 'revived' }]);
 });
+
+test('it starts no terminal for a queued session whose headless turn starts while the restore waits on an earlier session', async () => {
+  const ctx = await setupTest();
+
+  const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({
+    bin: 'sleep',
+    args: ['30'],
+  }));
+
+  const headless = buildStubHeadlessRunner();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter({ planSpawn, headlessRunner: headless.runner }),
+    ctx.store,
+    ctx.statusPath,
+    [],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-first'),
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-first'),
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-second'),
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-second'),
+    }),
+  ]);
+
+  // The first session never reports it has booted, so the restore waits on
+  // it until the test releases the wait.
+  const firstRuntime = new SessionRuntime();
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: (id) => (id === toSessionID('s-first') ? firstRuntime : undefined),
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [],
+  });
+
+  await waitFor(() => {
+    expect(firstRuntime.bootWaiter).not.toBeNull();
+  });
+
+  const started = startHeadlessTurn(
+    mgr,
+    () => new SessionRuntime(),
+    toSessionID('s-second'),
+    'keep going',
+    () => {},
+    join(ctx.dir, 'reporter.sock'),
+  );
+
+  invariant(started, 'the headless turn did not start');
+  firstRuntime.bootWaiter?.();
+
+  const outcome = await restored.settled;
+
+  expect(outcome).toBe('finished');
+  expect(planSpawn).toHaveBeenCalledOnce();
+
+  expect(mgr.sessions).toMatchObject([
+    { id: 's-first', kind: 'pty' },
+    { id: 's-second', kind: 'headless', pty: null, lastMsg: 'headless turn running' },
+  ]);
+
+  expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
+});
