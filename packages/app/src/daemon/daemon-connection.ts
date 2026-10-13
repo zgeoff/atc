@@ -744,12 +744,14 @@ export class DaemonConnection {
         }
 
         const id = parsed.data.session;
-        const command = ctx.buildResumeCommand(id);
+        const resume = ctx.buildResumeCommand(id);
 
-        if (command === null) {
+        if ('command' in resume) {
+          this.sendOk(req.id, 'session.resumeCommand', { command: resume.command });
+        } else if (resume.refusal === 'missing') {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else {
-          this.sendOk(req.id, 'session.resumeCommand', { command });
+          this.sendErr(req.id, 'unsupported', resume.reason);
         }
 
         return;

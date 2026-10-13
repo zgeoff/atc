@@ -148,7 +148,8 @@ export function buildScopedContext(
     updateSessionScope: (id, scope) =>
       canSee(id) ? ctx.updateSessionScope(id, scope) : Promise.resolve('missing' as const),
     ackSession: (id) => canSee(id) && ctx.ackSession(id),
-    buildResumeCommand: (id) => (canSee(id) ? ctx.buildResumeCommand(id) : null),
+    buildResumeCommand: (id) =>
+      canSee(id) ? ctx.buildResumeCommand(id) : { refusal: 'missing' as const },
     readSessionScreen: (id) =>
       canSee(id) ? ctx.readSessionScreen(id) : Promise.resolve('missing' as const),
     answerPermission: (request, decision) => {

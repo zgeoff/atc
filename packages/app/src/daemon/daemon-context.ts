@@ -25,6 +25,7 @@ import type { TranscriptPage, TranscriptPosition } from './load-transcript-page'
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
 import type { SessionChanges } from './session-changes';
+import type { ResumeCommand } from './sessions';
 import type { TargetAccess, TargetGrant } from './target-access';
 
 export interface SpawnParams {
@@ -291,7 +292,7 @@ export interface DaemonContext {
   readonly isCallerTree: (id: SessionID, caller: SessionID) => boolean;
   readonly quitDaemon: () => void;
   readonly ackSession: (id: SessionID) => boolean;
-  readonly buildResumeCommand: (id: SessionID) => string | null;
+  readonly buildResumeCommand: (id: SessionID) => ResumeCommand;
   readonly readSessionScreen: (id: SessionID) => Promise<ScreenText | 'missing' | 'no_screen'>;
   readonly answerPermission: (request: string, decision: string) => AnswerResult;
   readonly restoreFleet: (cols: number, rows: number) => Promise<number>;
