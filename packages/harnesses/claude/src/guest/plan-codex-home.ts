@@ -8,12 +8,14 @@ import { findCodexSignIn } from '@atc/plugin-api/harness/find-codex-sign-in';
 /**
  * A Codex home for the Codex CLI that a Claude session on a remote host
  * runs as a tool, such as `codex review`: its files, keyed by their path
- * inside the guest folder, and the `CODEX_HOME` variable that points the
- * CLI at them.
+ * inside the guest folder, the `CODEX_HOME` variable that points the CLI
+ * at them, and the variables the launch unsets, since each would sign
+ * Codex in another way.
  */
 interface CodexHomePlan {
   readonly files: Readonly<Record<string, GuestFile>>;
   readonly env: Readonly<Record<string, string>>;
+  readonly unsetEnv: readonly string[];
 }
 
 /**
@@ -23,6 +25,7 @@ interface CodexHomePlan {
  * authorization header and impd lists that secret's sign-in as ready, the
  * home holds the sign-in file a brokered Codex session gets, with no
  * credential in it, and the config that keeps the sign-in in that file.
+ * The home replaces the image's own Codex home, its settings included.
  * Any other selection, or a sign-in that is not ready, plans no home, and
  * Codex keeps the sign-in of the host's image.
  */
@@ -37,7 +40,7 @@ export function planCodexHome(
   const signIn = secret === null ? null : findCodexSignIn(states[secret]);
 
   if (signIn === null) {
-    return { files: {}, env: {} };
+    return { files: {}, env: {}, unsetEnv: [] };
   }
 
   const home = `${revisionFolder}/${CODEX_HOME_FOLDER}`;
@@ -51,10 +54,14 @@ export function planCodexHome(
       [`${home}/config.toml`]: buildCodexConfig(),
     },
     env: { CODEX_HOME: `${guestDir}/${home}` },
+    unsetEnv: CREDENTIAL_VARIABLES,
   };
 }
 
 const CODEX_HOME_FOLDER = 'codex-home';
+
+// Variables Codex takes a credential from ahead of its sign-in file.
+const CREDENTIAL_VARIABLES = ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN'];
 
 // The host Codex sends its ChatGPT sign-in to.
 const CHATGPT_HOST = 'chatgpt.com';

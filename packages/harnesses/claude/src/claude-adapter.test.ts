@@ -1892,32 +1892,31 @@ test('it plans a Codex home in the binding revision when the profiles send a rea
     'expected the Codex sign-in file with its mode',
   );
 
-  expect({
-    env: plan.env,
-    mode: authFile.mode,
-    auth: JSON.parse(new TextDecoder().decode(authFile.content)),
-    config: plan.files['auth-r2/codex-home/config.toml'],
-  }).toStrictEqual({
-    env: {
-      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
-      TMPDIR: '/tmp/atc/sessions/s1/scratch',
-      CODEX_HOME: '/tmp/atc/sessions/s1/auth-r2/codex-home',
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+  expect(plan.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
+    CODEX_HOME: '/tmp/atc/sessions/s1/auth-r2/codex-home',
+    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+  });
+
+  expect(plan.args[1]).toInclude('unset OPENAI_API_KEY CODEX_API_KEY CODEX_ACCESS_TOKEN; ');
+  expect(authFile.mode).toBe(0o600);
+
+  expect(plan.files['auth-r2/codex-home/config.toml']).toBe(
+    'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
+  );
+
+  expect(JSON.parse(new TextDecoder().decode(authFile.content))).toStrictEqual({
+    auth_mode: 'chatgpt',
+    OPENAI_API_KEY: null,
+    tokens: {
+      id_token:
+        'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
+      access_token: 'imp-broker-placeholder',
+      refresh_token: 'imp-broker-placeholder',
+      account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
     },
-    mode: 0o600,
-    auth: {
-      auth_mode: 'chatgpt',
-      OPENAI_API_KEY: null,
-      tokens: {
-        id_token:
-          'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
-        access_token: 'imp-broker-placeholder',
-        refresh_token: 'imp-broker-placeholder',
-        account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
-      },
-      last_refresh: '2099-01-01T00:00:00Z',
-    },
-    config: 'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
+    last_refresh: '2099-01-01T00:00:00Z',
   });
 });
 
@@ -1966,17 +1965,18 @@ test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () 
 
   invariant(plan !== null, 'expected a guest spawn plan');
 
-  expect({
-    env: plan.env,
-    codexFiles: Object.keys(plan.files).filter((path) => path.includes('codex-home')),
-  }).toStrictEqual({
-    env: {
-      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
-      TMPDIR: '/tmp/atc/sessions/s1/scratch',
-      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
-    },
-    codexFiles: [],
+  expect(plan.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
+    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
   });
+
+  const [, script] = plan.args;
+
+  invariant(script !== undefined, 'expected the launch script');
+
+  expect(Object.keys(plan.files).filter((path) => path.includes('codex-home'))).toBeEmpty();
+  expect(script).not.toInclude('unset ');
 });
 
 test('it plans no Codex home when a ChatGPT profile sets no bearer authorization header', () => {
@@ -2033,8 +2033,11 @@ test('it plans no Codex home when a ChatGPT profile sets no bearer authorization
 
   invariant(plan !== null, 'expected a guest spawn plan');
 
-  expect({
-    codexHome: plan.env?.['CODEX_HOME'] ?? null,
-    codexFiles: Object.keys(plan.files).filter((path) => path.includes('codex-home')),
-  }).toStrictEqual({ codexHome: null, codexFiles: [] });
+  expect(plan.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
+    CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+  });
+
+  expect(Object.keys(plan.files).filter((path) => path.includes('codex-home'))).toBeEmpty();
 });

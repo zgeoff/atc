@@ -281,11 +281,12 @@ export class ClaudeAdapter implements AgentAdapter {
   // host's environment, would keep the CLI from sending the placeholder, so
   // either refuses the start. The entry's MCP servers reach the CLI through
   // an MCP config file of the binding revision, each with the placeholder
-  // in its header. When the profiles also send a ChatGPT sign-in, the
-  // revision holds a Codex home too, so the Codex CLI the session runs as a
-  // tool signs in through the broker as well. Their flag and the scratch folder's sit ahead of the
+  // in its header. Their flag and the scratch folder's sit ahead of the
   // settings flag, so neither variadic flag takes the prompt as one of its
-  // values.
+  // values. When the profiles send a ChatGPT sign-in as well, the revision
+  // holds a Codex home, so the Codex CLI the session runs as a tool signs
+  // in through the broker too, with every variable that would sign it in
+  // another way unset.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
@@ -326,6 +327,7 @@ export class ClaudeAdapter implements AgentAdapter {
       ],
       [...OUTRANKING_VARIABLES],
       bundleKey,
+      codexHome.unsetEnv,
     );
 
     const bundle = loadClaudeConfigBundle(
