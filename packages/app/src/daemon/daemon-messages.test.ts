@@ -2795,6 +2795,34 @@ test('it keeps a delivered message delivered when another session of the same ag
   expect(read['status']).toBe('delivered');
 });
 
+test('it marks a message unanswered as session_ended when its tap acks it after the process exited', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        planSpawn: () => ({ bin: 'head', args: ['-n', '1'] }),
+      }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+
+  await waitFor(async () => {
+    const listed = await daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: false });
+  });
+
+  const acked = await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  expect(acked).toStrictEqual({ message: sent['message'], status: 'unanswered' });
+});
+
 test('it keeps a queued message queued when the process exits', async () => {
   const daemon = await startTestDaemon({
     options: () => ({

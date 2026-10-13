@@ -2374,6 +2374,20 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       if (delivered !== null) {
         await recordMessageStatus(sessionID, delivered);
 
+        // A tap can outlive its process for a moment, so an ack can land
+        // after the process ended and after its end marked the messages it
+        // held. Only a local session's process is surely gone once its
+        // terminal is.
+        const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
+
+        if (!live && mgr.isLocalTarget(s.target)) {
+          await updateEndedSessionMessages(s);
+
+          const settled = await store.findMessage(messageID, owner);
+
+          return settled ?? delivered;
+        }
+
         return delivered;
       }
 
