@@ -45,11 +45,14 @@ summary Claude Code wrote.
 
 A session that signs in through impd's broker on an imp gets a Claude Code config folder of its own
 in its guest folder, seeded with the onboarding state and trust marks a fresh folder would otherwise
-prompt for. A stock Claude Code session there also takes an allow-listed copy of the daemon host's
-own Claude Code config at each launch, which atc reads and never writes. One exception to the rule
-that atc never writes an agent's config: a local launch that opts into clone trust adds one
-folder-trust entry for its verified clone to the owner's Claude Code config, under Claude Code's own
-lock, since Claude Code takes trust no other way.
+prompt for. The folder also holds a sign-in file whose access token is the broker placeholder.
+Claude Code removes its credential variables from the environment of every tool it runs, so a Claude
+Code CLI that a tool starts finds its sign-in only in that file. A stock Claude Code session there
+also takes an allow-listed copy of the daemon host's own Claude Code config at each launch, which
+atc reads and never writes. One exception to the rule that atc never writes an agent's config: a
+local launch that opts into clone trust adds one folder-trust entry for its verified clone to the
+owner's Claude Code config, under Claude Code's own lock, since Claude Code takes trust no other
+way.
 
 ## The atc-bridge mod
 
