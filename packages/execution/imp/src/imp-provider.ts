@@ -211,6 +211,7 @@ export class ImpProvider implements ExecutionProvider {
       suspending: false,
       isIdle: null,
       log: null,
+      sleepRefusals: new Set(),
     };
 
     this.hosts.set(hostKey, host);
@@ -430,6 +431,8 @@ export class ImpProvider implements ExecutionProvider {
         if (isBusy()) {
           host.suspending = false;
 
+          emitSleepRefusal(host);
+
           await this.restoreLease(host);
 
           throw buildBusyRefusal(host.name);
@@ -438,6 +441,8 @@ export class ImpProvider implements ExecutionProvider {
         await this.port.suspendImp(host.name);
       } catch (error) {
         host.suspending = false;
+
+        emitSleepRefusal(host);
 
         if (error instanceof ImpPortError && error.code === 'LEASED') {
           await this.restoreLease(host);
@@ -669,22 +674,69 @@ export class ImpProvider implements ExecutionProvider {
 
     let current = openForward();
 
+    // Settles true once a sleep the provider asked for is refused, so the
+    // imp stays awake, and false once the reporter stops first.
+    const waitForRefusedSleep = () =>
+      new Promise<boolean>((resolve) => {
+        if (stopping.signal.aborted) {
+          resolve(false);
+
+          return;
+        }
+
+        const onAbort = () => {
+          host.sleepRefusals.delete(onRefusal);
+
+          resolve(false);
+        };
+
+        const onRefusal = () => {
+          stopping.signal.removeEventListener('abort', onAbort);
+
+          resolve(true);
+        };
+
+        host.sleepRefusals.add(onRefusal);
+        stopping.signal.addEventListener('abort', onAbort, { once: true });
+      });
+
+    // A listen during a sleep the provider asked for would wake the imp, so
+    // the forward waits for the sleep's outcome and listens again only when
+    // impd refuses it.
+    const waitForAwakeHost = async (): Promise<boolean> => {
+      if (!host.suspending) {
+        return true;
+      }
+
+      host.log?.(
+        `imp ${host.name} is going to sleep; session ${spec.session}'s hooks listen again if the sleep is refused`,
+      );
+
+      return await waitForRefusedSleep();
+    };
+
     const restoreForward = async (): Promise<void> => {
       let failures = 0;
 
       for (;;) {
-        // oxlint-disable-next-line no-await-in-loop -- each forward is watched only once the one before it ended
         const end = await current.ended;
 
-        if (stopping.signal.aborted || end.kind === 'stopped' || host.suspending) {
+        if (stopping.signal.aborted || end.kind === 'stopped') {
           return;
         }
+
+        // A forward impd ended with an error can keep its tunnel socket open.
+        current.stop();
 
         if (end.kind === 'lost') {
           host.log?.(
             `imp ${host.name} stopped listening for session ${spec.session}'s hooks (${formatForwardEnd(end)}); a wake listens again`,
           );
 
+          return;
+        }
+
+        if (!(await waitForAwakeHost())) {
           return;
         }
 
@@ -698,25 +750,18 @@ export class ImpProvider implements ExecutionProvider {
         );
 
         try {
-          // oxlint-disable-next-line no-await-in-loop -- the wait between one forward and the next
           await sleep(delay, undefined, { signal: stopping.signal, ref: false });
         } catch {
           return;
         }
 
-        // A sleep that started during the wait would wake again at the listen.
-        if (host.suspending) {
-          host.log?.(
-            `imp ${host.name} went to sleep before session ${spec.session}'s hooks listened again; a wake listens again`,
-          );
-
+        if (!(await waitForAwakeHost())) {
           return;
         }
 
         current = openForward();
 
         try {
-          // oxlint-disable-next-line no-await-in-loop -- a forward that listens resets the delays
           await current.listening;
 
           failures = 0;
@@ -868,6 +913,10 @@ interface ImpHost {
 
   // Where the latest readying asked the provider to report, or null.
   log: ((line: string) => void) | null;
+
+  // Called once each when impd refuses a sleep the provider asked for, and
+  // the host stays awake.
+  readonly sleepRefusals: Set<() => void>;
 }
 
 // The imp a target creates: its image and memory when the target sets them,
@@ -878,6 +927,16 @@ function buildCreateImpSpec(name: string, target: ImpTargetOptions): ImpCreateSp
     ...(target.image === undefined ? {} : { image: target.image }),
     ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
   };
+}
+
+function emitSleepRefusal(host: ImpHost): void {
+  const listeners = [...host.sleepRefusals];
+
+  host.sleepRefusals.clear();
+
+  for (const listener of listeners) {
+    listener();
+  }
 }
 
 function formatForwardEnd(end: Exclude<ImpForwardEnd, { kind: 'stopped' }>): string {
