@@ -2665,3 +2665,93 @@ test('it queues a message to a revived session before it reports SessionStart ag
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
 });
+
+test('it marks a delivered message unanswered as session_ended when the process exits', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        planSpawn: () => ({ bin: 'head', args: ['-n', '1'] }),
+      }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'hello',
+    from: 'alice',
+  });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+
+  await waitFor(() => {
+    expect(daemon.events).toContainEqual({
+      v: 4,
+      ev: 'SessionMessage',
+      s: id,
+      message: sent['message'],
+      status: 'unanswered',
+      from: 'alice',
+      textPreview: 'hello',
+      sentAt: expect.any(Number),
+      deliveredAt: expect.any(Number),
+      unansweredAt: expect.any(Number),
+      unansweredReason: 'session_ended',
+    });
+  });
+});
+
+test('it marks a delivered message unanswered as session_ended when the session is killed', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  const got = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read['status']).toBe('unanswered');
+
+    return read;
+  });
+
+  expect(got['unansweredReason']).toBe('session_ended');
+});
+
+test('it keeps a queued message queued when the process exits', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        takesMessages: true,
+        planSpawn: () => ({ bin: 'head', args: ['-n', '1'] }),
+      }),
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const sent = await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await daemon.client.sendRequest('session.input', { session: id, d: 'end\r' });
+
+  await waitFor(async () => {
+    const listed = await daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: false });
+  });
+
+  const read = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+  expect(read['status']).toBe('queued');
+});

@@ -1672,6 +1672,81 @@ test('it refuses to mark a message unanswered for another session', async () => 
   expect(marked).toStrictEqual([]);
 });
 
+test('it marks every delivered message of a session unanswered with the given reason', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: toSessionID('s1') }, 2000);
+
+  const marked = await ctx.store.updateDeliveredMessagesUnanswered(
+    { atcID: toSessionID('s1') },
+    'session_ended',
+    3000,
+  );
+
+  expect(marked).toStrictEqual([
+    {
+      ...record,
+      status: 'unanswered',
+      deliveredAt: 2000,
+      unansweredAt: 3000,
+      unansweredReason: 'session_ended',
+    },
+  ]);
+});
+
+test('it keeps a queued message queued when its session ends', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
+
+  await ctx.store.writeMessage(record);
+
+  const marked = await ctx.store.updateDeliveredMessagesUnanswered(
+    { atcID: toSessionID('s1') },
+    'session_ended',
+    3000,
+  );
+
+  expect(marked).toStrictEqual([]);
+});
+
+test('it keeps an answered message answered when its session ends', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: toSessionID('s1') }, 'done', 2000);
+
+  const marked = await ctx.store.updateDeliveredMessagesUnanswered(
+    { atcID: toSessionID('s1') },
+    'session_ended',
+    3000,
+  );
+
+  expect(marked).toStrictEqual([]);
+});
+
+test('it never marks a delivered message of another session when a session ends', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ atcID: toSessionID('s2') });
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: toSessionID('s2') }, 2000);
+
+  const marked = await ctx.store.updateDeliveredMessagesUnanswered(
+    { atcID: toSessionID('s1') },
+    'session_ended',
+    3000,
+  );
+
+  expect(marked).toStrictEqual([]);
+});
+
 test('it refuses to deliver a message owned by another session', async () => {
   const ctx = await setupTest();
 

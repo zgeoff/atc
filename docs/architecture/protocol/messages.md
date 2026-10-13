@@ -18,6 +18,7 @@ stateDiagram-v2
     delivered --> answered: the carrying turn ends with a reply
     queued --> unanswered: the carrying turn ends without a reply
     delivered --> unanswered: the carrying turn ends without a reply
+    delivered --> unanswered: the session's process ends
 ```
 
 ## Sending
@@ -46,8 +47,10 @@ closing event and exits, so one session never has two consumers.
 
 Delivered means the tap printed the message to the mod, not that the model saw it. The mod keeps the
 messages it holds for the current turn in memory, so a Claude Code process that dies after the ack
-leaves the message delivered, because no report is made. A caller that waits on a message therefore
-waits with a deadline and treats a long-delivered message as lost.
+makes no report. The daemon marks each message the session holds delivered `unanswered` with the
+reason `session_ended` when the session's process exits or the session is killed or removed. A
+message still queued stays queued for the session's next process. A host that goes to sleep with the
+process inside ends nothing, so its delivered messages wait for the wake.
 
 A message belongs to the session it was sent to, and follows the agent session when the session
 resumes or clears it, so a resumed session keeps its queue.
@@ -66,6 +69,11 @@ one `unanswered` report instead, with the turn's id and a one-word reason: `inte
 the prompt or a turn ended without a reply before it started one, is reported `unanswered` with the
 reason `not_started`. A message the model never saw, one added to a running turn that ended before
 its next step, is delivered again instead.
+
+A message whose session's process ends while it is delivered is marked `unanswered` with the reason
+`session_ended`, not delivered again when the session revives. Nothing promises a revive, so a
+caller would otherwise wait on the message for good, and the ended turn may have done part of the
+work, which a second delivery would repeat.
 
 Unanswered is final. A later answer for that message changes nothing, and atc never delivers the
 message again, because redelivering after an interrupt would restart work a person stopped, and

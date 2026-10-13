@@ -781,6 +781,26 @@ export class StateStore {
     return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
   }
 
+  // Marks every message the owner holds delivered as unanswered in one
+  // statement, for a session whose process ended, so no turn is left to
+  // settle them. A queued message stays queued for the session's next
+  // process. Returns the messages it marked, oldest first.
+  async updateDeliveredMessagesUnanswered(
+    owner: MessageOwner,
+    reason: string,
+    at: number,
+  ): Promise<MessageRecord[]> {
+    const rows = await this.db
+      .updateTable('messages')
+      .set({ status: 'unanswered', unanswered_at: at, unanswered_reason: reason })
+      .where('status', '=', 'delivered')
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .returningAll()
+      .execute();
+
+    return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
+  }
+
   // Messages sent before the agent reported its session id carry no agent
   // session id; this stamps them once it is known, and moves every message
   // from a previous agent session id to a changed one.

@@ -209,7 +209,7 @@ const MESSAGE_OUTPUT: Readonly<Record<string, unknown>> = {
     unansweredReason: {
       type: 'string',
       description:
-        'Why the turn ended without an answer: interrupted (a person stopped the turn), error (the turn failed), refusal (the model declined), or not_started (the prompt never started a turn); present only on an unanswered message',
+        'Why the turn ended without an answer: interrupted (a person stopped the turn), error (the turn failed), refusal (the model declined), not_started (the prompt never started a turn), or session_ended (the process of the session ended before the turn did); present only on an unanswered message',
     },
   },
   required: ['message', 'session', 'from', 'text', 'status', 'turn', 'answeredWith', 'sentAt'],
@@ -757,7 +757,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: AGENT_FACING,
     scope: 'message',
     description:
-      "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer comes back on the message: follow with atc_message_get and waitMs until status is answered or unanswered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model), answered, or unanswered: the turn that carried the message ended without an answer (interrupted, an error, a refusal, or the prompt never started a turn), with the cause in unansweredReason. unanswered is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session has no live process, including one still booting after a daemon restart; no_such_session for an unknown id. A retry with the same idempotencyKey and text returns the same message.",
+      "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer comes back on the message: follow with atc_message_get and waitMs until status is answered or unanswered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model), answered, or unanswered: the turn that carried the message ended without an answer (interrupted, an error, a refusal, or the prompt never started a turn) or the session's process ended while atc held the message delivered, with the cause in unansweredReason. A message still queued when the process ends stays queued for the session's next process. unanswered is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session has no live process, including one still booting after a daemon restart; no_such_session for an unknown id. A retry with the same idempotencyKey and text returns the same message.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -781,7 +781,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      'Read one message sent with atc_message_send: status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.',
+      'Read one message sent with atc_message_send: status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer, or the process of its session ended while the message was delivered (unansweredReason session_ended), and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.',
     inputSchema: MESSAGE_GET_INPUT,
     outputSchema: MESSAGE_OUTPUT,
     requires: { output: 'message.turn', inputs: { waitMs: 'message.wait' } },

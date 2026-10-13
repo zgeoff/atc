@@ -958,8 +958,33 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // A session whose process ended leaves no turn to report on the messages
+  // it was given, so each one it holds delivered becomes unanswered. A host
+  // asleep with the process inside keeps them for its wake.
+  const updateEndedSessionMessages = async (s: Session) => {
+    try {
+      const unanswered = await store.updateDeliveredMessagesUnanswered(
+        buildMessageOwner(s),
+        'session_ended',
+        clock.now(),
+      );
+
+      for (const record of unanswered) {
+        await recordMessageStatus(s.id, record);
+      }
+    } catch {}
+  };
+
   mgr.onEvent = (kind, s) => {
+    const ended =
+      kind === 'removed' ||
+      (s.state === 'exited' && !s.suspended && lastStates.get(s.id) !== 'exited');
+
     recordAttention(kind, s);
+
+    if (ended) {
+      void updateEndedSessionMessages(s);
+    }
 
     if (kind === 'added') {
       runtimes.set(s.id, new SessionRuntime());
