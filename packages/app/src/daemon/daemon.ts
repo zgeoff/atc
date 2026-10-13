@@ -870,9 +870,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // The sessions whose process end the daemon saw, until a harness starts
+  // for them again.
+  const endedProcesses = new Set<SessionID>();
+
   // A spawned terminal starts on a fresh screen; a revived one keeps the
   // screen its session already had.
   mgr.onBoot = (s, cols, rows) => {
+    endedProcesses.delete(s.id);
+
     const runtime = runtimes.get(s.id);
 
     if (runtime === undefined) {
@@ -958,8 +964,51 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
+  // A session whose process ended leaves no turn to report on the messages
+  // it was given, so each one it holds delivered becomes unanswered.
+  const updateEndedMessages = async (sessionID: SessionID, owner: MessageOwner) => {
+    try {
+      const unanswered = await store.updateDeliveredMessagesUnanswered(
+        owner,
+        'session_ended',
+        clock.now(),
+      );
+
+      for (const record of unanswered) {
+        await recordMessageStatus(sessionID, record);
+      }
+    } catch {}
+  };
+
+  // While another live session resumes the same agent session, the store
+  // cannot tell which process holds a message, so none is marked.
+  const updateEndedSessionMessages = async (s: Session) => {
+    const shared =
+      s.agentSessionID !== undefined &&
+      mgr.sessions.some(
+        (x) =>
+          x.id !== s.id &&
+          x.agentSessionID === s.agentSessionID &&
+          (x.pty !== null || (x.kind === 'headless' && x.state !== 'exited')),
+      );
+
+    if (!shared) {
+      await updateEndedMessages(s.id, buildMessageOwner(s));
+    }
+  };
+
+  mgr.onProcessEnded = (s) => {
+    endedProcesses.add(s.id);
+    void updateEndedSessionMessages(s);
+  };
+
   mgr.onEvent = (kind, s) => {
     recordAttention(kind, s);
+
+    if (kind === 'removed') {
+      endedProcesses.delete(s.id);
+      void updateEndedSessionMessages(s);
+    }
 
     if (kind === 'added') {
       runtimes.set(s.id, new SessionRuntime());
@@ -2333,6 +2382,21 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       if (delivered !== null) {
         await recordMessageStatus(sessionID, delivered);
 
+        // A tap can outlive its process for a moment, so an ack can land
+        // after the process ended and after its end marked the messages it
+        // held. A process is surely gone when its exit was seen, or when a
+        // local session has no terminal; a remote host that lost the
+        // connection or went to sleep may still run it.
+        const live = s.pty !== null || (s.kind === 'headless' && s.state !== 'exited');
+
+        if (!live && (endedProcesses.has(s.id) || mgr.isLocalTarget(s.target))) {
+          await updateEndedSessionMessages(s);
+
+          const settled = await store.findMessage(messageID, owner);
+
+          return settled ?? delivered;
+        }
+
         return delivered;
       }
 
@@ -2531,6 +2595,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       );
     }
   };
+
+  // Every harness on the daemon's own machine ended with the daemon before
+  // this one, so the messages its sessions held delivered get no answer.
+  try {
+    for (const entry of await store.loadFleet()) {
+      if (mgr.isLocalTarget(entry.target ?? LOCAL_TARGET.id)) {
+        await updateEndedMessages(entry.sessionID, {
+          atcID: entry.sessionID,
+          ...(entry.agentSessionID === undefined ? {} : { agentSessionID: entry.agentSessionID }),
+        });
+      }
+    }
+  } catch {}
 
   if (opts.restoreFleetOnRestart === true) {
     const stored = await store.loadFleet();

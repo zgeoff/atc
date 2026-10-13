@@ -33,7 +33,10 @@ async function setupTest() {
       const fakeClaude = createStubEchoClaude(paths.dir);
 
       return {
-        adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
+        adapter: buildMockAgentAdapter({
+          takesMessages: true,
+          planSpawn: () => ({ bin: fakeClaude, args: [] }),
+        }),
         targets: [
           {
             id: 'box',
@@ -60,6 +63,7 @@ async function setupTest() {
     socketPath: daemon.socketPath,
     build: daemon.build,
     logs: daemon.logs,
+    openClient: daemon.openClient,
     port,
   };
 }
@@ -455,6 +459,111 @@ test('it lists a session as reattaching while its connection is lost and as atta
   expect(ctx.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [{ id, state: 'running', alive: true }],
   });
+});
+
+test('it keeps a delivered message delivered when the connection to its imp session is lost for good', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const [imp] = ctx.port.collectImpNames();
+  const [request] = ctx.port.sessionRequests;
+
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd(String(imp), request.session)).toBeGreaterThan(0);
+  });
+
+  const tap = await ctx.openClient();
+  const sent = await ctx.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  ctx.port.setSessionDrops(10, 1011);
+  ctx.port.stopConnection(String(imp), request.session, 1011);
+
+  await waitFor(async () => {
+    const listed = await ctx.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: false });
+  });
+
+  const read = await ctx.client.sendRequest('message.get', { message: sent['message'] });
+
+  expect(read['status']).toBe('delivered');
+});
+
+test('it marks a message unanswered when its tap acks it after the imp process exited', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const tap = await ctx.openClient();
+  const sent = await ctx.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await ctx.client.sendRequest('session.input', { session: id, d: 'quit\r' });
+
+  await waitFor(async () => {
+    const listed = await ctx.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: false, lastMsg: 'process exited' });
+  });
+
+  const acked = await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  expect(acked).toStrictEqual({ message: sent['message'], status: 'unanswered' });
+});
+
+test('it keeps a message delivered when its tap acks it after the connection to its imp session is lost for good', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const [imp] = ctx.port.collectImpNames();
+  const [request] = ctx.port.sessionRequests;
+
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd(String(imp), request.session)).toBeGreaterThan(0);
+  });
+
+  const tap = await ctx.openClient();
+  const sent = await ctx.client.sendRequest('session.message', { session: id, text: 'hello' });
+
+  await tap.sendRequest('session.tap', { session: id });
+
+  ctx.port.setSessionDrops(10, 1011);
+  ctx.port.stopConnection(String(imp), request.session, 1011);
+
+  await waitFor(async () => {
+    const listed = await ctx.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: false });
+  });
+
+  const acked = await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
+
+  expect(acked).toStrictEqual({ message: sent['message'], status: 'delivered' });
 });
 
 test('it lists a session whose imp another owner put to sleep as asleep', async () => {

@@ -18,6 +18,7 @@ stateDiagram-v2
     delivered --> answered: the carrying turn ends with a reply
     queued --> unanswered: the carrying turn ends without a reply
     delivered --> unanswered: the carrying turn ends without a reply
+    delivered --> unanswered: the session's process ends
 ```
 
 ## Sending
@@ -46,8 +47,8 @@ closing event and exits, so one session never has two consumers.
 
 Delivered means the tap printed the message to the mod, not that the model saw it. The mod keeps the
 messages it holds for the current turn in memory, so a Claude Code process that dies after the ack
-leaves the message delivered, because no report is made. A caller that waits on a message therefore
-waits with a deadline and treats a long-delivered message as lost.
+makes no report. The daemon settles those messages itself, as
+[the end of a process](#the-end-of-a-process) describes.
 
 A message belongs to the session it was sent to, and follows the agent session when the session
 resumes or clears it, so a resumed session keeps its queue.
@@ -76,6 +77,25 @@ read that waits returns as soon as the status becomes answered or unanswered.
 A caller reads a message's status, answer and turn by its id, and can hold the read open until the
 status moves. Message ids and statuses live in `atc.db`, so a caller whose wait ended, or whose
 connection dropped, reads again with the same id.
+
+### The end of a process
+
+When a session's process exits, or a person kills or removes the session, the daemon marks each
+message the session holds delivered `unanswered` with the reason `session_ended`. The mod's state
+died with the process, so no report about those messages can arrive. The daemon marks them rather
+than delivering them again when the session revives, because nothing promises a revive, and the
+ended turn may have done part of the work that a second delivery would repeat. A message still
+queued stays queued for the session's next process.
+
+Every local process ends with the daemon that started it, so a daemon that starts marks the
+delivered messages of every fleet session on its own machine the same way. Three ends mark nothing,
+because the process may still run:
+
+- A host that goes to sleep with the process inside, which a wake resumes.
+- A connection to a remote host that is lost for good, since a revive can attach to the same
+  process.
+- The end of a session while another live session resumes the same agent session, since the daemon
+  cannot tell which of the two processes holds a message.
 
 ## Progress notes
 

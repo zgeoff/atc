@@ -338,6 +338,11 @@ export class SessionManager {
 
   onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
 
+  // Called when a session's process is known to have ended: it exited or
+  // it was killed. A host that lost the connection or went to sleep may
+  // still run the process, so neither calls it.
+  onProcessEnded: (s: Session) => void = () => {};
+
   // Where a background failure is reported, one line at a time: stderr,
   // like the daemon's other background failures.
   log: (line: string) => void = (line) => {
@@ -698,6 +703,12 @@ export class SessionManager {
    * any work: a target whose provider reaches no broker, for an agent that
    * starts only behind one, or a broker the daemon cannot bind.
    */
+  // Whether a target runs its harnesses on the daemon's own machine, where
+  // each one ends with the daemon.
+  isLocalTarget(target: string): boolean {
+    return this.targets.get(target)?.provider?.remote === false;
+  }
+
   requireAgentTarget(agent: AgentID, target: string): void {
     const selection = this.findAdapter(agent)?.findAuthSelection?.() ?? null;
 
@@ -943,6 +954,10 @@ export class SessionManager {
 
       this.onEvent('state', s);
       this.emitChange();
+
+      if (exit.reason === undefined || exit.reason === 'exited') {
+        this.onProcessEnded(s);
+      }
     });
   }
 
@@ -3403,6 +3418,7 @@ export class SessionManager {
     s.desired = 'stop';
 
     this.onEvent('state', s);
+    this.onProcessEnded(s);
   }
 
   private remove(s: Session) {
