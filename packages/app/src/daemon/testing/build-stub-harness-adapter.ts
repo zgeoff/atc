@@ -10,7 +10,7 @@ interface StubHarnessAdapterConfig {
 
   // The events each hook event name means, keyed by the name; a name the
   // table lacks means one heartbeat.
-  readonly hooks?: Readonly<Record<string, readonly AdapterEvent[]>>;
+  readonly hooks?: Readonly<Record<string, readonly Readonly<AdapterEvent>[]>>;
 
   // Whether sessions take inbox messages; false when absent.
   readonly takesMessages?: boolean;

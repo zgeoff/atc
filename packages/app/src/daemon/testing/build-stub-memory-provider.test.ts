@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'bun:test';
+import type { HarnessExit } from '@atc/plugin-api/execution-provider';
 import { buildStubCredentialBroker } from './build-stub-credential-broker';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
@@ -121,8 +122,8 @@ test('it records what the daemon writes to a harness and each size it sets', () 
 
 test('it delivers the output a test emits to each listener until it is disposed', () => {
   const provider = buildStubMemoryProvider();
-  const kept = mock();
-  const dropped = mock();
+  const kept = mock<(data: string) => void>();
+  const dropped = mock<(data: string) => void>();
 
   const harness = provider.spawnHarness({
     session: 's-1',
@@ -144,7 +145,7 @@ test('it delivers the output a test emits to each listener until it is disposed'
 
 test('it reports one exit for a harness that a test ends twice', () => {
   const provider = buildStubMemoryProvider();
-  const onExit = mock();
+  const onExit = mock<(exit: HarnessExit) => void>();
 
   const harness = provider.spawnHarness({
     session: 's-1',
@@ -166,7 +167,7 @@ test('it reports one exit for a harness that a test ends twice', () => {
 
 test('it ends a killed harness with exit code 0 once the kill returns', async () => {
   const provider = buildStubMemoryProvider();
-  const onExit = mock();
+  const onExit = mock<(exit: HarnessExit) => void>();
 
   const harness = provider.spawnHarness({
     session: 's-1',
@@ -234,8 +235,8 @@ test('it reports no exit for a harness that runs past the wait', async () => {
 
 test('it leaves a detached harness running and tells no listener of its later exit', async () => {
   const provider = buildStubMemoryProvider();
-  const onData = mock();
-  const onExit = mock();
+  const onData = mock<(data: string) => void>();
+  const onExit = mock<(exit: HarnessExit) => void>();
 
   const harness = provider.spawnHarness({
     session: 's-1',
@@ -261,6 +262,7 @@ test('it leaves a detached harness running and tells no listener of its later ex
 
   expect(exited).toBeFalse();
   expect(provider.harnesses[0]?.isDetached()).toBeTrue();
+  expect(provider.harnesses[0]?.readExit()).toBeNull();
   expect(onData).not.toHaveBeenCalled();
   expect(onExit).not.toHaveBeenCalled();
 });

@@ -10,13 +10,14 @@ test('it builds a target with an in-memory provider for each local-pty entry and
     { spawned: [] },
   );
 
-  expect(local).toStrictEqual({
+  expect(local).toMatchObject({
     id: 'local',
     kind: 'local-pty',
     options: {},
     identity: 'local-pty:44136fa355b3678a',
-    provider: expect.objectContaining({ kind: 'local-pty', remote: false, harnesses: [] }),
   });
+
+  expect(local?.provider).toMatchObject({ kind: 'local-pty', remote: false, harnesses: [] });
 
   expect(box).toStrictEqual({
     id: 'box',

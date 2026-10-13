@@ -55,8 +55,8 @@ interface StubMemoryHarness extends HarnessHandle {
   readonly isDetached: () => boolean;
   readonly emitData: (data: string) => void;
 
-  // Ends the harness with the exit given; a harness that already ended
-  // reports nothing more.
+  // Ends the harness with the exit given; a harness that already ended, or
+  // that the daemon let go of, records nothing more.
   readonly emitExit: (exit: HarnessExit) => void;
 }
 
@@ -188,7 +188,7 @@ function buildStubMemoryHarness(spec: HarnessSpec): StubMemoryHarness {
   };
 
   const emitExit = (next: HarnessExit): void => {
-    if (exit !== null) {
+    if (exit !== null || detached) {
       return;
     }
 
