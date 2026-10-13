@@ -238,6 +238,117 @@ test("it copies the daemon's atc in when the image has no atc at the target's pa
   );
 });
 
+test("it sends the daemon's atc to an imp gzipped", async () => {
+  const ctx = setupTest();
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  // A gzip ahead of the guest's own on its PATH keeps a copy of what tar
+  // hands it to unpack, which is what crossed the wire.
+  const realGzip = Bun.which('gzip');
+
+  invariant(realGzip !== null);
+
+  const wire = join(ctx.dir, 'wire.bin');
+  const bin = join(ctx.dir, 'bin');
+
+  createStubBin(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
+
+  ctx.port.setGuestPath(`${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`);
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+
+  const sent = buildTarArchive([
+    { path: 'bin/atc', content: '#!/bin/sh\necho 1.0.0\n', mode: 0o755 },
+  ]);
+
+  expect(gunzipSync(readFileSync(wire))).toStrictEqual(Buffer.from(sent));
+});
+
+test("it copies the daemon's atc it compressed for an earlier readying into a later one", async () => {
+  const ctx = setupTest();
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const first = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g1'), guestATC: join(ctx.dir, 'missing-atc') },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    first.dispose();
+  });
+
+  const second = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g2'), guestATC: join(ctx.dir, 'missing-atc') },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    second.dispose();
+  });
+
+  await first.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  // A binary that changed on disk would reach the second imp only if the
+  // second readying read and compressed it again.
+  await Bun.write(atcBinary, '#!/bin/sh\necho 2.0.0\n');
+  await second.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
+
+  expect(readFileSync(join(ctx.dir, 'g2', 'bin', 'atc'), 'utf8')).toBe('#!/bin/sh\necho 1.0.0\n');
+});
+
+test("it refuses to copy the daemon's atc into an imp without gzip and leaves bin/atc unwritten", () => {
+  const ctx = setupTest();
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC: join(ctx.dir, 'missing-atc') },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  // The guest's PATH holds every tool the readying runs except gzip.
+  const bin = join(ctx.dir, 'bin');
+
+  mkdirSync(bin);
+
+  for (const tool of ['sh', 'mkdir', 'rm', 'tar']) {
+    const path = Bun.which(tool);
+
+    invariant(path !== null);
+    symlinkSync(path, join(bin, tool));
+  }
+
+  ctx.port.setGuestPath(bin);
+
+  expect(
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ).rejects.toMatchObject({
+    code: 'host_unavailable',
+    message: `imp atc-s1 cannot be used: imp atc-s1 has no gzip, which installing atc in ${join(ctx.dir, 'g')} needs; install gzip in its image`,
+    data: { provider: 'imp', problem: 'unknown' },
+  });
+
+  expect(existsSync(join(ctx.dir, 'g', 'bin', 'atc'))).toBe(false);
+});
+
 test("it replaces a link to the image's atc with the daemon's atc when the image's atc runs another version", async () => {
   const ctx = setupTest();
   const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
