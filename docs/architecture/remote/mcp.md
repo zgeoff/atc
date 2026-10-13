@@ -18,9 +18,7 @@ A tool's name is `atc_<noun>_<verb>`, where the noun is the channel the tool rea
   end a session or type into one is destructive. A tool that starts an agent or puts text in front
   of one is open-world, because the agent acts on that text outside atc's control.
 - **One grant scope** out of `read`, `message`, `spawn` and `kill`, which groups the tool by the
-  access it needs. Typing into a terminal takes `spawn`, because a line typed into a session can do
-  anything a new session can. Adding to a session's record scope takes `spawn` too, because it
-  widens what a session may touch. A tool atc does not know needs `kill`, the strictest.
+  access it needs ([scopes](#scopes)).
 
 A tool result holds its output as text, and a result that is data also holds it as structured
 content with an output schema. The servers speak each MCP protocol revision atc implements, and
@@ -30,6 +28,42 @@ leave out the one revision that requires JSON-RPC batching, which atc does not i
 The tool listing follows the daemon the server is connected to: a server hides a tool or an input
 whose daemon feature is missing, and refuses a call that needs one with `daemon_outdated` without
 sending the daemon anything ([the protocol](../protocol/protocol.md#versions-and-features)).
+
+## Scopes
+
+A grant holds one or more of four scopes, and each tool needs exactly one of them:
+
+- `read` reads the fleet, a session, its terminal, its transcript and the event feed, and changes
+  nothing.
+- `message` instructs a session's agent, and also renames, pins, detaches and marks a session read.
+  Those session changes alter how atc lists and labels a session, and none of them reaches its
+  terminal or ends it, so they need no more access than a message does.
+- `spawn` starts a session, types into one, and adds to a session's record scope. Typing into a
+  terminal takes `spawn`, because a line typed into a session can do anything a new session can.
+  Adding to a session's record scope takes `spawn` too, because it widens what a session may touch.
+- `kill` stops or forgets a session. A tool atc does not know needs `kill`, the strictest.
+
+A test compares this table with the tool definitions, so a tool added without a row fails it:
+
+| Tool                    | Scope     |
+| ----------------------- | --------- |
+| `atc_sessions_list`     | `read`    |
+| `atc_session_get`       | `read`    |
+| `atc_terminal_read`     | `read`    |
+| `atc_transcript_read`   | `read`    |
+| `atc_events_read`       | `read`    |
+| `atc_message_get`       | `read`    |
+| `atc_recent_dirs_list`  | `read`    |
+| `atc_spawn_options_get` | `read`    |
+| `atc_daemons_list`      | `read`    |
+| `atc_message_send`      | `message` |
+| `atc_session_update`    | `message` |
+| `atc_session_mark_read` | `message` |
+| `atc_session_spawn`     | `spawn`   |
+| `atc_terminal_type`     | `spawn`   |
+| `atc_session_scope_add` | `spawn`   |
+| `atc_session_stop`      | `kill`    |
+| `atc_session_forget`    | `kill`    |
 
 ## The stdio server
 

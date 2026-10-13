@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { join } from 'node:path';
 import { getRecord } from '@atc/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
@@ -232,6 +233,18 @@ test('it marks every read-scoped tool read-only', () => {
 test('it marks no tool outside the read scope read-only', () => {
   expect(MCP_TOOLS.filter((tool) => tool.scope !== 'read')).toSatisfyAll(
     (tool: (typeof MCP_TOOLS)[number]) => !tool.annotations.readOnlyHint,
+  );
+});
+
+test('it gives each tool the scope the MCP architecture doc lists for it', async () => {
+  const doc = await Bun.file(
+    join(import.meta.dir, '../../../../docs/architecture/remote/mcp.md'),
+  ).text();
+
+  const rows = doc.matchAll(/^\| `(?<tool>atc_[a-z_]+)` +\| `(?<scope>[a-z]+)` +\|$/gm);
+
+  expect(Object.fromEntries(MCP_TOOLS.map((tool) => [tool.name, tool.scope]))).toStrictEqual(
+    Object.fromEntries([...rows].map((row) => [row.groups?.tool, row.groups?.scope])),
   );
 });
 
