@@ -398,3 +398,77 @@ test('it starts no terminal on a later restore for a session an earlier restore 
   expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'headless', pty: null }]);
   expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
 });
+
+test('it revives on a later restore a session an earlier restore left without a terminal whose headless runner threw', async () => {
+  const ctx = await setupTest();
+
+  const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({
+    bin: 'sleep',
+    args: ['30'],
+  })).mockImplementationOnce(() => {
+    throw new Error('the agent CLI is missing');
+  });
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter({
+      planSpawn,
+      headlessRunner: () => {
+        throw new Error('the settings file cannot be written');
+      },
+    }),
+    ctx.store,
+    ctx.statusPath,
+    [],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-headless'),
+      cwd: ctx.dir,
+      agentSessionID: toAgentSessionID('c-headless'),
+    }),
+  ]);
+
+  const first = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [],
+  });
+
+  await first.settled;
+
+  const runtime = new SessionRuntime();
+
+  expect(() =>
+    startHeadlessTurn(
+      mgr,
+      () => runtime,
+      toSessionID('s-headless'),
+      'keep going',
+      () => {},
+      join(ctx.dir, 'reporter.sock'),
+    ),
+  ).toThrowWithMessage(Error, 'the settings file cannot be written');
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'pty', lastMsg: 'revived' }]);
+});

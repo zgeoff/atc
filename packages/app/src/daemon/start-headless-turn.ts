@@ -38,7 +38,6 @@ export function startHeadlessTurn(
     return false;
   }
 
-  mgr.removeUnrestoredMark(sessionID);
   mgr.updateSurfaceState(sessionID, 'running', 'headless turn running');
 
   recordTurnEvent(sessionID, { kind: 'prompt-submitted', detail: truncateDetail(prompt) });
@@ -82,6 +81,10 @@ export function startHeadlessTurn(
   );
 
   runtime.headlessRun = handle;
+
+  // A runner that throws before it returns leaves the mark, so a later
+  // restore still tries the session again.
+  mgr.removeUnrestoredMark(sessionID);
 
   return true;
 }
