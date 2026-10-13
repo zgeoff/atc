@@ -36,10 +36,6 @@ function pickStatusTime(record: MessageRecord): number {
     return record.unansweredAt ?? record.sentAt;
   }
 
-  if (record.status === 'unanswered') {
-    return record.unansweredAt ?? record.sentAt;
-  }
-
   if (record.status === 'delivered') {
     return record.deliveredAt ?? record.sentAt;
   }

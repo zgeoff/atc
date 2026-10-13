@@ -142,3 +142,28 @@ test('it caps the detail at the preview length', () => {
     detail: `${'x'.repeat(599)}…`,
   });
 });
+
+test('it builds an unanswered entry stamped with the unanswered time and a text preview', () => {
+  const entry = buildMessageTrailEntry(
+    toSessionID('s1'),
+    toAgentSessionID('c1'),
+    buildMockMessageRecord({
+      id: toMessageID('m-1'),
+      text: 'hello',
+      status: 'unanswered',
+      sentAt: 1000,
+      deliveredAt: 2000,
+      unansweredAt: 3000,
+      unansweredReason: 'interrupted',
+    }),
+  );
+
+  expect(entry).toStrictEqual({
+    at: 3000,
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('c1'),
+    kind: 'message-unanswered',
+    message: toMessageID('m-1'),
+    detail: 'hello',
+  });
+});

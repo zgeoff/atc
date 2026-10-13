@@ -86,3 +86,32 @@ test('it carries only a preview of a long text and a long answer', () => {
     answerPreview: `${'a'.repeat(599)}…`,
   });
 });
+
+test('it builds an unanswered event with the reason and the unanswered time', () => {
+  const event = buildSessionMessageEvent(
+    toSessionID('s1'),
+    buildMockMessageRecord({
+      id: toMessageID('m-1'),
+      atcID: toSessionID('s1'),
+      from: 'alice',
+      text: 'hello',
+      status: 'unanswered',
+      sentAt: 1000,
+      unansweredAt: 3000,
+      unansweredReason: 'refusal',
+    }),
+  );
+
+  expect(event).toStrictEqual({
+    v: 4,
+    ev: 'SessionMessage',
+    s: 's1',
+    message: 'm-1',
+    status: 'unanswered',
+    from: 'alice',
+    textPreview: 'hello',
+    sentAt: 1000,
+    unansweredAt: 3000,
+    unansweredReason: 'refusal',
+  });
+});
