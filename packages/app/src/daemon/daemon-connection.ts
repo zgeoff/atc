@@ -624,7 +624,12 @@ export class DaemonConnection {
         }
 
         const sessionID = parsed.data.session;
-        const updated = ctx.updateSession(sessionID, parsed.data.name, parsed.data.pinned);
+
+        const updated = ctx.updateSession(sessionID, {
+          ...(parsed.data.name === undefined ? {} : { name: parsed.data.name }),
+          ...(parsed.data.pinned === undefined ? {} : { pinned: parsed.data.pinned }),
+          ...(parsed.data.parent === null ? { parent: null } : {}),
+        });
 
         if (updated === 'child_pin') {
           this.sendErr(

@@ -584,10 +584,190 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
     }),
   );
 
-  const pinned = mgr.updateSession(child.id, undefined, true);
+  const pinned = mgr.updateSession(child.id, { pinned: true });
 
   expect(pinned).toBe('child_pin');
   expect(child.pinned).toBeFalse();
+});
+
+test('it detaches a sub-session and leaves its former parent pinned', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      pinned: true,
+    }),
+  );
+
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
+
+  const detached = mgr.updateSession(child.id, { parent: null });
+
+  expect(detached).toBeTrue();
+  expect(child.parent).toBeNull();
+  expect(child.pinned).toBeFalse();
+  expect(parent.pinned).toBeTrue();
+});
+
+test('it pins a sub-session in the update that detaches it', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
+
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
+
+  const updated = mgr.updateSession(child.id, { parent: null, pinned: true });
+
+  expect(updated).toBeTrue();
+  expect(child.pinned).toBeTrue();
+});
+
+test('it persists a detached sub-session as top-level', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
+
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
+
+  mgr.updateSession(child.id, { parent: null });
+
+  await mgr.writeFleet();
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(stored).toStrictEqual([
+    {
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+      lastAttachedAt: expect.toBeNumber(),
+    },
+    {
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+      lastAttachedAt: expect.toBeNumber(),
+    },
+  ]);
 });
 
 test('it pins a parent that has a sub-session', async () => {
@@ -635,7 +815,7 @@ test('it pins a parent that has a sub-session', async () => {
     }),
   );
 
-  expect(mgr.updateSession(parent.id, undefined, true)).toBeTrue();
+  expect(mgr.updateSession(parent.id, { pinned: true })).toBeTrue();
 });
 
 test('it kills a live sub-session along with its parent', async () => {
@@ -1370,7 +1550,7 @@ test('it logs a background fleet write that fails and keeps the change in memory
 
   closeDB();
 
-  mgr.updateSession(session.id, 'renamed');
+  mgr.updateSession(session.id, { name: 'renamed' });
 
   await waitFor(() => {
     expect(ctx.lines).toStrictEqual([
@@ -1478,7 +1658,7 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
 
   closeDB();
 
-  mgr.updateSession(session.id, 'renamed');
+  mgr.updateSession(session.id, { name: 'renamed' });
 
   // The store serves one write at a time, so this refusal settles only after
   // the background write's refusal has been handled.

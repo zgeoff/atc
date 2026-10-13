@@ -37,10 +37,11 @@ identity the principal's grants match. To a principal, a session out of reach do
 - The listing of agents and targets holds only the targets the principal may use.
 
 Reach can change while a session lives, such as when a parent gains a sub-session on a target the
-principal may not use. A principal connection is then pushed a removal for that session, as for a
-forgotten one, and loses its output and its message tap; a tree that comes back within reach is
-pushed as added. A request checks reach again after each of its waits, before it answers or acts, so
-a session that leaves reach during a long poll or a spawn answers as one the daemon never held.
+principal may not use, or when a detached sub-session leaves its tree. A principal connection is
+then pushed a removal for that session, as for a forgotten one, and loses its output and its message
+tap; a tree that comes back within reach is pushed as added. A request checks reach again after each
+of its waits, before it answers or acts, so a session that leaves reach during a long poll or a
+spawn answers as one the daemon never held.
 
 Events, messages and notes belong to the atc session they were recorded under. A session within
 reach that resumes the same agent session as one out of reach never shows the other's events,

@@ -775,6 +775,49 @@ test('it refuses a stop unsent when the daemon predates stop-only kills', () => 
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
 });
 
+test('it detaches a session through an update that needs a daemon that takes a null parent', async () => {
+  const caller = buildStubFleetCaller({ answer: () => ({}) });
+
+  await runTool(
+    caller,
+    'atc_session_update',
+    { session: 's1', parent: null },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(caller.requests).toStrictEqual([
+    {
+      m: 'session.update',
+      p: { session: 's1', parent: null },
+      required: ['session.update.parent'],
+    },
+  ]);
+});
+
+test('it refuses a detach unsent when the daemon predates a null parent on update', () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.update.parent'),
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const update = runTool(
+    caller,
+    'atc_session_update',
+    { session: 's1', parent: null },
+    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+  );
+
+  expect(update).rejects.toThrow(/^daemon_outdated: .*atc_session_update's parent/);
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
 test('it answers a mark-read with the text marked read', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 

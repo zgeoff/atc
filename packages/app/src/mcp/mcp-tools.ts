@@ -105,7 +105,7 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       .boolean()
       .optional()
       .describe(
-        'Spawn a top-level session. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, stopped with it.',
+        'Spawn a top-level session with no parent, whose pin and forget stand on their own. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, stopped with it, and not forgettable while it is pinned. atc_session_update with parent null detaches a sub-session later.',
       ),
     idempotencyKey: IDEMPOTENCY_KEY_FIELD,
   }),
@@ -642,17 +642,23 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: ADDITIVE,
     scope: 'message',
     description:
-      'Rename or pin a session. A name set here replaces auto-summaries, but a name the agent set with /rename wins: the rename is skipped and the call still returns updated. A pinned session leads every list and cannot be forgotten. A sub-session pins with its parent, so pin the parent.',
+      "Rename, pin, or detach a session. A name set here replaces auto-summaries, but a name the agent set with /rename wins: the rename is skipped and the call still returns updated. A pinned session leads every list and cannot be forgotten. A sub-session follows its parent: it pins with the parent and cannot be forgotten while the parent is pinned, it stops when the parent stops, and a remote client reaches it only when the client reaches the parent and every sub-session of it. Pinning a sub-session is refused; pin the parent, or detach the sub-session first. parent null detaches a sub-session: it becomes top-level, so its own pin and forget apply and the former parent keeps its pin. Detaching a top-level session changes nothing. A session cannot move under another parent. A detached session stays on the host it runs on, so one that shares its former parent's imp still sleeps with that imp and goes when that imp is destroyed.",
     inputSchema: {
       type: 'object',
       properties: {
         session: { type: 'string', description: 'The atc session id' },
         name: { type: 'string', description: 'New display name; omit to keep' },
         pinned: { type: 'boolean', description: 'Pin or unpin; omit to keep' },
+        parent: {
+          type: 'null',
+          description:
+            'null detaches the session from its parent and makes it top-level; omit to keep. No other value is taken.',
+        },
       },
       required: ['session'],
       additionalProperties: false,
     },
+    requires: { inputs: { parent: 'session.update.parent' } },
   },
   {
     name: 'atc_session_stop',
@@ -668,7 +674,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: DESTRUCTIVE,
     scope: 'kill',
     description:
-      "Remove a session from the list for good. On an imp target this destroys the host and everything on it, so it takes two calls: the first changes nothing and returns confirmToken, valid for 60 seconds; the second, with that token, returns { forgotten: true, destroyed: true }. A sub-session that shares its parent's imp host needs the token too but keeps the host (destroyed: false). On any other target one call returns { forgotten: true, destroyed: false }. Refused: a live session unless stop is true, and a pinned session or a sub-session of one (unpin it with atc_session_update first). Live sub-sessions on a host that survives move to the top level.",
+      "Remove a session from the list for good. On an imp target this destroys the host and everything on it, so it takes two calls: the first changes nothing and returns confirmToken, valid for 60 seconds; the second, with that token, returns { forgotten: true, destroyed: true }. A sub-session that shares its parent's imp host needs the token too but keeps the host (destroyed: false). On any other target one call returns { forgotten: true, destroyed: false }. Refused: a live session unless stop is true, and a pinned session or a sub-session of one (unpin it, or detach the sub-session with parent null, through atc_session_update first). Live sub-sessions on a host that survives move to the top level.",
     inputSchema: {
       type: 'object',
       properties: {

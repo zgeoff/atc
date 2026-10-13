@@ -175,7 +175,8 @@ runs the app's CLI entrypoint from a checkout. `mods/` holds the `atc-bridge` Cl
   auto-summaries.
 - A spawn through `atc mcp` from inside a session makes a sub-session of the caller: listed under
   it, pinned and killed with it, one level deep. The MCP server reads the caller from
-  `ATC_SESSION_ID`; `detached: true` opts out.
+  `ATC_SESSION_ID`; `detached: true` opts out, and `atc_session_update` with `parent: null` detaches
+  an existing sub-session.
 - State lives in `~/.local/state/atc/`: `atc.db` (SQLite — fleet, hook-event trail, spawn history)
   plus `status.json`, which stays a plain file because statusline reporters read it without speaking
   the protocol. `mcp-auth.db` holds the OAuth state of `atc mcp --http`; only that process,

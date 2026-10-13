@@ -24,6 +24,7 @@ import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
+import type { SessionChanges } from './session-changes';
 import type { TargetAccess, TargetGrant } from './target-access';
 
 export interface SpawnParams {
@@ -267,7 +268,10 @@ export interface DaemonContext {
   // Binds a session's host to its agent's current auth selection, and
   // answers the new revision, or null for no such session.
   readonly updateSessionAuth: (id: SessionID) => Promise<number | null>;
-  readonly updateSession: (id: SessionID, name?: string, pinned?: boolean) => boolean | 'child_pin';
+
+  // Renames, pins, or makes top-level a session; false for no such session,
+  // and 'child_pin' for a pin of a session that stays a sub-session.
+  readonly updateSession: (id: SessionID, changes: SessionChanges) => boolean | 'child_pin';
 
   // Adds a checked scope to a session's published record and returns the
   // record as it stands after; 'missing' for no such session.

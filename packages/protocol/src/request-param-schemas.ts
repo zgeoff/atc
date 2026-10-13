@@ -244,9 +244,12 @@ export const REQUEST_PARAM_SCHEMAS = {
   // Adds checked entries to a session's published record, refused for the
   // session itself and for any session it is a sub-session of.
   'session.scope.add': SESSION_DEFAULTED.extend({ scope: z.unknown() }),
+
+  // A null parent makes a sub-session top-level; no other parent is taken.
   'session.update': SESSION_DEFAULTED.extend({
     name: buildOptionalString(),
     pinned: buildOptionalBoolean(),
+    parent: z.null({ error: 'session.update parent must be null' }).optional(),
   }),
   'session.attach': SESSION_DEFAULTED.extend({
     cols: buildTerminalSize(80),
