@@ -637,6 +637,12 @@ export class DaemonConnection {
             'bad_args',
             `session '${sessionID}' is a sub-session and takes its pin from its parent`,
           );
+        } else if (updated === 'shared_host') {
+          this.sendErr(
+            req.id,
+            'bad_args',
+            `session '${sessionID}' runs in its parent's host and cannot be detached from it`,
+          );
         } else if (updated) {
           this.sendOk(req.id, 'session.update', {});
         } else {

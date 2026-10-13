@@ -270,8 +270,12 @@ export interface DaemonContext {
   readonly updateSessionAuth: (id: SessionID) => Promise<number | null>;
 
   // Renames, pins, or makes top-level a session; false for no such session,
-  // and 'child_pin' for a pin of a session that stays a sub-session.
-  readonly updateSession: (id: SessionID, changes: SessionChanges) => boolean | 'child_pin';
+  // 'child_pin' for a pin of a session that stays a sub-session, and
+  // 'shared_host' for a detach of a sub-session in its parent's host.
+  readonly updateSession: (
+    id: SessionID,
+    changes: SessionChanges,
+  ) => boolean | 'child_pin' | 'shared_host';
 
   // Adds a checked scope to a session's published record and returns the
   // record as it stands after; 'missing' for no such session.

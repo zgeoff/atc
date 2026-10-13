@@ -426,6 +426,7 @@ function upsertMirror(d: Readonly<MirrorSession>) {
   } else {
     existing.name = d.name;
     existing.pinned = d.pinned;
+    existing.parent = d.parent;
     existing.lastAttachedAt = d.lastAttachedAt;
     existing.repoRoot = d.repoRoot;
     existing.state = d.state;

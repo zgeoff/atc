@@ -1029,14 +1029,19 @@ export class SessionManager {
    * in-session rename still wins. Pinned sessions lead every list. A
    * sub-session takes its pin from its parent, so pinning one is refused.
    * A null parent makes a sub-session top-level before any pin applies, so
-   * its pin, kill, and forget no longer follow its former parent; it stays
-   * on the host it runs on.
+   * its pin, kill, and forget no longer follow its former parent. A
+   * sub-session that runs in its parent's host is refused one, since the
+   * host owner's kill and forget would still end it.
    */
-  updateSession(id: SessionID, changes: SessionChanges): boolean | 'child_pin' {
+  updateSession(id: SessionID, changes: SessionChanges): boolean | 'child_pin' | 'shared_host' {
     const s = this.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
       return false;
+    }
+
+    if (changes.parent === null && s.parent !== null && s.hostKey !== s.id) {
+      return 'shared_host';
     }
 
     if (changes.pinned !== undefined && s.parent !== null && changes.parent !== null) {

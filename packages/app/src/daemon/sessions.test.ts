@@ -644,6 +644,59 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
   expect(parent.pinned).toBeTrue();
 });
 
+test("it refuses to detach a sub-session that runs in its parent's host and leaves it under the parent", async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
+
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+      hostKey: toSessionID('s-c-parent'),
+    }),
+  );
+
+  const detached = mgr.updateSession(child.id, { parent: null, pinned: true });
+
+  expect(detached).toBe('shared_host');
+  expect(child.parent).toBe(toSessionID('s-c-parent'));
+  expect(child.pinned).toBeFalse();
+});
+
 test('it pins a sub-session in the update that detaches it', async () => {
   const ctx = await setupTest();
 
