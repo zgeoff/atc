@@ -123,6 +123,7 @@ interface StubRelay {
   // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   readonly dataListeners: ((data: Uint8Array) => void)[];
   readonly closeListeners: (() => void)[];
+  readonly endListeners: (() => void)[];
 
   // Bytes a write handed over that the socket has not taken yet, and the
   // writes waiting for them to go.
@@ -830,6 +831,7 @@ class StubImpPort implements ImpPort {
           const relay: StubRelay = {
             dataListeners: [],
             closeListeners: [],
+            endListeners: [],
             unsent: new Uint8Array(0),
             roomWaiters: [],
           };
@@ -850,6 +852,9 @@ class StubImpPort implements ImpPort {
             },
             onClose: (listener) => {
               relay.closeListeners.push(listener);
+            },
+            onEnd: (listener) => {
+              relay.endListeners.push(listener);
             },
 
             // A socket write takes what fits and drops the rest, so the
@@ -880,6 +885,11 @@ class StubImpPort implements ImpPort {
 
           for (const listener of socket.data.dataListeners) {
             listener(new Uint8Array(buf));
+          }
+        },
+        end: (socket) => {
+          for (const listener of socket.data.endListeners) {
+            listener();
           }
         },
         drain(socket) {

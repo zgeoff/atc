@@ -213,11 +213,17 @@ export interface LaunchTicket {
 /**
  * One connection from a process inside a harness's host to the daemon, in
  * lines: each line the process writes arrives whole, and each line the
- * daemon writes reaches the process in order.
+ * daemon writes reaches the process in order. A host can hold the
+ * connection open after the process stops writing, until the daemon closes
+ * it too, and can cap how many it holds open at once.
  */
 export interface HarnessRelay {
   readonly onLine: (listener: (line: string) => void) => void;
   readonly onClose: (listener: () => void) => void;
+
+  // Runs once the process has written its last line, after every line
+  // listener saw that line; the daemon can still write.
+  readonly onEnd: (listener: () => void) => void;
 
   // Settles once the relay has room for more.
   readonly writeLine: (line: string) => Promise<void>;

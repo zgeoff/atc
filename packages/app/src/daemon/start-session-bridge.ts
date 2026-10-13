@@ -87,7 +87,9 @@ type BridgeRefusal = 'forbidden' | 'stale_binding' | 'not_tapping' | 'unknown_me
  * else: an unknown op, a malformed request, or a note or hook for any
  * other session answers `forbidden` and closes the connection. Every line
  * checks the binding against the live session first, and one that no
- * longer matches answers `stale_binding` and closes.
+ * longer matches answers `stale_binding` and closes. Once the guest has
+ * written its last line, the bridge answers what came before it and
+ * closes.
  *
  * Trust: the binding holds no secret. A host serves the bridge's socket
  * inside itself alone, so reaching the socket is the proof of being inside
@@ -298,6 +300,19 @@ export function startSessionBridge(
       try {
         await applyLine(line);
       } catch {}
+    })();
+  });
+
+  // A guest that has written its last line gets the answers to the lines
+  // before it, then the bridge closes: a host can hold the connection open
+  // until the daemon closes it, and stops taking new connections once it
+  // holds its most.
+  relay.onEnd(() => {
+    void (async () => {
+      await applying;
+      await writing;
+
+      stopBridge();
     })();
   });
 

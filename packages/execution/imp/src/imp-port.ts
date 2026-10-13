@@ -335,6 +335,10 @@ export interface ImpRelayConnection {
   readonly onData: (listener: (data: Uint8Array) => void) => void;
   readonly onClose: (listener: () => void) => void;
 
+  // Runs once the guest has sent its last byte. impd keeps the relay open,
+  // and counts it against the forward's relays, until the daemon closes it.
+  readonly onEnd: (listener: () => void) => void;
+
   // Sends bytes to the guest's end of the connection, and settles once the
   // relay has room for more.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form

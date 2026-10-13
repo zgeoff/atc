@@ -694,6 +694,34 @@ test('it relays each guest connection on a reverse forward to the daemon', async
   });
 });
 
+test('it ends the input of a relayed connection once the guest ends its connection', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const seen: string[] = [];
+  const guestPath = join(ctx.dir, 'guest.sock');
+
+  ctx.port.openReverseForward('imp-a', guestPath, (connection) => {
+    connection.onData((data) => {
+      seen.push(Buffer.from(data).toString());
+    });
+
+    connection.onEnd(() => {
+      seen.push('end');
+    });
+  });
+
+  const socket = await Bun.connect({ unix: guestPath, socket: { data() {} } });
+
+  socket.write('report\n');
+  socket.end();
+
+  await waitFor(() => {
+    expect(seen).toStrictEqual(['report\n', 'end']);
+  });
+});
+
 test('it writes every byte the daemon sends to the guest end of a relayed connection', async () => {
   const ctx = setupTest();
 

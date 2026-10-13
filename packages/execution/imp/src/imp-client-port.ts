@@ -515,6 +515,7 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
   // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   const dataListeners: ((data: Uint8Array) => void)[] = [];
   const closeListeners: (() => void)[] = [];
+  const endListeners: (() => void)[] = [];
 
   const relay = accept({
     onData: (data) => {
@@ -522,7 +523,11 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
         listener(data);
       }
     },
-    onEof: () => {},
+    onEof: () => {
+      for (const listener of endListeners) {
+        listener();
+      }
+    },
     onClose: () => {
       for (const listener of closeListeners) {
         listener();
@@ -536,6 +541,9 @@ function openRelay(accept: RelayAccept): ImpRelayConnection {
     },
     onClose: (listener) => {
       closeListeners.push(listener);
+    },
+    onEnd: (listener) => {
+      endListeners.push(listener);
     },
 
     // A send past the relay's window still queues the bytes, so only the

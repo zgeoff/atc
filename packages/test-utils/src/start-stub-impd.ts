@@ -13,7 +13,9 @@ type StubExecReply = 'refuse' | 'count' | 'exit-early';
  * RPC call. It answers a call with the answer the caller set for its path in
  * `answers`, or else as system info, and answers a tunnel listen as
  * listening, keeping that control socket in `controls` so a caller can
- * announce a guest connection on it. It records each exec open message in
+ * announce a guest connection on it. It answers a relay accept as opened,
+ * keeping that relay socket in `relays` so a caller can send the guest's
+ * bytes and eof on it. It records each exec open message in
  * `execOpens` and answers it as `exec.reply` says, a refusal as a start
  * whose broker is not ready by default. It takes no WebSocket message over
  * 2 MiB, as impd refuses one over its own limit. The server stops, dropping
@@ -28,6 +30,7 @@ export function startStubImpd() {
   const answers = new Map<string, { status: number; json: unknown }>();
 
   const controls: ServerWebSocket[] = [];
+  const relays: ServerWebSocket[] = [];
   const execOpens: unknown[] = [];
   const exec: { reply: StubExecReply } = { reply: 'refuse' };
 
@@ -122,6 +125,11 @@ export function startStubImpd() {
             JSON.stringify({ type: 'listening', listener: 'l1', path: '/tmp/r.sock', port: null }),
           );
         }
+
+        if (parsed['type'] === 'accept') {
+          relays.push(socket);
+          socket.send(JSON.stringify({ type: 'opened' }));
+        }
       },
     },
   });
@@ -134,6 +142,7 @@ export function startStubImpd() {
     calls,
     answers,
     controls,
+    relays,
     execOpens,
     exec,
     stop,

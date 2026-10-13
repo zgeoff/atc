@@ -187,6 +187,100 @@ test('it applies a hook line for the session it is bound to', async () => {
   });
 });
 
+test('it closes the relay of a guest that ended after it sent a hook line', async () => {
+  const ctx = setupTest();
+
+  ctx.sessions.set(toSessionID('s1'), {
+    id: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:a',
+    hostKey: toSessionID('s1'),
+    bridgeEpoch: 3,
+    state: 'running',
+    lastMsg: 'started',
+  });
+
+  startSessionBridge(
+    ctx.stub.relay,
+    {
+      sessionID: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:a',
+      hostKey: toSessionID('s1'),
+      epoch: 3,
+    },
+    ctx.daemon,
+  );
+
+  ctx.stub.sendLine({ atcId: 's1', event: 'Stop', payload: {} });
+  ctx.stub.emitEnd();
+
+  await waitFor(() => {
+    expect(ctx.stub.isClosed()).toBeTrue();
+  });
+
+  expect(ctx.applyHookEvent).toHaveBeenCalledExactlyOnceWith({
+    atcId: toSessionID('s1'),
+    event: 'Stop',
+    payload: {},
+  });
+});
+
+test('it answers a note before it closes the relay of a guest that ended after sending it', async () => {
+  const ctx = setupTest();
+  const recorded = Promise.withResolvers<boolean>();
+  const applyNote = mock<BridgeContext['applyNote']>(() => recorded.promise);
+
+  const daemon = buildStubBridgeContext({
+    findSession: (sessionID) => ctx.sessions.get(sessionID),
+    applyNote,
+  });
+
+  ctx.sessions.set(toSessionID('s1'), {
+    id: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:a',
+    hostKey: toSessionID('s1'),
+    bridgeEpoch: 3,
+    state: 'running',
+    lastMsg: 'started',
+  });
+
+  startSessionBridge(
+    ctx.stub.relay,
+    {
+      sessionID: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:a',
+      hostKey: toSessionID('s1'),
+      epoch: 3,
+    },
+    daemon,
+  );
+
+  ctx.stub.sendLine({
+    v: 1,
+    id: 'note:n1',
+    op: 'note',
+    noteID: 'n1',
+    payload: { kind: 'note', text: 'hi' },
+  });
+
+  ctx.stub.emitEnd();
+
+  await waitFor(() => {
+    expect(applyNote).toHaveBeenCalledOnce();
+  });
+
+  recorded.resolve(true);
+
+  await waitFor(() => {
+    expect(ctx.stub.isClosed()).toBeTrue();
+  });
+
+  expect(ctx.stub.written).toStrictEqual([{ id: 'note:n1', ok: true }]);
+});
+
 test('it answers forbidden and closes for a hook line of another session', async () => {
   const ctx = setupTest();
 

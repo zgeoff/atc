@@ -51,6 +51,19 @@ test('it runs every close listener when the guest hangs up', () => {
   expect(second).toHaveBeenCalledOnce();
 });
 
+test('it runs every end listener when the guest has written its last line', () => {
+  const stub = buildStubHarnessRelay();
+  const first = mock<() => void>();
+  const second = mock<() => void>();
+
+  stub.relay.onEnd(first);
+  stub.relay.onEnd(second);
+  stub.emitEnd();
+
+  expect(first).toHaveBeenCalledOnce();
+  expect(second).toHaveBeenCalledOnce();
+});
+
 test('it runs no close listener when the daemon closes the relay', () => {
   const stub = buildStubHarnessRelay();
   const listener = mock<() => void>();
