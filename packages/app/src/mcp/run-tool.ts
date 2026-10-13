@@ -264,7 +264,9 @@ export function runTool(
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
       const required: DaemonFeature[] =
-        key === undefined ? ['vocabulary.note'] : ['vocabulary.note', 'message.idempotency'];
+        key === undefined
+          ? ['vocabulary.note', 'message.unanswered']
+          : ['vocabulary.note', 'message.unanswered', 'message.idempotency'];
 
       const ok = await caller.sendRequest(
         'session.message',
@@ -283,8 +285,8 @@ export function runTool(
       const waits = typeof args['waitMs'] === 'number' && args['waitMs'] > 0;
 
       const required: DaemonFeature[] = waits
-        ? ['vocabulary.note', 'message.wait']
-        : ['vocabulary.note'];
+        ? ['vocabulary.note', 'message.unanswered', 'message.wait']
+        : ['vocabulary.note', 'message.unanswered'];
 
       const ok = await caller.sendRequest(
         'message.get',

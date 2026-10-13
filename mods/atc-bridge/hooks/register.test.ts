@@ -127,7 +127,7 @@ test('it reports the answer for the message a turn carried', async (engine, on) 
   ]);
 });
 
-test('it reports nothing for a turn that ended in an error', async (engine, on) => {
+test('it reports the message of a turn that ended in an error as unanswered', async (engine, on) => {
   const ctx = setupTest({ on });
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
@@ -159,7 +159,207 @@ test('it reports nothing for a turn that ended in an error', async (engine, on) 
 
   await ctx.clock.settle();
 
-  expect(ctx.ran).toStrictEqual([]);
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'unanswered', '--messages', 'm-1', '--turn', 't-1', '--reason', 'error'],
+      stdin: undefined,
+    },
+  ]);
+});
+
+test("it reports an interrupted turn's message as unanswered", async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: true,
+    turnId: 't-1',
+    reason: 'aborted',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'unanswered', '--messages', 'm-1', '--turn', 't-1', '--reason', 'interrupted'],
+      stdin: undefined,
+    },
+  ]);
+});
+
+test('it reports the message of a refused turn as unanswered', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'refusal',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'unanswered', '--messages', 'm-1', '--turn', 't-1', '--reason', 'refusal'],
+      stdin: undefined,
+    },
+  ]);
+});
+
+test('it reports a message a hook dropped as unanswered because no turn started', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', () => ({ drop: 'another hook refused it' }));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'unanswered', '--messages', 'm-1', '--reason', 'not_started'],
+      stdin: undefined,
+    },
+  ]);
+});
+
+test('it reports a submitted message as unanswered when an interrupted turn leaves it without a turn', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"hi"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('session.append', () => ({ deny: 'not now' }));
+  on('prompt.submit', ($, e) => ({ text: e.text }));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: true,
+    turnId: 't-1',
+    reason: 'aborted',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    {
+      argv: ['atc', 'unanswered', '--messages', 'm-1', '--reason', 'not_started'],
+      stdin: undefined,
+    },
+  ]);
+});
+
+test('it submits a message that arrives during a turn that is then interrupted', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield { stream: 'stdout', text: '{"id":"m-2","from":"bob","text":"late"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: true,
+    turnId: 't-1',
+    reason: 'aborted',
+  });
+
+  await ctx.clock.settle();
+
+  expect(submitted).toStrictEqual(['<atc-message id="m-2" from="bob">\nlate\n</atc-message>']);
 });
 
 async function startNoteSession(

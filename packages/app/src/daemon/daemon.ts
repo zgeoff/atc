@@ -208,9 +208,9 @@ export interface DaemonOptions {
   readonly onRestoreSkipped?: (reason: 'disabled' | 'empty') => void;
 
   // Called when a Note line changes nothing: a note from a session the
-  // fleet does not list, or an answer that matches no unanswered message
-  // the reporting session owns.
-  readonly onNoteIgnored?: (sessionID: string, kind: 'note' | 'answered') => void;
+  // fleet does not list, or an answer or unanswered report that matches no
+  // unsettled message the reporting session owns.
+  readonly onNoteIgnored?: (sessionID: string, kind: 'note' | 'answered' | 'unanswered') => void;
 
   // How long a confirm token from `session.forget` stays usable.
   readonly forgetConfirmMs?: number;
@@ -695,6 +695,28 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     const s = mgr.sessions.find((x) => x.id === e.atcId);
     const owner = s === undefined ? { atcID: e.atcId } : buildMessageOwner(s);
+
+    if (note.kind === 'unanswered') {
+      try {
+        const unanswered = await store.updateMessagesUnanswered(
+          note.messages,
+          owner,
+          note.reason,
+          clock.now(),
+          note.turn,
+        );
+
+        if (unanswered.length === 0) {
+          opts.onNoteIgnored?.(e.atcId, 'unanswered');
+        }
+
+        for (const record of unanswered) {
+          await recordMessageStatus(e.atcId, record);
+        }
+      } catch {}
+
+      return;
+    }
 
     try {
       // One statement answers the whole turn, so a reader that sees any
@@ -2265,8 +2287,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       // Every message status change writes a trail entry and wakes the
       // signal, so a wake re-reads the message and returns once its status
-      // moved from the status at call time. An answered message has no
-      // further status to wait for.
+      // moved from the status at call time. An answered or unanswered message has
+      // no further status to wait for.
       for (;;) {
         const generation = eventSignal.generation;
 
@@ -2283,6 +2305,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         if (
           view.record.status !== initialStatus ||
           view.record.status === 'answered' ||
+          view.record.status === 'unanswered' ||
           remaining <= 0 ||
           eventSignal.disposed
         ) {

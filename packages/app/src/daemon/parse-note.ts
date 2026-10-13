@@ -14,13 +14,26 @@ interface TurnAnswer {
   readonly turn: string | null;
 }
 
+interface TurnUnanswered {
+  readonly kind: 'unanswered';
+
+  // Every message the turn carried and ended without answering.
+  readonly messages: readonly MessageID[];
+
+  // One word for why: interrupted, error, refusal, or not_started.
+  readonly reason: string;
+
+  // The turn that ended; null when the reporter sends none.
+  readonly turn: string | null;
+}
+
 export interface SentNote {
   readonly kind: 'note';
   readonly label: string;
   readonly text: string;
 }
 
-export type Note = TurnAnswer | SentNote;
+export type Note = TurnAnswer | TurnUnanswered | SentNote;
 
 // Optional, so a note from an older bridge still parses; a missing, empty,
 // or wrong-typed turn reads as unknown.
@@ -29,7 +42,8 @@ const TURN_SCHEMA = z.preprocess(
   z.string().optional(),
 );
 
-const MESSAGE_IDS_SCHEMA = z.array(z.string().min(1)).min(1).optional();
+const REQUIRED_MESSAGE_IDS_SCHEMA = z.array(z.string().min(1)).min(1);
+const MESSAGE_IDS_SCHEMA = REQUIRED_MESSAGE_IDS_SCHEMA.optional();
 
 const REPORT_SCHEMA = z.discriminatedUnion('kind', [
   z
@@ -43,6 +57,12 @@ const REPORT_SCHEMA = z.discriminatedUnion('kind', [
       turn: TURN_SCHEMA,
     })
     .refine((v) => (v.message === undefined) !== (v.messages === undefined)),
+  z.object({
+    kind: z.literal('unanswered'),
+    messages: REQUIRED_MESSAGE_IDS_SCHEMA,
+    reason: z.string().min(1).max(64),
+    turn: TURN_SCHEMA,
+  }),
   z.object({ kind: z.literal('note'), label: z.string().min(1).max(64), text: z.string().min(1) }),
 ]);
 
@@ -59,6 +79,15 @@ export function parseNote(payload: Readonly<Record<string, unknown>>): Note | nu
 
   if (parsed.data.kind === 'note') {
     return { kind: 'note', label: parsed.data.label, text: parsed.data.text };
+  }
+
+  if (parsed.data.kind === 'unanswered') {
+    return {
+      kind: 'unanswered',
+      messages: parsed.data.messages.map((id) => toMessageID(id)),
+      reason: parsed.data.reason,
+      turn: parsed.data.turn ?? null,
+    };
   }
 
   return {

@@ -4,7 +4,8 @@ import { MESSAGE_STATUS_SCHEMA } from './message-status';
 /**
  * An inbox message as `message.get` answers it: who sent it to which
  * session, its text, where it stands and when each step happened, the
- * answer, the turn that answered it, and the messages that answer cites.
+ * answer or the reason it went unanswered, the turn that settled it, and the
+ * messages that answer cites.
  */
 export const MESSAGE_VIEW_SCHEMA = z.object({
   message: z.string(),
@@ -16,6 +17,8 @@ export const MESSAGE_VIEW_SCHEMA = z.object({
   deliveredAt: z.number().optional(),
   answeredAt: z.number().optional(),
   answer: z.string().optional(),
+  unansweredAt: z.number().optional(),
+  unansweredReason: z.string().optional(),
   turn: z.string().nullable(),
   answeredWith: z.array(z.string()).readonly(),
 });

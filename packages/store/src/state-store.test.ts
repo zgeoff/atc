@@ -890,6 +890,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '027_create_published_record',
     '028_rename_reports_to_notes_and_accepted_to_queued',
     '029_add_fleet_auth_revision',
+    '030_add_messages_unanswered',
   ]);
 });
 
@@ -939,7 +940,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 29 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 30 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -1576,6 +1577,101 @@ test('it answers a queued message that was never acked', async () => {
   ]);
 });
 
+test('it moves a delivered message to unanswered with the reason and turn', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
+
+  const marked = await ctx.store.updateMessagesUnanswered(
+    [record.id],
+    { atcID: record.atcID },
+    'interrupted',
+    3000,
+    't1',
+  );
+
+  expect(marked).toStrictEqual([
+    {
+      ...record,
+      status: 'unanswered',
+      deliveredAt: 2000,
+      unansweredAt: 3000,
+      unansweredReason: 'interrupted',
+      turn: 't1',
+    },
+  ]);
+});
+
+test('it refuses a later answer for an unanswered message', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesUnanswered([record.id], { atcID: record.atcID }, 'error', 3000);
+
+  const answered = await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    'done',
+    4000,
+  );
+
+  expect(answered).toStrictEqual([]);
+});
+
+test('it keeps an unanswered message unanswered after a refused answer', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesUnanswered([record.id], { atcID: record.atcID }, 'error', 3000);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 4000);
+
+  const found = await ctx.store.findMessage(record.id, { atcID: record.atcID });
+
+  expect(found?.status).toBe('unanswered');
+});
+
+test('it refuses to mark an answered message unanswered', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+
+  const marked = await ctx.store.updateMessagesUnanswered(
+    [record.id],
+    { atcID: record.atcID },
+    'interrupted',
+    4000,
+  );
+
+  expect(marked).toStrictEqual([]);
+});
+
+test('it refuses to mark a message unanswered for another session', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ atcID: toSessionID('s1') });
+
+  await ctx.store.writeMessage(record);
+
+  const marked = await ctx.store.updateMessagesUnanswered(
+    [record.id],
+    { atcID: toSessionID('s2') },
+    'interrupted',
+    2000,
+  );
+
+  expect(marked).toStrictEqual([]);
+});
+
 test('it refuses to deliver a message owned by another session', async () => {
   const ctx = await setupTest();
 
@@ -2206,6 +2302,86 @@ test('it lists the other messages answered in the same turn as siblings', async 
   const siblings = await ctx.store.collectTurnSiblings(oldest);
 
   expect(siblings).toStrictEqual([{ id: two.id, atcID: toSessionID('s1') }]);
+});
+
+test('it lists no siblings for a message its turn left unanswered beside another', async () => {
+  const ctx = await setupTest();
+
+  const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
+  const two = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
+
+  await ctx.store.writeMessage(one);
+  await ctx.store.writeMessage(two);
+
+  await ctx.store.updateMessagesUnanswered(
+    [one.id, two.id],
+    { atcID: toSessionID('s1') },
+    'error',
+    3000,
+    't-1',
+  );
+
+  const unanswered = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
+
+  invariant(unanswered !== null, 'unanswered message missing');
+
+  const siblings = await ctx.store.collectTurnSiblings(unanswered);
+
+  expect(siblings).toStrictEqual([]);
+});
+
+test('it keeps the turn of a message its turn left unanswered', async () => {
+  const ctx = await setupTest();
+
+  const one = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
+
+  await ctx.store.writeMessage(one);
+
+  await ctx.store.updateMessagesUnanswered(
+    [one.id],
+    { atcID: toSessionID('s1') },
+    'error',
+    3000,
+    't-1',
+  );
+
+  const unanswered = await ctx.store.findMessage(one.id, { atcID: toSessionID('s1') });
+
+  expect(unanswered?.turn).toBe('t-1');
+});
+
+test('it leaves an unanswered message of the same turn out of the siblings of an answered one', async () => {
+  const ctx = await setupTest();
+
+  const answeredOne = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 1000 });
+  const unansweredOne = buildMockMessageRecord({ atcID: toSessionID('s1'), sentAt: 2000 });
+
+  await ctx.store.writeMessage(answeredOne);
+  await ctx.store.writeMessage(unansweredOne);
+
+  await ctx.store.updateMessagesAnswered(
+    [answeredOne.id],
+    { atcID: toSessionID('s1') },
+    'done',
+    3000,
+    't-1',
+  );
+
+  await ctx.store.updateMessagesUnanswered(
+    [unansweredOne.id],
+    { atcID: toSessionID('s1') },
+    'error',
+    3000,
+    't-1',
+  );
+
+  const answered = await ctx.store.findMessage(answeredOne.id, { atcID: toSessionID('s1') });
+
+  invariant(answered !== null, 'answered message missing');
+
+  const siblings = await ctx.store.collectTurnSiblings(answered);
+
+  expect(siblings).toStrictEqual([]);
 });
 
 test('it lists the other messages of one turn in send order when they share a send time', async () => {
@@ -3447,7 +3623,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-5, -2);
+    .slice(-6, -3);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();

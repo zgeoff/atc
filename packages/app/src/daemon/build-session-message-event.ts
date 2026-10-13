@@ -8,8 +8,8 @@ import type { MessageRecord } from '@atc/store/message-record';
  * The `SessionMessage` event for one message status change, addressed by
  * the atc session id the message currently belongs to. The event carries
  * short previews of the text and answer, never the full content, so a
- * broadcast stays small; `message.get` returns the full message. Delivery
- * and answer fields appear only once they are set.
+ * broadcast stays small; `message.get` returns the full message. Delivery,
+ * answer, and unanswered fields appear only once they are set.
  */
 export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRecord): EventMsg {
   return {
@@ -24,5 +24,7 @@ export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRe
     ...(record.deliveredAt === undefined ? {} : { deliveredAt: record.deliveredAt }),
     ...(record.answeredAt === undefined ? {} : { answeredAt: record.answeredAt }),
     ...(record.answer === undefined ? {} : { answerPreview: truncateDetail(record.answer) }),
+    ...(record.unansweredAt === undefined ? {} : { unansweredAt: record.unansweredAt }),
+    ...(record.unansweredReason === undefined ? {} : { unansweredReason: record.unansweredReason }),
   };
 }

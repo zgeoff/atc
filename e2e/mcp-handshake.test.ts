@@ -1147,7 +1147,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered, with the message id) and notes (note, with its label and full text). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more is false even when older ones exist. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character note previews. A partial read says so: complete false or textError on a note, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
+            "description": "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered, message-unanswered, with the message id) and notes (note, with its label and full text). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more is false even when older ones exist. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character note previews. A partial read says so: complete false or textError on a note, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1282,7 +1282,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer comes back on the message: follow with atc_message_get and waitMs until status is answered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model) or answered. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. A message whose turn is interrupted stays delivered. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session has no live process, including one still booting after a daemon restart; no_such_session for an unknown id. A retry with the same idempotencyKey and text returns the same message.",
+            "description": "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer comes back on the message: follow with atc_message_get and waitMs until status is answered or unanswered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model), answered, or unanswered: the turn that carried the message ended without an answer (interrupted, an error, a refusal, or the prompt never started a turn), with the cause in unansweredReason. unanswered is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session has no live process, including one still booting after a daemon restart; no_such_session for an unknown id. A retry with the same idempotencyKey and text returns the same message.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -1318,11 +1318,7 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "status": {
-                  "enum": [
-                    "queued",
-                    "delivered",
-                    "answered",
-                  ],
+                  "description": "queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer); a later daemon may add a value",
                   "type": "string",
                 },
               },
@@ -1339,7 +1335,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read one message sent with atc_message_send: status (queued, delivered or answered), the answer once answered, turn, answeredWith and timestamps. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered message returns at once. Ids and statuses persist, so call again after a timeout.",
+            "description": "Read one message sent with atc_message_send: status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1391,11 +1387,7 @@ test('it lists the fleet tools', async () => {
                   "type": "string",
                 },
                 "status": {
-                  "enum": [
-                    "queued",
-                    "delivered",
-                    "answered",
-                  ],
+                  "description": "queued (waiting in the inbox), delivered (handed to the session), answered, or unanswered (the turn that carried the message ended without an answer); a later daemon may add a value",
                   "type": "string",
                 },
                 "text": {
@@ -1406,6 +1398,14 @@ test('it lists the fleet tools', async () => {
                     "string",
                     "null",
                   ],
+                },
+                "unansweredAt": {
+                  "description": "When atc marked the message unanswered; present only on an unanswered message",
+                  "type": "number",
+                },
+                "unansweredReason": {
+                  "description": "Why the turn ended without an answer: interrupted (a person stopped the turn), error (the turn failed), refusal (the model declined), or not_started (the prompt never started a turn); present only on an unanswered message",
+                  "type": "string",
                 },
               },
               "required": [

@@ -32,6 +32,10 @@ function pickStatusTime(record: MessageRecord): number {
     return record.answeredAt ?? record.sentAt;
   }
 
+  if (record.status === 'unanswered') {
+    return record.unansweredAt ?? record.sentAt;
+  }
+
   if (record.status === 'delivered') {
     return record.deliveredAt ?? record.sentAt;
   }
@@ -41,9 +45,13 @@ function pickStatusTime(record: MessageRecord): number {
 
 function pickMessageKind(
   status: MessageStatus,
-): 'message-queued' | 'message-delivered' | 'message-answered' {
+): 'message-queued' | 'message-delivered' | 'message-answered' | 'message-unanswered' {
   if (status === 'answered') {
     return 'message-answered';
+  }
+
+  if (status === 'unanswered') {
+    return 'message-unanswered';
   }
 
   if (status === 'delivered') {

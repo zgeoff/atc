@@ -473,6 +473,33 @@ const main = defineCommand({
           });
         },
       }),
+    unanswered: () =>
+      defineCommand({
+        meta: {
+          name: 'unanswered',
+          description: 'Record that the turn carrying some messages ended without an answer',
+          hidden: true,
+        },
+
+        // No arg is required: a citty usage error exits nonzero, and
+        // reporters must always exit 0.
+        args: {
+          messages: { type: 'string', default: '' },
+          turn: { type: 'string', default: '' },
+          reason: { type: 'string', default: '' },
+        },
+        async run(ctx) {
+          const note = await import('./note');
+
+          await note.runNote('unanswered', {
+            message: '',
+            messages: ctx.args.messages,
+            label: '',
+            turn: ctx.args.turn,
+            reason: ctx.args.reason,
+          });
+        },
+      }),
     report: () =>
       defineCommand({
         meta: {

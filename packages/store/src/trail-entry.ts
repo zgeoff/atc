@@ -11,7 +11,7 @@ interface TrailEntryBase {
 }
 
 interface MessageTrailEntry extends TrailEntryBase {
-  readonly kind: 'message-queued' | 'message-delivered' | 'message-answered';
+  readonly kind: 'message-queued' | 'message-delivered' | 'message-answered' | 'message-unanswered';
   readonly message: MessageID;
 }
 
