@@ -16,6 +16,7 @@ import type {
   AgentAdapter,
   AgentProfile,
   AuthSelection,
+  GuestFile,
   GuestPaths,
   GuestSpawnPlan,
   HeadlessRunner,
@@ -336,7 +337,7 @@ export class ClaudeAdapter implements AgentAdapter {
       codexHome.unsetEnv,
     );
 
-    const bundle = {
+    const bundle: Record<string, GuestFile> = {
       ...loadClaudeConfigBundle(
         resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude', this.options.homeDir),
         launch.env.CLAUDE_CONFIG_DIR,
