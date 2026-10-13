@@ -51,6 +51,10 @@ async function setupTest() {
           },
         ],
         defaultTarget: 'box',
+
+        // A restore tries a refused session again at once, so a test of
+        // that retry waits on no real delay.
+        restoreRetryDelaysMs: [0],
       };
     },
   });
@@ -64,6 +68,7 @@ async function setupTest() {
     build: daemon.build,
     logs: daemon.logs,
     openClient: daemon.openClient,
+    restart: daemon.restart,
     port,
   };
 }
@@ -294,6 +299,52 @@ test('it starts a remote harness with only the variables atc sets, never the dae
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',
   });
+});
+
+test('it restores a cloud session that was mid-turn at a daemon restart and delivers its wake message after its imp refused the first try', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const turn = await ctx.client.sendRequest('session.message', { session: id, text: 'work' });
+  const turnTap = await ctx.openClient();
+
+  await turnTap.sendRequest('session.tap', { session: id });
+  await turnTap.sendRequest('message.ack', { session: id, message: turn['message'] });
+
+  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+
+  await ctx.restart();
+
+  const client = await ctx.openClient();
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: true, kind: 'pty' });
+  });
+
+  const wake = await client.sendRequest('session.message', { session: id, text: 'wake up' });
+  const tap = await ctx.openClient();
+
+  await tap.sendRequest('session.tap', { session: id });
+
+  const acked = await tap.sendRequest('message.ack', { session: id, message: wake['message'] });
+
+  expect(acked).toStrictEqual({ message: wake['message'], status: 'delivered' });
+
+  expect(ctx.logs).toContain(
+    `atc could not revive session ${String(id)} (imp ${ctx.port.collectImpNames()[0]} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
+  );
 });
 
 test('it revives a remote harness with only the variables atc sets, never the daemon environment', async () => {

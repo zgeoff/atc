@@ -47,7 +47,8 @@ daemon first opened it, and a restore loads only this daemon's rows.
 A daemon restores the fleet itself once it is listening, unless the config turns that off, and a
 client can ask for a restore at any time. The daemon keeps one restore in flight: a request that
 arrives during one joins it and starts nothing. A later request, after it finishes, revives every
-session that died since and skips every live one.
+session that died since and every session an earlier restore could not start a terminal for, and
+skips every live one.
 
 1. **Register every row.** Each row becomes a session without a terminal before any process starts,
    so every client lists the whole incoming fleet at once, marked "waiting to restore". A row whose
@@ -68,7 +69,11 @@ session that died since and skips every live one.
 A row whose agent id the config no longer registers keeps its place and refuses to revive, so a
 backend dropped from the config never comes back as plain Claude. A row whose target cannot run it
 restores as exited, and a revive answers with the target's refusal. One row that fails to register
-or revive is logged and skipped, so it never keeps the rest of the fleet down.
+or revive is logged and skipped, so it never keeps the rest of the fleet down. A session whose
+revive fails lists the reason in place of "waiting to restore", so a restart report and the session
+list show why it has no terminal. When the refusal is one the host can lift by itself, such as an
+imp that cannot take a lease yet, the restore tries that session again after a delay, a few times,
+once the rest of the fleet is through.
 
 Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
 "waiting to restore", and its descriptor reads as a running headless session. Input sent to a Claude

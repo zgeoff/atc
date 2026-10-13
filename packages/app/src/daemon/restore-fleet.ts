@@ -24,9 +24,21 @@ interface RestoreFleetParams {
   // started, and starts no more once it holds.
   readonly isStopped?: () => boolean;
 
-  // The clock behind the per-session cap; the wall clock when unset.
+  // The waits before each further try at the sessions whose host refused
+  // for now; three waits of 5, 15, and 45 seconds when unset, and none
+  // tries no session twice.
+  readonly retryDelaysMs?: readonly number[];
+
+  // The clock behind the per-session cap and the retry delays; the wall
+  // clock when unset.
   readonly clock?: Clock;
 }
+
+const RESTORE_RETRY_DELAYS_MS: readonly number[] = [5000, 15_000, 45_000];
+
+// The longest single timer a retry delay waits on, so a stop ends the wait
+// soon after.
+const RETRY_SLICE_MS = 1000;
 
 // How the staggered terminal adoption behind a restore ended: every queued
 // session was tried, the daemon began to stop first, or a revive threw.
@@ -63,13 +75,17 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const rows = params.rows;
   const capMs = params.capMs;
   const clock = params.clock ?? systemClock;
+  const retryDelaysMs = params.retryDelaysMs ?? RESTORE_RETRY_DELAYS_MS;
   const isStopped = () => params.isStopped?.() === true;
 
+  // A session an earlier restore registered and could not start a
+  // terminal for is not live, so this restore tries it again.
   const hasLiveSession = (entry: FleetEntry) =>
     mgr.sessions.some(
       (s) =>
         isSameSession(s, entry) &&
-        (s.pty !== null || (s.kind === 'headless' && s.state !== 'exited')),
+        (s.pty !== null ||
+          (s.kind === 'headless' && s.state !== 'exited' && !mgr.isUnrestored(s.id))),
     );
 
   const hasAnySession = (entry: FleetEntry) => mgr.sessions.some((s) => isSameSession(s, entry));
@@ -144,14 +160,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     .filter((r) => r.revive || r.session.state !== 'exited')
     .map((r) => r.session);
 
-  // A session whose target refuses to start a terminal stays listed without
-  // one, and the restore moves on to the next.
-  const adoptQueued = async (s: Session): Promise<boolean> => {
-    const adopted = await tryAdoptTerminal(mgr, s.id, cols, rows, () => !isStopped());
-
-    return adopted !== null;
-  };
-
   // A session that announced itself, or whose terminal died, before the
   // wait began has nothing left to wait for.
   const waitForBoot = (sessionID: SessionID): Promise<void> => {
@@ -192,46 +200,132 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // booted, so a heavy fleet comes up one process at a time instead of all
   // at once. A per-session cap keeps a session that never reports from
   // stalling the rest.
-  // A session whose revive fails is logged and left without a terminal,
-  // and the restore moves on: one host's failure never keeps the sessions on
-  // other hosts down, and a later one's runs where nothing awaits it.
+  // A session whose revive fails or is refused is logged and listed under
+  // the reason, without a terminal, and the restore moves on: one host's
+  // failure never keeps the sessions on other hosts down, and a later one's
+  // runs where nothing awaits it. A refusal its host can lift by itself,
+  // such as an imp that cannot take a lease yet, queues the session for
+  // another try once the next retry delay has passed.
   let failed = false;
+  let retrying: Session[] = [];
 
-  const tryAdoptQueued = async (s: Session): Promise<boolean> => {
+  // The reason each session lists after its last refused try, so a retry
+  // skips a session that something else has changed since.
+  const refusals = new Map<Session, string>();
+
+  const recordRefusal = (s: Session, reason: string, retry: boolean) => {
+    mgr.log(`atc could not revive session ${s.id} (${reason})${retry ? '; trying again' : ''}`);
+
+    if (s.pty === null && mgr.sessions.includes(s)) {
+      mgr.updateRestoreRefusal(s, reason);
+      refusals.set(s, reason);
+    }
+
+    if (retry) {
+      retrying.push(s);
+    }
+  };
+
+  const tryAdoptQueued = async (s: Session, canRetry: boolean): Promise<boolean> => {
+    let adopted: AdoptResult;
+
     try {
-      return await adoptQueued(s);
+      adopted = await tryAdoptTerminal(mgr, s.id, cols, rows, () => !isStopped());
     } catch (error) {
       failed = true;
 
-      mgr.log(
-        `atc could not revive session ${s.id} (${error instanceof Error ? error.message : String(error)})`,
+      const reason = error instanceof Error ? error.message : String(error);
+
+      recordRefusal(s, reason, false);
+
+      return false;
+    }
+
+    if (adopted.kind === 'refused') {
+      recordRefusal(
+        s,
+        adopted.refusal.message,
+        canRetry && RETRIED_ADOPT_CODES.has(adopted.refusal.code),
       );
 
       return false;
     }
+
+    return adopted.session !== null;
   };
 
   // A daemon that stopped before a terminal started, or while one started
   // or the previous session booted, starts no more terminals.
-  const adoptRest = async (previous: Session | null): Promise<RestoreOutcome> => {
+  const adoptEach = async (
+    sessions: readonly Session[],
+    previous: Session | null,
+    canRetry: boolean,
+  ): Promise<boolean> => {
     let prev = previous;
 
-    for (const s of rest) {
+    for (const s of sessions) {
       if (prev !== null) {
         await waitForBoot(prev.id);
       }
 
       if (isStopped()) {
-        return 'stopped';
+        return false;
       }
 
-      const booted = await tryAdoptQueued(s);
+      const booted = await tryAdoptQueued(s, canRetry);
 
       if (isStopped()) {
-        return 'stopped';
+        return false;
       }
 
       prev = booted ? s : null;
+    }
+
+    return true;
+  };
+
+  // Waits out a retry delay a slice at a time, so a daemon that stops
+  // meanwhile ends the wait within a slice; false once it has stopped.
+  const waitForRetry = async (delayMs: number): Promise<boolean> => {
+    const due = clock.now() + delayMs;
+
+    while (!isStopped() && clock.now() < due) {
+      await new Promise<void>((resolve) => {
+        clock.schedule(resolve, Math.min(RETRY_SLICE_MS, due - clock.now()));
+      });
+    }
+
+    return !isStopped();
+  };
+
+  // Each round tries again only the sessions still listed under the
+  // refusal of their last try, so one a caller revived, killed, or forgot
+  // meanwhile is left as it is.
+  const adoptRest = async (previous: Session | null): Promise<RestoreOutcome> => {
+    if (!(await adoptEach(rest, previous, retryDelaysMs.length > 0))) {
+      return 'stopped';
+    }
+
+    for (const [round, delayMs] of retryDelaysMs.entries()) {
+      const due = retrying;
+
+      retrying = [];
+
+      if (due.length === 0) {
+        break;
+      }
+
+      if (!(await waitForRetry(delayMs))) {
+        return 'stopped';
+      }
+
+      const still = due.filter(
+        (s) => s.pty === null && mgr.sessions.includes(s) && s.lastMsg === refusals.get(s),
+      );
+
+      if (!(await adoptEach(still, null, round + 1 < retryDelaysMs.length))) {
+        return 'stopped';
+      }
     }
 
     return failed ? 'failed' : 'finished';
@@ -241,7 +335,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return { restored: registered.length, settled: Promise.resolve('stopped') };
   }
 
-  const firstAdopted = await tryAdoptQueued(first);
+  const firstAdopted = await tryAdoptQueued(first, retryDelaysMs.length > 0);
 
   if (isStopped()) {
     return { restored: registered.length, settled: Promise.resolve('stopped') };
@@ -302,18 +396,29 @@ const REFUSED_ADOPT_CODES: ReadonlySet<string> = new Set([
   'auth_placeholder_unsupported',
 ]);
 
+// The refusals a host can lift by itself, such as an imp that cannot take
+// a lease or run a command yet, or a broker that is still starting; the
+// restore tries these sessions again.
+const RETRIED_ADOPT_CODES: ReadonlySet<string> = new Set(['host_unavailable', 'broker_not_ready']);
+
+// How one try at a session's terminal ended: the session it adopted, or
+// null when there was nothing to adopt, or the refusal its target gave.
+type AdoptResult =
+  | { readonly kind: 'adopted'; readonly session: Session | null }
+  | { readonly kind: 'refused'; readonly refusal: DaemonError };
+
 async function tryAdoptTerminal(
   mgr: SessionManager,
   id: SessionID,
   cols: number,
   rows: number,
   canProceed: () => boolean,
-): Promise<Session | null> {
+): Promise<AdoptResult> {
   try {
-    return await mgr.adoptTerminal(id, cols, rows, canProceed);
+    return { kind: 'adopted', session: await mgr.adoptTerminal(id, cols, rows, canProceed) };
   } catch (error) {
     if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
-      return null;
+      return { kind: 'refused', refusal: error };
     }
 
     throw error;

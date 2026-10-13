@@ -206,7 +206,7 @@ test('it restores a listed legacy session when its imp becomes reachable on a la
   expect(ctx.mgr.sessions[0]?.pty?.detach).toBeFunction();
 });
 
-test('it clears a stale binding refusal when the host check succeeds but adoption fails', async () => {
+test('it lists the adoption refusal in place of a stale binding refusal once the host check succeeds', async () => {
   const ctx = await setupTest();
 
   const entry = buildMockFleetEntry({
@@ -239,6 +239,7 @@ test('it clears a stale binding refusal when the host check succeeds but adoptio
     cols: 80,
     rows: 24,
     capMs: 0,
+    retryDelaysMs: [],
   });
 
   await restored.settled;
@@ -248,7 +249,7 @@ test('it clears a stale binding refusal when the host check succeeds but adoptio
       id: entry.sessionID,
       targetIdentity: ctx.identity,
       state: 'exited',
-      lastMsg: 'waiting to restore',
+      lastMsg: `imp ${ctx.provider.getImpName(entry.sessionID)} cannot be used: impd refused the lease (LEASED)`,
     },
   ]);
 });

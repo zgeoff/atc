@@ -1093,7 +1093,10 @@ test('it restores a local session with a workspace without a terminal once its a
 
   expect(getRecord(got, 'session')).toContainEntries([
     ['kind', 'headless'],
-    ['lastMsg', 'waiting to restore'],
+    [
+      'lastMsg',
+      "agent 'glm' takes its credential from impd's broker, which target 'local' does not reach",
+    ],
     ['workspace', { repoURL: 'file:///src', sha: 'a'.repeat(40), ref: 'main', materializedAt: 1 }],
   ]);
 
@@ -1302,7 +1305,8 @@ test('it restores a session whose agent dropped the broker credential while its 
 
   expect(getRecord(got, 'session')).toMatchObject({
     kind: 'headless',
-    lastMsg: 'waiting to restore',
+    lastMsg:
+      "agent 'glm' takes no credential from impd's broker, but its host holds a runtime auth binding; rebind the session or forget it",
   });
 });
 

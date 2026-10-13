@@ -12,6 +12,7 @@ import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter'
 import { buildStubLog } from '@atc/test-utils/build-stub-log';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import invariant from 'tiny-invariant';
 import { restoreFleet } from './restore-fleet';
 import { SessionManager } from './sessions';
 
@@ -42,6 +43,7 @@ async function setupTest() {
     dir: tmp.dir,
     statusPath: join(tmp.dir, 'status.json'),
     store,
+    port,
     provider,
     logged: recorder.lines,
     log: recorder.log,
@@ -231,4 +233,217 @@ test('it logs a first session whose revive fails with a plain error and still re
     'atc could not revive session s-first (no plan for s-first)',
     expect.stringMatching(/^atc: wake of session s-second on target 'box' took /),
   ]);
+});
+
+test('it lists and logs the refusal of a session whose imp refuses it with no retry left', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-busy'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+  ]);
+
+  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 50,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  const refusal = `imp ${ctx.provider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)`;
+
+  expect(mgr.sessions).toMatchObject([
+    { id: 's-busy', kind: 'headless', state: 'running', pty: null, lastMsg: refusal },
+  ]);
+
+  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    `atc could not revive session s-busy (${refusal})`,
+  ]);
+});
+
+test('it revives a session on a later try once its imp stops refusing it', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-busy'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+  ]);
+
+  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 50,
+    retryDelaysMs: [0],
+  });
+
+  await restored.settled;
+
+  expect(mgr.sessions).toMatchObject([{ id: 's-busy', kind: 'pty', lastMsg: 'revived' }]);
+
+  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    `atc could not revive session s-busy (imp ${ctx.provider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
+    expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /),
+  ]);
+});
+
+test('it revives on a later restore a session an earlier restore left without a terminal', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-busy'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+  ]);
+
+  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+
+  const first = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 50,
+    retryDelaysMs: [],
+  });
+
+  await first.settled;
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 50,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  expect(mgr.sessions).toMatchObject([{ id: 's-busy', kind: 'pty', lastMsg: 'revived' }]);
+  expect(mgr.sessions).toBeArrayOfSize(1);
+});
+
+test('it never adopts a terminal for a live headless run a later restore finds listed', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  const entry = buildMockFleetEntry({
+    sessionID: toSessionID('s-headless'),
+    cwd: ctx.dir,
+    target: 'box',
+    targetIdentity: 'imp:test',
+  });
+
+  await ctx.store.writeFleet([entry]);
+
+  const first = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 50,
+    retryDelaysMs: [],
+  });
+
+  await first.settled;
+
+  const [s] = mgr.sessions;
+
+  invariant(s !== undefined && s.pty !== null, 'the first restore adopted no terminal');
+
+  mgr.yankHeadless(s.id);
+
+  const requests = ctx.port.sessionRequests.length;
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: () => {},
+    cols: 80,
+    rows: 24,
+    capMs: 50,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  expect(ctx.port.sessionRequests.length - requests).toBe(0);
+  expect(mgr.sessions).toMatchObject([{ id: 's-headless', kind: 'headless', pty: null }]);
 });

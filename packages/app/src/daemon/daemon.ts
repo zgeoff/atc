@@ -184,12 +184,17 @@ export interface DaemonOptions {
   // single revive waits for that signal before moving on regardless, so a
   // session that never reports cannot stall the rest. Zero waits forever.
   readonly restoreBootTimeoutMs?: number;
+
+  // The waits before each further try at a restored session whose host
+  // refused for now, such as an imp that cannot take a lease yet; the
+  // restore's own delays when unset.
+  readonly restoreRetryDelaysMs?: readonly number[];
   readonly tapGraceMs?: number;
 
   // The clock the event trail stamps each hook event with, and the clock
   // behind the tap grace window, the held-read waits, the time a note is
   // reported at, the permission request timeouts, the restore's per-session
-  // boot cap, the TCP listener's failure times, delays, and refusal
+  // boot cap and retry delays, the TCP listener's failure times, delays, and refusal
   // windows, and every other time the daemon stores; the wall clock when
   // unset.
   readonly clock?: Clock;
@@ -1591,6 +1596,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           cols,
           rows,
           capMs: opts.restoreBootTimeoutMs ?? 0,
+          ...(opts.restoreRetryDelaysMs === undefined
+            ? {}
+            : { retryDelaysMs: opts.restoreRetryDelaysMs }),
           isStopped: () => released,
           clock,
         });
