@@ -215,6 +215,88 @@ test('it drops a stored exited row on another target whose agent session id a wr
   expect(fleet).toStrictEqual([local]);
 });
 
+test('it drops a stored live row without a target identity when a later local entry holds its agent session id', async () => {
+  const ctx = await setupTest();
+
+  const legacy = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-shared') });
+
+  const local = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:44136fa355b3678a',
+  });
+
+  await ctx.store.writeFleet([legacy]);
+  await ctx.store.writeFleet([local]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([local]);
+});
+
+test('it keeps the later of a live entry without a target identity and a local entry that holds its agent session id', async () => {
+  const ctx = await setupTest();
+
+  const legacy = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-shared') });
+
+  const local = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:44136fa355b3678a',
+  });
+
+  await ctx.store.writeFleet([legacy, local]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([local]);
+});
+
+test('it drops every stored live row without a target identity that a later local entry resumes', async () => {
+  const ctx = await setupTest();
+
+  const first = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-first') });
+  const second = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-second') });
+
+  const resumedFirst = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-first'),
+    target: 'local',
+    targetIdentity: 'local-pty:44136fa355b3678a',
+  });
+
+  const resumedSecond = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-second'),
+    target: 'local',
+    targetIdentity: 'local-pty:44136fa355b3678a',
+  });
+
+  await ctx.store.writeFleet([first, second]);
+  await ctx.store.writeFleet([resumedFirst, resumedSecond]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([resumedFirst, resumedSecond]);
+});
+
+test('it keeps a stored live row without a target identity when a later entry on another local identity holds its agent session id', async () => {
+  const ctx = await setupTest();
+
+  const legacy = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-shared') });
+
+  const local = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('c-shared'),
+    target: 'local',
+    targetIdentity: 'local-pty:0000000000000000',
+  });
+
+  await ctx.store.writeFleet([legacy]);
+  await ctx.store.writeFleet([local]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([legacy, local]);
+});
+
 test('it relinks a stored sub-session to the session that replaced its parent', async () => {
   const ctx = await setupTest();
 

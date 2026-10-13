@@ -242,6 +242,7 @@
     "packages/store": {
       "name": "@atc/store",
       "dependencies": {
+        "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "kysely": "catalog:",

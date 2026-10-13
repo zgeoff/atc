@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { LOCAL_TARGET } from '@atc/config/local-target';
 import type { AgentID } from '@atc/core/agent-id';
 import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { DaemonID } from '@atc/core/daemon-id';
@@ -26,6 +27,7 @@ import type {
   SqlBool,
   Transaction,
 } from 'kysely';
+import { buildTargetIdentity } from './build-target-identity';
 import { parseFleetEntry } from './fleet-entry';
 import type { FleetEntry, FleetEntryUpdate, LegacyFleetEntry } from './fleet-entry';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
@@ -1362,8 +1364,9 @@ function parseWithheldEnv(stored: string | null): string[] | null {
   return stored === null ? [] : parseJSONStrings(stored);
 }
 
-// A row without a target restores on the `local` target.
-const LOCAL_TARGET_ID = 'local';
+// A row without a target restores on the `local` target, and a row without
+// an identity restores under the identity of the `local` target.
+const LOCAL_TARGET_IDENTITY = buildTargetIdentity(LOCAL_TARGET.provider, LOCAL_TARGET.options);
 
 type ReplaceableRow = Pick<FleetEntry, 'agentSessionID' | 'exited' | 'target' | 'targetIdentity'>;
 
@@ -1375,8 +1378,9 @@ function isReplaceableBy(row: ReplaceableRow, later: ReplaceableRow): boolean {
     row.agentSessionID !== undefined &&
     row.agentSessionID === later.agentSessionID &&
     (row.exited === true ||
-      ((row.target ?? LOCAL_TARGET_ID) === (later.target ?? LOCAL_TARGET_ID) &&
-        row.targetIdentity === later.targetIdentity))
+      ((row.target ?? LOCAL_TARGET.id) === (later.target ?? LOCAL_TARGET.id) &&
+        (row.targetIdentity ?? LOCAL_TARGET_IDENTITY) ===
+          (later.targetIdentity ?? LOCAL_TARGET_IDENTITY)))
   );
 }
 

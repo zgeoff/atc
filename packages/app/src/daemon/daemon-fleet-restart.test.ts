@@ -180,6 +180,43 @@ test('it restores the stored sessions on fleet.restore when the option is unset'
   expect(listed['sessions']).toMatchObject([{ id: 's-a', alive: true }]);
 });
 
+test('it restores one local session after a local spawn resumes the agent session of a stored row without a target identity', async () => {
+  const daemon = await startTestDaemon({
+    options: async (paths) => {
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
+
+      await seed.writeFleet([
+        buildMockFleetEntry({
+          sessionID: toSessionID('s-legacy'),
+          agentSessionID: toAgentSessionID('a-shared'),
+          cwd: paths.dir,
+        }),
+      ]);
+
+      await seed.stop();
+
+      return { adapter: buildMockAgentAdapter() };
+    },
+  });
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'a-shared',
+    target: 'local',
+  });
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed['sessions']).toMatchObject([{ alive: true }]);
+});
+
 test('it starts none of the stored sessions when the option is false', async () => {
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
   const skips: string[] = [];
