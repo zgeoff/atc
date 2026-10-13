@@ -46,8 +46,9 @@ and consent it holds.
    someone else's: do not type its code.
 3. Type the code on the page. Five wrong codes end the request, and a code expires after 10 minutes.
 4. Tick the scopes to grant on the consent page. Only `read` is ticked to start. `message` lets the
-   client instruct your agents, which can run commands, and rename, pin and mark your sessions read.
-   [Scopes](../architecture/remote/mcp.md#scopes) lists the tools each scope allows.
+   client instruct your agents, which can run commands. It also lets the client rename, pin and mark
+   your sessions read. [Scopes](../architecture/remote/mcp.md#scopes) lists the tools each scope
+   allows.
 
 The client then holds a grant. To widen it, connect again and approve the larger set.
 
