@@ -2,24 +2,44 @@
 
 ## [4.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.5.0...@zgeoff/atc@4.6.0) (2026-10-13)
 
-
 ### Features
 
-* **geo-443:** emit security events for gateway sign-in ([#561](https://github.com/zgeoff/atc/issues/561)) ([888b5b3](https://github.com/zgeoff/atc/commit/888b5b3e135b01cbb3d97ba08aabbb9058ccbfab))
-
+- **geo-443:** emit security events for gateway sign-in
+  ([#561](https://github.com/zgeoff/atc/issues/561))
+  ([888b5b3](https://github.com/zgeoff/atc/commit/888b5b3e135b01cbb3d97ba08aabbb9058ccbfab))
 
 ### Bug Fixes
 
-* **geo-291:** report a rename skipped for an agent-set name ([#568](https://github.com/zgeoff/atc/issues/568)) ([c34948e](https://github.com/zgeoff/atc/commit/c34948ebb6b8ec5bda0112d82592ca6273b4d385))
-* **geo-293:** describe a message to a restoring session as queued ([#566](https://github.com/zgeoff/atc/issues/566)) ([3457851](https://github.com/zgeoff/atc/commit/345785116f3b407feda632c3f6463cd86bef5f73))
-* **geo-295:** refuse a resume command a session cannot use outside atc ([#570](https://github.com/zgeoff/atc/issues/570)) ([3b46ed1](https://github.com/zgeoff/atc/commit/3b46ed1e1f473334d689e0bfd5d56ffa8e909911))
-* **geo-759:** gzip the atc binary copied into an imp ([#563](https://github.com/zgeoff/atc/issues/563)) ([b1c5f8a](https://github.com/zgeoff/atc/commit/b1c5f8a8a1f30c80b0703af18a4cd613acc6aa4d))
-* **geo-786:** list and retry a refused restore of a session ([#560](https://github.com/zgeoff/atc/issues/560)) ([6732508](https://github.com/zgeoff/atc/commit/6732508dec5ce0f939332777c5bb88eb18451993))
-* **geo-804:** give a tool's claude cli the broker sign-in on an imp ([#565](https://github.com/zgeoff/atc/issues/565)) ([f3cb875](https://github.com/zgeoff/atc/commit/f3cb875dd537bb365aedc746d0537ecc519ee29e))
-* **geo-807:** count a headless turn as live on a later restore ([#571](https://github.com/zgeoff/atc/issues/571)) ([445a361](https://github.com/zgeoff/atc/commit/445a3617b887cde9d6c8b5d3b07b6d6861b8d85e))
-* **geo-808:** keep a live fleet row that another target resumes ([#572](https://github.com/zgeoff/atc/issues/572)) ([017a1ec](https://github.com/zgeoff/atc/commit/017a1ecde95db2c9716903ada59b788822127870))
-* **geo-811:** skip a queued session whose headless turn starts ([#573](https://github.com/zgeoff/atc/issues/573)) ([b7f0659](https://github.com/zgeoff/atc/commit/b7f0659b29c111b8b57d0201997b92acebca6b69))
-* **geo-814:** keep one fleet row when a local spawn resumes a legacy row ([#574](https://github.com/zgeoff/atc/issues/574)) ([5f4c4fe](https://github.com/zgeoff/atc/commit/5f4c4fe973d7844b638a71ce178a8c7b19cbaaf1))
+- **geo-291:** report a rename skipped for an agent-set name
+  ([#568](https://github.com/zgeoff/atc/issues/568))
+  ([c34948e](https://github.com/zgeoff/atc/commit/c34948ebb6b8ec5bda0112d82592ca6273b4d385))
+- **geo-293:** describe a message to a restoring session as queued
+  ([#566](https://github.com/zgeoff/atc/issues/566))
+  ([3457851](https://github.com/zgeoff/atc/commit/345785116f3b407feda632c3f6463cd86bef5f73))
+- **geo-295:** refuse a resume command a session cannot use outside atc
+  ([#570](https://github.com/zgeoff/atc/issues/570))
+  ([3b46ed1](https://github.com/zgeoff/atc/commit/3b46ed1e1f473334d689e0bfd5d56ffa8e909911))
+- **geo-759:** gzip the atc binary copied into an imp
+  ([#563](https://github.com/zgeoff/atc/issues/563))
+  ([b1c5f8a](https://github.com/zgeoff/atc/commit/b1c5f8a8a1f30c80b0703af18a4cd613acc6aa4d))
+- **geo-786:** list and retry a refused restore of a session
+  ([#560](https://github.com/zgeoff/atc/issues/560))
+  ([6732508](https://github.com/zgeoff/atc/commit/6732508dec5ce0f939332777c5bb88eb18451993))
+- **geo-804:** give a tool's claude cli the broker sign-in on an imp
+  ([#565](https://github.com/zgeoff/atc/issues/565))
+  ([f3cb875](https://github.com/zgeoff/atc/commit/f3cb875dd537bb365aedc746d0537ecc519ee29e))
+- **geo-807:** count a headless turn as live on a later restore
+  ([#571](https://github.com/zgeoff/atc/issues/571))
+  ([445a361](https://github.com/zgeoff/atc/commit/445a3617b887cde9d6c8b5d3b07b6d6861b8d85e))
+- **geo-808:** keep a live fleet row that another target resumes
+  ([#572](https://github.com/zgeoff/atc/issues/572))
+  ([017a1ec](https://github.com/zgeoff/atc/commit/017a1ecde95db2c9716903ada59b788822127870))
+- **geo-811:** skip a queued session whose headless turn starts
+  ([#573](https://github.com/zgeoff/atc/issues/573))
+  ([b7f0659](https://github.com/zgeoff/atc/commit/b7f0659b29c111b8b57d0201997b92acebca6b69))
+- **geo-814:** keep one fleet row when a local spawn resumes a legacy row
+  ([#574](https://github.com/zgeoff/atc/issues/574))
+  ([5f4c4fe](https://github.com/zgeoff/atc/commit/5f4c4fe973d7844b638a71ce178a8c7b19cbaaf1))
 
 ## [4.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.4.0...@zgeoff/atc@4.5.0) (2026-10-13)
 
