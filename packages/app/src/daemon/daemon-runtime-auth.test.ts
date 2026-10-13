@@ -3751,14 +3751,18 @@ test('it shows every restored harness on a host that rebinds during the first re
   judgeSelected = true;
 
   await daemon.restart();
+
+  const logged = daemon.logs.length;
+
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  // The stub agent never reports it booted, so the restore starts the
-  // sub-session once the parent's boot cap runs out.
-  await waitFor(async () => {
-    const got = await daemon.client.sendRequest('session.get', { session: childID });
+  // A revive logs its wake once its harness's start settles and its launch
+  // revision is recorded. The stub agent never reports it booted, so the
+  // restore starts the sub-session once the parent's boot cap runs out.
+  await waitFor(() => {
+    const woken = daemon.logs.slice(logged).filter((line) => line.startsWith('atc: wake of'));
 
-    expect(getRecord(got, 'session')['kind']).toBe('pty');
+    expect(woken).toHaveLength(2);
   });
 
   const listed = await daemon.client.sendRequest('session.list');
@@ -3855,12 +3859,17 @@ test('it shows a harness restored after a daemon restart that its auth revision 
   // harness under it, while the parent's harness keeps revision 1.
   await daemon.client.sendRequest('session.adopt', { session: childID, cols: 80, rows: 24 });
   await daemon.restart();
+
+  const logged = daemon.logs.length;
+
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  await waitFor(async () => {
-    const got = await daemon.client.sendRequest('session.get', { session: childID });
+  // A revive logs its wake once its harness's start settles and its launch
+  // revision is recorded.
+  await waitFor(() => {
+    const woken = daemon.logs.slice(logged).filter((line) => line.startsWith('atc: wake of'));
 
-    expect(getRecord(got, 'session')['kind']).toBe('pty');
+    expect(woken).toHaveLength(2);
   });
 
   const listed = await daemon.client.sendRequest('session.list');
