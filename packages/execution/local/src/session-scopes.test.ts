@@ -23,22 +23,13 @@ test('it starts a command in a scope of its own bound to the daemon service', ()
     systemdRun: ctx.systemdRun,
   });
 
-  expect(scopes.buildCommand('s1', ['/usr/bin/env', '--', '/bin/claude'])).toStrictEqual({
-    file: ctx.systemdRun,
-    args: [
-      '--user',
-      '--scope',
-      '--quiet',
-      '--collect',
-      expect.stringMatching(/^--unit=atc-daemon-session-s1-[\da-f]{8}\.scope$/),
-      '--description=atc session s1',
-      '--property=BindsTo=atc-daemon.service',
-      '--',
-      '/usr/bin/env',
-      '--',
-      '/bin/claude',
-    ],
-  });
+  const command = scopes.buildCommand('s1', ['/usr/bin/env', '--', '/bin/claude']);
+
+  expect(command.file).toBe(ctx.systemdRun);
+
+  expect(command.args.join('\n')).toMatch(
+    /^--user\n--scope\n--quiet\n--collect\n--unit=atc-daemon-session-s1-[\da-f]{8}\.scope\n--description=atc session s1\n--property=BindsTo=atc-daemon\.service\n--\n\/usr\/bin\/env\n--\n\/bin\/claude$/,
+  );
 });
 
 test('it gives each start of one session a scope name of its own', () => {

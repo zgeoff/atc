@@ -586,11 +586,10 @@ test('it starts a harness in a scope of its own bound to the daemon service', as
     expect(output.join('')).toInclude('READY');
   });
 
-  expect(systemd.readSystemdRunCalls()).toStrictEqual([
-    expect.stringMatching(
-      /^--user --scope --quiet --collect --unit=atc-daemon-session-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/usr\/bin\/env .* \/usr\/bin\/bash -c echo READY; sleep 30$/,
-    ),
-  ]);
+  // One call per line, so the anchored pattern matches exactly one call.
+  expect(systemd.readSystemdRunCalls().join('\n')).toMatch(
+    /^--user --scope --quiet --collect --unit=atc-daemon-session-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/usr\/bin\/env [^\n]* \/usr\/bin\/bash -c echo READY; sleep 30$/,
+  );
 });
 
 test('it stops the scope of each harness it started as it is disposed', async () => {

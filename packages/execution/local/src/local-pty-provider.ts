@@ -49,6 +49,7 @@ export class LocalPTYProvider implements ExecutionProvider {
   // plain children.
   private readonly scopes: SessionScopes | null;
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the scopes record each scope they start
   constructor(clock: Clock = systemClock, scopes: SessionScopes | null = null) {
     this.clock = clock;
     this.scopes = scopes;
