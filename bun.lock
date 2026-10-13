@@ -192,6 +192,7 @@
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
+        "tiny-invariant": "catalog:",
       },
     },
     "packages/protocol": {

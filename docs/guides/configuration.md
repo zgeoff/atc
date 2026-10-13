@@ -1076,6 +1076,20 @@ marks the secret `needs_login` when the token endpoint refuses the refresh token
 sign-in, sign Codex in again on your machine and replace the secret with
 `imp secret add codex-chatgpt --kind oauth ... --replace`, fed with the new refresh token.
 
+A Claude entry signs in the Codex CLI it runs as a tool, such as `codex review`, when its `auth`
+selects the same `oauth` profile beside its own:
+
+```json
+{ "agents": { "claude": { "auth": { "profiles": ["claude", "codex", "github"] } } } }
+```
+
+On an imp target, each launch of such a session writes a Codex home into the folder of its auth
+binding's revision, `auth-r<revision>/codex-home`, and passes it as `CODEX_HOME`. The home holds the
+`auth.json` and `config.toml` that a Codex session gets, but no hook file, since the Codex run
+belongs to the Claude session. A sign-in that impd lists as `pending` or `needs_login`, or one whose
+ID token holds no ChatGPT account id, does not stop the Claude session: atc writes no Codex home,
+and Codex keeps the sign-in of the host's image.
+
 ## Migrating from the old keys
 
 atc 3.0.0 marks the move to the `agents` map as a breaking change. The old keys still load, but a

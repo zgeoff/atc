@@ -20,13 +20,13 @@ import type {
 } from '@atc/plugin-api/agent-adapter';
 import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
 import { buildAuthRevisionFolder } from '@atc/plugin-api/harness/build-auth-revision-folder';
+import { buildCodexAuthFile } from '@atc/plugin-api/harness/build-codex-auth-file';
+import { buildCodexConfig } from '@atc/plugin-api/harness/build-codex-config';
 import { canResumeFromTranscript } from '@atc/plugin-api/harness/can-resume-from-transcript';
+import { findCodexSignIn } from '@atc/plugin-api/harness/find-codex-sign-in';
 import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
-import { z } from 'zod';
-import { buildCodexAuthFile } from './build-codex-auth-file';
-import { buildCodexConfig } from './build-codex-config';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 import { buildCodexHookEvent } from './build-codex-hook-event';
 import { buildCodexHookFile } from './build-codex-hook-file';
@@ -222,9 +222,9 @@ export class CodexAdapter implements AgentAdapter {
       );
     }
 
-    const claims = ID_CLAIMS_SCHEMA.safeParse(state.idClaims);
+    const signIn = findCodexSignIn(state);
 
-    if (state.idClaims === null || !claims.success) {
+    if (signIn === null) {
       throw new DaemonError(
         'auth_signin_needed',
         `agent '${this.id}' signs in through ${name}, whose ID token in impd holds no ChatGPT account id; ${renew}`,
@@ -232,10 +232,7 @@ export class CodexAdapter implements AgentAdapter {
       );
     }
 
-    return {
-      idClaims: state.idClaims,
-      accountID: claims.data[OPENAI_AUTH_CLAIM].chatgpt_account_id,
-    };
+    return signIn;
   }
 
   // The secret this entry's profiles send to chatgpt.com, or null when
@@ -285,14 +282,6 @@ export class CodexAdapter implements AgentAdapter {
 // to, and the host impd's broker sets the access token on.
 const CHATGPT_CODEX_URL = 'https://chatgpt.com/backend-api/codex';
 const CHATGPT_HOST = 'chatgpt.com';
-
-// The ID token claim that holds the ChatGPT account and plan.
-const OPENAI_AUTH_CLAIM = 'https://api.openai.com/auth';
-
-// The ID token claims that hold a ChatGPT account id.
-const ID_CLAIMS_SCHEMA = z.object({
-  [OPENAI_AUTH_CLAIM]: z.object({ chatgpt_account_id: z.string().min(1) }),
-});
 
 // Codex's documented flag that runs hooks without the trust a person
 // gives them in the TUI, meant for automation that vets its hook sources.

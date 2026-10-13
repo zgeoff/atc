@@ -1828,3 +1828,213 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
     },
   });
 });
+
+test('it plans a Codex home in the binding revision when the profiles send a ready ChatGPT sign-in', () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude', 'codex'] } } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              email: 'someone@example.com',
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+              sub: 'user-1',
+            },
+          },
+        },
+      },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  const authFile = plan.files['auth-r2/codex-home/auth.json'];
+
+  invariant(
+    typeof authFile === 'object' && 'mode' in authFile,
+    'expected the Codex sign-in file with its mode',
+  );
+
+  expect({
+    env: plan.env,
+    mode: authFile.mode,
+    auth: JSON.parse(new TextDecoder().decode(authFile.content)),
+    config: plan.files['auth-r2/codex-home/config.toml'],
+  }).toStrictEqual({
+    env: {
+      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      TMPDIR: '/tmp/atc/sessions/s1/scratch',
+      CODEX_HOME: '/tmp/atc/sessions/s1/auth-r2/codex-home',
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    },
+    mode: 0o600,
+    auth: {
+      auth_mode: 'chatgpt',
+      OPENAI_API_KEY: null,
+      tokens: {
+        id_token:
+          'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJlbWFpbCI6InNvbWVvbmVAZXhhbXBsZS5jb20iLCJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOnsiY2hhdGdwdF9hY2NvdW50X2lkIjoiNWYwYzFkN2UtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDBjMGRlIn19.aW1wLWJyb2tlci1wbGFjZWhvbGRlcg',
+        access_token: 'imp-broker-placeholder',
+        refresh_token: 'imp-broker-placeholder',
+        account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+      },
+      last_refresh: '2099-01-01T00:00:00Z',
+    },
+    config: 'cli_auth_credentials_store = "file"\ncheck_for_update_on_startup = false\n',
+  });
+});
+
+test('it plans no Codex home when the ChatGPT sign-in in impd is not ready', () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude', 'codex'] } } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+        oauth: { 'codex-chatgpt': { status: 'needs_login', idClaims: null } },
+      },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  expect({
+    env: plan.env,
+    codexFiles: Object.keys(plan.files).filter((path) => path.includes('codex-home')),
+  }).toStrictEqual({
+    env: {
+      CLAUDE_CONFIG_DIR: '/tmp/atc/sessions/s1/claude-config',
+      TMPDIR: '/tmp/atc/sessions/s1/scratch',
+      CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder',
+    },
+    codexFiles: [],
+  });
+});
+
+test('it plans no Codex home when a ChatGPT profile sets no bearer authorization header', () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'x-api-key',
+        scheme: 'raw',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude', 'codex'] } } },
+  });
+
+  const adapter = new ClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.dir, 'home') },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      dir: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  expect({
+    codexHome: plan.env?.['CODEX_HOME'] ?? null,
+    codexFiles: Object.keys(plan.files).filter((path) => path.includes('codex-home')),
+  }).toStrictEqual({ codexHome: null, codexFiles: [] });
+});
