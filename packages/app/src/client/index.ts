@@ -817,7 +817,15 @@ async function yankResume(sessionID: string, eject: boolean) {
     if (service.getSnapshot().value === 'overlay') {
       renderOverlay();
     }
-  } catch {}
+  } catch (error) {
+    // A session the daemon cannot resume outside atc keeps running, and
+    // the reason replaces the copy notice.
+    recordActionFailure(sessionID, error);
+
+    if (service.getSnapshot().value === 'overlay') {
+      renderOverlay();
+    }
+  }
 }
 
 function applyEjectKey(buf: Buffer) {

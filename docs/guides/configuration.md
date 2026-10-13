@@ -717,10 +717,10 @@ headless turn is refused, and the session has no resume command.
 
 A gateway with both `auth` and `apiKeyHelper` is one entry that you can start on either kind of
 target. On a target without a broker, the helper supplies the credential on the daemon's machine,
-headless turns run, and the session has a resume command, as for a gateway without `auth`. On an imp
-target, the session takes the broker's credential, and the helper never reaches the guest. Set
-`auth.args` when the imp launch needs other arguments, such as a mod folder at another path:
-`auth.args` replaces `args` on an imp launch, and `args` applies everywhere else.
+headless turns run, and a session on the local target has a resume command, as for a gateway without
+`auth`. On an imp target, the session takes the broker's credential, and the helper never reaches
+the guest. Set `auth.args` when the imp launch needs other arguments, such as a mod folder at
+another path: `auth.args` replaces `args` on an imp launch, and `args` applies everywhere else.
 
 On an imp target, the session's guest folder holds a settings file for its binding revision and a
 Claude config folder of its own. The settings file points the CLI at `baseURL` with the placeholder

@@ -42,6 +42,12 @@ to sleep instead, with the agent inside, and a revive wakes it where it left off
 it. On a target where forgetting destroys the session's host, such as an imp, atc asks once more
 before it forgets.
 
+`y` copies a shell command that resumes the selected session outside atc, and `Y` copies it and then
+kills the session here. Only a session on the daemon's own machine has that command, because the
+session's folder and settings file exist only where its agent runs. For a session on an imp or
+another remote target, or for an agent that cannot resume outside atc, the session's message column
+shows why, and `Y` kills nothing.
+
 Inside a Claude Code session, your statusline gains a fleet segment, so `● 2 need you: auth-bug`
 shows without opening the list.
 

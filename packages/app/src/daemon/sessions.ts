@@ -181,6 +181,13 @@ type SpawnMaterializer = (
   targetIdentity: string,
 ) => Promise<MaterializedSpawn | null>;
 
+// The command that resumes a session outside atc, or why there is none: no
+// such session, or a session that cannot resume outside atc.
+export type ResumeCommand =
+  | { readonly command: string }
+  | { readonly refusal: 'missing' }
+  | { readonly refusal: 'unsupported'; readonly reason: string };
+
 export interface SpawnHostAccess {
   readonly readyHost: (
     attempt: number,
@@ -3087,15 +3094,36 @@ export class SessionManager {
     this.emitChange();
   }
 
-  // Shell command that re-opens this session outside atc (or anywhere).
-  buildResumeCommand(id: SessionID): string | null {
+  // Shell command that re-opens this session outside atc, on the daemon's
+  // machine. A session on another machine has none: its folder, and any
+  // settings file the command would pass, sit on a different machine than
+  // the one the command would run on. An agent whose adapter builds no
+  // command, such as a gateway that signs in through impd's broker alone,
+  // has none either.
+  buildResumeCommand(id: SessionID): ResumeCommand {
     const s = this.sessions.find((x) => x.id === id);
 
     if (!s) {
-      return null;
+      return { refusal: 'missing' };
     }
 
-    return this.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.agentSessionID) ?? null;
+    if (!this.isLocalTarget(s.target)) {
+      return {
+        refusal: 'unsupported',
+        reason: `session '${id}' runs on target '${s.target}', so it cannot resume outside atc on this machine`,
+      };
+    }
+
+    const command = this.findAdapter(s.agent)?.buildResumeCommand(s.cwd, s.agentSessionID) ?? null;
+
+    if (command === null) {
+      return {
+        refusal: 'unsupported',
+        reason: `agent '${s.agent}' of session '${id}' cannot resume outside atc`,
+      };
+    }
+
+    return { command };
   }
 
   attach(id: SessionID) {
