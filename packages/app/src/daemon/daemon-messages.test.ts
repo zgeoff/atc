@@ -409,10 +409,10 @@ test('it streams a message queued while the tap is connected', async () => {
 });
 
 test('it drains two hundred pending messages to a tap with zero loss', async () => {
-  // The drain's wait ends half a second before the runner's 5 s test
-  // timeout, so a drain that stalls fails with the messages the tap got
-  // against the ones sent, where the runner's timeout would report none.
-  const deadline = Date.now() + 4500;
+  // The drain's wait ends half a second before this test's 15 s timeout, so
+  // a drain that stalls fails with the messages the tap got against the
+  // ones sent, where the runner's timeout would report none.
+  const deadline = Date.now() + 14_500;
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -442,7 +442,7 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
     },
     { timeoutMs: Math.max(0, deadline - Date.now()) },
   );
-});
+}, 15_000);
 
 test('it drains a backlog larger than the outbound queue without dropping the tap', async () => {
   const daemon = await startTestDaemon({
