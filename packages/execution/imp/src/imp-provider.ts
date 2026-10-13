@@ -471,6 +471,8 @@ export class ImpProvider implements ExecutionProvider {
       if (!(error instanceof ImpPortError && error.code === 'NOT_FOUND')) {
         if (host !== undefined) {
           host.suspending = false;
+
+          emitSleepRefusal(host);
         }
 
         throw toHostRefusal(error, name);
@@ -674,8 +676,8 @@ export class ImpProvider implements ExecutionProvider {
 
     let current = openForward();
 
-    // Settles true once a sleep the provider asked for is refused, so the
-    // imp stays awake, and false once the reporter stops first.
+    // Settles true once a sleep or destroy the provider asked for fails, so
+    // the imp stays awake, and false once the reporter stops first.
     const waitForRefusedSleep = () =>
       new Promise<boolean>((resolve) => {
         if (stopping.signal.aborted) {
@@ -916,8 +918,8 @@ interface ImpHost {
   // Where the latest readying asked the provider to report, or null.
   log: ((line: string) => void) | null;
 
-  // Called once each when impd refuses a sleep the provider asked for, and
-  // the host stays awake.
+  // Called once each when impd refuses a sleep or fails a destroy the
+  // provider asked for, and the host stays awake.
   readonly sleepRefusals: Set<() => void>;
 }
 

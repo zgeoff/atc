@@ -1131,6 +1131,82 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toHaveLength(2);
 });
 
+test('it listens on the guest socket again when impd fails the destroy that was pending as its hook forward ended', async () => {
+  const ctx = setupTest();
+  const lines: string[] = [];
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0', reconnectDelaysMs: [0] },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({
+    host: 's1',
+    daemonID: 'd1',
+    log: (line) => {
+      lines.push(line);
+    },
+  });
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'sleep',
+    args: ['30'],
+    cwd: ctx.dir,
+    env: {},
+    cols: 80,
+    rows: 24,
+    onRelay: () => {},
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  invariant(harness.waitForStart !== undefined, 'the imp harness reports no start');
+
+  await harness.waitForStart();
+
+  // The destroy holds at impd until the forward has ended, so the end
+  // arrives while the destroy is pending.
+  ctx.port.startDestroyHold();
+
+  registerTestCleanup(() => {
+    ctx.port.stopDestroyHold();
+  });
+
+  const destroy = provider.destroyHost('s1');
+
+  await waitFor(() => {
+    expect(ctx.port.countHeldDestroys()).toBe(1);
+  });
+
+  ctx.port.stopForwards({ kind: 'closed', code: 1006, reason: '' });
+
+  await waitFor(() => {
+    expect(lines).toContain(
+      "imp atc-s1 is going to sleep; session s1's hooks listen again if the sleep is refused",
+    );
+  });
+
+  ctx.port.setDestroyFailure('UNAVAILABLE');
+  ctx.port.stopDestroyHold();
+
+  expect(destroy).rejects.toThrow();
+
+  await waitFor(() => {
+    expect(existsSync(join(ctx.dir, 'g', 'run', 's1.sock'))).toBeTrue();
+  });
+
+  expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toHaveLength(2);
+});
+
 test('it listens on the guest socket no more when the daemon lets go of the harness as impd refuses the sleep its hook forward waits on', async () => {
   const ctx = setupTest();
   const lines: string[] = [];

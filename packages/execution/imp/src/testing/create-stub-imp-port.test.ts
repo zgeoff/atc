@@ -2428,6 +2428,68 @@ test('it lets a held lease release through once the release hold stops', async (
   expect(released).toBeTrue();
 });
 
+test('it holds an imp destroy while the destroy hold lasts', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.startDestroyHold();
+
+  const destroying = ctx.port.destroyImp('imp-a');
+
+  await waitFor(() => {
+    expect(ctx.port.countHeldDestroys()).toBe(1);
+  });
+
+  expect(Bun.peek.status(destroying)).toBe('pending');
+  expect(ctx.port.collectImpNames()).toStrictEqual(['imp-a']);
+});
+
+test('it lets a held imp destroy through once the destroy hold stops', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.startDestroyHold();
+
+  const destroying = ctx.port.destroyImp('imp-a');
+
+  await waitFor(() => {
+    expect(ctx.port.countHeldDestroys()).toBe(1);
+  });
+
+  const statusWhileHeld = Bun.peek.status(destroying);
+
+  ctx.port.stopDestroyHold();
+
+  await destroying;
+
+  expect(statusWhileHeld).toBe('pending');
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+});
+
+test('it fails a held imp destroy with the destroy failure set while it was held', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.startDestroyHold();
+
+  const destroying = ctx.port.destroyImp('imp-a');
+
+  await waitFor(() => {
+    expect(ctx.port.countHeldDestroys()).toBe(1);
+  });
+
+  ctx.port.setDestroyFailure('UNAVAILABLE');
+  ctx.port.stopDestroyHold();
+
+  expect(destroying).rejects.toMatchObject({
+    code: 'UNAVAILABLE',
+    message: 'impd could not destroy imp-a',
+  });
+});
+
 test('it fails every imp destroy with the code it is given while destroys fail', async () => {
   const ctx = setupTest();
 
