@@ -1109,7 +1109,7 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
 
     await proceed.promise;
 
-    return await releaseLease(name, label);
+    return releaseLease(name, label);
   };
 
   registerTestCleanup(() => {

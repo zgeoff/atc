@@ -703,16 +703,16 @@ export class ImpProvider implements ExecutionProvider {
     // A listen during a sleep the provider asked for would wake the imp, so
     // the forward waits for the sleep's outcome and listens again only when
     // impd refuses it.
-    const waitForAwakeHost = async (): Promise<boolean> => {
+    const waitForAwakeHost = (): Promise<boolean> => {
       if (!host.suspending) {
-        return true;
+        return Promise.resolve(true);
       }
 
       host.log?.(
         `imp ${host.name} is going to sleep; session ${spec.session}'s hooks listen again if the sleep is refused`,
       );
 
-      return await waitForRefusedSleep();
+      return waitForRefusedSleep();
     };
 
     const restoreForward = async (): Promise<void> => {
