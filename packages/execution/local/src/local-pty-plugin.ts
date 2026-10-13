@@ -1,6 +1,8 @@
+import { systemClock } from '@atc/core/system-clock';
 import { definePlugin } from '@atc/plugin-api/define-plugin';
 import { EXECUTION_TARGET_CONFIG_SCHEMA } from '@atc/plugin-api/execution-target-config';
 import { LocalPTYProvider } from './local-pty-provider';
+import { startSessionScopes } from './start-session-scopes';
 
 /**
  * The execution plugin that runs sessions in PTYs on the daemon's own
@@ -11,5 +13,5 @@ export const LOCAL_PTY_PLUGIN = definePlugin({
   id: 'local-pty',
   configFields: [],
   configSchema: () => EXECUTION_TARGET_CONFIG_SCHEMA,
-  create: () => new LocalPTYProvider(),
+  create: () => new LocalPTYProvider(systemClock, startSessionScopes()),
 });

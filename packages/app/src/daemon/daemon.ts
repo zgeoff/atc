@@ -2329,9 +2329,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     reporter.stop(true);
     mgr.detachAll();
 
-    for (const target of targets) {
-      target.provider?.dispose();
-    }
+    await Promise.all(
+      targets.flatMap((target) => {
+        const disposed = target.provider?.dispose();
+
+        return disposed instanceof Promise ? [disposed] : [];
+      }),
+    );
 
     for (const runtime of runtimes.values()) {
       runtime.dispose();

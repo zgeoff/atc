@@ -82,8 +82,9 @@ export interface ExecutionProvider {
   readonly destroyHost: (host: string) => Promise<void>;
 
   // Stops the provider's own background work when the daemon stops, and
-  // leaves every remote harness running for the next daemon to find.
-  readonly dispose: () => void;
+  // leaves every remote harness running for the next daemon to find. The
+  // daemon waits for a returned promise before it exits.
+  readonly dispose: () => void | Promise<void>;
 }
 
 /**
