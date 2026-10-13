@@ -607,6 +607,18 @@ const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('messages').addColumn('unanswered_reason', 'text').execute();
     },
   },
+  '031_rebuild_fleet_without_unique_agent_session_id': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await updateFleetAgentSessionIDToShared(db);
+
+      await db.schema
+        .createIndex('fleet_agent_session_id')
+        .ifNotExists()
+        .on('fleet')
+        .column('agent_session_id')
+        .execute();
+    },
+  },
 };
 
 const PROVIDER: MigrationProvider = {
@@ -618,8 +630,8 @@ const PROVIDER: MigrationProvider = {
  * `Migrator`, one additive step at a time. A database from before the
  * ladder existed is recognized at whichever shape it stopped at by a
  * baselining pass that records the steps its columns already satisfy, so
- * only what is genuinely missing runs. Two steps rebuild a table under a
- * new key, the fleet and the spawn history, and carry every row across; no
+ * only what is genuinely missing runs. Three steps rebuild a table, the
+ * fleet twice and the spawn history once, and carry every row across; no
  * step drops a row.
  */
 export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void> {
@@ -812,6 +824,38 @@ async function updateFleetKeyToSessionID(db: Kysely<StateStoreSchema>): Promise<
 interface ColumnInfoRow {
   name: string;
   type: string;
+}
+
+interface FullColumnInfoRow extends ColumnInfoRow {
+  notnull: number;
+  dflt_value: string | null;
+  pk: number;
+}
+
+// Rebuilds the fleet with every column it carries, under the same types,
+// defaults, and key, but without the unique agent session id, so live
+// sessions on two targets that resume one agent session keep a row each.
+async function updateFleetAgentSessionIDToShared(db: Kysely<StateStoreSchema>): Promise<void> {
+  const columns = await sql<FullColumnInfoRow>`PRAGMA table_info(fleet)`.execute(db);
+
+  const definitions = columns.rows.map((column) => {
+    const notNull = column.notnull === 1 ? ' NOT NULL' : '';
+    const fallback = column.dflt_value === null ? '' : ` DEFAULT ${column.dflt_value}`;
+    const key = column.pk === 1 ? ' PRIMARY KEY' : '';
+
+    return sql`${sql.ref(column.name)} ${sql.raw(`${column.type}${notNull}${fallback}${key}`)}`;
+  });
+
+  const names = columns.rows.map((column) => sql.ref(column.name));
+
+  await sql`CREATE TABLE fleet_rebuilt (${sql.join(definitions)})`.execute(db);
+
+  await sql`INSERT INTO fleet_rebuilt (${sql.join(names)}) SELECT ${sql.join(names)} FROM fleet`.execute(
+    db,
+  );
+
+  await sql`DROP TABLE fleet`.execute(db);
+  await sql`ALTER TABLE fleet_rebuilt RENAME TO fleet`.execute(db);
 }
 
 // The identity of the local target with no options. Every spawn from before

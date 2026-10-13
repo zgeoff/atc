@@ -26,11 +26,12 @@ survive a restore because the row holds them.
 
 A row exists from the moment a session spawns, before its agent reports an agent session id, so a
 session killed before its first exchange persists too. It restores as exited, since its agent has
-nothing on disk to resume. The agent session id is unique across rows, because one agent session
-belongs to one atc session. When a resume gives a second session the same agent session id, the row
-written last replaces the earlier one, and the write relinks the rows it keeps so the fleet stays
-one level deep: a link to a replaced row moves to the row that replaced it, and a row whose parent
-is gone or would form a cycle becomes top-level.
+nothing on disk to resume. When a resume gives a second session the same agent session id on the
+same target, the row written last replaces the earlier one, and so does a later row that resumes an
+exited session. A live row on another target stays beside the later one, because that target may
+still run its session, and atc must keep it to settle the messages the session holds. The write
+relinks the rows it keeps so the fleet stays one level deep: a link to a replaced row moves to the
+row that replaced it, and a row whose parent is gone or would form a cycle becomes top-level.
 
 The daemon writes the fleet as sessions change, so a crash leaves a restorable fleet. A spawn, a
 kill, an attach or a new agent session id rewrites every row this daemon lists, and a hook report

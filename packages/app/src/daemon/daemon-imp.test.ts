@@ -673,6 +673,84 @@ test('it keeps an imp session message delivered across a daemon restart beside a
   expect(afterRestart['status']).toBe('delivered');
 });
 
+test('it keeps an imp session message delivered across a daemon restart after a local spawn resumes its agent session, then answers it', async () => {
+  const ctx = await setupTest();
+
+  const remote = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const remoteID = getRecord(remote, 'session')['id'];
+
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    target: 'local',
+  });
+
+  const tap = await ctx.openClient();
+  const sent = await ctx.client.sendRequest('session.message', { session: remoteID, text: 'hi' });
+
+  await tap.sendRequest('session.tap', { session: remoteID });
+  await tap.sendRequest('message.ack', { session: remoteID, message: sent['message'] });
+  await ctx.restart();
+
+  const client = await ctx.openClient();
+  const afterRestart = await client.sendRequest('message.get', { message: sent['message'] });
+
+  await ctx.sendHookLines({
+    atcId: remoteID,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'done' },
+  });
+
+  await waitFor(async () => {
+    const read = await client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read['status']).toBe('answered');
+  });
+
+  expect(afterRestart['status']).toBe('delivered');
+});
+
+test('it marks a local session message unanswered across a daemon restart after an imp spawn resumes its agent session', async () => {
+  const ctx = await setupTest();
+
+  const local = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+    target: 'local',
+  });
+
+  const localID = getRecord(local, 'session')['id'];
+
+  await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const tap = await ctx.openClient();
+  const sent = await ctx.client.sendRequest('session.message', { session: localID, text: 'hi' });
+
+  await tap.sendRequest('session.tap', { session: localID });
+  await tap.sendRequest('message.ack', { session: localID, message: sent['message'] });
+  await ctx.restart();
+
+  const client = await ctx.openClient();
+  const afterRestart = await client.sendRequest('message.get', { message: sent['message'] });
+
+  expect(afterRestart['status']).toBe('unanswered');
+});
+
 test('it lists a session whose imp another owner put to sleep as asleep', async () => {
   const ctx = await setupTest();
 

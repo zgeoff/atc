@@ -300,8 +300,9 @@ export class StateStore {
 
   // Rewrites this daemon's rows for the given entries and drops its rows
   // for the removed sessions, plus any row of its own that an entry
-  // replaces by holding the same agent session id. Every other row stays as
-  // it stands, so a row the daemon never loaded survives a write. A session
+  // replaces by holding the same agent session id: an exited row, or one on
+  // the entry's own target. Every other row stays as it stands, so a row the
+  // daemon never loaded survives a write. A session
   // another daemon owns, or one whose stored ownership epoch has moved past
   // this daemon's, rejects the whole write as stale.
   async writeFleet(
@@ -315,6 +316,15 @@ export class StateStore {
       entry.agentSessionID === undefined ? [] : [entry.agentSessionID],
     );
 
+    const writtenIDs = new Set(entries.map((entry) => entry.sessionID));
+    const keptIDs = new Set(kept.map((entry) => entry.sessionID));
+
+    const laterByAgentSessionID = new Map(
+      kept.flatMap((entry) =>
+        entry.agentSessionID === undefined ? [] : [[entry.agentSessionID, entry] as const],
+      ),
+    );
+
     await this.db.transaction().execute(async (trx) => {
       await requireCurrentOwnership(
         trx,
@@ -322,14 +332,39 @@ export class StateStore {
         entries.map((entry) => entry.sessionID),
       );
 
-      const replaced =
+      const candidates =
         agentSessionIDs.length === 0
           ? []
           : await trx
               .selectFrom('fleet')
-              .select(['session_id', 'agent_session_id'])
+              .select(['session_id', 'agent_session_id', 'exited', 'target', 'target_identity'])
               .where('agent_session_id', 'in', agentSessionIDs)
               .execute();
+
+      // A row this write covers is replaced when the write drops its entry;
+      // any other row by the same rule against the entry written last.
+      const replaced = candidates.filter((row) => {
+        if (writtenIDs.has(toSessionID(row.session_id))) {
+          return !keptIDs.has(toSessionID(row.session_id));
+        }
+
+        const later =
+          row.agent_session_id === null
+            ? undefined
+            : laterByAgentSessionID.get(toAgentSessionID(row.agent_session_id));
+
+        return (
+          later !== undefined &&
+          isReplaceableBy(
+            {
+              exited: row.exited === 1,
+              ...(row.target === null ? {} : { target: row.target }),
+              ...(row.target_identity === null ? {} : { targetIdentity: row.target_identity }),
+            },
+            later,
+          )
+        );
+      });
 
       const dropped = [...new Set([...sessionIDs, ...replaced.map((row) => row.session_id)])];
 
@@ -394,17 +429,11 @@ export class StateStore {
       // A stored row this write leaves in place follows its replaced parent
       // to the session that replaced it, or to that session's own parent
       // when the replacement is itself a sub-session.
-      const survivors = new Map(
-        kept.flatMap((entry) =>
-          entry.agentSessionID === undefined ? [] : [[entry.agentSessionID, entry] as const],
-        ),
-      );
-
       for (const row of replaced) {
         const survivor =
           row.agent_session_id === null
             ? undefined
-            : survivors.get(toAgentSessionID(row.agent_session_id));
+            : laterByAgentSessionID.get(toAgentSessionID(row.agent_session_id));
 
         if (survivor === undefined || survivor.sessionID === row.session_id) {
           continue;
@@ -1344,9 +1373,27 @@ function parseWithheldEnv(stored: string | null): string[] | null {
   return stored === null ? [] : parseJSONStrings(stored);
 }
 
+// A row without a target restores on the `local` target.
+const LOCAL_TARGET_ID = 'local';
+
+// Whether a later row that holds the same agent session id takes this row's
+// place. A live row on another target stays: that target may still run its
+// session, and atc must not forget it.
+function isReplaceableBy(
+  row: Pick<FleetEntry, 'exited' | 'target' | 'targetIdentity'>,
+  later: Pick<FleetEntry, 'target' | 'targetIdentity'>,
+): boolean {
+  return (
+    row.exited === true ||
+    ((row.target ?? LOCAL_TARGET_ID) === (later.target ?? LOCAL_TARGET_ID) &&
+      row.targetIdentity === later.targetIdentity)
+  );
+}
+
 // Two sessions share an agent session id when one resumes the other's agent
-// session. The fleet keeps one row per agent session id, the entry written
-// last, and relinks the survivors as a one-level hierarchy of rows it holds:
+// session. The fleet keeps one row per agent session id and target, the
+// entry written last, plus every live row on another target, and relinks the
+// survivors as a one-level hierarchy of rows it holds:
 //
 // 1. A link to a dropped row follows to the row that replaced it. A row that
 //    replaced its own parent follows that parent's link instead, and a link
@@ -1366,13 +1413,21 @@ function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEnt
     }
   }
 
+  const bySessionID = new Map(entries.map((entry) => [entry.sessionID, entry]));
   const replaced = new Map<SessionID, SessionID>();
 
   for (const entry of entries) {
     const survivor =
       entry.agentSessionID === undefined ? undefined : survivors.get(entry.agentSessionID);
 
-    if (survivor !== undefined && survivor !== entry.sessionID) {
+    const replacing = survivor === undefined ? undefined : bySessionID.get(survivor);
+
+    if (
+      survivor !== undefined &&
+      survivor !== entry.sessionID &&
+      replacing !== undefined &&
+      isReplaceableBy(entry, replacing)
+    ) {
       replaced.set(entry.sessionID, survivor);
     }
   }
