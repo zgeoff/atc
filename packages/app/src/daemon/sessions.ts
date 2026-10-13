@@ -388,6 +388,11 @@ export class SessionManager {
   // of the same session does not start a second harness.
   private readonly adopting = new Set<SessionID>();
 
+  // Sessions a restore registered that have not had a terminal since, so a
+  // later restore tries them again rather than taking them for live
+  // headless runs.
+  private readonly unrestored = new Set<SessionID>();
+
   // The launches readying each host, by host key. A launch counts from its
   // setup until its harness spawns, which follows the setup with no wait,
   // so a host with a launch in flight is never idle.
@@ -656,10 +661,30 @@ export class SessionManager {
     };
 
     this.sessions.push(session);
+
+    if (!exited) {
+      this.unrestored.add(session.id);
+    }
+
     this.writeStatus();
     this.onEvent('added', session);
 
     return session;
+  }
+
+  // Whether a restore registered the session and no terminal has started
+  // for it since.
+  isUnrestored(id: SessionID): boolean {
+    return this.unrestored.has(id);
+  }
+
+  // Lists why a restore could not start a session's terminal, in place of
+  // the wait it listed before.
+  updateRestoreRefusal(s: Session, reason: string): void {
+    s.lastMsg = reason;
+
+    this.onEvent('state', s);
+    this.emitChange();
   }
 
   // Publishes a checked binding and clears the refusal from its earlier
@@ -862,6 +887,8 @@ export class SessionManager {
     s.kind = 'pty';
     s.state = 'running';
     s.lastMsg = 'revived';
+
+    this.unrestored.delete(s.id);
 
     if (plan.admission === null) {
       delete s.authRevision;
@@ -3440,6 +3467,7 @@ export class SessionManager {
     this.sessions = this.sessions.filter((x) => x.id !== s.id);
 
     this.removedIDs.add(s.id);
+    this.unrestored.delete(s.id);
 
     if (this.focusedId === s.id) {
       this.focusedId = null;
