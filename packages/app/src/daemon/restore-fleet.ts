@@ -44,6 +44,13 @@ const RETRY_SLICE_MS = 1000;
 // session was tried, the daemon began to stop first, or a revive threw.
 type RestoreOutcome = 'finished' | 'stopped' | 'failed';
 
+// How one round of terminal adoption ended: the daemon began to stop, or
+// every session was tried, with the session the round started last when
+// it still has a terminal to wait on.
+type RoundEnd =
+  | { readonly stopped: true }
+  | { readonly stopped: false; readonly last: Session | null };
+
 // How many sessions a restore registered, and how its staggered terminal
 // adoption ended.
 export interface RestoreSettled {
@@ -267,13 +274,15 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   };
 
   // A daemon that stopped before a terminal started, or while one started
-  // or the previous session booted, starts no more terminals.
+  // or the previous session booted, starts no more terminals. A round that
+  // ends returns the session it started last, so the next round waits for
+  // that session to boot before it starts another.
   const adoptEach = async (
     sessions: readonly Session[],
     previous: Session | null,
     canRetry: boolean,
     isEligible: (s: Session) => boolean,
-  ): Promise<boolean> => {
+  ): Promise<RoundEnd> => {
     let prev = previous;
 
     for (const s of sessions) {
@@ -282,7 +291,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       }
 
       if (isStopped()) {
-        return false;
+        return { stopped: true };
       }
 
       if (!isEligible(s)) {
@@ -293,13 +302,13 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       const booted = await tryAdoptQueued(s, canRetry, isEligible);
 
       if (isStopped()) {
-        return false;
+        return { stopped: true };
       }
 
       prev = booted ? s : null;
     }
 
-    return true;
+    return { stopped: false, last: prev };
   };
 
   // Waits out a retry delay a slice at a time, so a daemon that stops
@@ -324,7 +333,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     s.pty === null && mgr.sessions.includes(s) && s.lastMsg === refusals.get(s);
 
   const adoptRest = async (previous: Session | null): Promise<RestoreOutcome> => {
-    if (!(await adoptEach(rest, previous, retryDelaysMs.length > 0, () => true))) {
+    let ended = await adoptEach(rest, previous, retryDelaysMs.length > 0, () => true);
+
+    if (ended.stopped) {
       return 'stopped';
     }
 
@@ -341,7 +352,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         return 'stopped';
       }
 
-      if (!(await adoptEach(due, null, round + 1 < retryDelaysMs.length, isStillRefused))) {
+      ended = await adoptEach(due, ended.last, round + 1 < retryDelaysMs.length, isStillRefused);
+
+      if (ended.stopped) {
         return 'stopped';
       }
     }

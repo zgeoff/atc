@@ -16,6 +16,7 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { restoreFleet } from './restore-fleet';
+import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 
 // The fixed parts every restore test shares: a real state store, a recorder
@@ -333,6 +334,78 @@ test('it revives a session on a later try once its imp stops refusing it', async
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-busy (imp ${ctx.provider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
     expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /),
+  ]);
+});
+
+test('it waits for the last session a round started to boot before a retry starts another', async () => {
+  const ctx = await setupTest();
+
+  const clock = buildStubClock(Date.now());
+
+  const runtime = new SessionRuntime();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider }],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-refused'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-booting'),
+      cwd: ctx.dir,
+      target: 'box',
+      targetIdentity: 'imp:test',
+    }),
+  ]);
+
+  ctx.port.setAcquireFailure(0, 'UNAVAILABLE');
+
+  const restored = await restoreFleet({
+    mgr,
+    store: ctx.store,
+    findRuntime: (id) => (id === 's-booting' ? runtime : undefined),
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [5000],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1000]);
+  });
+
+  clock.advance(5000);
+
+  await waitFor(() => {
+    expect(runtime.bootWaiter).toBeFunction();
+  });
+
+  const startedBeforeBoot = ctx.port.sessionRequests.length;
+
+  runtime.bootWaiter?.();
+
+  await restored.settled;
+
+  expect(startedBeforeBoot).toBe(1);
+  expect(ctx.port.sessionRequests).toBeArrayOfSize(2);
+
+  expect<readonly unknown[]>(mgr.sessions.map((s) => [s.id, s.pty !== null])).toStrictEqual([
+    ['s-refused', true],
+    ['s-booting', true],
   ]);
 });
 
