@@ -166,7 +166,9 @@ runs the app's CLI entrypoint from a checkout. `mods/` holds the `atc-bridge` Cl
   `atc codex-hooks` and trusted once in the Codex TUI — Codex parses untrusted hooks but never runs
   them. A Codex session that signs in through impd's broker on an imp instead gets a Codex home of
   its own in its guest folder, passed as `CODEX_HOME`, with a sign-in file that holds no credential,
-  a config, and those hook entries, which it runs with `--dangerously-bypass-hook-trust`.
+  a config, and those hook entries, which it runs with `--dangerously-bypass-hook-trust`. A Claude
+  session whose auth selects that ChatGPT sign-in gets a Codex home without hook entries in its auth
+  binding's revision folder, passed as `CODEX_HOME`, for the Codex CLI it runs as a tool.
 - Hook and statusline reporters run inside the wrangled session and must always exit 0 — a broken
   reporter must never break the session it reports on.
 - The agent is the naming authority for sessions: `/rename` custom-titles beat user-typed names beat

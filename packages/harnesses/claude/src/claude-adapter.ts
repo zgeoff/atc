@@ -53,6 +53,7 @@ import { buildClaudeMCPConfig } from './guest/build-claude-mcp-config';
 import { buildClaudeProjectSettingsCheck } from './guest/build-claude-project-settings-check';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './guest/claude-config-bundle-folder';
 import { loadClaudeConfigBundle } from './guest/load-claude-config-bundle';
+import { planCodexHome } from './guest/plan-codex-home';
 import { makeClaudeHeadlessRunner } from './headless/make-claude-headless-runner';
 import { loadClaudeName } from './load-claude-name';
 import { resolveClaudeGlobalConfigPath } from './local-trust/resolve-claude-global-config-path';
@@ -282,7 +283,10 @@ export class ClaudeAdapter implements AgentAdapter {
   // an MCP config file of the binding revision, each with the placeholder
   // in its header. Their flag and the scratch folder's sit ahead of the
   // settings flag, so neither variadic flag takes the prompt as one of its
-  // values.
+  // values. When the profiles send a ChatGPT sign-in as well, the revision
+  // holds a Codex home, so the Codex CLI the session runs as a tool signs
+  // in through the broker too, with every variable that would sign it in
+  // another way unset.
   private planSubscriptionGuestSpawn(
     opts: SpawnOptions,
     dir: string,
@@ -302,6 +306,14 @@ export class ClaudeAdapter implements AgentAdapter {
     const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${dir}/${mcpPath}`];
     const bundleKey = randomUUID();
 
+    const codexHome = planCodexHome(
+      this.authProfiles,
+      this.entry.auth?.profiles ?? [],
+      dir,
+      revisionFolder,
+      auth.oauth ?? {},
+    );
+
     const launch = buildClaudeGuestLaunch(
       dir,
       [
@@ -315,6 +327,7 @@ export class ClaudeAdapter implements AgentAdapter {
       ],
       [...OUTRANKING_VARIABLES],
       bundleKey,
+      codexHome.unsetEnv,
     );
 
     const bundle = loadClaudeConfigBundle(
@@ -355,9 +368,10 @@ export class ClaudeAdapter implements AgentAdapter {
             content,
           ]),
         ),
+        ...codexHome.files,
         ...buildGuestBridgeFiles(argv),
       },
-      env: { ...launch.env, ...auth.profileEnv, ...auth.env },
+      env: { ...launch.env, ...codexHome.env, ...auth.profileEnv, ...auth.env },
     };
   }
 

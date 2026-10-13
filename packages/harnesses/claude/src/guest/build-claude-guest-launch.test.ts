@@ -169,6 +169,38 @@ test('it runs the CLI with its own arguments after the setup steps', async () =>
   expect(readFileSync(out, 'utf8')).toBe('--add-dir\na dir\n');
 });
 
+test('it runs the CLI without the variables it unsets', async () => {
+  const ctx = setupTest();
+  const out = join(ctx.dir, 'env.txt');
+
+  const launch = buildClaudeGuestLaunch(
+    ctx.dir,
+    [
+      'sh',
+      '-c',
+      'for name in CODEX_API_KEY OPENAI_API_KEY KEPT; do printenv "$name" || echo unset; done > "$0"',
+      out,
+    ],
+    [],
+    'none',
+    ['CODEX_API_KEY', 'OPENAI_API_KEY'],
+  );
+
+  writeFileSync(join(ctx.dir, 'claude-config-seed.json'), '{}');
+
+  const run = await runCommand([launch.bin, ...launch.args], {
+    env: {
+      PATH: process.env['PATH'],
+      CODEX_API_KEY: 'test-codex-key',
+      OPENAI_API_KEY: 'test-openai-key',
+      KEPT: 'kept',
+    },
+  });
+
+  expect(run.exitCode).toBe(0);
+  expect(readFileSync(out, 'utf8')).toBe('unset\nunset\nkept\n');
+});
+
 test("it adds the outside-read offer's seen mark to the config an earlier run left", async () => {
   const ctx = setupTest();
   const launch = buildClaudeGuestLaunch(ctx.dir, ['true']);
@@ -258,6 +290,7 @@ test('it builds a launch script that passes shellcheck', async () => {
     ['claude', '--resume'],
     ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],
     'k1',
+    ['CODEX_API_KEY', 'OPENAI_API_KEY'],
   );
 
   const [flag, script] = launch.args;

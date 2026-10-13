@@ -20,25 +20,29 @@ import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
  * each launch reads the bundle its own transfer carried and never one an
  * earlier launch left. `argv` is the CLI's own command line. The
  * shell exits before it runs the CLI when the host's environment sets any
- * of `refusedEnv`, which must be variable names, and says which one.
+ * of `refusedEnv`, which must be variable names, and says which one. It
+ * unsets each of `unsetEnv`, also variable names, so neither the CLI nor
+ * any tool it runs inherits them.
  */
 export function buildClaudeGuestLaunch(
   guestDir: string,
   argv: readonly string[],
   refusedEnv: readonly string[] = [],
   bundleKey = 'none',
+  unsetEnv: readonly string[] = [],
 ): SpawnPlan & {
   readonly env: { readonly CLAUDE_CONFIG_DIR: string; readonly TMPDIR: string };
 } {
   const configDir = `${guestDir}/${CLAUDE_CONFIG_FOLDER}`;
   const scratch = `${guestDir}/${SESSION_SCRATCH_FOLDER}`;
   const guards = refusedEnv.map((name) => buildEnvGuard(name)).join('');
+  const unsets = buildUnsetStep(unsetEnv);
 
   return {
     bin: 'sh',
     args: [
       '-c',
-      `${guards}${SEED_CONFIG_SCRIPT}`,
+      `${guards}${unsets}${SEED_CONFIG_SCRIPT}`,
       'sh',
       configDir,
       `${guestDir}/${CLAUDE_CONFIG_SEED_FILE}`,
@@ -61,6 +65,17 @@ function buildEnvGuard(name: string): string {
   }
 
   return `[ -z "\${${name}+x}" ] || { echo "atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start" >&2; exit ${REFUSED_EXIT}; }; `;
+}
+
+// A shell step that unsets the variables, or nothing when there are none.
+function buildUnsetStep(names: readonly string[]): string {
+  const invalid = names.find((name) => !ENV_NAME.test(name));
+
+  if (invalid !== undefined) {
+    throw new Error(`unset variable ${invalid} is not an environment variable name`);
+  }
+
+  return names.length === 0 ? '' : `unset ${names.join(' ')}; `;
 }
 
 // sysexits' EX_CONFIG: a configuration error.
