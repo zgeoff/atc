@@ -92,7 +92,10 @@ export function collectClaudeAuth(
     };
   }
 
-  const placeholders = parsePlaceholderEnv(raw['placeholderEnv'], field, selected, authProfiles);
+  const placeholders = parsePlaceholderEnv(raw['placeholderEnv'], field, selected, {
+    authProfiles,
+    envOwners: resolution.resolved.envOwners,
+  });
 
   if (Array.isArray(placeholders)) {
     return { auth: null, errors: placeholders };
@@ -109,18 +112,25 @@ export function collectClaudeAuth(
 // The one host Claude Code sends a subscription token to.
 const ANTHROPIC_API_HOST = 'api.anthropic.com';
 
+// What a placeholder is checked against: the profiles, and the selected
+// profiles' own variables, each with the profile that sets it.
+interface PlaceholderContext {
+  readonly authProfiles: ReadonlyMap<string, AuthProfile>;
+  readonly envOwners: Readonly<Record<string, string>>;
+}
+
 // Reads the `placeholderEnv` map, variable names to the selected profile
 // whose credential the variable stands in for, into the variables and the
 // broker's placeholder, or every rule it breaks. atc alone sets the
-// subscription token's placeholder, so a variable Claude Code reads its
-// endpoint or a credential from, and a variable bound to a profile that
-// sends a credential to Anthropic, are refused, as is a proxy or CA
-// variable, which would route the session around the broker.
+// subscription token's placeholder and the variables of the launch, so a
+// variable Claude Code, the Codex CLI, or atc reads, and a variable bound
+// to a profile that sends a credential to Anthropic, are refused, as is a
+// proxy or CA variable, which would route the session around the broker.
 function parsePlaceholderEnv(
   raw: unknown,
   field: string,
   selected: readonly string[],
-  authProfiles: ReadonlyMap<string, AuthProfile>,
+  context: PlaceholderContext,
 ): Readonly<Record<string, string>> | string[] {
   if (raw === undefined) {
     return {};
@@ -134,7 +144,7 @@ function parsePlaceholderEnv(
   const errors: string[] = [];
 
   for (const [key, entry] of Object.entries(raw)) {
-    const problem = findPlaceholderProblem(key, entry, field, selected, authProfiles);
+    const problem = findPlaceholderProblem(key, entry, field, selected, context);
 
     if (problem === null) {
       env[key] = BROKER_PLACEHOLDER;
@@ -158,14 +168,20 @@ function findPlaceholderProblem(
   entry: unknown,
   field: string,
   selected: readonly string[],
-  authProfiles: ReadonlyMap<string, AuthProfile>,
+  context: PlaceholderContext,
 ): string | null {
   if (!VARIABLE_NAME.test(key)) {
     return 'a variable name must be letters, digits or underscores, and not start with a digit';
   }
 
-  if (isAnthropicVariable(key)) {
-    return 'atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable';
+  if (isReservedVariable(key)) {
+    return 'atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable';
+  }
+
+  const owner = context.envOwners[key];
+
+  if (owner !== undefined) {
+    return `profile ${owner} sets ${key}, which the placeholder would replace`;
   }
 
   if (!isRecord(entry) || Array.isArray(entry)) {
@@ -184,7 +200,7 @@ function findPlaceholderProblem(
     return `profile must be one of ${field}.profiles`;
   }
 
-  const profile = authProfiles.get(profileName);
+  const profile = context.authProfiles.get(profileName);
 
   if (profile === undefined || profile.kind === 'github') {
     return 'profile must be a custom or oauth profile, which sets one header for one host';
@@ -197,16 +213,24 @@ function findPlaceholderProblem(
   return null;
 }
 
-// Whether Claude Code or impd reads the variable: an Anthropic or Claude
-// Code variable, among them the endpoint and every credential, or a proxy
-// or CA variable impd sets.
-function isAnthropicVariable(key: string): boolean {
+// Variables the launch of a subscription session sets itself.
+const LAUNCH_VARIABLES: ReadonlySet<string> = new Set(['HOME', 'PATH', 'TMPDIR']);
+
+// The prefixes of the variables Claude Code reads its endpoint and
+// credentials from, those the Codex CLI the session runs as a tool signs in
+// with, and atc's own.
+const RESERVED_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'CODEX_', 'OPENAI_', 'ATC_'];
+
+// Whether something other than the session's own tools reads the variable:
+// Claude Code, the Codex CLI, atc, the launch, or impd, which sets the proxy
+// and CA variables.
+function isReservedVariable(key: string): boolean {
   const upper = key.toUpperCase();
 
   return (
     isSubscriptionOverrideVariable(key) ||
-    upper.startsWith('ANTHROPIC_') ||
-    upper.startsWith('CLAUDE_')
+    LAUNCH_VARIABLES.has(upper) ||
+    RESERVED_PREFIXES.some((prefix) => upper.startsWith(prefix))
   );
 }
 

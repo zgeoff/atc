@@ -103,23 +103,43 @@ test("it reads a placeholder that stands in for a selected non-Anthropic profile
 test.each([
   [
     { ANTHROPIC_API_KEY: { profile: 'jev' } },
-    'claudeAuth.placeholderEnv.ANTHROPIC_API_KEY: atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable',
+    'claudeAuth.placeholderEnv.ANTHROPIC_API_KEY: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
   ],
   [
     { ANTHROPIC_BASE_URL: { profile: 'jev' } },
-    'claudeAuth.placeholderEnv.ANTHROPIC_BASE_URL: atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable',
+    'claudeAuth.placeholderEnv.ANTHROPIC_BASE_URL: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
   ],
   [
     { CLAUDE_CODE_OAUTH_TOKEN: { profile: 'jev' } },
-    'claudeAuth.placeholderEnv.CLAUDE_CODE_OAUTH_TOKEN: atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable',
+    'claudeAuth.placeholderEnv.CLAUDE_CODE_OAUTH_TOKEN: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
   ],
   [
     { anthropic_custom_key: { profile: 'jev' } },
-    'claudeAuth.placeholderEnv.anthropic_custom_key: atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable',
+    'claudeAuth.placeholderEnv.anthropic_custom_key: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
   ],
   [
     { https_proxy: { profile: 'jev' } },
-    'claudeAuth.placeholderEnv.https_proxy: atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable',
+    'claudeAuth.placeholderEnv.https_proxy: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { TMPDIR: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.TMPDIR: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { CODEX_HOME: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.CODEX_HOME: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { OPENAI_API_KEY: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.OPENAI_API_KEY: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { ATC_SESSION_ID: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.ATC_SESSION_ID: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
+  ],
+  [
+    { TYPESAFE_BASE_URL: { profile: 'jev' } },
+    'claudeAuth.placeholderEnv.TYPESAFE_BASE_URL: profile base sets TYPESAFE_BASE_URL, which the placeholder would replace',
   ],
   [
     { TYPESAFE_API_KEY: 'imp-broker-placeholder' },
@@ -193,11 +213,20 @@ test.each([
     ],
     ['claudeai', buildMockAuthProfile({ name: 'claudeai', host: 'claude.ai', header: 'cookie' })],
     ['github', buildMockAuthProfile({ kind: 'github', name: 'github' })],
+    [
+      'base',
+      buildMockAuthProfile({
+        name: 'base',
+        host: 'base.typesafe.ai',
+        header: 'authorization',
+        env: { TYPESAFE_BASE_URL: 'https://api.typesafe.ai' },
+      }),
+    ],
   ]);
 
   expect(
     collectClaudeAuth(
-      { profiles: ['claude', 'jev', 'console', 'claudeai', 'github'], placeholderEnv },
+      { profiles: ['claude', 'jev', 'console', 'claudeai', 'github', 'base'], placeholderEnv },
       profiles,
     ),
   ).toStrictEqual({ auth: null, errors: [error] });

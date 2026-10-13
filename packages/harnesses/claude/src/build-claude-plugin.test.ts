@@ -341,7 +341,7 @@ test.each([
   [
     'an Anthropic key',
     { ANTHROPIC_AUTH_TOKEN: { profile: 'jev' } },
-    'agents.claude: auth.placeholderEnv.ANTHROPIC_AUTH_TOKEN: atc fixes the endpoint and the placeholder of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, proxy or CA variable',
+    'agents.claude: auth.placeholderEnv.ANTHROPIC_AUTH_TOKEN: atc fixes the endpoint, the placeholder, and the launch variables of a Claude subscription session, so a placeholder cannot set an Anthropic, Claude Code, Codex, OpenAI, atc, launch, proxy or CA variable',
   ],
   [
     'a key on no profile',

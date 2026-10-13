@@ -1004,10 +1004,13 @@ Each variable holds `profile` alone, and atc sets its value. A placeholder can n
 Anthropic credential, so atc refuses the entry and prints the reason when the daemon starts when any
 of these holds:
 
-- The variable starts with `ANTHROPIC_` or `CLAUDE_`, or is a proxy or CA variable, in either case.
+- The variable starts with `ANTHROPIC_`, `CLAUDE_`, `CODEX_`, `OPENAI_`, or `ATC_`, is `HOME`,
+  `PATH`, or `TMPDIR`, or is a proxy or CA variable, in either case. Claude Code, the Codex CLI the
+  session runs, atc, or impd reads each of these.
 - `profile` is not in the entry's `auth.profiles`, or is not a `custom` or `oauth` profile.
 - The profile's `host` is `anthropic.com`, `claude.ai`, `claude.com`, or a host under one of them.
-- The entry's `env` or `settings.env` sets the variable, which would replace the placeholder.
+- The entry's `env` or `settings.env`, or a selected profile's `env`, sets the variable, which would
+  replace the placeholder or be replaced by it.
 
 The old `claudeAuth` key takes no `placeholderEnv`.
 
