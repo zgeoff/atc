@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.4.0...@zgeoff/atc@4.5.0) (2026-10-13)
+
+
+### Features
+
+* **geo-348:** bind a claude placeholder to a non-anthropic profile ([#556](https://github.com/zgeoff/atc/issues/556)) ([99e894a](https://github.com/zgeoff/atc/commit/99e894a514bfa9fe69164a43ac022bb09db15868))
+* **geo-388:** detach a sub-session from its parent ([#557](https://github.com/zgeoff/atc/issues/557)) ([1466fc9](https://github.com/zgeoff/atc/commit/1466fc9498ab466ee48e8ee4343ed9175406e9b5))
+
+
+### Bug Fixes
+
+* **geo-764:** close each bridge connection once the guest ends it ([#558](https://github.com/zgeoff/atc/issues/558)) ([66750c4](https://github.com/zgeoff/atc/commit/66750c476809eaa902d72a9b2190de09dac890d4))
+
 ## [4.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.3.0...@zgeoff/atc@4.4.0) (2026-10-13)
 
 ### Features
