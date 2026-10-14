@@ -239,7 +239,6 @@ export class ImpClientPort implements ImpPort {
     };
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   readonly writeReadOnlyFile = async (
     name: string,
     path: string,
@@ -250,6 +249,7 @@ export class ImpClientPort implements ImpPort {
     return written.path;
   };
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   readonly runCommand = (name: string, command: ImpCommand): Promise<ImpCommandResult> =>
     this.tryCall((client) => runCommandInChunks(client, name, command));
 

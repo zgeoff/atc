@@ -737,7 +737,6 @@ class StubImpPort implements ImpPort {
     };
   }
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   // Replaces the file through a rename, at mode 0444, as impd's agent does.
   async writeReadOnlyFile(name: string, path: string, content: string): Promise<string> {
     this.calls.push(`files.write ${name} ${path}`);
@@ -760,6 +759,7 @@ class StubImpPort implements ImpPort {
     return target;
   }
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   async runCommand(name: string, command: ImpCommand): Promise<ImpCommandResult> {
     this.calls.push(`exec.run ${name} ${command.argv.join(' ')}`);
 
