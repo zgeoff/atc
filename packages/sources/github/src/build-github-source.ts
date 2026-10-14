@@ -26,17 +26,18 @@ const GH_TIMEOUT_MS = 20_000;
 // A GitHub account or organization login.
 const GITHUB_OWNER_PATTERN = /^[A-Za-z\d][A-Za-z\d-]{0,38}$/u;
 
-// Typed `owner/`, which lists that owner.
-const OWNER_INPUT_PATTERN = /^(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\/$/u;
+// Typed `owner/`, which lists that owner, with or without `github:`.
+const OWNER_INPUT_PATTERN = /^(?:github:)?(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\/$/u;
 
-// Typed `owner/repo`, with or without `.git`.
+// Typed `owner/repo`, with or without `github:` and `.git`.
 const REPO_INPUT_PATTERN =
-  /^(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\/(?<repo>[\w-][\w.-]*?)(?:\.git)?$/u;
+  /^(?:github:)?(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\/(?<repo>[\w-][\w.-]*?)(?:\.git)?$/u;
 
 /**
  * The GitHub repositories gh on the daemon's host can see. A listing's
  * scope is the owner to list. Typed `owner/` lists that owner, and typed
- * `owner/repo` is that repository at the clone URL the gh config prefers.
+ * `owner/repo` is that repository at the clone URL the gh config prefers;
+ * either takes an optional `github:` in front.
  * A GitHub URL the host cannot read has the other URL form as its
  * alternate.
  * A listing gh cannot give throws `github_unavailable` with the problem.

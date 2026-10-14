@@ -19,7 +19,7 @@ The GitHub list opens at once from the copy atc kept the last time it listed the
 age, and atc lists them again in the background and swaps the fresh list in when it arrives. atc
 keeps that copy for a day, across client restarts; an older copy is dropped, and the picker waits
 for a fresh list. Press `Ctrl-R` to list the repositories again, for example after you create one.
-Typing `owner/repo` picks a repository the list leaves out.
+Typing `owner/repo` or `github:owner/repo` picks a repository the list leaves out.
 
 ## The session list
 

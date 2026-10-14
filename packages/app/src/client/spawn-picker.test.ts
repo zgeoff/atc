@@ -3071,7 +3071,7 @@ test('it shows the listing asked for last on the next open when an earlier one a
   expect(shown).not.toInclude('acme/app');
 });
 
-test('it reads typed owner/repo text the cached listing leaves out through the source', async () => {
+test('it reads typed github:owner/repo text the cached listing leaves out through the source', async () => {
   const ctx = setupTest();
 
   const picker = new SpawnPicker({
@@ -3130,10 +3130,10 @@ test('it reads typed owner/repo text the cached listing leaves out through the s
     sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
   });
 
-  picker.applyKey(Buffer.from('zeta-org/zeta'));
+  picker.applyKey(Buffer.from('github:zeta-org/zeta'));
   picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
-    { source: 'github', input: 'zeta-org/zeta', target: 'local' },
+    { source: 'github', input: 'github:zeta-org/zeta', target: 'local' },
   ]);
 });
