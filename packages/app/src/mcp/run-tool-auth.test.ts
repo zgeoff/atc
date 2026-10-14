@@ -110,7 +110,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
     caller,
     'atc_session_auth_rebind',
     { session: id },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   const grants = await ctx.port.readGrants(imp);
@@ -187,7 +187,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
 
   registerTestCleanup(() => caller.stop());
 
-  const toolContext = { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } } as const;
+  const toolContext = { callerSessionID: null };
 
   await runTool(caller, 'atc_session_auth_rebind', { session: id }, toolContext);
 
@@ -270,13 +270,13 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
 
   registerTestCleanup(() => owner.stop());
 
-  const caller = buildPrincipalCaller(owner, 'ops');
+  const caller = buildPrincipalCaller(owner, { id: 'ops', name: 'ops-console' });
 
   const rebound = runTool(
     caller,
     'atc_session_auth_rebind',
     { session: id },
-    { callerSessionID: null, sender: { kind: 'fixed', name: 'ops' } },
+    { callerSessionID: null },
   );
 
   await rebound.catch(() => null);

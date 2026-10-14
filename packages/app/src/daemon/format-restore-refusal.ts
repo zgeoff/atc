@@ -1,5 +1,11 @@
 import type { SessionID } from '@atc/core/session-id';
-import type { DaemonError } from '@atc/protocol/daemon-error';
+
+// The parts of a daemon refusal the reason is built from.
+interface Refusal {
+  readonly code: string;
+  readonly message: string;
+  readonly data: Readonly<Record<string, unknown>> | undefined;
+}
 
 /**
  * The reason a session lists after its restore was refused: the refusal's
@@ -7,7 +13,7 @@ import type { DaemonError } from '@atc/protocol/daemon-error';
  * the refusal is one a rebind or a later adopt clears. Any other refusal
  * keeps its message alone.
  */
-export function formatRestoreRefusal(id: SessionID, refusal: DaemonError): string {
+export function formatRestoreRefusal(id: SessionID, refusal: Refusal): string {
   const hint = pickRefusalHint(id, refusal);
 
   return hint === null ? refusal.message : `${refusal.message}. ${hint}`;
@@ -17,7 +23,7 @@ export function formatRestoreRefusal(id: SessionID, refusal: DaemonError): strin
 // failed rebind blocked, launches again after a rebind; a host whose agent
 // dropped its auth block launches again once the block is back; a launch
 // that a rebind overtook runs again as it is.
-function pickRefusalHint(id: SessionID, refusal: DaemonError): string | null {
+function pickRefusalHint(id: SessionID, refusal: Refusal): string | null {
   const problem = refusal.data?.['problem'];
   const state = refusal.data?.['state'];
   const adopt = `atc session adopt ${id} (MCP: atc_session_adopt)`;
