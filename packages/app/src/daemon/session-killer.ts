@@ -111,7 +111,8 @@ export class SessionKiller {
    * a session on its parent's host ends its own harness alone, and one
    * kept asleep in that host is refused until the host wakes. Its dead
    * sub-sessions on other hosts go with it, unless their own target can
-   * destroy their host, and its live ones become top-level. A failed destroy
+   * destroy their host or they carry a pin of their own, and its live ones
+   * become top-level. A failed destroy
    * throws before anything is forgotten. The sub-sessions it may forget are
    * taken before the first await; one spawned while the forget waits on a
    * host becomes top-level.
@@ -177,7 +178,8 @@ export class SessionKiller {
 
   // Removes a forgotten session and its dead sub-sessions, except one whose
   // own target can destroy its host: forgetting that one destroys the host,
-  // which takes its own confirmed forget. Only a sub-session among the given
+  // which takes its own confirmed forget. A sub-session with a pin of its own
+  // stays too, since its pin guards it from its parent. Only a sub-session among the given
   // ones may go. Every sub-session that stays becomes top-level before the
   // session's removal is announced, and is announced after it, so no
   // announcement ever finds a sub-session whose parent is gone or a parent
@@ -191,6 +193,7 @@ export class SessionKiller {
 
       if (
         live ||
+        child.pinned ||
         !forgettable.includes(child) ||
         this.registry.findProvider(child)?.capabilities.destroy === true
       ) {

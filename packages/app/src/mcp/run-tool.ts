@@ -354,7 +354,7 @@ function buildObjectResult(value: unknown): ToolResult {
 
 // The refusals of a forget, worded for an MCP client.
 const SESSION_PINNED_REFUSAL =
-  'session_pinned: the session is pinned, or is a sub-session of a pinned session. Unpin it, or detach the sub-session with parent null, through atc_session_update before forgetting it.';
+  'session_pinned: the session is pinned, or is a sub-session of a pinned session and the call does not come from inside its parent. Unpin it, or detach the sub-session with parent null, through atc_session_update before forgetting it.';
 
 const SESSION_LIVE_REFUSAL =
   'session_live: the session is live. Pass stop: true to stop and forget it.';

@@ -354,7 +354,7 @@ test('it lands a spawn under a sub-session beside that sub-session, under its pa
   expect(grandchild['session']).toMatchObject({ parent: topID });
 });
 
-test('it refuses to pin a sub-session as bad_args', async () => {
+test('it pins a sub-session on its own', async () => {
   const ctx = await setupTest();
   const top = await ctx.client.sendRequest('session.spawn', { cwd: ctx.dir, cols: 80, rows: 24 });
 
@@ -365,12 +365,13 @@ test('it refuses to pin a sub-session as bad_args', async () => {
     rows: 24,
   });
 
-  expect(
-    ctx.client.sendRequest('session.update', {
-      session: getRecord(child, 'session')['id'],
-      pinned: true,
-    }),
-  ).rejects.toMatchObject({ code: 'bad_args' });
+  const childID = getRecord(child, 'session')['id'];
+
+  await ctx.client.sendRequest('session.update', { session: childID, pinned: true });
+
+  expect(ctx.client.sendRequest('session.get', { session: childID })).resolves.toMatchObject({
+    session: { id: childID, pinned: true },
+  });
 });
 
 test('it refuses session.spawn with agent grok as unsupported and records no session', async () => {

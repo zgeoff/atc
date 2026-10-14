@@ -83,15 +83,28 @@ parent. The parent link holds a set of sessions together:
 - A sub-session lists under its parent and sorts among its siblings alone, so its attention never
   moves the parent's row.
 - It pins with its parent, so a forget that refuses pinned sessions refuses it while the parent is
-  pinned, and a kill of the parent ends its live sub-sessions.
+  pinned, unless the forget comes from the parent itself. A kill of the parent ends its live
+  sub-sessions.
 - The set stays one level deep: a spawn whose parent is itself a sub-session lands beside it.
 - The fleet stores the link by the parent's atc session id, so a restore brings the whole set back.
 
+The pin exists so that a session someone means to keep is never forgotten by mistake. A session that
+spawned sub-sessions is the one that knows when their work is done, so the pin it passes down guards
+them against every other caller but not against itself. The daemon takes the caller from the
+connection: the session the connecting process runs inside, or the session its handshake gives. A
+client outside any session, such as the TUI or a remote MCP client, gets the refusal like any other
+caller.
+
+A sub-session can also carry a pin of its own, which guards it from every caller, its parent
+included. A forget of the parent then keeps that sub-session, dead or live, as a top-level session
+instead of dropping it with the parent.
+
 An update with a null parent detaches a sub-session: it becomes top-level, so its own pin, kill and
 forget apply, and the former parent keeps its pin. The update moves no session under another parent.
-A sub-session inside its parent's imp is refused, because a kill or forget of the parent still
-sleeps or destroys that imp with the sub-session in it. Detaching splits one tree in two, which can
-bring the parent back within a principal's reach ([principals](../protocol/principals.md#reach)).
+A sub-session inside its parent's imp is refused a detach and a pin of its own, because a kill or
+forget of the parent still sleeps or destroys that imp with the sub-session in it. Detaching splits
+one tree in two, which can bring the parent back within a principal's reach
+([principals](../protocol/principals.md#reach)).
 
 A sub-session runs on the default target unless its spawn sets one, and never inherits its parent's
 target. On an imp target it shares its parent's host only when its target matches the parent's
@@ -110,15 +123,18 @@ a kill does depends on what the session's target can do with its host:
   harness as it was. A host that another owner keeps awake refuses to sleep, and the daemon never
   forces it, so the kill fails and the session keeps running.
 - **Second kill of a dead session.** It forgets the session: the daemon drops it and its dead
-  sub-sessions from the list and the fleet.
+  sub-sessions from the list and the fleet, except a sub-session with a pin of its own, which stays
+  as a top-level session.
 - **Forget on a target that can destroy its host.** Destroying the host destroys everything on it,
   so a second kill refuses, and a forget takes two calls: the first returns a confirm token that
   belongs to one session, works once and expires quickly, and the second destroys the host with
   every session on it.
 
 A forget can refuse a pinned session or a live one in the same step that forgets it, when the caller
-asks, so a pin or a revive that lands first wins. A stop-only kill ends a live session and leaves an
-exited one listed, for a caller that must never remove a session by mistake.
+asks, so a pin or a revive that lands first wins. That pin check skips a pin a sub-session inherits
+when the caller is its parent, and never skips a pin of the sub-session's own. A stop-only kill ends
+a live session and leaves an exited one listed, for a caller that must never remove a session by
+mistake.
 
 ## Headless handoff
 

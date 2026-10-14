@@ -91,6 +91,39 @@ test('it forgets a detached sub-session while its former parent stays pinned', a
   ]);
 });
 
+test('it forgets its own sub-session from inside its pinned session and stays pinned', async () => {
+  const ctx = await setupTest();
+  const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
+  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+  const worker = await inner.spawnSession({ cwd: ctx.home, name: 'worker' });
+
+  await ctx.mcp.sendToolCall('atc_session_update', { session: wrangler, pinned: true });
+
+  const forgotten = await inner.sendToolCall('atc_session_forget', { session: worker, stop: true });
+  const listed = await ctx.mcp.sendToolCall('atc_sessions_list', {});
+
+  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+
+  expect(listed.structured?.['sessions']).toStrictEqual([
+    expect.objectContaining({ id: wrangler, pinned: true }),
+  ]);
+});
+
+test('it refuses a forget from inside another session of a sub-session of a pinned session', async () => {
+  const ctx = await setupTest();
+  const wrangler = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'wrangler' });
+  const inner = await startMCPStdio({ home: ctx.home, callerSessionID: wrangler });
+  const worker = await inner.spawnSession({ cwd: ctx.home, name: 'worker' });
+  const bystander = await ctx.mcp.spawnSession({ cwd: ctx.home, name: 'bystander' });
+  const outer = await startMCPStdio({ home: ctx.home, callerSessionID: bystander });
+
+  await ctx.mcp.sendToolCall('atc_session_update', { session: wrangler, pinned: true });
+
+  const refused = await outer.sendToolCall('atc_session_forget', { session: worker, stop: true });
+
+  expect(refused.text).toStartWith('session_pinned');
+});
+
 test('it spawns a top-level session when the caller id matches no session', async () => {
   const ctx = await setupTest();
   const stray = await startMCPStdio({ home: ctx.home, callerSessionID: 'ghost' });
