@@ -37,6 +37,7 @@ test('it calls impd with the token its token file holds', async () => {
     secretRebind: false,
     execRequire: false,
     oauthSecrets: false,
+    readOnlyFiles: false,
   });
 
   expect(ctx.impd.authorizations).toStrictEqual(['Bearer file-token']);
@@ -228,6 +229,7 @@ test.each([
       secretRebind: false,
       execRequire: false,
       oauthSecrets: false,
+      readOnlyFiles: false,
     },
   ],
   [
@@ -240,6 +242,7 @@ test.each([
       secretRebind: 'true',
       execRequire: 'true',
       oauthSecrets: 'true',
+      readOnlyFiles: 'true',
     },
   ],
   [
@@ -252,6 +255,7 @@ test.each([
       secretRebind: true,
       execRequire: true,
       oauthSecrets: true,
+      readOnlyFiles: true,
     },
   ],
 ])('it reads grant and exec requirement flags sent as %s as %p', async (_kind, flag, sent) => {
@@ -270,6 +274,37 @@ test.each([
     secretRebind: flag,
     execRequire: flag,
     oauthSecrets: flag,
+    readOnlyFiles: flag,
+  });
+});
+
+test('it writes a read-only file through impd and returns its path inside the imp', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/files/write', {
+    status: 200,
+    json: { path: '/run/imp/files/atc/records/s1.json' },
+  });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  const path = await port.writeReadOnlyFile('imp-a', 'atc/records/s1.json', '{"revision":1}');
+
+  expect(path).toBe('/run/imp/files/atc/records/s1.json');
+});
+
+test('it refuses a read-only file with impd’s code when the imp’s agent is too old', () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/files/write', {
+    status: 409,
+    json: { defined: true, code: 'AGENT_OUTDATED', status: 409, message: 'too old' },
+  });
+
+  const port = new ImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  expect(port.writeReadOnlyFile('imp-a', 'atc/records/s1.json', '{}')).rejects.toMatchObject({
+    code: 'AGENT_OUTDATED',
   });
 });
 

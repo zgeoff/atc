@@ -557,6 +557,104 @@ test('it keeps an imp that existed before a failed prepare and gives back only i
   expect(imp).toMatchObject({ name: 'atc-s1', leases: [], otherLeaseCount: 1 });
 });
 
+test('it writes a read-only file through impd once a prepare read the feature', async () => {
+  const ctx = setupTest();
+
+  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const path = await provider.writeReadOnlyFile('s1', 'notes/rota.json', '{"shift":"early"}');
+
+  expect(path).toBe(join(ctx.dir, 'ro', 'atc-s1', 'notes', 'rota.json'));
+
+  expect(readFileSync(join(ctx.dir, 'ro', 'atc-s1', 'notes', 'rota.json'), 'utf8')).toBe(
+    '{"shift":"early"}',
+  );
+});
+
+test('it has no read-only file on an impd without the feature, and asks impd nothing', async () => {
+  const ctx = setupTest();
+
+  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const path = await provider.writeReadOnlyFile('s1', 'notes/rota.json', '{}');
+
+  expect(path).toBeNull();
+  expect(ctx.port.calls.filter((call) => call.startsWith('files.write'))).toStrictEqual([]);
+});
+
+test('it has no read-only file on an imp whose agent is from before them', async () => {
+  const ctx = setupTest();
+
+  // impd keeps read-only files, and the port holds no folder for them, as
+  // an imp still on an older agent
+  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const path = await provider.writeReadOnlyFile('s1', 'notes/rota.json', '{}');
+
+  expect(path).toBeNull();
+});
+
+test('it refuses a read-only file on an imp impd does not hold as the host refusal', async () => {
+  const ctx = setupTest();
+
+  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp('atc-s1');
+
+  expect(provider.writeReadOnlyFile('s1', 'notes/rota.json', '{}')).rejects.toMatchObject({
+    code: 'host_unavailable',
+  });
+});
+
 test('it names each imp under the atc- prefix when the target sets none', async () => {
   const ctx = setupTest();
 

@@ -68,6 +68,18 @@ export interface ExecutionProvider {
   // Runs a command to completion and returns what it printed.
   readonly runCommand: (spec: CommandSpec) => Promise<CommandResult>;
 
+  // Writes a file on a host that its processes see read-only, root
+  // included, replacing any file at the path in one step. Resolves to the
+  // file's path on the host, or null when this host has no such place,
+  // as on an older host. The path is relative and plain: segments of
+  // letters, digits, `.`, `_`, and `-`, none starting with a dot. Absent on
+  // a provider with no such place anywhere.
+  readonly writeReadOnlyFile?: (
+    host: string,
+    path: string,
+    content: string,
+  ) => Promise<string | null>;
+
   // Puts a host to sleep with every harness on it kept inside, so a revive
   // finds each one as it was. Rejects with `host_leased` when another owner
   // keeps the host awake, and leaves the host as it was then. A sleep runs

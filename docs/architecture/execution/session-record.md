@@ -93,13 +93,20 @@ The daemon's state store holds each record, and every provider places a copy whe
 it. atc writes the copy before each harness start, so a revive or a restored fleet finds it in
 place, and rewrites it on every change.
 
-| Provider    | `ATC_SESSION_RECORD`                 | Protection                                                         |
-| ----------- | ------------------------------------ | ------------------------------------------------------------------ |
-| `local-pty` | `<state dir>/records/<session>.json` | The file is mode 0444 in a directory of mode 0700.                 |
-| `imp`       | `<guestDir>/records/<session>.json`  | The file is owned by root and mode 0444 in a root-owned directory. |
+| Provider    | `ATC_SESSION_RECORD`                        | Protection                                                                                                                                    |
+| ----------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local-pty` | `<state dir>/records/<session>.json`        | The file is mode 0444 in a directory of mode 0700.                                                                                            |
+| `imp`       | `/run/imp/files/atc/records/<session>.json` | impd's read-only files: a plain write fails with `EROFS`, as root too, but root with `CAP_SYS_ADMIN` can remount `/run/imp/files` read-write. |
 
-atc replaces the file through a rename, so a reader never sees a half-written record. A forget
-removes the record and its copy.
+atc replaces the file through a rename, so a reader never sees a half-written record. On an imp, atc
+hands the copy to impd, whose agent keeps it outside the imp's container and shows it there on a
+read-only mount
+([read-only files](https://github.com/zgeoff/imp/blob/main/docs/architecture/guest/agent.md#read-only-files)).
+An impd without read-only files, or an imp whose agent booted before them, has no such mount, so atc
+places the copy at `<guestDir>/records/<session>.json` through a command instead, owned by root and
+mode 0444. A harness that started with that copy keeps its path across a revive, because the revive
+reattaches to the running process, so atc keeps a guest-folder copy current beside the read-only one
+until a cold boot clears the folder. A forget removes the record and its copy.
 
 ## Who may change the record
 
@@ -135,7 +142,8 @@ The kernel check stops an agent that drops `ATC_SESSION_ID`, not a session that 
 atc. A local session runs as the daemon's user, so a process inside it can leave the parent chain:
 one that forks twice and lets the middle process exit is adopted by another process, and the walk
 finds it in no session. The same user can also change the mode of the local copy of the record.
-Inside an imp, a harness runs as the image's user, root unless the image sets another, and root can
-write a file of mode 0444. A reader that needs the record to hold against a hostile session reads it
-from atc through `session.get` rather than from the copy, and a session that must not reach the
-owner's reach at all runs on an imp.
+Inside an imp, a write to the copy fails, root's included, but root in the container holds the
+capability to remount impd's read-only mount and change the copy until atc writes it again, and it
+can write the fallback copy outright. A reader that needs the record to hold against a hostile
+session reads it from atc through `session.get` rather than from the copy, and a session that must
+not reach the owner's reach at all runs on an imp.

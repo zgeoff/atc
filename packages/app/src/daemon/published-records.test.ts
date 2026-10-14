@@ -12,7 +12,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runShellcheck } from '@atc/test-utils/run-shellcheck';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { $ } from 'bun';
-import { PLACE_COPY, PublishedRecords } from './published-records';
+import { PLACE_COPY, PublishedRecords, REFRESH_COPY } from './published-records';
 
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-records-' });
@@ -497,6 +497,12 @@ test("it never removes another session's copy", async () => {
 
 test('it places a remote copy through a script that passes shellcheck', async () => {
   const result = await runShellcheck(PLACE_COPY);
+
+  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
+});
+
+test('it refreshes a remote copy through a script that passes shellcheck', async () => {
+  const result = await runShellcheck(REFRESH_COPY);
 
   expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

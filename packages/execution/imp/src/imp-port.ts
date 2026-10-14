@@ -61,6 +61,11 @@ export interface ImpPort {
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   readonly runCommand: (name: string, command: ImpCommand) => Promise<ImpCommandResult>;
 
+  // Replaces a file the imp's processes see read-only, root included, and
+  // resolves to its path inside the imp. `AGENT_OUTDATED` when the imp's
+  // agent is from before read-only files.
+  readonly writeReadOnlyFile: (name: string, path: string, content: string) => Promise<string>;
+
   // Listens on a unix socket path inside the imp and hands each connection
   // the guest opens there to the daemon.
   readonly openReverseForward: (
@@ -88,6 +93,9 @@ export interface ImpFeatures {
   // impd holds secrets of kind `oauth`, whose access token it renews from a
   // refresh token.
   readonly oauthSecrets: boolean;
+
+  // impd writes files an imp's processes see read-only, root included.
+  readonly readOnlyFiles: boolean;
 }
 
 /**

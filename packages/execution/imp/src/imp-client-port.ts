@@ -67,6 +67,7 @@ export class ImpClientPort implements ImpPort {
       secretRebind: features?.['secretRebind'] === true,
       execRequire: features?.['execRequire'] === true,
       oauthSecrets: features?.['oauthSecrets'] === true,
+      readOnlyFiles: features?.['readOnlyFiles'] === true,
     };
   };
 
@@ -236,6 +237,16 @@ export class ImpClientPort implements ImpPort {
         session.stop();
       },
     };
+  };
+
+  readonly writeReadOnlyFile = async (
+    name: string,
+    path: string,
+    content: string,
+  ): Promise<string> => {
+    const written = await this.tryCall((client) => client.files.write({ name, path, content }));
+
+    return written.path;
   };
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form

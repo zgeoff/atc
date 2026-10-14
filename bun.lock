@@ -303,7 +303,7 @@
     "@xterm/headless": "6.0.0",
     "@zgeoff/bun-test-extended": "0.0.4",
     "@zgeoff/format-codemod": "0.1.0",
-    "@zgeoff/imp-client": "0.39.0",
+    "@zgeoff/imp-client": "1.4.0",
     "@zgeoff/oxlint-config": "0.2.0",
     "better-auth": "1.7.6",
     "bun-pty": "0.4.10",
@@ -753,7 +753,7 @@
 
     "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.1.0", "", { "dependencies": { "oxc-parser": "0.137.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-WVP6d3iuuaKuYrGIuHLkTxjI3W2IQzeAq6TtUiZiz+uw4f2AF2q4GgKQ6czpz/89qgZXauvhl1Pcef1/NZl4Rg=="],
 
-    "@zgeoff/imp-client": ["@zgeoff/imp-client@0.39.0", "", { "dependencies": { "@orpc/client": "^1.14.15", "@orpc/contract": "^1.14.15", "zod": "^4.4.3" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-Ix/OxeGYpXJdjzws4N2UPRIwFsLMamLNocZeQuyafHvZ+Rx3WLRcC2yXoXQtagz0hk8NioF8E+R6mE6B3Lbulg=="],
+    "@zgeoff/imp-client": ["@zgeoff/imp-client@1.4.0", "", { "dependencies": { "@orpc/client": "^1.14.15", "@orpc/contract": "^1.14.15", "zod": "^4.4.3" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-TK+oWOQb6WL2dfyYhOR7pEJshxGdAXwyxQkYtDc/T+tUx4qy514ZYKo8j3Xzuv+gXmO4mtGi/VqjOUjFBv6EBw=="],
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.2.0", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.71.0" } }, "sha512-wdHEVoGxq447T3Pru4dJ8Up6DB/bhj19ew4XZ8r0kOkw5XmqDdxAAz+mkAwsjRVTMWyD4WJojm2oRYfvV8DlaA=="],
 
