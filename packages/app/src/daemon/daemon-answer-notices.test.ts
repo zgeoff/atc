@@ -1,5 +1,6 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, beside the other daemon topic tests
 import { expect, mock, test } from 'bun:test';
+import { isRecord } from '@atc/core/is-record';
 import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import type { DaemonClient } from '@atc/protocol/client/daemon-client';
 import type { EventMsg } from '@atc/protocol/protocol';
@@ -222,8 +223,11 @@ test('it hands one answer notice for a message whose answer is reported twice', 
 
   expect(replay.notices).toStrictEqual([]);
 
+  const events: unknown[] = Array.isArray(read['events']) ? read['events'] : [];
+
   expect(
-    (read['events'] as readonly Readonly<Record<string, unknown>>[])
+    events
+      .filter((e): e is Readonly<Record<string, unknown>> => isRecord(e))
       .filter((e) => typeof e['kind'] === 'string' && e['kind'].startsWith('notice-'))
       .map((e) => [e['kind'], e['message']]),
   ).toStrictEqual([

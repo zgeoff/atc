@@ -199,7 +199,7 @@ async function ackInboxMessage(
 async function ackInboxNotice(
   client: RequestSender,
   session: string,
-  notice: InboxNotice,
+  notice: Readonly<InboxNotice>,
   io: TapIO,
 ): Promise<void> {
   try {

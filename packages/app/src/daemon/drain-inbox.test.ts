@@ -3,6 +3,7 @@ import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { buildStubHeldInboxSource } from '../test-utils/build-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 
@@ -192,7 +193,7 @@ test('it sends a pending message ahead of an answer notice', async () => {
     },
   ]);
 
-  const tap = { sendEvent: mock() };
+  const tap = { sendEvent: mock<(event: EventMsg) => void>() };
 
   inbox.source.taps.attach(toSessionID('s-1'), tap, true, true);
 
