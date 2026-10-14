@@ -15,8 +15,9 @@ A tool's name is `atc_<noun>_<verb>`, where the noun is the channel the tool rea
 `atc_terminal_type` or `atc_message_send`. Each tool declares, beside its input schema:
 
 - **Safety annotations**, which the tool listing returns. A read tool is read-only. A tool that can
-  end a session or type into one is destructive. A tool that starts an agent or puts text in front
-  of one is open-world, because the agent acts on that text outside atc's control.
+  end a session or a headless turn, type into a session, or withdraw a host's grant is destructive.
+  A tool that starts an agent or puts text in front of one is open-world, because the agent acts on
+  that text outside atc's control.
 - **One grant scope** out of `read`, `message`, `spawn` and `kill`, which groups the tool by the
   access it needs ([scopes](#scopes)).
 

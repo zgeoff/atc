@@ -599,11 +599,11 @@ test('it lists the fleet tools', async () => {
           },
           {
             "annotations": {
-              "destructiveHint": false,
+              "destructiveHint": true,
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Start a terminal for a session that has none, resuming its agent session: a session a restore left without a terminal, an exited session, or one that runs headless, whose headless turn stops first. On an imp the host wakes first, and a harness still running there is attached instead of started again. Use it after atc_session_auth_rebind for a session whose restore was refused with auth_rebind_required. Returns { adopted: true } once the terminal starts; that does not show the agent booted, so check with atc_session_get or atc_terminal_read. Refused with session_dead when atc finds nothing to resume, an unknown session id included, with no_such_session when the session already has a terminal, and with the refusal of the session's target or runtime auth otherwise, such as auth_rebind_required; a refused call leaves the session as it was. A retry once the terminal runs is refused and starts nothing.",
+            "description": "Start a terminal for a session that has none, resuming its agent session: a session a restore left without a terminal, an exited session, or one that runs headless. A headless turn still running stops before the terminal is set up, and it stays stopped when that setup is then refused, such as with auth_rebind_required: the session is left with neither the turn nor a terminal, so adopt a session that runs a headless turn only when you mean to end that turn. On an imp the host wakes first, and a harness still running there is attached instead of started again. Use it after atc_session_auth_rebind for a session whose restore was refused with auth_rebind_required. Returns { adopted: true } once the terminal starts; that does not show the agent booted, so check with atc_session_get or atc_terminal_read. Refused with session_dead when atc finds nothing to resume, an unknown session id included, and with no_such_session when the session already has a terminal; both, and a refusal of the session's target, leave the session as it was. A retry once the terminal runs is refused and starts nothing.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,

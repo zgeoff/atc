@@ -170,7 +170,7 @@ test('it gives each tool its scope and safety hints as the tool table lists them
     atc_session_adopt: {
       scope: 'spawn',
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       openWorldHint: true,
     },
     atc_session_auth_rebind: {
