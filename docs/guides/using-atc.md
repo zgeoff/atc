@@ -103,8 +103,11 @@ To restart an agent's process, such as after a change of the account it signs in
 coordinating agent calls `atc_session_stop` and then `atc_session_adopt`, which does what `P` does
 in the list: it starts the session again with its conversation resumed, and on an imp it wakes the
 host first. A message to a stopped or sleeping session is refused with `session_dead` until the
-adopt starts it again. A pin never blocks an adopt, and a remote client may adopt only a session on
-a target its grant reaches, as with a stop or a forget.
+adopt starts it again. When the account change also changes the auth profiles an imp session's agent
+selects, the adopt is refused with `auth_rebind_required`: call `atc_session_auth_rebind`, then
+adopt again. A pin never blocks an adopt. A remote client needs the `kill` scope to stop and the
+`spawn` scope to adopt, and may adopt only a session on a target its grant reaches, as with a stop
+or a forget.
 
 ## Restarting the daemon
 
