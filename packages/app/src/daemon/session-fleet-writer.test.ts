@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
+import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
@@ -46,7 +47,7 @@ async function setupTest() {
     callbacks: { onChange: mock<() => void>(), log: recorder.log, getRecords: () => null },
   });
 
-  return { dbPath, statusPath, store, registry, writer, lines: recorder.lines };
+  return { dir: tmp.dir, dbPath, statusPath, store, registry, writer, lines: recorder.lines };
 }
 
 test('it persists a sub-session link by the parent atc session id', async () => {
@@ -298,6 +299,34 @@ test('it writes the state counts and the most urgent session name to the status 
     exited: 1,
     urgent: 'blocked',
   });
+});
+
+test('it replaces the status file through a temporary file and a rename', async () => {
+  const ctx = await setupTest();
+
+  writeFileSync(ctx.statusPath, '{"needs_you":2}');
+
+  // A second name for the old file stands in for a reader that opened it
+  // before the write: an in-place write would change what it reads.
+  linkSync(ctx.statusPath, join(ctx.dir, 'status.before'));
+
+  ctx.registry.sessions.push(buildMockSession({ name: 'busy', state: 'running' }));
+  ctx.writer.writeStatus();
+
+  const before = await readFile(join(ctx.dir, 'status.before'), 'utf8');
+  const status = await readFile(ctx.statusPath, 'utf8');
+
+  expect(before).toBe('{"needs_you":2}');
+
+  expect(JSON.parse(status)).toStrictEqual({
+    needs_you: 0,
+    running: 1,
+    done: 0,
+    exited: 0,
+    urgent: null,
+  });
+
+  expect(readdirSync(ctx.dir)).toSatisfyAll((name: string) => !name.endsWith('.tmp'));
 });
 
 test('it writes no urgent session to the status file when none needs the user', async () => {

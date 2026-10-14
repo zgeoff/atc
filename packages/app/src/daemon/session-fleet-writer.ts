@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { renameSync, rmSync, writeFileSync } from 'node:fs';
 import type { SessionID } from '@atc/core/session-id';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '@atc/store/fleet-entry';
@@ -44,14 +44,22 @@ export class SessionFleetWriter {
   }
 
   // Consumed by the injected statusline command so wrangled sessions render
-  // fleet state inside their own status line.
+  // fleet state inside their own status line. The file is written beside
+  // its place and renamed over it, so a reader that opens it mid-write
+  // still sees the whole previous file, never a truncated or empty one.
   writeStatus() {
     const c = this.registry.countStates();
     const urgent = this.registry.sortSessions().find((s) => s.state === 'needs_you');
+    const tmpPath = `${this.statusPath}.${process.pid}.tmp`;
 
     try {
-      writeFileSync(this.statusPath, JSON.stringify({ ...c, urgent: urgent?.name ?? null }));
-    } catch {}
+      writeFileSync(tmpPath, JSON.stringify({ ...c, urgent: urgent?.name ?? null }));
+      renameSync(tmpPath, this.statusPath);
+    } catch {
+      try {
+        rmSync(tmpPath, { force: true });
+      } catch {}
+    }
   }
 
   // Persisted continuously so a crash (or quit) leaves a restorable fleet.
