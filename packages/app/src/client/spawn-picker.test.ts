@@ -2920,6 +2920,157 @@ test('it leaves the source step on esc while it refreshes a cached listing', asy
   expect(ctx.counts.exits).toBe(2);
 });
 
+test('it shows nothing from the cache on the next open once a listing answers empty', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlR));
+
+  await ctx.daemon.answer('sources.list', { candidates: [], scope: 'acme' });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('nothing listed for acme');
+  expect(shown).not.toInclude('acme/app');
+});
+
+test('it shows the listing asked for last on the next open when an earlier one answers after it', async () => {
+  const ctx = setupTest();
+  const time = { now: 1_000_000_000 };
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+    now: () => time.now,
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  time.now += 1000;
+
+  picker.applyKey(Buffer.from(KEYS.ctrlR));
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      { label: 'acme/new-tool', pick: { kind: 'git', url: 'git@github.com:acme/new-tool.git' } },
+    ],
+    scope: 'acme',
+  });
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('acme/new-tool');
+  expect(shown).not.toInclude('acme/app');
+});
+
 test('it reads typed owner/repo text the cached listing leaves out through the source', async () => {
   const ctx = setupTest();
 

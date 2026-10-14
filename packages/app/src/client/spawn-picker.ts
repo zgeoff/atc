@@ -1299,14 +1299,20 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const cached = cache.findListing(this.buildListingKey(source.id, scope), this.getNow());
 
-    if (cached === null) {
+    // A source that lists nothing, such as a typed git URL, has nothing
+    // to show from the cache.
+    if (cached === null || (cached.candidates.length === 0 && cached.scope === null)) {
       return;
     }
 
     this.candidates = parseCandidates(cached.candidates);
     this.listedScope = cached.scope;
-    this.listNotice = null;
     this.listedFrom = cached.listedAt;
+
+    this.listNotice =
+      this.candidates.length === 0 && this.listedScope !== null
+        ? `nothing listed for ${this.listedScope}`
+        : null;
   }
 
   // Lists the git source step's scope again behind the step, keeping what
@@ -1338,7 +1344,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Lists the git source's candidates behind the step, under a scope or
-  // the source's own default, and keeps a listing with candidates in the
+  // the source's own default, and keeps each listing it gets in the
   // listing cache. A daemon that cannot list them leaves a notice row, or
   // the cached listing the step shows with the failure in its hint.
   // Typing goes on meanwhile, and Esc stops a listing the step shows
@@ -1355,6 +1361,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     const seq = this.requestSeq;
     const key = this.buildListingKey(source.id, scope);
+    const requestedAt = this.getNow();
 
     this.listingSeq = seq;
     this.requestedScope = scope;
@@ -1377,17 +1384,15 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     // A listing that answers after the flow moved on still holds what the
-    // daemon lists, so the cache keeps it for the next open.
+    // daemon lists, so the cache keeps it for the next open. An empty one
+    // replaces a kept list too, so a repository the daemon no longer lists
+    // never comes back from the cache.
     if (answer !== null && Array.isArray(answer['candidates'])) {
-      const candidates: unknown[] = answer['candidates'];
-
-      if (candidates.length > 0) {
-        this.deps.listingCache?.writeListing(key, {
-          candidates,
-          scope: typeof answer['scope'] === 'string' ? answer['scope'] : scope,
-          listedAt: this.getNow(),
-        });
-      }
+      this.deps.listingCache?.writeListing(key, {
+        candidates: answer['candidates'],
+        scope: typeof answer['scope'] === 'string' ? answer['scope'] : scope,
+        listedAt: requestedAt,
+      });
     }
 
     if (this.isStale(generation) || this.listingSeq !== seq) {

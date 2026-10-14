@@ -100,6 +100,29 @@ test('it replaces the listing under a key with the one written last', () => {
   });
 });
 
+test('it keeps the listing requested later when an earlier request writes after it', () => {
+  const ctx = setupTest();
+  const cache = openListingCache(ctx.file);
+
+  cache.writeListing('github', {
+    candidates: [{ label: 'acme/new-tool' }],
+    scope: null,
+    listedAt: 2_000_000,
+  });
+
+  cache.writeListing('github', {
+    candidates: [{ label: 'acme/app' }],
+    scope: null,
+    listedAt: 1_000_000,
+  });
+
+  expect(cache.findListing('github', 2_000_000)).toStrictEqual({
+    candidates: [{ label: 'acme/new-tool' }],
+    scope: null,
+    listedAt: 2_000_000,
+  });
+});
+
 test('it drops listings older than the lifetime when it writes another', () => {
   const ctx = setupTest();
   const cache = openListingCache(ctx.file);

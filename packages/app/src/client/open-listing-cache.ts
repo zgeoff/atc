@@ -4,9 +4,9 @@ import { isRecord } from '@atc/core/is-record';
 /**
  * One source listing as the daemon answered it: the candidates as they
  * came over the wire, the scope the daemon listed them under, and when
- * the answer came, in milliseconds since the epoch.
+ * the request for it went out, in milliseconds since the epoch.
  */
-export interface CachedListing {
+interface CachedListing {
   readonly candidates: readonly unknown[];
   readonly scope: string | null;
   readonly listedAt: number;
@@ -16,7 +16,9 @@ export interface CachedListing {
  * The source listings a client keeps between opens of the spawn picker,
  * and between client runs. Finding returns the listing kept under a key,
  * or null when none is kept or the kept one is older than the lifetime.
- * Writing keeps a listing under a key, replacing the one there.
+ * Writing keeps a listing under a key, replacing the one there unless
+ * that one was requested later, so a slow answer to an earlier request
+ * never replaces a newer listing.
  */
 export interface ListingCache {
   readonly findListing: (key: string, now: number) => CachedListing | null;
@@ -51,11 +53,16 @@ export function openListingCache(file: string): ListingCache {
     },
     writeListing(key, listing) {
       const listings = loadListings(file);
+      const kept = listings.get(key);
+
+      if (kept !== undefined && kept.listedAt > listing.listedAt) {
+        return;
+      }
 
       listings.delete(key);
       listings.set(key, listing);
 
-      const kept = [...listings]
+      const retained = [...listings]
         .filter(([, entry]) => listing.listedAt - entry.listedAt <= LISTING_CACHE_LIFETIME_MS)
         .toSorted(([, a], [, b]) => b.listedAt - a.listedAt)
         .slice(0, MAX_LISTINGS);
@@ -63,7 +70,7 @@ export function openListingCache(file: string): ListingCache {
       const tmpFile = `${file}.${process.pid}.tmp`;
 
       try {
-        writeFileSync(tmpFile, JSON.stringify({ listings: Object.fromEntries(kept) }));
+        writeFileSync(tmpFile, JSON.stringify({ listings: Object.fromEntries(retained) }));
         renameSync(tmpFile, file);
       } catch {
         try {
