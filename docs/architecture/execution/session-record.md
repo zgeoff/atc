@@ -93,10 +93,10 @@ The daemon's state store holds each record, and every provider places a copy whe
 it. atc writes the copy before each harness start, so a revive or a restored fleet finds it in
 place, and rewrites it on every change.
 
-| Provider    | `ATC_SESSION_RECORD`                        | Protection                                                       |
-| ----------- | ------------------------------------------- | ---------------------------------------------------------------- |
-| `local-pty` | `<state dir>/records/<session>.json`        | The file is mode 0444 in a directory of mode 0700.               |
-| `imp`       | `/run/imp/files/atc/records/<session>.json` | impd's read-only files: a write fails with `EROFS`, as root too. |
+| Provider    | `ATC_SESSION_RECORD`                        | Protection                                                                                                                                    |
+| ----------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local-pty` | `<state dir>/records/<session>.json`        | The file is mode 0444 in a directory of mode 0700.                                                                                            |
+| `imp`       | `/run/imp/files/atc/records/<session>.json` | impd's read-only files: a plain write fails with `EROFS`, as root too, but root with `CAP_SYS_ADMIN` can remount `/run/imp/files` read-write. |
 
 atc replaces the file through a rename, so a reader never sees a half-written record. On an imp, atc
 hands the copy to impd, whose agent keeps it outside the imp's container and shows it there on a
