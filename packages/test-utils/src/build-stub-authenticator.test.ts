@@ -80,8 +80,8 @@ test('it writes the ceremony it is given into the assertion', async () => {
     crossOrigin: false,
   });
 
-  expect(authenticatorData.subarray(0, 32)).toStrictEqual(
-    new Bun.CryptoHasher('sha256').update('elsewhere.example').digest(),
+  expect(authenticatorData.subarray(0, 32).toString('hex')).toBe(
+    new Bun.CryptoHasher('sha256').update('elsewhere.example').digest('hex'),
   );
 
   expect(authenticatorData[32]).toBe(0x01);

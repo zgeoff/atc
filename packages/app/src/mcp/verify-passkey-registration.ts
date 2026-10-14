@@ -1,8 +1,5 @@
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
-import type {
-  AuthenticatorTransportFuture,
-  RegistrationResponseJSON,
-} from '@simplewebauthn/server';
+import type { RegistrationResponseJSON } from '@simplewebauthn/server';
 import { z } from 'zod';
 
 interface RegistrationCheck {
@@ -109,8 +106,8 @@ function parseRegistration(credential: string): RegistrationResponseJSON | null 
     return null;
   }
 
-  const transports = (result.data.response.transports ?? []).filter(
-    (transport): transport is AuthenticatorTransportFuture => TRANSPORTS.has(transport),
+  const transports = (result.data.response.transports ?? []).filter((transport) =>
+    TRANSPORTS.has(transport),
   );
 
   return {
