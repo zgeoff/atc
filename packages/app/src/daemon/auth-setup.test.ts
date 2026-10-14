@@ -23,19 +23,23 @@ function setupTest(config: SetupConfig) {
     adapters: config.adapters,
     targets: config.targets,
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   const auth = new AuthSetup({
     registry,
-    fleet: { emitChange: mock() },
+    fleet: { emitChange: mock<() => void>() },
     claims: { resolveHostHome: mock() },
     harnesses: { authRevisions: new Map(), isAuthOutdated: mock(), isHostIdle: mock() },
     rollback: { destroyFailedSpawnHost: mock() },
 
     // Every host the setup readies is stamped with the daemon's id.
     store: { daemonID: toDaemonID('d-1') },
-    callbacks: { onEvent: mock(), log: mock(), getAuthBinder: () => null },
+    callbacks: {
+      onEvent: mock<() => void>(),
+      log: mock<() => void>(),
+      getAuthBinder: () => null,
+    },
   });
 
   return { registry, auth };
@@ -124,14 +128,9 @@ test('it readies a local host once and plans the agent spawn there', async () =>
     attemptID: null,
   });
 
-  expect(provider.prepared).toStrictEqual([
-    {
-      host: toSessionID('host-1'),
-      daemonID: 'd-1',
-      isIdle: expect.any(Function),
-      timer: expect.anything(),
-    },
-  ]);
+  expect(provider.prepared).toMatchObject([{ host: toSessionID('host-1'), daemonID: 'd-1' }]);
+  expect(provider.prepared[0]?.isIdle).toBeFunction();
+  expect(provider.prepared[0]?.timer).not.toBeNil();
 });
 
 test('it readies a remote host and plans the local spawn with no files when the agent plans no guest spawn', async () => {
@@ -161,17 +160,17 @@ test('it readies a remote host and plans the local spawn with no files when the 
     attemptID: null,
   });
 
-  expect(provider.prepared).toStrictEqual([
+  expect(provider.prepared).toMatchObject([
     {
       host: toSessionID('host-1'),
       daemonID: 'd-1',
       installATC: false,
-      log: expect.any(Function),
-      isIdle: expect.any(Function),
-      timer: expect.anything(),
     },
   ]);
 
+  expect(provider.prepared[0]?.log).toBeFunction();
+  expect(provider.prepared[0]?.isIdle).toBeFunction();
+  expect(provider.prepared[0]?.timer).not.toBeNil();
   expect(provider.transfers).toStrictEqual([]);
 });
 

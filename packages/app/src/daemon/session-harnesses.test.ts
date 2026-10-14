@@ -15,9 +15,9 @@ function setupTest() {
   const recorder = buildStubLog();
 
   const callbacks = {
-    onOutput: mock(),
-    onEvent: mock(),
-    onProcessEnded: mock(),
+    onOutput: mock<() => void>(),
+    onEvent: mock<() => void>(),
+    onProcessEnded: mock<() => void>(),
     log: recorder.log,
   };
 
@@ -29,8 +29,8 @@ function setupTest() {
     callbacks,
   });
 
-  const fleet = { emitChange: mock(), tryWriteFleet: mock() };
-  const killer = { updateSuspended: mock() };
+  const fleet = { emitChange: mock<() => void>(), tryWriteFleet: mock() };
+  const killer = { updateSuspended: mock<() => void>() };
 
   const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
 

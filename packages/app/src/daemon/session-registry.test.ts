@@ -15,7 +15,7 @@ test('it resolves an agent id to the registered adapter that declares it', () =>
     adapters: [gateway],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   expect(registry.findAdapter('zai')).toBe(gateway);
@@ -29,7 +29,7 @@ test('it resolves the fallback adapter by its own id, not by another registered 
     adapters: [buildMockAgentAdapter({ id: 'zai' })],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   expect(registry.findAdapter('claude')).toBe(fallback);
@@ -41,7 +41,7 @@ test('it resolves an agent id no adapter declares to no adapter', () => {
     adapters: [buildMockAgentAdapter({ id: 'zai' })],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   expect(registry.findAdapter('grok')).toBeNull();
@@ -53,7 +53,7 @@ test('it reports no screen detector when no registered adapter provides one', ()
     adapters: [buildMockAgentAdapter({ id: 'zai' })],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   expect(registry.hasScreenDetector).toBeFalse();
@@ -67,7 +67,7 @@ test('it reports a screen detector when a registered adapter provides one', () =
     ],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   expect(registry.hasScreenDetector).toBeTrue();
@@ -79,7 +79,7 @@ test('it refuses execution on a target the registry does not hold', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   expect(() =>
@@ -102,7 +102,7 @@ test('it returns the provider and identity of a usable target', () => {
       }),
     ],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   expect(
@@ -119,7 +119,7 @@ test('it drops a removed session from the list', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(kept, dropped);
@@ -136,7 +136,7 @@ test('it marks a removed session for deletion at the next fleet write', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(session);
@@ -153,7 +153,7 @@ test('it clears the focus when the removed session held it', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(session);
@@ -174,7 +174,7 @@ test('it keeps the focus when another session is removed', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(focused, dropped);
@@ -188,7 +188,7 @@ test('it keeps the focus when another session is removed', () => {
 
 test('it raises a removed event for a removed session', () => {
   const session = buildMockSession();
-  const onEvent = mock();
+  const onEvent = mock<() => void>();
 
   const registry = new SessionRegistry({
     fallback: buildMockAgentAdapter(),
@@ -212,7 +212,7 @@ test('it counts the caller itself as in its own tree', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(caller);
@@ -229,7 +229,7 @@ test('it counts a session the caller sits under as in its tree', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(parent, caller);
@@ -246,7 +246,7 @@ test('it leaves a sub-session of the caller out of its tree', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(caller, child);
@@ -263,7 +263,7 @@ test('it leaves an unrelated session out of the caller tree', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(caller, other);
@@ -282,7 +282,7 @@ test('it collects the sub-sessions of a session in list order', () => {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   registry.sessions.push(parent, first, unrelated, second);

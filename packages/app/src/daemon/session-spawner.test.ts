@@ -42,13 +42,13 @@ async function setupTest(config: SetupTestConfig) {
   registerTestCleanup(() => store.stop());
 
   const callbacks: SessionCallbacks = {
-    onOutput: mock(),
-    onChange: mock(),
-    onBoot: mock(),
-    onRelay: mock(),
-    onEvent: mock(),
-    onProcessEnded: mock(),
-    log: mock(),
+    onOutput: mock<() => void>(),
+    onChange: mock<() => void>(),
+    onBoot: mock<() => void>(),
+    onRelay: mock<() => void>(),
+    onEvent: mock<() => void>(),
+    onProcessEnded: mock<() => void>(),
+    log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
     getAuthBinder: () => null,
@@ -99,10 +99,7 @@ test('it lists a running session and starts its harness on the local target', as
 
   const session = await ctx.spawner.spawn(ctx.dir, 'work', '', 120, 40);
 
-  expect(ctx.registry.sessions).toStrictEqual([
-    expect.objectContaining({ name: 'work', cwd: ctx.dir, state: 'running' }),
-  ]);
-
+  expect(ctx.registry.sessions).toMatchObject([{ name: 'work', cwd: ctx.dir, state: 'running' }]);
   expect(provider.harnesses).toHaveLength(1);
 
   expect(provider.harnesses[0]?.spec).toMatchObject({
@@ -174,7 +171,7 @@ test('it rejects a spawn whose harness its provider cannot start and lists nothi
 test('it starts a spawn into the directory of an earlier spawn whose harness failed', async () => {
   const provider = buildStubMemoryProvider({
     kind: 'local-pty',
-    onSpawn: mock().mockImplementationOnce(() => {
+    onSpawn: mock<() => void>().mockImplementationOnce(() => {
       throw new Error('harness refused');
     }),
   });

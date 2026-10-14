@@ -23,7 +23,7 @@ function setupTest(config: SetupConfig) {
     adapters: [],
     targets: config.targets,
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   const claims = new HostDirClaims({ registry });

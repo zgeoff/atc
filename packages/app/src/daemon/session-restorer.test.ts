@@ -21,8 +21,8 @@ interface SetupConfig {
 // A restorer over a real registry of the adapters and targets the test
 // gives, with the fleet writer and the daemon's callbacks as recorders.
 function setupTest(config: SetupConfig) {
-  const callbacks = { onEvent: mock(), getClock: () => systemClock };
-  const fleet = { emitChange: mock(), writeStatus: mock() };
+  const callbacks = { onEvent: mock<() => void>(), getClock: () => systemClock };
+  const fleet = { emitChange: mock<() => void>(), writeStatus: mock<() => void>() };
 
   const registry = new SessionRegistry({
     fallback: null,

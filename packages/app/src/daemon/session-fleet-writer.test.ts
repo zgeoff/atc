@@ -34,7 +34,7 @@ async function setupTest() {
     adapters: [],
     targets: [],
     targetErrors: [],
-    callbacks: { onEvent: mock() },
+    callbacks: { onEvent: mock<() => void>() },
   });
 
   const statusPath = join(tmp.dir, 'status.json');
@@ -43,7 +43,7 @@ async function setupTest() {
     registry,
     store,
     statusPath,
-    callbacks: { onChange: mock(), log: recorder.log, getRecords: () => null },
+    callbacks: { onChange: mock<() => void>(), log: recorder.log, getRecords: () => null },
   });
 
   return { dbPath, statusPath, store, registry, writer, lines: recorder.lines };

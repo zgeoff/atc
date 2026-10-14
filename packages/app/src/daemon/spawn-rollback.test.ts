@@ -34,10 +34,10 @@ async function setupTest() {
   const recorder = buildStubLog();
 
   const callbacks = {
-    onEvent: mock(),
-    onChange: mock(),
-    onOutput: mock(),
-    onProcessEnded: mock(),
+    onEvent: mock<() => void>(),
+    onChange: mock<() => void>(),
+    onOutput: mock<() => void>(),
+    onProcessEnded: mock<() => void>(),
     log: recorder.log,
     getRecords: () => null,
     getAuthBinder: () => null,
@@ -63,7 +63,7 @@ async function setupTest() {
   const harnesses = new SessionHarnesses({
     registry,
     fleet,
-    killer: { updateSuspended: mock() },
+    killer: { updateSuspended: mock<() => void>() },
     callbacks,
   });
 
@@ -137,7 +137,7 @@ test('it leaves the list and the stored fleet as they are for a session it does 
   const stored = await ctx.store.loadFleet();
 
   expect(ctx.registry.sessions).toStrictEqual([session]);
-  expect(stored).toStrictEqual([expect.objectContaining({ sessionID: 's-listed' })]);
+  expect(stored).toMatchObject([{ sessionID: 's-listed' }]);
 });
 
 test('it rejects and keeps the rollback unsettled when the killed harness never confirms its exit', async () => {
@@ -154,7 +154,7 @@ test('it rejects and keeps the rollback unsettled when the killed harness never 
     onExit: () => ({ dispose: () => {} }),
     write: () => {},
     resize: () => {},
-    kill: mock(),
+    kill: mock<() => void>(),
     waitForExit: () => Promise.resolve(false),
     detach: () => {},
   };

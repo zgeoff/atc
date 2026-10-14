@@ -43,13 +43,13 @@ async function setupTest(config: SetupTestConfig) {
   registerTestCleanup(() => store.stop());
 
   const callbacks: SessionCallbacks = {
-    onOutput: mock(),
-    onChange: mock(),
-    onBoot: mock(),
-    onRelay: mock(),
-    onEvent: mock(),
-    onProcessEnded: mock(),
-    log: mock(),
+    onOutput: mock<() => void>(),
+    onChange: mock<() => void>(),
+    onBoot: mock<() => void>(),
+    onRelay: mock<() => void>(),
+    onEvent: mock<() => void>(),
+    onProcessEnded: mock<() => void>(),
+    log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
     getAuthBinder: () => null,
@@ -142,19 +142,21 @@ test('it starts a harness that resumes the agent session of a session without a 
 
   expect(provider.harnesses).toHaveLength(1);
 
-  expect(provider.harnesses[0]?.spec).toStrictEqual({
+  expect(provider.harnesses[0]?.spec).toMatchObject({
     session: toSessionID('s-c-1'),
     host: toSessionID('s-c-1'),
     bin: 'stub-harness',
     args: [],
     cwd: ctx.dir,
-    env: { ATC_SESSION_ID: 's-c-1', ATC_SOCKET: expect.any(String) },
+    env: { ATC_SESSION_ID: 's-c-1' },
     withheldEnv: [],
     cols: 100,
     rows: 30,
-    onRelay: expect.any(Function),
   });
 
+  expect(provider.harnesses[0]?.spec.env).toContainAllKeys(['ATC_SESSION_ID', 'ATC_SOCKET']);
+  expect(provider.harnesses[0]?.spec.env['ATC_SOCKET']).toBeString();
+  expect(provider.harnesses[0]?.spec.onRelay).toBeFunction();
   expect(adopted).toMatchObject({ kind: 'pty', state: 'running', lastMsg: 'revived' });
   expect(adopted?.pty).toBe(provider.harnesses[0]);
   expect(ctx.callbacks.onBoot).toHaveBeenCalledExactlyOnceWith(session, 100, 30);

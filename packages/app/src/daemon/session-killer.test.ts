@@ -33,10 +33,10 @@ async function setupTest(config: SetupConfig) {
   registerTestCleanup(() => store.stop());
 
   const callbacks = {
-    onEvent: mock(),
-    onProcessEnded: mock(),
-    onChange: mock(),
-    log: mock(),
+    onEvent: mock<() => void>(),
+    onProcessEnded: mock<() => void>(),
+    onChange: mock<() => void>(),
+    log: mock<() => void>(),
     getAuthBinder: () => null,
     getRecords: () => null,
   };
