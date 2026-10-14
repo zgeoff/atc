@@ -43,7 +43,9 @@ test('it restores the process umask after the bind', () => {
     server.stop(true);
   });
 
-  expect(process.umask()).toBe(0o000);
+  // Setting the umask returns the one it replaces; the bare read form is
+  // deprecated because it writes the umask twice.
+  expect(process.umask(0o000)).toBe(0o000);
 });
 
 test('it restores the process umask when the bind throws', () => {
@@ -55,5 +57,7 @@ test('it restores the process umask when the bind throws', () => {
     }),
   ).toThrowWithMessage(Error, 'bind failed');
 
-  expect(process.umask()).toBe(0o000);
+  // Setting the umask returns the one it replaces; the bare read form is
+  // deprecated because it writes the umask twice.
+  expect(process.umask(0o000)).toBe(0o000);
 });
