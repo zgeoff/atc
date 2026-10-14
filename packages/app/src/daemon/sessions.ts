@@ -1,14 +1,20 @@
 import type { TargetConfigError } from '@atc/config/collect-targets';
 import { statusFile } from '@atc/config/config';
 import { LOCAL_TARGET } from '@atc/config/local-target';
+import type { AgentID } from '@atc/core/agent-id';
+import type { AgentSessionID } from '@atc/core/agent-session-id';
 import type { SessionID } from '@atc/core/session-id';
 import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import type { AgentAdapter, HookPlan } from '@atc/plugin-api/agent-adapter';
-import type { ExecutionCapability, HarnessRelay } from '@atc/plugin-api/execution-provider';
+import type { AgentAdapter, HookPlan, SpawnOverrides } from '@atc/plugin-api/agent-adapter';
+import type {
+  ExecutionCapability,
+  ExecutionProvider,
+  HarnessRelay,
+} from '@atc/plugin-api/execution-provider';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
@@ -17,13 +23,14 @@ import type { PublishedRecord } from '@atc/protocol/published-record';
 import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
 import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
 import type { SessionState } from '@atc/protocol/session-state';
-import type { FleetStore } from '@atc/store/fleet-entry';
+import type { FleetEntry, FleetStore } from '@atc/store/fleet-entry';
 import { match } from 'ts-pattern';
 import { AuthSetup } from './auth-setup';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import { HostDirClaims } from './host-dir-claims';
 import type { BridgeBinding } from './is-binding-current';
+import { mintSessionID } from './mint-session-id';
 import { pickSessionState } from './pick-session-state';
 import type { PublishedRecords } from './published-records';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
@@ -39,6 +46,7 @@ import { LOCAL_TARGET_IDENTITY, SessionRegistry } from './session-registry';
 import type { TargetBinding } from './session-registry';
 import { SessionRestorer } from './session-restorer';
 import { SessionSpawner } from './session-spawner';
+import type { SpawnMaterializer } from './session-spawner';
 import { SpawnRollback } from './spawn-rollback';
 
 // The command that resumes a session outside atc, or why there is none: no
@@ -232,158 +240,158 @@ export class SessionManager {
   requireExecution(
     binding: Readonly<TargetBinding>,
     capability: ExecutionCapability,
-  ): ReturnType<SessionRegistry['requireExecution']> {
+  ): { readonly provider: ExecutionProvider; readonly identity: string } {
     return this.registry.requireExecution(binding, capability);
   }
 
   findExecutionRefusal(
-    ...args: Parameters<SessionRegistry['findExecutionRefusal']>
-  ): ReturnType<SessionRegistry['findExecutionRefusal']> {
-    return this.registry.findExecutionRefusal(...args);
+    binding: Readonly<{ target: string | null; targetIdentity: string | null }>,
+    capability: ExecutionCapability,
+  ): DaemonError | null {
+    return this.registry.findExecutionRefusal(binding, capability);
   }
 
-  findProvider(
-    ...args: Parameters<SessionRegistry['findProvider']>
-  ): ReturnType<SessionRegistry['findProvider']> {
-    return this.registry.findProvider(...args);
+  findProvider(s: Session): ExecutionProvider | null {
+    return this.registry.findProvider(s);
   }
 
-  findAdapter(
-    ...args: Parameters<SessionRegistry['findAdapter']>
-  ): ReturnType<SessionRegistry['findAdapter']> {
-    return this.registry.findAdapter(...args);
+  findAdapter(id: AgentID): AgentAdapter | null {
+    return this.registry.findAdapter(id);
   }
 
-  collectAdapters(
-    ...args: Parameters<SessionRegistry['collectAdapters']>
-  ): ReturnType<SessionRegistry['collectAdapters']> {
-    return this.registry.collectAdapters(...args);
+  collectAdapters(): AgentAdapter[] {
+    return this.registry.collectAdapters();
   }
 
-  isLocalTarget(
-    ...args: Parameters<SessionRegistry['isLocalTarget']>
-  ): ReturnType<SessionRegistry['isLocalTarget']> {
-    return this.registry.isLocalTarget(...args);
+  isLocalTarget(target: string): boolean {
+    return this.registry.isLocalTarget(target);
   }
 
-  isCallerTree(
-    ...args: Parameters<SessionRegistry['isCallerTree']>
-  ): ReturnType<SessionRegistry['isCallerTree']> {
-    return this.registry.isCallerTree(...args);
+  isCallerTree(id: SessionID, caller: SessionID): boolean {
+    return this.registry.isCallerTree(id, caller);
   }
 
-  collectChildren(
-    ...args: Parameters<SessionRegistry['collectChildren']>
-  ): ReturnType<SessionRegistry['collectChildren']> {
-    return this.registry.collectChildren(...args);
+  collectChildren(id: SessionID): Session[] {
+    return this.registry.collectChildren(id);
   }
 
-  countStates(
-    ...args: Parameters<SessionRegistry['countStates']>
-  ): ReturnType<SessionRegistry['countStates']> {
-    return this.registry.countStates(...args);
+  countStates(): ReturnType<SessionRegistry['countStates']> {
+    return this.registry.countStates();
   }
 
-  sortSessions(
-    ...args: Parameters<SessionRegistry['sortSessions']>
-  ): ReturnType<SessionRegistry['sortSessions']> {
-    return this.registry.sortSessions(...args);
+  sortSessions(): Session[] {
+    return this.registry.sortSessions();
   }
 
-  resolveRestoredEntry(
-    ...args: Parameters<SessionRestorer['resolveRestoredEntry']>
-  ): ReturnType<SessionRestorer['resolveRestoredEntry']> {
-    return this.restorer.resolveRestoredEntry(...args);
+  resolveRestoredEntry(entry: FleetEntry): Promise<FleetEntry> {
+    return this.restorer.resolveRestoredEntry(entry);
   }
 
-  restore(...args: Parameters<SessionRestorer['restore']>): ReturnType<SessionRestorer['restore']> {
-    return this.restorer.restore(...args);
+  restore(entry: FleetEntry): Session {
+    return this.restorer.restore(entry);
   }
 
-  isUnrestored(
-    ...args: Parameters<SessionRestorer['isUnrestored']>
-  ): ReturnType<SessionRestorer['isUnrestored']> {
-    return this.restorer.isUnrestored(...args);
+  isUnrestored(id: SessionID): boolean {
+    return this.restorer.isUnrestored(id);
   }
 
-  removeUnrestoredMark(
-    ...args: Parameters<SessionRestorer['removeUnrestoredMark']>
-  ): ReturnType<SessionRestorer['removeUnrestoredMark']> {
-    return this.restorer.removeUnrestoredMark(...args);
+  removeUnrestoredMark(id: SessionID): void {
+    this.restorer.removeUnrestoredMark(id);
   }
 
-  updateRestoreRefusal(
-    ...args: Parameters<SessionRestorer['updateRestoreRefusal']>
-  ): ReturnType<SessionRestorer['updateRestoreRefusal']> {
-    return this.restorer.updateRestoreRefusal(...args);
+  updateRestoreRefusal(s: Session, reason: string): void {
+    this.restorer.updateRestoreRefusal(s, reason);
   }
 
-  updateRestoredIdentity(
-    ...args: Parameters<SessionRestorer['updateRestoredIdentity']>
-  ): ReturnType<SessionRestorer['updateRestoredIdentity']> {
-    return this.restorer.updateRestoredIdentity(...args);
+  updateRestoredIdentity(s: Session, identity: string): void {
+    this.restorer.updateRestoredIdentity(s, identity);
   }
 
-  requireAgentTarget(
-    ...args: Parameters<AuthSetup['requireAgentTarget']>
-  ): ReturnType<AuthSetup['requireAgentTarget']> {
-    return this.auth.requireAgentTarget(...args);
+  requireAgentTarget(agent: AgentID, target: string): void {
+    this.auth.requireAgentTarget(agent, target);
   }
 
-  revokeAuth(...args: Parameters<AuthSetup['revokeAuth']>): ReturnType<AuthSetup['revokeAuth']> {
-    return this.auth.revokeAuth(...args);
+  revokeAuth(id: SessionID): Promise<boolean> {
+    return this.auth.revokeAuth(id);
   }
 
-  updateAuth(...args: Parameters<AuthSetup['updateAuth']>): ReturnType<AuthSetup['updateAuth']> {
-    return this.auth.updateAuth(...args);
+  updateAuth(id: SessionID): Promise<number | null> {
+    return this.auth.updateAuth(id);
   }
 
   adoptTerminal(
-    ...args: Parameters<SessionAdopter['adoptTerminal']>
-  ): ReturnType<SessionAdopter['adoptTerminal']> {
-    return this.adopter.adoptTerminal(...args);
+    id: SessionID,
+    cols: number,
+    rows: number,
+    canProceed: () => boolean = () => true,
+  ): Promise<Session | null> {
+    return this.adopter.adoptTerminal(id, cols, rows, canProceed);
   }
 
-  spawn(...args: Parameters<SessionSpawner['spawn']>): ReturnType<SessionSpawner['spawn']> {
-    return this.spawner.spawn(...args);
+  spawn(
+    cwd: string,
+    name: string,
+    prompt: string,
+    cols: number,
+    rows: number,
+    resume: boolean | AgentSessionID = false,
+    namedBy: 'user' | 'auto' = 'auto',
+    agent: AgentID = 'claude',
+    parent: SessionID | null = null,
+    overrides: SpawnOverrides = {},
+    id: SessionID = mintSessionID(),
+    target = 'local',
+    materialize: SpawnMaterializer | null = null,
+    requireInReach: () => void = () => {},
+    autoDir = false,
+    scope: DeclaredScope | null = null,
+  ): Promise<Session> {
+    return this.spawner.spawn(
+      cwd,
+      name,
+      prompt,
+      cols,
+      rows,
+      resume,
+      namedBy,
+      agent,
+      parent,
+      overrides,
+      id,
+      target,
+      materialize,
+      requireInReach,
+      autoDir,
+      scope,
+    );
   }
 
-  releaseWorkspace(
-    ...args: Parameters<HostDirClaims['releaseWorkspace']>
-  ): ReturnType<HostDirClaims['releaseWorkspace']> {
-    return this.claims.releaseWorkspace(...args);
+  releaseWorkspace(id: SessionID): void {
+    this.claims.releaseWorkspace(id);
   }
 
-  removeFailedSpawn(
-    ...args: Parameters<SpawnRollback['removeFailedSpawn']>
-  ): ReturnType<SpawnRollback['removeFailedSpawn']> {
-    return this.rollback.removeFailedSpawn(...args);
+  removeFailedSpawn(id: SessionID): Promise<void> {
+    return this.rollback.removeFailedSpawn(id);
   }
 
-  kill(...args: Parameters<SessionKiller['kill']>): ReturnType<SessionKiller['kill']> {
-    return this.killer.kill(...args);
+  kill(id: SessionID, stopOnly = false): Promise<'stopped' | 'unchanged' | 'removed'> {
+    return this.killer.kill(id, stopOnly);
   }
 
-  forget(...args: Parameters<SessionKiller['forget']>): ReturnType<SessionKiller['forget']> {
-    return this.killer.forget(...args);
+  forget(id: SessionID): Promise<boolean> {
+    return this.killer.forget(id);
   }
 
-  pickKillCapability(
-    ...args: Parameters<SessionKiller['pickKillCapability']>
-  ): ReturnType<SessionKiller['pickKillCapability']> {
-    return this.killer.pickKillCapability(...args);
+  pickKillCapability(s: Session): ExecutionCapability {
+    return this.killer.pickKillCapability(s);
   }
 
-  writeStatus(
-    ...args: Parameters<SessionFleetWriter['writeStatus']>
-  ): ReturnType<SessionFleetWriter['writeStatus']> {
-    return this.fleet.writeStatus(...args);
+  writeStatus(): void {
+    this.fleet.writeStatus();
   }
 
-  writeFleet(
-    ...args: Parameters<SessionFleetWriter['writeFleet']>
-  ): ReturnType<SessionFleetWriter['writeFleet']> {
-    return this.fleet.writeFleet(...args);
+  writeFleet(): Promise<void> {
+    return this.fleet.writeFleet();
   }
 
   // Hands a live terminal session off to a headless run: the terminal dies,
