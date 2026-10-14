@@ -9,7 +9,6 @@ import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
-import type { TUIHarness } from '@atc/test-utils/start-tui-harness';
 
 function setupTest() {
   return startTUIHarness();
@@ -77,10 +76,9 @@ test('it restarts a daemon on another protocol after the user confirms and resto
 });
 
 test('it restarts a daemon on another protocol that a reconnect meets after the user confirms', async () => {
-  const ctx = setupTest();
+  const reconnect = await setupReconnectTest();
 
-  const reconnect = await startLegacyDaemonOnReconnect(ctx);
-
+  const ctx = reconnect.ctx;
   const legacy = reconnect.legacy;
 
   await ctx.waitFor('Restart it now?');
@@ -98,10 +96,9 @@ test('it restarts a daemon on another protocol that a reconnect meets after the 
 });
 
 test('it draws the reconnect restart prompt again when the terminal resizes', async () => {
-  const ctx = setupTest();
+  const reconnect = await setupReconnectTest();
 
-  const reconnect = await startLegacyDaemonOnReconnect(ctx);
-
+  const ctx = reconnect.ctx;
   const legacy = reconnect.legacy;
 
   await ctx.waitFor('Restart it now?');
@@ -119,10 +116,9 @@ test('it draws the reconnect restart prompt again when the terminal resizes', as
 });
 
 test('it quits when the user keeps a daemon on another protocol that a reconnect meets', async () => {
-  const ctx = setupTest();
+  const reconnect = await setupReconnectTest();
 
-  const reconnect = await startLegacyDaemonOnReconnect(ctx);
-
+  const ctx = reconnect.ctx;
   const legacy = reconnect.legacy;
 
   await ctx.waitFor('Restart it now?');
@@ -196,10 +192,11 @@ test('it stops a daemon of an older build when the user asks for the update and 
 /**
  * Boots the client on a daemon of its own, then hands the socket path to a
  * daemon on another protocol and kills the first daemon, so the client's
- * reconnect reaches the other one. Returns that daemon's process and the
- * client's terminal.
+ * reconnect reaches the other one. Returns the harness, that daemon's
+ * process, and the client's terminal.
  */
-async function startLegacyDaemonOnReconnect(ctx: Readonly<TUIHarness>) {
+async function setupReconnectTest() {
+  const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
   const socketPath = join(ctx.home, 'atc-daemon.sock');
   const pty = ctx.boot();
@@ -238,5 +235,5 @@ async function startLegacyDaemonOnReconnect(ctx: Readonly<TUIHarness>) {
   ctx.reset();
   process.kill(first.pid, 'SIGKILL');
 
-  return { legacy, pty };
+  return { ctx, legacy, pty };
 }
