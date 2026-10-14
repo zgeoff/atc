@@ -9,7 +9,7 @@ import { formatToolError } from './format-tool-error';
 import { MCP_TOOLS } from './mcp-tools';
 import { pickProtocolVersion } from './pick-protocol-version';
 import { runTool } from './run-tool';
-import type { FleetCaller, ToolContext } from './types';
+import type { FleetCaller, FleetFeature, ToolContext } from './types';
 
 interface RPCDeps {
   readonly caller: FleetCaller;
@@ -61,7 +61,19 @@ export async function answerRPCRequest(message: unknown, deps: RPCDeps): Promise
     }))
     .with('ping', () => ({ kind: 'reply' as const, body: buildRPCResult(id, {}) }))
     .with('tools/list', async () => {
-      const features = await deps.caller.readFeatures();
+      // The list needs the features of a daemon that answers, so a daemon
+      // that cannot be reached gets the request an error rather than
+      // leaving it unanswered.
+      let features: ReadonlySet<FleetFeature>;
+
+      try {
+        features = await deps.caller.readFeatures();
+      } catch (error) {
+        return {
+          kind: 'reply' as const,
+          body: buildRPCError(id, -32_603, formatToolError(error)),
+        };
+      }
 
       const agents = features.has('agents.list') ? await tryReadAgents(deps) : null;
 
