@@ -10,6 +10,7 @@ import { expandHome } from '@atc/core/expand-home';
 import { isGitURL } from '@atc/core/is-git-url';
 import { isHomeRelative } from '@atc/core/is-home-relative';
 import { isRecord } from '@atc/core/is-record';
+import { systemClock } from '@atc/core/system-clock';
 import { runCommand } from '@atc/lifecycle/run-command';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
@@ -31,6 +32,7 @@ import { collectTargetPicks } from './collect-target-picks';
 import type { TargetPick } from './collect-target-picks';
 import { collectDirs, formatDir, formatDirName, pickMatches } from './dirs';
 import { KEY, planTextEdit } from './keys';
+import type { ListingCache } from './open-listing-cache';
 import { pickRefusalStep } from './pick-refusal-step';
 import { resolveWorkspaceRoot } from './resolve-workspace-root';
 import { splitToWidth } from './split-to-width';
@@ -99,6 +101,17 @@ export interface SpawnPickerDeps<TMirror> {
   // Records any other decision the flow takes without drawing anything,
   // such as text it ignores on a step that takes none.
   readonly log?: (line: string) => void;
+
+  // The git listings the source step shows at once while it lists again,
+  // kept per daemon socket, source, target, and scope; none are kept
+  // when unset.
+  readonly listingCache?: ListingCache;
+
+  // The socket of the daemon the client reaches, which keys the listings.
+  readonly getDaemonSocketPath?: () => string;
+
+  // The time in milliseconds since the epoch; the wall clock when unset.
+  readonly now?: () => number;
 }
 
 // One source `agents.list` returned, in the order the daemon offers them.
@@ -234,6 +247,16 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   private listedKey: string | null = null;
 
   private listingSeq: number | null = null;
+
+  // When the shown candidates were listed, if they came from the listing
+  // cache rather than from a listing the step made, and why the listing
+  // that would replace them failed.
+  private listedFrom: number | null = null;
+
+  private refreshFailure: string | null = null;
+
+  // The scope the step last asked for, which a refresh asks for again.
+  private requestedScope: string | null = null;
 
   // The directory listing the flow waits on before it opens the directory
   // step, or null when it waits on none.
@@ -409,6 +432,18 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       if (!this.resume && (this.step === 'dir' || this.step === 'source')) {
         this.openNextSource();
       }
+
+      return;
+    }
+
+    // Ctrl-R lists the git source step's scope again.
+    if (
+      this.step === 'source' &&
+      edit.kind !== 'leader' &&
+      buf.length === 1 &&
+      buf[0] === KEY.ctrlR
+    ) {
+      this.refreshCandidates();
 
       return;
     }
@@ -606,11 +641,26 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.selected = Math.min(this.selected, Math.max(0, Math.min(items.length, 10) - 1));
 
     const scope = this.listedScope === null ? '' : ` · ${this.listedScope}`;
-    const listing = this.listingSeq === null ? null : 'listing… · esc stops';
+    let listing: string | null = null;
+    let age = '';
+
+    // A cached listing shows its age in the title while the step lists
+    // again, and the failure in the hint when that listing fails.
+    if (this.listedFrom !== null) {
+      const refreshing = this.listingSeq === null ? '' : ', refreshing…';
+
+      age = ` · ${formatAge(this.getNow() - this.listedFrom)} old${refreshing}`;
+
+      if (this.refreshFailure !== null && this.listingSeq === null) {
+        listing = `refresh failed: ${this.refreshFailure} · ^r retry · esc back`;
+      }
+    } else if (this.listingSeq !== null) {
+      listing = 'listing… · esc stops';
+    }
 
     drawPicker(
       {
-        title: `spawn: ${this.findSource()?.label ?? ''}${scope}`,
+        title: `spawn: ${this.findSource()?.label ?? ''}${scope}${age}`,
         items: items.map((item) => item.label),
         selected: items.length === 0 || items[0]?.notice === true ? -1 : this.selected,
         input: this.input,
@@ -618,7 +668,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
           this.pending?.label ??
           this.refusal ??
           listing ??
-          `type to filter, or a git URL · ↑↓ move · ⏎ select${this.formatTabHint()} · esc back`,
+          `type to filter, or a git URL · ↑↓ move · ⏎ select · ^r refresh${this.formatTabHint()} · esc back`,
         dimmed: new Set(items.flatMap((item, i) => (item.notice === true ? [i] : []))),
       },
       this.deps.write,
@@ -760,8 +810,9 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
-    // Esc first stops a listing in flight, keeping the step.
-    if (this.step === 'source' && this.listingSeq !== null) {
+    // Esc first stops a listing in flight, keeping the step, unless the
+    // step shows a cached listing meanwhile.
+    if (this.step === 'source' && this.listingSeq !== null && this.listedFrom === null) {
       this.listingSeq = null;
       this.listedKey = null;
       this.listNotice = 'listing stopped — type to enter one';
@@ -1208,22 +1259,76 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       this.candidates = [];
       this.listedScope = null;
       this.listNotice = null;
+      this.listedFrom = null;
+      this.refreshFailure = null;
+    }
+
+    // A scope a reading asked for is listed in place of the source's own
+    // default, for the target the step now has. A listing the cache keeps
+    // shows at once, and the listing behind the step replaces it.
+    const scope = action.kind === 'browse' ? action.scope : null;
+
+    if (action.kind === 'browse' || stale) {
+      this.restoreCachedCandidates(scope);
     }
 
     this.deps.write(ansi.clear);
     this.render();
 
-    // A scope a reading asked for is listed in place of the source's own
-    // default, for the target the step now has.
-    if (action.kind === 'browse') {
-      void this.loadCandidates(action.scope);
-    } else if (stale) {
-      void this.loadCandidates(null);
+    if (action.kind === 'browse' || stale) {
+      void this.loadCandidates(scope);
     }
 
     if (action.kind === 'probe') {
       void this.checkRepoAccess(this.sourceDraft, action.url);
     }
+  }
+
+  // Shows the listing the cache keeps for a scope on this source and
+  // target, if any. Without one, the step keeps what it shows.
+  private restoreCachedCandidates(scope: string | null) {
+    const source = this.findSource();
+    const cache = this.deps.listingCache;
+
+    this.listedFrom = null;
+    this.refreshFailure = null;
+
+    if (source === null || cache === undefined) {
+      return;
+    }
+
+    const cached = cache.findListing(this.buildListingKey(source.id, scope), this.getNow());
+
+    if (cached === null) {
+      return;
+    }
+
+    this.candidates = parseCandidates(cached.candidates);
+    this.listedScope = cached.scope;
+    this.listNotice = null;
+    this.listedFrom = cached.listedAt;
+  }
+
+  // Lists the git source step's scope again behind the step, keeping what
+  // it shows until the answer comes.
+  private refreshCandidates() {
+    this.listedKey = `${this.findSource()?.id ?? ''}\n${this.target?.id ?? ''}`;
+    void this.loadCandidates(this.requestedScope);
+  }
+
+  // The key a listing is kept under in the listing cache: the daemon, the
+  // source, the target, and the scope.
+  private buildListingKey(sourceID: string, scope: string | null): string {
+    return [
+      this.deps.getDaemonSocketPath?.() ?? '',
+      sourceID,
+      this.target?.id ?? '',
+      scope ?? '',
+    ].join('\n');
+  }
+
+  private getNow(): number {
+    return this.deps.now?.() ?? systemClock.now();
   }
 
   // The target every source request is made for: the chosen one, or none
@@ -1233,8 +1338,11 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
   }
 
   // Lists the git source's candidates behind the step, under a scope or
-  // the source's own default. A daemon that cannot list them leaves a
-  // notice row. Typing goes on meanwhile, and Esc stops the listing.
+  // the source's own default, and keeps a listing with candidates in the
+  // listing cache. A daemon that cannot list them leaves a notice row, or
+  // the cached listing the step shows with the failure in its hint.
+  // Typing goes on meanwhile, and Esc stops a listing the step shows
+  // nothing for.
   private async loadCandidates(scope: string | null) {
     const source = this.findSource();
     const generation = this.generation;
@@ -1246,8 +1354,10 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     this.requestSeq += 1;
 
     const seq = this.requestSeq;
+    const key = this.buildListingKey(source.id, scope);
 
     this.listingSeq = seq;
+    this.requestedScope = scope;
 
     this.render();
 
@@ -1264,6 +1374,20 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       answer = await this.deps.sendRequest('sources.list', params);
     } catch (error) {
       failure = error;
+    }
+
+    // A listing that answers after the flow moved on still holds what the
+    // daemon lists, so the cache keeps it for the next open.
+    if (answer !== null && Array.isArray(answer['candidates'])) {
+      const candidates: unknown[] = answer['candidates'];
+
+      if (candidates.length > 0) {
+        this.deps.listingCache?.writeListing(key, {
+          candidates,
+          scope: typeof answer['scope'] === 'string' ? answer['scope'] : scope,
+          listedAt: this.getNow(),
+        });
+      }
     }
 
     if (this.isStale(generation) || this.listingSeq !== seq) {
@@ -1284,13 +1408,21 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
     this.listingSeq = null;
 
-    if (answer === null) {
+    // The row the source step has selected, which stays selected when the
+    // fresh listing still holds it.
+    const chosen = this.collectCandidateItems()[this.selected]?.candidate?.label;
+
+    if (answer === null && this.listedFrom !== null) {
+      this.refreshFailure = formatListFailure(failure);
+    } else if (answer === null) {
       this.candidates = [];
       this.listedScope = scope;
       this.listNotice = `${formatListFailure(failure)} — type to enter one`;
     } else {
       this.candidates = parseCandidates(answer['candidates']);
       this.listedScope = typeof answer['scope'] === 'string' ? answer['scope'] : scope;
+      this.listedFrom = null;
+      this.refreshFailure = null;
 
       this.listNotice =
         this.candidates.length === 0 && this.listedScope !== null
@@ -1299,9 +1431,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     }
 
     // The list answers behind the flow, so only the source step's own
-    // selection starts over.
+    // selection moves: to the row it had, else to the first.
     if (this.step === 'source') {
-      this.selected = 0;
+      this.selected = Math.max(
+        0,
+        this.collectCandidateItems().findIndex((item) => item.candidate?.label === chosen),
+      );
 
       this.deps.write(ansi.clear);
       this.render();
@@ -2111,6 +2246,21 @@ function formatError(error: unknown): string {
 }
 
 // Why the daemon gave no list, in the words the notice row uses.
+// How old a cached listing is, in whole minutes or hours.
+function formatAge(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+
+  if (minutes < 1) {
+    return 'under 1m';
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  return `${Math.floor(minutes / 60)}h`;
+}
+
 function formatListFailure(error: unknown): string {
   if (!(error instanceof DaemonError)) {
     return String(error);

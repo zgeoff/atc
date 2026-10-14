@@ -94,12 +94,14 @@ connection that orders every query ([fleet and restore](./daemon/fleet-and-resto
 - **Session records** hold what atc vouches for about each session
   ([session record](./execution/session-record.md)).
 
-Three things sit beside `atc.db`. `status.json` holds the fleet's counts for the statusline, and
+Four things sit beside `atc.db`. `status.json` holds the fleet's counts for the statusline, and
 stays a plain file because a statusline helper reads it without speaking the protocol. `mcp-auth.db`
 holds the OAuth state of `atc mcp --http`, which the daemon never opens
 ([OAuth](./remote/oauth.md)). The `records/` folder holds a read-only copy of each local session's
-record. Terminal output is never stored: each screen model lives in memory, and the agent's own
-transcript on disk is the durable copy of a session.
+record. `listing-cache.json` belongs to the TUI clients, not the daemon: it holds the repository
+lists the spawn picker showed, so the next open shows one at once while the client lists again.
+Terminal output is never stored: each screen model lives in memory, and the agent's own transcript
+on disk is the durable copy of a session.
 
 ## Cross-cutting rules
 

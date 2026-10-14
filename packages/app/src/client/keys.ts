@@ -1,6 +1,7 @@
 export const KEY = {
   tab: 0x09,
   ctrlC: 0x03,
+  ctrlR: 0x12,
   ctrlU: 0x15,
   esc: 0x1b,
   enter: 0x0d,

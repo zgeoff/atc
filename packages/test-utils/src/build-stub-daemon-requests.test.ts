@@ -32,6 +32,30 @@ test('it answers the latest request waiting under the method', async () => {
   expect(seen).toStrictEqual(['dirs']);
 });
 
+test('it refuses the latest request waiting under the method with the error', async () => {
+  const seen: unknown[] = [];
+  const daemon = buildStubDaemonRequests({ countReactions: () => seen.length });
+
+  const sendSourcesList = async (source: string) => {
+    try {
+      await daemon.sendRequest('sources.list', { source });
+
+      seen.push(`${source} answered`);
+    } catch (error) {
+      seen.push({ refused: source, error });
+    }
+  };
+
+  void sendSourcesList('git');
+  void sendSourcesList('dirs');
+
+  const error = new Error('gh is not signed in');
+
+  await daemon.refuse('sources.list', error);
+
+  expect(seen).toStrictEqual([{ refused: 'dirs', error }]);
+});
+
 test('it answers the oldest request waiting under the method', async () => {
   const seen: string[] = [];
   const daemon = buildStubDaemonRequests({ countReactions: () => seen.length });

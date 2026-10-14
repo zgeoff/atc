@@ -2,11 +2,13 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atc/config/resolve-home-dir';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
 import { buildStubDaemonRequests } from '@atc/test-utils/build-stub-daemon-requests';
 import { buildStubTerminal } from '@atc/test-utils/build-stub-terminal';
 import { KEYS } from '@atc/test-utils/keys';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
+import { openListingCache } from './open-listing-cache';
 import { SpawnPicker } from './spawn-picker';
 import { toMirrorSession } from './to-mirror-session';
 
@@ -2462,4 +2464,525 @@ test('it returns esc from a git source to the agent step when one target left no
 
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: agent');
   expect(ctx.counts.exits).toBe(0);
+});
+
+test('it shows the listing an earlier client kept at once, marked with its age, while it lists again', async () => {
+  const ctx = setupTest();
+  const time = { now: 1_000_000_000 };
+  const cacheFile = join(ctx.cwd, 'listing-cache.json');
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  const earlier = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(cacheFile),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+    now: () => time.now,
+  });
+
+  earlier.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  earlier.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+
+  time.now += 5 * 60_000;
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(cacheFile),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+    now: () => time.now,
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('spawn: GitHub repository · acme · 5m old, refreshing…');
+  expect(shown).toInclude('acme/app');
+
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
+    { source: 'github', target: 'local' },
+    { source: 'github', target: 'local' },
+  ]);
+});
+
+test('it swaps the fresh listing in for the cached one when it answers, keeping the selected repository', async () => {
+  const ctx = setupTest();
+  const time = { now: 1_000_000_000 };
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+    now: () => time.now,
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      { label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } },
+      { label: 'acme/docs', pick: { kind: 'git', url: 'git@github.com:acme/docs.git' } },
+    ],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+
+  time.now += 60 * 60_000;
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.down));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      { label: 'acme/new-tool', pick: { kind: 'git', url: 'git@github.com:acme/new-tool.git' } },
+      { label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } },
+      { label: 'acme/docs', pick: { kind: 'git', url: 'git@github.com:acme/docs.git' } },
+    ],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('acme/new-tool');
+  expect(shown).not.toInclude('old, refreshing…');
+
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([
+    { url: 'git@github.com:acme/docs.git', target: 'local' },
+  ]);
+});
+
+test('it lists again on ctrl-r and shows a repository created since the last listing', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlR));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      { label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } },
+      { label: 'acme/new-tool', pick: { kind: 'git', url: 'git@github.com:acme/new-tool.git' } },
+    ],
+    scope: 'acme',
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('acme/new-tool');
+
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
+    { source: 'github', target: 'local' },
+    { source: 'github', target: 'local' },
+  ]);
+});
+
+test('it waits on the listing when the kept one is older than a day', async () => {
+  const ctx = setupTest();
+  const time = { now: 1_000_000_000 };
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+    now: () => time.now,
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+
+  time.now += 24 * 60 * 60_000 + 1;
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('listing… · esc stops');
+  expect(shown).not.toInclude('acme/app');
+});
+
+test('it keeps the cached listing with the failure in its hint when listing again fails', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.refuse(
+    'sources.list',
+    new DaemonError('github_unavailable', 'gh is not signed in on the daemon host'),
+  );
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('refresh failed: gh is not signed in on the daemon host');
+  expect(shown).toInclude('acme/app');
+});
+
+test('it leaves the source step on esc while it refreshes a cached listing', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.esc));
+
+  expect(ctx.terminal.getTextSince(mark)).not.toInclude('listing stopped');
+  expect(ctx.counts.exits).toBe(2);
+});
+
+test('it reads typed owner/repo text the cached listing leaves out through the source', async () => {
+  const ctx = setupTest();
+
+  const picker = new SpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    hasDaemonFeature: () => true,
+    getLastUsedAgent: () => 'claude',
+    listingCache: openListingCache(join(ctx.cwd, 'listing-cache.json')),
+    getDaemonSocketPath: () => '/run/atc/atc.sock',
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: {
+        claude: { bin: process.execPath },
+        grok: { bin: 'no-grok' },
+        codex: { bin: 'no-codex' },
+      },
+    }),
+  );
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [{ label: 'acme/app', pick: { kind: 'git', url: 'git@github.com:acme/app.git' } }],
+    scope: 'acme',
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  picker.applyKey(Buffer.from('zeta-org/zeta'));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
+    { source: 'github', input: 'zeta-org/zeta', target: 'local' },
+  ]);
 });

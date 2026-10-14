@@ -29,6 +29,7 @@ test.each<[string, string, number]>([
 test.each<[string, string, number]>([
   ['ctrlC', KEYS.ctrlC, KEY.ctrlC],
   ['tab', KEYS.tab, KEY.tab],
+  ['ctrlR', KEYS.ctrlR, KEY.ctrlR],
 ])('it types %s as the byte the TUI reads for it', (_name, key, byte) => {
   expect([...Buffer.from(key)]).toStrictEqual([byte]);
 });
