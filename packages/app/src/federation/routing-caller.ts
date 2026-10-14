@@ -369,6 +369,7 @@ export class RoutingCaller {
         claimID,
       },
       this.getClock().now(),
+      buildLegacyBindingHashes(route),
     );
 
     // Another gateway call may have bound the key since it was read; the
@@ -488,4 +489,13 @@ function buildConflict(key: string, daemon: string): DaemonError {
     'idempotency_conflict',
     `idempotency key '${key}' was first used on daemon '${daemon}'`,
   );
+}
+
+// An older gateway sent each message with the client's name as its `from`
+// and hashed it with the payload, so a message key bound there matches the
+// same payload with that name.
+function buildLegacyBindingHashes(route: KeyedRoute): string[] {
+  return route.m === 'session.message'
+    ? [buildBindingPayloadHash({ ...route.params, from: route.principal.name })]
+    : [];
 }

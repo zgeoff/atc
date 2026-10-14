@@ -41,7 +41,8 @@ async function setupTest() {
   const cloud = await startTestDaemon({
     prefix: 'atc-routing-cloud-',
     options: () => ({
-      adapter: buildMockAgentAdapter(),
+      // Session messages need an adapter that takes them.
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
 
       // Lets the pools' principal use the local target.
       principals: new Map([['gw', ['local']]]),
@@ -787,6 +788,36 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
   });
 
   expect(ctx.cloud.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+});
+
+test("it replays a keyed message an older gateway sent with the client's name as its from", async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.router.sendRequest(
+    'session.spawn',
+    { cwd: ctx.dir, resume: `a-${randomUUID()}` },
+    [],
+    GW,
+  );
+
+  const session = getRecord(spawned, 'session')['id'];
+
+  // An older gateway's message tool gave the client's name as from.
+  const first = await ctx.router.sendRequest(
+    'session.message',
+    { session, text: 'check the tide tables', from: GW.name, idempotencyKey: 'message-upgrade' },
+    ['message.idempotency'],
+    GW,
+  );
+
+  const replayed = await ctx.router.sendRequest(
+    'session.message',
+    { session, text: 'check the tide tables', idempotencyKey: 'message-upgrade' },
+    ['message.idempotency'],
+    GW,
+  );
+
+  expect(replayed).toStrictEqual(first);
 });
 
 test('it replays a keyed spawn sent before a gateway restart from the key the daemon holds, with no idempotency_conflict', async () => {

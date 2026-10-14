@@ -26,6 +26,7 @@ import {
 } from '@atc/protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '@atc/protocol/protocol';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
+import { buildLegacyMessageHashes } from './build-legacy-message-hashes';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
@@ -1578,11 +1579,27 @@ export class DaemonConnection {
 
     const keyed = buildKeyedRequest(parsed.data);
 
+    // An older client's default sender names, so a key an older daemon
+    // stored with one still replays.
+    const legacyNames = ['mcp', req.asName, this.callerSession];
+
+    const legacyKeyed =
+      keyed === null
+        ? null
+        : {
+            ...keyed,
+            legacyPayloadHashes: buildLegacyMessageHashes(
+              parsed.data,
+              req.p?.['from'],
+              legacyNames,
+            ),
+          };
+
     const result = await ctx.writeSessionMessage(
       sessionID,
       this.findMessageCaller(req),
       parsed.data.text,
-      keyed,
+      legacyKeyed,
       null,
       this.callerSession,
     );
