@@ -146,7 +146,9 @@ function main() {
 
     log({ key: KEY_NAMES[data] ?? data });
 
-    if (data === '\r' && spec.enterDelayMs !== undefined) {
+    // An Enter that arrives during the hold is refused at once, so the hold
+    // ending before the delay passes never lets it through.
+    if (data === '\r' && spec.enterDelayMs !== undefined && !state.held) {
       setTimeout(() => {
         answerKey(data);
       }, spec.enterDelayMs);
