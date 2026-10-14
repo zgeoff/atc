@@ -1801,7 +1801,8 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
 }
 
 // The client id of a connector or the atc id of a session, which the row
-// keeps in one column; null for the owner and a message with no sender.
+// keeps in one column; null for a local program, the owner, and a message
+// with no sender.
 function findSenderID(sender: MessageSender | undefined): string | null {
   if (sender?.kind === 'connector') {
     return sender.client;

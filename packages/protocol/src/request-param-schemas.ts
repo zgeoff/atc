@@ -333,6 +333,18 @@ export const REQUEST_PARAM_SCHEMAS = {
     // instead of sending another.
     idempotencyKey: IDEMPOTENCY_KEY,
     replayOnly: REPLAY_ONLY,
+
+    // The name a local program outside every session gives itself, which
+    // labels its message; every other caller's `from` is ignored. Anything
+    // but a non-empty string counts as none.
+    from: z.preprocess(
+      (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
+      z.string().max(200, 'from must be at most 200 characters').optional(),
+    ),
+
+    // false queues no answer notice for the sending session, for a message
+    // that needs no answer.
+    notice: z.boolean({ error: 'notice must be a boolean' }).optional(),
   }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
   'session.tap': SESSION_DEFAULTED.extend({
     // Whether the tap also takes answer notices: the outcome of each message

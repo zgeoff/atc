@@ -125,6 +125,12 @@ export const DAEMON_FEATURES = [
   // `sender`.
   'message.sender',
 
+  // `session.message` labels a local caller outside every session whose
+  // handshake gives no atc build `local`, named by the `from` it gives or
+  // else its handshake's client, and takes `notice: false`, which queues no
+  // answer notice for the sending session.
+  'message.local',
+
   // `session.menu` and `session.choose` exist: a client reads the menu a
   // session's agent waits on and picks one of its options, or presses
   // Escape on it.

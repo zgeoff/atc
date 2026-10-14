@@ -24,7 +24,7 @@ the daemon's features and sends such a daemon nothing.
 
 ## Who a caller is
 
-The daemon tells three callers apart, and labels each message with the one that sent it
+The daemon tells four callers apart, and labels each message with the one that sent it
 ([messages](./messages.md#who-a-message-is-from)):
 
 - A connector is a principal: an OAuth client that atc-gateway or `atc mcp --http` vouches for. A
@@ -32,7 +32,17 @@ The daemon tells three callers apart, and labels each message with the one that 
 - A session is the owner plus a session binding. On the local socket the kernel's answer for the
   connecting process sets the binding, else the session the handshake gives
   ([the protocol](./protocol.md)).
-- The owner is a caller on the local socket with neither a principal nor a session binding.
+- The owner is an atc client with neither a principal nor a session binding: its handshake gives an
+  atc build as its client name, as the TUI, the CLI and `atc mcp` do.
+- A local program is any other caller with neither a principal nor a session binding, such as a
+  scheduled job or a helper tool. It is named by the `from` its request gives, else by the client
+  name its handshake gives.
+
+The owner and a local program both run as the owner's user outside every session, so the kernel
+cannot tell them apart. The daemon therefore grants the owner label only to a client that claims an
+atc build, because an agent reads that label as the owner's own word, and a program that never
+claims it can never speak as the owner by accident. The claim is no credential: a program that sends
+an atc build reads as the owner, as any program of the owner's user could act as the owner anyway.
 
 A request that acts as a principal carries the principal's name in `asName`, beside `as`, and the
 daemon trusts the name on the same basis as `as`: the TCP listener's token, or the owner's local

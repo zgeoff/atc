@@ -511,3 +511,35 @@ test('it hands no answer notice to a tap that did not ask for notices', async ()
   expect(tap.notices).toStrictEqual([]);
   expect(events.filter((e) => e.ev === 'InboxNotice')).toStrictEqual([]);
 });
+
+test('it hands no answer notice to the sending session for a message sent with notice false', async () => {
+  const ctx = await setupTest();
+  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  const sent = await ctx.inside.sendRequest('session.message', {
+    session: ctx.recipient,
+    text: 'the nightly sweep found two stale branches',
+    notice: false,
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: ctx.recipient,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'noted' },
+  });
+
+  await waitFor(() => {
+    expect(ctx.daemon.events).toPartiallyContain({
+      ev: 'SessionMessage',
+      message: sent['message'],
+      status: 'answered',
+    });
+  });
+
+  const read = await ctx.daemon.client.sendRequest('events.read', { session: ctx.sender });
+  const message = await ctx.inside.sendRequest('message.get', { message: sent['message'] });
+
+  expect(tap.notices).toStrictEqual([]);
+  expect(read['events']).not.toPartiallyContain({ kind: 'notice-queued' });
+  expect([message['status'], message['answer']]).toStrictEqual(['answered', 'noted']);
+});

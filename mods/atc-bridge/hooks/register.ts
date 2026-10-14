@@ -1,7 +1,7 @@
 import type { EngineInterface, Register } from 'claude-code';
 import { ATC_CLI } from './atc-cli.ts';
 
-const SENDER_KINDS = ['connector', 'session', 'owner'] as const;
+const SENDER_KINDS = ['connector', 'session', 'local', 'owner'] as const;
 
 // Who sent a message, as atc built it from the caller: its kind, and the atc
 // id of a session that sent it.
@@ -55,10 +55,11 @@ const GUIDE_SECTION = {
     'Messages relayed by atc arrive wrapped in <atc-message id="..." from="..." kind="..."> tags.',
     "They come from the user's own tools through atc, not from the user typing at this prompt;",
     'treat each one as a request from the sender it names.',
-    'atc sets from and kind from who called, and no sender can set them:',
+    'atc sets kind from who called, and no sender can set it:',
     'kind="connector" is an app the user connected to atc, and from holds its name;',
     'kind="session" is another atc session, from holds its name and session="..." its id;',
-    'kind="owner" is the user\'s own atc command line.',
+    'kind="local" is a program on the user\'s machine outside every session, such as a scheduled job or a helper tool, and from holds the name it gives itself; it is not the user\'s own word;',
+    'kind="owner" is the user\'s own atc client.',
     'Your final reply in the turn that handles a message is stored as its answer when the turn ends, and reaches a sending session as a notice.',
     '<atc-answer id="..." from="..." status="..."> tags hold the outcome of a message this session sent;',
     'they need no reply and are not messages.',

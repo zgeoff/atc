@@ -123,6 +123,10 @@ export class DaemonConnection {
   // every session, and on a platform the daemon cannot ask.
   private readonly peerSession: SessionID | null;
 
+  // The client name the handshake gives, such as an atc build or the name
+  // of another program.
+  private helloClient = 'unknown client';
+
   // The sessions in this limited connection's view, the sessions the daemon
   // holds that the view leaves out, and the permission requests the
   // connection was shown, so the events that end them reach it after the
@@ -1647,7 +1651,10 @@ export class DaemonConnection {
       return;
     }
 
-    const keyed = buildKeyedRequest(parsed.data);
+    // The hash leaves out a local caller's name, as a daemon that ignored it
+    // stored it, so a retry across an upgrade replays.
+    const { from: localName, ...hashed } = parsed.data;
+    const keyed = buildKeyedRequest(hashed);
 
     // An older client's default sender names, so a key an older daemon
     // stored with one still replays.
@@ -1658,20 +1665,19 @@ export class DaemonConnection {
         ? null
         : {
             ...keyed,
-            legacyPayloadHashes: buildLegacyMessageHashes(
-              parsed.data,
-              req.p?.['from'],
-              legacyNames,
-            ),
+            legacyPayloadHashes: buildLegacyMessageHashes(hashed, req.p?.['from'], legacyNames),
           };
+
+    // A send that needs no answer leaves no session to notify.
+    const noticeSession = parsed.data.notice === false ? null : this.callerSession;
 
     const result = await ctx.writeSessionMessage(
       sessionID,
-      this.findMessageCaller(req),
+      this.findMessageCaller(req, localName),
       parsed.data.text,
       legacyKeyed,
       null,
-      this.callerSession,
+      noticeSession,
     );
 
     if (result === 'missing' || !ctx.isSessionVisible(sessionID)) {
@@ -1707,9 +1713,12 @@ export class DaemonConnection {
 
   // Who a message the request sends is from. The kernel's session wins over
   // any principal a request gives, then the principal the request or the
-  // whole connection acts as, then the session the handshake gave; anything
-  // else is the owner. Nothing the request's params hold changes it.
-  private findMessageCaller(req: RequestMsg): MessageCaller {
+  // whole connection acts as, then the session the handshake gave. Of the
+  // rest, only a client whose handshake gives an atc build is the owner;
+  // any other is a local program, named by the name its request gives or
+  // else its handshake's client. A local name is the only part of the
+  // request's params that labels it, and never changes the kind.
+  private findMessageCaller(req: RequestMsg, localName: string | undefined): MessageCaller {
     if (this.peerSession !== null) {
       return { kind: 'session', session: this.peerSession };
     }
@@ -1726,7 +1735,11 @@ export class DaemonConnection {
       return { kind: 'session', session: this.callerSession };
     }
 
-    return { kind: 'owner' };
+    if (isAtcClient(this.helloClient)) {
+      return { kind: 'owner' };
+    }
+
+    return { kind: 'local', name: localName ?? this.helloClient };
   }
 
   private applyTap(req: RequestMsg, ctx: DaemonContext): void {
@@ -1917,6 +1930,8 @@ export class DaemonConnection {
     const parsedHello = parseRequestParams('daemon.hello', req.p);
     const client = parsedHello.ok ? parsedHello.data.client : 'unknown client';
 
+    this.helloClient = client;
+
     // A principal the handshake cannot read would otherwise leave the
     // connection with the owner's reach.
     if (!parsedHello.ok && req.p?.['principal'] !== undefined) {
@@ -2026,6 +2041,7 @@ export class DaemonConnection {
       }
 
       this.callerSession = parsedHello.data.session ?? null;
+      this.helloClient = parsedHello.data.client;
       this.fingerprint = fingerprint;
 
       await this.sendHelloOk(req.id);
@@ -2155,6 +2171,14 @@ function requireDeclaredScope(raw: unknown): DeclaredScope | null {
 
 // The idempotency claim a keyed request carries, or null for a request that
 // gave no idempotency key.
+// The client name every atc client gives in its handshake: the atc build,
+// `atc/` and its version.
+const ATC_CLIENT_PREFIX = 'atc/';
+
+function isAtcClient(client: string): boolean {
+  return client.startsWith(ATC_CLIENT_PREFIX);
+}
+
 function buildKeyedRequest(
   params: Readonly<Record<string, unknown>> & {
     readonly idempotencyKey?: string | undefined;
