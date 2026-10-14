@@ -572,7 +572,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
 
   // Ends the flow's generation: no request it sent changes anything when
   // its answer comes.
-  private stopFlow() {
+  stopFlow() {
     this.generation += 1;
     this.pending = null;
     this.listingSeq = null;

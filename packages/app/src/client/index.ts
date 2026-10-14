@@ -352,6 +352,11 @@ function openEject(sessionID: string) {
   renderEject();
 }
 
+// The restart prompt on screen while the TUI owns stdin, and the reader of
+// its key, which takes the next key in place of the current mode.
+let restartConsent: { readonly prompt: string; readonly answer: (key: string) => void } | null =
+  null;
+
 const picker = new SpawnPicker<MirrorSession>({
   sendRequest,
   ptyRows,
@@ -363,8 +368,12 @@ const picker = new SpawnPicker<MirrorSession>({
   toMirrorSession,
   upsertMirror,
   hasDaemonFeature,
+
+  // The restart prompt keeps the screen until it has its key.
   write: (chunk) => {
-    process.stdout.write(chunk);
+    if (restartConsent === null) {
+      process.stdout.write(chunk);
+    }
   },
   cwd: process.cwd(),
   home: resolveHomeDir(),
@@ -884,14 +893,12 @@ const service = createActor(
 let restartedOnBoot = false;
 let daemonWaiting = false;
 
-// The restart prompt on screen while the TUI owns stdin, and the reader of
-// its key, which takes the next key in place of the current mode.
-let restartConsent: { readonly prompt: string; readonly answer: (key: string) => void } | null =
-  null;
-
 const reconnectDaemonOnce = makeSingleFlight(async () => {
   daemonWaiting = true;
 
+  // The reconnect leaves the picker, so no answer its flow still waits on
+  // draws it again.
+  picker.stopFlow();
   service.send({ type: 'OVERLAY' });
 
   scheduleStatus();
