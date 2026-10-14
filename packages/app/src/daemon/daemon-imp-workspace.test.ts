@@ -2929,6 +2929,105 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
   expect(readFileSync(join(outer, 'inner', 'keep.txt'), 'utf8')).toBe('kept\n');
 });
 
+test('it removes its directory when a workspace rollback meets a listed relative directory removed outside it', async () => {
+  const ctx = await setupTest();
+
+  // The broker sign-in of `glm` and `unsigned` needs impd's token to
+  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  // `glm` takes the credential impd holds for api.z.ai from the broker, and
+  // `unsigned` takes it too but fails its sign-in check in the host;
+  // `plain` takes none, and `unsigned-plain` takes none and fails its
+  // sign-in check.
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+  const glmAdapter = buildStubBrokeredGatewayAdapter();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [
+        plainAdapter,
+        glmAdapter,
+        { ...glmAdapter, id: 'unsigned', planAuthCheck: () => ['false'] },
+        buildMockAgentAdapter({ id: 'unsigned-plain', planAuthCheck: () => ['false'] }),
+      ],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  // A held command or lease would keep a spawn, and so the daemon's stop,
+  // waiting.
+  registerTestCleanup(() => {
+    ctx.port.stopCommandHold();
+    ctx.port.stopLeaseHold();
+  });
+
+  const home = join(ctx.dir, 'box');
+
+  mkdirSync(join(home, 'scratchpad'), { recursive: true });
+
+  ctx.port.setHomeDir(home);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: 'scratchpad',
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+  });
+
+  // The listed sub-session's directory is removed inside the guest, so
+  // the host can no longer enter it.
+  rmSync(join(home, 'scratchpad'), { recursive: true });
+
+  const outer = join(home, 'a');
+
+  ctx.port.setCommandFailure('tar -x');
+
+  const outerSpawn = daemon.client.sendRequest('session.spawn', {
+    cwd: outer,
+    agent: 'glm',
+    target: 'box',
+    parent: parentID,
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await outerSpawn.catch(() => null);
+
+  expect(outerSpawn).rejects.toMatchObject({ code: 'transfer_failed' });
+  expect(outerSpawn).rejects.not.toMatchObject({ data: { leftDir: expect.toBeString() } });
+  expect(existsSync(outer)).toBeFalse();
+});
+
 test('it starts a plain sub-session beside a workspace still materializing on the shared host', async () => {
   const ctx = await setupTest();
 

@@ -251,20 +251,22 @@ export class HostDirClaims {
     const before = this.collectHostSessionIDs(hostKey, target);
 
     const listed = await this.resolveListedDirs(provider, hostKey, target);
+    const fromHome = await this.resolveFromHome(provider, hostKey, listed.unresolved);
 
     if (this.collectHostSessionIDs(hostKey, target) !== before) {
       return this.removeClaimedDir(provider, id, hostKey, target, dir);
     }
 
-    // A directory the host could not resolve may lie inside through a
-    // symlink, so the rollback keeps its own.
-    if (listed.unresolved) {
+    // A directory the host could not resolve, even from its home, may lie
+    // inside through a symlink, so the rollback keeps its own.
+    if (fromHome === null) {
       return false;
     }
 
-    const holds = this.collectOtherWorkspaceDirs(id, hostKey, target, listed.dirs).some(
-      ([, other]) => isPathWithin(other, dir),
-    );
+    const holds = this.collectOtherWorkspaceDirs(id, hostKey, target, [
+      ...listed.dirs,
+      ...fromHome,
+    ]).some(([, other]) => isPathWithin(other, dir));
 
     if (holds) {
       return false;
@@ -376,13 +378,15 @@ export class HostDirClaims {
 
   // The directory of every session listed on a host, and of every plain
   // spawn still starting there, as the host resolves it, and its own
-  // absolute form, and whether any of them failed to resolve, which a
-  // rollback treats as a directory that may lie inside its own.
+  // absolute form, and the entries that failed to resolve.
   private async resolveListedDirs(
     provider: ExecutionProvider,
     hostKey: SessionID,
     target: string,
-  ): Promise<{ readonly dirs: (readonly [SessionID, string])[]; readonly unresolved: boolean }> {
+  ): Promise<{
+    readonly dirs: (readonly [SessionID, string])[];
+    readonly unresolved: (readonly [SessionID, string])[];
+  }> {
     const onHost = [
       ...this.registry.sessions.filter((s) => s.hostKey === hostKey && s.target === target),
       ...this.collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
@@ -402,14 +406,58 @@ export class HostDirClaims {
           dirs.push([s.id, dir]);
         }
 
-        return { dirs, unresolved: dir === null };
+        return { dirs, unresolved: dir === null ? [[s.id, s.cwd] as const] : [] };
       }),
     );
 
     return {
       dirs: resolved.flatMap((r) => r.dirs),
-      unresolved: resolved.some((r) => r.unresolved),
+      unresolved: resolved.flatMap((r) => r.unresolved),
     };
+  }
+
+  // The directories that the listed entries the host could not resolve
+  // stand for, or null when any of them may lie anywhere. A relative
+  // directory that cannot be entered, such as one removed inside the guest,
+  // is joined to the host's home and resolved through its nearest existing
+  // directory, and every missing part lies beneath that one. An absolute
+  // directory was resolved that way already, and the host follows a `..`
+  // step through symlinks rather than lexically, so either stays unknown.
+  private async resolveFromHome(
+    provider: ExecutionProvider,
+    hostKey: SessionID,
+    unresolved: readonly (readonly [SessionID, string])[],
+  ): Promise<(readonly [SessionID, string])[] | null> {
+    if (unresolved.length === 0) {
+      return [];
+    }
+
+    if (unresolved.some(([, cwd]) => posix.isAbsolute(cwd) || cwd.split('/').includes('..'))) {
+      return null;
+    }
+
+    const home = await this.resolveHostHome(provider, hostKey).catch(() => null);
+
+    if (home === null) {
+      return null;
+    }
+
+    const resolved = await Promise.all(
+      unresolved.map(async ([id, cwd]) => {
+        const absolute = posix.join(home, cwd);
+
+        const physical = await this.resolveHostDir(provider, hostKey, absolute).catch(() => null);
+
+        return physical === null
+          ? null
+          : ([
+              [id, absolute],
+              [id, physical],
+            ] as const);
+      }),
+    );
+
+    return resolved.some((r) => r === null) ? null : resolved.flatMap((r) => r ?? []);
   }
 
   // A directory on a host with every symlink in it resolved: an absolute
