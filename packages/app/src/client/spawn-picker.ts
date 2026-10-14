@@ -1388,7 +1388,7 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
     // replaces a kept list too, so a repository the daemon no longer lists
     // never comes back from the cache.
     if (answer !== null && Array.isArray(answer['candidates'])) {
-      this.deps.listingCache?.writeListing(key, {
+      void this.deps.listingCache?.writeListing(key, {
         candidates: answer['candidates'],
         scope: typeof answer['scope'] === 'string' ? answer['scope'] : scope,
         listedAt: requestedAt,
