@@ -294,7 +294,7 @@ test('it names only tools that exist wherever a description refers to a tool', (
 test('it declares the written flag as the result of typing a line', () => {
   const tool = MCP_TOOLS.find((candidate) => candidate.name === 'atc_terminal_type');
 
-  expect(tool?.outputSchema).toStrictEqual({
+  expect(tool?.outputSchema).toMatchObject({
     type: 'object',
     properties: { written: { type: 'boolean' } },
     required: ['written'],
@@ -323,4 +323,106 @@ test('it lists the sources a spawn options result holds', () => {
   const tool = MCP_TOOLS.find((candidate) => candidate.name === 'atc_spawn_options_get');
 
   expect(getRecord(tool?.outputSchema ?? {}, 'properties')).toContainKey('sources');
+});
+
+test('it lists no enum in any output schema, so a value a later daemon adds never fails a client', () => {
+  const text = JSON.stringify(MCP_TOOLS.map((tool) => tool.outputSchema ?? {}));
+
+  expect(text).not.toInclude('"enum"');
+});
+
+test('it declares both results of a forget: the confirm token and the outcome', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_forget')?.outputSchema;
+
+  invariant(schema !== undefined, 'the forget tool declares no output schema');
+
+  const parse = z.fromJSONSchema(schema);
+
+  expect(
+    parse.safeParse({ confirmToken: '9b1f0c2e-forget-token', expiresAt: 1_760_000_060_000 })
+      .success,
+  ).toBeTrue();
+
+  expect(parse.safeParse({ forgotten: true, destroyed: false }).success).toBeTrue();
+  expect(parse.safeParse({ forgotten: 'yes', destroyed: false }).success).toBeFalse();
+});
+
+test('it accepts a gateway session list whose entries carry the gateway locator and a parent', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_sessions_list')?.outputSchema;
+
+  invariant(schema !== undefined, 'the list tool declares no output schema');
+
+  const result = {
+    sessions: [
+      {
+        id: 'harbor.1.s-7',
+        name: 'lighthouse',
+        cwd: '/srv/lighthouse',
+        agent: 'claude',
+        state: 'exited',
+        unread: false,
+        pinned: false,
+        alive: false,
+        parent: 'harbor.1.s-6',
+        kind: 'pty',
+        lastMsg: 'exited',
+        createdAt: 1_760_000_000_000,
+        locator: { daemon: 'harbor', incarnation: '1', targetID: 'local' },
+        lifecycle: { desired: 'sleep', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
+      },
+    ],
+    daemons: [{ name: 'harbor', state: 'refused' }],
+  };
+
+  expect(z.fromJSONSchema(schema).safeParse(result).data).toStrictEqual(result);
+});
+
+test('it accepts a session read whose prompt, pending, result and record are null', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_get')?.outputSchema;
+
+  invariant(schema !== undefined, 'the session read declares no output schema');
+
+  const result = {
+    session: {
+      id: 's-7',
+      name: 'lighthouse',
+      cwd: '/srv/lighthouse',
+      agent: 'claude',
+      state: 'done',
+    },
+    prompt: null,
+    lastActivityAt: 1_760_000_000_000,
+    pending: null,
+    result: null,
+    sessionRecord: null,
+  };
+
+  expect(z.fromJSONSchema(schema).safeParse(result).data).toStrictEqual(result);
+});
+
+test('it accepts a transcript page whose row holds no time', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_transcript_read')?.outputSchema;
+
+  invariant(schema !== undefined, 'the transcript read declares no output schema');
+
+  const result = {
+    rows: [{ role: 'assistant', text: 'The beacon is lit.', tools: [], at: null }],
+    cursor: 'b2Zmc2V0',
+    more: false,
+  };
+
+  expect(z.fromJSONSchema(schema).safeParse(result).data).toStrictEqual(result);
+});
+
+test('it accepts a daemon list whose down daemon has no build', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_daemons_list')?.outputSchema;
+
+  invariant(schema !== undefined, 'the daemon list declares no output schema');
+
+  const result = {
+    daemons: [{ name: 'harbor', state: 'down', build: null, daemonID: 'd-harbor', features: [] }],
+    defaultDaemon: 'harbor',
+  };
+
+  expect(z.fromJSONSchema(schema).safeParse(result).data).toStrictEqual(result);
 });

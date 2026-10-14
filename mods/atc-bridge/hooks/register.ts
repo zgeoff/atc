@@ -60,7 +60,7 @@ const GUIDE_SECTION = {
     'kind="session" is another atc session, from holds its name and session="..." its id;',
     'kind="owner" is the user\'s own atc command line.',
     'Your final reply in the turn that handles a message is stored as its answer when the turn ends, and reaches a sending session as a notice.',
-    '<atc-answer id="..." from="..." status="..."> tags report the outcome of a message this session sent;',
+    '<atc-answer id="..." from="..." status="..."> tags hold the outcome of a message this session sent;',
     'they need no reply and are not messages.',
     'While you work on a message that takes more than a quick answer, call the note tool at each milestone:',
     'when you find the cause, when you start a change, when you are blocked, or when you need a decision.',
@@ -103,15 +103,19 @@ export const register: Register = (on) => {
       await $.tool.register({
         name: 'note',
         description:
-          "Add a short note to atc's event feed while you keep working, so a reader of the feed sees progress before your final reply. Use it at milestones: when you find the cause, start a change, get blocked or need a decision. It does not answer a message or reach its sender directly. Your final reply goes out by itself, so do not repeat it here.",
+          "Add a short note to atc's event feed while you keep working, so a reader of the feed sees progress before your final reply. Use it at milestones: when you find the cause, start a change, get blocked or need a decision. It does not answer a message or reach its sender directly. Your final reply goes out by itself, so do not repeat it here. The result shows only that the note was handed to atc, not that it reached the event feed or a reader.",
         inputSchema: {
           type: 'object',
           properties: {
-            text: { type: 'string', description: 'What the note says.' },
+            text: {
+              type: 'string',
+              description: "The note's text; atc refuses empty text and cuts text over 64 KiB.",
+            },
             label: {
               type: 'string',
               enum: [...NOTE_LABELS],
-              description: 'progress (the default), blocked or decision',
+              description:
+                'progress (the default) for a milestone, blocked when you cannot go on, or decision when you need a choice made',
             },
           },
           required: ['text'],
@@ -200,7 +204,7 @@ export const register: Register = (on) => {
       return { deny: `atc did not take the note: ${String(error)}` };
     }
 
-    return { result: 'Sent to the user through atc.' };
+    return { result: 'Handed to atc for its event feed.' };
   });
 };
 
