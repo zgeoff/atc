@@ -28,6 +28,7 @@
     "citty": "catalog:",
     "kysely": "catalog:",
     "lru-cache": "catalog:",
+    "reflect-metadata": "catalog:",
     "ts-pattern": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"

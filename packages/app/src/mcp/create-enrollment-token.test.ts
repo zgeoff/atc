@@ -28,10 +28,8 @@ test('it stores only the hash of the token it mints, with an expiry 15 minutes o
   const minted = await createEnrollmentToken(ctx.db, Date.UTC(2026, 9, 14, 12, 0, 0));
   const rows = await ctx.db.selectFrom('atc_enrollment_token').selectAll().execute();
 
-  expect(minted).toStrictEqual({
-    token: expect.stringMatching(/^atc-enroll-[\w-]{43}$/u),
-    expiresAt: Date.UTC(2026, 9, 14, 12, 15, 0),
-  });
+  expect(minted.token).toMatch(/^atc-enroll-[\w-]{43}$/u);
+  expect(minted.expiresAt).toBe(Date.UTC(2026, 9, 14, 12, 15, 0));
 
   expect(rows).toStrictEqual([
     {

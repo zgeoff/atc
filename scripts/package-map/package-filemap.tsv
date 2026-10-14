@@ -724,3 +724,4 @@ src/workspace/sanitize-workspace-clone.ts	daemon	workspace	packages/daemon/src/w
 src/workspace/workspace-provenance.ts	daemon	workspace	packages/daemon/src/workspace/workspace-provenance.ts	
 src/workspace/workspace-source.ts	daemon	workspace	packages/daemon/src/workspace/workspace-source.ts	
 src/write-restart-result.ts	lifecycle		packages/lifecycle/src/write-restart-result.ts	
+src/mcp/load-web-authn.ts	mcp	auth	packages/mcp/src/auth/load-web-authn.ts	

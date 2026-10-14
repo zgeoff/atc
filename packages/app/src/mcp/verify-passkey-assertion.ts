@@ -1,8 +1,11 @@
 import { parseJSONStrings } from '@atc/core/parse-json-strings';
-import { verifyAuthenticationResponse } from '@simplewebauthn/server';
-import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
+import type {
+  AuthenticationResponseJSON,
+  VerifiedAuthenticationResponse,
+} from '@simplewebauthn/server';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
+import { loadWebAuthn } from './load-web-authn';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 interface AssertionCheck {
@@ -48,10 +51,12 @@ export async function verifyPasskeyAssertion(
     return false;
   }
 
-  let verified: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
+  const webAuthn = await loadWebAuthn();
+
+  let verified: VerifiedAuthenticationResponse;
 
   try {
-    verified = await verifyAuthenticationResponse({
+    verified = await webAuthn.verifyAuthenticationResponse({
       response,
       expectedChallenge: check.challenge,
       expectedOrigin: check.origin,

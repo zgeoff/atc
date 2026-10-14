@@ -1,6 +1,6 @@
-import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import type { RegistrationResponseJSON } from '@simplewebauthn/server';
 import { z } from 'zod';
+import { loadWebAuthn } from './load-web-authn';
 
 interface RegistrationCheck {
   // The credential JSON the enrollment page posted.
@@ -38,8 +38,10 @@ export async function verifyPasskeyRegistration(
     return null;
   }
 
+  const webAuthn = await loadWebAuthn();
+
   try {
-    const verified = await verifyRegistrationResponse({
+    const verified = await webAuthn.verifyRegistrationResponse({
       response,
       expectedChallenge: check.challenge,
       expectedOrigin: check.origin,
