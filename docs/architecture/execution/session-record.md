@@ -124,7 +124,9 @@ The daemon decides which session a caller runs inside from where the caller conn
   the client's `daemon.hello` gives one, so a process that drops `ATC_SESSION_ID` before it connects
   still acts as its session. A hello that gives a different session gets `unauthorized`, and the
   daemon closes the connection. A process that the walk finds in no session acts as the session its
-  hello gives, or as the owner when the hello gives none.
+  hello gives. When the hello gives none, it acts as the owner, and its messages carry the owner's
+  label only when the hello gives an atc build
+  ([who a caller is](../protocol/principals.md#who-a-caller-is)).
 - A session on an imp reaches the daemon only through its
   [session bridge](./imp-provider.md#the-session-bridge), which takes no request that changes a
   record.

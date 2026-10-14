@@ -10,6 +10,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'message.idempotency': "atc_message_send's idempotencyKey",
   'message.sender': 'the sender atc labels each message of atc_message_send with',
   'message.notice': 'the answer notices a sending session takes through its tap',
+  'message.local': 'the local sender label and the notice flag of session.message',
   'message.turn': "atc_message_get's turn and answeredWith",
   'message.unanswered':
     'the unanswered status in the results of atc_message_send and atc_message_get',

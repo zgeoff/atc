@@ -31,3 +31,10 @@ test('it labels the owner as the owner', () => {
     name: 'owner',
   });
 });
+
+test('it labels a local program by the name it gives', () => {
+  expect(buildMessageSender({ kind: 'local', name: 'lane-watch' }, SESSIONS)).toStrictEqual({
+    kind: 'local',
+    name: 'lane-watch',
+  });
+});

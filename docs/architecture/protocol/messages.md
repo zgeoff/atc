@@ -42,16 +42,18 @@ the write, so a session cannot leave a principal's reach between the check and t
 
 The daemon labels each message with its sender, built from who the caller is
 ([principals](./principals.md#who-a-caller-is)), and stores the label with the message. No field of
-the request sets it, so no caller can speak as another. The daemon reads a request's `from` only to
-match an idempotency key that an older daemon stored, because that daemon hashed the `from` with the
-other params. Local `atc mcp` passes on the `from` a keyed call gives, so an unchanged retry of a
-send that an older `atc mcp` made replays its message. The label holds a kind, an id and a name:
+the request sets the kind, so no caller can speak as another. A request's `from` names a local
+program and nothing else. The daemon ignores it for every other caller, except to match an
+idempotency key that an older daemon stored, because that daemon hashed the `from` with the other
+params. Local `atc mcp` passes on the `from` a keyed call gives, so an unchanged retry of a send
+that an older `atc mcp` made replays its message. The label holds a kind, an id and a name:
 
 | Kind        | Caller                                                           | Id                  | Name                                         |
 | ----------- | ---------------------------------------------------------------- | ------------------- | -------------------------------------------- |
 | `connector` | an OAuth client that atc-gateway or `atc mcp --http` vouches for | its OAuth client id | its client name                              |
 | `session`   | a process inside an atc session                                  | the session's id    | the session's name as the message is written |
-| `owner`     | any other caller on the local socket                             | none                | `owner`                                      |
+| `local`     | a program outside every session that is not an atc client        | none                | its `from`, else its handshake's client name |
+| `owner`     | an atc client outside every session                              | none                | `owner`                                      |
 
 A message also holds the sender's name as `from`, for readers that predate the kind. A message
 stored before the daemon labelled senders holds that name alone. The tap line and the
@@ -133,7 +135,9 @@ handshake holds the session the caller runs inside, and never from the sender na
 caller can set to anything. The daemon records a sender session only when that session takes
 messages and, for a caller that acts as a principal, when the session's tree is within the
 principal's reach. Every other caller gets no notice, and `atc mcp --http` claims no session, so a
-remote connector's message never reaches the session that started the server.
+remote connector's message never reaches the session that started the server. A send that gives
+`notice: false` records no sender session, because a message that needs no answer, such as a tool's
+notice of a finished job, would otherwise push its answer into the session that ran the tool.
 
 When a message becomes answered or unanswered, whichever path settled it, the daemon queues one
 answer notice for its sender session in `atc.db`, in the same statement that settles the message, so

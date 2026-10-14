@@ -347,3 +347,52 @@ test("it labels a message from the owner's client as the owner, whatever from it
 
   expect([read['from'], read['sender']]).toStrictEqual(['owner', { kind: 'owner', name: 'owner' }]);
 });
+
+test('it labels a message from a program outside every session as local, with the from it gives', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'idle-agent') } } }),
+  );
+
+  createStubBin(ctx.home, 'idle-agent', '#!/usr/bin/env bash\nexec cat\n');
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const owner = await daemon.openClient();
+
+  await owner.sendHello('atc/test');
+
+  const spawned = await owner.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  const program = await daemon.openClient();
+
+  await program.sendHello('tide-sweeper');
+
+  const named = await program.sendRequest('session.message', {
+    session: id,
+    text: 'two branches went stale overnight',
+    from: 'lane-watch',
+  });
+
+  const unnamed = await program.sendRequest('session.message', {
+    session: id,
+    text: 'the sweep finished',
+  });
+
+  const readNamed = await owner.sendRequest('message.get', { message: named['message'] });
+  const readUnnamed = await owner.sendRequest('message.get', { message: unnamed['message'] });
+
+  expect([readNamed['from'], readNamed['sender']]).toStrictEqual([
+    'lane-watch',
+    { kind: 'local', name: 'lane-watch' },
+  ]);
+
+  expect([readUnnamed['from'], readUnnamed['sender']]).toStrictEqual([
+    'tide-sweeper',
+    { kind: 'local', name: 'tide-sweeper' },
+  ]);
+});

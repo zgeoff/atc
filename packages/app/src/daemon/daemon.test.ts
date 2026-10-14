@@ -89,6 +89,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'session.update.renameSkipped',
       'message.notice',
       'message.sender',
+      'message.local',
       'session.menu',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },

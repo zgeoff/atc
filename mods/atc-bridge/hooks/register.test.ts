@@ -108,6 +108,7 @@ test('it marks each envelope with the kind of the sender atc gave', async (engin
         '{"id":"m-3","from":"owner","sender":{"kind":"owner","name":"owner"},"text":"three"}',
         '{"id":"m-4","from":"x\\"y","sender":{"kind":"robot","name":"x"},"text":"four"}',
         '{"id":"m-5","from":"no id","sender":{"kind":"session","name":"no id"},"text":"five"}',
+        '{"id":"m-6","from":"tide-sweeper","sender":{"kind":"local","name":"tide-sweeper"},"text":"six"}',
         '',
       ].join('\n'),
     };
@@ -130,6 +131,7 @@ test('it marks each envelope with the kind of the sender atc gave', async (engin
     '<atc-message id="m-3" from="owner" kind="owner">\nthree\n</atc-message>',
     '<atc-message id="m-4" from="x&quot;y">\nfour\n</atc-message>',
     '<atc-message id="m-5" from="no id">\nfive\n</atc-message>',
+    '<atc-message id="m-6" from="tide-sweeper" kind="local">\nsix\n</atc-message>',
   ]);
 });
 
