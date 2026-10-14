@@ -53,7 +53,8 @@ When no atc daemon is running, `atc events` exits nonzero with a hint instead of
 `atc events` is a thin reader over `$XDG_RUNTIME_DIR/atc-events.sock`, and any program can connect
 to that socket directly — no handshake, no version negotiation, no requests. The daemon ignores
 anything written to it. On connect you receive the same fleet snapshot as `SessionAdded` lines, then
-live events.
+live events. Run it outside atc's sessions: on Linux the daemon closes the socket on a process
+inside a local session before it sends anything.
 
 A subscriber written against one atc version keeps working across upgrades: every line carries the
 protocol version, and unknown fields are ignored by contract. The

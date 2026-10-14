@@ -23,8 +23,10 @@ stateDiagram-v2
 
 ## Sending
 
-A caller sends a message with a sender name and the text. The daemon refuses the message when the
-session cannot take one:
+A caller sends a message with a sender name and the text. A caller inside a session sends as that
+session: the daemon records the session's id as the sender, whatever name the request holds
+([session record](../execution/session-record.md#who-may-change-the-record)). The daemon refuses the
+message when the session cannot take one:
 
 - The session's agent has no tap, as Grok and Codex have none: `unsupported`.
 - A Claude Code session started some time ago and no tap has attached since, so the mod is missing:

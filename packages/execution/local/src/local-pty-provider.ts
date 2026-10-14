@@ -96,6 +96,7 @@ export class LocalPTYProvider implements ExecutionProvider {
     const subscriptions = new Set<{ readonly dispose: () => void }>();
 
     return {
+      pid: pty.pid,
       onData: (listener) => {
         const subscription = pty.onData(listener);
 

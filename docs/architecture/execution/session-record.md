@@ -103,18 +103,39 @@ removes the record and its copy.
 
 ## Who may change the record
 
-Only atc writes the record, and only a trusted caller adds scope through it:
+Only atc writes the record, and only a caller outside the session's tree adds scope through it. The
+daemon refuses `session.scope.add` with `unauthorized` when the caller runs inside the target
+session or inside a session that the target is a sub-session of. A session may add scope to its own
+sub-sessions. Every message such a caller sends is from its session's id, whatever sender name the
+request holds.
 
-- Every atc client started inside a session, `atc mcp` included, sends that session's id in its
-  `daemon.hello`. The daemon refuses `session.scope.add` with `unauthorized` when the target is that
-  session or a session it is a sub-session of. A session may add scope to its own sub-sessions.
+The daemon decides which session a caller runs inside from where the caller connects:
+
+- On the daemon's unix socket, the kernel holds the pid of the process that connected. On Linux the
+  daemon reads that pid through `SO_PEERCRED` and walks its parent chain up to the nearest harness
+  process that the daemon started for a live session. That session is the caller's, whether or not
+  the client's `daemon.hello` gives one, so a process that drops `ATC_SESSION_ID` before it connects
+  still acts as its session. A hello that gives a different session gets `unauthorized`, and the
+  daemon closes the connection. A process that the walk finds in no session acts as the session its
+  hello gives, or as the owner when the hello gives none.
 - A session on an imp reaches the daemon only through its
   [session bridge](./imp-provider.md#the-session-bridge), which takes no request that changes a
   record.
 - A [principal](../protocol/principals.md) adds scope only to sessions within its reach.
 
-On the daemon's own machine, the session runs as the daemon's user. A process there that drops
-`ATC_SESSION_ID` before it connects reaches the daemon as its owner, and the same user can change
-the mode of the local copy. Inside an imp, a harness runs as the image's user, root unless the image
-sets another, and root can write a file of mode 0444. A reader that needs the record to hold against
-a hostile session reads it from atc through `session.get` rather than from the copy.
+The daemon also closes the [events socket](../protocol/events.md#the-events-socket) on a process
+that the walk finds in a session, before it sends a line, so a session reads the fleet only through
+a connection that acts as that session.
+
+On a platform other than Linux, and on a Linux whose C library is not glibc, the daemon cannot read
+the peer's pid. There it keeps the hello's word: a process that drops `ATC_SESSION_ID` before it
+connects reaches the daemon as its owner.
+
+The kernel check stops an agent that drops `ATC_SESSION_ID`, not a session that sets out to attack
+atc. A local session runs as the daemon's user, so a process inside it can leave the parent chain:
+one that forks twice and lets the middle process exit is adopted by another process, and the walk
+finds it in no session. The same user can also change the mode of the local copy of the record.
+Inside an imp, a harness runs as the image's user, root unless the image sets another, and root can
+write a file of mode 0444. A reader that needs the record to hold against a hostile session reads it
+from atc through `session.get` rather than from the copy, and a session that must not reach the
+owner's reach at all runs on an imp.
