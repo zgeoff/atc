@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubClosingListener } from '@atc/test-utils/start-stub-closing-listener';
+import { startStubStalledListener } from '@atc/test-utils/start-stub-stalled-listener';
 import { startStubTCPDaemon } from '@atc/test-utils/start-stub-tcp-daemon';
 import { DaemonClient } from './daemon-client';
 
@@ -79,5 +80,30 @@ test('it rejects a request whose answer the answer hook throws for', async () =>
   expect(client.sendRequest('session.list')).rejects.toMatchObject({
     code: 'internal',
     message: 'Error: outside the contract',
+  });
+});
+
+test('it rejects a request at once when the full outbound queue refuses it', async () => {
+  const tmp = setupTempDir('atc-daemon-client-');
+  const socketPath = join(tmp.dir, 'stalled.sock');
+
+  await startStubStalledListener(socketPath);
+
+  const client = await DaemonClient.open(socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  // Larger than the queue holds, so most of it stays queued behind a peer
+  // that never reads, and the queue refuses whatever comes next. It
+  // rejects once the cleanup stops the client.
+  const filler = client.sendRequest('session.create', { prompt: 'z'.repeat(10 * 1024 * 1024) });
+
+  void Promise.allSettled([filler]);
+
+  expect(client.sendRequest('daemon.ping')).rejects.toMatchObject({
+    code: 'internal',
+    message: 'outbound queue full',
   });
 });

@@ -92,7 +92,9 @@ export class DaemonClient implements DaemonChannel {
   }
 
   // A request with a principal acts as that principal, within what the
-  // connection may reach.
+  // connection may reach. A request the full outbound queue refuses never
+  // reaches the wire, so it rejects at once and the connection stays open
+  // for the requests already queued.
   sendRequest(
     m: string,
     p?: Readonly<Record<string, unknown>>,
@@ -107,15 +109,23 @@ export class DaemonClient implements DaemonChannel {
 
     this.pending.set(id, { method: m, resolve: resolvers.resolve, reject: resolvers.reject });
 
-    this.queue?.send(
-      encodeMessage({
-        v: PROTOCOL_V,
-        id,
-        m,
-        ...(p === undefined ? {} : { p }),
-        ...(as === undefined ? {} : { as }),
-      }),
-    );
+    const queued =
+      this.queue === null ||
+      this.queue.send(
+        encodeMessage({
+          v: PROTOCOL_V,
+          id,
+          m,
+          ...(p === undefined ? {} : { p }),
+          ...(as === undefined ? {} : { as }),
+        }),
+      );
+
+    if (!queued) {
+      this.pending.delete(id);
+
+      return Promise.reject(new DaemonError('internal', 'outbound queue full'));
+    }
 
     return resolvers.promise;
   }
