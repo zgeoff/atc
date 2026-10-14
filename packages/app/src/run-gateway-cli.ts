@@ -5,6 +5,7 @@ import type { runClients } from './clients';
 import { collectRedirectURIs } from './collect-redirect-uris';
 import { parseGatewayStateDir } from './parse-gateway-state-dir';
 import { parsePort } from './parse-port';
+import type { runPasskeys } from './passkeys';
 import type { runGateway } from './run-gateway';
 
 // What the command line reaches outside itself, the process's own by
@@ -13,6 +14,7 @@ import type { runGateway } from './run-gateway';
 interface GatewayCLIIO {
   readonly runGateway: (...args: Readonly<Parameters<typeof runGateway>>) => Promise<void>;
   readonly runClients: (...args: Readonly<Parameters<typeof runClients>>) => Promise<void>;
+  readonly runPasskeys: (...args: Readonly<Parameters<typeof runPasskeys>>) => Promise<void>;
   readonly print: (line: string) => void;
   readonly printError: (line: string) => void;
   readonly exit: (code: number) => void;
@@ -29,6 +31,11 @@ const PROCESS_IO: GatewayCLIIO = {
 
     await clients.runClients(...args);
   },
+  runPasskeys: async (...args) => {
+    const passkeys = await import('./passkeys');
+
+    await passkeys.runPasskeys(...args);
+  },
   print: (line) => {
     console.log(line);
   },
@@ -44,7 +51,7 @@ const PROCESS_IO: GatewayCLIIO = {
 // subcommand declares, is caught before a subcommand runs.
 const GATEWAY_FLAGS = {
   values: new Set(['host', 'port', 'public-url', 'registry', 'redirect-uri', 'state-dir']),
-  switches: new Set(['help', 'h', 'version']),
+  switches: new Set(['help', 'h', 'version', 'reset']),
 };
 
 /**
@@ -151,6 +158,11 @@ const USAGE_ERROR_CODES: ReadonlySet<string> = new Set([
   'E_NO_COMMAND',
 ]);
 
+// The database and command prefix of every passkey subcommand.
+function buildPasskeysTarget(stateDir: string) {
+  return { dbPath: join(stateDir, 'mcp-auth.db'), command: 'atc-gateway passkeys' };
+}
+
 function isUsageError(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -182,10 +194,15 @@ const CLIENTS_META = {
   description: 'List, add, or remove the clients that may connect to the gateway',
 };
 
+const PASSKEYS_META = {
+  name: 'passkeys',
+  description: 'List, enroll, or remove the passkeys the owner signs in to the gateway with',
+};
+
 /**
  * The `atc-gateway` command tree, which serves the MCP tools over HTTP for
  * the daemons a registry lists and manages the clients that may connect to
- * it, and the usage of each command in it, keyed by the subcommand names
+ * it and the owner's passkeys, and the usage of each command in it, keyed by the subcommand names
  * that lead to it. Every subcommand takes the state directory read from
  * the whole command line, or exits 1 without one.
  */
@@ -305,13 +322,81 @@ function buildGatewayCommand(stateDir: string | null, io: GatewayCLIIO) {
     subCommands: { list, add, remove },
   });
 
+  const passkeysList = defineCommand({
+    meta: { name: 'list', description: 'List the enrolled passkeys', hidden: true },
+    args: STATE_DIR_ARG,
+    async run() {
+      if (stateDir === null) {
+        io.printError(NO_STATE_DIR);
+        io.exit(1);
+
+        return;
+      }
+
+      await io.runPasskeys({ kind: 'list' }, buildPasskeysTarget(stateDir));
+    },
+  });
+
+  const passkeysEnroll = defineCommand({
+    meta: {
+      name: 'enroll',
+      description:
+        'Print a one-time token that enrolls a passkey; --reset first removes every passkey',
+    },
+    args: {
+      reset: {
+        type: 'boolean',
+        description: 'Remove every passkey and browser sign-in first, after losing them',
+      },
+      ...STATE_DIR_ARG,
+    },
+    async run(ctx) {
+      if (stateDir === null) {
+        io.printError(NO_STATE_DIR);
+        io.exit(1);
+
+        return;
+      }
+
+      await io.runPasskeys(
+        { kind: 'enroll', reset: ctx.args.reset === true },
+        buildPasskeysTarget(stateDir),
+      );
+    },
+  });
+
+  const passkeysRemove = defineCommand({
+    meta: { name: 'remove', description: 'Remove a passkey, such as a lost one' },
+    args: {
+      id: { type: 'positional', required: true, description: 'The passkey ID' },
+      ...STATE_DIR_ARG,
+    },
+    async run(ctx) {
+      if (stateDir === null) {
+        io.printError(NO_STATE_DIR);
+        io.exit(1);
+
+        return;
+      }
+
+      await io.runPasskeys({ kind: 'remove', id: ctx.args.id }, buildPasskeysTarget(stateDir));
+    },
+  });
+
+  const passkeys = defineCommand({
+    meta: PASSKEYS_META,
+    args: STATE_DIR_ARG,
+    default: 'list',
+    subCommands: { list: passkeysList, enroll: passkeysEnroll, remove: passkeysRemove },
+  });
+
   const command = defineCommand({
     meta: ROOT_META,
 
     // Declared at every level, so the argument parser reads `--state-dir <dir>`
     // before a subcommand as a flag and its value, not as a subcommand name.
     args: STATE_DIR_ARG,
-    subCommands: { serve, clients },
+    subCommands: { serve, clients, passkeys },
   });
 
   // Usage names a command after its parent, so each renders under a parent
@@ -325,6 +410,10 @@ function buildGatewayCommand(stateDir: string | null, io: GatewayCLIIO) {
       'clients list': () => renderUsage(list, { meta: CLIENTS_META }),
       'clients add': () => renderUsage(add, { meta: CLIENTS_META }),
       'clients remove': () => renderUsage(remove, { meta: CLIENTS_META }),
+      passkeys: () => renderUsage(passkeys, { meta: ROOT_META }),
+      'passkeys list': () => renderUsage(passkeysList, { meta: PASSKEYS_META }),
+      'passkeys enroll': () => renderUsage(passkeysEnroll, { meta: PASSKEYS_META }),
+      'passkeys remove': () => renderUsage(passkeysRemove, { meta: PASSKEYS_META }),
     },
   };
 }

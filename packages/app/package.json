@@ -21,6 +21,7 @@
     "@atc/store": "workspace:*",
     "@better-auth/mcp": "catalog:",
     "@better-auth/oauth-provider": "catalog:",
+    "@simplewebauthn/server": "catalog:",
     "@xterm/addon-serialize": "catalog:",
     "@xterm/headless": "catalog:",
     "better-auth": "catalog:",

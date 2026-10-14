@@ -191,6 +191,69 @@ const main = defineCommand({
             }),
         },
       }),
+    passkeys: () =>
+      defineCommand({
+        meta: {
+          name: 'passkeys',
+          description:
+            'List, enroll, or remove the passkeys the owner signs in to atc mcp --http with',
+        },
+        default: 'list',
+        subCommands: {
+          list: () =>
+            defineCommand({
+              meta: { name: 'list', description: 'List the enrolled passkeys', hidden: true },
+              async run() {
+                const passkeys = await import('./passkeys');
+                const config = await import('@atc/config/config');
+
+                await passkeys.runPasskeys(
+                  { kind: 'list' },
+                  { dbPath: config.mcpAuthDBFile, command: 'atc passkeys' },
+                );
+              },
+            }),
+          enroll: () =>
+            defineCommand({
+              meta: {
+                name: 'enroll',
+                description:
+                  'Print a one-time token that enrolls a passkey; --reset first removes every passkey',
+              },
+              args: {
+                reset: {
+                  type: 'boolean',
+                  description: 'Remove every passkey and browser sign-in first, after losing them',
+                },
+              },
+              async run(ctx) {
+                const passkeys = await import('./passkeys');
+                const config = await import('@atc/config/config');
+
+                await passkeys.runPasskeys(
+                  { kind: 'enroll', reset: ctx.args.reset === true },
+                  { dbPath: config.mcpAuthDBFile, command: 'atc passkeys' },
+                );
+              },
+            }),
+          remove: () =>
+            defineCommand({
+              meta: { name: 'remove', description: 'Remove a passkey, such as a lost one' },
+              args: {
+                id: { type: 'positional', required: true, description: 'The passkey ID' },
+              },
+              async run(ctx) {
+                const passkeys = await import('./passkeys');
+                const config = await import('@atc/config/config');
+
+                await passkeys.runPasskeys(
+                  { kind: 'remove', id: ctx.args.id },
+                  { dbPath: config.mcpAuthDBFile, command: 'atc passkeys' },
+                );
+              },
+            }),
+        },
+      }),
     session: () =>
       defineCommand({
         meta: {

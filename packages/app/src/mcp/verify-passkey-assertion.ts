@@ -1,0 +1,126 @@
+import { parseJSONStrings } from '@atc/core/parse-json-strings';
+import { verifyAuthenticationResponse } from '@simplewebauthn/server';
+import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
+import type { Kysely } from 'kysely';
+import { z } from 'zod';
+import type { MCPAuthSchema } from './mcp-auth-schema';
+
+interface AssertionCheck {
+  // The credential JSON the sign-in page posted.
+  readonly credential: string;
+
+  // The challenge the page was given, which the caller has already taken.
+  readonly challenge: string;
+  readonly origin: string;
+  readonly rpID: string;
+
+  // Epoch milliseconds, stamped as the passkey's last use.
+  readonly now: number;
+}
+
+/**
+ * Whether a posted WebAuthn assertion signs the owner in: it parses, its
+ * credential is an enrolled passkey, and it verifies against that passkey's
+ * public key with the expected challenge, origin, and RP ID, with the user
+ * verified and a signature counter past the stored one when the
+ * authenticator keeps one. A passing assertion stores its counter and the
+ * time of use. Any failure is false, never a throw.
+ */
+export async function verifyPasskeyAssertion(
+  db: Kysely<MCPAuthSchema>,
+  check: AssertionCheck,
+): Promise<boolean> {
+  const response = parseAssertion(check.credential);
+
+  if (response === null) {
+    return false;
+  }
+
+  const passkey = await db
+    .selectFrom('atc_passkey')
+    .select(['id', 'public_key', 'counter', 'transports'])
+    .where('id', '=', response.id)
+    .executeTakeFirst();
+
+  if (passkey === undefined) {
+    return false;
+  }
+
+  let verified: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
+
+  try {
+    verified = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge: check.challenge,
+      expectedOrigin: check.origin,
+      expectedRPID: check.rpID,
+      expectedType: 'webauthn.get',
+      requireUserVerification: true,
+      credential: {
+        id: passkey.id,
+        publicKey: new Uint8Array(Buffer.from(passkey.public_key, 'base64url')),
+        counter: passkey.counter,
+        transports: parseJSONStrings(passkey.transports) ?? [],
+      },
+    });
+  } catch {
+    return false;
+  }
+
+  if (!verified.verified || !verified.authenticationInfo.userVerified) {
+    return false;
+  }
+
+  await db
+    .updateTable('atc_passkey')
+    .set({
+      counter: verified.authenticationInfo.newCounter,
+      last_used_at: new Date(check.now).toISOString(),
+    })
+    .where('id', '=', passkey.id)
+    .execute();
+
+  return true;
+}
+
+const ASSERTION_REPLY = z.object({
+  clientDataJSON: z.string(),
+  authenticatorData: z.string(),
+  signature: z.string(),
+  userHandle: z.string().optional(),
+});
+
+const ASSERTION = z.object({
+  id: z.string().min(1),
+  rawId: z.string().min(1),
+  type: z.literal('public-key'),
+  response: ASSERTION_REPLY,
+});
+
+// The posted JSON when it has the shape of an authentication response,
+// else null; the verifier checks every value.
+function parseAssertion(credential: string): AuthenticationResponseJSON | null {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(credential);
+  } catch {
+    return null;
+  }
+
+  const result = ASSERTION.safeParse(parsed);
+
+  if (!result.success) {
+    return null;
+  }
+
+  const { userHandle, ...response } = result.data.response;
+
+  return {
+    id: result.data.id,
+    rawId: result.data.rawId,
+    type: result.data.type,
+    response: userHandle === undefined ? response : { ...response, userHandle },
+    clientExtensionResults: {},
+  };
+}

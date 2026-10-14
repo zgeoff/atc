@@ -1,5 +1,4 @@
 import { normalizeClientName } from '../shared/normalize-client-name';
-import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildPageResponse } from './build-page-response';
 import { findClientName } from './find-client-name';
 import type { AuthorizeInvalidReason, HTTPServerContext, Requester } from './types';
@@ -8,18 +7,16 @@ import type { AuthorizeInvalidReason, HTTPServerContext, Requester } from './typ
  * Answers `GET /oauth2/authorize`. Before better-auth validates the request,
  * atc sets three parameters of its own:
  *
- * - `prompt=login consent`, so every authorization asks for a fresh approval
- *   code and shows the consent page, whatever session or consent a browser
- *   kept from before.
+ * - `prompt=login consent`, so every authorization asks for a fresh passkey
+ *   sign-in and shows the consent page, whatever session or consent a
+ *   browser kept from before.
  * - `offline_access` in a requested scope, so every grant gets a refresh token.
  * - `resource=<origin>/mcp` when the client gave none, so every token is bound
  *   to the one resource atc serves.
  *
  * A request better-auth sends on to the login page gets a pending approval,
- * and its code prints in atc's terminal with the client's name, the host it
- * returns to, and who asked: the `CF-Connecting-IP` address when the request
- * carries one, labelled as reported since anyone can send that header, else
- * the socket's peer address, plus the start of the user agent.
+ * which the passkey sign-in on that page answers. Nothing about it prints
+ * outside the security event, so no log holds a value that signs in.
  *
  * Each request writes one security event: `authorize_started` with a fresh
  * correlation id when the approval starts, or refused by the limit on
@@ -103,19 +100,6 @@ export async function answerAuthorizeRequest(
     ...accepted,
     correlationID: approval.correlationID,
   });
-
-  const code = `${approval.approvalCode.slice(0, 4)}-${approval.approvalCode.slice(4)}`;
-
-  const from =
-    requester.connectingIP === null
-      ? normalizeClientName(requester.socketAddress, 'an unknown address', 45)
-      : `${normalizeClientName(requester.connectingIP, 'an empty address', 45)} (reported by CF-Connecting-IP)`;
-
-  const userAgent = normalizeClientName(requester.userAgent, 'none', 60);
-
-  ctx.printApproval(
-    `Approve ${clientName} (returns to ${new URL(redirectURI).host}) with code ${code}. Requested from ${from}, user agent "${userAgent}". The code expires in ${String(APPROVAL_WINDOW_SECONDS / 60)} minutes.`,
-  );
 
   return response;
 }

@@ -180,12 +180,13 @@ runs the app's CLI entrypoint from a checkout. `mods/` holds the `atc-bridge` Cl
   an existing sub-session.
 - State lives in `~/.local/state/atc/`: `atc.db` (SQLite — fleet, hook-event trail, spawn history)
   plus `status.json`, which stays a plain file because statusline reporters read it without speaking
-  the protocol. `mcp-auth.db` holds the OAuth state of `atc mcp --http`; only that process,
-  `atc clients`, and `atc grants` open it, never the daemon. `daemon.lock` admits one daemon per
-  state directory, and `daemon.json` holds its pid and socket paths for clients whose environment
-  computes other socket paths. The fleet is rewritten on deliberate kills only, so crashes leave a
-  restorable fleet; killed sessions persist as exited entries until a second kill removes them,
-  except on a target that can destroy its host, where only a confirmed `session.forget` removes one.
+  the protocol. `mcp-auth.db` holds the OAuth state of `atc mcp --http` and the owner's passkeys;
+  only that process, `atc clients`, `atc grants`, and `atc passkeys` open it, never the daemon.
+  `daemon.lock` admits one daemon per state directory, and `daemon.json` holds its pid and socket
+  paths for clients whose environment computes other socket paths. The fleet is rewritten on
+  deliberate kills only, so crashes leave a restorable fleet; killed sessions persist as exited
+  entries until a second kill removes them, except on a target that can destroy its host, where only
+  a confirmed `session.forget` removes one.
 
 ## MCP and bridge tools
 

@@ -2,10 +2,13 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubAuthenticator } from '@atc/test-utils/build-stub-authenticator';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { runPasskeyEnrollment } from '@atc/test-utils/run-passkey-enrollment';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle } from '../daemon/daemon';
+import { createEnrollmentToken } from '../mcp/create-enrollment-token';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
@@ -18,8 +21,9 @@ interface MCPHTTPSetupOptions {
 
 /**
  * A real daemon in a temp directory and `atc mcp --http` in front of it on a
- * free port, with every approval line, request line, and security event
- * line the server prints collected. The authorization server's database sits where atc keeps it
+ * free port, with the owner's passkey enrolled on `authenticator` through
+ * the server's enrollment page, and every request line and security event
+ * line the server prints after that collected. The authorization server's database sits where atc keeps it
  * under `home`, so a CLI run with that home opens the same file. `store` is
  * the authorization server's database opened a second time the way
  * `atc clients` and `atc grants` open it, and `createClient` adds a client
@@ -48,7 +52,6 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   mkdirSync(stateDir, { recursive: true });
 
   const dbPath = join(stateDir, 'mcp-auth.db');
-  const approvals: string[] = [];
   const requests: string[] = [];
   const security: string[] = [];
 
@@ -82,9 +85,6 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     allowedHosts: options.allowedHosts ?? [],
     dbPath,
     openAuthDatabase: openMCPAuthDatabase,
-    printApproval: (line) => {
-      approvals.push(line);
-    },
     printRequest: (line) => {
       requests.push(line);
     },
@@ -99,12 +99,22 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   stack.defer(() => store.close());
 
+  const authenticator = buildStubAuthenticator();
+
+  const enrollment = await createEnrollmentToken(store.db, Date.now());
+
+  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+
+  // The lines the enrollment printed are not part of any scenario.
+  requests.length = 0;
+  security.length = 0;
+
   return {
     home: tmp.dir,
     url: server.url,
     origin: server.origin,
     dbPath,
-    approvals,
+    authenticator,
     requests,
     security,
     caller,

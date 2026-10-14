@@ -2,6 +2,7 @@ import type { Clock } from '@atc/core/system-clock';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import type { Principal } from '@atc/protocol/principal';
 import type { ApprovalState } from './approval-state';
+import type { EnrollmentState } from './enrollment-state';
 import type { openMCPAuth } from './open-mcp-auth';
 
 /**
@@ -68,13 +69,26 @@ export type SecurityOutcome =
   | {
       readonly kind: 'owner_auth';
       readonly outcome: 'failed';
-      readonly reason?: 'wrong_code' | 'locked' | 'expired';
+      readonly reason?: OwnerAuthFailure;
     }
   | { readonly kind: 'consent'; readonly outcome: 'allowed' }
   | { readonly kind: 'consent'; readonly outcome: 'denied'; readonly reason?: 'none_ticked' };
 
 /**
- * Why an authorization request was refused before the operator saw it: an
+ * Why a passkey sign-in or enrollment failed: an assertion or registration
+ * that did not verify, a request locked by too many failures, a challenge
+ * or approval that expired or was used, a sign-in with no passkey
+ * enrolled, or an enrollment token that is unknown, spent, or expired.
+ */
+export type OwnerAuthFailure =
+  | 'assertion_failed'
+  | 'locked'
+  | 'expired'
+  | 'not_enrolled'
+  | 'invalid_token';
+
+/**
+ * Why an authorization request was refused before the owner saw it: an
  * error code better-auth gives, a Host or origin atc does not serve, or
  * `other` for any code outside the list.
  */
@@ -110,7 +124,8 @@ export type SecurityEvent = SecurityOutcome & {
 type MCPAuth = Awaited<ReturnType<typeof openMCPAuth>>;
 
 // What every HTTP route reads: the daemon, the server's own identity, the
-// authorization server, and the approvals waiting for the operator.
+// authorization server, the approvals waiting for the owner, and the
+// passkey enrollments in progress.
 export interface HTTPServerContext {
   readonly caller: FleetCaller;
   readonly build: string;
@@ -122,7 +137,7 @@ export interface HTTPServerContext {
   readonly resource: string;
   readonly store: MCPAuth;
   readonly approvals: ApprovalState;
-  readonly printApproval: (line: string) => void;
+  readonly enrollments: EnrollmentState;
 
   // Receives each sign-in outcome as a security event.
   readonly security: { readonly record: (event: SecurityEvent) => void };

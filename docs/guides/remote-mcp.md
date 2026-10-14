@@ -37,20 +37,59 @@ Each command prints the client ID. Enter it in the connector's OAuth settings wi
 `atc clients` lists the clients, and `atc clients remove <client_id>` removes one with every token
 and consent it holds.
 
+## Enrolling a passkey
+
+You sign in to approve each connection with a passkey, so enroll one before you connect an
+assistant. On the host that runs the server, print a one-time enrollment token:
+
+```bash
+atc passkeys enroll
+```
+
+1. Open `<origin>/enroll` in your browser and type the token. The token enrolls one passkey and
+   expires after 15 minutes.
+2. Create the passkey when the browser asks. Your device asks you to verify yourself with a PIN,
+   fingerprint or face.
+
+Expect: `Passkey enrolled.` Run `atc passkeys enroll` again to enroll a second passkey on another
+device, so losing one device never locks you out. `atc passkeys` lists the enrolled passkeys with
+their last use, and `atc passkeys remove <passkey_id>` removes one, such as a lost one.
+
+Browsers refuse passkeys on an IP address. A server with no public URL serves `127.0.0.1`, so give
+it `--public-url http://localhost:<port>` to sign in from a browser on the same machine.
+
 ## Approving a connection
 
-1. Connect the assistant. The server prints a line such as
-   `Approve Claude (returns to claude.ai) with code K7QM-2XRT. Requested from 203.0.113.7 …` in its
-   terminal, and the browser shows the approval code page.
-2. Check the client, the requester's address and the user agent. An approval you did not start is
-   someone else's: do not type its code.
-3. Type the code on the page. Five wrong codes end the request, and a code expires after 10 minutes.
+1. Connect the assistant. The browser shows the sign-in page with the client's name and the full
+   address it returns to.
+2. Check the client and the return address. An approval you did not start is someone else's: do not
+   sign in.
+3. Select **Sign in with a passkey** and verify yourself. Five failed sign-ins end the request, and
+   a request expires after 10 minutes.
 4. Tick the scopes to grant on the consent page. Only `read` is ticked to start. `message` lets the
    client instruct your agents, which can run commands. It also lets the client rename, pin and mark
    your sessions read. [Scopes](../architecture/remote/mcp.md#scopes) lists the tools each scope
    allows.
 
-The client then holds a grant. To widen it, connect again and approve the larger set.
+The client then holds a grant. To widen it, connect again and approve the larger set. Each
+connection needs a fresh sign-in, so a browser that signed in before approves nothing by itself.
+
+## Recovering from a lost passkey
+
+With another passkey enrolled, remove the lost one with `atc passkeys remove <passkey_id>` and keep
+signing in with the other. With none left, reset the passkeys on the host:
+
+```bash
+atc passkeys enroll --reset
+```
+
+The reset removes every passkey, every unused enrollment token and every browser sign-in, then
+prints a new token to enroll with. Grants stay through a removal and a reset. If someone else may
+hold the lost passkey, revoke the grants made since you lost it with `atc grants`.
+
+No recovery path runs over the network: no log line, email or link signs you in. Recovery needs a
+shell on the host as the user who owns `mcp-auth.db`, so whoever has that shell can enroll a passkey
+and approve connections. Guard that account as you guard the grants.
 
 ## Grants
 
@@ -108,6 +147,6 @@ its flags never apply. With it, the server waits up to 30 s for a daemon, then e
 
 `After=` orders the MCP unit after the daemon process starts, not after its socket accepts
 connections, which is the gap the wait covers. `Requires=` makes a stop or restart of the daemon
-unit stop or restart the MCP unit too, which ends approvals in progress and keeps grants.
+unit stop or restart the MCP unit too, which ends sign-ins in progress and keeps grants.
 `atc daemon` exits 0 on SIGTERM, so the daemon unit takes `Restart=always`: under
 `Restart=on-failure`, a daemon that something outside systemd stopped stays down.

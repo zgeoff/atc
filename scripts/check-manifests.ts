@@ -222,6 +222,8 @@ const APP_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/build-stub-daemon-requests.test.ts',
   'packages/test-utils/src/keys.test.ts',
   'packages/test-utils/src/run-mcp-authorization.test.ts',
+  'packages/test-utils/src/run-passkey-enrollment.test.ts',
+  'packages/test-utils/src/run-passkey-sign-in.test.ts',
   'packages/test-utils/src/spawn-claude-session.test.ts',
   'packages/test-utils/src/spawn-grok-session.test.ts',
   'packages/test-utils/src/start-cut-proxy.test.ts',

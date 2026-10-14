@@ -74,7 +74,7 @@ test('it answers the liveness probe for the host of its public URL', async () =>
   expect(health.status).toBe(200);
 });
 
-test('it prints the approval line to stdout alone and each sign-in security event to stderr', async () => {
+test('it prints nothing to stdout once it serves and each sign-in security event to stderr', async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -139,6 +139,8 @@ test('it prints the approval line to stdout alone and each sign-in security even
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
+  const startup = [...printed];
+
   const authorize = new URL(`http://127.0.0.1:${port}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
@@ -157,9 +159,7 @@ test('it prints the approval line to stdout alone and each sign-in security even
     headers: { host: 'rebound.example' },
   });
 
-  expect(printed).toIncludeAllMembers([expect.stringMatching(/^Approve Claude /u)]);
-  expect(printed).toSatisfyAll((line: string) => !line.startsWith('atc security '));
-  expect(errors).toSatisfyAll((line: string) => !line.includes('Approve'));
+  expect(printed).toStrictEqual(startup);
 
   expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
     expect.stringMatching(

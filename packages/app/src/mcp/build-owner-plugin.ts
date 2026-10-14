@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import { isAllowedRedirectURI } from './is-allowed-redirect-uri';
 
-// atc has one user: the operator who runs it. better-auth needs an email for
+// atc has one user: the owner who runs it. better-auth needs an email for
 // every user, so the owner gets one no mail ever reaches.
 const OWNER_EMAIL = 'owner@atc.invalid';
 const REDIRECT_URI = z.string().refine(isAllowedRedirectURI);
@@ -18,7 +18,7 @@ const REDIRECT_URI = z.string().refine(isAllowedRedirectURI);
  * routes reach them, and only after checking what they guard.
  *
  * - `signInOwner` starts an owner session and sets its cookie. atc calls it
- *   once the operator has typed the right approval code; with the signed
+ *   once the owner's passkey assertion verified; with the signed
  *   authorization query in the body, better-auth then resumes the
  *   authorization.
  * - `verifyMCPAccessToken` returns the introspection payload of an active

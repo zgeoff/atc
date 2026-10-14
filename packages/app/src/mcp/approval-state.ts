@@ -1,5 +1,4 @@
-import { mintApprovalCode } from './mint-approval-code';
-import { normalizeApprovalCode } from './normalize-approval-code';
+import { randomBytes } from 'node:crypto';
 
 interface ApprovalRequest {
   // The signed authorization query the login page carries: one per request.
@@ -10,29 +9,43 @@ interface ApprovalRequest {
 }
 
 /**
- * An authorization request waiting for the operator to type its approval code.
+ * An authorization request waiting for the owner to sign in with a passkey.
  */
 export interface PendingApproval extends ApprovalRequest {
-  readonly approvalCode: string;
-
   // Random, minted with the approval and never taken from the request, so
   // the security events of one authorization can be matched up.
   readonly correlationID: string;
-  attempts: number;
+  failures: number;
   readonly expiresAt: number;
+
+  // The one WebAuthn challenge this request's login page holds, if any.
+  challenge: { readonly value: string; readonly expiresAt: number } | null;
 }
+
+/**
+ * What taking a request's challenge found: the challenge, which no later
+ * take returns again, or why there is none to verify an assertion against.
+ */
+export type TakenChallenge =
+  | { readonly kind: 'taken'; readonly challenge: string }
+  | { readonly kind: 'expired' }
+  | { readonly kind: 'missing' };
 
 // At most this many approvals wait at once across every client, and each
 // client holds at most this many. Across every client, at most this many
-// approvals start per minute, which bounds how fast approval lines print.
+// approvals start per minute.
 const MAX_PENDING = 16;
 const MAX_PENDING_PER_CLIENT = 3;
 const MAX_STARTS_PER_MINUTE = 10;
-const MAX_ATTEMPTS = 5;
+const MAX_FAILURES = 5;
 const MINUTE_MS = 60_000;
 
+// How long a login page's challenge stays valid, unless its request
+// expires sooner.
+const CHALLENGE_MS = 5 * MINUTE_MS;
+
 /**
- * The request an owner session's approval code approved: its consent
+ * The request an owner session's passkey sign-in approved: its consent
  * binding and the correlation id of its security events.
  */
 export interface ApprovedRequest {
@@ -42,13 +55,16 @@ export interface ApprovedRequest {
 }
 
 /**
- * The approvals waiting for the operator, held in memory by the HTTP process.
+ * The approvals waiting for the owner, held in memory by the HTTP process.
  * A client's new approval past its limit drops that client's oldest, and a
  * full set of waiting approvals makes room by dropping the oldest overall, so
- * no client can hold the operator's approvals hostage and a refused start
- * lasts at most a minute. Once the operator types a code, the owner session
- * it signed in holds the binding of the one request it approved until that
- * request's consent is answered or the binding expires.
+ * no client can hold the owner's approvals hostage and a refused start lasts
+ * at most a minute. Each waiting approval holds at most one WebAuthn
+ * challenge, which a fresh login page replaces and a verification takes, so
+ * an assertion signed for one request or one page verifies against no other.
+ * Once a passkey signs the owner in, the owner session holds the binding of
+ * the one request it approved until that request's consent is answered or
+ * the binding expires.
  */
 export class ApprovalState {
   private readonly pendingMs: number;
@@ -57,7 +73,7 @@ export class ApprovalState {
 
   private readonly pending = new Map<string, PendingApproval>();
 
-  // Owner session id to the binding of the request its approval code approved.
+  // Owner session id to the binding of the request its sign-in approved.
   private readonly approved = new Map<string, ApprovedRequest>();
 
   // Approval start times within the last minute, oldest first.
@@ -95,10 +111,10 @@ export class ApprovalState {
 
     const approval: PendingApproval = {
       ...request,
-      approvalCode: mintApprovalCode(),
       correlationID: crypto.randomUUID(),
-      attempts: 0,
+      failures: 0,
       expiresAt: now + this.pendingMs,
+      challenge: null,
     };
 
     this.pending.set(approval.key, approval);
@@ -114,29 +130,65 @@ export class ApprovalState {
     return this.pending.get(key) ?? null;
   }
 
-  // A wrong code counts against the approval; the last allowed miss drops it.
-  verifyApprovalCode(key: string, typed: string): 'ok' | 'wrong' | 'locked' {
+  // A fresh random challenge for the request's login page, replacing any
+  // earlier one, or null when the request no longer waits.
+  mintChallenge(key: string): string | null {
+    const approval = this.findPending(key);
+
+    if (approval === null) {
+      return null;
+    }
+
+    const value = randomBytes(32).toString('base64url');
+
+    approval.challenge = {
+      value,
+      expiresAt: Math.min(this.now() + CHALLENGE_MS, approval.expiresAt),
+    };
+
+    return value;
+  }
+
+  // Takes the request's challenge, so it verifies at most one assertion.
+  claimChallenge(key: string): TakenChallenge {
+    const approval = this.findPending(key);
+    const challenge = approval?.challenge ?? null;
+
+    if (approval === null || challenge === null) {
+      return { kind: 'missing' };
+    }
+
+    approval.challenge = null;
+
+    if (challenge.expiresAt <= this.now()) {
+      return { kind: 'expired' };
+    }
+
+    return { kind: 'taken', challenge: challenge.value };
+  }
+
+  // A failed sign-in counts against the request; the last allowed failure
+  // drops it.
+  recordFailure(key: string): 'retry' | 'locked' {
     const approval = this.findPending(key);
 
     if (approval === null) {
       return 'locked';
     }
 
-    if (normalizeApprovalCode(typed) === approval.approvalCode) {
-      this.pending.delete(key);
+    approval.failures += 1;
 
-      return 'ok';
-    }
-
-    approval.attempts += 1;
-
-    if (approval.attempts >= MAX_ATTEMPTS) {
+    if (approval.failures >= MAX_FAILURES) {
       this.pending.delete(key);
 
       return 'locked';
     }
 
-    return 'wrong';
+    return 'retry';
+  }
+
+  removePending(key: string): void {
+    this.pending.delete(key);
   }
 
   recordApproved(sessionID: string, approved: Omit<ApprovedRequest, 'expiresAt'>): void {

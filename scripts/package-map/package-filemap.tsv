@@ -271,6 +271,7 @@ src/mcp-http-server.ts	mcp	entry	packages/mcp/src/entry/mcp-http-server.ts
 src/mcp-server.ts	mcp	entry	packages/mcp/src/entry/mcp-server.ts	
 src/mcp/answer-authorize-request.ts	mcp	auth	packages/mcp/src/auth/answer-authorize-request.ts	
 src/mcp/answer-consent-request.ts	mcp	auth	packages/mcp/src/auth/answer-consent-request.ts	
+src/mcp/answer-enroll-request.ts	mcp	auth	packages/mcp/src/auth/answer-enroll-request.ts	
 src/mcp/answer-login-request.ts	mcp	auth	packages/mcp/src/auth/answer-login-request.ts	
 src/mcp/answer-mcp-request.ts	mcp	http	packages/mcp/src/http/answer-mcp-request.ts	
 src/mcp/answer-rpc-request.ts	mcp	tools	packages/mcp/src/tools/answer-rpc-request.ts	
@@ -286,8 +287,13 @@ src/mcp/build-tool-list.ts	mcp	tools	packages/mcp/src/tools/build-tool-list.ts
 src/mcp/collect-clients.ts	mcp	auth	packages/mcp/src/auth/collect-clients.ts	
 src/mcp/collect-grants.ts	mcp	auth	packages/mcp/src/auth/collect-grants.ts	
 src/mcp/collect-json-strings.ts	core		packages/core/src/parse-json-strings.ts	
+src/mcp/collect-passkeys.ts	mcp	auth	packages/mcp/src/auth/collect-passkeys.ts	
+src/mcp/create-enrollment-token.ts	mcp	auth	packages/mcp/src/auth/create-enrollment-token.ts	
+src/mcp/create-passkey.ts	mcp	auth	packages/mcp/src/auth/create-passkey.ts	
 src/mcp/derive-token-hash.ts	mcp	auth	packages/mcp/src/auth/derive-token-hash.ts	
+src/mcp/enrollment-state.ts	mcp	auth	packages/mcp/src/auth/enrollment-state.ts	
 src/mcp/find-client-name.ts	mcp	auth	packages/mcp/src/auth/find-client-name.ts	
+src/mcp/find-enrollment-token.ts	mcp	auth	packages/mcp/src/auth/find-enrollment-token.ts	
 src/mcp/find-owner-session-id.ts	mcp	tools	packages/mcp/src/tools/find-owner-session-id.ts	
 src/mcp/format-security-event.ts	mcp	auth	packages/mcp/src/auth/format-security-event.ts	
 src/mcp/format-tool-error.ts	mcp	tools	packages/mcp/src/tools/format-tool-error.ts	
@@ -297,26 +303,31 @@ src/mcp/is-supported-protocol-version.ts	mcp	tools	packages/mcp/src/tools/is-sup
 src/mcp/mcp-auth-database.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-database.ts	
 src/mcp/mcp-auth-schema.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-schema.ts	
 src/mcp/mcp-tools.ts	mcp	tools	packages/mcp/src/tools/mcp-tools.ts	
-src/mcp/mint-approval-code.ts	mcp	auth	packages/mcp/src/auth/mint-approval-code.ts	
-src/mcp/normalize-approval-code.ts	mcp	auth	packages/mcp/src/auth/normalize-approval-code.ts	
 src/mcp/normalize-public-url.ts	mcp	http	packages/mcp/src/http/normalize-public-url.ts	
 src/mcp/open-mcp-auth.ts	mcp	auth	packages/mcp/src/auth/open-mcp-auth.ts	
 src/mcp/parse-idempotency-key.ts	mcp	tools	packages/mcp/src/tools/parse-idempotency-key.ts	
+src/mcp/passkey-script.ts	mcp	auth	packages/mcp/src/auth/passkey-script.ts	
 src/mcp/pick-error-message.ts	mcp	tools	packages/mcp/src/tools/pick-error-message.ts	
 src/mcp/pick-protocol-version.ts	mcp	tools	packages/mcp/src/tools/pick-protocol-version.ts	
 src/mcp/read-note-texts.ts	mcp	tools	packages/mcp/src/tools/read-note-texts.ts	
 src/mcp/reconnecting-caller.ts	mcp	tools	packages/mcp/src/tools/reconnecting-caller.ts	
 src/mcp/remove-client.ts	mcp	auth	packages/mcp/src/auth/remove-client.ts	
+src/mcp/remove-passkey.ts	mcp	auth	packages/mcp/src/auth/remove-passkey.ts	
 src/mcp/render-consent-page.ts	mcp	auth	packages/mcp/src/auth/render-consent-page.ts	
+src/mcp/render-enroll-page.ts	mcp	auth	packages/mcp/src/auth/render-enroll-page.ts	
 src/mcp/render-login-page.ts	mcp	auth	packages/mcp/src/auth/render-login-page.ts	
 src/mcp/require-daemon-features.ts	(deleted in ticket 24)		src/mcp/require-daemon-features.ts	
+src/mcp/reset-passkeys.ts	mcp	auth	packages/mcp/src/auth/reset-passkeys.ts	
 src/mcp/revoke-grant.ts	mcp	auth	packages/mcp/src/auth/revoke-grant.ts	
 src/mcp/run-tool.ts	mcp	tools	packages/mcp/src/tools/run-tool.ts	
 src/mcp/security-event-log.ts	mcp	auth	packages/mcp/src/auth/security-event-log.ts	
 src/mcp/start-mcp-http-server.ts	mcp	http	packages/mcp/src/http/start-mcp-http-server.ts	
 src/mcp/to-html-text.ts	mcp	http	packages/mcp/src/http/to-html-text.ts	
+src/mcp/to-script-json.ts	mcp	auth	packages/mcp/src/auth/to-script-json.ts	
 src/mcp/types.ts	mcp	tools	packages/mcp/src/tools/types.ts	
 src/mcp/verify-oauth-query.ts	mcp	auth	packages/mcp/src/auth/verify-oauth-query.ts	
+src/mcp/verify-passkey-assertion.ts	mcp	auth	packages/mcp/src/auth/verify-passkey-assertion.ts	
+src/mcp/verify-passkey-registration.ts	mcp	auth	packages/mcp/src/auth/verify-passkey-registration.ts	
 src/normalize-cli-args.ts	app	cli	packages/app/src/cli/normalize-cli-args.ts	
 src/note.ts	reporters		packages/reporters/src/note.ts	
 src/open-mcp-auth-database.ts	app		packages/app/src/open-mcp-auth-database.ts	
@@ -327,6 +338,7 @@ src/parse-port.ts	app	cli	packages/app/src/cli/parse-port.ts
 src/parse-restart-result.ts	lifecycle		packages/lifecycle/src/parse-restart-result.ts	
 src/parse-systemd-unit.ts	lifecycle		packages/lifecycle/src/parse-systemd-unit.ts	
 src/parse-worker-pid.ts	lifecycle		packages/lifecycle/src/parse-worker-pid.ts	
+src/passkeys.ts	mcp	entry	packages/mcp/src/entry/passkeys.ts	
 src/protocol/adapter-event.ts	protocol		packages/protocol/src/adapter-event.ts	
 src/protocol/agent-list.ts	protocol		packages/protocol/src/agent-list.ts	new in ticket 4
 src/protocol/build-session-env.ts	protocol		packages/protocol/src/build-session-env.ts	new in ticket 4
@@ -548,6 +560,7 @@ src/test-utils/build-mock-sortable-session-view.ts	test-utils		packages/test-uti
 src/test-utils/build-mock-stored-event.ts	store	testing	packages/store/src/testing/build-mock-stored-event.ts	
 src/test-utils/build-mock-stored-row.ts	store	testing	packages/store/src/testing/build-mock-stored-row.ts	
 src/test-utils/build-stub-attention-adapter.ts	test-utils		packages/test-utils/src/build-stub-attention-adapter.ts	
+src/test-utils/build-stub-authenticator.ts	test-utils		packages/test-utils/src/build-stub-authenticator.ts	
 src/test-utils/build-stub-bridge-context.ts	daemon	testing	packages/daemon/src/testing/build-stub-bridge-context.ts	
 src/test-utils/build-stub-brokered-agent-adapter.ts	test-utils		packages/test-utils/src/build-stub-brokered-agent-adapter.ts	
 src/test-utils/build-stub-brokered-gateway-adapter.ts	test-utils		packages/test-utils/src/build-stub-brokered-gateway-adapter.ts	
@@ -627,6 +640,7 @@ src/test-utils/keys.ts	test-utils		packages/test-utils/src/keys.ts
 src/test-utils/merge-deep.ts	test-utils		packages/test-utils/src/merge-deep.ts	
 src/test-utils/mock-overrides.ts	test-utils		packages/test-utils/src/mock-overrides.ts	
 src/test-utils/open-repo-step.ts	test-utils		packages/test-utils/src/open-repo-step.ts	
+src/test-utils/parse-passkey-page.ts	test-utils		packages/test-utils/src/parse-passkey-page.ts	
 src/test-utils/read-json-record.ts	test-utils		packages/test-utils/src/read-json-record.ts	
 src/test-utils/read-query-plan.ts	test-utils		packages/test-utils/src/read-query-plan.ts	
 src/test-utils/register-test-cleanup.ts	test-utils		packages/test-utils/src/register-test-cleanup.ts	
@@ -637,6 +651,8 @@ src/test-utils/run-atc.ts	test-utils		packages/test-utils/src/run-atc.ts
 src/test-utils/run-command.ts	test-utils		packages/test-utils/src/run-command.ts	
 src/test-utils/run-listener-daemon.ts	daemon	testing	packages/daemon/src/testing/run-listener-daemon.ts	
 src/test-utils/run-mcp-authorization.ts	test-utils		packages/test-utils/src/run-mcp-authorization.ts	
+src/test-utils/run-passkey-enrollment.ts	test-utils		packages/test-utils/src/run-passkey-enrollment.ts	
+src/test-utils/run-passkey-sign-in.ts	test-utils		packages/test-utils/src/run-passkey-sign-in.ts	
 src/test-utils/run-stub-legacy-daemon.ts	test-utils		packages/test-utils/src/run-stub-legacy-daemon.ts	
 src/test-utils/run-stub-source-daemon.ts	(retired in ticket 13)		src/test-utils/run-stub-source-daemon.ts	
 src/test-utils/seed-faker.ts	test-utils		packages/test-utils/src/seed-faker.ts	

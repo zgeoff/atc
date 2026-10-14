@@ -1,26 +1,27 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { buildStubAuthenticator } from '@atc/test-utils/build-stub-authenticator';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
+import { runPasskeyEnrollment } from '@atc/test-utils/run-passkey-enrollment';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { collectClients } from './collect-clients';
 import { collectGrants } from './collect-grants';
+import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { removeClient } from './remove-client';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 
-// `atc mcp --http` on a free port with every approval line it prints
-// collected, and its authorization server's database opened a second time
+// `atc mcp --http` on a free port with the owner's passkey enrolled, and its authorization server's database opened a second time
 // the way `atc clients` opens it. No test reaches the daemon, so the caller
 // points at a socket nothing listens on.
 async function setupTest() {
   const tmp = setupTempDir('atc-remove-client-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
-  const approvals: string[] = [];
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
@@ -37,9 +38,6 @@ async function setupTest() {
     allowedHosts: [],
     dbPath,
     openAuthDatabase: openMCPAuthDatabase,
-    printApproval: (line) => {
-      approvals.push(line);
-    },
     printRequest: () => {},
     printSecurity: () => {},
   });
@@ -50,7 +48,13 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  return { url: server.url, origin: server.origin, approvals, store };
+  const authenticator = buildStubAuthenticator();
+
+  const enrollment = await createEnrollmentToken(store.db, Date.now());
+
+  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+
+  return { url: server.url, origin: server.origin, authenticator, store };
 }
 
 test('it removes a client and reports it removed', async () => {

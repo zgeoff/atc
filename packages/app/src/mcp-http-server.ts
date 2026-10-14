@@ -8,6 +8,7 @@ import type { DaemonBoot } from '@atc/protocol/daemon-boot';
 import type { DaemonBootOptions } from '@atc/protocol/daemon-boot-options';
 import type { DaemonPaths } from '@atc/protocol/daemon-paths';
 import { collectClients } from './mcp/collect-clients';
+import { collectPasskeys } from './mcp/collect-passkeys';
 import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
@@ -70,8 +71,9 @@ const DAEMON_WAIT_MS = 30_000;
  * Runs `atc mcp --http` in the foreground: boots the daemon when it is down,
  * or with `--wait-for-daemon` waits for one and exits when none answers, and
  * serves MCP over HTTP until Ctrl-C, through the daemon boot and the
- * database opener the entry wires in. Approval codes print here, so the
- * terminal running it is where the operator approves a client.
+ * database opener the entry wires in. The owner signs in to approve a
+ * client with a passkey, which `atc passkeys enroll` enrolls; with none
+ * enrolled the server says so at start.
  */
 export async function runMCPHTTPServer(
   build: string,
@@ -129,19 +131,12 @@ export async function runMCPHTTPServer(
     dbPath: io.dbPath,
     openAuthDatabase: host.openAuthDatabase,
 
-    // The line carries a client's name, so control and format characters
-    // are dropped before it reaches the operator's terminal.
-    printApproval: (line) => {
-      io.print(line.replaceAll(/[\p{Cc}\p{Cf}]/gu, ''));
-    },
-
-    // Request lines go to stderr, so stdout keeps the approval lines alone.
+    // Request lines go to stderr, beside the security events.
     printRequest: (line) => {
       io.printError(line);
     },
 
-    // Security events go to stderr too: a log shipper matches their
-    // `atc security ` prefix there and never reads stdout.
+    // A log shipper matches the `atc security ` prefix of these lines.
     printSecurity: (line) => {
       io.printError(line);
     },
@@ -167,12 +162,19 @@ export async function runMCPHTTPServer(
   });
 
   const clients = await collectClients(admin.db);
+  const passkeys = await collectPasskeys(admin.db);
 
   await admin.close();
 
   if (clients.length === 0) {
     io.print(
       'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
+    );
+  }
+
+  if (passkeys.length === 0) {
+    io.print(
+      'No passkey is enrolled, so nobody can sign in yet. Enroll one with: atc passkeys enroll',
     );
   }
 }

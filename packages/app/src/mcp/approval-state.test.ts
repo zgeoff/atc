@@ -2,24 +2,6 @@ import { expect, test } from 'bun:test';
 import invariant from 'tiny-invariant';
 import { ApprovalState } from './approval-state';
 
-test('it approves a pending request with its code typed in any case and with a dash', () => {
-  const state = new ApprovalState(600_000, () => 1000);
-
-  const approval = state.createPending({
-    key: 'q1',
-    clientID: 'c1',
-    clientName: 'dots',
-    redirectURI: 'https://dots.example/cb',
-  });
-
-  invariant(approval !== null, 'the approval was refused');
-
-  const typed = `${approval.approvalCode.slice(0, 4)}-${approval.approvalCode.slice(4)}`;
-
-  expect(state.verifyApprovalCode('q1', typed.toLowerCase())).toBe('ok');
-  expect(state.findPending('q1')).toBeNull();
-});
-
 test('it gives each pending request a random correlation id unrelated to its key', () => {
   const state = new ApprovalState(600_000, () => 1000);
 
@@ -46,7 +28,7 @@ test('it gives each pending request a random correlation id unrelated to its key
   expect(second.correlationID).not.toBe(first.correlationID);
 });
 
-test('it locks a pending request on the fifth wrong code', () => {
+test("it takes a request's challenge once", () => {
   const state = new ApprovalState(600_000, () => 1000);
 
   state.createPending({
@@ -56,26 +38,112 @@ test('it locks a pending request on the fifth wrong code', () => {
     redirectURI: 'https://dots.example/cb',
   });
 
-  const results = [1, 2, 3, 4, 5].map(() => state.verifyApprovalCode('q1', 'WRONG000'));
+  const challenge = state.mintChallenge('q1');
 
-  expect(results).toStrictEqual(['wrong', 'wrong', 'wrong', 'wrong', 'locked']);
+  invariant(challenge !== null, 'the request no longer waits');
+
+  const taken = [state.claimChallenge('q1'), state.claimChallenge('q1')];
+
+  expect(taken).toStrictEqual([{ kind: 'taken', challenge }, { kind: 'missing' }]);
 });
 
-test('it refuses the right code once five wrong codes locked the request', () => {
+test('it mints a fresh 32-byte challenge for each login page and keeps only the last', () => {
   const state = new ApprovalState(600_000, () => 1000);
 
-  const approval = state.createPending({
+  state.createPending({
     key: 'q1',
     clientID: 'c1',
     clientName: 'dots',
     redirectURI: 'https://dots.example/cb',
   });
 
-  invariant(approval !== null, 'the approval was refused');
+  const first = state.mintChallenge('q1');
+  const second = state.mintChallenge('q1');
 
-  Array.from({ length: 5 }, () => state.verifyApprovalCode('q1', 'WRONG000'));
+  invariant(first !== null && second !== null, 'the request no longer waits');
 
-  expect(state.verifyApprovalCode('q1', approval.approvalCode)).toBe('locked');
+  expect(Buffer.from(second, 'base64url')).toHaveLength(32);
+  expect(second).not.toBe(first);
+  expect(state.claimChallenge('q1')).toStrictEqual({ kind: 'taken', challenge: second });
+});
+
+test('it reports a challenge taken after five minutes as expired', () => {
+  let now = 1000;
+
+  const state = new ApprovalState(600_000, () => now);
+
+  state.createPending({
+    key: 'q1',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  state.mintChallenge('q1');
+
+  now = 1000 + 300_000;
+
+  expect(state.claimChallenge('q1')).toStrictEqual({ kind: 'expired' });
+});
+
+test('it keeps the challenges of two requests apart', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  state.createPending({
+    key: 'q1',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  state.createPending({
+    key: 'q2',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  state.mintChallenge('q1');
+
+  expect(state.claimChallenge('q2')).toStrictEqual({ kind: 'missing' });
+});
+
+test('it mints no challenge for a request that does not wait', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  expect(state.mintChallenge('q1')).toBeNull();
+});
+
+test('it locks a pending request on the fifth failed sign-in', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  state.createPending({
+    key: 'q1',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  const results = [1, 2, 3, 4, 5].map(() => state.recordFailure('q1'));
+
+  expect(results).toStrictEqual(['retry', 'retry', 'retry', 'retry', 'locked']);
+  expect(state.findPending('q1')).toBeNull();
+});
+
+test('it removes a pending request with its challenge', () => {
+  const state = new ApprovalState(600_000, () => 1000);
+
+  state.createPending({
+    key: 'q1',
+    clientID: 'c1',
+    clientName: 'dots',
+    redirectURI: 'https://dots.example/cb',
+  });
+
+  state.mintChallenge('q1');
+  state.removePending('q1');
+
+  expect(state.claimChallenge('q1')).toStrictEqual({ kind: 'missing' });
 });
 
 test('it forgets a pending request once it expires', () => {

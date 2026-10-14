@@ -16,6 +16,7 @@ test.each([
     const io = {
       runGateway: mock(),
       runClients: mock(),
+      runPasskeys: mock(),
       print: mock(),
       printError: mock(),
       exit: mock(),
@@ -51,6 +52,7 @@ test.each([
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -77,6 +79,7 @@ test.each([
     const io = {
       runGateway: mock(),
       runClients: mock(),
+      runPasskeys: mock(),
       print: mock(),
       printError: mock(),
       exit: mock(),
@@ -104,6 +107,7 @@ test.each([
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -128,6 +132,7 @@ test('it exits 1 when it serves with no state directory', async () => {
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -151,6 +156,7 @@ test('it exits 1 on two state directories that differ', async () => {
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -183,6 +189,7 @@ test('it exits 1 when a flag takes the state directory flag as its value', async
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -206,6 +213,7 @@ test('it exits 1 on a flag it does not know at the root', async () => {
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -236,6 +244,7 @@ test('it exits 1 on a port it cannot parse', async () => {
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -269,6 +278,7 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -310,6 +320,7 @@ test.each([
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -329,6 +340,7 @@ test('it prints the usage of the command --help follows and exits 0', async () =
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -348,6 +360,7 @@ test('it prints the usage and the reason and exits 1 on a missing required flag'
   const io = {
     runGateway: mock(),
     runClients: mock(),
+    runPasskeys: mock(),
     print: mock(),
     printError: mock(),
     exit: mock(),
@@ -362,4 +375,48 @@ test('it prints the usage and the reason and exits 1 on a missing required flag'
   expect(io.printError).toHaveBeenCalledExactlyOnceWith('Missing required argument: --public-url');
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
   expect(io.runGateway).not.toHaveBeenCalled();
+});
+
+test.each([
+  { args: ['passkeys'], action: { kind: 'list' } },
+  { args: ['passkeys', 'list'], action: { kind: 'list' } },
+  { args: ['passkeys', 'enroll'], action: { kind: 'enroll', reset: false } },
+  { args: ['passkeys', 'enroll', '--reset'], action: { kind: 'enroll', reset: true } },
+  { args: ['passkeys', 'remove', 'cred-1'], action: { kind: 'remove', id: 'cred-1' } },
+])('it hands $args to the passkey command for the state directory', async (row) => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI([...row.args, '--state-dir', 'flagged'], {}, io);
+
+  expect(io.runPasskeys).toHaveBeenCalledExactlyOnceWith(row.action, {
+    dbPath: join('flagged', 'mcp-auth.db'),
+    command: 'atc-gateway passkeys',
+  });
+});
+
+test('it exits 1 when it enrolls a passkey with no state directory', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(['passkeys', 'enroll'], {}, io);
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+    'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR',
+  );
+
+  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(io.runPasskeys).not.toHaveBeenCalled();
 });
