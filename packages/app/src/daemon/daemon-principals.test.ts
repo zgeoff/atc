@@ -1,4 +1,4 @@
-// oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-400, GEO-401)
+// oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';

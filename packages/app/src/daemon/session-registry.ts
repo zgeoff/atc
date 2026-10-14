@@ -39,8 +39,8 @@ interface SessionRegistryDeps {
 
 /**
  * The sessions the daemon lists, the agents and execution targets they run
- * under, and the lookups every other session module makes on them. The
- * registry never changes after it is built, apart from the list itself.
+ * under, and the lookups every other session module makes on them. Its
+ * agents and targets never change after it is built.
  */
 export class SessionRegistry {
   sessions: Session[] = [];
@@ -56,7 +56,7 @@ export class SessionRegistry {
 
   readonly targets: ReadonlyMap<string, ExecutionTarget>;
 
-  readonly targetErrors: readonly TargetConfigError[];
+  private readonly targetErrors: readonly TargetConfigError[];
 
   // Sessions a restore registered that have had neither a terminal nor a
   // headless turn since, so a later restore tries them again rather than

@@ -51,8 +51,7 @@ exit 0`;
 
 const ABSENT_DIR_EXIT = 3;
 
-// Runs git on the directory it starts in, whatever repository the daemon's
-// environment pins git to.
+// The largest settings file atc reads.
 const MAX_SETTINGS_BYTES = 1_048_576;
 
 // A readied host's harness plan, and the auth attempt that provisioned the
