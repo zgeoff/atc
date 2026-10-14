@@ -161,6 +161,32 @@ test('it retries a message on a fresh connection under the key its caller passed
   expect(dropping.keys).toStrictEqual(['k-1', 'k-1']);
 });
 
+test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that never got it runs it', async () => {
+  const tmp = setupTempDir('atc-reconnecting-caller-');
+
+  const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: ['spawn.idempotency', 'idempotency.replayOnly'],
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const ok = await caller.sendRequest('session.spawn', {
+    cwd: '/srv/harbor',
+    idempotencyKey: 'k-harbor',
+  });
+
+  expect(ok).toStrictEqual({ session: { id: 's-1' } });
+
+  expect(dropping.params).toStrictEqual([
+    { cwd: '/srv/harbor', idempotencyKey: 'k-harbor' },
+    { cwd: '/srv/harbor', idempotencyKey: 'k-harbor' },
+  ]);
+});
+
 test('it refuses to retry a keyed spawn unsent when the daemon behind the socket stopped taking keys', () => {
   const tmp = setupTempDir('atc-reconnecting-caller-');
 

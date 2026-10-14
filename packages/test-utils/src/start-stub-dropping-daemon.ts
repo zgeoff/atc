@@ -23,13 +23,15 @@ interface DroppingDaemonOptions {
  * that carries the first request of any other method without answering it,
  * and answers every later one with a session `s-1`. `keys` records the
  * idempotency key each of those requests carried, `undefined` for one that
- * carried none. `reads` counts the reads it has taken from every connection,
+ * carried none, and `params` records each one's params as they arrived,
+ * `undefined` for one that carried none. `reads` counts the reads it has taken from every connection,
  * so a test can wait until one piece of a split write has arrived. It stops
  * once the current test finishes, so it must run inside a test; `stop`
  * stops it sooner, and a second stop does nothing.
  */
 export function startStubDroppingDaemon(socketPath: string, options: DroppingDaemonOptions) {
   const keys: unknown[] = [];
+  const params: (Readonly<Record<string, unknown>> | undefined)[] = [];
   let hellos = 0;
   let reads = 0;
 
@@ -76,6 +78,7 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
           }
 
           keys.push(decoded.msg.p?.['idempotencyKey']);
+          params.push(decoded.msg.p);
 
           if (keys.length === 1) {
             socket.end();
@@ -96,6 +99,7 @@ export function startStubDroppingDaemon(socketPath: string, options: DroppingDae
 
   return {
     keys,
+    params,
     get reads() {
       return reads;
     },

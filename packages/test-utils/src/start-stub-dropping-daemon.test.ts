@@ -142,6 +142,34 @@ test('it answers a later request with a session and records each request key', a
   expect(daemon.keys).toStrictEqual(['k-1', undefined]);
 });
 
+test('it records the params of each request as they arrived', async () => {
+  const ctx = setupTest();
+  const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });
+
+  const first = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    first.stop();
+  });
+
+  await first.sendHello('atc/test-build');
+
+  await first
+    .sendRequest('session.spawn', { cwd: '/srv/harbor', idempotencyKey: 'k-1' })
+    .catch(() => null);
+
+  const second = await DaemonClient.open(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    second.stop();
+  });
+
+  await second.sendHello('atc/test-build');
+  await second.sendRequest('session.list');
+
+  expect(daemon.params).toStrictEqual([{ cwd: '/srv/harbor', idempotencyKey: 'k-1' }, undefined]);
+});
+
 test('it stops listening when stopped', () => {
   const ctx = setupTest();
   const daemon = startStubDroppingDaemon(ctx.socketPath, { features: [] });

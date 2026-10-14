@@ -69,3 +69,8 @@ replay-only, so a resend only ever replays. When the first send never reached th
 gets `idempotency_key_unknown`, and the request ends as `outcome_unknown`: the caller checks what
 the daemon did instead of sending it again. A daemon that does not announce replay-only resends gets
 no resend from the gateway at all.
+
+The MCP servers resend unchanged instead, without the flag. Each one reaches a daemon on its own
+state directory through a local socket, and that daemon's claim on a key outlives any reconnect, so
+an unchanged resend replays a key the daemon holds and runs once a request that never reached it
+([MCP](../remote/mcp.md#reconnecting)).
