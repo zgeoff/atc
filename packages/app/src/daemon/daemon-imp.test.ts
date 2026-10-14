@@ -1041,6 +1041,60 @@ test('it replaces the read-only copy when a caller adds to the scope', async () 
   expect(copy).toStrictEqual(record);
 });
 
+test('it keeps the guest-folder copy current for a harness restored after impd gained read-only files', async () => {
+  const ctx = await setupTest();
+  const fixture = await createGitFixture({ prefix: 'atc-daemon-imp-record-' });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: fixture.work,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+
+  await ctx.restart();
+
+  const client = await ctx.openClient();
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitFor(async () => {
+    const listed = await client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, alive: true, kind: 'pty' });
+  });
+
+  const added = await client.sendRequest('session.scope.add', {
+    session: id,
+    scope: { branches: [{ name: 'main' }] },
+  });
+
+  const record = getRecord(added, 'record');
+  const guestPath = join(ctx.dir, 'g', 'records', `${id}.json`);
+
+  const protectedPath = join(
+    ctx.dir,
+    'ro',
+    getOnlyImpName(ctx.port),
+    'atc',
+    'records',
+    `${id}.json`,
+  );
+
+  const guestCopy = await readJSONRecord(Bun.file(guestPath));
+  const protectedCopy = await readJSONRecord(Bun.file(protectedPath));
+
+  expect(record['revision']).toBe(2);
+  expect(guestCopy).toStrictEqual(record);
+  expect(statSync(guestPath).mode & 0o777).toBe(0o444);
+  expect(protectedCopy).toStrictEqual(record);
+});
+
 test('it places the copy in the guest folder when the imp’s agent is from before read-only files', async () => {
   const ctx = await setupTest();
 

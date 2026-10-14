@@ -57,6 +57,13 @@ const EMPTY_SCOPE: CheckedScope = { worktrees: [], branches: [], pullRequests: [
 export const PLACE_COPY =
   'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
 
+// The exit code of REFRESH_COPY when the directory holds no copy to refresh.
+const NO_COPY_CODE = 3;
+
+// Writes a record copy as PLACE_COPY does, but only over a copy already in
+// place, and exits NO_COPY_CODE when there is none.
+export const REFRESH_COPY = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY}`;
+
 /**
  * Publishes each session's record: the state store holds it, and the
  * session's provider places a read-only copy where the session reads it.
@@ -68,6 +75,10 @@ export class PublishedRecords {
   // The change under way for each session, which the next change to the
   // same record waits on, so two additions never write over each other.
   private readonly withSessionTurn = makeKeyedLock();
+
+  // The sessions whose host holds no guest-folder copy beside its read-only
+  // copy, so a write to the read-only copy skips the refresh.
+  private readonly withoutGuestCopy = new Set<SessionID>();
 
   constructor(options: PublishedRecordsOptions) {
     this.options = options;
@@ -120,6 +131,8 @@ export class PublishedRecords {
   // Drops a session's record and its copy on the daemon's machine.
   async remove(sessionID: SessionID): Promise<void> {
     await this.options.store.removePublishedRecord(sessionID);
+
+    this.withoutGuestCopy.delete(sessionID);
 
     await rm(this.getLocalPath(sessionID), { force: true });
   }
@@ -244,13 +257,17 @@ export class PublishedRecords {
     );
 
     if (protectedPath !== undefined && protectedPath !== null) {
+      await this.refreshGuestCopy(subject, name, content);
+
       return protectedPath;
     }
 
     // Elsewhere one command writes the copy beside its place and renames it
     // there. A remote host runs it as the user its provider runs commands
     // as, root on an imp, so the copy and its directory belong to that user.
-    const dir = `${subject.provider.guest?.dir ?? '/tmp/atc'}/records`;
+    const dir = this.getGuestDir(subject);
+
+    this.withoutGuestCopy.delete(subject.session);
 
     const placed = await subject.provider.runCommand({
       argv: ['sh', '-c', PLACE_COPY, 'sh', dir, name, `.${name}.${randomUUID()}`, content],
@@ -263,5 +280,42 @@ export class PublishedRecords {
     }
 
     return `${dir}/${name}`;
+  }
+
+  // A harness that started before its host kept read-only files reads the
+  // guest-folder copy, and a later start of the same session reattaches to
+  // that process with the environment it started with. So the copy there
+  // stays current for as long as it exists: a cold boot clears the guest
+  // folder and ends that process with it.
+  private async refreshGuestCopy(
+    subject: RecordSubject,
+    name: string,
+    content: string,
+  ): Promise<void> {
+    if (this.withoutGuestCopy.has(subject.session)) {
+      return;
+    }
+
+    const dir = this.getGuestDir(subject);
+
+    const refreshed = await subject.provider.runCommand({
+      argv: ['sh', '-c', REFRESH_COPY, 'sh', dir, name, `.${name}.${randomUUID()}`, content],
+      cwd: '/',
+      host: subject.host,
+    });
+
+    if (refreshed.exitCode === NO_COPY_CODE) {
+      this.withoutGuestCopy.add(subject.session);
+
+      return;
+    }
+
+    if (refreshed.exitCode !== 0) {
+      throw new Error(`refreshing the session record in ${dir} failed: ${refreshed.stderr.trim()}`);
+    }
+  }
+
+  private getGuestDir(subject: RecordSubject): string {
+    return `${subject.provider.guest?.dir ?? '/tmp/atc'}/records`;
   }
 }
