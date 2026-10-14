@@ -22,6 +22,7 @@ import { collectTargetPicks } from './collect-target-picks';
 import { findFuzzyScore, formatDir } from './dirs';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
 import { parseDaemonEvent } from './parse-daemon-event';
+import { pickPinTarget } from './pick-pin-target';
 import { pickTabTarget } from './pick-tab-target';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { SpawnPicker } from './spawn-picker';
@@ -724,10 +725,9 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'p' && sel !== undefined) {
-    // A sub-session pins with its parent. Flipped locally too so the
-    // repaint is immediate; the daemon's state event confirms it.
-    const target =
-      (sel.parent === null ? undefined : fleet.find((x) => x.id === sel.parent)) ?? sel;
+    // Flipped locally too so the repaint is immediate; the daemon's state
+    // event confirms it.
+    const target = pickPinTarget(sel, fleet);
 
     target.pinned = !target.pinned;
     void sendQuiet('session.update', { session: target.id, pinned: target.pinned });

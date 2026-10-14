@@ -460,30 +460,28 @@ export class SessionManager {
    * Renames and/or pins a session on a caller's behalf. A rename lands at
    * user strength, so auto-summaries stop overwriting it while an
    * in-session rename still wins. Pinned sessions lead every list. A
-   * sub-session takes its pin from its parent, so pinning one is refused.
-   * A null parent makes a sub-session top-level before any pin applies, so
-   * its pin, kill, and forget no longer follow its former parent. A
-   * sub-session that runs in its parent's host is refused one, since the
-   * host owner's kill and forget would still end it. A rename of a session
-   * the agent named itself is skipped and returns 'agent_named', after any
+   * sub-session inherits its parent's pin, and a pin of its own guards it
+   * from its parent's forget too. A null parent makes a sub-session
+   * top-level before any pin applies, so its pin, kill, and forget no
+   * longer follow its former parent. A sub-session that runs in its
+   * parent's host is refused a detach and a pin of its own, since the host
+   * owner's kill and forget would still end it. A rename of a session the
+   * agent named itself is skipped and returns 'agent_named', after any
    * other change applies.
    */
-  updateSession(
-    id: SessionID,
-    changes: SessionChanges,
-  ): boolean | 'child_pin' | 'shared_host' | 'agent_named' {
+  updateSession(id: SessionID, changes: SessionChanges): boolean | 'shared_host' | 'agent_named' {
     const s = this.registry.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
       return false;
     }
 
-    if (changes.parent === null && s.parent !== null && s.hostKey !== s.id) {
+    if (
+      s.parent !== null &&
+      s.hostKey !== s.id &&
+      (changes.parent === null || changes.pinned === true)
+    ) {
       return 'shared_host';
-    }
-
-    if (changes.pinned !== undefined && s.parent !== null && changes.parent !== null) {
-      return 'child_pin';
     }
 
     if (changes.parent === null && s.parent !== null) {

@@ -79,7 +79,8 @@ type ForgetResult =
 
 /**
  * The states a forget refuses to act on: a pinned session, or a sub-session
- * of a pinned one, and a live session.
+ * of a pinned one unless that pin belongs to the caller or a session above
+ * the caller, and a live session.
  */
 interface ForgetRefusals {
   readonly pinned: boolean;
@@ -256,11 +257,14 @@ export interface DaemonContext {
 
   // Forgets a session, or answers with the token a forget that destroys a
   // host must carry. Throws the refusal for a token it does not take, and
-  // for a pinned or live session when the caller asks it to refuse one.
+  // for a pinned or live session when the caller asks it to refuse one. The
+  // caller is the session the request comes from, or null for a client
+  // outside any session.
   readonly forgetSession: (
     id: SessionID,
     confirmToken: string | undefined,
     refuse: ForgetRefusals,
+    caller: SessionID | null,
   ) => Promise<ForgetResult | 'missing'>;
 
   // Withdraws the grants of the runtime auth binding on a session's host,
@@ -272,14 +276,13 @@ export interface DaemonContext {
   readonly updateSessionAuth: (id: SessionID) => Promise<number | null>;
 
   // Renames, pins, or makes top-level a session; false for no such session,
-  // 'child_pin' for a pin of a session that stays a sub-session, and
-  // 'shared_host' for a detach of a sub-session in its parent's host, and
-  // 'agent_named' when the other changes applied but the rename was skipped
-  // because the agent named the session itself.
+  // 'shared_host' for a detach or a pin of a sub-session in its parent's
+  // host, and 'agent_named' when the other changes applied but the rename
+  // was skipped because the agent named the session itself.
   readonly updateSession: (
     id: SessionID,
     changes: SessionChanges,
-  ) => boolean | 'child_pin' | 'shared_host' | 'agent_named';
+  ) => boolean | 'shared_host' | 'agent_named';
 
   // Adds a checked scope to a session's published record and returns the
   // record as it stands after; 'missing' for no such session.

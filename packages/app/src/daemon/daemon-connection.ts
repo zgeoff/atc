@@ -646,17 +646,11 @@ export class DaemonConnection {
           ...(parsed.data.parent === null ? { parent: null } : {}),
         });
 
-        if (updated === 'child_pin') {
+        if (updated === 'shared_host') {
           this.sendErr(
             req.id,
             'bad_args',
-            `session '${sessionID}' is a sub-session and takes its pin from its parent`,
-          );
-        } else if (updated === 'shared_host') {
-          this.sendErr(
-            req.id,
-            'bad_args',
-            `session '${sessionID}' runs in its parent's host and cannot be detached from it`,
+            `session '${sessionID}' runs in its parent's host and cannot be detached from it or pinned apart from it`,
           );
         } else if (updated === 'agent_named') {
           this.sendOk(req.id, 'session.update', { renameSkipped: 'agent_named' });
@@ -694,10 +688,12 @@ export class DaemonConnection {
 
         const id = parsed.data.session;
 
-        const forgotten = await ctx.forgetSession(id, parsed.data.confirmToken, {
-          pinned: parsed.data.refusePinned === true,
-          live: parsed.data.refuseLive === true,
-        });
+        const forgotten = await ctx.forgetSession(
+          id,
+          parsed.data.confirmToken,
+          { pinned: parsed.data.refusePinned === true, live: parsed.data.refuseLive === true },
+          this.callerSession,
+        );
 
         if (forgotten === 'missing') {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);

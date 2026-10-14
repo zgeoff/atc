@@ -1905,18 +1905,24 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // one that can, a forget without a token checks the target and answers
     // with a token, and the forget that carries the token destroys the host.
     // A refusal the caller asks for reads the session in the same step that
-    // starts the forget, so a pin or revive that lands first is seen.
-    forgetSession: async (id, confirmToken, refuse) => {
+    // starts the forget, so a pin or revive that lands first is seen. A pin
+    // a sub-session inherits stops every caller but a session it sits under,
+    // so a session can clear away its own sub-sessions; a pin of its own
+    // stops that session too.
+    forgetSession: async (id, confirmToken, refuse, caller) => {
       const s = mgr.sessions.find((x) => x.id === id);
 
       if (s === undefined) {
         return 'missing';
       }
 
-      if (refuse.pinned && (s.pinned || mgr.sessions.some((x) => x.id === s.parent && x.pinned))) {
+      const owned = caller !== null && caller !== id && mgr.isCallerTree(caller, id);
+      const inheritsPin = !owned && mgr.sessions.some((x) => x.id === s.parent && x.pinned);
+
+      if (refuse.pinned && (s.pinned || inheritsPin)) {
         throw new DaemonError(
           'session_pinned',
-          `session ${id} is pinned, or is a sub-session of a pinned session; unpin it before forgetting it`,
+          `session ${id} is pinned, or is a sub-session of a pinned session and the caller is not its parent; unpin it before forgetting it`,
           { session: id },
         );
       }

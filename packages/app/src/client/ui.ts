@@ -3,6 +3,7 @@ import { ansi } from '@atc/core/ansi';
 import { PINNED_GROUP_KEY } from '@atc/protocol/pinned-group-key';
 import type { SessionState } from '@atc/protocol/session-state';
 import { formatDir } from './dirs';
+import { pickPinTarget } from './pick-pin-target';
 import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
 import { planVacatedRows } from './plan-vacated-rows';
@@ -420,7 +421,7 @@ export function buildOverlayHint(
     actions.push('K forget');
   }
 
-  const owner = (s.parent === null ? undefined : list.find((x) => x.id === s.parent)) ?? s;
+  const owner = pickPinTarget(s, list);
   const pinVerb = owner.pinned ? 'p unpin' : 'p pin';
   const pinAction = owner === s ? pinVerb : `${pinVerb} parent`;
 
@@ -442,7 +443,7 @@ export function drawHelp() {
     'Y  yank the resume command, then kill here',
     'K  kill (K again on a dead session forgets it)',
     'p  pin or unpin — pinned sessions stay on top',
-    '    a sub-session pins with its parent',
+    '    a sub-session pins with its parent unless pinned itself',
     'g  toggle grouping by repository',
     'n  new session',
     'r  adopt an external session',

@@ -35,7 +35,7 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   canEject: z.boolean(),
 
   // the session this one is a sub-session of: it lists under that session
-  // and takes its pin from it
+  // and inherits its pin, beside any pin of its own
   parent: z
     .string()
     .transform((id) => toSessionID(id))
