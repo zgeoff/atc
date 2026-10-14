@@ -60,6 +60,7 @@ import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildNoteTrailEntry } from './build-note-trail-entry';
 import { buildNoteView } from './build-note-view';
+import { buildNoticeTrailEntry } from './build-notice-trail-entry';
 import { buildSessionEvent } from './build-session-event';
 import { buildSessionMessageEvent } from './build-session-message-event';
 import { buildSessionNoteEvent } from './build-session-note-event';
@@ -665,9 +666,49 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return s === undefined ? null : buildMessageOwner(s);
     },
     collectPendingMessages: (owner) => store.collectPendingMessages(owner),
+    collectPendingNotices: (senderSession) => store.collectPendingNotices(senderSession),
   };
 
   const drainSessionInbox = (sessionID: SessionID) => drainInbox(sessionID, inboxSource);
+
+  // Notes an answer notice change in the sender session's trail.
+  const recordNoticeStatus = async (
+    record: MessageRecord,
+    kind: 'notice-queued' | 'notice-delivered',
+  ) => {
+    if (record.senderSession === undefined) {
+      return;
+    }
+
+    const sender = mgr.sessions.find((x) => x.id === record.senderSession);
+
+    await recordTrailEntry(
+      buildNoticeTrailEntry(record.senderSession, sender?.agentSessionID, record, kind),
+    );
+  };
+
+  // Queues the answer notice of a message that just became answered or
+  // unanswered, for the session that sent it, and hands it to that
+  // session's tap when one takes notices. The store queues each message's
+  // notice once, so a repeated report queues nothing more. A sender with no
+  // tap keeps the notice queued until its next tap attaches.
+  const writeAnswerNotice = async (record: MessageRecord) => {
+    if (record.senderSession === undefined) {
+      return;
+    }
+
+    try {
+      const queued = await store.updateNoticeQueued(record.id, clock.now());
+
+      if (queued?.senderSession === undefined) {
+        return;
+      }
+
+      await recordNoticeStatus(queued, 'notice-queued');
+
+      void drainSessionInbox(queued.senderSession);
+    } catch {}
+  };
 
   // A note id, which a remote session's reporter gives each note,
   // makes a resent note land once; a resent answer changes nothing, since
@@ -718,6 +759,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         for (const record of unanswered) {
           await recordMessageStatus(e.atcId, record);
+          await writeAnswerNotice(record);
         }
       } catch {}
 
@@ -741,6 +783,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       for (const record of answered) {
         await recordMessageStatus(e.atcId, record);
+        await writeAnswerNotice(record);
       }
     } catch {}
   };
@@ -982,6 +1025,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       for (const record of unanswered) {
         await recordMessageStatus(sessionID, record);
+        await writeAnswerNotice(record);
       }
     } catch {}
   };
@@ -1164,9 +1208,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         return true;
       },
-      attachTap: (client, sessionID) => ctx.attachTap(client, sessionID, null),
+      attachTap: (client, sessionID, notices) => ctx.attachTap(client, sessionID, null, notices),
       ackMessage: (client, sessionID, messageID) =>
         ctx.ackMessage(client, sessionID, messageID, null),
+      ackNotice: (client, sessionID, messageID) => ctx.ackNotice(client, sessionID, messageID),
       detachTap: (client) => {
         taps.detachAll(client);
       },
@@ -1486,6 +1531,31 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return null;
   };
 
+  // The session that takes a message's answer notice: the session the caller
+  // runs inside, when it takes messages and, under an access, its whole tree
+  // is in reach. Any other caller gets no notice and reads the answer with
+  // message.get.
+  const findNoticeSender = (
+    callerSession: SessionID | null,
+    access: TargetAccess | null,
+  ): SessionID | null => {
+    if (callerSession === null) {
+      return null;
+    }
+
+    const s = mgr.sessions.find((x) => x.id === callerSession);
+
+    if (s === undefined || mgr.findAdapter(s.agent)?.takesMessages !== true) {
+      return null;
+    }
+
+    if (access !== null && !isTreeInReach(mgr.sessions, s.id, access)) {
+      return null;
+    }
+
+    return s.id;
+  };
+
   // Writes the message under the id given, notes it in the trail, and hands
   // it to the session's tap when one is attached. Only the write itself can
   // reject: every later step swallows its own failure, so a rejection means
@@ -1498,6 +1568,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     text: string,
     id: MessageID,
     requireWriteInReach: () => void,
+    senderSession: SessionID | null,
   ): Promise<MessageRecord> => {
     const s = mgr.sessions.find((x) => x.id === sessionID);
     const previousWrite = lastMessageWrite;
@@ -1515,6 +1586,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       text,
       status: 'queued',
       sentAt: clock.now(),
+      ...(senderSession === null ? {} : { senderSession }),
     };
 
     try {
@@ -2235,7 +2307,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         view: buildNoteView(stored, naming, aliases),
       };
     },
-    writeSessionMessage: async (sessionID, from, text, keyed, access) => {
+    writeSessionMessage: async (sessionID, from, text, keyed, access, callerSession) => {
       // Under an access, a session whose tree leaves the access before the
       // message is written refuses it as an unknown session does.
       const requireInReach = () => {
@@ -2243,6 +2315,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           throw new MessageRefusedError('missing');
         }
       };
+
+      const senderSession = findNoticeSender(callerSession, access);
 
       if (keyed === null) {
         const refusal = findMessageRefusal(sessionID);
@@ -2258,6 +2332,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
             text,
             mintMessageID(),
             requireInReach,
+            senderSession,
           );
 
           return { message: record.id, status: record.status };
@@ -2294,6 +2369,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
               text,
               effectRef,
               requireInReach,
+              senderSession,
             );
 
             return { message: record.id, status: record.status };
@@ -2311,7 +2387,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         throw error;
       }
     },
-    attachTap: (client, sessionID, access) => {
+    attachTap: (client, sessionID, access, notices) => {
       const s = mgr.sessions.find((x) => x.id === sessionID);
 
       if (s === undefined) {
@@ -2322,7 +2398,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'unsupported';
       }
 
-      emitInboxClosed(taps.attach(sessionID, client, access === null), sessionID, 'replaced');
+      emitInboxClosed(
+        taps.attach(sessionID, client, access === null, notices),
+        sessionID,
+        'replaced',
+      );
 
       const runtime = runtimes.get(sessionID);
 
@@ -2412,6 +2492,27 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const current = await store.findMessage(messageID, owner);
 
       return current ?? 'unknown';
+    },
+    ackNotice: async (client, sessionID, messageID) => {
+      if (!mgr.sessions.some((x) => x.id === sessionID) || !taps.isTap(sessionID, client)) {
+        return 'not_tapping';
+      }
+
+      const delivered = await store.updateNoticeDelivered(messageID, sessionID, clock.now());
+
+      void drainSessionInbox(sessionID);
+
+      if (delivered !== null) {
+        await recordNoticeStatus(delivered, 'notice-delivered');
+
+        return delivered;
+      }
+
+      const current = await store.findMessageByID(messageID);
+
+      return current?.senderSession === sessionID && current.noticeQueuedAt !== undefined
+        ? current
+        : 'unknown';
     },
   };
 

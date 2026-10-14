@@ -102,3 +102,104 @@ test('it removes no file for an answer to a note id it never sent', async () => 
     },
   ]);
 });
+
+test('it prints and acks an answer notice when the tap takes notices', async () => {
+  const ctx = setupTest();
+
+  // The bridge sends the notice once it answers the note the tap sends,
+  // and closes the inbox once the tap acks the notice.
+  const bridge = startStubSessionBridge(ctx.sock, (request) =>
+    request['op'] === 'note'
+      ? [
+          { id: request['id'], ok: true },
+          {
+            v: 4,
+            ev: 'InboxNotice',
+            s: 's1',
+            message: 'm-1',
+            from: 's2',
+            status: 'answered',
+            answer: 'the deploy finished',
+            at: 5,
+          },
+        ]
+      : [{ id: request['id'], ok: true }, { ev: 'InboxClosed' }],
+  );
+
+  writeFileSync(
+    join(ctx.outbox, 'r1.json'),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+  );
+
+  const printed: string[] = [];
+
+  await runBridgeTap(
+    ctx.sock,
+    ctx.outbox,
+    {
+      writeStdout: (text) => {
+        printed.push(text);
+
+        return Promise.resolve();
+      },
+      printError: () => {},
+      exit: () => {},
+    },
+    true,
+  );
+
+  expect(printed.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    { kind: 'answer', id: 'm-1', from: 's2', status: 'answered', answer: 'the deploy finished' },
+  ]);
+
+  expect(bridge.requests).toStrictEqual([
+    { v: 1, id: 'tap.open', op: 'tap.open', notices: true },
+    {
+      v: 1,
+      id: 'note:r1',
+      op: 'note',
+      noteID: 'r1',
+      payload: { kind: 'note', label: 'progress', text: 'hi' },
+    },
+    { v: 1, id: 'notice-ack:m-1', op: 'tap.notice-ack', message: 'm-1' },
+  ]);
+});
+
+test('it prints no answer notice when the tap takes none', async () => {
+  const ctx = setupTest();
+
+  const bridge = startStubSessionBridge(ctx.sock, (request) => [
+    { id: request['id'], ok: true },
+    {
+      v: 4,
+      ev: 'InboxNotice',
+      s: 's1',
+      message: 'm-1',
+      from: 's2',
+      status: 'unanswered',
+      reason: 'interrupted',
+      at: 5,
+    },
+    { ev: 'InboxClosed' },
+  ]);
+
+  writeFileSync(
+    join(ctx.outbox, 'r1.json'),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+  );
+
+  const printed: string[] = [];
+
+  await runBridgeTap(ctx.sock, ctx.outbox, {
+    writeStdout: (text) => {
+      printed.push(text);
+
+      return Promise.resolve();
+    },
+    printError: () => {},
+    exit: () => {},
+  });
+
+  expect(printed).toStrictEqual([]);
+  expect(bridge.requests.map((request) => request['op'])).toStrictEqual(['tap.open', 'note']);
+});

@@ -2,6 +2,8 @@ import { expect, mock, test } from 'bun:test';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
+import type { EventMsg } from '@atc/protocol/protocol';
 import { buildStubHeldInboxSource } from '../test-utils/build-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 
@@ -105,4 +107,114 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
     text: 'hello',
     sentAt: 1,
   });
+});
+
+test('it sends a tap without notices no answer notice', async () => {
+  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'), [
+    {
+      id: toMessageID('m-sent'),
+      atcID: toSessionID('s-other'),
+      from: 's-1',
+      text: 'check the build',
+      status: 'answered',
+      answer: 'the build is green',
+      sentAt: 0,
+      senderSession: toSessionID('s-1'),
+      noticeQueuedAt: 5,
+    },
+  ]);
+
+  const tap = { sendEvent: mock() };
+
+  inbox.source.taps.attach(toSessionID('s-1'), tap, true);
+
+  const drain = drainInbox(toSessionID('s-1'), inbox.source);
+
+  inbox.answer([]);
+
+  await drain;
+
+  expect(tap.sendEvent).not.toHaveBeenCalled();
+});
+
+test('it sends a tap with notices the answer notice of a message its session sent', async () => {
+  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'), [
+    {
+      id: toMessageID('m-sent'),
+      atcID: toSessionID('s-other'),
+      from: 's-1',
+      text: 'check the build',
+      status: 'unanswered',
+      unansweredReason: 'interrupted',
+      sentAt: 0,
+      senderSession: toSessionID('s-1'),
+      noticeQueuedAt: 5,
+    },
+  ]);
+
+  const tap = { sendEvent: mock() };
+
+  inbox.source.taps.attach(toSessionID('s-1'), tap, true, true);
+
+  const drain = drainInbox(toSessionID('s-1'), inbox.source);
+
+  inbox.answer([]);
+
+  await drain;
+
+  expect(tap.sendEvent.mock.calls).toStrictEqual([
+    [
+      {
+        v: PROTOCOL_V,
+        ev: 'InboxNotice',
+        s: 's-1',
+        message: 'm-sent',
+        from: 's-other',
+        status: 'unanswered',
+        reason: 'interrupted',
+        at: 5,
+      },
+    ],
+  ]);
+});
+
+test('it sends a pending message ahead of an answer notice', async () => {
+  const inbox = buildStubHeldInboxSource(toAgentSessionID('a-1'), [
+    {
+      id: toMessageID('m-self'),
+      atcID: toSessionID('s-1'),
+      from: 's-1',
+      text: 'note to self',
+      status: 'answered',
+      answer: 'noted',
+      sentAt: 0,
+      senderSession: toSessionID('s-1'),
+      noticeQueuedAt: 5,
+    },
+  ]);
+
+  const tap = { sendEvent: mock<(event: EventMsg) => void>() };
+
+  inbox.source.taps.attach(toSessionID('s-1'), tap, true, true);
+
+  const drain = drainInbox(toSessionID('s-1'), inbox.source);
+
+  inbox.answer([
+    {
+      id: toMessageID('m-self'),
+      atcID: toSessionID('s-1'),
+      from: 's-1',
+      text: 'note to self',
+      status: 'queued',
+      sentAt: 0,
+    },
+  ]);
+
+  await drain;
+  await drainInbox(toSessionID('s-1'), inbox.source);
+
+  expect(tap.sendEvent.mock.calls.map(([event]) => event.ev)).toStrictEqual([
+    'InboxMessage',
+    'InboxNotice',
+  ]);
 });

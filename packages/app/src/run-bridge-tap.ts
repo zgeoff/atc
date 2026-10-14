@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
 import type { BridgeSocket } from '@atc/protocol/open-bridge-socket';
 import { z } from 'zod';
+import { renderNoticeLine } from './render-notice-line';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
   ev: z.literal('InboxMessage'),
@@ -10,6 +11,15 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   from: z.string(),
   text: z.string(),
   sentAt: z.number(),
+});
+
+const INBOX_NOTICE_SCHEMA = z.looseObject({
+  ev: z.literal('InboxNotice'),
+  message: z.string(),
+  from: z.string(),
+  status: z.enum(['answered', 'unanswered']),
+  answer: z.string().optional(),
+  reason: z.string().optional(),
 });
 
 const OUTBOX_NOTE_SCHEMA = z.object({
@@ -21,7 +31,7 @@ const OUTBOX_NOTE_SCHEMA = z.object({
 const FIRST_RETRY_MS = 250;
 const LONGEST_RETRY_MS = 5000;
 
-// How many message ids the tap remembers having printed.
+// How many message and notice ids the tap remembers having printed.
 const SEEN_LIMIT = 10_000;
 
 // How one connection to the bridge ended: the inbox closed for good, the
@@ -54,21 +64,23 @@ const PROCESS_IO: BridgeTapIO = {
  * connection, as a host's sleep or a daemon restart leaves it, reconnects
  * with a growing wait of at most 5 seconds and no end; each new connection
  * replays the messages not yet acked, and one already printed is acked
- * again and not printed twice. Each connection also sends the notes the
- * outbox still holds. Exits 0 once the inbox closes and 1 when the bridge
- * refuses the tap.
+ * again and not printed twice. With `notices`, it also prints and acks
+ * the answer notices of the messages the session sent, the same way. Each
+ * connection also sends the notes the outbox still holds. Exits 0 once the
+ * inbox closes and 1 when the bridge refuses the tap.
  */
 export async function runBridgeTap(
   socketPath: string,
   outbox: string,
   io: BridgeTapIO = PROCESS_IO,
+  notices = false,
 ): Promise<void> {
   const seen = new Set<string>();
 
   let wait = FIRST_RETRY_MS;
 
   for (;;) {
-    const end = await runTapConnection(socketPath, outbox, seen, io);
+    const end = await runTapConnection(socketPath, outbox, seen, io, notices);
 
     if (end === 'closed') {
       io.exit(0);
@@ -100,6 +112,7 @@ async function runTapConnection(
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the ids the tap printed, which every connection adds to
   seen: Set<string>,
   io: BridgeTapIO,
+  notices: boolean,
 ): Promise<TapEnd> {
   const ended = Promise.withResolvers<TapEnd>();
   let opened = false;
@@ -108,6 +121,31 @@ async function runTapConnection(
 
   // The outbox file behind each note this connection sent, by request id.
   let sent = new Map<string, string>();
+
+  // Prints one line once per seen key, then acks it, in arrival order: one
+  // already printed on an earlier connection is acked again and not
+  // printed twice.
+  const schedulePrint = (key: string, printed: string, ack: Readonly<Record<string, unknown>>) => {
+    const previous = printing;
+
+    printing = (async () => {
+      await previous;
+
+      if (!seen.has(key)) {
+        try {
+          await io.writeStdout(printed);
+        } catch {
+          io.exit(1);
+
+          return;
+        }
+
+        updateSeenIDs(seen, key);
+      }
+
+      socket.writeLine(ack);
+    })();
+  };
 
   const onLine = (line: Readonly<Record<string, unknown>>) => {
     if (line['ev'] === 'InboxClosed') {
@@ -150,6 +188,21 @@ async function runTapConnection(
       return;
     }
 
+    const notice = INBOX_NOTICE_SCHEMA.safeParse(line);
+
+    if (notice.success) {
+      if (notices) {
+        schedulePrint(`notice:${notice.data.message}`, renderNoticeLine(notice.data), {
+          v: 1,
+          id: `notice-ack:${notice.data.message}`,
+          op: 'tap.notice-ack',
+          message: notice.data.message,
+        });
+      }
+
+      return;
+    }
+
     const msg = INBOX_MESSAGE_SCHEMA.safeParse(line);
 
     if (!msg.success) {
@@ -157,32 +210,12 @@ async function runTapConnection(
     }
 
     const message = msg.data;
-    const previous = printing;
 
-    printing = (async () => {
-      await previous;
-
-      if (!seen.has(message.message)) {
-        const printed = `${JSON.stringify({ id: message.message, from: message.from, text: message.text, sentAt: message.sentAt })}\n`;
-
-        try {
-          await io.writeStdout(printed);
-        } catch {
-          io.exit(1);
-
-          return;
-        }
-
-        updateSeenIDs(seen, message.message);
-      }
-
-      socket.writeLine({
-        v: 1,
-        id: `ack:${message.message}`,
-        op: 'tap.ack',
-        message: message.message,
-      });
-    })();
+    schedulePrint(
+      `message:${message.message}`,
+      `${JSON.stringify({ id: message.message, from: message.from, text: message.text, sentAt: message.sentAt })}\n`,
+      { v: 1, id: `ack:${message.message}`, op: 'tap.ack', message: message.message },
+    );
   };
 
   try {
@@ -199,7 +232,11 @@ async function runTapConnection(
     ended.resolve(end);
   })();
 
-  socket.writeLine({ v: 1, id: 'tap.open', op: 'tap.open' });
+  const open = notices
+    ? { v: 1, id: 'tap.open', op: 'tap.open', notices: true }
+    : { v: 1, id: 'tap.open', op: 'tap.open' };
+
+  socket.writeLine(open);
 
   const end = await ended.promise;
 

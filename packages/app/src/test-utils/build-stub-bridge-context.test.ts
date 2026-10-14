@@ -14,7 +14,9 @@ test('it records every note', async () => {
 });
 
 test('it attaches every tap', () => {
-  expect(buildStubBridgeContext().attachTap({ sendEvent: () => {} }, toSessionID('s1'))).toBe('ok');
+  expect(
+    buildStubBridgeContext().attachTap({ sendEvent: () => {} }, toSessionID('s1'), false),
+  ).toBe('ok');
 });
 
 test('it answers every ack as for an unknown message', async () => {
@@ -27,8 +29,18 @@ test('it answers every ack as for an unknown message', async () => {
   expect(acked).toBe('unknown');
 });
 
+test('it answers every notice ack as for an unknown notice', async () => {
+  const acked = await buildStubBridgeContext().ackNotice(
+    { sendEvent: () => {} },
+    toSessionID('s1'),
+    toMessageID('m-1'),
+  );
+
+  expect(acked).toBe('unknown');
+});
+
 test('it replaces the member an override names', () => {
   const context = buildStubBridgeContext({ attachTap: () => 'missing' });
 
-  expect(context.attachTap({ sendEvent: () => {} }, toSessionID('s1'))).toBe('missing');
+  expect(context.attachTap({ sendEvent: () => {} }, toSessionID('s1'), false)).toBe('missing');
 });

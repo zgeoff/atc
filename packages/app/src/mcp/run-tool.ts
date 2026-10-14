@@ -282,10 +282,15 @@ export function runTool(
 
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
-      const required: DaemonFeature[] =
-        key === undefined
-          ? ['vocabulary.note', 'message.unanswered']
-          : ['vocabulary.note', 'message.unanswered', 'message.idempotency'];
+      // A caller inside a session is told its answers arrive as notices, so
+      // a daemon that queues none refuses the send instead of leaving the
+      // caller waiting.
+      const required: DaemonFeature[] = [
+        'vocabulary.note',
+        'message.unanswered',
+        ...(key === undefined ? [] : (['message.idempotency'] as const)),
+        ...(ctx.callerSessionID === null ? [] : (['message.notice'] as const)),
+      ];
 
       const ok = await caller.sendRequest(
         'session.message',

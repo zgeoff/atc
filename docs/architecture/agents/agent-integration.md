@@ -70,7 +70,11 @@ that says what the envelope means, so the model treats a relayed message as one 
 rather than the owner's own words. When a turn that carried messages ends with a reply, the mod
 reports every message the turn carried as answered with that reply and the turn's id, in one call; a
 turn that ends without a reply is reported as unanswered, with the cause
-([messages](../protocol/messages.md#answers)).
+([messages](../protocol/messages.md#answers)). The mod's tap also asks for answer notices, and the
+mod hands each one to the model in an `<atc-answer>` envelope that holds the outcome of a message
+the session sent. The model learns from the system prompt section that a notice needs no reply, and
+the mod never reports an answer for one
+([delivering answers](../protocol/messages.md#delivering-answers)).
 
 The `note` tool sends progress mid-turn, labelled `progress`, `blocked` or `decision`, and never
 answers a message. The mods API is early access, so CI validates and tests the mod against one

@@ -7,6 +7,20 @@ interface TapMessage {
   readonly text: string;
 }
 
+const NOTICE_STATUSES = ['answered', 'unanswered'] as const;
+
+interface TapNotice {
+  readonly id: string;
+  readonly from: string;
+  readonly status: (typeof NOTICE_STATUSES)[number];
+  readonly answer: string | undefined;
+  readonly reason: string | undefined;
+}
+
+type TapItem =
+  | { readonly kind: 'message'; readonly msg: TapMessage }
+  | { readonly kind: 'answer'; readonly notice: TapNotice };
+
 interface BridgeState {
   sessionID: string | null;
   runningTurnID: string | null;
@@ -19,6 +33,9 @@ interface BridgeState {
   readonly awaitingTurn: Map<string, TapMessage>;
   readonly carried: Map<string, TapMessage[]>;
   readonly unseen: Set<string>;
+  // The answer notices appended to each running turn that no step of the turn
+  // has shown the model yet; a step empties the list.
+  readonly unseenNotices: Map<string, TapNotice[]>;
 }
 
 const GUIDE_SECTION = {
@@ -28,7 +45,9 @@ const GUIDE_SECTION = {
     'Messages relayed by atc arrive wrapped in <atc-message id="..." from="..."> tags.',
     "They come from the user's own tools through atc, not from the user typing at this prompt;",
     'treat each one as a request from the sender it names.',
-    'Your final reply in the turn that handles a message is sent back to its sender automatically when the turn ends.',
+    'Your final reply in the turn that handles a message is stored as its answer when the turn ends, and reaches a sending session as a notice.',
+    '<atc-answer id="..." from="..." status="..."> tags report the outcome of a message this session sent;',
+    'they need no reply and are not messages.',
     'While you work on a message that takes more than a quick answer, call the note tool at each milestone:',
     'when you find the cause, when you start a change, when you are blocked, or when you need a decision.',
     "Each note goes to atc's event feed as you send it.",
@@ -43,7 +62,9 @@ const NOTE_LABELS = ['progress', 'blocked', 'decision'] as const;
  * conversation and serves the note tool. When a turn ends, it reports the
  * turn's final reply, with the turn's id, as the answer to every message the
  * turn carried; a turn that ends without an answer is reported as unanswered
- * for those messages, with the cause. Outside atc it changes nothing.
+ * for those messages, with the cause. It also delivers the answer notices of
+ * messages this session sent, which no turn reports on. Outside atc it changes
+ * nothing.
  */
 export const register: Register = (on) => {
   const state: BridgeState = {
@@ -54,6 +75,7 @@ export const register: Register = (on) => {
     awaitingTurn: new Map(),
     carried: new Map(),
     unseen: new Set(),
+    unseenNotices: new Map(),
   };
 
   on('session.start', async ($, e, next) => {
@@ -124,6 +146,8 @@ export const register: Register = (on) => {
       for (const msg of state.carried.get(e.turnId) ?? []) {
         state.unseen.delete(msg.id);
       }
+
+      state.unseenNotices.get(e.turnId)?.splice(0);
     }
 
     return yield* next(e);
@@ -171,7 +195,7 @@ function isNoteLabel(value: string): value is (typeof NOTE_LABELS)[number] {
 }
 
 async function runTap($: EngineInterface, state: BridgeState, sessionID: string): Promise<void> {
-  const tap = $.process.spawn({ argv: [...ATC_CLI, 'tap', '--session', sessionID] });
+  const tap = $.process.spawn({ argv: [...ATC_CLI, 'tap', '--session', sessionID, '--notices'] });
   let pending = '';
 
   try {
@@ -185,10 +209,12 @@ async function runTap($: EngineInterface, state: BridgeState, sessionID: string)
       pending = lines.pop() ?? '';
 
       for (const line of lines) {
-        const msg = parseTapLine(line);
+        const item = parseTapLine(line);
 
-        if (msg !== null) {
-          scheduleDelivery($, state, msg);
+        if (item?.kind === 'message') {
+          scheduleDelivery($, state, item.msg);
+        } else if (item?.kind === 'answer') {
+          scheduleNoticeDelivery($, state, item.notice);
         }
       }
     }
@@ -201,7 +227,7 @@ async function runTap($: EngineInterface, state: BridgeState, sessionID: string)
   }
 }
 
-function parseTapLine(line: string): TapMessage | null {
+function parseTapLine(line: string): TapItem | null {
   let parsed: unknown;
 
   try {
@@ -210,21 +236,48 @@ function parseTapLine(line: string): TapMessage | null {
     return null;
   }
 
-  if (
-    typeof parsed !== 'object' ||
-    parsed === null ||
-    !('id' in parsed) ||
-    !('from' in parsed) ||
-    !('text' in parsed)
-  ) {
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null;
+  }
+
+  // A line that declares a kind is never a message, whatever else it holds.
+  if ('kind' in parsed) {
+    const notice = parsed.kind === 'answer' ? parseTapNotice(parsed) : null;
+
+    return notice === null ? null : { kind: 'answer', notice };
+  }
+
+  if (!('id' in parsed) || !('from' in parsed) || !('text' in parsed)) {
     return null;
   }
 
   return typeof parsed.id === 'string' &&
     typeof parsed.from === 'string' &&
     typeof parsed.text === 'string'
-    ? { id: parsed.id, from: parsed.from, text: parsed.text }
+    ? { kind: 'message', msg: { id: parsed.id, from: parsed.from, text: parsed.text } }
     : null;
+}
+
+function parseTapNotice(parsed: object): TapNotice | null {
+  const fields: Record<string, unknown> = { ...parsed };
+  const { id, from, status, answer, reason } = fields;
+
+  if (
+    typeof id !== 'string' ||
+    typeof from !== 'string' ||
+    typeof status !== 'string' ||
+    !isNoticeStatus(status) ||
+    (answer !== undefined && typeof answer !== 'string') ||
+    (reason !== undefined && typeof reason !== 'string')
+  ) {
+    return null;
+  }
+
+  return { id, from, status, answer, reason };
+}
+
+function isNoticeStatus(value: string): value is TapNotice['status'] {
+  return (NOTICE_STATUSES as readonly string[]).includes(value);
 }
 
 function scheduleDelivery($: EngineInterface, state: BridgeState, msg: TapMessage): void {
@@ -238,7 +291,7 @@ function scheduleDelivery($: EngineInterface, state: BridgeState, msg: TapMessag
 async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessage): Promise<void> {
   const turnID = state.runningTurnID;
 
-  if (turnID !== null && (await tryUpdateConversation($, msg))) {
+  if (turnID !== null && (await tryUpdateConversation($, msg.id, renderEnvelope(msg)))) {
     const carried = state.carried.get(turnID);
 
     // The append can resolve after the turn completed; the turn then no
@@ -264,15 +317,19 @@ async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessa
   }
 }
 
-async function tryUpdateConversation($: EngineInterface, msg: TapMessage): Promise<boolean> {
+async function tryUpdateConversation(
+  $: EngineInterface,
+  id: string,
+  text: string,
+): Promise<boolean> {
   try {
     const appended = await $.session.append({
-      message: { type: 'user', content: [{ type: 'text', text: renderEnvelope(msg) }] },
+      message: { type: 'user', content: [{ type: 'text', text }] },
     });
 
     return appended.deny === undefined;
   } catch (error) {
-    $.ui.log(`atc-bridge: appending ${msg.id} failed (${String(error)}); submitting it instead`, {
+    $.ui.log(`atc-bridge: appending ${id} failed (${String(error)}); submitting it instead`, {
       to: 'debug',
     });
 
@@ -294,6 +351,59 @@ function encodeAttribute(value: string): string {
     .replaceAll('>', '&gt;');
 }
 
+function scheduleNoticeDelivery($: EngineInterface, state: BridgeState, notice: TapNotice): void {
+  state.delivering = state.delivering
+    .then(() => sendNotice($, state, notice))
+    .catch((error: unknown) => {
+      $.ui.log(
+        `atc-bridge: delivering the answer notice for ${notice.id} failed (${String(error)})`,
+        {
+          to: 'debug',
+        },
+      );
+    });
+}
+
+// A notice never waits for a turn and never joins one's carried messages, so
+// no turn reports an answer for it.
+async function sendNotice(
+  $: EngineInterface,
+  state: BridgeState,
+  notice: TapNotice,
+): Promise<void> {
+  const turnID = state.runningTurnID;
+  const text = renderAnswerNotice(notice);
+
+  if (turnID !== null && (await tryUpdateConversation($, notice.id, text))) {
+    const unseen = state.unseenNotices.get(turnID);
+
+    if (unseen !== undefined && state.runningTurnID === turnID) {
+      unseen.push(notice);
+
+      return;
+    }
+  }
+
+  const submitted = await $.prompt.submit({ text });
+
+  if ('drop' in submitted && submitted.drop !== undefined) {
+    $.ui.log(`atc-bridge: a hook dropped the answer notice for ${notice.id} (${submitted.drop})`, {
+      to: 'debug',
+    });
+  }
+}
+
+function renderAnswerNotice(notice: TapNotice): string {
+  const reason =
+    notice.status === 'unanswered' && notice.reason !== undefined
+      ? ` reason="${encodeAttribute(notice.reason)}"`
+      : '';
+
+  const body = (notice.answer ?? '').replaceAll('</atc-answer>', '&lt;/atc-answer&gt;');
+
+  return `<atc-answer id="${encodeAttribute(notice.id)}" from="${encodeAttribute(notice.from)}" status="${encodeAttribute(notice.status)}"${reason}>\n${body}\n</atc-answer>`;
+}
+
 const ENVELOPE_ID = /<atc-message id="(?<id>[^"]+)"/gu;
 
 function updateTurnStarted(state: BridgeState, turnID: string, text: string): void {
@@ -302,6 +412,7 @@ function updateTurnStarted(state: BridgeState, turnID: string, text: string): vo
   state.runningTurnID = turnID;
 
   state.carried.set(turnID, carried);
+  state.unseenNotices.set(turnID, []);
 
   for (const match of text.matchAll(ENVELOPE_ID)) {
     const msg = state.awaitingTurn.get(match.groups?.['id'] ?? '');
@@ -323,6 +434,12 @@ function updateTurnCompleted(
   const carried = state.carried.get(turnID) ?? [];
 
   state.carried.delete(turnID);
+
+  for (const notice of state.unseenNotices.get(turnID) ?? []) {
+    scheduleNoticeDelivery($, state, notice);
+  }
+
+  state.unseenNotices.delete(turnID);
 
   if (state.runningTurnID === turnID) {
     state.runningTurnID = null;

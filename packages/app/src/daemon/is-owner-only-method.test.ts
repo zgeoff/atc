@@ -284,6 +284,7 @@ test.each([
   ['message.get', 'bad_args'],
   ['note.get', 'bad_args'],
   ['message.ack', 'bad_args'],
+  ['notice.ack', 'bad_args'],
 ])('it admits %s from a principal connection, which answers it with %s', async (method, code) => {
   const ctx = setupTest();
 
@@ -475,6 +476,7 @@ test.each([
   ['message.get', 'bad_args'],
   ['note.get', 'bad_args'],
   ['message.ack', 'bad_args'],
+  ['notice.ack', 'bad_args'],
 ])('it admits %s over TCP from a principal, which answers it with %s', async (method, code) => {
   const ctx = setupTest();
 

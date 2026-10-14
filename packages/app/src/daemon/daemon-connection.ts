@@ -898,6 +898,11 @@ export class DaemonConnection {
 
         return;
       }
+      case 'notice.ack': {
+        await this.applyNoticeAck(req, ctx);
+
+        return;
+      }
       case 'fleet.restore': {
         const parsed = parseRequestParams('fleet.restore', req.p);
 
@@ -1565,6 +1570,7 @@ export class DaemonConnection {
       parsed.data.text,
       keyed,
       null,
+      this.callerSession,
     );
 
     if (result === 'missing' || !ctx.isSessionVisible(sessionID)) {
@@ -1608,7 +1614,7 @@ export class DaemonConnection {
     }
 
     const sessionID = parsed.data.session;
-    const result = ctx.attachTap(this, sessionID, null);
+    const result = ctx.attachTap(this, sessionID, null, parsed.data.notices);
 
     if (result === 'missing') {
       this.sendErr(req.id, 'no_such_session', `no session '${sessionID}'`);
@@ -1698,6 +1704,39 @@ export class DaemonConnection {
     }
 
     this.sendOk(req.id, 'message.ack', { message: result.id, status: result.status });
+  }
+
+  private async applyNoticeAck(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('notice.ack', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const sessionID = parsed.data.session;
+    const messageID = parsed.data.message;
+
+    const result = await ctx.ackNotice(this, sessionID, messageID);
+
+    if (result === 'not_tapping') {
+      this.sendErr(req.id, 'bad_args', `this connection is not tapping session '${sessionID}'`);
+
+      return;
+    }
+
+    if (result === 'unknown' || !ctx.isSessionVisible(sessionID)) {
+      this.sendErr(
+        req.id,
+        'bad_args',
+        `no answer notice of message '${messageID}' for session '${sessionID}'`,
+      );
+
+      return;
+    }
+
+    this.sendOk(req.id, 'notice.ack', { message: result.id, status: result.status });
   }
 
   private async applyKill(req: RequestMsg, ctx: DaemonContext): Promise<void> {

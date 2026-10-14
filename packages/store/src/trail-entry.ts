@@ -11,7 +11,13 @@ interface TrailEntryBase {
 }
 
 interface MessageTrailEntry extends TrailEntryBase {
-  readonly kind: 'message-queued' | 'message-delivered' | 'message-answered' | 'message-unanswered';
+  readonly kind:
+    | 'message-queued'
+    | 'message-delivered'
+    | 'message-answered'
+    | 'message-unanswered'
+    | 'notice-queued'
+    | 'notice-delivered';
   readonly message: MessageID;
 }
 
@@ -28,7 +34,7 @@ interface ReportTrailEntry extends TrailEntryBase {
 }
 
 /**
- * One message status change or session note as the event trail holds it,
- * beside the hook events.
+ * One message status change, answer notice change, or session note as the
+ * event trail holds it, beside the hook events.
  */
 export type TrailEntry = MessageTrailEntry | ReportTrailEntry;

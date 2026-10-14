@@ -370,22 +370,28 @@ export interface DaemonContext {
   // Answers with the `session.message` ok payload, which a keyed retry
   // replays with the message's current status, or with the refusal. Under
   // an access, a session whose tree leaves it before the write refuses as
-  // 'missing'.
+  // 'missing'. The sender session is the session the caller runs inside,
+  // as its connection's handshake holds it, never the free-text `from`; it
+  // takes the message's answer notice when it takes messages and, under an
+  // access, its tree is in reach.
   readonly writeSessionMessage: (
     sessionID: SessionID,
     from: string,
     text: string,
     keyed: KeyedRequest | null,
     access: TargetAccess | null,
+    senderSession: SessionID | null,
   ) => Promise<DaemonAnswer<'session.message'> | MessageRefusal>;
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
 
   // Makes the client the session's inbox tap. Under an access, the tap
-  // takes only the messages sent to the session's atc id.
+  // takes only the messages sent to the session's atc id. A tap with
+  // notices also takes the answer notices of the messages the session sent.
   readonly attachTap: (
     client: TapClient,
     sessionID: SessionID,
     access: TargetAccess | null,
+    notices: boolean,
   ) => 'ok' | 'missing' | 'unsupported';
 
   // Lets go of the session's inbox tap when the client holds it, so its
@@ -399,5 +405,13 @@ export interface DaemonContext {
     sessionID: SessionID,
     messageID: MessageID,
     access: TargetAccess | null,
+  ) => Promise<MessageRecord | 'not_tapping' | 'unknown'>;
+
+  // Marks a tapped answer notice delivered: the notice of a message the
+  // session sent.
+  readonly ackNotice: (
+    client: TapClient,
+    sessionID: SessionID,
+    messageID: MessageID,
   ) => Promise<MessageRecord | 'not_tapping' | 'unknown'>;
 }

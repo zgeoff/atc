@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import type { SessionID } from '@atc/core/session-id';
+import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { buildStubHarnessRelay } from '@atc/test-utils/build-stub-harness-relay';
 import { waitFor } from '@atc/test-utils/wait-for';
@@ -354,4 +355,95 @@ test("it answers forbidden and closes for a request to add to its own session's 
   });
 
   expect(ctx.stub.written).toStrictEqual([{ id: 'r1', ok: false, code: 'forbidden' }]);
+});
+
+test('it opens a tap that takes answer notices when the open asks for them', async () => {
+  const ctx = setupTest();
+
+  ctx.sessions.set(toSessionID('s1'), {
+    id: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:a',
+    hostKey: toSessionID('s1'),
+    bridgeEpoch: 3,
+    state: 'running',
+    lastMsg: '',
+  });
+
+  const attachTap = mock<BridgeContext['attachTap']>(() => 'ok');
+
+  startSessionBridge(
+    ctx.stub.relay,
+    {
+      sessionID: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:a',
+      hostKey: toSessionID('s1'),
+      epoch: 3,
+    },
+    { ...ctx.daemon, attachTap },
+  );
+
+  ctx.stub.sendLine({ v: 1, id: 'r1', op: 'tap.open', notices: true });
+  ctx.stub.sendLine({ v: 1, id: 'r2', op: 'tap.open' });
+
+  await waitFor(() => {
+    expect(ctx.stub.written).toStrictEqual([
+      { id: 'r1', ok: true },
+      { id: 'r2', ok: true },
+    ]);
+  });
+
+  expect(attachTap.mock.calls.map((call) => call[2])).toStrictEqual([true, false]);
+});
+
+test('it acks an answer notice of its session through the notice ack', async () => {
+  const ctx = setupTest();
+
+  ctx.sessions.set(toSessionID('s1'), {
+    id: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:a',
+    hostKey: toSessionID('s1'),
+    bridgeEpoch: 3,
+    state: 'running',
+    lastMsg: '',
+  });
+
+  const ackNotice = mock<BridgeContext['ackNotice']>((_client, sessionID, messageID) =>
+    Promise.resolve({
+      id: messageID,
+      atcID: toSessionID('s2'),
+      from: sessionID,
+      text: 'run the linter',
+      status: 'answered',
+      answer: 'the linter is clean',
+      sentAt: 0,
+      senderSession: sessionID,
+      noticeQueuedAt: 1,
+      noticeDeliveredAt: 2,
+    }),
+  );
+
+  startSessionBridge(
+    ctx.stub.relay,
+    {
+      sessionID: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:a',
+      hostKey: toSessionID('s1'),
+      epoch: 3,
+    },
+    { ...ctx.daemon, ackNotice },
+  );
+
+  ctx.stub.sendLine({ v: 1, id: 'n1', op: 'tap.notice-ack', message: 'm-7' });
+
+  await waitFor(() => {
+    expect(ctx.stub.written).toStrictEqual([{ id: 'n1', ok: true, status: 'answered' }]);
+  });
+
+  expect(ackNotice.mock.calls.map((call) => [call[1], call[2]])).toStrictEqual([
+    [toSessionID('s1'), toMessageID('m-7')],
+  ]);
 });

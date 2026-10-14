@@ -310,7 +310,11 @@ export const REQUEST_PARAM_SCHEMAS = {
     idempotencyKey: IDEMPOTENCY_KEY,
     replayOnly: REPLAY_ONLY,
   }).refine((v) => v.text !== '', { message: 'session.message requires text' }),
-  'session.tap': SESSION_DEFAULTED,
+  'session.tap': SESSION_DEFAULTED.extend({
+    // Whether the tap also takes answer notices: the outcome of each message
+    // its session sent. A tap that leaves it out takes messages alone.
+    notices: z.boolean().default(false),
+  }),
   'message.get': z
     .object({
       message: buildDefaultedString('').transform(toMessageID),
@@ -326,6 +330,9 @@ export const REQUEST_PARAM_SCHEMAS = {
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
   }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),
+  'notice.ack': SESSION_DEFAULTED.extend({
+    message: buildDefaultedString('').transform(toMessageID),
+  }).refine((v) => v.message !== '', { message: 'notice.ack requires a message' }),
 } as const;
 
 function buildDefaultedString(fallback: string) {

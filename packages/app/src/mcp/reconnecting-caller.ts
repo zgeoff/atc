@@ -34,16 +34,23 @@ export class ReconnectingCaller implements FleetCaller {
 
   private readonly closed = new WeakSet<DaemonChannel>();
 
-  // The last argument connects to the daemon at a socket path; each channel
-  // it returns is handshaken here before a request rides it.
+  // The session the handshake claims the caller runs inside, which takes
+  // the answer notices of the messages it sends; null claims none.
+  private readonly session: string | null;
+
+  // The third argument connects to the daemon at a socket path; each
+  // channel it returns is handshaken here before a request rides it. The
+  // session defaults to the one the environment names.
   constructor(
     socketPath: string,
     build: string,
     openChannel: (socketPath: string) => Promise<DaemonChannel>,
+    session: string | null = readSessionEnv(process.env).sessionID ?? null,
   ) {
     this.socketPath = socketPath;
     this.build = build;
     this.openChannel = openChannel;
+    this.session = session;
   }
 
   // The required features are checked against each connection right before
@@ -151,9 +158,9 @@ export class ReconnectingCaller implements FleetCaller {
     let hello: Readonly<Record<string, unknown>>;
 
     try {
-      hello = await client.sendHello(this.build, {
-        session: readSessionEnv(process.env).sessionID,
-      });
+      const options = this.session === null ? {} : { session: this.session };
+
+      hello = await client.sendHello(this.build, options);
     } catch (error) {
       client.stop();
 

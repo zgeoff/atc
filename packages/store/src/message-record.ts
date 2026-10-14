@@ -24,4 +24,11 @@ export interface MessageRecord {
   // The turn whose final reply the answer is, or the turn that ended without
   // one, when the reporter gave one.
   readonly turn?: string;
+
+  // The session that sent the message, which takes an answer notice once
+  // the message is answered or unanswered; absent for a sender with no
+  // inbox.
+  readonly senderSession?: SessionID;
+  readonly noticeQueuedAt?: number;
+  readonly noticeDeliveredAt?: number;
 }

@@ -416,11 +416,16 @@ const main = defineCommand({
             required: true,
             description: 'The atc session id to tap',
           },
+          notices: {
+            type: 'boolean',
+            default: false,
+            description: 'Also stream the answer notices of the messages the session sent',
+          },
         },
         async run(ctx) {
           const tap = await import('./tap');
 
-          await tap.runTap(ctx.args.session);
+          await tap.runTap(ctx.args.session, undefined, undefined, ctx.args.notices);
         },
       }),
     note: () =>

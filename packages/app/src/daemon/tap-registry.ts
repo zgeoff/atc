@@ -3,11 +3,17 @@ import type { SessionID } from '@atc/core/session-id';
 
 interface TapEntry<TClient> {
   readonly client: TClient;
-  readonly claimed: Set<MessageID>;
+
+  // The deliveries the tap took, each keyed by its kind and message id.
+  readonly claimed: Set<string>;
 
   // Whether the tap also takes messages held under the session's agent
   // session id, as opposed to its atc id alone.
   readonly linked: boolean;
+
+  // Whether the tap also takes the answer notices of the messages its
+  // session sent.
+  readonly notices: boolean;
 
   // Which attach made this tap; every attach makes a new one.
   readonly generation: number;
@@ -21,7 +27,14 @@ interface TapEntry<TClient> {
 export interface TapGeneration {
   readonly generation: number;
   readonly linked: boolean;
+  readonly notices: boolean;
 }
+
+/**
+ * What one delivery hands a tap: a message sent to its session, or the
+ * answer notice of a message its session sent.
+ */
+export type TapDeliveryKind = 'message' | 'notice';
 
 /**
  * Which connection taps each session's inbox; one tap per session, the
@@ -35,9 +48,10 @@ export class TapRegistry<TClient> {
   /**
    * Makes the client the session's tap and returns the client it displaced,
    * or null when there was none or it is the same connection. A linked tap
-   * also takes the messages held under the session's agent session id.
+   * also takes the messages held under the session's agent session id, and
+   * a tap with notices also takes the answer notices of its session.
    */
-  attach(sessionID: SessionID, client: TClient, linked = true): TClient | null {
+  attach(sessionID: SessionID, client: TClient, linked = true, notices = false): TClient | null {
     const previous = this.bySession.get(sessionID)?.client ?? null;
 
     this.nextGeneration += 1;
@@ -46,6 +60,7 @@ export class TapRegistry<TClient> {
       client,
       claimed: new Set(),
       linked,
+      notices,
       generation: this.nextGeneration,
     });
 
@@ -75,7 +90,9 @@ export class TapRegistry<TClient> {
   findTap(sessionID: SessionID): TapGeneration | null {
     const entry = this.bySession.get(sessionID);
 
-    return entry === undefined ? null : { generation: entry.generation, linked: entry.linked };
+    return entry === undefined
+      ? null
+      : { generation: entry.generation, linked: entry.linked, notices: entry.notices };
   }
 
   hasTap(sessionID: SessionID): boolean {
@@ -87,18 +104,26 @@ export class TapRegistry<TClient> {
   }
 
   /**
-   * Claims the message for the session's tap and returns its client, or
-   * null when the tap already took it or another attach replaced the tap
-   * the delivery was made for.
+   * Claims the message, or the answer notice of the message, for the
+   * session's tap and returns its client, or null when the tap already took
+   * it or another attach replaced the tap the delivery was made for. A
+   * message and its notice are claimed apart, since a session can message
+   * itself.
    */
-  claimDelivery(sessionID: SessionID, messageID: MessageID, generation: number): TClient | null {
+  claimDelivery(
+    sessionID: SessionID,
+    messageID: MessageID,
+    generation: number,
+    kind: TapDeliveryKind = 'message',
+  ): TClient | null {
     const entry = this.bySession.get(sessionID);
+    const key = `${kind}:${messageID}`;
 
-    if (entry === undefined || entry.generation !== generation || entry.claimed.has(messageID)) {
+    if (entry === undefined || entry.generation !== generation || entry.claimed.has(key)) {
       return null;
     }
 
-    entry.claimed.add(messageID);
+    entry.claimed.add(key);
 
     return entry.client;
   }

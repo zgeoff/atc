@@ -6,7 +6,9 @@ takes it, so a message survives a daemon restart and a fleet restore. The daemon
 message into the session's terminal: a process inside the session takes it through a tap, and the
 `atc-bridge` mod inside Claude Code hands it to the model. The answer to a message is the final
 output of the turn that carried it, which the mod reports when the turn ends. A turn that ends
-without a reply leaves the message unanswered.
+without a reply leaves the message unanswered. When the sender is itself a session that takes
+messages, the daemon queues an answer notice in the sender's inbox, so the outcome reaches the
+sender's conversation without a read.
 
 [Agent integration](../agents/agent-integration.md#the-atc-bridge-mod) covers the mod, and
 [events](./events.md) covers the trail that records each status change.
@@ -77,7 +79,9 @@ read that waits returns as soon as the status becomes answered or unanswered.
 
 A caller reads a message's status, answer and turn by its id, and can hold the read open until the
 status moves. Message ids and statuses live in `atc.db`, so a caller whose wait ended, or whose
-connection dropped, reads again with the same id.
+connection dropped, reads again with the same id. A caller with no inbox, such as an MCP client
+outside atc or a remote connector, learns the outcome this way only. A sending session gets it
+pushed as well, as [delivering answers](#delivering-answers) describes.
 
 ### The end of a process
 
@@ -100,6 +104,39 @@ process may still run:
 - The end of a session while another live session resumes the same agent session, since the daemon
   cannot tell which of the two processes holds a message.
 
+## Delivering answers
+
+A session that sends a message gets its outcome pushed into its own conversation, because a session
+that forgets to read the message would otherwise wait on an answer atc holds. The daemon records the
+sender session with each message. It takes that session from the caller's connection, whose
+handshake holds the session the caller runs inside, and never from the sender name, which a local
+caller can set to anything. The daemon records a sender session only when that session takes
+messages and, for a caller that acts as a principal, when the session's tree is within the
+principal's reach. Every other caller gets no notice, and `atc mcp --http` claims no session, so a
+remote connector's message never reaches the session that started the server.
+
+When a message becomes answered or unanswered, whichever path settled it, the daemon queues one
+answer notice for its sender session in `atc.db`. The daemon queues each message's notice once, so a
+repeated answer report or a replayed tap queues no second notice. The notice waits in the sender's
+inbox the way a queued message waits, while the sender is asleep, exited or restoring, and the
+sender's next tap takes it.
+
+A tap takes notices only when it asks for them as it opens, because a tap from before notices would
+read one as a message and answer it. The daemon sends a tap its queued messages first and then its
+notices, one at a time, each as an `InboxNotice` event that holds the message id, the session the
+message went to, the status, and the answer or the unanswered reason. The tap prints a notice as a
+JSON line of kind `answer` with no text field, then acks it with `notice.ack`, and the ack marks the
+notice delivered. The event trail records `notice-queued` and `notice-delivered` under the sender
+session, with the message id.
+
+The mod hands a notice to the model in an `<atc-answer>` envelope that holds the message id, the
+answering session, the status and, for an unanswered message, the reason. The answer is the body,
+escaped the way a message envelope escapes its text. An idle sender takes the notice as a new turn,
+and a busy one takes it inside the running turn. A notice is never a message: the mod never counts
+it among a turn's messages, so the turn that reads it reports no answer, and two sessions cannot
+send answers back and forth. A notice the model never saw, one added to a running turn that ended
+before its next step, is delivered again, as an unseen message is.
+
 ## Progress notes
 
 A note is progress a session sends with no message attached, through the mod's `note` tool, labelled
@@ -109,13 +146,13 @@ with the turn's final reply.
 
 ## Remote sessions
 
-A session on an imp has no reporter socket and no client socket, so its tap, notes and answers
-travel over its [session bridge](../execution/imp-provider.md#the-session-bridge). There the tap
-reconnects after every dropped connection, with no end, since a sleep or a daemon restart drops it.
-Each new connection replays the messages not yet acked, and the tap prints each message once and
-acks a repeat again. A note or an answer waits in an outbox file beside the bridge socket until the
-bridge takes it, and the tap sends the outbox again on every connection, so a note survives a
-dropped connection and lands once.
+A session on an imp has no reporter socket and no client socket, so its tap, notes, answers and
+answer notices travel over its [session bridge](../execution/imp-provider.md#the-session-bridge).
+There the tap reconnects after every dropped connection, with no end, since a sleep or a daemon
+restart drops it. Each new connection replays the messages and notices not yet acked, and the tap
+prints each one once and acks a repeat again. A note or an answer waits in an outbox file beside the
+bridge socket until the bridge takes it, and the tap sends the outbox again on every connection, so
+a note survives a dropped connection and lands once.
 
 A local session has no outbox. Its notes and answers go to the reporter socket once, and a daemon
 that is down at that moment loses them. Its tap exits when the daemon goes away, which ends the
