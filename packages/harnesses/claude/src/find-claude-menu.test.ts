@@ -146,6 +146,20 @@ test('it finds no menu in the prompt box when a line is typed into it', () => {
   expect(findClaudeMenu(screen)).toBeNull();
 });
 
+test('it finds no menu in the prompt box when the typed draft holds a blank line', () => {
+  const screen = [
+    '──────────────────────────────────────────────────────────────────────────────',
+    '❯ rename the lantern module',
+    '  and update its tests',
+    '',
+    '  then run the suite',
+    '──────────────────────────────────────────────────────────────────────────────',
+    '  ⏵⏵ auto mode on (shift+tab to cycle)',
+  ].join('\n');
+
+  expect(findClaudeMenu(screen)).toBeNull();
+});
+
 test('it finds no menu above an empty prompt box', () => {
   const screen = [
     '❯ rename the lantern module',

@@ -62,12 +62,12 @@ async function setupTest() {
     return { session, menu: getRecord(read, 'menu') };
   };
 
-  const readLog = () =>
+  const readLog = (): unknown[] =>
     existsSync(join(daemon.dir, 'menu.log'))
       ? readFileSync(join(daemon.dir, 'menu.log'), 'utf8')
           .split('\n')
           .filter((line) => line !== '')
-          .map((line) => JSON.parse(line))
+          .map((line): unknown => JSON.parse(line))
       : [];
 
   return { daemon, spawnMenu, readLog };
@@ -209,9 +209,11 @@ test('it ticks a box and returns the menu with its new token', async () => {
         { option: 2, label: 'quarry-files', checked: false, highlighted: true },
         { option: 3, label: 'Enable selected', checked: null, highlighted: false },
       ],
-      menuToken: expect.not.stringMatching(String(shown.menu['menuToken'])),
+      menuToken: expect.toBeString(),
     },
   });
+
+  expect(getRecord(chosen, 'menu')['menuToken']).not.toBe(shown.menu['menuToken']);
 });
 
 test('it confirms the boxes ticked when a choice picks the enable item', async () => {

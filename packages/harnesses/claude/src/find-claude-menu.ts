@@ -21,8 +21,9 @@ const MAX_TEXT_LINES = 24;
  * options (`1. Yes`), whose wrapped lines join the option above them, boxes
  * (`[✔] name`) with a plain item such as `Enable selected` among them, or
  * plain options, one per line. Its text is the lines above the options up to
- * the dialog's border. The prompt box, whose `❯` line sits between two
- * rules, is no menu, and neither is a single option.
+ * the dialog's border. The prompt box, whose `❯` line sits straight under a
+ * rule with the draft's lines down to the next rule, is no menu, and neither
+ * is a single option.
  */
 export function findClaudeMenu(screen: string): ScreenMenu | null {
   const lines = screen.split('\n');
@@ -47,7 +48,7 @@ export function findClaudeMenu(screen: string): ScreenMenu | null {
     last++;
   }
 
-  if (isRule(lines[first - 1]) && isRule(lines[last + 1])) {
+  if ((isRule(lines[first - 1]) && isRule(lines[last + 1])) || isPromptBox(lines, at)) {
     return null;
   }
 
@@ -87,6 +88,29 @@ function isOptionLine(line: string | undefined, column: number): boolean {
     line.slice(0, column + POINTER.length).trim() === '' &&
     line.slice(column + POINTER.length).trim() !== ''
   );
+}
+
+// The prompt box: a cursor line straight under a rule, then indented or
+// blank lines down to the next rule, as a draft with blank lines in it
+// shows.
+function isPromptBox(lines: readonly string[], at: number): boolean {
+  if (!isRule(lines[at - 1])) {
+    return false;
+  }
+
+  for (let index = at + 1; index < lines.length; index++) {
+    const line = lines[index] ?? '';
+
+    if (isRule(line)) {
+      return true;
+    }
+
+    if (line !== '' && !line.startsWith(' ')) {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 function isRule(line: string | undefined): boolean {

@@ -40,12 +40,12 @@ function setupTest() {
     return { pty, output };
   };
 
-  const readLog = () =>
+  const readLog = (): unknown[] =>
     existsSync(logPath)
       ? readFileSync(logPath, 'utf8')
           .split('\n')
           .filter((line) => line !== '')
-          .map((line) => JSON.parse(line))
+          .map((line): unknown => JSON.parse(line))
       : [];
 
   return { dir: tmp.dir, startMenu, readLog };

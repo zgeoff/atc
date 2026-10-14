@@ -1,4 +1,5 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { z } from 'zod';
 
 /**
  * One menu the stand-in shows: its text lines, its options, its kind, and
@@ -7,14 +8,16 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
  * each option, ticked as `checked` holds, with `submit` as a last item
  * without a box.
  */
-interface StubMenu {
-  readonly kind: 'numbered' | 'plain' | 'boxes';
-  readonly text: readonly string[];
-  readonly options: readonly string[];
-  readonly checked?: readonly boolean[];
-  readonly submit?: string;
-  readonly cursor?: number;
-}
+const STUB_MENU_SCHEMA = z.object({
+  kind: z.enum(['numbered', 'plain', 'boxes']),
+  text: z.array(z.string()),
+  options: z.array(z.string()),
+  checked: z.array(z.boolean()).optional(),
+  submit: z.string().optional(),
+  cursor: z.number().optional(),
+});
+
+type StubMenu = z.output<typeof STUB_MENU_SCHEMA>;
 
 /**
  * What the stand-in runs: its menus in order, the file whose arrival moves
@@ -23,11 +26,11 @@ interface StubMenu {
  * arrows move the cursor, while Enter and Escape do nothing and restart the
  * hold. When the hold ends, the cursor goes back to where it started.
  */
-interface StubMenuSpec {
-  readonly menus: readonly StubMenu[];
-  readonly switchFile?: string;
-  readonly holdMs?: number;
-}
+const STUB_MENU_SPEC_SCHEMA = z.object({
+  menus: z.array(STUB_MENU_SCHEMA),
+  switchFile: z.string().optional(),
+  holdMs: z.number().optional(),
+});
 
 const KEY_NAMES: Readonly<Record<string, string>> = {
   '\u001B[A': 'up',
@@ -54,7 +57,7 @@ function main() {
     throw new Error('usage: run-stub-menu-claude.ts <spec path> <log path>');
   }
 
-  const spec: StubMenuSpec = JSON.parse(readFileSync(specPath, 'utf8'));
+  const spec = STUB_MENU_SPEC_SCHEMA.parse(JSON.parse(readFileSync(specPath, 'utf8')));
   const [first, second] = spec.menus;
 
   if (first === undefined) {
