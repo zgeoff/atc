@@ -51,13 +51,15 @@ async function setupTest() {
 
     const session = String(getRecord(spawned, 'session')['id']);
 
-    const read = await waitFor(async () => {
-      const answer = await daemon.client.sendRequest('session.menu', { session });
+    // The stand-in draws its footer last, so a screen that shows it holds the
+    // whole menu and never a half-drawn one.
+    await waitFor(async () => {
+      const screen = await daemon.client.sendRequest('session.screen', { session });
 
-      expect(answer['menu']).not.toBeNull();
-
-      return answer;
+      expect(screen['text']).toInclude('Enter to confirm');
     });
+
+    const read = await daemon.client.sendRequest('session.menu', { session });
 
     return { session, menu: getRecord(read, 'menu') };
   };
