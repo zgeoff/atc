@@ -99,18 +99,22 @@ the sender from the call's free text.
 
 ## Reconnecting
 
-The stdio server holds one daemon connection for its whole life, so once the daemon restarts, its
-calls fail until the agent starts it again. `atc mcp --http` reconnects on its next request instead.
-A call in flight at that moment is retried once on the fresh connection only when a retry cannot
-double its effect:
+Both servers reconnect to the daemon on the next request after a restart, so an agent never restarts
+its MCP server. The stdio server reconnects to the socket of the daemon it booted or joined at
+start. A call in flight at that moment is retried once on the fresh connection only when a retry
+cannot double its effect:
 
 - A read-only call is retried.
 - A spawn or a message is retried when the fresh daemon supports idempotency keys. The server sends
   the call under a key, the one the caller passed or one it mints, and resends it unchanged under
-  the same key, so the daemon answers a key it holds from the key and runs a key it never received
-  once ([idempotency](../protocol/idempotency.md)). atc-gateway resends as replay-only instead
-  ([the gateway](./gateway.md#lost-answers)).
+  the same key ([idempotency](../protocol/idempotency.md)).
 - Any other call fails, because it must not run twice.
+
+The resend goes out unchanged, not as replay-only, because the socket leads to a daemon on the same
+state directory. Its ledger claims a key before the effect starts and keeps a completed key far
+longer than a reconnect takes, so the daemon replays a call it got and runs a call it never got
+once. A replay-only resend would fail that second call. atc-gateway resends as replay-only
+([the gateway](./gateway.md#lost-answers)).
 
 ## Reading notes
 

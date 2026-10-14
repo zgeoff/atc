@@ -23,6 +23,12 @@ interface DaemonConnection {
  * idempotency key: the request keeps its key, minted here when the caller
  * passed none, so the daemon runs it at most once. Any other request fails,
  * because a spawn or a message must not run twice.
+ *
+ * The keyed retry goes out unchanged, never replay-only. The socket leads
+ * to a daemon on the same state directory, whose ledger claims a key before
+ * the effect starts and keeps a completed key far longer than a reconnect
+ * takes, so the retry replays a request the daemon got and runs once one it
+ * never got, which a replay-only retry would fail instead.
  */
 export class ReconnectingCaller implements FleetCaller {
   private readonly socketPath: string;

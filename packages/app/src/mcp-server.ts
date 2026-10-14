@@ -1,15 +1,18 @@
+import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import type { DaemonBoot } from '@atc/protocol/daemon-boot';
 import { LineDecoder } from '@atc/protocol/line-decoder';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
-import { requireDaemonFeatures } from './mcp/require-daemon-features';
+import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import type { FleetCaller, ToolContext } from './mcp/types';
 
 /**
  * An MCP server over stdio bridging to the atc daemon: any MCP client —
  * including a wrangled session — can list, spawn, and drive the fleet.
  * stdout carries only JSON-RPC lines; the daemon is booted on demand,
- * through the boot the entry wires in.
+ * through the boot the entry wires in. Once the daemon restarts, the next
+ * request reconnects to the socket the boot reached, so the server outlives
+ * the daemon it started against.
  */
 export async function runMCPServer(
   build: string,
@@ -17,22 +20,21 @@ export async function runMCPServer(
 ): Promise<void> {
   const boot = await bootDaemon();
 
-  const client = boot.client;
-
-  // The connection lives as long as the server, so the features its
-  // handshake announced hold for every call.
-  const caller: FleetCaller = {
-    sendRequest: (m, p, required = []) => {
-      requireDaemonFeatures(boot.features, required);
-
-      return client.sendRequest(m, p);
-    },
-    readFeatures: () => Promise.resolve(boot.features),
-  };
+  boot.client.stop();
 
   // The server inherits the calling session's id from its environment, so a
-  // spawn from inside a session nests under it by default.
+  // spawn from inside a session nests under it by default, and each
+  // connection's handshake claims that session for the answers to the
+  // messages it sends.
   const callerSessionID = readSessionEnv(process.env).sessionID ?? null;
+
+  const caller = new ReconnectingCaller(
+    boot.socketPath,
+    build,
+    (path) => DaemonClient.open(path),
+    callerSessionID,
+  );
+
   const toolContext: ToolContext = { callerSessionID };
 
   const decoder = new LineDecoder();
@@ -61,8 +63,7 @@ export async function runMCPServer(
   }
 
   await Promise.all(inFlight);
-
-  client.stop();
+  await caller.stop();
 }
 
 async function answerRPCLine(

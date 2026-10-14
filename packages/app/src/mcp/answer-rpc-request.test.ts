@@ -370,6 +370,30 @@ test('it lists the agents to a caller holding only the read scope', async () => 
   });
 });
 
+test('it answers a tool list with an error when no daemon listens on the socket', async () => {
+  const tmp = setupTempDir('atc-answer-rpc-');
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const outcome = await answerRPCRequest(
+    { jsonrpc: '2.0', id: 7, method: 'tools/list' },
+    {
+      caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null },
+    },
+  );
+
+  expect(outcome).toStrictEqual({
+    kind: 'reply',
+    body: { jsonrpc: '2.0', id: 7, error: { code: -32_603, message: expect.toBeString() } },
+  });
+});
+
 test('it leaves the agents tool out of the list when the connected daemon does not announce it', async () => {
   const tmp = setupTempDir('atc-answer-rpc-');
 
