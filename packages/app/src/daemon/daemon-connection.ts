@@ -109,10 +109,17 @@ export class DaemonConnection {
 
   private access: TargetAccess | null = null;
 
-  // The atc session the client runs inside, from its handshake; null for a
-  // client that gave none. A session never changes its own record or that
-  // of a session it is a sub-session of through it.
+  // The atc session the client runs inside; null for the owner. On the
+  // local socket the kernel's answer binds it, and a handshake can give it
+  // only for a process the kernel finds in no session. A session never
+  // changes its own record or that of a session it is a sub-session of
+  // through it, and every message it sends is from it.
   private callerSession: SessionID | null = null;
+
+  // The session the kernel found the connecting process in, by the pid it
+  // holds for the local socket's peer; null on TCP, for a process outside
+  // every session, and on a platform the daemon cannot ask.
+  private readonly peerSession: SessionID | null;
 
   // The sessions in this limited connection's view, the sessions the daemon
   // holds that the view leaves out, and the permission requests the
@@ -135,10 +142,16 @@ export class DaemonConnection {
   // Whether this TCP connection has sent its one handshake.
   private tcpHelloSent = false;
 
-  constructor(peer: PeerSocket, ctx: DaemonContext, tcp: TCPPeer | null = null) {
+  constructor(
+    peer: PeerSocket,
+    ctx: DaemonContext,
+    tcp: TCPPeer | null = null,
+    peerSession: SessionID | null = null,
+  ) {
     this.peer = peer;
     this.ctx = ctx;
     this.tcp = tcp;
+    this.peerSession = peerSession;
 
     this.queue = new OutboundQueue(peer, ctx.queueBytes);
 
@@ -1566,7 +1579,7 @@ export class DaemonConnection {
 
     const result = await ctx.writeSessionMessage(
       sessionID,
-      parsed.data.from,
+      this.callerSession ?? parsed.data.from,
       parsed.data.text,
       keyed,
       null,
@@ -1805,7 +1818,22 @@ export class DaemonConnection {
       this.setPrincipal(principal);
     }
 
-    this.callerSession = parsedHello.ok ? (parsedHello.data.session ?? null) : null;
+    const declared = parsedHello.ok ? (parsedHello.data.session ?? null) : null;
+
+    // The kernel's answer wins over the handshake: a process inside a
+    // session acts as that session whether or not it gives one, and one
+    // that gives another session is refused.
+    if (this.peerSession !== null && declared !== null && declared !== this.peerSession) {
+      this.sendErr(
+        req.id,
+        'unauthorized',
+        `daemon.hello gives session '${declared}', but the connecting process runs inside session '${this.peerSession}'`,
+      );
+
+      return false;
+    }
+
+    this.callerSession = this.peerSession ?? declared;
 
     if (req.v !== PROTOCOL_V) {
       this.sendErr(

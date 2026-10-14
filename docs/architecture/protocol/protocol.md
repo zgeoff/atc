@@ -61,7 +61,9 @@ The first line on a connection must be `daemon.hello`, and the daemon answers no
 and holds back every other answer until the handshake answer is written. The hello carries the
 client's build and its credential, which is `none` on the unix socket and a bearer token on the TCP
 listener ([principals](./principals.md#the-tcp-listener)). A client started inside a session also
-sends that session's id, which the daemon uses to stop a session from widening its own record
+sends that session's id, which the daemon uses to stop a session from widening its own record. On
+the unix socket the daemon reads the caller's session from the kernel instead, where the platform
+allows it, and refuses a hello whose session differs
 ([session record](../execution/session-record.md#who-may-change-the-record)).
 
 The answer holds the daemon's build, its feature list, its line limits, how long it keeps a

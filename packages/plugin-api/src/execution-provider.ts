@@ -235,6 +235,11 @@ export interface HarnessRelay {
  * subscription detachable on its own.
  */
 export interface HarnessHandle {
+  // The pid of the harness's process on the daemon's own machine, which the
+  // daemon matches a local client's process against; absent on a provider
+  // whose harness runs on another host.
+  readonly pid?: number;
+
   readonly onData: (listener: (data: string) => void) => HarnessSubscription;
   readonly onExit: (listener: (exit: HarnessExit) => void) => HarnessSubscription;
 

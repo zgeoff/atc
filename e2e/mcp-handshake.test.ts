@@ -1291,7 +1291,7 @@ test('it lists the fleet tools', async () => {
               "additionalProperties": false,
               "properties": {
                 "from": {
-                  "description": "Who the message is from; defaults to the calling session id, or mcp outside a session. Ignored for a remote client, whose messages are always from its own name",
+                  "description": "Who the message is from, outside an atc session; defaults to mcp. Ignored inside a session, whose messages are always from its own session id, and for a remote client, whose messages are always from its own name",
                   "type": "string",
                 },
                 "idempotencyKey": {

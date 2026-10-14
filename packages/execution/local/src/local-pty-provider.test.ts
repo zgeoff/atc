@@ -59,6 +59,36 @@ test('it runs a harness in a pseudo-terminal that echoes typed input back', asyn
   });
 });
 
+test('it gives the pid of the harness process the pseudo-terminal runs', async () => {
+  const ctx = setupTest();
+  const output: string[] = [];
+
+  const harness = ctx.provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'bash',
+    args: ['-c', 'echo "PID:$$"; sleep 30'],
+    cwd: ctx.dir,
+    env: { PATH: '/usr/bin:/bin' },
+    cols: 80,
+    rows: 24,
+  });
+
+  registerTestCleanup(() => {
+    harness.kill();
+  });
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toMatch(/PID:\d+\r?\n/);
+  });
+
+  expect(output.join('')).toInclude(`PID:${String(harness.pid)}`);
+});
+
 test('it starts a harness with TERM xterm-256color when the daemon has no TERM', async () => {
   const ctx = setupTest();
 

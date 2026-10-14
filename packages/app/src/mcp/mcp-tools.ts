@@ -774,7 +774,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
         from: {
           type: 'string',
           description:
-            'Who the message is from; defaults to the calling session id, or mcp outside a session. Ignored for a remote client, whose messages are always from its own name',
+            'Who the message is from, outside an atc session; defaults to mcp. Ignored inside a session, whose messages are always from its own session id, and for a remote client, whose messages are always from its own name',
         },
         idempotencyKey: IDEMPOTENCY_KEY_INPUT,
       },

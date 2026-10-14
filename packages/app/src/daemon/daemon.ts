@@ -80,6 +80,7 @@ import type {
 import { drainInbox } from './drain-inbox';
 import type { InboxSource } from './drain-inbox';
 import { EventSignal } from './event-signal';
+import { findPeerSession } from './find-peer-session';
 import { formatLogField } from './format-log-field';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
@@ -94,6 +95,7 @@ import { mintSessionID } from './mint-session-id';
 import { parseNote } from './parse-note';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
+import { readPeerPID } from './read-peer-pid';
 import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
@@ -486,6 +488,30 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const runHooks = makeHookRunner(opts.hooks ?? {});
 
+  // The session the process at the other end of a local socket runs in,
+  // from the pid the kernel holds for it and the harness processes of the
+  // sessions that hold a live one; null outside every session, and where
+  // the kernel cannot be asked.
+  const findSocketSession = (socket: object): SessionID | null => {
+    const pid = readPeerPID(socket);
+
+    if (pid === null) {
+      return null;
+    }
+
+    const harnesses = new Map<number, SessionID>();
+
+    for (const session of mgr.sessions) {
+      if (session.pty?.pid !== undefined) {
+        harnesses.set(session.pty.pid, session.id);
+      }
+    }
+
+    return findPeerSession(pid, harnesses);
+  };
+
+  // A process inside a session never reads the events socket: it gets the
+  // fleet only through its own connection, which acts as that session.
   const eventsServer =
     opts.eventsSocketPath === undefined
       ? null
@@ -497,6 +523,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
               ev: 'SessionAdded',
               session,
             })),
+          shouldRefusePeer: (socket) => findSocketSession(socket) !== null,
           ...(opts.queueBytes === undefined ? {} : { queueBytes: opts.queueBytes }),
         });
 
@@ -2611,7 +2638,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     unix: opts.socketPath,
     socket: {
       open(socket) {
-        socket.data = new DaemonConnection(socket, ctx);
+        socket.data = new DaemonConnection(socket, ctx, null, findSocketSession(socket));
 
         clients.add(socket.data);
       },
