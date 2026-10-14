@@ -134,10 +134,11 @@ principal's reach. Every other caller gets no notice, and `atc mcp --http` claim
 remote connector's message never reaches the session that started the server.
 
 When a message becomes answered or unanswered, whichever path settled it, the daemon queues one
-answer notice for its sender session in `atc.db`. The daemon queues each message's notice once, so a
-repeated answer report or a replayed tap queues no second notice. The notice waits in the sender's
-inbox the way a queued message waits, while the sender is asleep, exited or restoring, and the
-sender's next tap takes it.
+answer notice for its sender session in `atc.db`, in the same statement that settles the message, so
+a daemon that stops right after it settles a message holds the notice when it starts again. The
+daemon queues each message's notice once, so a repeated answer report or a replayed tap queues no
+second notice. The notice waits in the sender's inbox the way a queued message waits, while the
+sender is asleep, exited or restoring, and the sender's next tap takes it.
 
 A tap takes notices only when it asks for them as it opens, because a tap from before notices would
 read one as a message and answer it. The daemon sends a tap its queued messages first and then its
@@ -145,7 +146,8 @@ notices, one at a time, each as an `InboxNotice` event that holds the message id
 message went to, the status, and the answer or the unanswered reason. The tap prints a notice as a
 JSON line of kind `answer` with no text field, then acks it with `notice.ack`, and the ack marks the
 notice delivered. The event trail records `notice-queued` and `notice-delivered` under the sender
-session, with the message id.
+session, with the message id. A daemon that stops before it records `notice-queued` leaves no such
+entry, and the notice reaches the sender all the same.
 
 The mod hands a notice to the model in an `<atc-answer>` envelope that holds the message id, the
 answering session, the status and, for an unanswered message, the reason. The answer is the body,

@@ -1,12 +1,16 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, beside the other daemon topic tests
 import { expect, mock, test } from 'bun:test';
 import { isRecord } from '@atc/core/is-record';
+import { toMessageID } from '@atc/core/to-message-id';
+import { toSessionID } from '@atc/core/to-session-id';
 import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
 import type { DaemonClient } from '@atc/protocol/client/daemon-client';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { StateStore } from '@atc/store/state-store';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
 import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -17,7 +21,8 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
  * handshake holds the sender's id, as an `atc mcp` started in the session
  * sends it. The planned spawn gives each session's process; the default
  * runs on until it is killed. Hook lines read as the Claude adapter reads
- * them, so a SessionStart makes a session revivable.
+ * them, so a SessionStart makes a session revivable. `noteIgnored` records
+ * each note that settles no message.
  */
 async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }))) {
   const claude = new ClaudeAdapter(
@@ -26,6 +31,8 @@ async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })
     buildMockHostServices(),
   );
 
+  const noteIgnored = mock();
+
   const daemon = await startTestDaemon({
     options: () => ({
       adapter: buildMockAgentAdapter({
@@ -33,6 +40,7 @@ async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })
         planSpawn,
         planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
+      onNoteIgnored: noteIgnored,
     }),
   });
 
@@ -43,7 +51,7 @@ async function setupTest(planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })
   const recipient = await spawnNamedSession(send, 'recipient', daemon.dir);
   const inside = await daemon.openClient({ session: sender });
 
-  return { daemon, sender, recipient, inside };
+  return { daemon, sender, recipient, inside, noteIgnored };
 }
 
 interface ClientOpener {
@@ -234,6 +242,142 @@ test('it hands one answer notice for a message whose answer is reported twice', 
     ['notice-queued', sent['message']],
     ['notice-delivered', sent['message']],
   ]);
+});
+
+test('it hands one answer notice after a restart when the daemon stopped right after the answer settled the message', async () => {
+  const ctx = await setupTest();
+
+  const sent = await ctx.inside.sendRequest('session.message', {
+    session: ctx.recipient,
+    text: 'tag the release',
+  });
+
+  // An agent session id makes each session revivable after the restart.
+  await ctx.daemon.sendHookLines(
+    { atcId: ctx.sender, event: 'SessionStart', payload: { session_id: 'agent-sender' } },
+    { atcId: ctx.recipient, event: 'SessionStart', payload: { session_id: 'agent-recipient' } },
+  );
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toIncludeAllPartialMembers([
+      { id: ctx.sender, agentSessionID: 'agent-sender' },
+      { id: ctx.recipient, agentSessionID: 'agent-recipient' },
+    ]);
+  });
+
+  await ctx.daemon.stop();
+
+  // The settling statement a daemon commits before it stops, with nothing
+  // after it.
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
+
+  await store.updateMessagesAnswered(
+    [toMessageID(String(sent['message']))],
+    { atcID: toSessionID(ctx.recipient) },
+    'the release is tagged',
+    Date.now(),
+  );
+
+  await ctx.daemon.restart();
+  await ctx.daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id: ctx.sender, alive: true });
+  });
+
+  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  await waitFor(() => {
+    expect(tap.notices).toStrictEqual([
+      {
+        v: 4,
+        ev: 'InboxNotice',
+        s: ctx.sender,
+        message: sent['message'],
+        from: ctx.recipient,
+        status: 'answered',
+        answer: 'the release is tagged',
+        at: expect.any(Number),
+      },
+    ]);
+  });
+});
+
+test('it hands no second answer notice when the answer is reported again after a restart', async () => {
+  const ctx = await setupTest();
+
+  const sent = await ctx.inside.sendRequest('session.message', {
+    session: ctx.recipient,
+    text: 'bump the version',
+  });
+
+  // An agent session id makes each session revivable after the restart.
+  await ctx.daemon.sendHookLines(
+    { atcId: ctx.sender, event: 'SessionStart', payload: { session_id: 'agent-sender' } },
+    { atcId: ctx.recipient, event: 'SessionStart', payload: { session_id: 'agent-recipient' } },
+  );
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toIncludeAllPartialMembers([
+      { id: ctx.sender, agentSessionID: 'agent-sender' },
+      { id: ctx.recipient, agentSessionID: 'agent-recipient' },
+    ]);
+  });
+
+  await ctx.daemon.stop();
+
+  // The settling statement a daemon commits before it stops, with nothing
+  // after it.
+  const store = await StateStore.open(ctx.daemon.dbPath);
+
+  registerTestCleanup(() => store.stop());
+
+  await store.updateMessagesAnswered(
+    [toMessageID(String(sent['message']))],
+    { atcID: toSessionID(ctx.recipient) },
+    'the version is bumped',
+    Date.now(),
+  );
+
+  await ctx.daemon.restart();
+  await ctx.daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id: ctx.recipient, alive: true });
+    expect(listed['sessions']).toPartiallyContain({ id: ctx.sender, alive: true });
+  });
+
+  const tap = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  await waitFor(() => {
+    expect(tap.notices).toHaveLength(1);
+  });
+
+  await ctx.daemon.sendHookLines({
+    atcId: ctx.recipient,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'the version is bumped' },
+  });
+
+  await waitFor(() => {
+    expect(ctx.noteIgnored).toHaveBeenCalledWith(ctx.recipient, 'answered');
+  });
+
+  // A second tap replays nothing the first one took.
+  const replay = await startNoticeTap(ctx.daemon, ctx.sender, true);
+
+  expect(replay.notices).toStrictEqual([]);
+  expect(tap.notices).toHaveLength(1);
 });
 
 test('it keeps the answer notice of an exited sender queued and hands it over once the sender revives', async () => {

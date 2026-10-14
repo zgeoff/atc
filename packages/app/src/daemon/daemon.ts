@@ -717,26 +717,21 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  // Queues the answer notice of a message that just became answered or
-  // unanswered, for the session that sent it, and hands it to that
-  // session's tap when one takes notices. The store queues each message's
-  // notice once, so a repeated report queues nothing more. A sender with no
-  // tap keeps the notice queued until its next tap attaches.
-  const writeAnswerNotice = async (record: MessageRecord) => {
-    if (record.senderSession === undefined) {
+  // Notes the answer notice that the statement settling a message queued,
+  // and hands it to the sender session's tap when one takes notices. The
+  // store queues each message's notice once, in the settling statement, so
+  // a stop after that statement keeps the notice queued and a repeated
+  // report queues nothing more. A sender with no tap keeps the notice
+  // queued until its next tap attaches.
+  const recordAnswerNotice = async (record: MessageRecord) => {
+    if (record.senderSession === undefined || record.noticeQueuedAt === undefined) {
       return;
     }
 
     try {
-      const queued = await store.updateNoticeQueued(record.id, clock.now());
+      await recordNoticeStatus(record, 'notice-queued');
 
-      if (queued?.senderSession === undefined) {
-        return;
-      }
-
-      await recordNoticeStatus(queued, 'notice-queued');
-
-      void drainSessionInbox(queued.senderSession);
+      void drainSessionInbox(record.senderSession);
     } catch {}
   };
 
@@ -789,7 +784,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         for (const record of unanswered) {
           await recordMessageStatus(e.atcId, record);
-          await writeAnswerNotice(record);
+          await recordAnswerNotice(record);
         }
       } catch {}
 
@@ -813,7 +808,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       for (const record of answered) {
         await recordMessageStatus(e.atcId, record);
-        await writeAnswerNotice(record);
+        await recordAnswerNotice(record);
       }
     } catch {}
   };
@@ -1055,7 +1050,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       for (const record of unanswered) {
         await recordMessageStatus(sessionID, record);
-        await writeAnswerNotice(record);
+        await recordAnswerNotice(record);
       }
     } catch {}
   };
