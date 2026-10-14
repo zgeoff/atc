@@ -110,7 +110,14 @@ export async function runMCPHTTPServer(
 
   mkdirSync(dirname(io.dbPath), { recursive: true });
 
-  const caller = new ReconnectingCaller(boot.socketPath, build, (path) => DaemonClient.open(path));
+  // A remote connector has no inbox, so the server claims no session even
+  // when it was started inside one.
+  const caller = new ReconnectingCaller(
+    boot.socketPath,
+    build,
+    (path) => DaemonClient.open(path),
+    null,
+  );
 
   const server = await startMCPHTTPServer({
     caller,

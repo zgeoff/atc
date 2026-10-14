@@ -10,9 +10,13 @@ import { TapRegistry } from '../daemon/tap-registry';
  * daemon's store. It holds every session under the given agent session id,
  * and its pending-message read waits until the test answers it: `reading`
  * settles once a read starts, `answer` answers the read with the given
- * messages whatever owner it asked for.
+ * messages whatever owner it asked for. Its answer-notice read returns the
+ * given notices at once, whatever sender it asked for.
  */
-export function buildStubHeldInboxSource(agentSessionID: AgentSessionID) {
+export function buildStubHeldInboxSource(
+  agentSessionID: AgentSessionID,
+  notices: readonly MessageRecord[] = [],
+) {
   const pending = Promise.withResolvers<MessageRecord[]>();
   const reading = Promise.withResolvers<void>();
 
@@ -24,6 +28,7 @@ export function buildStubHeldInboxSource(agentSessionID: AgentSessionID) {
 
       return pending.promise;
     },
+    collectPendingNotices: () => Promise.resolve([...notices]),
   };
 
   return {

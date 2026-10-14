@@ -95,7 +95,11 @@ test('it gives a tap that replaces another the next generation and its own link'
 
   taps.attach(session, { name: 'b' }, false);
 
-  expect(taps.findTap(session)).toStrictEqual({ generation: stale.generation + 1, linked: false });
+  expect(taps.findTap(session)).toStrictEqual({
+    generation: stale.generation + 1,
+    linked: false,
+    notices: false,
+  });
 });
 
 test('it gives a session to the latest tapping client', () => {
@@ -193,4 +197,23 @@ test('it returns no client when a removed session is removed again', () => {
   taps.removeSession(session);
 
   expect(taps.removeSession(session)).toBeNull();
+});
+
+test('it claims a message and the answer notice of the same message apart', () => {
+  const taps = new TapRegistry<{ name: string }>();
+
+  const session = toSessionID('s1');
+  const client = { name: 'a' };
+
+  taps.attach(session, client, true, true);
+
+  const tap = taps.findTap(session);
+
+  invariant(tap !== null, 'expected a tap');
+
+  const message = taps.claimDelivery(session, toMessageID('m1'), tap.generation);
+  const notice = taps.claimDelivery(session, toMessageID('m1'), tap.generation, 'notice');
+  const again = taps.claimDelivery(session, toMessageID('m1'), tap.generation, 'notice');
+
+  expect([message, notice, again]).toStrictEqual([client, client, null]);
 });

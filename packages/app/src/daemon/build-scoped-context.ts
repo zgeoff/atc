@@ -187,7 +187,7 @@ export function buildScopedContext(
       return ctx.readEvents(afterID, limit, waitMs, sessionID, merged);
     },
     readNote: (id, outer) => ctx.readNote(id, mergeAccess(outer)),
-    writeSessionMessage: (sessionID, from, text, keyed, outer) =>
+    writeSessionMessage: (sessionID, from, text, keyed, outer, senderSession) =>
       canSee(sessionID)
         ? ctx.writeSessionMessage(
             sessionID,
@@ -195,6 +195,7 @@ export function buildScopedContext(
             text,
             buildPrincipalKey(keyed),
             mergeAccess(outer),
+            senderSession,
           )
         : Promise.resolve('missing' as const),
     readMessage: async (messageID, waitMs) => {
@@ -218,11 +219,15 @@ export function buildScopedContext(
 
       return waited !== null && waited.session === waited.record.atcID ? waited : null;
     },
-    attachTap: (client, sessionID, outer) =>
-      canSee(sessionID) ? ctx.attachTap(client, sessionID, mergeAccess(outer)) : 'missing',
+    attachTap: (client, sessionID, outer, notices) =>
+      canSee(sessionID) ? ctx.attachTap(client, sessionID, mergeAccess(outer), notices) : 'missing',
     ackMessage: (client, sessionID, messageID, outer) =>
       canSee(sessionID)
         ? ctx.ackMessage(client, sessionID, messageID, mergeAccess(outer))
+        : Promise.resolve('unknown' as const),
+    ackNotice: (client, sessionID, messageID) =>
+      canSee(sessionID)
+        ? ctx.ackNotice(client, sessionID, messageID)
         : Promise.resolve('unknown' as const),
   };
 }

@@ -1100,6 +1100,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '029_add_fleet_auth_revision',
     '030_add_messages_unanswered',
     '031_rebuild_fleet_without_unique_agent_session_id',
+    '032_add_messages_answer_notice',
   ]);
 });
 
@@ -1149,7 +1150,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 31 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 32 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -1904,6 +1905,124 @@ test('it marks every delivered message of a session unanswered with the given re
       unansweredReason: 'session_ended',
     },
   ]);
+});
+
+test('it stores the sender session of a message', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
+
+  await ctx.store.writeMessage(record);
+
+  const stored = await ctx.store.findMessageByID(record.id);
+
+  expect(stored).toStrictEqual(record);
+});
+
+test('it queues the answer notice of an answered message once', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+
+  const first = await ctx.store.updateNoticeQueued(record.id, 4000);
+  const second = await ctx.store.updateNoticeQueued(record.id, 5000);
+
+  expect(first).toStrictEqual({
+    ...record,
+    status: 'answered',
+    answeredAt: 3000,
+    answer: 'done',
+    noticeQueuedAt: 4000,
+  });
+
+  expect(second).toBeNull();
+});
+
+test('it queues no answer notice for a message without a sender session', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord();
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+
+  const queued = await ctx.store.updateNoticeQueued(record.id, 4000);
+
+  expect(queued).toBeNull();
+});
+
+test('it queues no answer notice for a message not yet settled', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
+
+  await ctx.store.writeMessage(record);
+
+  const queued = await ctx.store.updateNoticeQueued(record.id, 4000);
+
+  expect(queued).toBeNull();
+});
+
+test('it lists the queued answer notices of a sender until its tap takes them', async () => {
+  const ctx = await setupTest();
+
+  const sender = toSessionID('sender');
+  const first = buildMockMessageRecord({ id: toMessageID('m1'), senderSession: sender });
+  const second = buildMockMessageRecord({ id: toMessageID('m2'), senderSession: sender });
+
+  const other = buildMockMessageRecord({
+    id: toMessageID('m3'),
+    senderSession: toSessionID('other'),
+  });
+
+  for (const record of [first, second, other]) {
+    await ctx.store.writeMessage(record);
+
+    await ctx.store.updateMessagesUnanswered(
+      [record.id],
+      { atcID: record.atcID },
+      'interrupted',
+      3000,
+    );
+  }
+
+  await ctx.store.updateNoticeQueued(second.id, 4000);
+  await ctx.store.updateNoticeQueued(first.id, 5000);
+  await ctx.store.updateNoticeQueued(other.id, 5000);
+
+  const pending = await ctx.store.collectPendingNotices(sender);
+
+  expect(pending.map((x) => x.id)).toStrictEqual([second.id, first.id]);
+
+  const delivered = await ctx.store.updateNoticeDelivered(second.id, sender, 6000);
+
+  expect(delivered?.noticeDeliveredAt).toBe(6000);
+
+  const after = await ctx.store.collectPendingNotices(sender);
+
+  expect(after.map((x) => x.id)).toStrictEqual([first.id]);
+});
+
+test('it refuses to deliver an answer notice twice or to another sender', async () => {
+  const ctx = await setupTest();
+
+  const sender = toSessionID('sender');
+  const record = buildMockMessageRecord({ senderSession: sender });
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+  await ctx.store.updateNoticeQueued(record.id, 4000);
+
+  const byOther = await ctx.store.updateNoticeDelivered(record.id, toSessionID('other'), 5000);
+  const first = await ctx.store.updateNoticeDelivered(record.id, sender, 5000);
+  const second = await ctx.store.updateNoticeDelivered(record.id, sender, 6000);
+
+  expect(byOther).toBeNull();
+  expect(first?.noticeDeliveredAt).toBe(5000);
+  expect(second).toBeNull();
 });
 
 test('it keeps a queued message queued when its session ends', async () => {
@@ -3907,7 +4026,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-7, -4);
+    .slice(-8, -5);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();

@@ -194,6 +194,9 @@ export const DAEMON_CONTRACT = {
     get: base.meta(READ).input(P['message.get']).output(MESSAGE_VIEW_SCHEMA),
     ack: base.input(P['message.ack']).output(MESSAGE_ANSWER_SCHEMA),
   },
+  notice: {
+    ack: base.input(P['notice.ack']).output(MESSAGE_ANSWER_SCHEMA),
+  },
   note: {
     get: base.meta(READ).input(P['note.get']).output(NOTE_VIEW_SCHEMA),
   },

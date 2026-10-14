@@ -72,6 +72,7 @@ export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): 
     attachTap: makeUnreached('attachTap'),
     detachTap: () => {},
     ackMessage: makeUnreached('ackMessage'),
+    ackNotice: makeUnreached('ackNotice'),
     ...overrides,
   };
 }

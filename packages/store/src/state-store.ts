@@ -666,6 +666,9 @@ export class StateStore {
         answer: record.answer ?? null,
         unanswered_at: record.unansweredAt ?? null,
         unanswered_reason: record.unansweredReason ?? null,
+        sender_session: record.senderSession ?? null,
+        notice_queued_at: record.noticeQueuedAt ?? null,
+        notice_delivered_at: record.noticeDeliveredAt ?? null,
       })
       .execute();
   }
@@ -821,6 +824,61 @@ export class StateStore {
     return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
   }
 
+  // Queues the answer notice of a settled message that has a sender session,
+  // once: a message whose notice is already queued, or that has no sender
+  // session or no outcome yet, is left as it is. Returns the message when
+  // this call queued its notice, else null.
+  async updateNoticeQueued(id: MessageID, at: number): Promise<MessageRecord | null> {
+    const row = await this.db
+      .updateTable('messages')
+      .set({ notice_queued_at: at })
+      .where('id', '=', id)
+      .where('sender_session', 'is not', null)
+      .where('notice_queued_at', 'is', null)
+      .where('status', 'in', ['answered', 'unanswered'])
+      .returningAll()
+      .executeTakeFirst();
+
+    return row === undefined ? null : toMessageRecord(row);
+  }
+
+  // The answer notices queued for the sender session and not yet taken by
+  // its tap, oldest first.
+  async collectPendingNotices(senderSession: SessionID): Promise<MessageRecord[]> {
+    const rows = await this.db
+      .selectFrom('messages')
+      .selectAll()
+      .where('sender_session', '=', senderSession)
+      .where('notice_queued_at', 'is not', null)
+      .where('notice_delivered_at', 'is', null)
+      .orderBy('notice_queued_at', 'asc')
+      .orderBy(sql`rowid`, 'asc')
+      .execute();
+
+    return rows.map((row) => toMessageRecord(row));
+  }
+
+  // Marks the answer notice the sender session's tap took. Returns the
+  // message when this call marked it, else null: the notice was already
+  // taken, was never queued, or belongs to another sender.
+  async updateNoticeDelivered(
+    id: MessageID,
+    senderSession: SessionID,
+    at: number,
+  ): Promise<MessageRecord | null> {
+    const row = await this.db
+      .updateTable('messages')
+      .set({ notice_delivered_at: at })
+      .where('id', '=', id)
+      .where('sender_session', '=', senderSession)
+      .where('notice_queued_at', 'is not', null)
+      .where('notice_delivered_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row === undefined ? null : toMessageRecord(row);
+  }
+
   // Messages sent before the agent reported its session id carry no agent
   // session id; this stamps them once it is known, and moves every message
   // from a previous agent session id to a changed one.
@@ -856,6 +914,8 @@ export class StateStore {
         'message-delivered',
         'message-answered',
         'message-unanswered',
+        'notice-queued',
+        'notice-delivered',
         'note',
       ])
       .execute();
@@ -1619,6 +1679,8 @@ const MESSAGE_TRAIL_KINDS: ReadonlySet<string> = new Set([
   'message-delivered',
   'message-answered',
   'message-unanswered',
+  'notice-queued',
+  'notice-delivered',
 ]);
 
 // Message and note rows keep their message id or label where hook rows keep
@@ -1685,6 +1747,9 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
     ...(row.unanswered_at === null ? {} : { unansweredAt: row.unanswered_at }),
     ...(row.unanswered_reason === null ? {} : { unansweredReason: row.unanswered_reason }),
     ...(row.turn_id === null ? {} : { turn: row.turn_id }),
+    ...(row.sender_session === null ? {} : { senderSession: toSessionID(row.sender_session) }),
+    ...(row.notice_queued_at === null ? {} : { noticeQueuedAt: row.notice_queued_at }),
+    ...(row.notice_delivered_at === null ? {} : { noticeDeliveredAt: row.notice_delivered_at }),
   };
 }
 

@@ -40,8 +40,17 @@ export interface BridgeContext {
     payload: Readonly<Record<string, unknown>>,
     noteID: string,
   ) => Promise<boolean>;
-  readonly attachTap: (client: TapClient, sessionID: SessionID) => 'ok' | 'missing' | 'unsupported';
+  readonly attachTap: (
+    client: TapClient,
+    sessionID: SessionID,
+    notices: boolean,
+  ) => 'ok' | 'missing' | 'unsupported';
   readonly ackMessage: (
+    client: TapClient,
+    sessionID: SessionID,
+    messageID: MessageID,
+  ) => Promise<MessageRecord | 'not_tapping' | 'unknown'>;
+  readonly ackNotice: (
     client: TapClient,
     sessionID: SessionID,
     messageID: MessageID,
@@ -57,6 +66,7 @@ const NOTE_SCHEMA = z.looseObject({
 });
 
 const ACK_SCHEMA = z.looseObject({ message: z.string().min(1) });
+const TAP_OPEN_SCHEMA = z.looseObject({ notices: z.boolean().optional() });
 
 type BridgeRefusal = 'forbidden' | 'stale_binding' | 'not_tapping' | 'unknown_message';
 
@@ -67,9 +77,9 @@ type BridgeRefusal = 'forbidden' | 'stale_binding' | 'not_tapping' | 'unknown_me
  * answer line `{ id, ok }`, and the bridge's own inbox events go out as
  * protocol event lines.
  *
- * The bridge takes hooks, notes, its session's tap and acks, and its
- * session's own status, for the one session it was bound to and nothing
- * else: an unknown op, a malformed request, or a note or hook for any
+ * The bridge takes hooks, notes, its session's tap and acks of messages
+ * and answer notices, and its session's own status, for the one session it
+ * was bound to and nothing else: an unknown op, a malformed request, or a note or hook for any
  * other session answers `forbidden` and closes the connection. Every line
  * checks the binding against the live session first, and one that no
  * longer matches answers `stale_binding` and closes. Once the guest has
@@ -165,7 +175,9 @@ export function startSessionBridge(
     }
 
     if (op === 'tap.open') {
-      if (ctx.attachTap(tap, binding.sessionID) !== 'ok') {
+      const notices = TAP_OPEN_SCHEMA.safeParse(request).data?.notices === true;
+
+      if (ctx.attachTap(tap, binding.sessionID, notices) !== 'ok') {
         void answerRefusal(id, 'forbidden');
 
         return;
@@ -176,7 +188,7 @@ export function startSessionBridge(
       return;
     }
 
-    if (op === 'tap.ack') {
+    if (op === 'tap.ack' || op === 'tap.notice-ack') {
       const parsed = ACK_SCHEMA.safeParse(request);
 
       if (!parsed.success) {
@@ -185,7 +197,12 @@ export function startSessionBridge(
         return;
       }
 
-      const acked = await ctx.ackMessage(tap, binding.sessionID, toMessageID(parsed.data.message));
+      const messageID = toMessageID(parsed.data.message);
+
+      const acked =
+        op === 'tap.ack'
+          ? await ctx.ackMessage(tap, binding.sessionID, messageID)
+          : await ctx.ackNotice(tap, binding.sessionID, messageID);
 
       if (acked === 'not_tapping' || acked === 'unknown') {
         const code: BridgeRefusal = acked === 'unknown' ? 'unknown_message' : 'not_tapping';

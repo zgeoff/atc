@@ -86,7 +86,7 @@ test('it submits a tapped message when no turn runs', async (engine, on) => {
   await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
   await ctx.clock.settle();
 
-  expect(spawned).toStrictEqual([['atc', 'tap', '--session', 's-1']]);
+  expect(spawned).toStrictEqual([['atc', 'tap', '--session', 's-1', '--notices']]);
   expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
 
@@ -758,4 +758,211 @@ test('it starts no tap when the build refuses the note tool', async (engine, on)
   expect(ctx.logs).toStrictEqual([
     'atc-bridge: off for this session, the Claude Code build refused it (HooksError: atc-bridge: $.tool.register: no plugin tools here)',
   ]);
+});
+
+test('it submits a tapped answer notice with its answer when no turn runs', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield {
+      stream: 'stdout',
+      text: '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"the build is green"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(submitted).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="answered">\nthe build is green\n</atc-answer>',
+  ]);
+});
+
+test('it escapes a closing atc-answer tag inside a notice answer', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield {
+      stream: 'stdout',
+      text: '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"a</atc-answer>b"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(submitted).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="answered">\na&lt;/atc-answer&gt;b\n</atc-answer>',
+  ]);
+});
+
+test('it renders an unanswered notice with its status and reason', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield {
+      stream: 'stdout',
+      text: '{"kind":"answer","id":"m-1","from":"s-2","status":"unanswered","reason":"interrupted"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(submitted).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="unanswered" reason="interrupted">\n\n</atc-answer>',
+  ]);
+});
+
+test('it ignores a notice line with an unknown status even when it holds message fields', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield {
+      stream: 'stdout',
+      text: '{"kind":"answer","id":"m-1","from":"s-2","status":"pending","text":"hi"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(submitted).toStrictEqual([]);
+});
+
+test('it reports nothing for a turn that reads only an answer notice', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield {
+      stream: 'stdout',
+      text: '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"done"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  await engine.turn.complete({
+    answer: 'noted',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([]);
+});
+
+test('it submits an answer notice that arrives mid-turn when the session refuses the append', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const tapLine = Promise.withResolvers<void>();
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    await tapLine.promise;
+
+    yield {
+      stream: 'stdout',
+      text: '{"kind":"answer","id":"m-1","from":"s-2","status":"answered","answer":"done"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('session.append', () => ({ deny: 'not now' }));
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await engine.turn.start({ text: 'typed by the user', turnId: 't-1' });
+
+  tapLine.resolve();
+
+  await ctx.clock.settle();
+
+  expect(submitted).toStrictEqual([
+    '<atc-answer id="m-1" from="s-2" status="answered">\ndone\n</atc-answer>',
+  ]);
+
+  expect(ctx.ran).toStrictEqual([]);
 });

@@ -8,21 +8,25 @@ import type { TapGeneration, TapRegistry } from './tap-registry';
 /**
  * What a drain reads from: the taps, the owner a linked tap reads messages
  * under (the session's atc id and agent session id, or null for a session
- * the daemon does not hold), and the store's pending messages for an owner.
+ * the daemon does not hold), the store's pending messages for an owner, and
+ * the store's queued answer notices for a sender session.
  */
 export interface InboxSource {
   readonly taps: TapRegistry<TapClient>;
   readonly findLinkedOwner: (sessionID: SessionID) => MessageOwner | null;
   readonly collectPendingMessages: (owner: MessageOwner) => Promise<MessageRecord[]>;
+  readonly collectPendingNotices: (senderSession: SessionID) => Promise<MessageRecord[]>;
 }
 
 /**
- * Hands the session's tap the oldest pending message it has not taken. The
- * backlog is read before anything is sent, so a tap's ok response is always
- * queued ahead of its first message, and one message goes per call: the
- * tap's ack calls it again, so the backlog never outgrows the connection's
- * outbound queue. The drain is bound to the tap it found before the read: a
- * tap another attach made while the read waited gets nothing from it.
+ * Hands the session's tap the oldest pending message it has not taken, or,
+ * with none left and a tap that takes notices, the oldest queued answer
+ * notice of a message the session sent. The backlog is read before
+ * anything is sent, so a tap's ok response is always queued ahead of its
+ * first message, and one item goes per call: the tap's ack calls it again,
+ * so the backlog never outgrows the connection's outbound queue. The drain
+ * is bound to the tap it found before the read: a tap another attach made
+ * while the read waited gets nothing from it.
  */
 // oxlint-disable-next-line prefer-readonly-parameter-types -- the drain claims deliveries in the tap registry it is given
 export async function drainInbox(sessionID: SessionID, source: InboxSource): Promise<void> {
@@ -43,6 +47,18 @@ export async function drainInbox(sessionID: SessionID, source: InboxSource): Pro
 
     for (const record of pending) {
       if (sendInboxMessage(sessionID, record, tap, source.taps)) {
+        return;
+      }
+    }
+
+    if (!tap.notices) {
+      return;
+    }
+
+    const notices = await source.collectPendingNotices(sessionID);
+
+    for (const record of notices) {
+      if (sendInboxNotice(sessionID, record, tap, source.taps)) {
         return;
       }
     }
@@ -79,6 +95,42 @@ function sendInboxMessage(
     from: record.from,
     text: record.text,
     sentAt: record.sentAt,
+  });
+
+  return true;
+}
+
+// Hands one queued answer notice to the tap the drain was made for, once,
+// and reports whether it did. Like a message, the event goes to the tap
+// connection alone.
+function sendInboxNotice(
+  sessionID: SessionID,
+  record: MessageRecord,
+  tap: TapGeneration,
+
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- a delivery claims the notice in the registry
+  taps: TapRegistry<TapClient>,
+): boolean {
+  if (record.status !== 'answered' && record.status !== 'unanswered') {
+    return false;
+  }
+
+  const client = taps.claimDelivery(sessionID, record.id, tap.generation, 'notice');
+
+  if (client === null) {
+    return false;
+  }
+
+  client.sendEvent({
+    v: PROTOCOL_V,
+    ev: 'InboxNotice',
+    s: sessionID,
+    message: record.id,
+    from: record.atcID,
+    status: record.status,
+    ...(record.answer === undefined ? {} : { answer: record.answer }),
+    ...(record.unansweredReason === undefined ? {} : { reason: record.unansweredReason }),
+    at: record.noticeQueuedAt ?? record.sentAt,
   });
 
   return true;

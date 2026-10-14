@@ -86,9 +86,11 @@ Grok session loads it when you press `r` in its `/mcps` list.
 
 `atc_message_send` queues a message for a Claude Code session, which reads it in a new turn or
 inside the turn it is running, and `atc_message_get` returns that turn's final output once the turn
-ends. Claude Code shows the agent a relayed message as one a plugin sent, not as your own prompt, so
-name every write an unattended session must make, such as a push or a pull request, in its launch
-prompt, where its auto-mode classifier reads your request.
+ends. When the sender is itself a Claude Code session in atc, the outcome also arrives in the
+sender's conversation as an `<atc-answer>` notice, so the sender needs no `atc_message_get` call.
+Claude Code shows the agent a relayed message as one a plugin sent, not as your own prompt, so name
+every write an unattended session must make, such as a push or a pull request, in its launch prompt,
+where its auto-mode classifier reads your request.
 
 ## Restarting the daemon
 

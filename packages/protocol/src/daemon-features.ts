@@ -114,6 +114,10 @@ export const DAEMON_FEATURES = [
   // `session.update` answers `renameSkipped: 'agent_named'` when it skips a
   // rename because the agent named the session itself.
   'session.update.renameSkipped',
+
+  // `session.tap` takes `notices`, a tap that sets it takes `InboxNotice`
+  // events, and `notice.ack` exists.
+  'message.notice',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

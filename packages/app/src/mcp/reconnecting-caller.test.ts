@@ -194,3 +194,34 @@ test('it fails a spawn whose connection drops when the daemon takes no keys', ()
   expect(spawn).rejects.toMatchObject({ code: 'internal', message: 'connection closed' });
   expect(dropping.keys).toStrictEqual([undefined]);
 });
+
+test('it claims the session it was given in the handshake, and none when given null', async () => {
+  const daemon = await startTestDaemon({ prefix: 'atc-reconnecting-caller-' });
+
+  const claimed: unknown[] = [];
+
+  const openRecording = async (path: string) => {
+    const client = await DaemonClient.open(path);
+
+    const sendHello = client.sendHello.bind(client);
+
+    client.sendHello = (build, options) => {
+      claimed.push(options?.session);
+
+      return sendHello(build, options);
+    };
+
+    return client;
+  };
+
+  const inside = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', openRecording, 's-a');
+  const outside = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', openRecording, null);
+
+  registerTestCleanup(() => inside.stop());
+  registerTestCleanup(() => outside.stop());
+
+  await inside.sendRequest('session.list');
+  await outside.sendRequest('session.list');
+
+  expect(claimed).toStrictEqual(['s-a', undefined]);
+});

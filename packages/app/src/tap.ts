@@ -4,6 +4,7 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { z } from 'zod';
 import { buildHostServices } from './build-host-services';
+import { renderNoticeLine } from './render-notice-line';
 import { runBridgeTap } from './run-bridge-tap';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
@@ -19,6 +20,16 @@ interface InboxMessage {
   readonly text: string;
   readonly sentAt: number;
 }
+
+const INBOX_NOTICE_SCHEMA = z.looseObject({
+  message: z.string(),
+  from: z.string(),
+  status: z.enum(['answered', 'unanswered']),
+  answer: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+type InboxNotice = z.output<typeof INBOX_NOTICE_SCHEMA>;
 
 // Where the tap prints and how it exits: stdout, stderr, and the process by
 // default.
@@ -40,7 +51,9 @@ const PROCESS_IO: TapIO = {
 
 /**
  * Streams one session's inbox to stdout, one NDJSON line per message, and
- * acks each message once its line is written. It talks to the daemon that
+ * acks each message once its line is written. With `notices`, it also
+ * streams the answer notices of the messages the session sent, one line
+ * each, `kind` "answer", with no `text`, and acks each one the same way. It talks to the daemon that
  * is already running and never boots one: a tap runs inside the session it
  * serves, so a restart from here would take the whole fleet down. Exits 1
  * with a hint when no daemon listens or the session cannot be tapped, and
@@ -52,13 +65,14 @@ export async function runTap(
   session: string,
   socketPath: string = daemonSocketPath,
   io: TapIO = PROCESS_IO,
+  notices = false,
 ): Promise<void> {
   const inherited = readSessionEnv(process.env);
 
   // Inside a remote host the daemon's own socket is out of reach, and the
   // session bridge serves the tap instead.
   if (inherited.bridge === true && inherited.socket !== undefined) {
-    await runBridgeTap(inherited.socket, inherited.outbox ?? '', io);
+    await runBridgeTap(inherited.socket, inherited.outbox ?? '', io, notices);
 
     return;
   }
@@ -88,7 +102,26 @@ export async function runTap(
       return;
     }
 
-    if (event.ev !== 'InboxMessage' || event['s'] !== session) {
+    if (event['s'] !== session) {
+      return;
+    }
+
+    if (event.ev === 'InboxNotice' && notices) {
+      const notice = INBOX_NOTICE_SCHEMA.safeParse(event);
+
+      if (notice.success) {
+        const previous = written;
+
+        written = (async () => {
+          await previous;
+          await ackInboxNotice(client, session, notice.data, io);
+        })();
+      }
+
+      return;
+    }
+
+    if (event.ev !== 'InboxMessage') {
       return;
     }
 
@@ -118,7 +151,9 @@ export async function runTap(
       session: readSessionEnv(process.env).sessionID,
     });
 
-    await client.sendRequest('session.tap', { session });
+    const tapParams = notices ? { session, notices: true } : { session };
+
+    await client.sendRequest('session.tap', tapParams);
   } catch (error) {
     io.printError(`atc tap: ${formatError(error)}`);
     client.stop();
@@ -156,6 +191,27 @@ async function ackInboxMessage(
 
   try {
     await client.sendRequest('message.ack', { session, message: msg.message });
+  } catch (error) {
+    io.printError(`atc tap: ${formatError(error)}`);
+  }
+}
+
+async function ackInboxNotice(
+  client: RequestSender,
+  session: string,
+  notice: InboxNotice,
+  io: TapIO,
+): Promise<void> {
+  try {
+    await io.writeStdout(renderNoticeLine(notice));
+  } catch {
+    io.exit(1);
+
+    return;
+  }
+
+  try {
+    await client.sendRequest('notice.ack', { session, message: notice.message });
   } catch (error) {
     io.printError(`atc tap: ${formatError(error)}`);
   }

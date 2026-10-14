@@ -188,6 +188,15 @@ interface MessagesTable {
   // The turn whose final reply is the answer, or the turn that ended without
   // one; null for a message settled without one.
   turn_id: string | null;
+
+  // The atc id of the session that sent the message, taken from the caller
+  // the daemon saw; null for a sender that takes no answer notices.
+  sender_session: string | null;
+
+  // When the answer notice to the sender was queued and when its tap took
+  // it; null until each happens.
+  notice_queued_at: number | null;
+  notice_delivered_at: number | null;
 }
 
 /**
@@ -619,6 +628,20 @@ const MIGRATIONS: Record<string, Migration> = {
           .column('agent_session_id')
           .execute();
       });
+    },
+  },
+  '032_add_messages_answer_notice': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('sender_session', 'text').execute();
+      await db.schema.alterTable('messages').addColumn('notice_queued_at', 'integer').execute();
+      await db.schema.alterTable('messages').addColumn('notice_delivered_at', 'integer').execute();
+
+      await db.schema
+        .createIndex('messages_sender_session_notice')
+        .ifNotExists()
+        .on('messages')
+        .columns(['sender_session', 'notice_delivered_at'])
+        .execute();
     },
   },
 };
