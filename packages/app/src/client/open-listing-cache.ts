@@ -6,7 +6,6 @@ import {
   renameSync,
   rmSync,
   rmdirSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -15,6 +14,7 @@ import { isRecord } from '@atc/core/is-record';
 import type { Clock } from '@atc/core/system-clock';
 import { systemClock } from '@atc/core/system-clock';
 import { waitUntil } from '@atc/core/wait-until';
+import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
 
 /**
  * One source listing as the daemon answered it: the candidates as they
@@ -42,8 +42,7 @@ export interface ListingCache {
 }
 
 /**
- * Tuning a caller may pass: the clock that times the wait for the lock
- * and judges whether a held lock went stale.
+ * Tuning a caller may pass: the clock that times the wait for the lock.
  */
 interface ListingCacheOptions {
   readonly clock?: Clock;
@@ -67,9 +66,9 @@ const LOCK_RETRY_MS = 10;
  * file. Each write reads, checks, and replaces the file while it holds a
  * lock beside it, so writers in several processes keep each other's
  * listings. The lock is a directory named for the file with a `.lock`
- * suffix, holding one file named for the write that holds it. A lock
- * older than a few seconds belongs to a writer that died and is taken
- * over, and a write that waits too long for the lock keeps nothing.
+ * suffix, holding one file named for the write that holds it and its
+ * process. A lock whose process has exited is taken over, and a write
+ * that waits too long for the lock keeps nothing.
  */
 export function openListingCache(file: string, options: ListingCacheOptions = {}): ListingCache {
   const clock = options.clock ?? systemClock;
@@ -90,7 +89,7 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
       let claimed = false;
 
       try {
-        claimed = await waitUntil(() => tryClaimLock(lockPath, token, clock.now()), {
+        claimed = await waitUntil(() => tryClaimLock(lockPath, token), {
           clock,
           intervalMs: LOCK_RETRY_MS,
           deadlineMs: clock.now() + LOCK_WAIT_MS,
@@ -112,16 +111,13 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
   };
 }
 
-// A lock older than this belongs to a writer that died: a write holds the
-// lock only while it reads and replaces one small file.
-const LOCK_STALE_MS = 5000;
-
 // Builds a lock directory holding the token file beside the lock, then
 // renames it into place and returns true when this call now holds the
 // lock. A rename never replaces a directory that holds a file, so it
-// fails while another write holds the lock; a stale lock is then removed
-// so the next try can take it. A folder that cannot hold the lock throws.
-function tryClaimLock(lockPath: string, token: string, now: number): boolean {
+// fails while another write holds the lock; a lock whose process has
+// exited is then removed so the next try can take it. A folder that cannot
+// hold the lock throws.
+function tryClaimLock(lockPath: string, token: string): boolean {
   const stagedPath = `${lockPath}.${token}`;
 
   try {
@@ -138,7 +134,7 @@ function tryClaimLock(lockPath: string, token: string, now: number): boolean {
     }
   }
 
-  removeStaleLock(lockPath, now);
+  removeStaleLock(lockPath);
 
   return false;
 }
@@ -147,17 +143,18 @@ function isLockHeldCode(code: unknown): boolean {
   return code === 'ENOTEMPTY' || code === 'EEXIST';
 }
 
-// Removes each token file older than the stale age, then the lock
-// directory if that left it empty. Removing a token by its own name and
-// the directory only while empty never removes a lock that another write
-// took in the meantime.
-function removeStaleLock(lockPath: string, now: number): void {
+// Removes each token file whose process has exited, then the lock
+// directory if that left it empty. A live writer keeps its lock however
+// long it pauses, so it never replaces the file after another write.
+// Removing a token by its own name and the directory only while empty
+// never removes a lock that another write took in the meantime.
+function removeStaleLock(lockPath: string): void {
   try {
     for (const name of readdirSync(lockPath)) {
-      const tokenPath = join(lockPath, name);
+      const pid = Number(name.split('-')[0]);
 
-      if (now - statSync(tokenPath).mtimeMs > LOCK_STALE_MS) {
-        unlinkSync(tokenPath);
+      if (!(Number.isInteger(pid) && pid > 0 && isProcessAlive(pid))) {
+        unlinkSync(join(lockPath, name));
       }
     }
 

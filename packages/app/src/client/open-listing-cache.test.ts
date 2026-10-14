@@ -271,15 +271,17 @@ for (let round = 0; round < 6; round += 1) {
   });
 });
 
-test('it takes over a lock that a writer which died left behind', async () => {
+test('it takes over a lock that a writer which exited left behind', async () => {
   const ctx = setupTest();
   const lockPath = `${ctx.file}.lock`;
+  const exited = Bun.spawn([process.execPath, '-e', '']);
 
-  const leftAt = new Date(Date.now() - 60_000);
+  await exited.exited;
+
+  const exitedPid = exited.pid;
 
   mkdirSync(lockPath);
-  writeFileSync(join(lockPath, 'dead-writer'), '');
-  utimesSync(join(lockPath, 'dead-writer'), leftAt, leftAt);
+  writeFileSync(join(lockPath, `${exitedPid}-dead-writer`), '');
 
   await openListingCache(ctx.file).writeListing('github', {
     candidates: [{ label: 'acme/app' }],
@@ -296,12 +298,16 @@ test('it takes over a lock that a writer which died left behind', async () => {
   expect(readdirSync(ctx.dir)).toStrictEqual(['listing-cache.json']);
 });
 
-test('it keeps nothing and leaves the lock alone when another writer holds it past the wait', async () => {
+test('it keeps nothing and leaves an old lock alone while the writer holding it still runs', async () => {
   const ctx = setupTest();
   const lockPath = `${ctx.file}.lock`;
+  const tokenPath = join(lockPath, `${process.pid}-live-writer`);
+
+  const takenAt = new Date(Date.now() - 60_000);
 
   mkdirSync(lockPath);
-  writeFileSync(join(lockPath, 'live-writer'), '');
+  writeFileSync(tokenPath, '');
+  utimesSync(tokenPath, takenAt, takenAt);
 
   await openListingCache(ctx.file, { clock: buildStubSkipClock() }).writeListing('github', {
     candidates: [{ label: 'acme/app' }],
@@ -311,18 +317,20 @@ test('it keeps nothing and leaves the lock alone when another writer holds it pa
 
   expect(openListingCache(ctx.file).findListing('github', 1_000_000)).toBeNull();
   expect(readdirSync(ctx.dir)).toStrictEqual(['listing-cache.json.lock']);
-  expect(readdirSync(lockPath)).toStrictEqual(['live-writer']);
+  expect(readdirSync(lockPath)).toStrictEqual([`${process.pid}-live-writer`]);
 });
 
 test('it keeps every write when writers in several processes take over one stale lock at once', async () => {
   const ctx = setupTest();
   const lockPath = `${ctx.file}.lock`;
+  const exited = Bun.spawn([process.execPath, '-e', '']);
 
-  const leftAt = new Date(Date.now() - 60_000);
+  await exited.exited;
+
+  const exitedPid = exited.pid;
 
   mkdirSync(lockPath);
-  writeFileSync(join(lockPath, 'dead-writer'), '');
-  utimesSync(join(lockPath, 'dead-writer'), leftAt, leftAt);
+  writeFileSync(join(lockPath, `${exitedPid}-dead-writer`), '');
 
   // Each writer waits for the go file once it is ready, so all four find
   // the stale lock at the same time.
