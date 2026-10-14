@@ -118,5 +118,6 @@ may lie inside it, and [claims and rollback](../execution/workspaces.md#claims-a
 the full rule. On a shared imp host, a listed directory that the host cannot resolve keeps the
 rollback's directory only when it could lie inside. The daemon resolves a relative directory that
 the host can no longer enter again under the host's home, and removes the rollback's directory when
-the result lies outside it. An absolute directory the host cannot resolve, and a relative one with a
-parent step, keep the files, because the daemon cannot tell where they lead.
+the result lies outside it. An absolute directory the host cannot resolve keeps the files, and so
+does a relative one with a parent step or with a symlink among its missing parts, because the daemon
+cannot tell where they lead.

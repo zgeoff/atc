@@ -99,10 +99,15 @@ directory the host cannot resolve keeps the rollback's directory, since it may l
 symlink. One exception covers a relative directory that the host can no longer enter, such as one
 removed inside the guest. The daemon joins it to the host's home and resolves that path through its
 nearest existing directory, and every missing part of it lies beneath that directory, so the entry
-keeps the rollback's directory only when the result lies inside. A relative directory with a parent
-step stays unresolved, because the host follows a parent step through symlinks rather than
-lexically. An absolute directory the host cannot resolve stays unresolved, and so does every
-relative one when the host cannot resolve its home.
+keeps the rollback's directory only when the result lies inside. A relative directory stays
+unresolved in two cases:
+
+- It has a parent step, which the host follows through symlinks rather than lexically.
+- A missing part of it is a symlink, such as one whose target was removed, which could lead
+  anywhere.
+
+An absolute directory the host cannot resolve stays unresolved, and so does every relative one when
+the host cannot resolve its home.
 
 A daemon that stops partway leaves a row short of ready. The next daemon fails every such row as
 `workspace_interrupted` before it serves a request, and the directory stays on the target.
