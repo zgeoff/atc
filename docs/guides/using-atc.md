@@ -99,6 +99,13 @@ Claude Code shows the agent a relayed message as one a plugin sent, not as your 
 every write an unattended session must make, such as a push or a pull request, in its launch prompt,
 where its auto-mode classifier reads your request.
 
+To restart an agent's process, such as after a change of the account it signs in with, a
+coordinating agent calls `atc_session_stop` and then `atc_session_adopt`, which does what `P` does
+in the list: it starts the session again with its conversation resumed, and on an imp it wakes the
+host first. A message to a stopped or sleeping session is refused with `session_dead` until the
+adopt starts it again. A pin never blocks an adopt, and a remote client may adopt only a session on
+a target its grant reaches, as with a stop or a forget.
+
 ## Restarting the daemon
 
 When the daemon restarts, it restores the fleet by itself, and every session resumes from its
