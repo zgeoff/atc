@@ -1586,8 +1586,12 @@ export class SpawnPicker<TMirror extends { readonly id: string }> {
       return;
     }
 
+    // A scope the cache keeps shows at once, while the step lists it again.
     if (reading.kind === 'browse') {
       this.input = '';
+      this.selected = 0;
+
+      this.restoreCachedCandidates(reading.scope);
       void this.loadCandidates(reading.scope);
 
       return;
