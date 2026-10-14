@@ -10,14 +10,14 @@ import { z } from 'zod';
  */
 const STUB_MENU_SCHEMA = z.object({
   kind: z.enum(['numbered', 'plain', 'boxes']),
-  text: z.array(z.string()),
-  options: z.array(z.string()),
-  checked: z.array(z.boolean()).optional(),
+  text: z.array(z.string()).readonly(),
+  options: z.array(z.string()).readonly(),
+  checked: z.array(z.boolean()).readonly().optional(),
   submit: z.string().optional(),
   cursor: z.number().optional(),
 });
 
-type StubMenu = z.output<typeof STUB_MENU_SCHEMA>;
+type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
 
 /**
  * What the stand-in runs: its menus in order, the file whose arrival moves
