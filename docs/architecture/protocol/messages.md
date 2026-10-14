@@ -42,8 +42,10 @@ the write, so a session cannot leave a principal's reach between the check and t
 
 The daemon labels each message with its sender, built from who the caller is
 ([principals](./principals.md#who-a-caller-is)), and stores the label with the message. No field of
-the request sets it, so no caller can speak as another, and a request's `from` is ignored. The label
-holds a kind, an id and a name:
+the request sets it, so no caller can speak as another. The daemon reads a request's `from` only to
+match an idempotency key that an older daemon stored, because that daemon hashed the `from` with the
+other params. Local `atc mcp` passes on the `from` a keyed call gives, so an unchanged retry of a
+send that an older `atc mcp` made replays its message. The label holds a kind, an id and a name:
 
 | Kind        | Caller                                                           | Id                  | Name                                         |
 | ----------- | ---------------------------------------------------------------- | ------------------- | -------------------------------------------- |
