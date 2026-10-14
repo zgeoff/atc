@@ -5,7 +5,7 @@ import { findPeerSession } from './find-peer-session';
 test('it finds the session whose harness is the peer itself', () => {
   const harnesses = new Map([[40, toSessionID('s-1')]]);
 
-  expect(findPeerSession(40, harnesses, () => null)).toBe('s-1');
+  expect(findPeerSession(40, harnesses, () => null)).toBe(toSessionID('s-1'));
 });
 
 test('it finds the session whose harness is a grandparent of the peer', () => {
@@ -17,7 +17,9 @@ test('it finds the session whose harness is a grandparent of the peer', () => {
     [40, 1],
   ]);
 
-  expect(findPeerSession(42, harnesses, (pid) => parents.get(pid) ?? null)).toBe('s-1');
+  expect(findPeerSession(42, harnesses, (pid) => parents.get(pid) ?? null)).toBe(
+    toSessionID('s-1'),
+  );
 });
 
 test('it finds the nearest harness when one runs below another', () => {
@@ -32,7 +34,9 @@ test('it finds the nearest harness when one runs below another', () => {
     [40, 1],
   ]);
 
-  expect(findPeerSession(52, harnesses, (pid) => parents.get(pid) ?? null)).toBe('s-child');
+  expect(findPeerSession(52, harnesses, (pid) => parents.get(pid) ?? null)).toBe(
+    toSessionID('s-child'),
+  );
 });
 
 test('it finds no session for a process whose chain reaches init without a harness', () => {
