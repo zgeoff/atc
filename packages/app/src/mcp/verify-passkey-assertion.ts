@@ -24,7 +24,9 @@ interface AssertionCheck {
  * public key with the expected challenge, origin, and RP ID, with the user
  * verified and a signature counter past the stored one when the
  * authenticator keeps one. A passing assertion stores its counter and the
- * time of use. Any failure is false, never a throw.
+ * time of use, and passes only if the passkey still holds the counter it
+ * was checked against when that store runs. Any failure is false, never a
+ * throw.
  */
 export async function verifyPasskeyAssertion(
   db: Kysely<MCPAuthSchema>,
@@ -71,16 +73,20 @@ export async function verifyPasskeyAssertion(
     return false;
   }
 
-  await db
+  // Only while the passkey is still enrolled with the counter read above,
+  // so a passkey removed during the verification, or a concurrent
+  // assertion that stored a newer counter, makes this one fail.
+  const stored = await db
     .updateTable('atc_passkey')
     .set({
       counter: verified.authenticationInfo.newCounter,
       last_used_at: new Date(check.now).toISOString(),
     })
     .where('id', '=', passkey.id)
-    .execute();
+    .where('counter', '=', passkey.counter)
+    .executeTakeFirst();
 
-  return true;
+  return stored.numUpdatedRows > 0n;
 }
 
 const ASSERTION_REPLY = z.object({

@@ -93,7 +93,9 @@ export async function answerLoginRequest(
   const taken = ctx.approvals.claimChallenge(oauthQuery);
 
   const verified =
-    taken.kind === 'taken' ? await verifyAssertion(ctx, form, taken.challenge) : false;
+    taken.kind === 'taken'
+      ? await verifyAssertion(ctx, form.get('credential') ?? '', taken.challenge)
+      : false;
 
   if (!verified) {
     const reason: OwnerAuthFailure = taken.kind === 'expired' ? 'expired' : 'assertion_failed';
@@ -181,11 +183,11 @@ export async function answerLoginRequest(
 // the challenge the caller claimed.
 function verifyAssertion(
   ctx: HTTPServerContext,
-  form: URLSearchParams,
+  credential: string,
   challenge: string,
 ): Promise<boolean> {
   return verifyPasskeyAssertion(ctx.store.db, {
-    credential: form.get('credential') ?? '',
+    credential,
     challenge,
     origin: ctx.origin,
     rpID: new URL(ctx.origin).hostname,

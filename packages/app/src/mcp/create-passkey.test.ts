@@ -38,7 +38,7 @@ test('it stores the passkey and spends its token', async () => {
   const created = await createPasskey(ctx.db, {
     tokenHash: 'hash-1',
     id: 'cred-1',
-    publicKey: new Uint8Array([1, 2, 3]),
+    publicKey: 'AQID',
     counter: 0,
     transports: ['internal', 'hybrid'],
     now: Date.UTC(2026, 9, 14, 12, 5, 0),
@@ -70,7 +70,7 @@ test('it stores nothing for a token that is spent', async () => {
   const created = await createPasskey(ctx.db, {
     tokenHash: 'hash-spent',
     id: 'cred-1',
-    publicKey: new Uint8Array([1, 2, 3]),
+    publicKey: 'AQID',
     counter: 0,
     transports: [],
     now: Date.UTC(2026, 9, 14, 12, 5, 0),
@@ -98,7 +98,7 @@ test('it stores nothing for a token that expired', async () => {
   const created = await createPasskey(ctx.db, {
     tokenHash: 'hash-1',
     id: 'cred-1',
-    publicKey: new Uint8Array([1, 2, 3]),
+    publicKey: 'AQID',
     counter: 0,
     transports: [],
     now: Date.UTC(2026, 9, 14, 12, 15, 0),
@@ -132,7 +132,7 @@ test('it keeps the token when the passkey is already enrolled', async () => {
 
   const passkey = {
     id: 'cred-1',
-    publicKey: new Uint8Array([1, 2, 3]),
+    publicKey: 'AQID',
     counter: 0,
     transports: [],
     now: Date.UTC(2026, 9, 14, 12, 5, 0),

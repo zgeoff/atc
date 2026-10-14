@@ -197,3 +197,36 @@ test.each([['not json'], ['{}'], ['{"id":"x","rawId":"x","type":"public-key","re
     expect(verified).toBeFalse();
   },
 );
+
+test('it passes only one of two assertions checked at once against the same stored counter', async () => {
+  const ctx = await setupTest();
+
+  const first = await ctx.authenticator.get(
+    { challenge: 'Zmlyc3Q', rpId: 'atc.example' },
+    { origin: 'https://atc.example' },
+  );
+
+  const second = await ctx.authenticator.get(
+    { challenge: 'c2Vjb25k', rpId: 'atc.example' },
+    { origin: 'https://atc.example' },
+  );
+
+  const results = await Promise.all([
+    verifyPasskeyAssertion(ctx.db, {
+      credential: JSON.stringify(first),
+      challenge: 'Zmlyc3Q',
+      origin: 'https://atc.example',
+      rpID: 'atc.example',
+      now: Date.UTC(2026, 9, 14, 13, 0, 0),
+    }),
+    verifyPasskeyAssertion(ctx.db, {
+      credential: JSON.stringify(second),
+      challenge: 'c2Vjb25k',
+      origin: 'https://atc.example',
+      rpID: 'atc.example',
+      now: Date.UTC(2026, 9, 14, 13, 0, 0),
+    }),
+  ]);
+
+  expect(results.filter(Boolean)).toBeArrayOfSize(1);
+});

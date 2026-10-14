@@ -665,11 +665,13 @@ test('it writes a failed sign-in as a failed passkey owner sign-in with the star
 
   await runPasskeySignIn(ctx, login, { origin: 'https://elsewhere.example' });
 
-  const events = JSON.parse(
-    `[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`,
-  );
+  const correlationID = /"correlationID":"(?<id>[^"]+)"/u.exec(ctx.security[0] ?? '')?.groups?.[
+    'id'
+  ];
 
-  expect(events).toStrictEqual([
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toStrictEqual([
     expect.objectContaining({ kind: 'authorize_started', correlationID: expect.toBeString() }),
     {
       v: 1,
@@ -680,7 +682,7 @@ test('it writes a failed sign-in as a failed passkey owner sign-in with the star
       method: 'passkey',
       route: '/login',
       client: { id: ctx.clientID, name: 'dots' },
-      correlationID: events[0].correlationID,
+      correlationID: expect.toBeOneOf([correlationID]),
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },

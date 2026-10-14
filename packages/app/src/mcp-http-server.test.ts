@@ -140,12 +140,9 @@ test('it prints no hint to add a client once one can connect', async () => {
   invariant(stopServing, 'the server registered no SIGTERM handler');
   registerTestCleanup(stopServing);
 
-  expect(printed).toStrictEqual([
-    expect.stringMatching(
-      /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on /u,
-    ),
-    'No passkey is enrolled, so nobody can sign in yet. Enroll one with: atc passkeys enroll',
-  ]);
+  expect(printed.join('\n')).toMatch(
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo passkey is enrolled, so nobody can sign in yet\. Enroll one with: atc passkeys enroll$/u,
+  );
 });
 
 test('it prints no hint to enroll a passkey once one is enrolled', async () => {
@@ -202,12 +199,9 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
   invariant(stopServing, 'the server registered no SIGTERM handler');
   registerTestCleanup(stopServing);
 
-  expect(printed).toStrictEqual([
-    expect.stringMatching(
-      /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on /u,
-    ),
-    'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
-  ]);
+  expect(printed.join('\n')).toMatch(
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo clients can connect yet\. Add one with: atc clients add <name> --redirect-uri <uri>$/u,
+  );
 });
 
 test('it prints nothing to stdout once it serves and each sign-in security event to stderr', async () => {

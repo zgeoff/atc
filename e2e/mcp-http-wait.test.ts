@@ -92,10 +92,10 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     JSON.parse(readFileSync(join(ctx.dir, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),
   );
 
-  // The server prints its no-clients line after it opens the auth database,
-  // so the stop waits for that line.
+  // The server prints its no-clients and no-passkey lines after it opens
+  // the auth database, so the stop waits for the last of them.
   await waitFor(() => {
-    expect(stdout).toEndWith('--redirect-uri <uri>\n');
+    expect(stdout).toEndWith('atc passkeys enroll\n');
   });
 
   mcp.kill('SIGTERM');
@@ -118,7 +118,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   );
 
   expect(stdout).toBe(
-    `atc mcp --http: serving http://127.0.0.1:${port}/mcp, listening on http://127.0.0.1:${port}\nNo clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>\n`,
+    `atc mcp --http: serving http://127.0.0.1:${port}/mcp, listening on http://127.0.0.1:${port}\nNo clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>\nNo passkey is enrolled, so nobody can sign in yet. Enroll one with: atc passkeys enroll\n`,
   );
 
   expect(Number(port)).toBeGreaterThan(0);

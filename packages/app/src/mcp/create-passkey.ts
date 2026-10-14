@@ -5,9 +5,9 @@ interface NewPasskey {
   // The hash of the enrollment token the passkey was enrolled with.
   readonly tokenHash: string;
 
-  // The credential id, base64url, and its COSE public key.
+  // The credential id and its COSE public key, both base64url.
   readonly id: string;
-  readonly publicKey: Uint8Array;
+  readonly publicKey: string;
   readonly counter: number;
   readonly transports: readonly string[];
 
@@ -36,7 +36,7 @@ export function createPasskey(db: Kysely<MCPAuthSchema>, passkey: NewPasskey): P
       .insertInto('atc_passkey')
       .values({
         id: passkey.id,
-        public_key: Buffer.from(passkey.publicKey).toString('base64url'),
+        public_key: passkey.publicKey,
         counter: passkey.counter,
         transports: JSON.stringify(passkey.transports),
         created_at: new Date(passkey.now).toISOString(),

@@ -78,7 +78,7 @@ test('it keeps the enrolled passkeys when it enrolls without reset', async () =>
   await createPasskey(ctx.store.db, {
     tokenHash: 'hash-1',
     id: 'cred-phone',
-    publicKey: new Uint8Array([1, 2, 3]),
+    publicKey: 'AQID',
     counter: 0,
     transports: ['internal'],
     now: Date.UTC(2026, 9, 14, 12, 0, 0),
@@ -119,7 +119,7 @@ test('it removes every passkey, earlier token, and browser sign-in on reset', as
   await createPasskey(ctx.store.db, {
     tokenHash: 'hash-1',
     id: 'cred-lost',
-    publicKey: new Uint8Array([1, 2, 3]),
+    publicKey: 'AQID',
     counter: 0,
     transports: ['internal'],
     now: Date.UTC(2026, 9, 14, 12, 0, 0),

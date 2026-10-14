@@ -59,7 +59,7 @@ export async function answerEnrollRequest(
   }
 
   if (!form.has('credential')) {
-    return await buildCeremonyResponse(ctx, 200, token, tokenHash, null);
+    return buildCeremonyResponse(ctx, 200, token, tokenHash, null);
   }
 
   const taken = ctx.enrollments.claimChallenge(tokenHash);
@@ -88,13 +88,20 @@ export async function answerEnrollRequest(
       ? 'The enrollment took too long. Try again.'
       : 'atc could not enroll that passkey. Try again.';
 
-    return await buildCeremonyResponse(ctx, 400, token, tokenHash, error);
+    return buildCeremonyResponse(ctx, 400, token, tokenHash, error);
   }
 
   let created: boolean;
 
   try {
-    created = await createPasskey(ctx.store.db, { tokenHash, ...registered, now: ctx.clock.now() });
+    created = await createPasskey(ctx.store.db, {
+      tokenHash,
+      id: registered.id,
+      publicKey: Buffer.from(registered.publicKey).toString('base64url'),
+      counter: registered.counter,
+      transports: registered.transports,
+      now: ctx.clock.now(),
+    });
   } catch {
     ctx.security.record({
       kind: 'owner_auth',
@@ -103,7 +110,7 @@ export async function answerEnrollRequest(
       ...context,
     });
 
-    return await buildCeremonyResponse(
+    return buildCeremonyResponse(
       ctx,
       400,
       token,
