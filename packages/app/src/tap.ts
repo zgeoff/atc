@@ -23,8 +23,6 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   sentAt: z.number(),
 });
 
-type InboxMessage = z.output<typeof INBOX_MESSAGE_SCHEMA>;
-
 const INBOX_NOTICE_SCHEMA = z.looseObject({
   message: z.string(),
   from: z.string(),
@@ -140,7 +138,7 @@ export async function runTap(
 
     written = (async () => {
       await previous;
-      await ackInboxMessage(client, session, msg, io);
+      await ackInboxMessage(client, session, msg.message, renderMessageLine(msg), io);
     })();
   };
 
@@ -174,11 +172,10 @@ interface RequestSender {
 async function ackInboxMessage(
   client: RequestSender,
   session: string,
-  msg: InboxMessage,
+  message: string,
+  line: string,
   io: TapIO,
 ): Promise<void> {
-  const line = renderMessageLine(msg);
-
   try {
     await io.writeStdout(line);
   } catch {
@@ -188,7 +185,7 @@ async function ackInboxMessage(
   }
 
   try {
-    await client.sendRequest('message.ack', { session, message: msg.message });
+    await client.sendRequest('message.ack', { session, message });
   } catch (error) {
     io.printError(`atc tap: ${formatError(error)}`);
   }
