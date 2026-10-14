@@ -261,7 +261,7 @@ test('it fails on a confined package imported outside the file that owns it', as
     exitCode: 1,
     stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
     stderr:
-      'confined package: packages/app/src/daemon/imp-provider.ts imports bun-pty, allowed only in packages/execution/local/src/local-pty-provider.ts, packages/execution/imp/src/testing/create-stub-imp-port.ts, packages/test-utils/src/start-tui-harness.ts, packages/test-utils/src/create-stub-composer.test.ts\n',
+      'confined package: packages/app/src/daemon/imp-provider.ts imports bun-pty, allowed only in packages/execution/local/src/local-pty-provider.ts, packages/execution/imp/src/testing/create-stub-imp-port.ts, packages/test-utils/src/start-tui-harness.ts, packages/test-utils/src/create-stub-composer.test.ts, packages/test-utils/src/run-stub-menu-claude.test.ts\n',
   });
 });
 

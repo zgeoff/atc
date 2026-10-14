@@ -137,6 +137,12 @@ test('it gives each tool its scope and safety hints as the tool table lists them
       destructiveHint: true,
       openWorldHint: true,
     },
+    atc_terminal_choose: {
+      scope: 'spawn',
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
+    },
     atc_terminal_read: {
       scope: 'read',
       readOnlyHint: true,
@@ -234,6 +240,15 @@ test('it gives each tool its scope and safety hints as the tool table lists them
       openWorldHint: false,
     },
   });
+});
+
+test('it gives the menu tool the grant scope of the tool that types into the terminal', () => {
+  const choose = MCP_TOOLS.find((tool) => tool.name === 'atc_terminal_choose');
+  const type = MCP_TOOLS.find((tool) => tool.name === 'atc_terminal_type');
+
+  invariant(type, 'no atc_terminal_type tool');
+
+  expect(choose?.scope).toBe(type.scope);
 });
 
 test('it marks every read-scoped tool read-only', () => {

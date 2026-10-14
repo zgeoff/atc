@@ -17,6 +17,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'session.forget': 'atc_session_forget',
   'session.forget.preconditions': "atc_session_forget's pinned and live checks in the daemon",
   'session.locator': "a session's locator",
+  'session.menu': 'atc_terminal_choose',
   'session.submit': 'atc_terminal_type',
   'spawn.idempotency': "atc_session_spawn's idempotencyKey",
   'spawn.options': "atc_session_spawn's model and effort",

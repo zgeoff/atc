@@ -692,6 +692,105 @@ test('it answers a typed line with the written flag', async () => {
   expect(JSON.parse(result.text)).toStrictEqual({ written: true });
 });
 
+test('it reads the menu of a session when a choice call holds no menu token', async () => {
+  const menu = {
+    text: 'Do you want to proceed?',
+    options: [
+      { option: 1, label: 'Yes', checked: null, highlighted: true },
+      { option: 2, label: 'No', checked: null, highlighted: false },
+    ],
+    menuToken: 'menu-of-the-test',
+  };
+
+  const caller = buildStubFleetCaller({ answer: () => ({ menu }) });
+
+  const result = await runTool(
+    caller,
+    'atc_terminal_choose',
+    { session: 's1' },
+    { callerSessionID: null },
+  );
+
+  expect(result.structured).toStrictEqual({ menu });
+
+  expect(caller.requests).toStrictEqual([
+    { m: 'session.menu', p: { session: 's1' }, required: ['session.menu'] },
+  ]);
+});
+
+test('it sends a choice with its option, label and menu token', async () => {
+  const caller = buildStubFleetCaller({ answer: () => ({ pressed: 'enter', menu: null }) });
+
+  const result = await runTool(
+    caller,
+    'atc_terminal_choose',
+    { session: 's1', menuToken: 'menu-of-the-test', option: 2, label: 'No' },
+    { callerSessionID: null },
+  );
+
+  expect(result.structured).toStrictEqual({ pressed: 'enter', menu: null });
+
+  expect(caller.requests).toStrictEqual([
+    {
+      m: 'session.choose',
+      p: { session: 's1', menuToken: 'menu-of-the-test', option: 2, label: 'No' },
+      required: ['session.menu'],
+    },
+  ]);
+});
+
+test('it sends Escape on a menu with its menu token', async () => {
+  const caller = buildStubFleetCaller({ answer: () => ({ pressed: 'escape', menu: null }) });
+
+  await runTool(
+    caller,
+    'atc_terminal_choose',
+    { session: 's1', menuToken: 'menu-of-the-test', key: 'escape' },
+    { callerSessionID: null },
+  );
+
+  expect(caller.requests).toStrictEqual([
+    {
+      m: 'session.choose',
+      p: { session: 's1', menuToken: 'menu-of-the-test', key: 'escape' },
+      required: ['session.menu'],
+    },
+  ]);
+});
+
+test('it refuses a choice without a menu token and sends nothing', () => {
+  const caller = buildStubFleetCaller({ answer: () => ({ pressed: 'enter', menu: null }) });
+
+  const chosen = runTool(
+    caller,
+    'atc_terminal_choose',
+    { session: 's1', option: 1, label: 'Yes' },
+    { callerSessionID: null },
+  );
+
+  expect(chosen).rejects.toMatchObject({ code: 'bad_args' });
+  expect(caller.requests).toStrictEqual([]);
+});
+
+test('it refuses a menu read unsent when the daemon predates menus', () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.menu'),
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const read = runTool(caller, 'atc_terminal_choose', { session: 's1' }, { callerSessionID: null });
+
+  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_terminal_choose/);
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
 test('it stops a session without ever removing it and needs a daemon that stops only', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ stopped: true }) });
 

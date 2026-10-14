@@ -129,6 +129,41 @@ export function runTool(
 
       return buildObjectResult({ written: true });
     })
+    .with('atc_terminal_choose', async () => {
+      // A choice without a token could only be checked against a menu the
+      // caller never read, so it presses nothing.
+      if (
+        args['menuToken'] === undefined &&
+        (args['option'] !== undefined || args['label'] !== undefined || args['key'] !== undefined)
+      ) {
+        throw new DaemonError(
+          'bad_args',
+          'a choice takes the menuToken of the menu it answers; call with session alone to read it',
+        );
+      }
+
+      if (args['menuToken'] === undefined) {
+        const ok = await caller.sendRequest('session.menu', { session: args['session'] }, [
+          'session.menu',
+        ]);
+
+        return buildObjectResult({ menu: ok['menu'] });
+      }
+
+      const ok = await caller.sendRequest(
+        'session.choose',
+        {
+          session: args['session'],
+          menuToken: args['menuToken'],
+          ...(args['option'] === undefined ? {} : { option: args['option'] }),
+          ...(args['label'] === undefined ? {} : { label: args['label'] }),
+          ...(args['key'] === undefined ? {} : { key: args['key'] }),
+        },
+        ['session.menu'],
+      );
+
+      return buildObjectResult({ pressed: ok['pressed'], menu: ok['menu'] });
+    })
     .with('atc_terminal_read', async () => {
       const ok = await caller.sendRequest('session.screen', { session: args['session'] });
 

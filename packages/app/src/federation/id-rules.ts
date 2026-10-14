@@ -34,6 +34,8 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
     ['cursor', 'opaque'],
   ]),
   'session.screen': new Map([['text', 'opaque']]),
+  'session.menu': new Map([['menu', 'opaque']]),
+  'session.choose': new Map([['menu', 'opaque']]),
   'session.resumeCommand': new Map([['command', 'opaque']]),
   'session.submit': new Map(),
   'session.update': new Map(),

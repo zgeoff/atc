@@ -98,6 +98,63 @@ test('it refuses a forget whose scope the caller lacks and leaves the session li
   });
 });
 
+test('it refuses a menu choice to a caller without the scope that types into a terminal', async () => {
+  const ctx = await setupTest();
+
+  const outcome = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'atc_terminal_choose',
+        arguments: { session: 's1', menuToken: 'menu-of-the-test', option: 2, label: 'Yes' },
+      },
+    },
+    {
+      caller: ctx.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null },
+      scopes: ['read', 'message'],
+    },
+  );
+
+  expect(outcome).toStrictEqual({ kind: 'forbidden', scope: 'spawn' });
+});
+
+test('it runs a menu read for a caller holding the scope that types into a terminal', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'claude',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = String(getRecord(spawned, 'session')['id']);
+
+  const outcome = await answerRPCRequest(
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_terminal_choose', arguments: { session: sessionID } },
+    },
+    {
+      caller: ctx.caller,
+      build: 'atc/test-build',
+      toolContext: { callerSessionID: null },
+      scopes: ['spawn'],
+    },
+  );
+
+  invariant(outcome.kind === 'reply', 'no reply');
+
+  // The stand-in agent reads no menus, so the daemon itself refuses the read.
+  expect(JSON.stringify(outcome.body)).toInclude('unsupported: atc cannot read the menus');
+});
+
 test('it runs a tool call whose scope the caller holds', async () => {
   const ctx = await setupTest();
 
@@ -213,6 +270,7 @@ test('it lists every tool to a caller with one scope', async () => {
           expect.objectContaining({ name: 'atc_sessions_list' }),
           expect.objectContaining({ name: 'atc_session_spawn' }),
           expect.objectContaining({ name: 'atc_terminal_type' }),
+          expect.objectContaining({ name: 'atc_terminal_choose' }),
           expect.objectContaining({ name: 'atc_terminal_read' }),
           expect.objectContaining({ name: 'atc_session_scope_add' }),
           expect.objectContaining({ name: 'atc_session_update' }),
@@ -668,7 +726,7 @@ test('it names the registered agents in the spawn tool to a caller holding the r
   const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
 
   expect(spawn['description']).toBe(
-    'Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true: listed under it, pinned and stopped with it, forgettable while it is pinned only by a call from inside the caller, and reached by a remote client only when the client reaches the caller. atc_session_update with parent null detaches it later. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.',
+    'Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true: listed under it, pinned and stopped with it, forgettable while it is pinned only by a call from inside the caller, and reached by a remote client only when the client reaches the caller. atc_session_update with parent null detaches it later. A directory the agent has not trusted opens its folder-trust dialog, which atc_terminal_choose answers for Claude Code and a person answers in the TUI for any agent; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.',
   );
 
   expect(getRecord(properties, 'agent')['description']).toBe(
@@ -704,7 +762,7 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
   const properties = getRecord(getRecord(spawn, 'inputSchema'), 'properties');
 
   expect(spawn['description']).toBe(
-    'Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true: listed under it, pinned and stopped with it, forgettable while it is pinned only by a call from inside the caller, and reached by a remote client only when the client reaches the caller. atc_session_update with parent null detaches it later. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.',
+    'Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true: listed under it, pinned and stopped with it, forgettable while it is pinned only by a call from inside the caller, and reached by a remote client only when the client reaches the caller. atc_session_update with parent null detaches it later. A directory the agent has not trusted opens its folder-trust dialog, which atc_terminal_choose answers for Claude Code and a person answers in the TUI for any agent; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.',
   );
 
   expect(getRecord(properties, 'agent')['description']).toBe(

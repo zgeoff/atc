@@ -6,6 +6,7 @@ import type { SessionID } from '@atc/core/session-id';
 import type { AgentAdapter, SpawnOptions, SpawnOverrides } from '@atc/plugin-api/agent-adapter';
 import type { SourceKind, SourceProvider } from '@atc/plugin-api/types';
 import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
+import type { MenuView } from '@atc/protocol/menu-view';
 import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
 import type { EventMsg } from '@atc/protocol/protocol';
 import type { PublishedRecord } from '@atc/protocol/published-record';
@@ -15,6 +16,7 @@ import type { FleetEntry } from '@atc/store/fleet-entry';
 import type { MessageRecord } from '@atc/store/message-record';
 import type { TurnSibling } from '@atc/store/state-store';
 import type { checkRepositoryAccess } from '../workspace/check-repository-access';
+import type { MenuChoice, MenuChoiceResult } from './apply-menu-choice';
 import type { Dims } from './attach-registry';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
@@ -298,6 +300,22 @@ export interface DaemonContext {
   readonly ackSession: (id: SessionID) => boolean;
   readonly buildResumeCommand: (id: SessionID) => ResumeCommand;
   readonly readSessionScreen: (id: SessionID) => Promise<ScreenText | 'missing' | 'no_screen'>;
+
+  // The menu the session's agent waits on, read from its screen, or null
+  // when the screen shows none. 'unsupported' is an agent whose adapter
+  // reads no menus.
+  readonly readSessionMenu: (
+    id: SessionID,
+  ) => Promise<MenuView | null | 'missing' | 'no_screen' | 'unsupported'>;
+
+  // Picks an option of the menu the session's screen shows, or presses
+  // Escape on it, behind any input already queued for the session. A choice
+  // the screen does not match rejects with a DaemonError and writes nothing
+  // that picks an option.
+  readonly applySessionMenuChoice: (
+    id: SessionID,
+    choice: MenuChoice,
+  ) => Promise<MenuChoiceResult | 'missing' | 'dead' | 'unsupported'>;
   readonly answerPermission: (request: string, decision: string) => AnswerResult;
   readonly restoreFleet: (cols: number, rows: number) => Promise<number>;
   readonly attachSession: (

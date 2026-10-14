@@ -91,9 +91,41 @@ other input and writes it after the line's submit key.
 
 A Claude Code session whose latest report shows a permission prompt refuses a submitted line with
 `permission_pending`, because a permission menu confirms its highlighted option on the carriage
-return that ends the line. Only a person answers the prompt, with real keys. The refusal starts only
-when Claude Code sends its notification, which comes some seconds after the prompt opens, so a line
-submitted inside that window is not refused.
+return that ends the line. A [menu choice](#answering-a-menu) answers the prompt instead. The
+refusal starts only when Claude Code sends its notification, which comes some seconds after the
+prompt opens, so a line submitted inside that window is not refused.
 
 A submitted line's answer means the daemon wrote the line and its submit key, not that the agent
 took it. A headless session takes the line as the prompt of its next turn.
+
+## Answering a menu
+
+A client reads the menu an agent waits on from the screen model, and picks one option by its number
+and its label. The agent's adapter reads the menu from the screen text, so only an agent whose
+adapter reads menus takes a choice, and only the adapters that run Claude Code do. It reads the menu
+as the last `❯` cursor on the screen and the option lines beside it, with the text above them up to
+the dialog's border. Claude Code's prompt box also starts with `❯`, so a cursor line between two
+rules is no menu.
+
+A menu read returns a token built from the menu's text, its labels, and its ticked boxes, and a
+choice carries that token. The cursor is left out of the token, so the choice's own arrow keys never
+change it. The daemon runs a choice in five steps, and holds the session's other input until the
+last one:
+
+1. It reads the menu again and refuses the choice with `menu_changed` when the token differs, or
+   with `menu_label_mismatch` when the option's label differs, before it writes anything.
+2. It waits until the agent has printed nothing for longer than Claude Code holds a dialog that has
+   just opened, then checks the menu again. During that hold Claude Code refuses Enter, and when the
+   hold ends it moves the cursor back to the dialog's default option, so a choice made inside the
+   hold could pick the default.
+3. It presses the arrow key toward the option and waits for the screen to show the cursor on the
+   next option. A changed menu stops the choice with `menu_changed`, and a cursor that does not move
+   stops it with `menu_busy`.
+4. Once the cursor sits on the option, it presses Enter. Enter on an option with a box ticks or
+   clears the box and keeps the menu open, so a box menu takes one choice per box and one for its
+   confirming item.
+5. It answers with the menu the screen shows once it stops changing, or none.
+
+Every refusal comes before Enter, so a refused choice never picks an option. Escape is the one other
+key a client can press, and it carries the token too, because Escape on Claude Code's folder-trust
+dialog exits the agent.

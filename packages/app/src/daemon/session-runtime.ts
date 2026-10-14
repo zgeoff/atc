@@ -20,6 +20,10 @@ export class SessionRuntime {
 
   seq = 0;
 
+  // When the session's PTY last printed anything, by the daemon's clock; a
+  // menu choice waits for the screen to go quiet before its first key.
+  lastOutputAt = 0;
+
   dims: Dims | null = null;
 
   readonly input = new SessionInputQueue();

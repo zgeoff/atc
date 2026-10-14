@@ -230,6 +230,26 @@ export interface TerminalInputModes {
 }
 
 /**
+ * A menu the agent's TUI shows on its screen: the text above the options,
+ * the options in screen order, and which option the cursor is on.
+ */
+export interface ScreenMenu {
+  // The menu's lines above its options, without the dialog's border.
+  readonly text: string;
+  readonly options: readonly ScreenMenuOption[];
+
+  // The index into `options` of the option the cursor is on.
+  readonly highlighted: number;
+}
+
+export interface ScreenMenuOption {
+  readonly label: string;
+
+  // Whether the option's box is ticked, or null for an option with no box.
+  readonly checked: boolean | null;
+}
+
+/**
  * One step of typing a line into a session: bytes to write to its PTY, or a
  * pause in milliseconds before the next write. The session takes no other
  * input until the line's last step is done.
@@ -339,4 +359,10 @@ export interface AgentAdapter {
   // submit it, with any pause the TUI needs between two of them. Absent:
   // the line and a trailing newline go as one write.
   readonly planLineInput?: (text: string, modes: TerminalInputModes) => readonly LineInputStep[];
+
+  // The menu the agent's TUI waits on, read from the session's screen as
+  // plain text, or null when the screen shows none. The up and down arrow
+  // keys move its cursor one option, Enter picks the option under it, and
+  // Escape dismisses it. Absent: atc cannot read this agent's menus.
+  readonly findMenu?: (screen: string) => ScreenMenu | null;
 }

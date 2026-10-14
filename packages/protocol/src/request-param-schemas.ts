@@ -270,6 +270,28 @@ export const REQUEST_PARAM_SCHEMAS = {
   }),
   'session.resumeCommand': SESSION_DEFAULTED,
   'session.screen': SESSION_DEFAULTED,
+  'session.menu': SESSION_DEFAULTED,
+
+  // Picks option `option`, counted from 1, of the menu `menuToken` matches,
+  // when that option's label is `label`; or presses Escape on that menu.
+  'session.choose': SESSION_DEFAULTED.extend({
+    menuToken: z
+      .string({ error: 'session.choose requires the menuToken of the menu it answers' })
+      .min(1, 'session.choose requires the menuToken of the menu it answers'),
+    option: z
+      .number({ error: 'option must be a number' })
+      .int('option must be a whole number')
+      .min(1, 'option counts from 1')
+      .optional(),
+    label: z.string({ error: 'label must be a string' }).optional(),
+    key: z.literal('escape', { error: "key takes only 'escape'" }).optional(),
+  }).refine(
+    (v) =>
+      v.key === undefined
+        ? v.option !== undefined && v.label !== undefined
+        : v.option === undefined,
+    { message: "session.choose takes an option with its label, or key 'escape', not both" },
+  ),
   'session.eject': SESSION_DEFAULTED.extend({
     prompt: buildDefaultedNonEmptyString(EJECT_DEFAULT_PROMPT),
   }),

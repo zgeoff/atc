@@ -39,6 +39,7 @@ import { CLAUDE_EFFORT_LEVELS } from '../claude-effort-levels';
 import { ClaudeLaunchFiles } from '../claude-launch-files';
 import type { GatewayConfig } from '../config/collect-gateways';
 import { createLocalScratchDir } from '../create-local-scratch-dir';
+import { findClaudeMenu } from '../find-claude-menu';
 import { findClaudePermissionMode } from '../find-claude-permission-mode';
 import { buildClaudeConfigSeed } from '../guest/build-claude-config-seed';
 import { buildClaudeGuestLaunch } from '../guest/build-claude-guest-launch';
@@ -73,6 +74,9 @@ export class GatewayAdapter implements AgentAdapter {
 
   // The gateway runs the Claude CLI, whose TUI takes a line the same way.
   readonly planLineInput = planClaudeLineInput;
+
+  // The gateway runs the Claude CLI, whose dialogs draw the same menus.
+  readonly findMenu = findClaudeMenu;
 
   readonly takesMessages = true;
 
