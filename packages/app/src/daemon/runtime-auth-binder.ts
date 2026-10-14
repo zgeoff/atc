@@ -208,7 +208,7 @@ export class RuntimeAuthBinder {
         throw new DaemonError(
           'auth_rebind_required',
           `the auth profiles host ${hostKey} uses changed since it was bound; rebind it to adopt them`,
-          { host: hostKey, revision: row.revision },
+          { host: hostKey, revision: row.revision, problem: 'auth_selection_changed' },
         );
       }
 
@@ -362,7 +362,7 @@ export class RuntimeAuthBinder {
         throw new DaemonError(
           'auth_rebind_required',
           `the runtime auth of host ${hostKey} moved to revision ${String(row.revision)} after this launch was planned`,
-          { host: hostKey, revision: row.revision },
+          { host: hostKey, revision: row.revision, problem: 'revision_moved' },
         );
       }
 

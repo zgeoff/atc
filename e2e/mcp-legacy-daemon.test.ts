@@ -28,6 +28,7 @@ test('it leaves the agent list out of the tools for an older daemon', async () =
     'atc_terminal_read',
     'atc_session_update',
     'atc_session_stop',
+    'atc_session_adopt',
     'atc_session_mark_read',
     'atc_recent_dirs_list',
     'atc_session_get',

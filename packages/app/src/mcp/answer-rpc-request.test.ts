@@ -218,6 +218,8 @@ test('it lists every tool to a caller with one scope', async () => {
           expect.objectContaining({ name: 'atc_session_update' }),
           expect.objectContaining({ name: 'atc_session_stop' }),
           expect.objectContaining({ name: 'atc_session_forget' }),
+          expect.objectContaining({ name: 'atc_session_adopt' }),
+          expect.objectContaining({ name: 'atc_session_auth_rebind' }),
           expect.objectContaining({ name: 'atc_session_mark_read' }),
           expect.objectContaining({ name: 'atc_recent_dirs_list' }),
           expect.objectContaining({ name: 'atc_spawn_options_get' }),

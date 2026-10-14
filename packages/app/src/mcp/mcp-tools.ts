@@ -517,6 +517,29 @@ const TERMINAL_TYPE_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['written'],
 };
 
+const SESSION_ADOPT_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: {
+    adopted: {
+      type: 'boolean',
+      description:
+        "true once atc started or attached the session's terminal; it does not show the agent booted",
+    },
+  },
+  required: ['adopted'],
+};
+
+const SESSION_AUTH_REBIND_OUTPUT: Readonly<Record<string, unknown>> = {
+  type: 'object',
+  properties: {
+    revision: {
+      type: 'number',
+      description: "the revision the host's runtime auth binding holds after the rebind",
+    },
+  },
+  required: ['revision'],
+};
+
 const SESSION_STOP_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {
@@ -710,6 +733,25 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
       additionalProperties: false,
     },
     requires: { tool: 'session.forget' },
+  },
+  {
+    name: 'atc_session_adopt',
+    annotations: AGENT_FACING,
+    scope: 'spawn',
+    description:
+      "Start a terminal for a session that has none, resuming its agent session: a session a restore left without a terminal, an exited session, or one that runs headless, whose headless turn stops first. On an imp the host wakes first, and a harness still running there is attached instead of started again. Use it after atc_session_auth_rebind for a session whose restore was refused with auth_rebind_required. Returns { adopted: true } once the terminal starts; that does not show the agent booted, so check with atc_session_get or atc_terminal_read. Refused with session_dead when atc finds nothing to resume, an unknown session id included, with no_such_session when the session already has a terminal, and with the refusal of the session's target or runtime auth otherwise, such as auth_rebind_required; a refused call leaves the session as it was. A retry once the terminal runs is refused and starts nothing.",
+    inputSchema: SESSION_INPUT,
+    outputSchema: SESSION_ADOPT_OUTPUT,
+  },
+  {
+    name: 'atc_session_auth_rebind',
+    annotations: DESTRUCTIVE,
+    scope: 'spawn',
+    description:
+      "Bind the runtime auth of a session's host to the auth profiles its agent selects now, at the next revision. Use it when a revive or restore is refused with auth_rebind_required because the agent's auth profiles changed, or with auth_blocked after a revoke or a failed rebind; then start the session with atc_session_adopt, since a rebind starts nothing. The host gains the grant of each profile the agent now selects and loses the grant of each profile it dropped, for every session on that host. A harness already running keeps the settings it launched with until its next launch. Returns { revision }, the new revision. Open to the daemon's owner only: a remote client is refused with unauthorized. Refused with unsupported_operation for an agent that takes no credential from impd's broker, such as one whose auth block was dropped from the config: put the block back, or forget the session. A failed rebind leaves the host blocked at its old revision until a rebind succeeds. Each call moves the binding to a new revision, a retry included.",
+    inputSchema: SESSION_INPUT,
+    outputSchema: SESSION_AUTH_REBIND_OUTPUT,
+    requires: { tool: 'session.auth' },
   },
   {
     name: 'atc_session_mark_read',

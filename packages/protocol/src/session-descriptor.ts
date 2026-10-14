@@ -17,6 +17,11 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   unread: z.boolean(),
   lastMsg: z.string(),
   lastDetail: z.string().optional(),
+
+  // the error code of the refusal that left the session without a terminal
+  // at its restore, while lastMsg still holds that refusal; absent when no
+  // refusal holds or a later try of the restore may still lift it
+  restoreRefusal: z.string().optional(),
   agentSessionID: z
     .string()
     .transform((id) => toAgentSessionID(id))

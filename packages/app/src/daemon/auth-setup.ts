@@ -419,8 +419,8 @@ export class AuthSetup {
     if (held !== null) {
       throw new DaemonError(
         'auth_rebind_required',
-        `agent '${agent}' takes no credential from impd's broker, but its host holds a runtime auth binding; rebind the session or forget it`,
-        { agent, state: held.state },
+        `agent '${agent}' takes no credential from impd's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session`,
+        { agent, state: held.state, problem: 'auth_dropped' },
       );
     }
   }

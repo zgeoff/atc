@@ -38,32 +38,37 @@ A grant holds one or more of four scopes, and each tool needs exactly one of the
 - `message` instructs a session's agent, and also renames, pins, detaches and marks a session read.
   Those session changes alter how atc lists and labels a session, and none of them reaches its
   terminal or ends it, so they need no more access than a message does.
-- `spawn` starts a session, types into one, and adds to a session's record scope. Typing into a
-  terminal takes `spawn`, because a line typed into a session can do anything a new session can.
-  Adding to a session's record scope takes `spawn` too, because it widens what a session may touch.
+- `spawn` starts a session or a terminal for a session that has none, types into one, adds to a
+  session's record scope, and rebinds a host's runtime auth. Typing into a terminal takes `spawn`,
+  because a line typed into a session can do anything a new session can. Adding to a session's
+  record scope and rebinding a host take `spawn` too, because each widens what a session may touch.
+  The daemon opens a rebind to its owner only, so a remote client that holds `spawn` still gets
+  `unauthorized` ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)).
 - `kill` stops or forgets a session. A tool atc does not know needs `kill`, the strictest.
 
 A test compares this table with the tool definitions, so a tool added without a row fails it:
 
-| Tool                    | Scope     |
-| ----------------------- | --------- |
-| `atc_sessions_list`     | `read`    |
-| `atc_session_get`       | `read`    |
-| `atc_terminal_read`     | `read`    |
-| `atc_transcript_read`   | `read`    |
-| `atc_events_read`       | `read`    |
-| `atc_message_get`       | `read`    |
-| `atc_recent_dirs_list`  | `read`    |
-| `atc_spawn_options_get` | `read`    |
-| `atc_daemons_list`      | `read`    |
-| `atc_message_send`      | `message` |
-| `atc_session_update`    | `message` |
-| `atc_session_mark_read` | `message` |
-| `atc_session_spawn`     | `spawn`   |
-| `atc_terminal_type`     | `spawn`   |
-| `atc_session_scope_add` | `spawn`   |
-| `atc_session_stop`      | `kill`    |
-| `atc_session_forget`    | `kill`    |
+| Tool                      | Scope     |
+| ------------------------- | --------- |
+| `atc_sessions_list`       | `read`    |
+| `atc_session_get`         | `read`    |
+| `atc_terminal_read`       | `read`    |
+| `atc_transcript_read`     | `read`    |
+| `atc_events_read`         | `read`    |
+| `atc_message_get`         | `read`    |
+| `atc_recent_dirs_list`    | `read`    |
+| `atc_spawn_options_get`   | `read`    |
+| `atc_daemons_list`        | `read`    |
+| `atc_message_send`        | `message` |
+| `atc_session_update`      | `message` |
+| `atc_session_mark_read`   | `message` |
+| `atc_session_spawn`       | `spawn`   |
+| `atc_terminal_type`       | `spawn`   |
+| `atc_session_scope_add`   | `spawn`   |
+| `atc_session_adopt`       | `spawn`   |
+| `atc_session_auth_rebind` | `spawn`   |
+| `atc_session_stop`        | `kill`    |
+| `atc_session_forget`      | `kill`    |
 
 ## The stdio server
 

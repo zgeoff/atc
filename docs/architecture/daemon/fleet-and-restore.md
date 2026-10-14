@@ -74,9 +74,11 @@ backend dropped from the config never comes back as plain Claude. A row whose ta
 restores as exited, and a revive answers with the target's refusal. One row that fails to register
 or revive is logged and skipped, so it never keeps the rest of the fleet down. A session whose
 revive fails lists the reason in place of "waiting to restore", so a restart report and the session
-list show why it has no terminal. When the refusal is one the host can lift by itself, such as an
-imp that cannot take a lease yet, the restore tries that session again after a delay, a few times,
-once the rest of the fleet is through.
+list show why it has no terminal. A refusal that a rebind or a later adopt clears, such as a host
+whose auth profiles changed, lists with the `atc session` commands and MCP tools that clear it
+([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)). When the refusal is one the host
+can lift by itself, such as an imp that cannot take a lease yet, the restore tries that session
+again after a delay, a few times, once the rest of the fleet is through.
 
 Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
 "waiting to restore", and its descriptor reads as a running headless session. Input sent to a Claude

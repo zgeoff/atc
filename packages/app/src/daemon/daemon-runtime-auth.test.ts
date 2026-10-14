@@ -2,11 +2,13 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core/system-clock';
 import { toSessionID } from '@atc/core/to-session-id';
 import { ImpProvider } from '@atc/execution-imp/imp-provider';
 import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
 import { getOnlyImpName } from '@atc/execution-imp/testing/get-only-imp-name';
 import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { verifyRestoredFleet } from '@atc/lifecycle/verify-restored-fleet';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredAgentAdapter } from '@atc/test-utils/build-stub-brokered-agent-adapter';
@@ -1305,8 +1307,8 @@ test('it restores a session whose agent dropped the broker credential while its 
 
   expect(getRecord(got, 'session')).toMatchObject({
     kind: 'headless',
-    lastMsg:
-      "agent 'glm' takes no credential from impd's broker, but its host holds a runtime auth binding; rebind the session or forget it",
+    lastMsg: `agent 'glm' takes no credential from impd's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session. Once the auth block is back: atc session adopt ${id} (MCP: atc_session_adopt)`,
+    restoreRefusal: 'auth_rebind_required',
   });
 });
 
@@ -3440,6 +3442,174 @@ test('it refuses to restore a session whose agent added a profile on a target th
   expect(getRecord(got, 'session')['kind']).toBe('headless');
   expect(grants).toStrictEqual(['glm']);
   expect(adopted).rejects.toMatchObject({ code: 'auth_rebind_required' });
+});
+
+test('it lists a restore refused for a changed auth selection with the rebind hint and reports it in the restart check', async () => {
+  const ctx = setupTest({ rebindChangedAuth: false });
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    name: 'cloud-review',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+
+  const verdict = await verifyRestoredFleet(
+    daemon.client,
+    60,
+    [{ id, name: 'cloud-review', exited: false, agentSessionID: 'a1' }],
+    systemClock,
+    15_000,
+  );
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  const refusal = `the auth profiles host ${id} uses changed since it was bound; rebind it to adopt them. Fix: atc session rebind ${id} (MCP: atc_session_auth_rebind), then atc session adopt ${id} (MCP: atc_session_adopt)`;
+
+  expect(getRecord(got, 'session')).toMatchObject({
+    kind: 'headless',
+    lastMsg: refusal,
+    restoreRefusal: 'auth_rebind_required',
+  });
+
+  expect(verdict).toStrictEqual({
+    total: 1,
+    failed: [
+      {
+        name: 'cloud-review',
+        id,
+        reason: `restore refused (auth_rebind_required): ${refusal}`,
+      },
+    ],
+  });
+});
+
+test('it reports a restore refused for a dropped auth block in the restart check', async () => {
+  const ctx = setupTest();
+  let authSelected = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: false,
+    isSelected: () => authSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm, and impd holds glm for api.z.ai.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    name: 'gateway-docs',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  authSelected = false;
+
+  await daemon.restart();
+
+  const verdict = await verifyRestoredFleet(
+    daemon.client,
+    60,
+    [{ id, name: 'gateway-docs', exited: false, agentSessionID: 'a1' }],
+    systemClock,
+    15_000,
+  );
+
+  expect(verdict).toStrictEqual({
+    total: 1,
+    failed: [
+      {
+        name: 'gateway-docs',
+        id,
+        reason: `restore refused (auth_rebind_required): agent 'glm' takes no credential from impd's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session. Once the auth block is back: atc session adopt ${id} (MCP: atc_session_adopt)`,
+      },
+    ],
+  });
 });
 
 test('it refuses to restore a session whose agent dropped the broker credential on a target that rebinds a changed selection', async () => {

@@ -96,4 +96,9 @@ export interface Session {
   // The runtime auth revision the session's latest harness launched under;
   // absent for a harness that takes no credential from impd's broker.
   authRevision?: number;
+
+  // The refusal a restore's last try at a terminal ended with, when no
+  // later try lifts it: its code, and the message the session listed with.
+  // It holds only while the session still lists that message.
+  restoreRefusal?: { readonly code: string; readonly message: string };
 }
