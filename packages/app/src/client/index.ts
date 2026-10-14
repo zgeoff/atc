@@ -1034,7 +1034,11 @@ async function waitForRestartConsent(
       restartConsent = { prompt, answer: resolve };
     });
 
+    // The mode under the prompt may have changed while the reconnect
+    // waited, so the screen it owns is drawn again rather than left blank.
     stdout.write(ansi.clear);
+
+    drawMode();
 
     return key === 'y' || key === 'Y';
   }
@@ -1275,35 +1279,52 @@ stdout.on('resize', () => {
     return;
   }
 
-  const currentMode = service.getSnapshot().value;
-
-  if (currentMode === 'attached' && focusedID !== null) {
+  if (service.getSnapshot().value === 'attached' && focusedID !== null) {
     void sendQuiet('session.resize', { session: focusedID, cols: cols(), rows: ptyRows() });
   }
 
-  if (currentMode === 'home') {
-    drawHome(fleetCount, leader.label);
-  }
+  drawMode();
+});
 
-  if (currentMode === 'overlay') {
-    stdout.write(ansi.clear);
+/**
+ * Draws the current mode's screen again after something else held the
+ * terminal. An attached session repaints only through the agent, so it is
+ * left to the resize the daemon passes on.
+ */
+function drawMode() {
+  switch (service.getSnapshot().value) {
+    case 'home': {
+      drawHome(fleetCount, leader.label);
+      break;
+    }
+    case 'overlay': {
+      stdout.write(ansi.clear);
 
-    renderOverlay();
-  }
+      renderOverlay();
+      break;
+    }
+    case 'help': {
+      openHelp();
+      break;
+    }
+    case 'picker': {
+      stdout.write(ansi.clear);
+      picker.render();
+      break;
+    }
+    case 'picker-eject': {
+      stdout.write(ansi.clear);
 
-  if (currentMode === 'picker') {
-    stdout.write(ansi.clear);
-    picker.render();
-  }
-
-  if (currentMode === 'picker-eject') {
-    stdout.write(ansi.clear);
-
-    renderEject();
+      renderEject();
+      break;
+    }
+    case 'attached': {
+      break;
+    }
   }
 
   scheduleStatus();
-});
+}
 
 process.on('uncaughtException', (err) => {
   stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);

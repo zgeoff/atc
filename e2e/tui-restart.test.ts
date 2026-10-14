@@ -6,12 +6,15 @@ import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubHeldZoxide } from '@atc/test-utils/build-stub-held-zoxide';
 import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
 import { waitFor } from '@atc/test-utils/wait-for';
+import { buildHostServices } from '../packages/app/src/build-host-services';
+import { startDaemon } from '../packages/app/src/daemon/daemon';
 
 function setupTest() {
   return startTUIHarness();
@@ -193,6 +196,81 @@ test('it quits when the user keeps a daemon on another protocol that a reconnect
   expect(legacy.exitCode).toBeNull();
 });
 
+test('it draws help again when the user confirms a restart that a reconnect meets with help open', async () => {
+  const managed = await setupManagedReconnectTest();
+
+  const ctx = managed.ctx;
+
+  ctx.write('?');
+
+  await ctx.waitFor('attach the selected session');
+
+  const legacy = await managed.startLegacyDaemon();
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+  ctx.write('y');
+
+  await legacy.exited;
+
+  await ctx.waitFor('attach the selected session');
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
+test('it draws the home screen again when the user confirms a restart that a reconnect meets at home', async () => {
+  const managed = await setupManagedReconnectTest();
+
+  const ctx = managed.ctx;
+
+  ctx.reset();
+  ctx.write(KEYS.esc);
+
+  await ctx.waitFor('control tower for coding-agent sessions');
+
+  const legacy = await managed.startLegacyDaemon();
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+  ctx.write('y');
+
+  await legacy.exited;
+
+  await ctx.waitFor('control tower for coding-agent sessions');
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
+test('it draws the spawn picker again when the user confirms a restart that a reconnect meets in the picker', async () => {
+  const managed = await setupManagedReconnectTest();
+
+  const ctx = managed.ctx;
+
+  ctx.reset();
+  ctx.write(KEYS.esc);
+
+  await ctx.waitFor('control tower for coding-agent sessions');
+
+  ctx.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  const legacy = await managed.startLegacyDaemon();
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+  ctx.write('y');
+
+  await legacy.exited;
+
+  await ctx.waitFor('spawn: agent');
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
 test('it stops a daemon of an older build when the user asks for the update and boots its own build', async () => {
   const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
@@ -296,6 +374,48 @@ async function setupReconnectTest() {
   process.kill(first.pid, 'SIGKILL');
 
   return { ctx, legacy, pty };
+}
+
+/**
+ * Boots the client on a daemon that a user unit manages, then stops that
+ * daemon, so the client waits for it to return without starting one.
+ * Returns the harness and a starter for a daemon on another protocol on
+ * the same socket, which the waiting client reaches next.
+ */
+async function setupManagedReconnectTest() {
+  const ctx = setupTest();
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+  const socketPath = join(ctx.home, 'atc-daemon.sock');
+  const unitDir = join(ctx.home, '.config', 'systemd', 'user');
+
+  mkdirSync(stateDir, { recursive: true });
+  mkdirSync(unitDir, { recursive: true });
+  writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
+
+  const first = await startDaemon({
+    socketPath,
+    reporterSocketPath: join(ctx.home, 'atc.sock'),
+    dbPath: join(stateDir, 'atc.db'),
+    statusPath: join(stateDir, 'status.json'),
+    build: buildHostServices().build,
+    adapter: buildMockAgentAdapter(),
+  });
+
+  registerTestCleanup(() => first.stop());
+
+  ctx.boot();
+
+  await ctx.waitFor('no session');
+
+  ctx.reset();
+
+  await first.stop();
+  await ctx.waitFor('waiting for daemon');
+
+  return {
+    ctx,
+    startLegacyDaemon: () => startStubDaemonProcess(socketPath, stateDir),
+  };
 }
 
 /**
