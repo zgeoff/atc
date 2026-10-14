@@ -46,15 +46,17 @@ your own daemon:
 atc events | jq -r 'select(.ev == "SessionState") | .session.name + " -> " + .session.state'
 ```
 
-When no atc daemon is running, `atc events` exits nonzero with a hint instead of booting one.
+When no atc daemon is running, `atc events` exits nonzero with a hint instead of booting one. When
+the daemon closes the stream before it sends an event, `atc events` prints an error and exits
+nonzero, so a watch never mistakes a refused stream for a quiet one.
 
 ## The events socket
 
 `atc events` is a thin reader over `$XDG_RUNTIME_DIR/atc-events.sock`, and any program can connect
 to that socket directly — no handshake, no version negotiation, no requests. The daemon ignores
 anything written to it. On connect you receive the same fleet snapshot as `SessionAdded` lines, then
-live events. Run it outside atc's sessions: on Linux the daemon closes the socket on a process
-inside a local session before it sends anything.
+live events. A process inside an atc session can read it too, such as a coordinator's background
+watch.
 
 A subscriber written against one atc version keeps working across upgrades: every line carries the
 protocol version, and unknown fields are ignored by contract. The

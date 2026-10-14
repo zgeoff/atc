@@ -132,9 +132,9 @@ The daemon decides which session a caller runs inside from where the caller conn
   record.
 - A [principal](../protocol/principals.md) adds scope only to sessions within its reach.
 
-The daemon also closes the [events socket](../protocol/events.md#the-events-socket) on a process
-that the walk finds in a session, before it sends a line, so a session reads the fleet only through
-a connection that acts as that session.
+The [events socket](../protocol/events.md#the-events-socket) takes no requests, so the walk binds
+nothing on it: a process inside a session streams the same events as any other local reader, and
+every action it takes still goes through a connection that acts as its session.
 
 On a platform other than Linux, and on a Linux whose C library is not glibc, the daemon cannot read
 the peer's pid. There it keeps the hello's word: a process that drops `ATC_SESSION_ID` before it

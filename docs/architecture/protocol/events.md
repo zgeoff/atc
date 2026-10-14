@@ -66,8 +66,9 @@ The events socket streams the broadcast events with no handshake, no version neg
 requests, and the daemon ignores anything a subscriber writes to it. Every line carries the protocol
 version, and the envelope rule that unknown fields are ignored is the whole compatibility contract,
 so a subscriber written against one atc version keeps working across upgrades that the strict client
-handshake would refuse. The daemon closes the socket on a process inside a local session before it
-sends a line ([session record](../execution/session-record.md#who-may-change-the-record)).
+handshake would refuse. A process inside a local session reads it as well, since the socket takes no
+action that the daemon binds to a caller
+([session record](../execution/session-record.md#who-may-change-the-record)).
 
 On connect, the daemon sends the current fleet as one added event per session, then live events
 behind it, so a subscriber learns what exists without speaking the client protocol. Each subscriber

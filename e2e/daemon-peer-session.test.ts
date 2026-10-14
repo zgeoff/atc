@@ -206,7 +206,7 @@ exec cat
 );
 
 test.skipIf(process.platform !== 'linux')(
-  'it closes the events socket on a process inside a session before sending it anything',
+  'it streams events to atc events run from a process inside a session that drops its atc variables',
   async () => {
     const ctx = setupTest();
 
@@ -217,14 +217,16 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    // The daemon's runtime directory is the home, so its events socket sits
-    // there.
+    // The session inherits the daemon's runtime directory, so `atc events`
+    // finds the daemon's events socket without either variable. The first
+    // line it streams is the snapshot's entry for the session itself, and
+    // the test reads the file until that line parses.
     createStubBin(
       ctx.home,
       'probe-agent',
       `#!/usr/bin/env bash
 read -r _
-"${process.execPath}" "${ctx.probe}" events "${join(ctx.home, 'atc-events.sock')}" "$ATC_SESSION_ID" "${ctx.outPath}"
+(env -u ATC_SESSION_ID -u ATC_SOCKET ${ctx.atc.map((part) => `"${part}"`).join(' ')} events | head -n 1 > "${ctx.outPath}") &
 exec cat
 `,
     );
@@ -243,9 +245,9 @@ exec cat
 
     await client.sendRequest('session.input', { session: id, d: 'go\r' });
 
-    const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+    const line = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 
-    expect(outcome).toStrictEqual({ bytes: 0 });
+    expect(line).toMatchObject({ ev: 'SessionAdded', session: { id } });
   },
 );
 
