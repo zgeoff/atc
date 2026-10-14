@@ -117,7 +117,9 @@ export async function applyMenuChoice(
 
   sendKey(terminal, KEYS.enter);
 
-  return { pressed: 'enter', menu: await waitForSettledMenu(terminal, menu, waits) };
+  // The settled menu is measured against the screen just before Enter, so a
+  // cursor move from the walk never counts as Enter's response.
+  return { pressed: 'enter', menu: await waitForSettledMenu(terminal, committed, waits) };
 }
 
 // A session that exits keeps its last screen, so a menu read can still

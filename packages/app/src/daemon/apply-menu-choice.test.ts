@@ -218,6 +218,49 @@ test('it ticks a box and returns the menu with its new token', async () => {
   expect(getRecord(chosen, 'menu')['menuToken']).not.toBe(shown.menu['menuToken']);
 });
 
+test('it returns the menu as Enter leaves it when Enter lands well after the cursor moves', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['2 new MCP servers found in this project'],
+        options: ['kettle-notes', 'quarry-files'],
+        checked: [true, false],
+        submit: 'Enable selected',
+      },
+    ],
+    enterDelayMs: 600,
+  });
+
+  const chosen = await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 2,
+    label: 'quarry-files',
+  });
+
+  expect(chosen).toStrictEqual({
+    pressed: 'enter',
+    menu: {
+      text: '2 new MCP servers found in this project',
+      options: [
+        { option: 1, label: 'kettle-notes', checked: true, highlighted: false },
+        { option: 2, label: 'quarry-files', checked: true, highlighted: true },
+        { option: 3, label: 'Enable selected', checked: null, highlighted: false },
+      ],
+      menuToken: expect.toBeString(),
+    },
+  });
+
+  expect(ctx.readLog()).toStrictEqual([
+    { key: 'down' },
+    { key: 'enter' },
+    { toggled: 'quarry-files', checked: true },
+  ]);
+});
+
 test('it confirms the boxes ticked when a choice picks the enable item', async () => {
   const ctx = await setupTest();
 
