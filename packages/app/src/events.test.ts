@@ -15,8 +15,8 @@ function setupTest() {
   return {
     socketPath: join(tmp.dir, 'events.sock'),
     out,
-    writeOut: (buf: Uint8Array) => {
-      out.push(new TextDecoder().decode(buf));
+    writeOut: (buf: Buffer) => {
+      out.push(buf.toString());
     },
     printError: mock(),
     exit: mock(),

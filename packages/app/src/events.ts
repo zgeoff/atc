@@ -2,7 +2,7 @@ import { eventsSocketPath } from '@atc/config/config';
 
 interface EventsIO {
   readonly socketPath: string;
-  readonly writeOut: (buf: Uint8Array) => void;
+  readonly writeOut: (buf: Buffer) => void;
   readonly printError: (line: string) => void;
   readonly exit: (code: number) => void;
 }
