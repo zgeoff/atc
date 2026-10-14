@@ -2,6 +2,7 @@ import { unlinkSync } from 'node:fs';
 import { OutboundQueue } from '@atc/protocol/outbound-queue';
 import { encodeMessage } from '@atc/protocol/protocol';
 import type { EventMsg } from '@atc/protocol/protocol';
+import { withOwnerOnlySocket } from './with-owner-only-socket';
 
 interface EventsServerOptions {
   readonly socketPath: string;
@@ -45,45 +46,47 @@ export function startEventsServer(opts: EventsServerOptions): EventsServer {
     unlinkSync(opts.socketPath);
   } catch {}
 
-  const server = Bun.listen<Subscriber>({
-    unix: opts.socketPath,
-    socket: {
-      open(socket) {
-        const subscriber: Subscriber = {
-          queue: new OutboundQueue(socket, opts.queueBytes),
-          end: () => {
-            socket.end();
-          },
-        };
+  const server = withOwnerOnlySocket(opts.socketPath, () =>
+    Bun.listen<Subscriber>({
+      unix: opts.socketPath,
+      socket: {
+        open(socket) {
+          const subscriber: Subscriber = {
+            queue: new OutboundQueue(socket, opts.queueBytes),
+            end: () => {
+              socket.end();
+            },
+          };
 
-        socket.data = subscriber;
+          socket.data = subscriber;
 
-        if (opts.shouldRefusePeer?.(socket) === true) {
-          subscriber.end();
-
-          return;
-        }
-
-        subscribers.add(subscriber);
-
-        for (const event of opts.collectSnapshot()) {
-          if (!subscriber.queue.send(encodeMessage(event))) {
+          if (opts.shouldRefusePeer?.(socket) === true) {
             subscriber.end();
 
             return;
           }
-        }
+
+          subscribers.add(subscriber);
+
+          for (const event of opts.collectSnapshot()) {
+            if (!subscriber.queue.send(encodeMessage(event))) {
+              subscriber.end();
+
+              return;
+            }
+          }
+        },
+        data() {},
+        drain(socket) {
+          socket.data.queue.drain();
+        },
+        close(socket) {
+          subscribers.delete(socket.data);
+        },
+        error() {},
       },
-      data() {},
-      drain(socket) {
-        socket.data.queue.drain();
-      },
-      close(socket) {
-        subscribers.delete(socket.data);
-      },
-      error() {},
-    },
-  });
+    }),
+  );
 
   return {
     broadcast(event) {

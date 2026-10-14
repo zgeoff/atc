@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
 import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
@@ -7,6 +7,7 @@ import { getString } from '@atc/test-utils/get-string';
 import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
 import { runATC } from '@atc/test-utils/run-atc';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 
 /**
@@ -77,6 +78,27 @@ test('it refuses a second daemon with the pid and socket of the daemon that serv
   expect(refused.readStderr()).toBe(
     `atc daemon: another daemon already serves ${serving.stateDir} (pid ${serving.proc.pid}, socket ${serving.socketPath})\n`,
   );
+});
+
+test('it keeps the state directory and every daemon socket owner-only under a permissive umask without XDG_RUNTIME_DIR', async () => {
+  const ctx = setupTest();
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+
+  startDaemonProcess({
+    command: ['/bin/sh', '-c', 'umask 000 && exec "$@"', 'sh', ...ctx.atc],
+    home: ctx.home,
+    env: { XDG_RUNTIME_DIR: undefined },
+  });
+
+  // The daemon writes its record once every socket is bound.
+  await waitFor(() => statSync(join(stateDir, 'daemon.json')), { timeoutMs: 15_000 });
+
+  const socketModes = ['atc-daemon.sock', 'atc.sock', 'atc-events.sock'].map(
+    (name) => statSync(join(stateDir, name)).mode & 0o777,
+  );
+
+  expect(socketModes).toStrictEqual([0o600, 0o600, 0o600]);
+  expect(statSync(stateDir).mode & 0o777).toBe(0o700);
 });
 
 test('it prints the running daemon id through atc daemon id', async () => {

@@ -162,9 +162,10 @@ export function loadConfig(
   state: string = stateDir,
 ): Config {
   // Every atc process writes under the state directory; a failure here
-  // comes back from the first write into it.
+  // comes back from the first write into it. It may hold the daemon's
+  // sockets, so each directory this creates is its owner's alone.
   try {
-    mkdirSync(state, { recursive: true });
+    mkdirSync(state, { recursive: true, mode: 0o700 });
   } catch {}
 
   let text: string;
