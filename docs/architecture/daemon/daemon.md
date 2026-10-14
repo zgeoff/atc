@@ -83,11 +83,13 @@ The daemon serves several peers that speak different dialects, and each gets its
 - **The TCP listener** serves the client protocol to a remote client such as atc-gateway, only when
   the daemon starts with one ([principals](../protocol/principals.md#the-tcp-listener)).
 
-The daemon sets no mode on its unix sockets. They sit in `$XDG_RUNTIME_DIR`, which belongs to the
-user alone, or under the state directory when that variable is unset, where the directory's own mode
-and the umask decide who can reach them. A connection on the client socket acts as the owner with no
-credential. A session on a remote host never reaches these sockets: it reaches the daemon through
-its [session bridge](../execution/imp-provider.md#the-session-bridge).
+A connection on the client socket acts as the owner with no credential, so the daemon binds each
+unix socket readable and writable by its owner alone, whatever the umask. The sockets sit in
+`$XDG_RUNTIME_DIR`, or under the state directory when that variable is unset, and atc creates the
+state directory with access for its owner alone. The bind runs under a umask that clears every group
+and other bit, so no other user can connect between the bind and the mode change that follows it. A
+session on a remote host never reaches these sockets: it reaches the daemon through its
+[session bridge](../execution/imp-provider.md#the-session-bridge).
 
 ## Clients and stopping
 

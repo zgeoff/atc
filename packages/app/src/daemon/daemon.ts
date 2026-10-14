@@ -114,6 +114,7 @@ import { startTCPListener } from './start-tcp-listener';
 import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
 import type { TargetAccess } from './target-access';
+import { withOwnerOnlySocket } from './with-owner-only-socket';
 import { writeLineSteps } from './write-line-steps';
 
 export interface DaemonOptions {
@@ -2634,26 +2635,28 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     unlinkSync(opts.socketPath);
   } catch {}
 
-  const server = Bun.listen<DaemonConnection>({
-    unix: opts.socketPath,
-    socket: {
-      open(socket) {
-        socket.data = new DaemonConnection(socket, ctx, null, findSocketSession(socket));
+  const server = withOwnerOnlySocket(opts.socketPath, () =>
+    Bun.listen<DaemonConnection>({
+      unix: opts.socketPath,
+      socket: {
+        open(socket) {
+          socket.data = new DaemonConnection(socket, ctx, null, findSocketSession(socket));
 
-        clients.add(socket.data);
+          clients.add(socket.data);
+        },
+        data(socket, buf) {
+          socket.data.applyChunk(socket.data.decodeChunk(buf));
+        },
+        drain(socket) {
+          socket.data.drain();
+        },
+        close(socket) {
+          detachConnection(socket.data);
+        },
+        error() {},
       },
-      data(socket, buf) {
-        socket.data.applyChunk(socket.data.decodeChunk(buf));
-      },
-      drain(socket) {
-        socket.data.drain();
-      },
-      close(socket) {
-        detachConnection(socket.data);
-      },
-      error() {},
-    },
-  });
+    }),
+  );
 
   const refreshTokens = () => {
     if (opts.listen === undefined || tcpListener === null) {
