@@ -459,7 +459,7 @@ export class SessionManager {
   /**
    * Renames and/or pins a session on a caller's behalf. A rename lands at
    * user strength, so auto-summaries stop overwriting it while an
-   * in-session rename still wins. Pinned sessions lead every list. A
+   * in-session rename still wins. Pinned sessions lead the TUI's list. A
    * sub-session inherits its parent's pin, and a pin of its own guards it
    * from its parent's forget too. A null parent makes a sub-session
    * top-level before any pin applies, so its pin, kill, and forget no

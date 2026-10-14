@@ -644,7 +644,7 @@ test('it sends a note through atc under the full tool name', async (engine, on) 
     label: 'blocked',
   });
 
-  expect(answered.result).toBe('Sent to the user through atc.');
+  expect(answered.result).toBe('Handed to atc for its event feed.');
 
   expect(ctx.ran).toStrictEqual([
     { argv: ['atc', 'note', '--label', 'blocked'], stdin: 'blocked on review' },

@@ -11,7 +11,7 @@ export const IDEMPOTENCY_KEY_FIELD = z
   .max(180)
   .optional()
   .describe(
-    'A key, unique to this call, that makes a retry safe: retrying with the same key and arguments returns the first answer instead of acting again, and the same key with different arguments is refused as idempotency_conflict. A call interrupted mid-way is refused as outcome_unknown, with the id it acted under in data.effectRef. At most 180 characters',
+    'A key, unique to this call, that makes a retry safe: retrying with the same key and arguments acts only once and returns what the first call made as it stands now, and the same key with different arguments is refused as idempotency_conflict. A refused call keeps no key, so a retry runs again, and atc forgets a key 24 hours after its call completed. A call interrupted mid-way is refused as outcome_unknown, with the id it acted under in data.effectRef. At most 180 characters',
   );
 
 /**
