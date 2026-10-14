@@ -99,7 +99,7 @@ async function tryProbe(
 }
 
 async function runProbe(
-  client: DaemonClient,
+  client: Readonly<Pick<DaemonClient, 'sendHello' | 'sendRequest'>>,
   probe: string,
   session: string,
 ): Promise<Readonly<Record<string, unknown>>> {
