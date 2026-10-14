@@ -235,9 +235,21 @@ export class PublishedRecords {
       return path;
     }
 
-    // One command writes the copy beside its place and renames it there.
-    // A remote host runs it as the user its provider runs commands as,
-    // root on an imp, so the copy and its directory belong to that user.
+    // A host that keeps read-only files holds the copy where no process
+    // there can write it, root included.
+    const protectedPath = await subject.provider.writeReadOnlyFile?.(
+      subject.host,
+      `atc/records/${name}`,
+      content,
+    );
+
+    if (protectedPath !== undefined && protectedPath !== null) {
+      return protectedPath;
+    }
+
+    // Elsewhere one command writes the copy beside its place and renames it
+    // there. A remote host runs it as the user its provider runs commands
+    // as, root on an imp, so the copy and its directory belong to that user.
     const dir = `${subject.provider.guest?.dir ?? '/tmp/atc'}/records`;
 
     const placed = await subject.provider.runCommand({

@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
+import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { posix } from 'node:path';
 import { isBrokerVariable } from '@atc/core/is-broker-variable';
 import { isHostNameAllowed } from '@atc/plugin-api/is-host-name-allowed';
@@ -168,7 +169,12 @@ class StubImpPort implements ImpPort {
     secretRebind: true,
     execRequire: true,
     oauthSecrets: true,
+    readOnlyFiles: false,
   };
+
+  // Where the port keeps each imp's read-only files, one folder per imp
+  // name; null stands for an imp agent from before them.
+  readOnlyFilesDir: string | null = null;
 
   // Who the port calls impd as.
   private identity: ImpIdentity = {
@@ -732,6 +738,28 @@ class StubImpPort implements ImpPort {
   }
 
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
+  // Replaces the file through a rename, at mode 0444, as impd's agent does.
+  async writeReadOnlyFile(name: string, path: string, content: string): Promise<string> {
+    this.calls.push(`files.write ${name} ${path}`);
+
+    if (!this.imps.has(name)) {
+      throw buildNotFound(name);
+    }
+
+    if (this.readOnlyFilesDir === null) {
+      throw new ImpPortError('AGENT_OUTDATED', "the imp's agent has no read-only files yet");
+    }
+
+    const target = posix.join(this.readOnlyFilesDir, name, path);
+    const staged = posix.join(posix.dirname(target), `.${posix.basename(target)}.${randomUUID()}`);
+
+    await mkdir(posix.dirname(target), { recursive: true });
+    await writeFile(staged, content, { mode: 0o444, flag: 'wx' });
+    await rename(staged, target);
+
+    return target;
+  }
+
   async runCommand(name: string, command: ImpCommand): Promise<ImpCommandResult> {
     this.calls.push(`exec.run ${name} ${command.argv.join(' ')}`);
 

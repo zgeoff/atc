@@ -166,6 +166,10 @@ export class ImpProvider implements ExecutionProvider {
   // features; an impd without the flag carries none.
   private offsets = false;
 
+  // Whether impd writes read-only files, once a prepare has read its
+  // features; an impd without the flag writes none.
+  private readOnlyFiles = false;
+
   // The lease label of the daemon this provider serves, once a prepare
   // names it.
   private label: string | null = null;
@@ -276,6 +280,7 @@ export class ImpProvider implements ExecutionProvider {
       const features = await timer.withStep('features', () => this.port.readFeatures());
 
       this.offsets = features.sessionOffsets;
+      this.readOnlyFiles = features.readOnlyFiles;
 
       const existing = await timer.withStep('inspect-imp', () => this.port.readImp(name));
 
@@ -400,6 +405,30 @@ export class ImpProvider implements ExecutionProvider {
       stdout: decoder.decode(result.stdout),
       stderr: decoder.decode(result.stderr),
     };
+  };
+
+  // An impd without read-only files, or an imp whose agent booted before
+  // them, has no such place, which a later cold boot of the imp gives it.
+  readonly writeReadOnlyFile = async (
+    hostKey: string,
+    path: string,
+    content: string,
+  ): Promise<string | null> => {
+    if (!this.readOnlyFiles) {
+      return null;
+    }
+
+    const name = this.getImpName(hostKey);
+
+    try {
+      return await this.port.writeReadOnlyFile(name, path, content);
+    } catch (error) {
+      if (error instanceof ImpPortError && error.code === 'AGENT_OUTDATED') {
+        return null;
+      }
+
+      throw toHostRefusal(error, name);
+    }
   };
 
   // Gives back the daemon's own lease first, since a lease blocks a sleep,

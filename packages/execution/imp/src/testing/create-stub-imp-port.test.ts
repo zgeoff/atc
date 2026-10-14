@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { KEYS } from '@atc/test-utils/keys';
@@ -21,6 +21,55 @@ function setupTest() {
 
   return { port, dir: tmp.dir };
 }
+
+test('it writes a read-only file under the imp’s folder and returns its path', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.readOnlyFilesDir = ctx.dir;
+
+  const path = await ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{"shift":"early"}');
+
+  expect(path).toBe(join(ctx.dir, 'imp-a', 'notes', 'rota.json'));
+  expect(readFileSync(path, 'utf8')).toBe('{"shift":"early"}');
+  expect(statSync(path).mode & 0o777).toBe(0o444);
+});
+
+test('it replaces a read-only file written again', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.readOnlyFilesDir = ctx.dir;
+
+  await ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{"shift":"early"}');
+
+  const path = await ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{"shift":"late"}');
+
+  expect(readFileSync(path, 'utf8')).toBe('{"shift":"late"}');
+  expect(readdirSync(join(ctx.dir, 'imp-a', 'notes'))).toStrictEqual(['rota.json']);
+});
+
+test('it refuses a read-only file as AGENT_OUTDATED while it holds no folder for them', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  expect(ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{}')).rejects.toMatchObject({
+    code: 'AGENT_OUTDATED',
+  });
+});
+
+test('it refuses a read-only file for an imp it does not hold as NOT_FOUND', () => {
+  const ctx = setupTest();
+
+  ctx.port.readOnlyFilesDir = ctx.dir;
+
+  expect(ctx.port.writeReadOnlyFile('imp-a', 'notes/rota.json', '{}')).rejects.toMatchObject({
+    code: 'NOT_FOUND',
+  });
+});
 
 test('it refuses a lease under the label hold', async () => {
   const ctx = setupTest();
@@ -2600,6 +2649,7 @@ test('it answers a feature read once the failures are spent', async () => {
     secretRebind: true,
     execRequire: true,
     oauthSecrets: true,
+    readOnlyFiles: false,
   });
 });
 

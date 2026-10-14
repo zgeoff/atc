@@ -1,11 +1,12 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { expect, test } from 'bun:test';
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config/local-target';
 import { toSessionID } from '@atc/core/to-session-id';
 import { ImpProvider } from '@atc/execution-imp/imp-provider';
 import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { getOnlyImpName } from '@atc/execution-imp/testing/get-only-imp-name';
 import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { buildTargetIdentity } from '@atc/store/build-target-identity';
@@ -982,6 +983,85 @@ test('it places a read-only copy of the session record inside the imp before the
       pullRequests: [],
     },
   });
+});
+
+test('it places the copy among the imp’s read-only files when impd keeps them', async () => {
+  const ctx = await setupTest();
+
+  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const name = getOnlyImpName(ctx.port);
+  const path = join(ctx.dir, 'ro', name, 'atc', 'records', `${id}.json`);
+  const [request] = ctx.port.sessionRequests;
+
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  expect(request.env['ATC_SESSION_RECORD']).toBe(path);
+  expect(copy).toMatchObject({ format: 'atc.session-record', session: id, revision: 1 });
+  expect(ctx.port.calls).toContain(`files.write ${name} atc/records/${id}.json`);
+  expect(existsSync(join(ctx.dir, 'g', 'records', `${id}.json`))).toBeFalse();
+});
+
+test('it replaces the read-only copy when a caller adds to the scope', async () => {
+  const ctx = await setupTest();
+  const fixture = await createGitFixture({ prefix: 'atc-daemon-imp-record-' });
+
+  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+  ctx.port.readOnlyFilesDir = join(ctx.dir, 'ro');
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: fixture.work,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const added = await ctx.client.sendRequest('session.scope.add', {
+    session: id,
+    scope: { branches: [{ name: 'main' }] },
+  });
+
+  const record = getRecord(added, 'record');
+  const path = join(ctx.dir, 'ro', getOnlyImpName(ctx.port), 'atc', 'records', `${id}.json`);
+
+  const copy = await readJSONRecord(Bun.file(path));
+
+  expect(record['revision']).toBe(2);
+  expect(copy).toStrictEqual(record);
+});
+
+test('it places the copy in the guest folder when the imp’s agent is from before read-only files', async () => {
+  const ctx = await setupTest();
+
+  // impd keeps read-only files, and the port holds no folder for them, as
+  // an imp still on an older agent
+  ctx.port.features = { ...ctx.port.features, readOnlyFiles: true };
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const path = join(ctx.dir, 'g', 'records', `${id}.json`);
+  const [request] = ctx.port.sessionRequests;
+
+  invariant(request?.kind === 'start', 'the spawn sent no start request');
+
+  expect(request.env['ATC_SESSION_RECORD']).toBe(path);
+  expect(statSync(path).mode & 0o777).toBe(0o444);
 });
 
 test('it rewrites the copy inside the imp when a caller adds to the scope', async () => {
