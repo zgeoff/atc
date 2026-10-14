@@ -1,12 +1,16 @@
+import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   rmdirSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
 import type { Clock } from '@atc/core/system-clock';
 import { systemClock } from '@atc/core/system-clock';
@@ -61,8 +65,9 @@ const LOCK_RETRY_MS = 10;
  * fails keeps nothing: a cache never stops a listing. A write goes
  * through a temporary file and a rename, so a reader never sees half a
  * file. Each write reads, checks, and replaces the file while it holds a
- * lock beside it, a directory named for the file with a `.lock` suffix,
- * so writers in several processes keep each other's listings. A lock
+ * lock beside it, so writers in several processes keep each other's
+ * listings. The lock is a directory named for the file with a `.lock`
+ * suffix, holding one file named for the write that holds it. A lock
  * older than a few seconds belongs to a writer that died and is taken
  * over, and a write that waits too long for the lock keeps nothing.
  */
@@ -81,10 +86,11 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
       return listing;
     },
     async writeListing(key, listing) {
+      const token = `${process.pid}-${randomUUID()}`;
       let claimed = false;
 
       try {
-        claimed = await waitUntil(() => tryClaimLock(lockPath, clock.now()), {
+        claimed = await waitUntil(() => tryClaimLock(lockPath, token, clock.now()), {
           clock,
           intervalMs: LOCK_RETRY_MS,
           deadlineMs: clock.now() + LOCK_WAIT_MS,
@@ -100,9 +106,7 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
       try {
         writeListingUnderLock(file, key, listing);
       } finally {
-        try {
-          rmdirSync(lockPath);
-        } catch {}
+        releaseLock(lockPath, token);
       }
     },
   };
@@ -112,27 +116,53 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
 // lock only while it reads and replaces one small file.
 const LOCK_STALE_MS = 5000;
 
-// Creates the lock directory and returns true when this call now holds the
-// lock; a stale directory is removed so the next try can take it. A folder
-// that cannot hold the lock throws.
-function tryClaimLock(lockPath: string, now: number): boolean {
+// Builds a lock directory holding the token file beside the lock, then
+// renames it into place and returns true when this call now holds the
+// lock. A rename never replaces a directory that holds a file, so it
+// fails while another write holds the lock; a stale lock is then removed
+// so the next try can take it. A folder that cannot hold the lock throws.
+function tryClaimLock(lockPath: string, token: string, now: number): boolean {
+  const stagedPath = `${lockPath}.${token}`;
+
   try {
-    mkdirSync(lockPath);
+    mkdirSync(stagedPath);
+    writeFileSync(join(stagedPath, token), '');
+    renameSync(stagedPath, lockPath);
 
     return true;
   } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) {
+    rmSync(stagedPath, { recursive: true, force: true });
+
+    if (!(error instanceof Error && 'code' in error && isLockHeldCode(error.code))) {
       throw error;
     }
   }
 
-  try {
-    if (now - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
-      rmdirSync(lockPath);
-    }
-  } catch {}
+  removeStaleLock(lockPath, now);
 
   return false;
+}
+
+function isLockHeldCode(code: unknown): boolean {
+  return code === 'ENOTEMPTY' || code === 'EEXIST';
+}
+
+// Removes each token file older than the stale age, then the lock
+// directory if that left it empty. Removing a token by its own name and
+// the directory only while empty never removes a lock that another write
+// took in the meantime.
+function removeStaleLock(lockPath: string, now: number): void {
+  try {
+    for (const name of readdirSync(lockPath)) {
+      const tokenPath = join(lockPath, name);
+
+      if (now - statSync(tokenPath).mtimeMs > LOCK_STALE_MS) {
+        unlinkSync(tokenPath);
+      }
+    }
+
+    rmdirSync(lockPath);
+  } catch {}
 }
 
 // How many listings the file keeps; the oldest go first.
@@ -167,6 +197,15 @@ function writeListingUnderLock(file: string, key: string, listing: CachedListing
       rmSync(tmpFile, { force: true });
     } catch {}
   }
+}
+
+// Removes this write's token file, then the lock directory. A lock that
+// another write took over holds no such token, so it stays.
+function releaseLock(lockPath: string, token: string): void {
+  try {
+    unlinkSync(join(lockPath, token));
+    rmdirSync(lockPath);
+  } catch {}
 }
 
 // The listings the file holds, leaving out each entry that does not parse.
