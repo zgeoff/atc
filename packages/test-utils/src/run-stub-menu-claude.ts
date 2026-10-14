@@ -26,12 +26,15 @@ type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
  * Claude Code holds a dialog that has just opened. During the hold the
  * arrows move the cursor, while Enter and Escape do nothing and restart the
  * hold. When the hold ends, the cursor goes back to where it started.
+ * `enterDelayMs` makes the stand-in answer each Enter only that long after
+ * it reads the key, as a busy agent does.
  */
 const STUB_MENU_SPEC_SCHEMA = z.object({
   menus: z.array(STUB_MENU_SCHEMA),
   switchFile: z.string().optional(),
   exitFile: z.string().optional(),
   holdMs: z.number().optional(),
+  enterDelayMs: z.number().optional(),
 });
 
 const KEY_NAMES: Readonly<Record<string, string>> = {
@@ -93,11 +96,7 @@ function main() {
 
   process.stdin.setRawMode(true);
 
-  process.stdin.on('data', (chunk: Buffer) => {
-    const data = chunk.toString('utf8');
-
-    log({ key: KEY_NAMES[data] ?? data });
-
+  const answerKey = (data: string) => {
     if (!state.open) {
       return;
     }
@@ -139,6 +138,22 @@ function main() {
       const label = state.menu.options[state.cursor] ?? '';
 
       drawOutcome(`Picked: ${label}`, { picked: label });
+    }
+  };
+
+  process.stdin.on('data', (chunk: Buffer) => {
+    const data = chunk.toString('utf8');
+
+    log({ key: KEY_NAMES[data] ?? data });
+
+    // An Enter that arrives during the hold is refused at once, so the hold
+    // ending before the delay passes never lets it through.
+    if (data === '\r' && spec.enterDelayMs !== undefined && !state.held) {
+      setTimeout(() => {
+        answerKey(data);
+      }, spec.enterDelayMs);
+    } else {
+      answerKey(data);
     }
   });
 

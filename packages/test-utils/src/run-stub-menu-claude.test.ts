@@ -188,6 +188,25 @@ test('it takes Enter once the hold has ended', async () => {
   });
 });
 
+test('it answers Enter only once the Enter delay has passed', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [{ kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal'] }],
+    enterDelayMs: 300,
+  });
+
+  const sentAt = Date.now();
+
+  menu.pty.write(KEYS.enter);
+
+  await waitFor(() => {
+    expect(ctx.readLog()).toStrictEqual([{ key: 'enter' }, { picked: 'Amber' }]);
+  });
+
+  expect(Date.now() - sentAt).toBeGreaterThanOrEqual(300);
+});
+
 test('it shows the second menu once the switch file appears', async () => {
   const ctx = setupTest();
 
