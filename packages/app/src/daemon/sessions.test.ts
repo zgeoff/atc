@@ -17,13 +17,9 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
-import {
-  READ_PROJECT_SETTINGS_SCRIPT,
-  REMOVE_DIR_SCRIPT,
-  RESOLVE_DIR_SCRIPT,
-  RESOLVE_HOME_SCRIPT,
-  SessionManager,
-} from './sessions';
+import { READ_PROJECT_SETTINGS_SCRIPT } from './auth-setup';
+import { REMOVE_DIR_SCRIPT, RESOLVE_DIR_SCRIPT, RESOLVE_HOME_SCRIPT } from './host-dir-claims';
+import { SessionManager } from './sessions';
 
 // The fixed parts every session manager test shares: a real state store, a
 // recorder of logged lines, and the `local` provider on this machine's

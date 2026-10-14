@@ -12,9 +12,9 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { restoreFleet } from './restore-fleet';
+import type { Session } from './session';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
-import type { Session } from './sessions';
 import { startHeadlessTurn } from './start-headless-turn';
 
 /**

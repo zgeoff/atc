@@ -4,8 +4,9 @@ import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { FleetEntry } from '@atc/store/fleet-entry';
 import type { StateStore } from '@atc/store/state-store';
+import type { Session } from './session';
 import type { SessionRuntime } from './session-runtime';
-import type { Session, SessionManager } from './sessions';
+import type { SessionManager } from './sessions';
 
 interface RestoreFleetParams {
   readonly mgr: SessionManager;

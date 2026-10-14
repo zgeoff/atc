@@ -1,6 +1,6 @@
 import { toSessionID } from '@atc/core/to-session-id';
 import { faker } from '@faker-js/faker';
-import type { Session } from '../daemon/sessions';
+import type { Session } from '../daemon/session';
 
 /**
  * A session manager's record of an exited Claude session on the `local`
