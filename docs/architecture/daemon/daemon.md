@@ -110,3 +110,14 @@ keeps the lock file. A daemon that crashes leaves the same outcome for its local
 the pseudo-terminals close with it, and the next daemon restores them from the stored fleet. Hook
 reports sent while no daemon runs are lost, so a restored session's attention is current only from
 its next hook event.
+
+## Failed workspace spawns
+
+A workspace spawn that fails gives back the directory it created, unless another session's directory
+may lie inside it, and [claims and rollback](../execution/workspaces.md#claims-and-rollback) covers
+the full rule. On a shared imp host, a listed directory that the host cannot resolve keeps the
+rollback's directory only when it could lie inside. The daemon resolves a relative directory that
+the host can no longer enter again under the host's home, and removes the rollback's directory when
+the result lies outside it. An absolute directory the host cannot resolve keeps the files, and so
+does a relative one with a parent step or with a symlink among its missing parts, because the daemon
+cannot tell where they lead.
