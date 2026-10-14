@@ -273,21 +273,16 @@ export function runTool(
       return buildObjectResult(buildPageWithoutNoteHandles(page));
     })
     .with('atc_message_send', async () => {
-      const given = args['from'];
-
-      const from =
-        ctx.sender.kind === 'default' && typeof given === 'string' && given !== ''
-          ? given
-          : ctx.sender.name;
-
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
       // A caller inside a session is told its answers arrive as notices, so
       // a daemon that queues none refuses the send instead of leaving the
-      // caller waiting.
+      // caller waiting. The daemon labels the message with who called, so
+      // one that would take a caller-given name refuses it too.
       const required: DaemonFeature[] = [
         'vocabulary.note',
         'message.unanswered',
+        'message.sender',
         ...(key === undefined ? [] : (['message.idempotency'] as const)),
         ...(ctx.callerSessionID === null ? [] : (['message.notice'] as const)),
       ];
@@ -297,7 +292,6 @@ export function runTool(
         {
           session: args['session'],
           text: args['text'],
-          from,
           ...(key === undefined ? {} : { idempotencyKey: key }),
         },
         required,

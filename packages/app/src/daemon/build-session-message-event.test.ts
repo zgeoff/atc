@@ -115,3 +115,29 @@ test('it builds an unanswered event with the reason and the unanswered time', ()
     unansweredReason: 'refusal',
   });
 });
+
+test('it carries the sender of a message that holds one', () => {
+  const event = buildSessionMessageEvent(
+    toSessionID('s1'),
+    buildMockMessageRecord({
+      id: toMessageID('m-1'),
+      from: 'Lantern Notes',
+      sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+      text: 'hello',
+      status: 'queued',
+      sentAt: 1000,
+    }),
+  );
+
+  expect(event).toStrictEqual({
+    v: 4,
+    ev: 'SessionMessage',
+    s: 's1',
+    message: 'm-1',
+    status: 'queued',
+    from: 'Lantern Notes',
+    sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+    textPreview: 'hello',
+    sentAt: 1000,
+  });
+});

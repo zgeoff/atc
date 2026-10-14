@@ -71,7 +71,7 @@ test('it hands out a token and changes nothing for a live session on a host-dest
     ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(offered.structured).toStrictEqual({
@@ -102,26 +102,21 @@ test('it destroys the host and drops the live session when the second call carri
     ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   const forgotten = await runTool(
     ctx.caller,
     'atc_session_forget',
     { session: id, stop: true, confirmToken: offered.structured?.['confirmToken'] },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: true });
   expect<readonly unknown[]>(ctx.provider.destroyed).toStrictEqual([id]);
 
   expect(
-    runTool(
-      ctx.caller,
-      'atc_sessions_list',
-      {},
-      { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-    ),
+    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
   ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
@@ -143,7 +138,7 @@ test('it hands out a token for a dead session on a host-destroying target and ch
     ctx.caller,
     'atc_session_forget',
     { session: id },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(offered.structured).toStrictEqual({
@@ -175,18 +170,13 @@ test('it forgets a dead session on a local target in one call', async () => {
     ctx.caller,
     'atc_session_forget',
     { session: id },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
 
   expect(
-    runTool(
-      ctx.caller,
-      'atc_sessions_list',
-      {},
-      { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-    ),
+    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
   ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
@@ -205,18 +195,13 @@ test('it stops and forgets a live session on a local target in one call when sto
     ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
 
   expect(
-    runTool(
-      ctx.caller,
-      'atc_sessions_list',
-      {},
-      { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-    ),
+    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
   ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
@@ -236,7 +221,7 @@ test('it refuses a live session without stop and leaves it running', async () =>
     ctx.caller,
     'atc_session_forget',
     { session: id },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_live: .*stop: true/);
@@ -263,7 +248,7 @@ test('it refuses a pinned session and leaves it listed', async () => {
     ctx.caller,
     'atc_session_forget',
     { session: id, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
@@ -299,7 +284,7 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
     ctx.caller,
     'atc_session_forget',
     { session: child, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: /);
@@ -334,7 +319,7 @@ test('it refuses a session a pin reaches just before the forget does', async () 
     pinning,
     'atc_session_forget',
     { session: id, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
@@ -365,7 +350,7 @@ test('it checks the session itself and sends a plain forget to a daemon without 
     older,
     'atc_session_forget',
     { session: id, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
@@ -405,7 +390,13 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
       'daemon.hello': {
         daemon: 'atc/legacy-build',
         daemonID: 'abcdef0123456789abcdef0123456789',
-        features: ['transport.tcp', 'daemon.id', 'request.principal', 'session.forget'],
+        features: [
+          'transport.tcp',
+          'daemon.id',
+          'request.principal',
+          'message.sender',
+          'session.forget',
+        ],
       },
       'session.get': { session: { id: 's-1', pinned: true, alive: true } },
     },
@@ -456,10 +447,13 @@ test('it falls back to its own check when a gateway routes the forget to a daemo
   });
 
   const refused = runTool(
-    buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), 'gw'),
+    buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), {
+      id: 'gw',
+      name: 'Lantern Notes',
+    }),
     'atc_session_forget',
     { session: 'old.abcdef01.s-1', stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
@@ -473,7 +467,7 @@ test('it refuses an unknown session as no_such_session before any token exists',
     ctx.caller,
     'atc_session_forget',
     { session: 'nope', stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
@@ -511,10 +505,10 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
   const id = getRecord(spawned, 'session')['id'];
 
   const refused = runTool(
-    buildPrincipalCaller(caller, 'outsider'),
+    buildPrincipalCaller(caller, { id: 'outsider', name: 'Lantern Notes' }),
     'atc_session_forget',
     { session: id, stop: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(refused).rejects.toMatchObject({ code: 'no_such_session' });

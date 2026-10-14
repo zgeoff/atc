@@ -1,25 +1,29 @@
 import { daemonSocketPath } from '@atc/config/config';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DaemonError } from '@atc/protocol/daemon-error';
+import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/message-sender';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { z } from 'zod';
 import { buildHostServices } from './build-host-services';
+import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
 import { runBridgeTap } from './run-bridge-tap';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
   message: z.string(),
   from: z.string(),
+
+  // A sender this build cannot read is left out, and the message still
+  // goes out with its sender's name.
+  sender: z.preprocess(
+    (v) => (MESSAGE_SENDER_SCHEMA.safeParse(v).success ? v : undefined),
+    MESSAGE_SENDER_SCHEMA.optional(),
+  ),
   text: z.string(),
   sentAt: z.number(),
 });
 
-interface InboxMessage {
-  readonly message: string;
-  readonly from: string;
-  readonly text: string;
-  readonly sentAt: number;
-}
+type InboxMessage = z.output<typeof INBOX_MESSAGE_SCHEMA>;
 
 const INBOX_NOTICE_SCHEMA = z.looseObject({
   message: z.string(),
@@ -131,13 +135,7 @@ export async function runTap(
       return;
     }
 
-    const msg: InboxMessage = {
-      message: parsed.data.message,
-      from: parsed.data.from,
-      text: parsed.data.text,
-      sentAt: parsed.data.sentAt,
-    };
-
+    const msg = parsed.data;
     const previous = written;
 
     written = (async () => {
@@ -179,7 +177,7 @@ async function ackInboxMessage(
   msg: InboxMessage,
   io: TapIO,
 ): Promise<void> {
-  const line = `${JSON.stringify({ id: msg.message, from: msg.from, text: msg.text, sentAt: msg.sentAt })}\n`;
+  const line = renderMessageLine(msg);
 
   try {
     await io.writeStdout(line);

@@ -301,8 +301,10 @@ export const REQUEST_PARAM_SCHEMAS = {
       z.string().transform(toSessionID).optional(),
     ),
   }),
+
+  // The sender is never a param: the daemon builds it from the caller, so a
+  // `from` an older client sends is dropped with any other unknown key.
   'session.message': SESSION_DEFAULTED.extend({
-    from: buildDefaultedNonEmptyString('unknown'),
     text: buildDefaultedString(''),
 
     // A retry carrying the same key replays the first send's message

@@ -1101,6 +1101,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '030_add_messages_unanswered',
     '031_rebuild_fleet_without_unique_agent_session_id',
     '032_add_messages_answer_notice',
+    '033_add_messages_sender_kind',
   ]);
 });
 
@@ -1150,7 +1151,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 32 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 33 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -1917,6 +1918,47 @@ test('it stores the sender session of a message', async () => {
   const stored = await ctx.store.findMessageByID(record.id);
 
   expect(stored).toStrictEqual(record);
+});
+
+test.each([
+  [{ kind: 'connector', client: 'client-7', name: 'Lantern Notes' }],
+  [{ kind: 'session', session: 'harbor-1', name: 'harbor-refactor' }],
+  [{ kind: 'owner', name: 'owner' }],
+] as const)('it stores the typed sender of a message: %o', async (sender) => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ from: sender.name, sender });
+
+  await ctx.store.writeMessage(record);
+
+  const stored = await ctx.store.findMessageByID(record.id);
+
+  expect(stored).toStrictEqual(record);
+});
+
+test('it reads a message stored without a sender kind with its sender name alone', async () => {
+  const ctx = await setupTest();
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.run(
+    "INSERT INTO messages (id, atc_id, sender, text, status, sent_at) VALUES ('m-old', 's1', 'mcp', 'hi', 'queued', 1)",
+  );
+
+  const stored = await ctx.store.findMessageByID(toMessageID('m-old'));
+
+  expect(stored).toStrictEqual({
+    id: toMessageID('m-old'),
+    atcID: toSessionID('s1'),
+    from: 'mcp',
+    text: 'hi',
+    status: 'queued',
+    sentAt: 1,
+  });
 });
 
 test('it queues the answer notice of an answered message once', async () => {
@@ -4026,7 +4068,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-8, -5);
+    .slice(-9, -6);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();

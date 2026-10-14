@@ -4,6 +4,7 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { decodeCursor } from '@atc/protocol/decode-cursor';
 import { encodeCursor } from '@atc/protocol/encode-cursor';
+import type { Principal } from '@atc/protocol/principal';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
 import type { DaemonCaller } from './daemon-caller';
@@ -47,7 +48,7 @@ export async function readFleetEvents(
   deps: FleetEventsDeps,
   params: Readonly<Record<string, unknown>>,
   required: readonly DaemonFeature[],
-  principal: string,
+  principal: Principal,
 ): Promise<Readonly<Record<string, unknown>>> {
   const rawSession = params['session'];
   const session = typeof rawSession === 'string' && rawSession !== '' ? rawSession : null;
@@ -94,7 +95,7 @@ export async function readFleetEvents(
 interface DaemonRead {
   readonly deps: FleetEventsDeps;
   readonly required: readonly DaemonFeature[];
-  readonly principal: string;
+  readonly principal: Principal;
   readonly limit: number;
 
   // The daemon's own id of the session a filtered read asks about.

@@ -147,7 +147,7 @@ test('it lists the message tool without an idempotency key for a daemon that ann
 
   invariant(message !== undefined, 'message tool missing');
 
-  expect(message.inputSchema['properties']).toContainAllKeys(['session', 'text', 'from']);
+  expect(message.inputSchema['properties']).toContainAllKeys(['session', 'text']);
 });
 
 test('it lists the spawn and message tools with an idempotency key for a daemon that takes keys', () => {

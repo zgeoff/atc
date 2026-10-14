@@ -9,6 +9,9 @@ import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemo
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonPool } from './daemon-pool';
 
+// The principal every request in these tests acts as.
+const GW = { id: 'gw', name: 'Lantern Notes' };
+
 /**
  * Two real daemons, `cloud` and `pc`, each with a TCP listener on a
  * loopback port that takes one fixed token, and `cloudID` and `pcID`, the
@@ -104,8 +107,8 @@ test('it gives each registry daemon its own caller that reaches only that daemon
   });
 
   const [onCloud, onPC] = await Promise.all([
-    pool.getCaller('cloud').sendRequest('session.list', {}, 'gw'),
-    pool.getCaller('pc').sendRequest('session.list', {}, 'gw'),
+    pool.getCaller('cloud').sendRequest('session.list', {}, GW),
+    pool.getCaller('pc').sendRequest('session.list', {}, GW),
   ]);
 
   expect(onCloud).toStrictEqual({ sessions: [expect.objectContaining({ name: 'on-cloud' })] });

@@ -270,25 +270,16 @@ test('it clamps session.read limit to 200', () => {
 });
 
 test('it rejects session.message without text', () => {
-  const parsed = parseRequestParams('session.message', {
-    session: 's1',
-    from: 'alice',
-  });
+  const parsed = parseRequestParams('session.message', { session: 's1' });
 
   expect(parsed).toStrictEqual({ ok: false, message: 'session.message requires text' });
 });
 
-test('it defaults session.message from to unknown', () => {
-  const parsed = parseRequestParams('session.message', {
-    session: 's1',
-    text: 'hi',
-    from: '',
-  });
+test('it drops a from that an older client gives session.message', () => {
+  const params: Readonly<Record<string, unknown>> = { session: 's1', text: 'hi', from: 'impostor' };
+  const parsed = parseRequestParams('session.message', params);
 
-  expect(parsed).toStrictEqual({
-    ok: true,
-    data: { session: toSessionID('s1'), from: 'unknown', text: 'hi' },
-  });
+  expect(parsed).toStrictEqual({ ok: true, data: { session: toSessionID('s1'), text: 'hi' } });
 });
 
 test('it rejects message.ack without a message', () => {

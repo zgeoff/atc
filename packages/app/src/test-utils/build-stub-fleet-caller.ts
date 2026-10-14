@@ -1,5 +1,6 @@
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
+import type { Principal } from '@atc/protocol/principal';
 import type { FleetCaller, FleetFeature } from '../mcp/types';
 
 /**
@@ -10,7 +11,7 @@ interface StubFleetRequest {
   readonly m: string;
   readonly p?: Readonly<Record<string, unknown>>;
   readonly required?: readonly DaemonFeature[];
-  readonly principal?: string;
+  readonly principal?: Principal;
 }
 
 type StubFleetAnswer = (

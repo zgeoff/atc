@@ -4,6 +4,7 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { KEYED_METHOD_FEATURES } from '@atc/protocol/keyed-method-features';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
+import type { Principal } from '@atc/protocol/principal';
 import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
 import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import { GatewayError } from './gateway-error';
@@ -20,6 +21,7 @@ export interface GatewayChannel {
     m: string,
     p?: Readonly<Record<string, unknown>>,
     as?: string,
+    asName?: string,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly stop: () => void;
 }
@@ -107,13 +109,14 @@ export class DaemonCaller {
   async sendRequest(
     m: string,
     p: Readonly<Record<string, unknown>> = {},
-    as?: string,
+    as?: Principal,
     required: readonly DaemonFeature[] = [],
     prepareParams: ParamsPreparer = (params) => params,
   ): Promise<Readonly<Record<string, unknown>>> {
-    // A request that acts as a principal relies on the daemon honouring it.
+    // A request that acts as a principal relies on the daemon honouring it,
+    // and on the daemon labelling a message with the principal's name.
     const needed: readonly DaemonFeature[] =
-      as === undefined ? required : [...required, 'request.principal'];
+      as === undefined ? required : [...required, 'request.principal', 'message.sender'];
 
     const opened = await this.openConnection();
 
@@ -221,7 +224,7 @@ export class DaemonCaller {
     features: DaemonHello['features'],
     m: string,
     p: Readonly<Record<string, unknown>>,
-    as: string | undefined,
+    as: Principal | undefined,
     prepareParams: ParamsPreparer,
   ): Promise<
     | { readonly kind: 'answered'; readonly ok: Readonly<Record<string, unknown>> }
@@ -253,7 +256,7 @@ export class DaemonCaller {
     // timeout won never goes unhandled.
     const settled = (async () => {
       try {
-        return { kind: 'ok' as const, ok: await channel.sendRequest(m, sent, as) };
+        return { kind: 'ok' as const, ok: await channel.sendRequest(m, sent, as?.id, as?.name) };
       } catch (error) {
         return { kind: 'error' as const, error };
       }

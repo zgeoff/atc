@@ -505,7 +505,6 @@ test('it answers session.message whose session leaves the view during the write 
       m: 'session.message',
       p: {
         session: 's-held',
-        from: 'remote',
         text: 'hello',
       },
     })}\n`,

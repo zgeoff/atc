@@ -1,5 +1,6 @@
 import type { Clock } from '@atc/core/system-clock';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import type { Principal } from '@atc/protocol/principal';
 import type { ApprovalState } from './approval-state';
 import type { openMCPAuth } from './open-mcp-auth';
 
@@ -20,17 +21,13 @@ export interface FleetCaller {
     m: string,
     p?: Readonly<Record<string, unknown>>,
     required?: readonly DaemonFeature[],
-    principal?: string,
+    principal?: Principal,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly readFeatures: () => Promise<ReadonlySet<FleetFeature>>;
 }
 
 export interface ToolContext {
   readonly callerSessionID: string | null;
-
-  // Who a sent message is from. A `fixed` sender is always used; a `default`
-  // one gives way to a sender the tool call gives.
-  readonly sender: { readonly kind: 'fixed' | 'default'; readonly name: string };
 }
 
 /**

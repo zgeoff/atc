@@ -161,6 +161,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
       'session.update.parent',
       'session.update.renameSkipped',
       'message.notice',
+      'message.sender',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',

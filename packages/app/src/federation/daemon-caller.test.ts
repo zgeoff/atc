@@ -18,6 +18,9 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonCaller } from './daemon-caller';
 import type { RegistryDaemon } from './types';
 
+// The principal every request in these tests acts as.
+const GW = { id: 'gw', name: 'Lantern Notes' };
+
 /**
  * A real daemon with a TCP listener on loopback `port` that takes one fixed
  * token. `daemon` is its harness, whose client is the owner's connection on the
@@ -72,7 +75,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
 
   registerTestCleanup(() => caller.stop());
 
-  const listed = await caller.sendRequest('session.list', {}, 'gw');
+  const listed = await caller.sendRequest('session.list', {}, GW);
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
@@ -122,7 +125,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
-    'gw',
+    GW,
   );
 
   expect(spawned).rejects.toMatchObject({
@@ -149,7 +152,7 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
 
   registerTestCleanup(() => caller.stop());
 
-  expect(caller.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
+  expect(caller.sendRequest('session.list', {}, GW)).rejects.toMatchObject({
     code: 'daemon_unauthorized',
     data: { daemon: 'cloud' },
   });
@@ -169,7 +172,7 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
 
   registerTestCleanup(() => caller.stop());
 
-  expect(caller.sendRequest('session.list', {}, 'gw')).rejects.toMatchObject({
+  expect(caller.sendRequest('session.list', {}, GW)).rejects.toMatchObject({
     code: 'daemon_unavailable',
     message: "daemon 'cloud' is unreachable",
     data: { daemon: 'cloud' },
@@ -192,7 +195,7 @@ test("it passes a daemon's own error through with its code", async () => {
 
   registerTestCleanup(() => caller.stop());
 
-  expect(caller.sendRequest('session.get', { session: 'nope' }, 'gw')).rejects.toMatchObject({
+  expect(caller.sendRequest('session.get', { session: 'nope' }, GW)).rejects.toMatchObject({
     code: 'no_such_session',
     message: "no session 'nope'",
   });
@@ -224,7 +227,7 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
   const spawned = await caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-1' },
-    'gw',
+    GW,
   );
 
   expect(proxy.countRequests()).toBe(2);
@@ -260,7 +263,7 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
-    'gw',
+    GW,
   );
 
   expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
@@ -293,7 +296,7 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-2' },
-    'gw',
+    GW,
   );
 
   expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
@@ -335,7 +338,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
   const spawning = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-3' },
-    'gw',
+    GW,
   );
 
   // The daemon has run the spawn whose response the proxy holds, so the
@@ -378,7 +381,7 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
 
   registerTestCleanup(() => caller.stop());
 
-  const listed = caller.sendRequest('session.list', {}, 'gw');
+  const listed = caller.sendRequest('session.list', {}, GW);
 
   expect(clock.collectPending()).toStrictEqual([300]);
 
@@ -433,7 +436,7 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-4' },
-    'gw',
+    GW,
   );
 
   expect(spawned).rejects.toMatchObject({ code: 'outcome_unknown', data: { daemon: 'cloud' } });
@@ -474,7 +477,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
   const spawned = caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' },
-    'gw',
+    GW,
   );
 
   await opener.waitForHeld();
@@ -514,7 +517,7 @@ test('it holds concurrent first requests until the handshake answers, so the dae
   registerTestCleanup(() => caller.stop());
 
   const answers = await Promise.all(
-    Array.from({ length: 5 }, () => caller.sendRequest('session.list', {}, 'gw')),
+    Array.from({ length: 5 }, () => caller.sendRequest('session.list', {}, GW)),
   );
 
   expect(answers).toStrictEqual(Array.from({ length: 5 }, () => ({ sessions: [] })));
@@ -549,15 +552,15 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
   const spawned = await caller.sendRequest(
     'session.spawn',
     { cwd: ctx.daemon.dir, resume: `a-${randomUUID()}` },
-    'gw',
+    GW,
   );
 
-  const caughtUp = await caller.sendRequest('events.read', {}, 'gw');
+  const caughtUp = await caller.sendRequest('events.read', {}, GW);
 
   const waiting = caller.sendRequest(
     'events.read',
     { cursor: caughtUp['cursor'], waitMs: 1500 },
-    'gw',
+    GW,
   );
 
   // Once the poll is out, a message writes the event that ends its wait.
@@ -568,7 +571,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
   await caller.sendRequest(
     'session.message',
     { session: getRecord(spawned, 'session')['id'], from: 'tester', text: 'wake' },
-    'gw',
+    GW,
   );
 
   const waited = await waiting;
@@ -582,4 +585,79 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
 
   expect(clock.collectDelays()).toStrictEqual([10_000, 500, 500, 2000, 500]);
   expect(opener.countOpened()).toBe(1);
+});
+
+test('it refuses a principal request to a daemon that would not label its messages as daemon_outdated and sends it nothing', async () => {
+  const ctx = await setupTest();
+
+  const legacy = startStubLegacyDaemon(join(ctx.daemon.dir, 'legacy.sock'), {
+    replies: {
+      'daemon.hello': {
+        daemon: 'atc/legacy-build',
+        daemonID: ctx.daemonID,
+        features: ['transport.tcp', 'daemon.id', 'request.principal'],
+      },
+    },
+  });
+
+  const caller = new DaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    openChannel: () => DaemonClient.open(join(ctx.daemon.dir, 'legacy.sock')),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  expect(
+    caller.sendRequest('session.message', { session: 's-1', text: 'check the tide tables' }, GW),
+  ).rejects.toMatchObject({
+    code: 'daemon_outdated',
+    data: { daemon: 'cloud', feature: 'message.sender' },
+  });
+
+  await waitFor(() => {
+    expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
+  });
+});
+
+test('it sends the name of the principal beside it', async () => {
+  const ctx = await setupTest();
+
+  const caller = new DaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const sessionID = getRecord(spawned, 'session')['id'];
+
+  const sent = await caller.sendRequest(
+    'session.message',
+    { session: sessionID, text: 'check the tide tables', from: 'impostor' },
+    GW,
+  );
+
+  const got = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+  expect(got).toMatchObject({
+    from: 'Lantern Notes',
+    sender: { kind: 'connector', client: 'gw', name: 'Lantern Notes' },
+  });
 });

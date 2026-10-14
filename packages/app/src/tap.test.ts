@@ -59,13 +59,11 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
   const first = await ctx.actor.sendRequest('session.message', {
     session: id,
     text: 'one',
-    from: 'alice',
   });
 
   const second = await ctx.actor.sendRequest('session.message', {
     session: id,
     text: 'two',
-    from: 'bob',
   });
 
   const printed: string[] = [];
@@ -89,8 +87,20 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
   });
 
   expect(printed.map((line): unknown => JSON.parse(line))).toStrictEqual([
-    { id: first['message'], from: 'alice', text: 'one', sentAt: expect.toBeNumber() },
-    { id: second['message'], from: 'bob', text: 'two', sentAt: expect.toBeNumber() },
+    {
+      id: first['message'],
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
+      text: 'one',
+      sentAt: expect.toBeNumber(),
+    },
+    {
+      id: second['message'],
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
+      text: 'two',
+      sentAt: expect.toBeNumber(),
+    },
   ]);
 });
 

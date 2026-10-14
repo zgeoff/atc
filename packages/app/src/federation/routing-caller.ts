@@ -3,6 +3,7 @@ import { systemClock } from '@atc/core/system-clock';
 import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import type { Principal } from '@atc/protocol/principal';
 import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
 import { match } from 'ts-pattern';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
@@ -43,7 +44,7 @@ interface RoutedSend {
   readonly route: ReturnType<typeof resolveDaemonRequest>;
   readonly daemon: RegistryDaemon;
   readonly required: readonly DaemonFeature[];
-  readonly principal: string;
+  readonly principal: Principal;
   readonly key: string | null;
 
   // Picks the params of each write of the request, right before it.
@@ -59,7 +60,7 @@ interface KeyedRoute {
   readonly picked: RegistryDaemon;
   readonly named: RegistryDaemon | null;
   readonly required: readonly DaemonFeature[];
-  readonly principal: string;
+  readonly principal: Principal;
 }
 
 /**
@@ -88,7 +89,7 @@ export class RoutingCaller {
     m: string,
     p: Readonly<Record<string, unknown>> = {},
     required: readonly DaemonFeature[] = [],
-    principal?: string,
+    principal?: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     if (principal === undefined) {
       return Promise.reject(
@@ -188,7 +189,7 @@ export class RoutingCaller {
     params: Readonly<Record<string, unknown>>,
     rawNamed: unknown,
     required: readonly DaemonFeature[],
-    principal: string,
+    principal: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     const named = this.findNamedDaemon(rawNamed);
     const route = resolveDaemonRequest(params, this.opts.registry);
@@ -239,13 +240,18 @@ export class RoutingCaller {
         principal: keyed.principal,
         key: keyed.key,
         prepareParams: (params) =>
-          this.opts.store.claimFirstSend(keyed.principal, keyed.m, keyed.key, this.getClock().now())
+          this.opts.store.claimFirstSend(
+            keyed.principal.id,
+            keyed.m,
+            keyed.key,
+            this.getClock().now(),
+          )
             ? params
             : { ...params, replayOnly: true },
       });
     } catch (error) {
       if (error instanceof GatewayError) {
-        this.opts.store.removeBinding(keyed.principal, keyed.m, keyed.key, claimed.claimID);
+        this.opts.store.removeBinding(keyed.principal.id, keyed.m, keyed.key, claimed.claimID);
       }
 
       throw error;
@@ -264,7 +270,13 @@ export class RoutingCaller {
         .sendRequest(send.m, send.route.params, send.principal, send.required, send.prepareParams);
 
       if (send.key !== null) {
-        store.updateOutcome(send.principal, send.m, send.key, 'completed', this.getClock().now());
+        store.updateOutcome(
+          send.principal.id,
+          send.m,
+          send.key,
+          'completed',
+          this.getClock().now(),
+        );
       }
 
       return buildGatewayResult(send.m, ok, send.daemon);
@@ -275,7 +287,7 @@ export class RoutingCaller {
         const effectRef = typeof rawRef === 'string' ? rawRef : null;
 
         store.updateOutcome(
-          send.principal,
+          send.principal.id,
           send.m,
           send.key,
           outcome,
@@ -283,7 +295,7 @@ export class RoutingCaller {
           effectRef,
         );
 
-        const held = store.findBinding(send.principal, send.m, send.key);
+        const held = store.findBinding(send.principal.id, send.m, send.key);
 
         // An unknown outcome carries the daemon's id of the effect when any
         // answer under the key returned one.
@@ -324,7 +336,7 @@ export class RoutingCaller {
 
     store.removeExpiredBindings(now);
 
-    const held = store.findBinding(route.principal, route.m, route.key);
+    const held = store.findBinding(route.principal.id, route.m, route.key);
     const bound = held === null ? null : this.opts.registry.daemons.get(held.daemon);
 
     if (held !== null && (bound === undefined || bound?.daemonID !== held.daemonID)) {
@@ -347,7 +359,7 @@ export class RoutingCaller {
 
     const binding = store.claimBinding(
       {
-        principal: route.principal,
+        principal: route.principal.id,
         operation: route.m,
         key: route.key,
         daemon: daemon.name,
@@ -375,7 +387,7 @@ export class RoutingCaller {
   private async sendFanOut(
     m: 'session.list' | 'agents.list',
     required: readonly DaemonFeature[],
-    principal: string,
+    principal: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     const daemons = [...this.opts.registry.daemons.values()];
 
@@ -420,7 +432,7 @@ export class RoutingCaller {
     m: string,
     daemon: RegistryDaemon,
     required: readonly DaemonFeature[],
-    principal: string,
+    principal: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     const ok = await this.opts.pool.getCaller(daemon.name).sendRequest(m, {}, principal, required);
 

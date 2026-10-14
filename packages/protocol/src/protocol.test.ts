@@ -117,3 +117,27 @@ test.each([['5'], ['""'], ['null']])(
     });
   },
 );
+
+test('#decodeMessage decodes the name of the principal beside it', () => {
+  expect(
+    decodeMessage('{"v":4,"id":3,"m":"session.list","as":"client-a","asName":"Lantern Notes"}'),
+  ).toStrictEqual({
+    kind: 'request',
+    msg: { v: 4, id: 3, m: 'session.list', as: 'client-a', asName: 'Lantern Notes' },
+  });
+});
+
+test.each([['5'], ['""'], ['null']])(
+  '#decodeMessage reads a request whose principal name is %s as malformed',
+  (asName) => {
+    expect(
+      decodeMessage(`{"v":4,"id":3,"m":"session.list","as":"client-a","asName":${asName}}`),
+    ).toStrictEqual({ kind: 'malformed', reason: 'asName must be a non-empty string' });
+  },
+);
+
+test('#decodeMessage reads a request with a principal name and no principal as malformed', () => {
+  expect(decodeMessage('{"v":4,"id":3,"m":"session.list","asName":"Lantern Notes"}')).toStrictEqual(
+    { kind: 'malformed', reason: 'asName needs as' },
+  );
+});

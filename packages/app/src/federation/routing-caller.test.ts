@@ -20,6 +20,9 @@ import { GatewayStore } from './gateway-store';
 import { RoutingCaller } from './routing-caller';
 import type { RegistryDaemon } from './types';
 
+// The principal every request in these tests acts as.
+const GW = { id: 'gw', name: 'Lantern Notes' };
+
 /**
  * Two real daemons, `cloud` (the default) and `pc`, each with a TCP
  * listener on a loopback port that takes one fixed token and a principals
@@ -174,7 +177,7 @@ test('it sends no read to a replacement connection whose handshake lacks the pri
 
   const router = new RoutingCaller({ registry, pool, store: ctx.store });
 
-  const read = router.sendRequest('dirs.list', {}, ['request.principal'], 'gw');
+  const read = router.sendRequest('dirs.list', {}, ['request.principal'], GW);
 
   expect(read).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
@@ -190,14 +193,9 @@ test('it runs only one of two concurrent keyed spawns with one key on two daemon
       'session.spawn',
       { ...params, daemon: 'cloud' },
       ['spawn.idempotency'],
-      'gw',
+      GW,
     ),
-    ctx.router.sendRequest(
-      'session.spawn',
-      { ...params, daemon: 'pc' },
-      ['spawn.idempotency'],
-      'gw',
-    ),
+    ctx.router.sendRequest('session.spawn', { ...params, daemon: 'pc' }, ['spawn.idempotency'], GW),
   ]);
 
   const listed = await Promise.all([
@@ -218,14 +216,9 @@ test('it refuses the other of two concurrent keyed spawns with one key on two da
       'session.spawn',
       { ...params, daemon: 'cloud' },
       ['spawn.idempotency'],
-      'gw',
+      GW,
     ),
-    ctx.router.sendRequest(
-      'session.spawn',
-      { ...params, daemon: 'pc' },
-      ['spawn.idempotency'],
-      'gw',
-    ),
+    ctx.router.sendRequest('session.spawn', { ...params, daemon: 'pc' }, ['spawn.idempotency'], GW),
   ]);
 
   expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toMatchObject([
@@ -239,8 +232,8 @@ test('it answers two concurrent keyed spawns with one key on one daemon with the
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-twice' };
 
   const answers = await Promise.all([
-    ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
-    ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
+    ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
   const listed = await ctx.cloud.client.sendRequest('session.list');
@@ -278,9 +271,9 @@ test('it runs only one keyed spawn when another gateway binds its key to another
       'session.spawn',
       { ...params, daemon: 'cloud' },
       ['spawn.idempotency'],
-      'gw',
+      GW,
     ),
-    other.sendRequest('session.spawn', { ...params, daemon: 'pc' }, ['spawn.idempotency'], 'gw'),
+    other.sendRequest('session.spawn', { ...params, daemon: 'pc' }, ['spawn.idempotency'], GW),
   ]);
 
   const listed = await Promise.all([
@@ -317,9 +310,9 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
       'session.spawn',
       { ...params, daemon: 'cloud' },
       ['spawn.idempotency'],
-      'gw',
+      GW,
     ),
-    other.sendRequest('session.spawn', { ...params, daemon: 'pc' }, ['spawn.idempotency'], 'gw'),
+    other.sendRequest('session.spawn', { ...params, daemon: 'pc' }, ['spawn.idempotency'], GW),
   ]);
 
   expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toMatchObject([
@@ -354,7 +347,7 @@ test('it refuses a keyed spawn on a daemon without keyed spawns as daemon_outdat
     'session.spawn',
     { cwd: ctx.dir, idempotencyKey: 'spawn-old' },
     ['spawn.idempotency'],
-    'gw',
+    GW,
   );
 
   expect(spawned).rejects.toMatchObject({
@@ -405,10 +398,10 @@ test('it refuses a keyed spawn as daemon_outdated when it found no binding and i
   });
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-kept' };
-  const held = heldRouter.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const held = heldRouter.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   await heldOpener.waitForHeld();
-  await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   heldOpener.releaseHeld();
 
@@ -455,10 +448,10 @@ test("it keeps another call's completed binding when a call that found none is r
   });
 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-kept' };
-  const held = heldRouter.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const held = heldRouter.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   await heldOpener.waitForHeld();
-  await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   heldOpener.releaseHeld();
 
@@ -470,7 +463,7 @@ test("it keeps another call's completed binding when a call that found none is r
     'session.spawn',
     { ...params, daemon: 'pc' },
     ['spawn.idempotency'],
-    'gw',
+    GW,
   );
 
   expect(retried).rejects.toMatchObject({ code: 'idempotency_conflict' });
@@ -517,7 +510,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
   await Promise.allSettled([
-    router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
   const ledger = new Database(ctx.cloud.dbPath);
@@ -529,7 +522,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
   // The daemon's sweep drops every completed key once its retention passes.
   ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
 
-  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(proxy.countRequests()).toBe(3);
@@ -583,10 +576,10 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
   await Promise.allSettled([
-    router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
-  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   await opener.waitForHeld();
 
@@ -648,10 +641,10 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
   await Promise.allSettled([
-    router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
-  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(proxy.countRequests()).toBe(3);
@@ -695,8 +688,8 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
   const params = { cwd: ctx.dir, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-racing' };
 
   const outcomes = await Promise.allSettled([
-    ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
-    other.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
+    other.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
   expect(ctx.cloud.client.sendRequest('session.list')).resolves.toStrictEqual({
@@ -724,13 +717,7 @@ test('it makes the first send of a binding a gateway restart left claimed but un
     Date.now(),
   );
 
-  const spawned = await ctx.router.sendRequest(
-    'session.spawn',
-    params,
-    ['spawn.idempotency'],
-    'gw',
-  );
-
+  const spawned = await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
   const listed = await ctx.cloud.client.sendRequest('session.list');
 
   expect(
@@ -761,19 +748,8 @@ test('it replays the first send of a binding a gateway restart left claimed but 
     Date.now(),
   );
 
-  const spawned = await ctx.router.sendRequest(
-    'session.spawn',
-    params,
-    ['spawn.idempotency'],
-    'gw',
-  );
-
-  const replayed = await ctx.router.sendRequest(
-    'session.spawn',
-    params,
-    ['spawn.idempotency'],
-    'gw',
-  );
+  const spawned = await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
+  const replayed = await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   expect(getRecord(replayed, 'session')['id']).toBe(getRecord(spawned, 'session')['id']);
 
@@ -803,7 +779,7 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
   ctx.store.claimFirstSend('gw', 'session.spawn', 'spawn-sent', Date.now());
   ctx.store.updateOutcome('gw', 'session.spawn', 'spawn-sent', 'uncertain', Date.now(), 's-lost');
 
-  const retried = ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const retried = ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
@@ -859,16 +835,10 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
   await Promise.allSettled([
-    before.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    before.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
-  const replayed = await ctx.router.sendRequest(
-    'session.spawn',
-    params,
-    ['spawn.idempotency'],
-    'gw',
-  );
-
+  const replayed = await ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
   const listed = await ctx.cloud.client.sendRequest('session.list');
 
   expect(
@@ -927,7 +897,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
   await Promise.allSettled([
-    before.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    before.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
   const ledger = new Database(ctx.cloud.dbPath);
@@ -939,7 +909,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
   // The daemon's sweep drops every completed key once its retention passes.
   ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
 
-  const retried = ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const retried = ctx.router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
 
@@ -963,7 +933,13 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
       'daemon.hello': {
         daemon: 'atc/legacy-build',
         daemonID: ctx.cloudID,
-        features: ['transport.tcp', 'daemon.id', 'spawn.idempotency', 'request.principal'],
+        features: [
+          'transport.tcp',
+          'daemon.id',
+          'spawn.idempotency',
+          'request.principal',
+          'message.sender',
+        ],
         idempotency: { completedRetentionMs: 86_400_000 },
       },
     },
@@ -1001,10 +977,10 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
   // The first send rejects as outcome_unknown by design, so it is settled
   // rather than awaited.
   await Promise.allSettled([
-    router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw'),
+    router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW),
   ]);
 
-  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], 'gw');
+  const retried = router.sendRequest('session.spawn', params, ['spawn.idempotency'], GW);
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
   expect(legacy.requests.map((request) => request.m)).toStrictEqual(['daemon.hello']);
@@ -1017,7 +993,7 @@ test('it sends no resend of a keyed spawn to a daemon that does not announce rep
 test("it passes each daemon's agent and target broker fields through agents.list unchanged", async () => {
   const ctx = await setupTest();
   const direct = await ctx.cloud.client.sendRequest('agents.list');
-  const fanned = await ctx.router.sendRequest('agents.list', {}, ['agents.list'], 'gw');
+  const fanned = await ctx.router.sendRequest('agents.list', {}, ['agents.list'], GW);
 
   const cloud = getRecord(getRecord(fanned, 'daemons'), 'cloud');
 
@@ -1039,7 +1015,7 @@ test('it refuses a daemon param the registry does not hold as bad_args', async (
   const ctx = await setupTest();
 
   expect(() =>
-    ctx.router.sendRequest('dirs.list', { daemon: 'nope' }, ['request.principal'], 'gw'),
+    ctx.router.sendRequest('dirs.list', { daemon: 'nope' }, ['request.principal'], GW),
   ).toThrow(
     expect.objectContaining({ code: 'bad_args', message: "no daemon 'nope' in this gateway" }),
   );
@@ -1053,7 +1029,7 @@ test('it refuses a call whose ids belong to another daemon than its daemon param
       'session.get',
       { session: `cloud.${ctx.cloudID.slice(0, 8)}.s1`, daemon: 'pc' },
       [],
-      'gw',
+      GW,
     ),
   ).toThrow(
     expect.objectContaining({

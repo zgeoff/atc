@@ -51,13 +51,19 @@ test('it writes the sender the daemon recorded for the message it sent', async (
   const daemon = startStubLegacyDaemon(ctx.socketPath, {
     replies: {
       'session.message': { message: 'm-3', status: 'queued' },
-      'message.get': { from: 's-7' },
+      'message.get': {
+        from: 'harbor-refactor',
+        sender: { kind: 'session', session: 's-7', name: 'harbor-refactor' },
+      },
     },
   });
 
   await runCommand([process.execPath, ctx.probe, 'message', ctx.socketPath, 's-7', ctx.outPath]);
 
-  expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ from: 's-7' });
+  expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({
+    from: 'harbor-refactor',
+    sender: { kind: 'session', session: 's-7', name: 'harbor-refactor' },
+  });
 
   expect(daemon.requests.slice(1)).toStrictEqual([
     {
@@ -66,6 +72,27 @@ test('it writes the sender the daemon recorded for the message it sent', async (
     },
     { m: 'message.get', p: { message: 'm-3' } },
   ]);
+});
+
+test('it writes the sender the daemon recorded for a message it sent as a principal', async () => {
+  const ctx = setupTest();
+
+  startStubLegacyDaemon(ctx.socketPath, {
+    replies: {
+      'session.message': { message: 'm-3', status: 'queued' },
+      'message.get': {
+        from: 'Lantern Notes',
+        sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+      },
+    },
+  });
+
+  await runCommand([process.execPath, ctx.probe, 'message-as', ctx.socketPath, 's-7', ctx.outPath]);
+
+  expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({
+    from: 'Lantern Notes',
+    sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+  });
 });
 
 test('it gives the session in its handshake', async () => {

@@ -88,6 +88,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'session.update.parent',
       'session.update.renameSkipped',
       'message.notice',
+      'message.sender',
     ],
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',

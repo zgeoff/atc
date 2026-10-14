@@ -126,7 +126,6 @@ test('it has a rule for every id in a session.message answer', async () => {
 
   const sent = await ctx.client.sendRequest('session.message', {
     session: getRecord(spawned, 'session')['id'],
-    from: 'tester',
     text: 'ping',
     idempotencyKey: 'message-1',
   });
@@ -142,15 +141,20 @@ test('it has a rule for every id in a message.get answer', async () => {
     resume: `a-${randomUUID()}`,
   });
 
-  const sent = await ctx.client.sendRequest('session.message', {
-    session: getRecord(spawned, 'session')['id'],
-    from: 'tester',
+  const sessionID = getRecord(spawned, 'session')['id'];
+
+  // A message a session sends holds that session's id in its sender.
+  const inside = await ctx.openClient({ session: sessionID });
+
+  const sent = await inside.sendRequest('session.message', {
+    session: sessionID,
     text: 'ping',
     idempotencyKey: 'message-1',
   });
 
   const got = await ctx.client.sendRequest('message.get', { message: sent['message'] });
 
+  expect(getRecord(got, 'sender')['kind']).toBe('session');
   expect(collectUnruledIDPaths(got, ID_RULES['message.get'] ?? new Map())).toStrictEqual([]);
 });
 
@@ -164,7 +168,6 @@ test('it has a rule for every id in an events.read answer', async () => {
 
   await ctx.client.sendRequest('session.message', {
     session: getRecord(spawned, 'session')['id'],
-    from: 'tester',
     text: 'ping',
   });
 

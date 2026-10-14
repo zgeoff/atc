@@ -72,7 +72,6 @@ test('it carries a message from queued through delivered to answered', async () 
   const sent = await client.sendRequest('session.message', {
     session: id,
     text: 'ping from test',
-    from: 'e2e',
   });
 
   const messageID = getString(sent, 'message');
@@ -99,7 +98,14 @@ test('it carries a message from queued through delivered to answered', async () 
   const screen = await client.sendRequest('session.screen', { session: id });
 
   expect(tapped).toInclude('ping from test');
-  expect(delivered).toMatchObject({ s: id, message: messageID, from: 'e2e' });
+
+  expect(delivered).toMatchObject({
+    s: id,
+    message: messageID,
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
+  });
+
   expect(reporter.exitCode).toBe(0);
   expect(answered).toMatchObject({ s: id, message: messageID, answerPreview: 'final text' });
   expect(getString(screen, 'text')).not.toInclude('ping from test');
@@ -138,7 +144,6 @@ test('it delivers a message queued before a daemon crash to the restored session
   const sent = await client.sendRequest('session.message', {
     session: originalID,
     text: 'survive the crash',
-    from: 'e2e',
   });
 
   const messageID = getString(sent, 'message');
@@ -213,7 +218,6 @@ test('it names a message event from before a daemon crash by the restored sessio
   const sent = await client.sendRequest('session.message', {
     session: originalID,
     text: 'survive the crash',
-    from: 'e2e',
   });
 
   const messageID = getString(sent, 'message');
@@ -310,7 +314,6 @@ test('it names a message event sent before SessionStart by the restored session'
   const sent = await client.sendRequest('session.message', {
     session: originalID,
     text: 'sent before start',
-    from: 'e2e',
   });
 
   const messageID = getString(sent, 'message');

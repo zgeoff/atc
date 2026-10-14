@@ -104,6 +104,10 @@ export interface RequestMsg {
   // The principal the request acts as, which narrows what the connection
   // may reach for this request alone.
   readonly as?: string;
+
+  // The name of the principal in `as`, which the daemon labels a message
+  // the request sends with; only ever beside `as`.
+  readonly asName?: string;
 }
 
 export interface ResponseMsg {
@@ -163,6 +167,18 @@ export function decodeMessage(line: string): DecodedMsg {
       return { kind: 'malformed', reason: 'as must be a non-empty string' };
     }
 
+    const asName = parsed['asName'];
+
+    if (asName !== undefined && (typeof asName !== 'string' || asName === '')) {
+      return { kind: 'malformed', reason: 'asName must be a non-empty string' };
+    }
+
+    // A name without the principal it belongs to would label a message with
+    // a name nobody vouched for.
+    if (asName !== undefined && as === undefined) {
+      return { kind: 'malformed', reason: 'asName needs as' };
+    }
+
     return {
       kind: 'request',
       msg: {
@@ -171,6 +187,7 @@ export function decodeMessage(line: string): DecodedMsg {
         m: parsed['m'],
         ...(isRecord(p) ? { p } : {}),
         ...(as === undefined ? {} : { as }),
+        ...(asName === undefined ? {} : { asName }),
       },
     };
   }

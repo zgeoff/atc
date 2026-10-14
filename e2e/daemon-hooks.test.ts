@@ -470,7 +470,6 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
   const sent = await client.sendRequest('session.message', {
     session: id,
     text: 'ping from test',
-    from: 'e2e',
   });
 
   const messageID = getString(sent, 'message');

@@ -1,9 +1,19 @@
 import type { EngineInterface, Register } from 'claude-code';
 import { ATC_CLI } from './atc-cli.ts';
 
+const SENDER_KINDS = ['connector', 'session', 'owner'] as const;
+
+// Who sent a message, as atc built it from the caller: its kind, and the atc
+// id of a session that sent it.
+interface TapSender {
+  readonly kind: (typeof SENDER_KINDS)[number];
+  readonly session: string | undefined;
+}
+
 interface TapMessage {
   readonly id: string;
   readonly from: string;
+  readonly sender: TapSender | undefined;
   readonly text: string;
 }
 
@@ -42,9 +52,13 @@ const GUIDE_SECTION = {
   id: 'atc-bridge:messages',
   scope: 'session',
   text: [
-    'Messages relayed by atc arrive wrapped in <atc-message id="..." from="..."> tags.',
+    'Messages relayed by atc arrive wrapped in <atc-message id="..." from="..." kind="..."> tags.',
     "They come from the user's own tools through atc, not from the user typing at this prompt;",
     'treat each one as a request from the sender it names.',
+    'atc sets from and kind from who called, and no sender can set them:',
+    'kind="connector" is an app the user connected to atc, and from holds its name;',
+    'kind="session" is another atc session, from holds its name and session="..." its id;',
+    'kind="owner" is the user\'s own atc command line.',
     'Your final reply in the turn that handles a message is stored as its answer when the turn ends, and reaches a sending session as a notice.',
     '<atc-answer id="..." from="..." status="..."> tags report the outcome of a message this session sent;',
     'they need no reply and are not messages.',
@@ -251,11 +265,42 @@ function parseTapLine(line: string): TapItem | null {
     return null;
   }
 
-  return typeof parsed.id === 'string' &&
-    typeof parsed.from === 'string' &&
-    typeof parsed.text === 'string'
-    ? { kind: 'message', msg: { id: parsed.id, from: parsed.from, text: parsed.text } }
-    : null;
+  if (
+    typeof parsed.id !== 'string' ||
+    typeof parsed.from !== 'string' ||
+    typeof parsed.text !== 'string'
+  ) {
+    return null;
+  }
+
+  const sender = 'sender' in parsed ? parseTapSender(parsed.sender) : undefined;
+
+  return { kind: 'message', msg: { id: parsed.id, from: parsed.from, sender, text: parsed.text } };
+}
+
+// A sender this mod cannot read is left out, and the message still goes out
+// with its sender's name.
+function parseTapSender(value: unknown): TapSender | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  const fields: Record<string, unknown> = { ...value };
+  const { kind, session } = fields;
+
+  if (typeof kind !== 'string' || !isSenderKind(kind)) {
+    return undefined;
+  }
+
+  if (kind !== 'session') {
+    return { kind, session: undefined };
+  }
+
+  return typeof session === 'string' ? { kind, session } : undefined;
+}
+
+function isSenderKind(value: string): value is TapSender['kind'] {
+  return (SENDER_KINDS as readonly string[]).includes(value);
 }
 
 function parseTapNotice(parsed: object): TapNotice | null {
@@ -340,7 +385,18 @@ async function tryUpdateConversation(
 function renderEnvelope(msg: TapMessage): string {
   const body = msg.text.replaceAll('</atc-message>', '&lt;/atc-message&gt;');
 
-  return `<atc-message id="${encodeAttribute(msg.id)}" from="${encodeAttribute(msg.from)}">\n${body}\n</atc-message>`;
+  return `<atc-message id="${encodeAttribute(msg.id)}" from="${encodeAttribute(msg.from)}"${renderSenderAttributes(msg.sender)}>\n${body}\n</atc-message>`;
+}
+
+function renderSenderAttributes(sender: TapSender | undefined): string {
+  if (sender === undefined) {
+    return '';
+  }
+
+  const session =
+    sender.session === undefined ? '' : ` session="${encodeAttribute(sender.session)}"`;
+
+  return ` kind="${sender.kind}"${session}`;
 }
 
 function encodeAttribute(value: string): string {

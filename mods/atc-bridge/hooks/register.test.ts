@@ -90,6 +90,49 @@ test('it submits a tapped message when no turn runs', async (engine, on) => {
   expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
 
+test('it marks each envelope with the kind of the sender atc gave', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  const submitted: string[] = [];
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    yield {
+      stream: 'stdout',
+      text: [
+        '{"id":"m-1","from":"Lantern Notes","sender":{"kind":"connector","client":"client-7","name":"Lantern Notes"},"text":"one"}',
+        '{"id":"m-2","from":"harbor-refactor","sender":{"kind":"session","session":"s-2","name":"harbor-refactor"},"text":"two"}',
+        '{"id":"m-3","from":"owner","sender":{"kind":"owner","name":"owner"},"text":"three"}',
+        '{"id":"m-4","from":"x\\"y","sender":{"kind":"robot","name":"x"},"text":"four"}',
+        '{"id":"m-5","from":"no id","sender":{"kind":"session","name":"no id"},"text":"five"}',
+        '',
+      ].join('\n'),
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', ($, e) => {
+    submitted.push(e.text);
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  expect(submitted).toStrictEqual([
+    '<atc-message id="m-1" from="Lantern Notes" kind="connector">\none\n</atc-message>',
+    '<atc-message id="m-2" from="harbor-refactor" kind="session" session="s-2">\ntwo\n</atc-message>',
+    '<atc-message id="m-3" from="owner" kind="owner">\nthree\n</atc-message>',
+    '<atc-message id="m-4" from="x&quot;y">\nfour\n</atc-message>',
+    '<atc-message id="m-5" from="no id">\nfive\n</atc-message>',
+  ]);
+});
+
 test('it reports the answer for the message a turn carried', async (engine, on) => {
   const ctx = setupTest({ on });
 

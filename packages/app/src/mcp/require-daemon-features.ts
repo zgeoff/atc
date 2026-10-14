@@ -8,6 +8,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'events.more': "atc_events_read's more flag",
   'events.session': "atc_events_read's session filter",
   'message.idempotency': "atc_message_send's idempotencyKey",
+  'message.sender': 'the sender atc labels each message of atc_message_send with',
   'message.notice': 'the answer notices a sending session takes through its tap',
   'message.turn': "atc_message_get's turn and answeredWith",
   'message.unanswered':
