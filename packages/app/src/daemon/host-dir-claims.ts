@@ -62,6 +62,7 @@ export class HostDirClaims {
 
   private readonly registry: HostDirClaimsDeps['registry'];
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: HostDirClaimsDeps) {
     this.registry = deps.registry;
   }

@@ -55,6 +55,7 @@ export class SessionAdopter {
 
   private readonly callbacks: SessionAdopterDeps['callbacks'];
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: SessionAdopterDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;

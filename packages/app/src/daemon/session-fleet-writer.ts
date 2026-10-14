@@ -30,6 +30,7 @@ export class SessionFleetWriter {
 
   private readonly callbacks: SessionFleetWriterDeps['callbacks'];
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: SessionFleetWriterDeps) {
     this.registry = deps.registry;
     this.store = deps.store;

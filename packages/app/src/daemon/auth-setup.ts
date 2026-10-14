@@ -138,6 +138,7 @@ export class AuthSetup {
 
   private readonly callbacks: AuthSetupDeps['callbacks'];
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: AuthSetupDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;

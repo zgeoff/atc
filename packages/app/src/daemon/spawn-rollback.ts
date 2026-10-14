@@ -50,6 +50,7 @@ export class SpawnRollback {
 
   private readonly callbacks: SpawnRollbackDeps['callbacks'];
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: SpawnRollbackDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;

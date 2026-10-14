@@ -8,7 +8,7 @@ import { truncateDetail } from '@atc/core/truncate-detail';
 import { truncateToBytes } from '@atc/core/truncate-to-bytes';
 import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
 import type { AgentAdapter, HookPlan } from '@atc/plugin-api/agent-adapter';
-import type { HarnessRelay } from '@atc/plugin-api/execution-provider';
+import type { ExecutionCapability, HarnessRelay } from '@atc/plugin-api/execution-provider';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { HookEvent } from '@atc/protocol/hook-event';
@@ -36,6 +36,7 @@ import { SessionFleetWriter } from './session-fleet-writer';
 import { SessionHarnesses } from './session-harnesses';
 import { SessionKiller } from './session-killer';
 import { LOCAL_TARGET_IDENTITY, SessionRegistry } from './session-registry';
+import type { TargetBinding } from './session-registry';
 import { SessionRestorer } from './session-restorer';
 import { SessionSpawner } from './session-spawner';
 import { SpawnRollback } from './spawn-rollback';
@@ -229,9 +230,10 @@ export class SessionManager {
   }
 
   requireExecution(
-    ...args: Parameters<SessionRegistry['requireExecution']>
+    binding: Readonly<TargetBinding>,
+    capability: ExecutionCapability,
   ): ReturnType<SessionRegistry['requireExecution']> {
-    return this.registry.requireExecution(...args);
+    return this.registry.requireExecution(binding, capability);
   }
 
   findExecutionRefusal(

@@ -22,7 +22,7 @@ export const LOCAL_TARGET_IDENTITY = buildTargetIdentity(
 
 // The target a session runs on and the identity it is bound to there; null
 // binds a new session to the target as it stands now.
-interface TargetBinding {
+export interface TargetBinding {
   readonly target: string;
   readonly targetIdentity: string | null;
 }
