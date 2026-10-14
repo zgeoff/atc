@@ -533,9 +533,9 @@ test('it refuses a forget of a sub-session of a pinned session that another sess
 
   expect(refused).rejects.toMatchObject({ code: 'session_pinned', data: { session: child } });
 
-  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
-    sessions: expect.arrayContaining([expect.objectContaining({ id: child, parent })]),
-  });
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed['sessions']).toPartiallyContain({ id: child, parent });
 });
 
 test('it refuses a forget by its parent of a sub-session pinned on its own', async () => {
@@ -581,9 +581,9 @@ test('it refuses a forget by its parent of a sub-session pinned on its own', asy
 
   expect(refused).rejects.toMatchObject({ code: 'session_pinned', data: { session: child } });
 
-  expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
-    sessions: expect.arrayContaining([expect.objectContaining({ id: child, pinned: true })]),
-  });
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(listed['sessions']).toPartiallyContain({ id: child, pinned: true });
 });
 
 test('it keeps a dead sub-session pinned on its own as a top-level session when its parent is forgotten', async () => {
