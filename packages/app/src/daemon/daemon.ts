@@ -10,6 +10,7 @@ import { formatListenRefusal } from '@atc/config/listen/format-listen-refusal';
 import { isAllowedListenHost } from '@atc/config/listen/is-allowed-listen-host';
 import { loadListenerTokens } from '@atc/config/load-listener-tokens';
 import { LOCAL_TARGET } from '@atc/config/local-target';
+import { parseRestoreBootTimeoutMs } from '@atc/config/parse-restore-boot-timeout-ms';
 import { resolveHomeDir } from '@atc/config/resolve-home-dir';
 import type { AgentID } from '@atc/core/agent-id';
 import { ansi } from '@atc/core/ansi';
@@ -189,7 +190,9 @@ export interface DaemonOptions {
   // report it has booted before starting the next so the machine is not
   // buried under a dozen simultaneous agent boots. This caps how long a
   // single revive waits for that signal before moving on regardless, so a
-  // session that never reports cannot stall the rest. Zero waits forever.
+  // session that never reports cannot stall the rest. Unset reads the same
+  // setting that a restart's wait for the restored fleet reads; zero waits
+  // forever, which only tests ask for.
   readonly restoreBootTimeoutMs?: number;
 
   // The waits before each further try at a restored session whose host
@@ -1723,7 +1726,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           findRuntime,
           cols,
           rows,
-          capMs: opts.restoreBootTimeoutMs ?? 0,
+          capMs: opts.restoreBootTimeoutMs ?? parseRestoreBootTimeoutMs(process.env),
           ...(opts.restoreRetryDelaysMs === undefined
             ? {}
             : { retryDelaysMs: opts.restoreRetryDelaysMs }),

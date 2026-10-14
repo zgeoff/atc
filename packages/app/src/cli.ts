@@ -697,10 +697,6 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
     );
   }
 
-  const restoreBoot = await import('@atc/config/parse-restore-boot-timeout-ms');
-
-  const restoreBootTimeoutMs = restoreBoot.parseRestoreBootTimeoutMs(process.env);
-
   // How long a started session may go without a tap before a message
   // to it is refused. Tests pin it to 0 to reach the refusal at once.
   const graceOverride = Number(process.env['ATC_TAP_GRACE_MS']);
@@ -735,7 +731,6 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
       ...(listen === null || tokenFile === null
         ? {}
         : { listen: { host: listen.host, port: listen.port, tokenFile } }),
-      restoreBootTimeoutMs,
       restoreFleetOnRestart: cfg.restoreFleetOnRestart,
       ...(Number.isFinite(graceOverride) && graceOverride >= 0
         ? { tapGraceMs: graceOverride }

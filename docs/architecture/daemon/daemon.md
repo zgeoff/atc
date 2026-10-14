@@ -38,7 +38,10 @@ A daemon starts in a fixed order, so no client ever sees a half-started daemon:
    refuses the start before any client connects, and releases the lock.
 4. It binds its unix sockets, unlinking any socket file a crashed daemon left behind.
 5. It restores the stored fleet, unless the config turns that off
-   ([fleet and restore](./fleet-and-restore.md#restoring-the-fleet)).
+   ([fleet and restore](./fleet-and-restore.md#restoring-the-fleet)). This automatic restore caps
+   its wait for each session's boot with `ATC_RESTORE_BOOT_TIMEOUT_MS`, the variable that
+   `atc daemon restart` reads for its wait on the restored fleet, so a session that never reports
+   boot cannot stall the restore.
 
 ## Who boots the daemon
 
