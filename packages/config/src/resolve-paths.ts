@@ -10,7 +10,8 @@ import { resolveStateDir } from './resolve-state-dir';
  * and the socket paths it listens on, for a client whose environment
  * computes other socket paths. `restartsDir` holds the run logs of
  * `atc daemon restart` and the record of the last finished restart, and
- * `restartLockFile` admits one restart at a time.
+ * `restartLockFile` admits one restart at a time. `listingCacheFile` holds
+ * the source listings a TUI client keeps between runs.
  */
 export interface Paths {
   readonly configFile: string;
@@ -26,6 +27,7 @@ export interface Paths {
   readonly daemonRecordFile: string;
   readonly restartsDir: string;
   readonly restartLockFile: string;
+  readonly listingCacheFile: string;
 }
 
 /**
@@ -51,5 +53,6 @@ export function resolvePaths(env: Readonly<Record<string, string | undefined>>):
     daemonRecordFile: join(stateDir, 'daemon.json'),
     restartsDir: join(stateDir, 'restarts'),
     restartLockFile: join(stateDir, 'daemon-restart.lock'),
+    listingCacheFile: join(stateDir, 'listing-cache.json'),
   };
 }

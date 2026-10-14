@@ -6,6 +6,7 @@ interface StubRequest {
   readonly m: string;
   readonly p: DaemonAnswer;
   readonly resolve: (answer: DaemonAnswer) => void;
+  readonly reject: (error: unknown) => void;
 }
 
 interface StubDaemonRequestsOptions {
@@ -27,7 +28,8 @@ interface StubDaemonRequestsOptions {
 /**
  * A daemon request channel that answers only when the test says so. Every
  * request sent through `sendRequest` waits until `answer` or
- * `answerOldest` resolves it. Each of those waits for a request under the
+ * `answerOldest` resolves it, or until `refuse` rejects the latest one with
+ * an error. Each of those waits for a request under the
  * method to be waiting, resolves the latest or the oldest one, and then
  * waits for the client to react: to send another request, or to raise the
  * count `countReactions` reads. A wait that outlasts `timeoutMs` rejects:
@@ -51,11 +53,12 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
 
   const countAll = () => sent.length + options.countReactions();
 
-  const answerRequest = async (request: Readonly<StubRequest>, value: DaemonAnswer) => {
+  const answerRequest = async (request: Readonly<StubRequest>, settle: () => void) => {
     const before = countAll();
 
     answered.add(request);
-    request.resolve(value);
+
+    settle();
 
     await waitFor(() => {
       if (countAll() <= before) {
@@ -64,24 +67,36 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
     }, waitOptions);
   };
 
+  const waitForLatest = (m: string) =>
+    waitFor(() => {
+      const latest = sent.findLast((r) => r.m === m && !answered.has(r));
+
+      if (latest === undefined) {
+        throw new Error(`no ${m} request is waiting for an answer`);
+      }
+
+      return latest;
+    }, waitOptions);
+
   return {
     sendRequest(m: string, p: DaemonAnswer = {}): Promise<DaemonAnswer> {
-      return new Promise((resolve) => {
-        sent.push({ m, p, resolve });
+      return new Promise((resolve, reject) => {
+        sent.push({ m, p, resolve, reject });
       });
     },
     async answer(m: string, value: DaemonAnswer): Promise<void> {
-      const request = await waitFor(() => {
-        const latest = sent.findLast((r) => r.m === m && !answered.has(r));
+      const request = await waitForLatest(m);
 
-        if (latest === undefined) {
-          throw new Error(`no ${m} request is waiting for an answer`);
-        }
+      await answerRequest(request, () => {
+        request.resolve(value);
+      });
+    },
+    async refuse(m: string, error: unknown): Promise<void> {
+      const request = await waitForLatest(m);
 
-        return latest;
-      }, waitOptions);
-
-      await answerRequest(request, value);
+      await answerRequest(request, () => {
+        request.reject(error);
+      });
     },
     async answerOldest(m: string, value: DaemonAnswer): Promise<void> {
       const request = await waitFor(() => {
@@ -94,7 +109,9 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
         return oldest;
       }, waitOptions);
 
-      await answerRequest(request, value);
+      await answerRequest(request, () => {
+        request.resolve(value);
+      });
     },
     collectSent(m: string): DaemonAnswer[] {
       return sent.filter((request) => request.m === m).map((request) => request.p);

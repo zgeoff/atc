@@ -14,6 +14,13 @@ than one. The directory picker lists the directory you ran `atc` from, atc's spa
 project under the roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide)
 list when zoxide is installed. A typed path such as `~/pro` completes like a shell.
 
+`Tab` in the picker moves to the next source the daemon offers, such as your GitHub repositories.
+The GitHub list opens at once from the copy atc kept the last time it listed them, marked with its
+age, and atc lists them again in the background and swaps the fresh list in when it arrives. atc
+keeps that copy for a day, across client restarts; an older copy is dropped, and the picker waits
+for a fresh list. Press `Ctrl-R` to list the repositories again, for example after you create one.
+Typing `owner/repo` or `github:owner/repo` picks a repository the list leaves out.
+
 ## The session list
 
 `Ctrl-Space` opens the session list over whatever you are attached to. Each row carries a state

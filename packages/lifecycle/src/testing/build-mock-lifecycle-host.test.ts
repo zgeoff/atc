@@ -19,6 +19,7 @@ test('it builds a default lifecycle host', () => {
       daemonRecordFile: expect.toEndWith('/.local/state/atc/daemon.json'),
       restartsDir: expect.toEndWith('/.local/state/atc/restarts'),
       restartLockFile: expect.toEndWith('/.local/state/atc/daemon-restart.lock'),
+      listingCacheFile: expect.toEndWith('/.local/state/atc/listing-cache.json'),
     },
     clock: systemClock,
     procRoot: '/proc',

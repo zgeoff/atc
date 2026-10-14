@@ -21,6 +21,7 @@ import { buildLeaderChords } from './build-leader-chords';
 import { collectTargetPicks } from './collect-target-picks';
 import { findFuzzyScore, formatDir } from './dirs';
 import { KEY, isDown, isUp, planTextEdit } from './keys';
+import { openListingCache } from './open-listing-cache';
 import { parseDaemonEvent } from './parse-daemon-event';
 import { pickPinTarget } from './pick-pin-target';
 import { pickTabTarget } from './pick-tab-target';
@@ -372,6 +373,9 @@ const picker = new SpawnPicker<MirrorSession>({
     logClientEvent(`dropped ${kind} answer`);
   },
   log: logClientEvent,
+  listingCache: openListingCache(host.listingCacheFile),
+  getDaemonSocketPath: () => daemonSocketPath,
+  now: clock.now,
 });
 
 function openPicker(resume: boolean) {

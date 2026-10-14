@@ -16,6 +16,7 @@ test('it puts the sockets and the pid file in the runtime folder the environment
     daemonRecordFile: '/home/u/.local/state/atc/daemon.json',
     restartsDir: '/home/u/.local/state/atc/restarts',
     restartLockFile: '/home/u/.local/state/atc/daemon-restart.lock',
+    listingCacheFile: '/home/u/.local/state/atc/listing-cache.json',
   });
 });
 

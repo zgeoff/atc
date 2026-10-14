@@ -94,6 +94,10 @@ test.each([
   ['acme/', 'https', { kind: 'browse', scope: 'acme' }],
   ['acme/app', 'https', { kind: 'git', url: 'https://github.com/acme/app.git' }],
   ['acme/app.git', 'ssh', { kind: 'git', url: 'git@github.com:acme/app.git' }],
+  ['github:acme/', 'https', { kind: 'browse', scope: 'acme' }],
+  ['github:acme/app', 'https', { kind: 'git', url: 'https://github.com/acme/app.git' }],
+  ['github:acme/app', 'ssh', { kind: 'git', url: 'git@github.com:acme/app.git' }],
+  ['gitlab:acme/app', 'https', { kind: 'none' }],
   ['app', 'https', { kind: 'none' }],
 ] as const)(
   'it reads typed %p with a gh that prefers %s as %p',
