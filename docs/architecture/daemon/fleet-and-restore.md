@@ -63,7 +63,10 @@ headless turn makes such a session live, so a later restore never starts a termi
 3. **Stagger the terminals.** The first session gets its terminal at once, so the caller can attach.
    Each later one waits until the session before it reports that its agent started, or until a
    per-session cap passes, so a restore after an upgrade never starts every agent at the same
-   instant, and a session that never reports cannot hold up the rest.
+   instant, and a session that never reports cannot hold up the rest. `ATC_RESTORE_BOOT_TIMEOUT_MS`
+   sets the cap for every restore, the automatic one included, and the restart's wait for the
+   restored fleet reads the same variable. The cap never turns off: a value of 0, or one that is not
+   a positive number, leaves the default in place.
 4. **Resume each agent.** The adapter builds the resume command for the stored agent session id, and
    the session comes back under its stored atc session id, so a client that held the id before the
    restart reaches the same session after it. A terminal starts at a default size until the first

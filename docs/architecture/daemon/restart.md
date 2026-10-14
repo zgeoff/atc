@@ -50,12 +50,15 @@ the unit runs.
 The worker reads the stored rows from the new daemon, asks it to restore the fleet, and joins the
 automatic restore when one is already in flight. It then polls until every stored row that is not
 exited is listed with a live terminal, or a deadline that grows with the number of live rows passes.
-A stored row that is not listed failed to restore, and a listed row without a live terminal at the
-deadline failed to revive. A row whose agent the new daemon's config no longer holds fails at once,
-since no wait gives it a terminal, so the restart ends without waiting out the deadline once every
-other row is back. A row whose restore was refused for good fails at once for the same reason, with
-the refusal's code and message as its reason. The daemon marks such a row in its session view only
-while the row still lists that refusal and the restore has no further try for it.
+The deadline allows each live row the per-session boot cap that the
+[restore](./fleet-and-restore.md) waits out, and it reads that cap from
+`ATC_RESTORE_BOOT_TIMEOUT_MS`, as the daemon does. A stored row that is not listed failed to
+restore, and a listed row without a live terminal at the deadline failed to revive. A row whose
+agent the new daemon's config no longer holds fails at once, since no wait gives it a terminal, so
+the restart ends without waiting out the deadline once every other row is back. A row whose restore
+was refused for good fails at once for the same reason, with the refusal's code and message as its
+reason. The daemon marks such a row in its session view only while the row still lists that refusal
+and the restore has no further try for it.
 
 The report holds the final pid and build, `restored <n> of <m>`, each failed row with its reason,
 and the sessions the restart interrupted. The worker writes the same data as a result record, which

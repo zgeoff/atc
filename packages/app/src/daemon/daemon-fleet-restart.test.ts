@@ -10,6 +10,7 @@ import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter'
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/test-utils/update-env';
 import { waitFor } from '@atc/test-utils/wait-for';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import type { RestoreSettled } from './restore-fleet';
@@ -63,6 +64,83 @@ test('it restores the stored sessions by itself after a restart', async () => {
     { id: 's-a', alive: true },
     { id: 's-b', alive: true },
   ]);
+});
+
+test('it starts the next stored session once the default boot cap passes', async () => {
+  const clock = buildStubClock(0);
+  const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] }));
+
+  updateEnv('ATC_RESTORE_BOOT_TIMEOUT_MS', undefined);
+
+  await startTestDaemon({
+    options: async (paths) => {
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
+
+      await seed.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: paths.dir }),
+      ]);
+
+      // The fake agent never reports it booted, and the options leave the
+      // boot cap unset.
+      await seed.stop();
+
+      return {
+        adapter: buildMockAgentAdapter({ planSpawn }),
+        restoreFleetOnRestart: true,
+        clock,
+      };
+    },
+  });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([15_000]);
+  });
+
+  clock.advance(14_999);
+
+  const spawnsBeforeCap = planSpawn.mock.calls.length;
+
+  clock.advance(1);
+
+  await waitFor(() => {
+    expect(planSpawn).toHaveBeenCalledTimes(2);
+  });
+
+  expect(spawnsBeforeCap).toBe(1);
+});
+
+test('it caps the boot wait at the restore boot timeout setting', async () => {
+  const clock = buildStubClock(0);
+
+  updateEnv('ATC_RESTORE_BOOT_TIMEOUT_MS', '250');
+
+  await startTestDaemon({
+    options: async (paths) => {
+      const seed = await StateStore.open(paths.dbPath);
+
+      registerTestCleanup(() => seed.stop());
+
+      await seed.writeFleet([
+        buildMockFleetEntry({ sessionID: toSessionID('s-a'), cwd: paths.dir }),
+        buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: paths.dir }),
+      ]);
+
+      await seed.stop();
+
+      return {
+        adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: 'sleep', args: ['30'] }) }),
+        restoreFleetOnRestart: true,
+        clock,
+      };
+    },
+  });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([250]);
+  });
 });
 
 test('it sends no message to the sessions it restores after a restart', async () => {
