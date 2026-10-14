@@ -65,6 +65,34 @@ test('#buildOverlayHint points the pin action of a sub-session at its parent', (
   );
 });
 
+test('#buildOverlayHint points the pin action of a sub-session pinned on its own at the sub-session', () => {
+  const parent = buildMockMirrorSession({
+    id: 'wrangler',
+    parent: null,
+    state: 'running',
+    alive: true,
+    kind: 'pty',
+    canEject: true,
+    agent: 'claude',
+    pinned: false,
+  });
+
+  const child = buildMockMirrorSession({
+    id: 'worker',
+    parent: 'wrangler',
+    state: 'running',
+    alive: true,
+    kind: 'pty',
+    canEject: true,
+    agent: 'claude',
+    pinned: true,
+  });
+
+  expect(buildOverlayHint(child, [parent, child])).toBe(
+    '⏎ attach · H headless · y yank · Y eject · K kill · p unpin ▏ g groups · n new · ? keys',
+  );
+});
+
 test('#buildOverlayHint keeps the plain pin action on a top-level session', () => {
   const session = buildMockMirrorSession({
     id: 'auth',

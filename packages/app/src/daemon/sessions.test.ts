@@ -45,7 +45,59 @@ async function setupTest() {
   };
 }
 
-test('it refuses to pin a sub-session and leaves it unpinned', async () => {
+test('it pins a sub-session on its own and leaves its parent unpinned', async () => {
+  const ctx = await setupTest();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  mgr.log = ctx.log;
+
+  const parent = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-parent'),
+      name: 'wrangler',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-parent'),
+      agent: 'claude',
+    }),
+  );
+
+  const child = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-child'),
+      name: 'worker',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-child'),
+      agent: 'claude',
+      parent: toSessionID('s-c-parent'),
+    }),
+  );
+
+  const pinned = mgr.updateSession(child.id, { pinned: true });
+
+  expect(pinned).toBeTrue();
+  expect(child.pinned).toBeTrue();
+  expect(parent.pinned).toBeFalse();
+});
+
+test("it refuses to pin a sub-session that runs in its parent's host and leaves it unpinned", async () => {
   const ctx = await setupTest();
 
   const mgr = new SessionManager(
@@ -87,12 +139,13 @@ test('it refuses to pin a sub-session and leaves it unpinned', async () => {
       agentSessionID: toAgentSessionID('c-child'),
       agent: 'claude',
       parent: toSessionID('s-c-parent'),
+      hostKey: toSessionID('s-c-parent'),
     }),
   );
 
   const pinned = mgr.updateSession(child.id, { pinned: true });
 
-  expect(pinned).toBe('child_pin');
+  expect(pinned).toBe('shared_host');
   expect(child.pinned).toBeFalse();
 });
 
