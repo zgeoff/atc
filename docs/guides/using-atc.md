@@ -99,15 +99,16 @@ Claude Code shows the agent a relayed message as one a plugin sent, not as your 
 every write an unattended session must make, such as a push or a pull request, in its launch prompt,
 where its auto-mode classifier reads your request.
 
-To restart an agent's process, such as after a change of the account it signs in with, a
-coordinating agent calls `atc_session_stop` and then `atc_session_adopt`, which does what `P` does
-in the list: it starts the session again with its conversation resumed, and on an imp it wakes the
-host first. A message to a stopped or sleeping session is refused with `session_dead` until the
-adopt starts it again. When the account change also changes the auth profiles an imp session's agent
-selects, the adopt is refused with `auth_rebind_required`: call `atc_session_auth_rebind`, then
-adopt again. A pin never blocks an adopt. A remote client needs the `kill` scope to stop and the
-`spawn` scope to adopt, and may adopt only a session on a target its grant reaches, as with a stop
-or a forget.
+To restart the agent process of a session on this machine, such as after a change of the account it
+signs in with, a coordinating agent calls `atc_session_stop` and then `atc_session_adopt`, which
+does what `P` does in the list. The stop ends the process, and the adopt starts a new one with the
+conversation resumed. On an imp, the same two calls suspend and resume instead: a stop of a session
+that owns its imp puts the host to sleep with the agent process inside, and the adopt wakes the host
+and attaches that same process, so it keeps the login it started with. A message to a stopped or
+sleeping session is refused with `session_dead` until the adopt starts or resumes it. An adopt
+refused with `auth_rebind_required` needs `atc_session_auth_rebind` first, then a second adopt. A
+pin never blocks an adopt. A remote client needs the `kill` scope to stop and the `spawn` scope to
+adopt, and may adopt only a session on a target its grant reaches, as with a stop or a forget.
 
 ## Restarting the daemon
 
