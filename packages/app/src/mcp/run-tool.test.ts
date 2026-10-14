@@ -72,6 +72,25 @@ test('it sends a message from the sender the call gives over a default sender', 
   ]);
 });
 
+test('it requires answer notices from the daemon for a send from inside a session', async () => {
+  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
+
+  await runTool(
+    caller,
+    'atc_message_send',
+    { session: 's1', text: 'hello' },
+    { callerSessionID: 's-sender', sender: { kind: 'default', name: 's-sender' } },
+  );
+
+  expect(caller.requests).toStrictEqual([
+    {
+      m: 'session.message',
+      p: { session: 's1', text: 'hello', from: 's-sender' },
+      required: ['vocabulary.note', 'message.unanswered', 'message.notice'],
+    },
+  ]);
+});
+
 test('it sends a message from a default sender when the call gives none', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
 
