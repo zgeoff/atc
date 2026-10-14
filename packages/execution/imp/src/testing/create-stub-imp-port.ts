@@ -991,6 +991,7 @@ class StubImpPort implements ImpPort {
       secretRebind: false,
       execRequire: false,
       oauthSecrets: false,
+      readOnlyFiles: false,
     };
   }
 

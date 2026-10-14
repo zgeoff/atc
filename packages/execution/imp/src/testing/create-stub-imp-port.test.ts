@@ -1536,6 +1536,7 @@ test('it reports the features of an old daemon without the grant and exec requir
     secretRebind: false,
     execRequire: false,
     oauthSecrets: false,
+    readOnlyFiles: false,
   });
 });
 
