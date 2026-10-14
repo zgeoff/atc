@@ -19,6 +19,7 @@ export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRe
     message: record.id,
     status: record.status,
     from: record.from,
+    ...(record.sender === undefined ? {} : { sender: record.sender }),
     textPreview: truncateDetail(record.text),
     sentAt: record.sentAt,
     ...(record.deliveredAt === undefined ? {} : { deliveredAt: record.deliveredAt }),

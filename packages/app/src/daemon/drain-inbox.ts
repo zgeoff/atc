@@ -93,6 +93,7 @@ function sendInboxMessage(
     s: sessionID,
     message: record.id,
     from: record.from,
+    ...(record.sender === undefined ? {} : { sender: record.sender }),
     text: record.text,
     sentAt: record.sentAt,
   });

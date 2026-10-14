@@ -69,8 +69,9 @@ A test compares this table with the tool definitions, so a tool added without a 
 
 `atc mcp` boots the daemon when none answers, and serves every grant scope to its caller, since the
 caller is an agent the owner started. Started inside a session, it reads that session's id from its
-environment, so a spawn makes a sub-session of the caller and a message names the caller as its
-sender ([sessions](../daemon/sessions.md#sub-sessions)). When the calling session is gone, a spawn
+environment and hands it to the daemon in its handshake, so a spawn makes a sub-session of the
+caller ([sessions](../daemon/sessions.md#sub-sessions)) and a message is from that session. Started
+outside every session, its messages are from the owner. When the calling session is gone, a spawn
 falls back to a top-level session. The fallback has different params from the call, so it runs under
 an idempotency key derived from the caller's, and a retry derives the same key.
 
@@ -84,9 +85,11 @@ read.
 
 Every daemon request a remote call makes acts as the OAuth client's id, so the daemon limits it to
 the targets the config's `principals` key grants that client
-([principals](../protocol/principals.md)). A message from a remote client carries the client's name
-as its sender, whatever the call passed, so a client cannot speak as another. The server refuses to
-talk to a daemon that predates principals.
+([principals](../protocol/principals.md)), and carries the client's name beside the id, so the
+daemon labels a message from the client with that name and the kind `connector`
+([messages](../protocol/messages.md#who-a-message-is-from)). The server refuses to talk to a daemon
+that predates principals or typed senders, because such a daemon would ignore the principal or take
+the sender from the call's free text.
 
 ## Reconnecting
 

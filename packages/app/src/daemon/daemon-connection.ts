@@ -26,6 +26,7 @@ import {
 } from '@atc/protocol/protocol';
 import type { ErrorCode, EventMsg, RequestMsg } from '@atc/protocol/protocol';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
+import { buildLegacyMessageHashes } from './build-legacy-message-hashes';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
@@ -33,6 +34,7 @@ import type { DaemonContext, SpawnParams } from './daemon-context';
 import type { KeyedRequest } from './idempotency-ledger';
 import { isOwnerOnlyMethod } from './is-owner-only-method';
 import type { TranscriptPosition } from './load-transcript-page';
+import type { MessageCaller } from './message-caller';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 import { TargetAccess } from './target-access';
 
@@ -1577,11 +1579,27 @@ export class DaemonConnection {
 
     const keyed = buildKeyedRequest(parsed.data);
 
+    // An older client's default sender names, so a key an older daemon
+    // stored with one still replays.
+    const legacyNames = ['mcp', req.asName, this.callerSession];
+
+    const legacyKeyed =
+      keyed === null
+        ? null
+        : {
+            ...keyed,
+            legacyPayloadHashes: buildLegacyMessageHashes(
+              parsed.data,
+              req.p?.['from'],
+              legacyNames,
+            ),
+          };
+
     const result = await ctx.writeSessionMessage(
       sessionID,
-      this.callerSession ?? parsed.data.from,
+      this.findMessageCaller(req),
       parsed.data.text,
-      keyed,
+      legacyKeyed,
       null,
       this.callerSession,
     );
@@ -1615,6 +1633,30 @@ export class DaemonConnection {
     }
 
     this.sendOk(req.id, 'session.message', result);
+  }
+
+  // Who a message the request sends is from. The kernel's session wins over
+  // any principal a request gives, then the principal the request or the
+  // whole connection acts as, then the session the handshake gave; anything
+  // else is the owner. Nothing the request's params hold changes it.
+  private findMessageCaller(req: RequestMsg): MessageCaller {
+    if (this.peerSession !== null) {
+      return { kind: 'session', session: this.peerSession };
+    }
+
+    if (req.as !== undefined) {
+      return { kind: 'connector', client: req.as, name: req.asName ?? req.as };
+    }
+
+    if (this.principal !== null) {
+      return { kind: 'connector', client: this.principal, name: this.principal };
+    }
+
+    if (this.callerSession !== null) {
+      return { kind: 'session', session: this.callerSession };
+    }
+
+    return { kind: 'owner' };
   }
 
   private applyTap(req: RequestMsg, ctx: DaemonContext): void {
@@ -1675,6 +1717,7 @@ export class DaemonConnection {
       message: record.id,
       session: view.session,
       from: record.from,
+      ...(record.sender === undefined ? {} : { sender: record.sender }),
       text: record.text,
       status: record.status,
       sentAt: record.sentAt,

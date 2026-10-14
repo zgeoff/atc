@@ -1286,14 +1286,10 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer is stored on the message. Sent from inside an atc session that takes messages, the outcome also reaches your own conversation by itself as an <atc-answer id="..." status="answered|unanswered"> notice once the message is answered or unanswered; it needs no reply and no atc_message_get call. A caller with no inbox (outside a session, a remote client, or a session whose agent takes no messages) follows with atc_message_get and waitMs until status is answered or unanswered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model), answered, or unanswered: the turn that carried the message ended without an answer (interrupted, an error, a refusal, or the prompt never started a turn) or the session's process ended while atc held the message delivered, with the cause in unansweredReason. A message still queued when the process ends stays queued for the session's next process. A message to a session that waits for its restore after a daemon restart queues the same way, and atc hands it to the session's message bridge once the bridge attaches. unanswered is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session's state is exited in atc_sessions_list, an asleep session included; no_such_session for an unknown id. A retry with the same idempotencyKey and text returns the same message.",
+            "description": "Send a message to a session's agent and get its id back. The message goes into the agent's conversation, never into the terminal, and the agent's answer is stored on the message. Sent from inside an atc session that takes messages, the outcome also reaches your own conversation by itself as an <atc-answer id="..." status="answered|unanswered"> notice once the message is answered or unanswered; it needs no reply and no atc_message_get call. A caller with no inbox (outside a session, a remote client, or a session whose agent takes no messages) follows with atc_message_get and waitMs until status is answered or unanswered. status is queued (waiting in atc's inbox), delivered (handed to the session, not yet confirmed as seen by the model), answered, or unanswered: the turn that carried the message ended without an answer (interrupted, an error, a refusal, or the prompt never started a turn) or the session's process ended while atc held the message delivered, with the cause in unansweredReason. A message still queued when the process ends stays queued for the session's next process. A message to a session that waits for its restore after a daemon restart queues the same way, and atc hands it to the session's message bridge once the bridge attaches. unanswered is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Refused: unsupported when the agent takes no messages (capabilities.message false in atc_spawn_options_get) or its message bridge never attached; session_dead when the session's state is exited in atc_sessions_list, an asleep session included; no_such_session for an unknown id. The call cannot say who the message is from: atc labels it with the caller, a remote client by its client name, a session by its session id and name, and any other caller as the owner, and the receiving agent sees that label. A retry with the same idempotencyKey and text returns the same message.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
-                "from": {
-                  "description": "Who the message is from, outside an atc session; defaults to mcp. Ignored inside a session, whose messages are always from its own session id, and for a remote client, whose messages are always from its own name",
-                  "type": "string",
-                },
                 "idempotencyKey": {
                   "description": "A key, unique to this call, that makes a retry safe: retrying with the same key and arguments returns the first answer instead of acting again, and the same key with different arguments is refused as idempotency_conflict. A call interrupted mid-way is refused as outcome_unknown, with the id it acted under in data.effectRef. At most 180 characters",
                   "maxLength": 180,
@@ -1339,7 +1335,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read one message sent with atc_message_send. A sender inside an atc session that takes messages gets the outcome as an <atc-answer> notice. Every other caller has no inbox, so this read is how it learns the outcome: a caller outside a session, a remote client, or a session whose agent takes no messages (capabilities.message false in atc_spawn_options_get). A caller may also use it to wait on one message. It returns status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer, or the process of its session ended while the message was delivered (unansweredReason session_ended), and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.",
+            "description": "Read one message sent with atc_message_send. A sender inside an atc session that takes messages gets the outcome as an <atc-answer> notice. Every other caller has no inbox, so this read is how it learns the outcome: a caller outside a session, a remote client, or a session whose agent takes no messages (capabilities.message false in atc_spawn_options_get). A caller may also use it to wait on one message. It returns sender (who sent the message, as atc labelled it), status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer, or the process of its session ended while the message was delivered (unansweredReason session_ended), and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1379,10 +1375,29 @@ test('it lists the fleet tools', async () => {
                   "type": "number",
                 },
                 "from": {
+                  "description": "The sender's name, the same as sender.name; on a message stored before atc labelled senders, the name its sender gave",
                   "type": "string",
                 },
                 "message": {
                   "type": "string",
+                },
+                "sender": {
+                  "description": "Who sent the message, as atc labelled it from the caller; no caller sets it. kind is connector (a remote client, its OAuth client id in client and its client name in name), session (an atc session, its id in session and the name it had when it sent in name), or owner (the user's own atc command line, name owner); a later daemon may add a kind. Absent on a message stored before atc labelled senders",
+                  "properties": {
+                    "client": {
+                      "type": "string",
+                    },
+                    "kind": {
+                      "type": "string",
+                    },
+                    "name": {
+                      "type": "string",
+                    },
+                    "session": {
+                      "type": "string",
+                    },
+                  },
+                  "type": "object",
                 },
                 "sentAt": {
                   "type": "number",

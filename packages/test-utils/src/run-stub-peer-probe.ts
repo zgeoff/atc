@@ -12,8 +12,10 @@ import { DaemonError } from '@atc/protocol/daemon-error';
  *   to the session's record. It writes `{ "ok": true }`, or the refusal's
  *   `code`.
  * - `message` sends a handshake without a session and sends the session a
- *   message from `someone-else`. It writes the `from` that `message.get`
- *   reads back for it, or the refusal's `code`.
+ *   message that gives `from` as `someone-else`. It writes the `from` and
+ *   `sender` that `message.get` reads back for it, or the refusal's `code`.
+ * - `message-as` does the same with a request that acts as the principal
+ *   `client-7`, named `Lantern Notes`.
  * - `hello` sends a handshake that gives the session. It writes
  *   `{ "ok": true }`, or the refusal's `code`.
  * - `events` connects to the socket path as an events socket and waits for
@@ -117,16 +119,17 @@ async function runProbe(
     return { ok: true };
   }
 
-  if (probe === 'message') {
-    const sent = await client.sendRequest('session.message', {
-      session,
-      text: 'is the build green?',
-      from: 'someone-else',
-    });
+  if (probe === 'message' || probe === 'message-as') {
+    const params = { session, text: 'is the build green?', from: 'someone-else' };
+
+    const sent =
+      probe === 'message'
+        ? await client.sendRequest('session.message', params)
+        : await client.sendRequest('session.message', params, 'client-7', 'Lantern Notes');
 
     const read = await client.sendRequest('message.get', { message: sent['message'] });
 
-    return { from: read['from'] };
+    return { from: read['from'], sender: read['sender'] };
   }
 
   throw new Error(`unknown probe '${probe}'`);

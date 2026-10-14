@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MESSAGE_SENDER_SCHEMA } from './message-sender';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
 import { SESSION_DESCRIPTOR_SCHEMA } from './session-descriptor';
 
@@ -39,6 +40,7 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     message: z.string(),
     status: MESSAGE_STATUS_SCHEMA,
     from: z.string(),
+    sender: MESSAGE_SENDER_SCHEMA.optional(),
     textPreview: z.string(),
     sentAt: z.number(),
     deliveredAt: z.number().optional(),
@@ -59,6 +61,7 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     s: z.string(),
     message: z.string(),
     from: z.string(),
+    sender: MESSAGE_SENDER_SCHEMA.optional(),
     text: z.string(),
     sentAt: z.number(),
   }),

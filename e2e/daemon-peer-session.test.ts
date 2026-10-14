@@ -113,7 +113,53 @@ exec cat
 
     const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
 
-    expect(outcome).toStrictEqual({ from: id });
+    const name = getString(getRecord(spawned, 'session'), 'name');
+
+    expect(outcome).toStrictEqual({ from: name, sender: { kind: 'session', session: id, name } });
+  },
+);
+
+test.skipIf(process.platform !== 'linux')(
+  'it records a message from a process inside the session as from that session over the principal its request gives',
+  async () => {
+    const ctx = setupTest();
+
+    writeFileSync(
+      ctx.configPath,
+      JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'probe-agent') } } }),
+    );
+
+    const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+    createStubBin(
+      ctx.home,
+      'probe-agent',
+      `#!/usr/bin/env bash
+read -r _
+own="$ATC_SESSION_ID"
+env -u ATC_SESSION_ID "${process.execPath}" "${ctx.probe}" message-as "${daemon.socketPath}" "$own" "${ctx.outPath}"
+exec cat
+`,
+    );
+
+    const client = await daemon.openClient();
+
+    await client.sendHello('atc/test');
+
+    const spawned = await client.sendRequest('session.spawn', {
+      cwd: ctx.home,
+      cols: 80,
+      rows: 24,
+    });
+
+    const id = getString(getRecord(spawned, 'session'), 'id');
+    const name = getString(getRecord(spawned, 'session'), 'name');
+
+    await client.sendRequest('session.input', { session: id, d: 'go\r' });
+
+    const outcome = await waitFor(() => JSON.parse(readFileSync(ctx.outPath, 'utf8')) as unknown);
+
+    expect(outcome).toStrictEqual({ from: name, sender: { kind: 'session', session: id, name } });
   },
 );
 
@@ -271,7 +317,7 @@ test("it lets the owner's client outside every session add to a session's scope"
   expect(getRecord(added, 'record')['session']).toBe(id);
 });
 
-test("it keeps the sender the owner's client gives a message", async () => {
+test("it labels a message from the owner's client as the owner, whatever from it gives", async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -299,5 +345,5 @@ test("it keeps the sender the owner's client gives a message", async () => {
 
   const read = await client.sendRequest('message.get', { message: sent['message'] });
 
-  expect(read['from']).toBe('release-bot');
+  expect([read['from'], read['sender']]).toStrictEqual(['owner', { kind: 'owner', name: 'owner' }]);
 });

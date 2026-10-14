@@ -34,40 +34,21 @@ async function setupTest() {
   return { caller, dir: daemon.dir };
 }
 
-test('it sends a message from a fixed sender whatever sender the call gives', async () => {
+test('it sends no sender of the call to the daemon, which labels the message itself', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
 
   await runTool(
     caller,
     'atc_message_send',
-    { session: 's1', text: 'hello', from: 'owner' },
-    { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+    { session: 's1', text: 'hello', from: 'impostor' },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
     {
       m: 'session.message',
-      p: { session: 's1', text: 'hello', from: 'dots' },
-      required: ['vocabulary.note', 'message.unanswered'],
-    },
-  ]);
-});
-
-test('it sends a message from the sender the call gives over a default sender', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
-
-  await runTool(
-    caller,
-    'atc_message_send',
-    { session: 's1', text: 'hello', from: 'reviewer' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-  );
-
-  expect(caller.requests).toStrictEqual([
-    {
-      m: 'session.message',
-      p: { session: 's1', text: 'hello', from: 'reviewer' },
-      required: ['vocabulary.note', 'message.unanswered'],
+      p: { session: 's1', text: 'hello' },
+      required: ['vocabulary.note', 'message.unanswered', 'message.sender'],
     },
   ]);
 });
@@ -79,33 +60,14 @@ test('it requires answer notices from the daemon for a send from inside a sessio
     caller,
     'atc_message_send',
     { session: 's1', text: 'hello' },
-    { callerSessionID: 's-sender', sender: { kind: 'default', name: 's-sender' } },
+    { callerSessionID: 's-sender' },
   );
 
   expect(caller.requests).toStrictEqual([
     {
       m: 'session.message',
-      p: { session: 's1', text: 'hello', from: 's-sender' },
-      required: ['vocabulary.note', 'message.unanswered', 'message.notice'],
-    },
-  ]);
-});
-
-test('it sends a message from a default sender when the call gives none', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
-
-  await runTool(
-    caller,
-    'atc_message_send',
-    { session: 's1', text: 'hello' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-  );
-
-  expect(caller.requests).toStrictEqual([
-    {
-      m: 'session.message',
-      p: { session: 's1', text: 'hello', from: 'mcp' },
-      required: ['vocabulary.note', 'message.unanswered'],
+      p: { session: 's1', text: 'hello' },
+      required: ['vocabulary.note', 'message.unanswered', 'message.sender', 'message.notice'],
     },
   ]);
 });
@@ -117,7 +79,7 @@ test('it forwards a message wait to the daemon', async () => {
     caller,
     'atc_message_get',
     { message: 'm1', waitMs: 20_000 },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -136,7 +98,7 @@ test('it forwards an events session filter to the daemon', async () => {
     caller,
     'atc_events_read',
     { session: 's1', waitMs: 1000 },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -167,7 +129,7 @@ test('it reads the whole text of each note of an events page by default', async 
     caller,
     'atc_events_read',
     { cursor: 'c0' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -202,7 +164,7 @@ test('it returns the note previews as the events carry them when the call asks f
     caller,
     'atc_events_read',
     { previewOnly: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -248,7 +210,6 @@ test.each([[{}], [{ previewOnly: true }]])(
 
     const read = await runTool(caller, 'atc_events_read', args, {
       callerSessionID: null,
-      sender: { kind: 'default', name: 'mcp' },
     });
 
     expect(JSON.stringify(read.structured)).not.toInclude('handle-1');
@@ -278,12 +239,7 @@ test('it reads a note by the handle of its event before stripping it', async () 
         : { text: 'hi there', complete: true },
   });
 
-  await runTool(
-    caller,
-    'atc_events_read',
-    {},
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-  );
+  await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
 
   expect(caller.requests.at(-1)).toStrictEqual({
     m: 'note.get',
@@ -299,14 +255,14 @@ test('it sends a message under the key the call gives and needs a daemon that ta
     caller,
     'atc_message_send',
     { session: 's1', text: 'hello', idempotencyKey: 'k-1' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
     {
       m: 'session.message',
-      p: { session: 's1', text: 'hello', from: 'mcp', idempotencyKey: 'k-1' },
-      required: ['vocabulary.note', 'message.unanswered', 'message.idempotency'],
+      p: { session: 's1', text: 'hello', idempotencyKey: 'k-1' },
+      required: ['vocabulary.note', 'message.unanswered', 'message.sender', 'message.idempotency'],
     },
   ]);
 });
@@ -323,7 +279,7 @@ test('it spawns top-level under a key of its own when the calling session is gon
     relay,
     'atc_session_spawn',
     { cwd: ctx.dir, idempotencyKey: 'k-1' },
-    { callerSessionID: 'gone', sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: 'gone' },
   );
 
   expect(relay.requests).toStrictEqual([
@@ -405,7 +361,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
     relay,
     'atc_session_spawn',
     { cwd: daemon.dir, idempotencyKey: 'k-1' },
-    { callerSessionID: 'parent', sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: 'parent' },
   );
 
   expect(call).rejects.toMatchObject({
@@ -434,7 +390,7 @@ test('it derives a top-level fallback key within the daemon cap from the longest
     relay,
     'atc_session_spawn',
     { cwd: ctx.dir, idempotencyKey: 'k'.repeat(180) },
-    { callerSessionID: 'gone', sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: 'gone' },
   );
 
   expect(relay.requests.map((request) => request.p?.['idempotencyKey'])).toStrictEqual([
@@ -455,14 +411,14 @@ test('it derives the same top-level fallback key when the call is retried', asyn
     relay,
     'atc_session_spawn',
     { cwd: ctx.dir, idempotencyKey: 'k'.repeat(180) },
-    { callerSessionID: 'gone', sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: 'gone' },
   );
 
   await runTool(
     relay,
     'atc_session_spawn',
     { cwd: ctx.dir, idempotencyKey: 'k'.repeat(180) },
-    { callerSessionID: 'gone', sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: 'gone' },
   );
 
   const keys = relay.requests.map((request) => request.p?.['idempotencyKey']);
@@ -482,7 +438,7 @@ test('it refuses a spawn key longer than 180 characters as bad_args and sends no
     caller,
     'atc_session_spawn',
     { cwd: '/tmp', idempotencyKey: 'k'.repeat(181) },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(call).rejects.toMatchObject({ code: 'bad_args' });
@@ -496,7 +452,7 @@ test('it refuses a message key longer than 180 characters as bad_args and sends 
     caller,
     'atc_message_send',
     { session: 's1', text: 'hello', idempotencyKey: 'k'.repeat(181) },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(call).rejects.toMatchObject({ code: 'bad_args' });
@@ -510,7 +466,7 @@ test('it spawns on the target the call gives and needs a daemon that takes targe
     caller,
     'atc_session_spawn',
     { cwd: '/tmp', target: 'box' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -539,7 +495,7 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', (
     caller,
     'atc_session_spawn',
     { cwd: '/tmp', target: 'box' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's target/);
@@ -554,7 +510,7 @@ test('it spawns with the workspace the call gives and needs a daemon that takes 
     caller,
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -606,7 +562,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
     caller,
     'atc_session_spawn',
     { workspace: { kind: 'git', url: upstream, ref: 'main' } },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(result.structured).toMatchObject({
@@ -634,7 +590,7 @@ test('it refuses a git workspace without a cwd unsent when the daemon predates p
     caller,
     'atc_session_spawn',
     { workspace: { kind: 'git', url: 'https://example.com/r.git', ref: 'main' } },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(spawn).rejects.toThrow(
@@ -653,7 +609,7 @@ test('it returns the warnings a workspace spawn left with the session', async ()
     caller,
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo', allowDirty: 'warn' } },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(result.structured).toStrictEqual({ id: 's-1', warnings: ['changes stay behind'] });
@@ -676,7 +632,7 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
     caller,
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' } },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's workspace/);
@@ -690,7 +646,7 @@ test('it submits a session input line and needs a daemon that submits lines', as
     caller,
     'atc_terminal_type',
     { session: 's1', text: 'hello' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -715,7 +671,7 @@ test('it refuses a session input line unsent when the daemon predates line submi
     caller,
     'atc_terminal_type',
     { session: 's1', text: 'hello' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(input).rejects.toThrow(/^daemon_outdated: .*atc_terminal_type/);
@@ -729,7 +685,7 @@ test('it answers a typed line with the written flag', async () => {
     caller,
     'atc_terminal_type',
     { session: 's1', text: 'hello' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(result.structured).toStrictEqual({ written: true });
@@ -743,7 +699,7 @@ test('it stops a session without ever removing it and needs a daemon that stops 
     caller,
     'atc_session_stop',
     { session: 's1' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -764,7 +720,7 @@ test('it reports a session that had already exited as not stopped', async () => 
     caller,
     'atc_session_stop',
     { session: 's1' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(result.structured).toStrictEqual({ stopped: false });
@@ -783,12 +739,7 @@ test('it refuses a stop unsent when the daemon predates stop-only kills', () => 
 
   registerTestCleanup(() => caller.stop());
 
-  const stop = runTool(
-    caller,
-    'atc_session_stop',
-    { session: 's1' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-  );
+  const stop = runTool(caller, 'atc_session_stop', { session: 's1' }, { callerSessionID: null });
 
   expect(stop).rejects.toThrow(/^daemon_outdated: .*atc_session_stop/);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
@@ -801,7 +752,7 @@ test('it detaches a session through an update that needs a daemon that takes a n
     caller,
     'atc_session_update',
     { session: 's1', parent: null },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -820,7 +771,7 @@ test('it renames a session through an update that needs a daemon that reports a 
     caller,
     'atc_session_update',
     { session: 's1', name: 'from-mcp' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(result).toStrictEqual({ text: 'updated', structured: null });
@@ -841,7 +792,7 @@ test('it reports a rename the daemon skipped because the agent named the session
     caller,
     'atc_session_update',
     { session: 's1', name: 'from-mcp' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(result).toStrictEqual({
@@ -867,7 +818,7 @@ test('it refuses a rename unsent when the daemon predates a reported skipped ren
     caller,
     'atc_session_update',
     { session: 's1', name: 'from-mcp' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(update).rejects.toThrow(
@@ -894,7 +845,7 @@ test('it refuses a detach unsent when the daemon predates a null parent on updat
     caller,
     'atc_session_update',
     { session: 's1', parent: null },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(update).rejects.toThrow(/^daemon_outdated: .*atc_session_update's parent/);
@@ -908,7 +859,7 @@ test('it answers a mark-read with the text marked read', async () => {
     caller,
     'atc_session_mark_read',
     { session: 's1' },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(result).toStrictEqual({ text: 'marked read', structured: null });
@@ -919,14 +870,9 @@ test.each(['atc_report_get', 'atc_resume_command', 'atc_session_kill'])(
   (name) => {
     const caller = buildStubFleetCaller();
 
-    expect(
-      runTool(
-        caller,
-        name,
-        {},
-        { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
-      ),
-    ).rejects.toThrow(`unknown tool '${name}'`);
+    expect(runTool(caller, name, {}, { callerSessionID: null })).rejects.toThrow(
+      `unknown tool '${name}'`,
+    );
   },
 );
 
@@ -938,7 +884,7 @@ test('it forwards an explicit clone trust decision and requires daemon support',
     caller,
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(caller.requests).toStrictEqual([
@@ -974,7 +920,7 @@ test('it refuses an explicit trust decision unsent when the daemon predates clon
     caller,
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo' }, trustClonedWorkspace: true },
-    { callerSessionID: null, sender: { kind: 'default', name: 'mcp' } },
+    { callerSessionID: null },
   );
 
   expect(spawn).rejects.toThrow(/^daemon_outdated: .*atc_session_spawn's trustClonedWorkspace/);
@@ -1000,7 +946,6 @@ test.each([
 
   const call = runTool(caller, name, args, {
     callerSessionID: null,
-    sender: { kind: 'default', name: 'mcp' },
   });
 
   expect(call).rejects.toThrow(/^daemon_outdated: .*note and queued words/);

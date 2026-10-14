@@ -106,8 +106,8 @@ removes the record and its copy.
 Only atc writes the record, and only a caller outside the session's tree adds scope through it. The
 daemon refuses `session.scope.add` with `unauthorized` when the caller runs inside the target
 session or inside a session that the target is a sub-session of. A session may add scope to its own
-sub-sessions. Every message such a caller sends is from its session's id, whatever sender name the
-request holds.
+sub-sessions. Every message such a caller sends is from its session
+([messages](../protocol/messages.md#who-a-message-is-from)).
 
 The daemon decides which session a caller runs inside from where the caller connects:
 

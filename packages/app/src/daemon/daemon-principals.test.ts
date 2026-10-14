@@ -1078,7 +1078,6 @@ test('it keeps the events of a hidden session from a principal whose exited sess
 
   await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'box secret message',
   });
 
@@ -1147,7 +1146,6 @@ test('it keeps the messages of a hidden session from a principal whose exited se
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'box secret message',
   });
 
@@ -1231,7 +1229,6 @@ test('it keeps the events of a hidden session from the full trail of a principal
 
   await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'box secret message',
   });
 
@@ -1322,7 +1319,6 @@ test('it keeps the events of a hidden session from the trail a principal reads f
 
   await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'box secret message',
   });
 
@@ -1404,7 +1400,6 @@ test('it keeps the messages of a hidden session from a principal whose live sess
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'box secret message',
   });
 
@@ -1479,7 +1474,6 @@ test('it keeps the activity of a hidden session out of the last activity of a pr
 
   await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'box secret message',
   });
 
@@ -1537,13 +1531,11 @@ test("it lists a principal no message of a hidden session that one turn answered
 
   const toHidden = await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'box secret message',
   });
 
   const toShown = await daemon.client.sendRequest('session.message', {
     session: shown,
-    from: 'owner',
     text: 'local message',
   });
 
@@ -2066,7 +2058,6 @@ test('it takes the inbox tap from a principal connection whose tapped session le
 
   await daemon.client.sendRequest('session.message', {
     session: parent,
-    from: 'owner',
     text: 'for the tap',
   });
 
@@ -2607,10 +2598,10 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   });
 
   const read = await runTool(
-    buildPrincipalCaller(caller, 'client-a'),
+    buildPrincipalCaller(caller, { id: 'client-a', name: 'Lantern Notes' }),
     'atc_events_read',
     {},
-    { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
+    { callerSessionID: null },
   );
 
   expect(read.text).not.toContain('secret plan');
@@ -2672,10 +2663,10 @@ test('it reads the first of many large notes a principal may see while another c
   });
 
   const read = await runTool(
-    buildPrincipalCaller(caller, 'client-a'),
+    buildPrincipalCaller(caller, { id: 'client-a', name: 'Lantern Notes' }),
     'atc_events_read',
     { limit: 50 },
-    { callerSessionID: null, sender: { kind: 'fixed', name: 'client-a' } },
+    { callerSessionID: null },
   );
 
   expect(slow.chunks).toBeArrayOfSize(1);
@@ -3014,7 +3005,6 @@ test('it answers message.get for a message of a session outside the principal as
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'hello',
   });
 
@@ -3751,7 +3741,6 @@ test("it answers a principal's long poll on a session whose tree leaves its reac
 
   await daemon.client.sendRequest('session.message', {
     session: parent,
-    from: 'owner',
     text: 'hidden message',
   });
 
@@ -3811,7 +3800,6 @@ test("it keeps a hidden session's messages from a principal tapping a session th
 
   const sent = await daemon.client.sendRequest('session.message', {
     session: hidden,
-    from: 'owner',
     text: 'hidden message',
   });
 
@@ -3829,7 +3817,6 @@ test("it keeps a hidden session's messages from a principal tapping a session th
 
   await daemon.client.sendRequest('session.message', {
     session: shown,
-    from: 'owner',
     text: 'shown message',
   });
 

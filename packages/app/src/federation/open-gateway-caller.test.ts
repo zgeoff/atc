@@ -25,8 +25,8 @@ import { openGatewayCaller } from './open-gateway-caller';
  * wires them, in front of two real daemons, `cloud` (the default) and
  * `pc`, each listening on a loopback TCP port for the gateway's token, read
  * from `cloud-token` and `pc-token` in `dir`, with a principals key that
- * lets the OAuth client `Claude` use the local target. `claudeToken` is an
- * access token of `Claude`. `auth` is the authorization store, and
+ * lets the OAuth client `Claude` use the local target. `claudeID` is the
+ * client id of `Claude`, and `claudeToken` an access token of it. `auth` is the authorization store, and
  * `approvals` collects the approval lines the server prints, so a test can
  * register and authorize a client of its own. `clock` runs every timer of
  * the gateway's daemon connections and fan-out waits, so none runs unless a
@@ -193,6 +193,7 @@ async function setupTest() {
     cloudID,
     pcID,
     clock,
+    claudeID: claude.clientID,
     claudeToken: String(tokens['access_token']),
   };
 }
@@ -276,6 +277,33 @@ test('it replays a keyed spawn from the daemon the key was bound to when the ret
 
   expect(ctx.pc.client.sendRequest('session.list')).resolves.toStrictEqual({
     sessions: [expect.anything()],
+  });
+});
+
+test("it labels a message a connector sends with the client's name and kind connector, whatever from the call gives", async () => {
+  const ctx = await setupTest();
+
+  const spawned = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
+    name: 'atc_session_spawn',
+    arguments: { cwd: ctx.dir },
+  });
+
+  const session = String(getRecord(spawned, 'structuredContent')['id']);
+
+  const sent = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
+    name: 'atc_message_send',
+    arguments: { session, text: 'check the tide tables', from: 'impostor' },
+  });
+
+  const got = await sendMCPRequest(ctx.url, ctx.claudeToken, 'tools/call', {
+    name: 'atc_message_get',
+    arguments: { message: getRecord(sent, 'structuredContent')['message'] },
+  });
+
+  expect(getRecord(got, 'structuredContent')).toMatchObject({
+    session,
+    from: 'Claude',
+    sender: { kind: 'connector', client: ctx.claudeID, name: 'Claude' },
   });
 });
 

@@ -354,6 +354,7 @@ src/protocol/hook-event.ts	protocol		packages/protocol/src/hook-event.ts
 src/protocol/keyed-method-features.ts	protocol		packages/protocol/src/keyed-method-features.ts	new in ticket 4
 src/protocol/line-decoder.ts	protocol		packages/protocol/src/line-decoder.ts	
 src/protocol/message-answer.ts	protocol		packages/protocol/src/message-answer.ts	new in ticket 4
+src/protocol/message-sender.ts	protocol		packages/protocol/src/message-sender.ts	
 src/protocol/message-status.ts	protocol		packages/protocol/src/message-status.ts	new in ticket 4
 src/protocol/message-view.ts	protocol		packages/protocol/src/message-view.ts	new in ticket 4
 src/protocol/note-view.ts	protocol		packages/protocol/src/note-view.ts	new in ticket 4
@@ -363,6 +364,7 @@ src/protocol/parse-daemon-features.ts	(deleted in ticket 24)		src/protocol/parse
 src/protocol/parse-declared-scope.ts	protocol		packages/protocol/src/parse-declared-scope.ts	
 src/protocol/parse-request-params.ts	protocol		packages/protocol/src/parse-request-params.ts	
 src/protocol/pinned-group-key.ts	protocol		packages/protocol/src/pinned-group-key.ts	
+src/protocol/principal.ts	protocol		packages/protocol/src/principal.ts	
 src/protocol/procedure-meta.ts	protocol		packages/protocol/src/procedure-meta.ts	new in ticket 4
 src/protocol/procedure-traits.ts	protocol		packages/protocol/src/procedure-traits.ts	new in ticket 4
 src/protocol/protocol.ts	protocol		packages/protocol/src/protocol.ts	

@@ -25,10 +25,8 @@ stateDiagram-v2
 
 ## Sending
 
-A caller sends a message with a sender name and the text. A caller inside a session sends as that
-session: the daemon records the session's id as the sender, whatever name the request holds
-([session record](../execution/session-record.md#who-may-change-the-record)). The daemon refuses the
-message when the session cannot take one:
+A caller sends a message with its text alone. The daemon refuses the message when the session cannot
+take one:
 
 - The session's agent has no tap, as Grok and Codex have none: `unsupported`.
 - A Claude Code session started some time ago and no tap has attached since, so the mod is missing:
@@ -39,6 +37,24 @@ Otherwise the message queues, while the session restores and while a dropped tap
 busy session is no refusal: the mod adds the message to the running turn. The daemon writes messages
 one at a time, in the order they arrive, and checks the sender's reach in the same step that starts
 the write, so a session cannot leave a principal's reach between the check and the write.
+
+## Who a message is from
+
+The daemon labels each message with its sender, built from who the caller is
+([principals](./principals.md#who-a-caller-is)), and stores the label with the message. No field of
+the request sets it, so no caller can speak as another, and a request's `from` is ignored. The label
+holds a kind, an id and a name:
+
+| Kind        | Caller                                                           | Id                  | Name                                         |
+| ----------- | ---------------------------------------------------------------- | ------------------- | -------------------------------------------- |
+| `connector` | an OAuth client that atc-gateway or `atc mcp --http` vouches for | its OAuth client id | its client name                              |
+| `session`   | a process inside an atc session                                  | the session's id    | the session's name as the message is written |
+| `owner`     | any other caller on the local socket                             | none                | `owner`                                      |
+
+A message also holds the sender's name as `from`, for readers that predate the kind. A message
+stored before the daemon labelled senders holds that name alone. The tap line and the
+`<atc-message>` envelope carry the kind, so the agent that takes a message sees who sent it
+([agent integration](../agents/agent-integration.md#the-atc-bridge-mod)).
 
 ## The tap
 

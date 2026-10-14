@@ -240,13 +240,15 @@ test('it delivers a message sent after a sleep and a wake to the tap that ran be
     expect(printed).toStrictEqual([
       {
         id: before['message'],
-        from: expect.toBeString(),
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
         text: 'before',
         sentAt: expect.toBeNumber(),
       },
       {
         id: after['message'],
-        from: expect.toBeString(),
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
         text: 'after',
         sentAt: expect.toBeNumber(),
       },

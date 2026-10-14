@@ -118,6 +118,12 @@ export const DAEMON_FEATURES = [
   // `session.tap` takes `notices`, a tap that sets it takes `InboxNotice`
   // events, and `notice.ack` exists.
   'message.notice',
+
+  // `session.message` labels its message with a sender the daemon builds from
+  // the caller and ignores `from`, a request takes `asName` beside `as`, and
+  // `message.get` and the `SessionMessage` and `InboxMessage` events return
+  // `sender`.
+  'message.sender',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

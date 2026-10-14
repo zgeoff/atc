@@ -57,6 +57,7 @@ import { buildDefaultWorkspaceDir } from './build-default-workspace-dir';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
+import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildNoteTrailEntry } from './build-note-trail-entry';
 import { buildNoteView } from './build-note-view';
@@ -90,6 +91,7 @@ import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { materializeWorkspace } from './materialize-workspace';
+import type { MessageCaller } from './message-caller';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
 import { parseNote } from './parse-note';
@@ -1592,7 +1594,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // before anything is written; a failed check writes nothing.
   const writeQueuedMessage = async (
     sessionID: SessionID,
-    from: string,
+    caller: MessageCaller,
     text: string,
     id: MessageID,
     requireWriteInReach: () => void,
@@ -1606,11 +1608,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     await previousWrite;
 
+    // A session sender's name is the one it holds as its message is written.
+    const sender = buildMessageSender(caller, mgr.sessions);
+
     const record: MessageRecord = {
       id,
       atcID: sessionID,
       ...(s?.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-      from,
+      from: sender.name,
+      sender,
       text,
       status: 'queued',
       sentAt: clock.now(),
@@ -2335,7 +2341,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         view: buildNoteView(stored, naming, aliases),
       };
     },
-    writeSessionMessage: async (sessionID, from, text, keyed, access, callerSession) => {
+    writeSessionMessage: async (sessionID, caller, text, keyed, access, callerSession) => {
       // Under an access, a session whose tree leaves the access before the
       // message is written refuses it as an unknown session does.
       const requireInReach = () => {
@@ -2356,7 +2362,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         try {
           const record = await writeQueuedMessage(
             sessionID,
-            from,
+            caller,
             text,
             mintMessageID(),
             requireInReach,
@@ -2393,7 +2399,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
             const record = await writeQueuedMessage(
               sessionID,
-              from,
+              caller,
               text,
               effectRef,
               requireInReach,

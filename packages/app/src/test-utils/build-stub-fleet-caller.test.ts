@@ -25,11 +25,20 @@ test('it records each request with the arguments the sender passed, in order', a
   const caller = buildStubFleetCaller();
 
   await caller.sendRequest('session.list');
-  await caller.sendRequest('session.spawn', { cwd: '/tmp' }, ['spawn.target'], 'client-a');
+
+  await caller.sendRequest('session.spawn', { cwd: '/tmp' }, ['spawn.target'], {
+    id: 'client-a',
+    name: 'Lantern Notes',
+  });
 
   expect(caller.requests).toStrictEqual([
     { m: 'session.list' },
-    { m: 'session.spawn', p: { cwd: '/tmp' }, required: ['spawn.target'], principal: 'client-a' },
+    {
+      m: 'session.spawn',
+      p: { cwd: '/tmp' },
+      required: ['spawn.target'],
+      principal: { id: 'client-a', name: 'Lantern Notes' },
+    },
   ]);
 });
 

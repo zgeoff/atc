@@ -52,7 +52,7 @@ test('it refuses a tool call whose scope the caller lacks and leaves the session
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['read', 'message'],
     },
   );
@@ -86,7 +86,7 @@ test('it refuses a forget whose scope the caller lacks and leaves the session li
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['read', 'message', 'spawn'],
     },
   );
@@ -120,7 +120,7 @@ test('it runs a tool call whose scope the caller holds', async () => {
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['read'],
     },
   );
@@ -167,7 +167,7 @@ test('it returns a tool result object as structured content beside its JSON text
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
     },
   );
 
@@ -198,7 +198,7 @@ test('it lists every tool to a caller with one scope', async () => {
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['read'],
     },
   );
@@ -245,7 +245,7 @@ test('it refuses a call to an unknown tool as needing kill when the caller is sc
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['read', 'message', 'spawn'],
     },
   );
@@ -266,7 +266,7 @@ test('it lists the agents to a caller holding only the read scope', async () => 
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['read'],
     },
   );
@@ -384,7 +384,7 @@ test('it leaves the agents tool out of the list when the connected daemon does n
     {
       caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
     },
   );
 
@@ -413,7 +413,7 @@ test('it lists the message tool in its older form when the connected daemon anno
     {
       caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
     },
   );
 
@@ -432,7 +432,7 @@ test('it lists the message tool in its older form when the connected daemon anno
   expect(messageGet).toStrictEqual({
     name: 'atc_message_get',
     description:
-      'Read one message sent with atc_message_send. A sender inside an atc session that takes messages gets the outcome as an <atc-answer> notice. Every other caller has no inbox, so this read is how it learns the outcome: a caller outside a session, a remote client, or a session whose agent takes no messages (capabilities.message false in atc_spawn_options_get). A caller may also use it to wait on one message. It returns status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer, or the process of its session ended while the message was delivered (unansweredReason session_ended), and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.',
+      'Read one message sent with atc_message_send. A sender inside an atc session that takes messages gets the outcome as an <atc-answer> notice. Every other caller has no inbox, so this read is how it learns the outcome: a caller outside a session, a remote client, or a session whose agent takes no messages (capabilities.message false in atc_spawn_options_get). A caller may also use it to wait on one message. It returns sender (who sent the message, as atc labelled it), status (queued, delivered, answered or unanswered), the answer once answered, unansweredReason once unanswered, turn, answeredWith and timestamps. unanswered means the turn that carried the message ended without an answer, or the process of its session ended while the message was delivered (unansweredReason session_ended), and is final: atc never delivers the message again, so send it again to retry. The answer is the final reply of the turn that carried the message; messages in one turn share it, and answeredWith lists them. Pass waitMs, up to 30000, to hold the call until the status changes; an answered or unanswered message returns at once. Ids and statuses persist, so call again after a timeout.',
     inputSchema: {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       type: 'object',
@@ -467,7 +467,7 @@ test.each([
       {
         caller,
         build: 'atc/test-build',
-        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+        toolContext: { callerSessionID: null },
       },
     );
 
@@ -520,7 +520,7 @@ test.each([
       {
         caller,
         build: 'atc/test-build',
-        toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+        toolContext: { callerSessionID: null },
       },
     );
 
@@ -578,7 +578,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     {
       caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
     },
   );
 
@@ -622,7 +622,7 @@ test('it names the registered agents in the spawn tool to a caller holding the r
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['read'],
     },
   );
@@ -658,7 +658,7 @@ test('it names no agent in the spawn tool to a caller without the read scope', a
     {
       caller: ctx.caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
       scopes: ['kill'],
     },
   );
@@ -731,7 +731,7 @@ test('it lists the agents tool without an output schema when the daemon takes no
     {
       caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
     },
   );
 
@@ -800,7 +800,7 @@ test('it returns the agents a daemon without spawn options lists', async () => {
     {
       caller,
       build: 'atc/test-build',
-      toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: 'dots' } },
+      toolContext: { callerSessionID: null },
     },
   );
 

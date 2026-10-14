@@ -3,6 +3,7 @@ import type { DaemonChannel } from '@atc/protocol/daemon-channel';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { KEYED_METHOD_FEATURES } from '@atc/protocol/keyed-method-features';
 import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
+import type { Principal } from '@atc/protocol/principal';
 import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
 import { readSessionEnv } from '@atc/protocol/read-session-env';
 import { requireDaemonFeatures } from './require-daemon-features';
@@ -60,7 +61,7 @@ export class ReconnectingCaller implements FleetCaller {
     m: string,
     p?: Readonly<Record<string, unknown>>,
     required: readonly DaemonFeature[] = [],
-    principal?: string,
+    principal?: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
     const opened = await this.openClient();
 
@@ -71,7 +72,7 @@ export class ReconnectingCaller implements FleetCaller {
     const params = keyed ? buildKeyedParams(p) : p;
 
     try {
-      return await opened.client.sendRequest(m, params, principal);
+      return await opened.client.sendRequest(m, params, principal?.id, principal?.name);
     } catch (error) {
       if (
         !this.closed.has(opened.client) ||
@@ -88,7 +89,7 @@ export class ReconnectingCaller implements FleetCaller {
 
       requireDaemonFeatures(fresh.features, retryRequired);
 
-      return fresh.client.sendRequest(m, params, principal);
+      return fresh.client.sendRequest(m, params, principal?.id, principal?.name);
     }
   }
 

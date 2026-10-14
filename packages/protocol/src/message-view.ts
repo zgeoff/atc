@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MESSAGE_SENDER_SCHEMA } from './message-sender';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
 
 /**
@@ -10,7 +11,11 @@ import { MESSAGE_STATUS_SCHEMA } from './message-status';
 export const MESSAGE_VIEW_SCHEMA = z.object({
   message: z.string(),
   session: z.string(),
+
+  // The sender's name, and who sent it, absent on a message stored before
+  // the daemon typed its senders.
   from: z.string(),
+  sender: MESSAGE_SENDER_SCHEMA.optional(),
   text: z.string(),
   status: MESSAGE_STATUS_SCHEMA,
   sentAt: z.number(),

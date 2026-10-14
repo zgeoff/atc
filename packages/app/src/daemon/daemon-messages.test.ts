@@ -48,7 +48,6 @@ test('it accepts a message for a session that has not reported SessionStart', as
   const ok = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
@@ -313,7 +312,6 @@ test('it queues a message for a session that waits for its restore boot after a 
   const ok = await daemon.client.sendRequest('session.message', {
     session: 's-agent-c',
     text: 'hello',
-    from: 'alice',
   });
 
   expect(ok).toStrictEqual({ message: expect.stringMatching(/^m-/), status: 'queued' });
@@ -360,7 +358,6 @@ test('it hands a message queued during the restore to the session tap that attac
   const sent = await daemon.client.sendRequest('session.message', {
     session: 's-agent-c',
     text: 'hello',
-    from: 'alice',
   });
 
   clock.advance(10);
@@ -384,7 +381,8 @@ test('it hands a message queued during the restore to the session tap that attac
         ev: 'InboxMessage',
         s: 's-agent-c',
         message: sent['message'],
-        from: 'alice',
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
         text: 'hello',
         sentAt: expect.any(Number),
       },
@@ -405,19 +403,16 @@ test('it drains pending messages to a tap in the order they were sent', async ()
   const first = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'one',
-    from: 'alice',
   });
 
   const second = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'two',
-    from: 'alice',
   });
 
   const third = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'three',
-    from: 'alice',
   });
 
   const inbox = await startStubTap(tap, id);
@@ -429,7 +424,8 @@ test('it drains pending messages to a tap in the order they were sent', async ()
         ev: 'InboxMessage',
         s: id,
         message: first['message'],
-        from: 'alice',
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
         text: 'one',
         sentAt: expect.any(Number),
       },
@@ -438,7 +434,8 @@ test('it drains pending messages to a tap in the order they were sent', async ()
         ev: 'InboxMessage',
         s: id,
         message: second['message'],
-        from: 'alice',
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
         text: 'two',
         sentAt: expect.any(Number),
       },
@@ -447,7 +444,8 @@ test('it drains pending messages to a tap in the order they were sent', async ()
         ev: 'InboxMessage',
         s: id,
         message: third['message'],
-        from: 'alice',
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
         text: 'three',
         sentAt: expect.any(Number),
       },
@@ -477,7 +475,6 @@ test('it streams a message queued while the tap is connected', async () => {
   const ok = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'live',
-    from: 'bob',
   });
 
   await waitFor(() => {
@@ -487,7 +484,8 @@ test('it streams a message queued while the tap is connected', async () => {
         ev: 'InboxMessage',
         s: id,
         message: ok['message'],
-        from: 'bob',
+        from: 'owner',
+        sender: { kind: 'owner', name: 'owner' },
         text: 'live',
         sentAt: expect.any(Number),
       },
@@ -606,7 +604,6 @@ test('it moves an acked message to delivered', async () => {
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -632,7 +629,6 @@ test('it broadcasts SessionMessage for an acked message', async () => {
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -645,7 +641,8 @@ test('it broadcasts SessionMessage for an acked message', async () => {
       s: id,
       message: sent['message'],
       status: 'delivered',
-      from: 'alice',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
       sentAt: expect.any(Number),
       deliveredAt: expect.any(Number),
@@ -736,7 +733,8 @@ test('it broadcasts delivered once for a repeat ack', async () => {
       s: id,
       message: sent['message'],
       status: 'delivered',
-      from: 'unknown',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
       sentAt: expect.any(Number),
       deliveredAt: expect.any(Number),
@@ -773,7 +771,6 @@ test('it moves a message to answered from a Report line on the reporter socket',
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await daemon.sendHookLines({
@@ -789,7 +786,8 @@ test('it moves a message to answered from a Report line on the reporter socket',
       s: id,
       message: sent['message'],
       status: 'answered',
-      from: 'alice',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
       sentAt: expect.any(Number),
       answeredAt: expect.any(Number),
@@ -933,7 +931,8 @@ test('it broadcasts SessionMessage on the events socket', async () => {
       s: id,
       message: sent['message'],
       status: 'queued',
-      from: 'unknown',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
       sentAt: expect.any(Number),
     },
@@ -972,7 +971,8 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
       s: id,
       message: sent['message'],
       status: 'queued',
-      from: 'unknown',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
       sentAt: expect.any(Number),
     },
@@ -1221,7 +1221,6 @@ test('it reads a queued message back through message.get', async () => {
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   const queued = await daemon.client.sendRequest('message.get', {
@@ -1231,7 +1230,8 @@ test('it reads a queued message back through message.get', async () => {
   expect(queued).toStrictEqual({
     message: sent['message'],
     session: id,
-    from: 'alice',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'queued',
     sentAt: expect.any(Number),
@@ -1253,7 +1253,6 @@ test('it reads a delivered message back through message.get', async () => {
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -1266,7 +1265,8 @@ test('it reads a delivered message back through message.get', async () => {
   expect(delivered).toStrictEqual({
     message: sent['message'],
     session: id,
-    from: 'alice',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'delivered',
     sentAt: expect.any(Number),
@@ -1289,7 +1289,6 @@ test('it reads an answered message back through message.get', async () => {
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -1309,7 +1308,8 @@ test('it reads an answered message back through message.get', async () => {
     expect(answered).toStrictEqual({
       message: sent['message'],
       session: id,
-      from: 'alice',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       text: 'hello',
       status: 'answered',
       answer: 'done',
@@ -1629,7 +1629,8 @@ test('it holds message.get open until the message status changes', async () => {
   expect(got).toStrictEqual({
     message: sent['message'],
     session: id,
-    from: 'unknown',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'delivered',
     sentAt: expect.any(Number),
@@ -1665,7 +1666,8 @@ test('it answers a held message.get with the unchanged status once the wait ends
   expect(got).toStrictEqual({
     message: sent['message'],
     session: id,
-    from: 'unknown',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'queued',
     sentAt: expect.any(Number),
@@ -1705,7 +1707,8 @@ test('it answers message.get for an answered message at once whatever the wait',
   expect(got).toStrictEqual({
     message: sent['message'],
     session: id,
-    from: 'unknown',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'answered',
     answer: 'done',
@@ -1729,7 +1732,6 @@ test('it moves a delivered message to unanswered from an unanswered Note line', 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -1753,7 +1755,8 @@ test('it moves a delivered message to unanswered from an unanswered Note line', 
       s: id,
       message: sent['message'],
       status: 'unanswered',
-      from: 'alice',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
       sentAt: expect.any(Number),
       deliveredAt: expect.any(Number),
@@ -1788,7 +1791,8 @@ test('it reads an unanswered message back through message.get with its reason an
   expect(got).toStrictEqual({
     message: sent['message'],
     session: id,
-    from: 'unknown',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'unanswered',
     sentAt: expect.any(Number),
@@ -2097,7 +2101,6 @@ test('it records each message status change in events.read in order', async () =
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -2769,7 +2772,6 @@ test('it marks a delivered message unanswered as session_ended when the process 
   const sent = await daemon.client.sendRequest('session.message', {
     session: id,
     text: 'hello',
-    from: 'alice',
   });
 
   await tap.sendRequest('session.tap', { session: id });
@@ -2783,7 +2785,8 @@ test('it marks a delivered message unanswered as session_ended when the process 
       s: id,
       message: sent['message'],
       status: 'unanswered',
-      from: 'alice',
+      from: 'owner',
+      sender: { kind: 'owner', name: 'owner' },
       textPreview: 'hello',
       sentAt: expect.any(Number),
       deliveredAt: expect.any(Number),
@@ -2935,3 +2938,73 @@ test('it keeps a queued message queued when the process exits', async () => {
 
   expect(read['status']).toBe('queued');
 });
+
+test.each([
+  [
+    'a request that acts as a principal, by the name beside it',
+    {},
+    ['client-7', 'Lantern Notes'],
+    { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+  ],
+  [
+    'a request that acts as a principal without a name, by the principal',
+    {},
+    ['client-7'],
+    { kind: 'connector', client: 'client-7', name: 'client-7' },
+  ],
+  [
+    'a connection that acts as a principal, by the principal',
+    { principal: 'client-7' },
+    [],
+    { kind: 'connector', client: 'client-7', name: 'client-7' },
+  ],
+  [
+    'a request that acts as a principal on a connection that gives a session, by the name beside it',
+    { session: 'sender' },
+    ['client-7', 'Lantern Notes'],
+    { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+  ],
+  [
+    'a connection that gives a session, by that session',
+    { session: 'sender' },
+    [],
+    { kind: 'session', session: 'sender', name: 'harbor-refactor' },
+  ],
+  ['a connection that gives neither, as the owner', {}, [], { kind: 'owner', name: 'owner' }],
+] as const)(
+  'it labels a message from %s, whatever from the request gives',
+  async (_caller, hello, as, sender) => {
+    const daemon = await startTestDaemon({
+      options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+    });
+
+    const target = await spawnNamedSession(
+      (m, p) => daemon.client.sendRequest(m, p),
+      'target',
+      daemon.dir,
+    );
+
+    const from = await spawnNamedSession(
+      (m, p) => daemon.client.sendRequest(m, p),
+      'harbor-refactor',
+      daemon.dir,
+    );
+
+    // The hello's session placeholder stands for the sending session's id.
+    const handshake = 'session' in hello ? { session: from } : hello;
+
+    const client = await daemon.openClient(handshake);
+
+    const sent = await client.sendRequest(
+      'session.message',
+      { session: target, text: 'check the tide tables', from: 'impostor' },
+      ...as,
+    );
+
+    const read = await daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    const expected = sender.kind === 'session' ? { ...sender, session: from } : sender;
+
+    expect([read['from'], read['sender']]).toStrictEqual([expected.name, expected]);
+  },
+);

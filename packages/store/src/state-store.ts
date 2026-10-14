@@ -16,6 +16,8 @@ import { toMessageID } from '@atc/core/to-message-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import type { AdapterEvent } from '@atc/protocol/adapter-event';
 import type { HookEvent } from '@atc/protocol/hook-event';
+import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/message-sender';
+import type { MessageSender } from '@atc/protocol/message-sender';
 import type { PublishedRecord } from '@atc/protocol/published-record';
 import type { SessionWorkspace } from '@atc/protocol/session-workspace';
 import { Kysely, sql } from 'kysely';
@@ -658,6 +660,8 @@ export class StateStore {
         atc_id: record.atcID,
         agent_session_id: record.agentSessionID ?? null,
         sender: record.from,
+        sender_kind: record.sender?.kind ?? null,
+        sender_id: findSenderID(record.sender),
         text: record.text,
         status: record.status,
         sent_at: record.sentAt,
@@ -1738,6 +1742,7 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
       ? {}
       : { agentSessionID: toAgentSessionID(row.agent_session_id) }),
     from: row.sender,
+    ...buildMessageSender(row),
     text: row.text,
     status: row.status,
     sentAt: row.sent_at,
@@ -1751,6 +1756,34 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
     ...(row.notice_queued_at === null ? {} : { noticeQueuedAt: row.notice_queued_at }),
     ...(row.notice_delivered_at === null ? {} : { noticeDeliveredAt: row.notice_delivered_at }),
   };
+}
+
+// The client id of a connector or the atc id of a session, which the row
+// keeps in one column; null for the owner and a message with no sender.
+function findSenderID(sender: MessageSender | undefined): string | null {
+  if (sender?.kind === 'connector') {
+    return sender.client;
+  }
+
+  return sender?.kind === 'session' ? sender.session : null;
+}
+
+// A row the daemon wrote with a typed sender reads back with it; a row from
+// before, or one whose kind or id this build cannot read, holds only the
+// sender's name.
+function buildMessageSender(
+  row: Readonly<StateStoreSchema['messages']>,
+): { readonly sender: MessageSender } | Record<string, never> {
+  const id = row.sender_id ?? undefined;
+
+  const parsed = MESSAGE_SENDER_SCHEMA.safeParse({
+    kind: row.sender_kind,
+    name: row.sender,
+    ...(row.sender_kind === 'connector' ? { client: id } : {}),
+    ...(row.sender_kind === 'session' ? { session: id } : {}),
+  });
+
+  return parsed.success ? { sender: parsed.data } : {};
 }
 
 function toWorkspaceMaterialization(

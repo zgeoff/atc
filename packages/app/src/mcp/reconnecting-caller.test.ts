@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubDroppingDaemon } from '@atc/test-utils/start-stub-dropping-daemon';
@@ -224,4 +226,39 @@ test('it claims the session it was given in the handshake, and none when given n
   await outside.sendRequest('session.list');
 
   expect(claimed).toStrictEqual(['s-a', undefined]);
+});
+
+test("it sends a principal's name beside it, which labels the message the request sends", async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-reconnecting-caller-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  // As `atc mcp --http` runs it: a connector has no inbox, so it claims no session.
+  const caller = new ReconnectingCaller(
+    daemon.socketPath,
+    'atc/test-build',
+    (path) => DaemonClient.open(path),
+    null,
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.dir });
+
+  const session = getRecord(spawned, 'session')['id'];
+
+  const sent = await caller.sendRequest(
+    'session.message',
+    { session, text: 'check the tide tables', from: 'impostor' },
+    [],
+    { id: 'client-7', name: 'Lantern Notes' },
+  );
+
+  const got = await caller.sendRequest('message.get', { message: sent['message'] });
+
+  expect(got).toMatchObject({
+    from: 'Lantern Notes',
+    sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+  });
 });

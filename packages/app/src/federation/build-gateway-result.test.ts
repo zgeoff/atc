@@ -113,6 +113,49 @@ test('it rewrites every id of a message.get answer', () => {
   });
 });
 
+test('it rewrites the session that sent a message and passes a connector as it came', () => {
+  const fromSession = buildGatewayResult(
+    'message.get',
+    {
+      message: 'm-1',
+      session: 's1',
+      from: 'harbor-refactor',
+      sender: { kind: 'session', session: 's2', name: 'harbor-refactor' },
+      answeredWith: [],
+    },
+    { name: 'cloud', incarnation: '0f6c2a8e' },
+  );
+
+  const fromConnector = buildGatewayResult(
+    'message.get',
+    {
+      message: 'm-1',
+      session: 's1',
+      from: 'Lantern Notes',
+      sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+      answeredWith: [],
+    },
+    { name: 'cloud', incarnation: '0f6c2a8e' },
+  );
+
+  expect([fromSession, fromConnector]).toStrictEqual([
+    {
+      message: 'cloud.0f6c2a8e.m-1',
+      session: 'cloud.0f6c2a8e.s1',
+      from: 'harbor-refactor',
+      sender: { kind: 'session', session: 'cloud.0f6c2a8e.s2', name: 'harbor-refactor' },
+      answeredWith: [],
+    },
+    {
+      message: 'cloud.0f6c2a8e.m-1',
+      session: 'cloud.0f6c2a8e.s1',
+      from: 'Lantern Notes',
+      sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
+      answeredWith: [],
+    },
+  ]);
+});
+
 test('it rewrites the session inside a structured turn', () => {
   const result = buildGatewayResult(
     'message.get',

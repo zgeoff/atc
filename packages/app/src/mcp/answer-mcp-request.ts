@@ -22,9 +22,10 @@ interface MCPHTTPRequest {
  * token. Every request checks its token against the authorization server's
  * database, so a revoked grant loses access at once, and a token bound to any
  * other resource is refused. A tool call outside the token's scopes is a 403
- * that names the missing scope. A message the client sends is always from the
- * client's own name, and every request acts as the client's id, so the
- * daemon limits it to the targets that principal may use.
+ * that names the missing scope. Every request acts as the client's id, so the
+ * daemon limits it to the targets that principal may use, and carries the
+ * client's name, which the daemon labels each message the client sends
+ * with.
  */
 export async function answerMCPRequest(
   ctx: HTTPServerContext,
@@ -70,9 +71,9 @@ export async function answerMCPRequest(
   }
 
   const outcome = await answerRPCRequest(message, {
-    caller: buildPrincipalCaller(ctx.caller, access.clientID),
+    caller: buildPrincipalCaller(ctx.caller, { id: access.clientID, name: access.clientName }),
     build: ctx.build,
-    toolContext: { callerSessionID: null, sender: { kind: 'fixed', name: access.clientName } },
+    toolContext: { callerSessionID: null },
     scopes: access.scopes,
   });
 

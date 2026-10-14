@@ -203,3 +203,54 @@ test('it prints no answer notice when the tap takes none', async () => {
   expect(printed).toStrictEqual([]);
   expect(bridge.requests.map((request) => request['op'])).toStrictEqual(['tap.open', 'note']);
 });
+
+test('it prints a message with the sender the daemon gave it', async () => {
+  const ctx = setupTest();
+
+  // The bridge sends the message once it answers the note the tap sends,
+  // and closes the inbox once the tap acks the message.
+  startStubSessionBridge(ctx.sock, (request) =>
+    request['op'] === 'note'
+      ? [
+          { id: request['id'], ok: true },
+          {
+            v: 4,
+            ev: 'InboxMessage',
+            s: 's1',
+            message: 'm-1',
+            from: 'harbor-refactor',
+            sender: { kind: 'session', session: 's2', name: 'harbor-refactor' },
+            text: 'rebase onto main',
+            sentAt: 5,
+          },
+        ]
+      : [{ id: request['id'], ok: true }, { ev: 'InboxClosed' }],
+  );
+
+  writeFileSync(
+    join(ctx.outbox, 'r1.json'),
+    JSON.stringify({ noteID: 'r1', payload: { kind: 'note', label: 'progress', text: 'hi' } }),
+  );
+
+  const printed: string[] = [];
+
+  await runBridgeTap(ctx.sock, ctx.outbox, {
+    writeStdout: (text) => {
+      printed.push(text);
+
+      return Promise.resolve();
+    },
+    printError: () => {},
+    exit: () => {},
+  });
+
+  expect(printed.map((line): unknown => JSON.parse(line))).toStrictEqual([
+    {
+      id: 'm-1',
+      from: 'harbor-refactor',
+      sender: { kind: 'session', session: 's2', name: 'harbor-refactor' },
+      text: 'rebase onto main',
+      sentAt: 5,
+    },
+  ]);
+});

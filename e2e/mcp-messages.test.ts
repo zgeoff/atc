@@ -49,7 +49,7 @@ test('it sends a message to a session that has not started', async () => {
   });
 });
 
-test('it reads a sent message back through a tool call', async () => {
+test("it reads a message from the owner's atc mcp back as from the owner, whatever from the call gives", async () => {
   const ctx = await setupTest();
 
   writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
@@ -59,7 +59,7 @@ test('it reads a sent message back through a tool call', async () => {
   const sent = await ctx.mcp.sendToolCall('atc_message_send', {
     session,
     text: 'hello',
-    from: 'tester',
+    from: 'impostor',
   });
 
   const message = sent.structured?.['message'];
@@ -71,12 +71,41 @@ test('it reads a sent message back through a tool call', async () => {
   expect(got.structured).toStrictEqual({
     message,
     session,
-    from: 'tester',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'queued',
     sentAt: expect.toBeNumber(),
     turn: null,
     answeredWith: [],
+  });
+});
+
+test('it reads a message from a session through its atc mcp back as from that session and its current name, whatever from the call gives', async () => {
+  const ctx = await setupTest();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  const target = await ctx.mcp.spawnSession({ cwd: ctx.home });
+  const sender = await ctx.mcp.spawnSession({ cwd: ctx.home });
+
+  await ctx.mcp.sendToolCall('atc_session_update', { session: sender, name: 'harbor-refactor' });
+
+  const inside = await startMCPStdio({ home: ctx.home, callerSessionID: sender });
+
+  const sent = await inside.sendToolCall('atc_message_send', {
+    session: target,
+    text: 'hello',
+    from: 'impostor',
+  });
+
+  const got = await ctx.mcp.sendToolCall('atc_message_get', {
+    message: sent.structured?.['message'],
+  });
+
+  expect(got.structured).toMatchObject({
+    from: 'harbor-refactor',
+    sender: { kind: 'session', session: sender, name: 'harbor-refactor' },
   });
 });
 
@@ -127,7 +156,8 @@ test('it answers a message read with the unanswered message once its wait ends',
   expect(got.structured).toStrictEqual({
     message,
     session,
-    from: 'tester',
+    from: 'owner',
+    sender: { kind: 'owner', name: 'owner' },
     text: 'hello',
     status: 'queued',
     sentAt: expect.toBeNumber(),

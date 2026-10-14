@@ -176,6 +176,13 @@ interface MessagesTable {
   atc_id: string;
   agent_session_id: string | null;
   sender: string;
+
+  // The kind of caller that sent the message, connector, session or owner,
+  // and the connector's client id or the session's atc id; null on a row
+  // written before the daemon typed its senders, and the id null for the
+  // owner.
+  sender_kind: string | null;
+  sender_id: string | null;
   text: string;
   status: MessageStatus;
   sent_at: number;
@@ -642,6 +649,12 @@ const MIGRATIONS: Record<string, Migration> = {
         .on('messages')
         .columns(['sender_session', 'notice_delivered_at'])
         .execute();
+    },
+  },
+  '033_add_messages_sender_kind': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('messages').addColumn('sender_kind', 'text').execute();
+      await db.schema.alterTable('messages').addColumn('sender_id', 'text').execute();
     },
   },
 };

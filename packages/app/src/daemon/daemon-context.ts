@@ -22,6 +22,7 @@ import type { NoteView } from './build-note-view';
 import type { TargetEntry } from './build-target-list';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TranscriptPage, TranscriptPosition } from './load-transcript-page';
+import type { MessageCaller } from './message-caller';
 import type { AnswerResult } from './permission-registry';
 import type { ScreenText } from './screen-model';
 import type { SessionChanges } from './session-changes';
@@ -370,13 +371,14 @@ export interface DaemonContext {
   // Answers with the `session.message` ok payload, which a keyed retry
   // replays with the message's current status, or with the refusal. Under
   // an access, a session whose tree leaves it before the write refuses as
-  // 'missing'. The sender session is the session the caller runs inside,
-  // as its connection's handshake holds it, never the free-text `from`; it
-  // takes the message's answer notice when it takes messages and, under an
+  // 'missing'. The caller is who the connection and request show sent it,
+  // which the message's sender is built from. The sender session is the
+  // session the caller runs inside, as its connection holds it; it takes
+  // the message's answer notice when it takes messages and, under an
   // access, its tree is in reach.
   readonly writeSessionMessage: (
     sessionID: SessionID,
-    from: string,
+    caller: MessageCaller,
     text: string,
     keyed: KeyedRequest | null,
     access: TargetAccess | null,

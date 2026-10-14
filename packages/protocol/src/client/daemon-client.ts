@@ -92,13 +92,15 @@ export class DaemonClient implements DaemonChannel {
   }
 
   // A request with a principal acts as that principal, within what the
-  // connection may reach. A request the full outbound queue refuses never
-  // reaches the wire, so it rejects at once and the connection stays open
-  // for the requests already queued.
+  // connection may reach, and a name given beside it goes out as `asName`.
+  // A request the full outbound queue refuses never reaches the wire, so it
+  // rejects at once and the connection stays open for the requests already
+  // queued.
   sendRequest(
     m: string,
     p?: Readonly<Record<string, unknown>>,
     as?: string,
+    asName?: string,
   ): Promise<Readonly<Record<string, unknown>>> {
     if (this.closedReason !== null) {
       return Promise.reject(new DaemonError('internal', this.closedReason));
@@ -118,6 +120,7 @@ export class DaemonClient implements DaemonChannel {
           m,
           ...(p === undefined ? {} : { p }),
           ...(as === undefined ? {} : { as }),
+          ...(as === undefined || asName === undefined ? {} : { asName }),
         }),
       );
 

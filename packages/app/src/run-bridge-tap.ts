@@ -1,14 +1,23 @@
 import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/message-sender';
 import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
 import type { BridgeSocket } from '@atc/protocol/open-bridge-socket';
 import { z } from 'zod';
+import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
   ev: z.literal('InboxMessage'),
   message: z.string(),
   from: z.string(),
+
+  // A sender this build cannot read is left out, and the message still
+  // goes out with its sender's name.
+  sender: z.preprocess(
+    (v) => (MESSAGE_SENDER_SCHEMA.safeParse(v).success ? v : undefined),
+    MESSAGE_SENDER_SCHEMA.optional(),
+  ),
   text: z.string(),
   sentAt: z.number(),
 });
@@ -211,11 +220,12 @@ async function runTapConnection(
 
     const message = msg.data;
 
-    schedulePrint(
-      `message:${message.message}`,
-      `${JSON.stringify({ id: message.message, from: message.from, text: message.text, sentAt: message.sentAt })}\n`,
-      { v: 1, id: `ack:${message.message}`, op: 'tap.ack', message: message.message },
-    );
+    schedulePrint(`message:${message.message}`, renderMessageLine(message), {
+      v: 1,
+      id: `ack:${message.message}`,
+      op: 'tap.ack',
+      message: message.message,
+    });
   };
 
   try {

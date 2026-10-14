@@ -33,11 +33,7 @@ export async function runMCPServer(
   // The server inherits the calling session's id from its environment, so a
   // spawn from inside a session nests under it by default.
   const callerSessionID = readSessionEnv(process.env).sessionID ?? null;
-
-  const toolContext: ToolContext = {
-    callerSessionID,
-    sender: { kind: 'default', name: callerSessionID ?? 'mcp' },
-  };
+  const toolContext: ToolContext = { callerSessionID };
 
   const decoder = new LineDecoder();
 

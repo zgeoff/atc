@@ -12,6 +12,10 @@ import type { StateStore } from '@atc/store/state-store';
 export interface KeyedRequest {
   readonly key: string;
   readonly payloadHash: string;
+
+  // The hashes the same payload had under an older daemon, which a held key
+  // matches as it matches the current one; never stored.
+  readonly legacyPayloadHashes?: readonly string[];
   readonly principal?: string;
   readonly replayOnly?: boolean;
 }
@@ -204,7 +208,11 @@ export class IdempotencyLedger {
 }
 
 function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T | Promise<T> {
-  if (held.payloadHash !== call.keyed.payloadHash) {
+  const matches =
+    held.payloadHash === call.keyed.payloadHash ||
+    (call.keyed.legacyPayloadHashes ?? []).includes(held.payloadHash);
+
+  if (!matches) {
     throw new DaemonError(
       'idempotency_conflict',
       `idempotency key '${held.key}' was first used with a different ${held.operation} payload`,

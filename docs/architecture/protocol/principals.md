@@ -22,6 +22,27 @@ full reach.
 A daemon that predates principals ignores both fields, so a client that acts for a principal checks
 the daemon's features and sends such a daemon nothing.
 
+## Who a caller is
+
+The daemon tells three callers apart, and labels each message with the one that sent it
+([messages](./messages.md#who-a-message-is-from)):
+
+- A connector is a principal: an OAuth client that atc-gateway or `atc mcp --http` vouches for. A
+  connector is never an atc session.
+- A session is the owner plus a session binding. On the local socket the kernel's answer for the
+  connecting process sets the binding, else the session the handshake gives
+  ([the protocol](./protocol.md)).
+- The owner is a caller on the local socket with neither a principal nor a session binding.
+
+A request that acts as a principal carries the principal's name in `asName`, beside `as`, and the
+daemon trusts the name on the same basis as `as`: the TCP listener's token, or the owner's local
+socket. A connection whose handshake gives a principal has no name for it, so its messages carry the
+principal for a name. The kernel's session binding wins over `as`, because a process inside a
+session that sends `as` and a name would otherwise label its message as any connector. An `asName`
+without `as`, or one that is not a non-empty string, makes the line malformed. A client that sends
+`asName` checks first that the daemon announces typed senders, because a daemon from before them
+labels a message with the free text its request gives.
+
 ## Reach
 
 Each grant matches a target's name and its identity together, so a target whose config changes

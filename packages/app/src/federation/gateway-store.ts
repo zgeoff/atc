@@ -100,10 +100,13 @@ export class GatewayStore {
    * an earlier request made, whose daemon the request must go to. Throws
    * `idempotency_conflict` when the key's binding holds another payload, so
    * a reused key never reaches a daemon that may have dropped it already.
+   * A binding an older gateway made holds the hash the same payload had
+   * there, which matches when it is one of `legacyPayloadHashes`.
    */
   claimBinding(
     binding: Omit<KeyBinding, 'outcome' | 'outcomeAt' | 'sentAt' | 'effectRef'>,
     now: number,
+    legacyPayloadHashes: readonly string[] = [],
   ): KeyBinding {
     this.db
       .query(
@@ -130,7 +133,10 @@ export class GatewayStore {
       throw new Error('a claimed key binding is missing');
     }
 
-    if (held.payloadHash !== binding.payloadHash) {
+    if (
+      held.payloadHash !== binding.payloadHash &&
+      !legacyPayloadHashes.includes(held.payloadHash)
+    ) {
       throw new DaemonError(
         'idempotency_conflict',
         `idempotency key '${binding.key}' was first used with a different ${binding.operation} payload`,
