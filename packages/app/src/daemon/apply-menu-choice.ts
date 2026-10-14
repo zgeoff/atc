@@ -96,7 +96,7 @@ export async function applyMenuChoice(
   const menu = await requireMatchingMenu(terminal, choice);
 
   if ('key' in choice) {
-    terminal.write(KEYS.escape);
+    sendKey(terminal, KEYS.escape);
 
     return { pressed: 'escape', menu: await waitForSettledMenu(terminal, menu, waits) };
   }
@@ -115,9 +115,19 @@ export async function applyMenuChoice(
     );
   }
 
-  terminal.write(KEYS.enter);
+  sendKey(terminal, KEYS.enter);
 
   return { pressed: 'enter', menu: await waitForSettledMenu(terminal, menu, waits) };
+}
+
+// A session that exits keeps its last screen, so a menu read can still
+// match after its agent is gone; each key checks the PTY first.
+function sendKey(terminal: MenuTerminal, key: string): void {
+  if (!terminal.isLive()) {
+    throw new DaemonError('session_dead', 'the session has no live process, so nothing was picked');
+  }
+
+  terminal.write(key);
 }
 
 // The menu the screen shows, when its token is the choice's and, for an
@@ -180,13 +190,13 @@ async function runCursorWalk(
   let at = getHighlighted(menu);
 
   for (let steps = 0; at !== option; steps++) {
-    if (steps > menu.options.length * 2 || !terminal.isLive()) {
+    if (steps > menu.options.length * 2) {
       throw new DaemonError('menu_busy', `the cursor did not reach option ${option}`, { menu });
     }
 
     const key = at < option ? KEYS.down : KEYS.up;
 
-    terminal.write(key);
+    sendKey(terminal, key);
 
     const moved = await waitForMove(terminal, menu, at, waits);
 

@@ -205,3 +205,27 @@ test('it shows the second menu once the switch file appears', async () => {
     expect(menu.output.text).toInclude('❯ Circle');
   });
 });
+
+test('it exits without printing once the exit file appears', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [{ kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal'] }],
+    exitFile: join(ctx.dir, 'exit'),
+  });
+
+  const exited = new Promise<number>((resolve) => {
+    menu.pty.onExit((event) => {
+      resolve(event.exitCode);
+    });
+  });
+
+  menu.output.text = '';
+
+  writeFileSync(join(ctx.dir, 'exit'), '');
+
+  const exitCode = await exited;
+
+  expect(exitCode).toBe(0);
+  expect(menu.output.text).toBe('');
+});

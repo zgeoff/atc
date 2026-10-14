@@ -387,6 +387,47 @@ test('it waits out the hold of a menu that has just opened before it picks', asy
   expect(ctx.readLog()).toStrictEqual([{ key: 'down' }, { key: 'enter' }, { picked: 'Yes' }]);
 });
 
+test('it refuses a choice of the option under the cursor once the session exits during the quiet wait', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [{ kind: 'plain', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] }],
+    exitFile: join(ctx.daemon.dir, 'exit'),
+  });
+
+  const chosen = ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 1,
+    label: 'No, exit',
+  });
+
+  writeFileSync(join(ctx.daemon.dir, 'exit'), '');
+
+  expect(chosen).rejects.toMatchObject({ code: 'session_dead' });
+  expect(ctx.readLog()).toStrictEqual([]);
+});
+
+test('it refuses Escape once the session exits during the quiet wait', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [{ kind: 'plain', text: ['Trust this folder?'], options: ['No, exit', 'Yes'] }],
+    exitFile: join(ctx.daemon.dir, 'exit'),
+  });
+
+  const chosen = ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    key: 'escape',
+  });
+
+  writeFileSync(join(ctx.daemon.dir, 'exit'), '');
+
+  expect(chosen).rejects.toMatchObject({ code: 'session_dead' });
+  expect(ctx.readLog()).toStrictEqual([]);
+});
+
 test('it refuses a menu read for an agent whose adapter reads no menus', async () => {
   const ctx = await setupTest();
 

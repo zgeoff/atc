@@ -21,7 +21,8 @@ type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
 
 /**
  * What the stand-in runs: its menus in order, the file whose arrival moves
- * it from the first menu to the second, and the hold of its first menu, as
+ * it from the first menu to the second, the file whose arrival makes it
+ * exit without printing anything, and the hold of its first menu, as
  * Claude Code holds a dialog that has just opened. During the hold the
  * arrows move the cursor, while Enter and Escape do nothing and restart the
  * hold. When the hold ends, the cursor goes back to where it started.
@@ -29,6 +30,7 @@ type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
 const STUB_MENU_SPEC_SCHEMA = z.object({
   menus: z.array(STUB_MENU_SCHEMA),
   switchFile: z.string().optional(),
+  exitFile: z.string().optional(),
   holdMs: z.number().optional(),
 });
 
@@ -152,6 +154,16 @@ function main() {
       }
     }
   }, 20);
+
+  const exitFile = spec.exitFile;
+
+  if (exitFile !== undefined) {
+    setInterval(() => {
+      if (existsSync(exitFile)) {
+        process.exit(0);
+      }
+    }, 20);
+  }
 
   const switchFile = spec.switchFile;
 
