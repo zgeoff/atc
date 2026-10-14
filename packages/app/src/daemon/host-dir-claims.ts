@@ -25,6 +25,11 @@ export interface WorkspaceReservation {
 // given.
 export const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
 
+// Resolves a directory as the script above does, but fails when any part
+// of it that is not an existing directory is a symlink, such as one whose
+// target was removed, since the directory it stands for could lie anywhere.
+export const RESOLVE_UNLINKED_DIR_SCRIPT = `p=$1; while [ ! -d "$p" ]; do [ ! -L "$p" ] || exit 6; p=\${p%/*}; [ -n "$p" ] || p=/; done; ${RESOLVE_DIR_SCRIPT}`;
+
 // Removes a directory only while it still resolves to itself: it enters
 // the directory, compares where it landed with the path it was given, and
 // removes the contents from inside it, so no symlink changed on the way is
@@ -420,7 +425,8 @@ export class HostDirClaims {
   // stand for, or null when any of them may lie anywhere. A relative
   // directory that cannot be entered, such as one removed inside the guest,
   // is joined to the host's home and resolved through its nearest existing
-  // directory, and every missing part lies beneath that one. An absolute
+  // directory, and every missing part lies beneath that one unless a
+  // missing part is a symlink, which keeps the entry unknown. An absolute
   // directory was resolved that way already, and the host follows a `..`
   // step through symlinks rather than lexically, so either stays unknown.
   private async resolveFromHome(
@@ -446,7 +452,12 @@ export class HostDirClaims {
       unresolved.map(async ([id, cwd]) => {
         const absolute = posix.join(home, cwd);
 
-        const physical = await this.resolveHostDir(provider, hostKey, absolute).catch(() => null);
+        const physical = await this.resolveHostDir(
+          provider,
+          hostKey,
+          absolute,
+          RESOLVE_UNLINKED_DIR_SCRIPT,
+        ).catch(() => null);
 
         return physical === null
           ? null
@@ -463,16 +474,18 @@ export class HostDirClaims {
   // A directory on a host with every symlink in it resolved: an absolute
   // one through its nearest existing directory, and a relative one as a
   // harness started in it sees it, since impd resolves both alike. A null
-  // host resolves it on the daemon's own machine.
+  // host resolves it on the daemon's own machine. A caller may pass a
+  // stricter script that prints the same form.
   async resolveHostDir(
     provider: ExecutionProvider,
     hostKey: SessionID | null,
     dir: string,
+    script: string = RESOLVE_DIR_SCRIPT,
   ): Promise<string> {
     const absolute = posix.isAbsolute(dir);
 
     const result = await provider.runCommand({
-      argv: ['sh', '-c', RESOLVE_DIR_SCRIPT, 'sh', absolute ? posix.normalize(dir) : '.'],
+      argv: ['sh', '-c', script, 'sh', absolute ? posix.normalize(dir) : '.'],
       cwd: absolute ? '/' : dir,
       ...(hostKey === null ? {} : { host: hostKey }),
     });
