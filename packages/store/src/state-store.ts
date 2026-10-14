@@ -599,6 +599,37 @@ export class StateStore {
     return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
   }
 
+  // Drops each trail row recorded before the given time in epoch
+  // milliseconds, and each row the trail reads leave out (a heartbeat or an
+  // unclassified hook event) at any age. The newest row under each atc id
+  // and under each agent session id stays, so a session's last activity time
+  // and its place in the restore order survive; past the given time it stays
+  // only while a fleet row holds either id. Row ids are never reused, so a
+  // cursor past a dropped row still reads every later row.
+  async removeExpiredEvents(before: number): Promise<void> {
+    const cutoff = new Date(before).toISOString();
+
+    await this.db
+      .deleteFrom('events')
+      .where(
+        sql<boolean>`(ts < ${cutoff} OR NOT (${TRAIL_FILTER})) AND (
+          (ts < ${cutoff} AND NOT EXISTS (
+            SELECT 1 FROM fleet
+            WHERE fleet.session_id = events.atc_id
+              OR (events.session_id IS NOT NULL AND fleet.agent_session_id = events.session_id)
+          ))
+          OR (
+            ts < (SELECT MAX(newer.ts) FROM events AS newer WHERE newer.atc_id = events.atc_id)
+            AND (
+              events.session_id IS NULL
+              OR ts < (SELECT MAX(newer.ts) FROM events AS newer WHERE newer.session_id = events.session_id)
+            )
+          )
+        )`,
+      )
+      .execute();
+  }
+
   async recordSpawnDir(cwd: string, grant: SpawnTarget, at: number): Promise<void> {
     await this.db
       .insertInto('spawn_history')

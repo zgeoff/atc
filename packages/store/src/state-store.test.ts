@@ -1636,6 +1636,297 @@ test('it serves the last activity lookup from an index on each id', async () => 
   expect(plan).toInclude('USING INDEX events_session_id_ts');
 });
 
+test('it removes trail rows recorded before the cutoff', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s1'), agentSessionID: toAgentSessionID('c1') }),
+  ]);
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: { session_id: 'c1' } },
+    { kind: 'started' },
+    Date.parse('2026-01-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done' },
+    Date.parse('2026-02-10T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query<{ ts: string; kind: string }, []>('SELECT ts, kind FROM events').all();
+
+  expect(rows).toStrictEqual([{ ts: '2026-02-10T00:00:00.000Z', kind: 'turn-done' }]);
+});
+
+test('it keeps the newest row of a fleet session recorded before the cutoff', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s1'), agentSessionID: toAgentSessionID('c1') }),
+  ]);
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: { session_id: 'c1' } },
+    { kind: 'started' },
+    Date.parse('2026-01-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done' },
+    Date.parse('2026-01-02T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query<{ ts: string; kind: string }, []>('SELECT ts, kind FROM events').all();
+
+  expect(rows).toStrictEqual([{ ts: '2026-01-02T00:00:00.000Z', kind: 'turn-done' }]);
+});
+
+test('it keeps the newest row under an agent session id that an earlier atc id recorded', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-new'),
+      agentSessionID: toAgentSessionID('c1'),
+    }),
+  ]);
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s-old'), event: 'SessionStart', payload: { session_id: 'c1' } },
+    { kind: 'started' },
+    Date.parse('2026-01-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s-old'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done' },
+    Date.parse('2026-01-02T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query<{ atc_id: string; ts: string }, []>('SELECT atc_id, ts FROM events').all();
+
+  expect(rows).toStrictEqual([{ atc_id: 's-old', ts: '2026-01-02T00:00:00.000Z' }]);
+});
+
+test('it removes the newest row recorded before the cutoff of a session no fleet row holds', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s-gone'), event: 'Stop', payload: { session_id: 'c-gone' } },
+    { kind: 'turn-done' },
+    Date.parse('2026-01-02T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query<{ id: number }, []>('SELECT id FROM events').all();
+
+  expect(rows).toStrictEqual([]);
+});
+
+test('it removes heartbeats and unclassified events after the cutoff except the newest row', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started' },
+    Date.parse('2026-02-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Statusline', payload: {} },
+    { kind: 'heartbeat' },
+    Date.parse('2026-02-02T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Other', payload: {} },
+    null,
+    Date.parse('2026-02-03T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Statusline', payload: {} },
+    { kind: 'heartbeat' },
+    Date.parse('2026-02-04T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query<{ ts: string; kind: string }, []>('SELECT ts, kind FROM events').all();
+
+  expect(rows).toStrictEqual([
+    { ts: '2026-02-01T00:00:00.000Z', kind: 'started' },
+    { ts: '2026-02-04T00:00:00.000Z', kind: 'heartbeat' },
+  ]);
+});
+
+test('it never removes a trail row recorded after the cutoff', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: {} },
+    { kind: 'started' },
+    Date.parse('2026-02-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s2'), event: 'Notification', payload: {} },
+    { kind: 'needs-input', detail: 'approve the migration' },
+    Date.parse('2026-02-02T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: {} },
+    { kind: 'turn-done' },
+    Date.parse('2026-02-03T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const db = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db
+    .query<{ atc_id: string; kind: string }, []>('SELECT atc_id, kind FROM events')
+    .all();
+
+  expect(rows).toStrictEqual([
+    { atc_id: 's1', kind: 'started' },
+    { atc_id: 's2', kind: 'needs-input' },
+    { atc_id: 's1', kind: 'turn-done' },
+  ]);
+});
+
+test("it loads a session's last activity time unchanged after a prune", async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s1'), agentSessionID: toAgentSessionID('c1') }),
+  ]);
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: { session_id: 'c1' } },
+    { kind: 'started' },
+    Date.parse('2026-01-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Statusline', payload: { session_id: 'c1' } },
+    { kind: 'heartbeat' },
+    Date.parse('2026-01-05T00:00:00.000Z'),
+  );
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const at = await ctx.store.loadLastActivityAt(toSessionID('s1'), toAgentSessionID('c1'));
+
+  expect(at).toBe(Date.parse('2026-01-05T00:00:00.000Z'));
+});
+
+test('it collects the rows after a cursor that a prune keeps', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s1'), agentSessionID: toAgentSessionID('c1') }),
+  ]);
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: { session_id: 'c1' } },
+    { kind: 'started' },
+    Date.parse('2026-01-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done', detail: 'old turn' },
+    Date.parse('2026-01-02T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done', detail: 'new turn' },
+    Date.parse('2026-02-10T00:00:00.000Z'),
+  );
+
+  const [latest] = await ctx.store.collectLatestEvents(1);
+  const [cursor] = await ctx.store.collectEventsAfter(0, 1);
+
+  invariant(latest !== undefined && cursor !== undefined, 'expected events');
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const after = await ctx.store.collectEventsAfter(cursor.id, 10);
+
+  expect(after).toStrictEqual([
+    {
+      id: latest.id,
+      at: Date.parse('2026-02-10T00:00:00.000Z'),
+      atcID: toSessionID('s1'),
+      agentSessionID: toAgentSessionID('c1'),
+      kind: 'turn-done',
+      detail: 'new turn',
+    },
+  ]);
+});
+
+test('it finds the newest row of each id from an index when it removes expired events', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.removeExpiredEvents(Date.parse('2026-01-31T00:00:00.000Z'));
+
+  const query = ctx.queries.at(-1);
+
+  invariant(query !== undefined, 'the store ran no query');
+
+  const plan = readQueryPlan(ctx.dbPath, query);
+
+  expect(plan).toInclude('USING COVERING INDEX events_atc_id_ts');
+  expect(plan).toInclude('USING COVERING INDEX events_session_id_ts');
+});
+
 test('it lists a queued message as pending for the session it was sent to', async () => {
   const ctx = await setupTest();
 

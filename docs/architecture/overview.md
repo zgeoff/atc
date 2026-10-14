@@ -82,8 +82,8 @@ connection that orders every query ([fleet and restore](./daemon/fleet-and-resto
 
 - **The fleet** holds one row per session the daemon can restore: its ids, agent, target, directory,
   spawn prompt, model and latest result.
-- **The event trail** holds every hook event, message status change and note, in order, for cursor
-  reads ([events](./protocol/events.md)).
+- **The event trail** holds the recent hook events, message status changes and notes, in order, for
+  cursor reads ([events](./protocol/events.md)).
 - **The inbox** holds each message sent to a session and its status
   ([messages](./protocol/messages.md)).
 - **Idempotency keys** hold what each keyed spawn or message did
