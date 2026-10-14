@@ -7,6 +7,7 @@ import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-
 import { buildStubLog } from '@atc/test-utils/build-stub-log';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { HostDirClaims } from './host-dir-claims';
@@ -167,9 +168,15 @@ test('it rejects and keeps the rollback unsettled when the killed harness never 
     'session s-stuck did not exit after its kill',
   );
 
+  // The settlement check runs once the rollback has ended, so it reads the
+  // recorded kill rather than the rollback still running.
+  await waitFor(() => {
+    expect(ctx.rollback.rollingBack.has(toSessionID('s-stuck'))).toBeFalse();
+  });
+
   const settled = await ctx.rollback.isRollbackSettled(toSessionID('s-stuck'));
 
-  expect(ctx.rollback.rollingBack.has(toSessionID('s-stuck'))).toBeFalse();
+  expect(ctx.rollback.unconfirmedKills.has(toSessionID('s-stuck'))).toBeTrue();
   expect(settled).toBeFalse();
 });
 
