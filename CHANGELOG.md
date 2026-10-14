@@ -1,5 +1,33 @@
 # Changelog
 
+## [4.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.6.0...@zgeoff/atc@4.7.0) (2026-10-14)
+
+
+### Features
+
+* **geo-179:** place an imp session's record in impd's read-only files ([#582](https://github.com/zgeoff/atc/issues/582)) ([137f523](https://github.com/zgeoff/atc/commit/137f5236236f175aab9cc9009aad885dd8456af3))
+* **geo-208:** show a cached repository list at once in the picker ([#590](https://github.com/zgeoff/atc/issues/590)) ([9d38d65](https://github.com/zgeoff/atc/commit/9d38d653debba20593499d9e2265103f43e0d23a))
+* **geo-427:** answer an agent's menu through atc_terminal_choose ([#591](https://github.com/zgeoff/atc/issues/591)) ([78f8d17](https://github.com/zgeoff/atc/commit/78f8d1713170b995cf0ea00b3bf64874571a142d))
+* **geo-855:** push message answers to the sending session ([#579](https://github.com/zgeoff/atc/issues/579)) ([a9b091a](https://github.com/zgeoff/atc/commit/a9b091afb8b7ef6205cb031a5b04a26191430870))
+
+
+### Bug Fixes
+
+* **geo-207:** let a session forget its own sub-sessions under its pin ([#585](https://github.com/zgeoff/atc/issues/585)) ([93d2a62](https://github.com/zgeoff/atc/commit/93d2a6281b01ec1cf4ac952b041f92edd5365e26))
+* **geo-292:** label each message sender by who called ([#584](https://github.com/zgeoff/atc/issues/584)) ([5123dbf](https://github.com/zgeoff/atc/commit/5123dbf80267c81cfe5c657557124f840ae74e48))
+* **geo-333:** drop the report compatibility paths ([#575](https://github.com/zgeoff/atc/issues/575)) ([c9af3e8](https://github.com/zgeoff/atc/commit/c9af3e8950028517c4bb43f7af1b6ae8cf927741))
+* **geo-346:** show a refused restore and add rebind and adopt paths ([#586](https://github.com/zgeoff/atc/issues/586)) ([b2d2599](https://github.com/zgeoff/atc/commit/b2d2599e4164396dea3e0a9b36c14753d985edd5))
+* **geo-485:** reject a request the full outbound queue refuses ([#583](https://github.com/zgeoff/atc/issues/583)) ([68b099b](https://github.com/zgeoff/atc/commit/68b099b1bca42341db418d513e021c366647ab1a))
+* **geo-486:** reconnect the stdio mcp server after a daemon restart ([#588](https://github.com/zgeoff/atc/issues/588)) ([88a61f9](https://github.com/zgeoff/atc/commit/88a61f93d6edb24950a6adf6543df4abee62aef7))
+* **geo-487:** prune the event trail on start and on a timer ([#592](https://github.com/zgeoff/atc/issues/592)) ([f085687](https://github.com/zgeoff/atc/commit/f085687a65f013d1877f1fe5bf1f0517f73fab97))
+* **geo-488:** write status.json through a temporary file and a rename ([#587](https://github.com/zgeoff/atc/issues/587)) ([ddfac8d](https://github.com/zgeoff/atc/commit/ddfac8d90ca142699ce6c486dd231a32b7c85212))
+* **geo-489:** prompt for a restart when a reconnect meets a mismatch ([#594](https://github.com/zgeoff/atc/issues/594)) ([7961ed3](https://github.com/zgeoff/atc/commit/7961ed3d4d6318609139b81efeb5bed5214c35ba))
+* **geo-490:** bind the daemon's unix sockets owner-only ([#581](https://github.com/zgeoff/atc/issues/581)) ([5503ed5](https://github.com/zgeoff/atc/commit/5503ed53f55fddee90aa97c2b8df93962d39a8ab))
+* **geo-562:** cap the automatic restore's boot wait by default ([#593](https://github.com/zgeoff/atc/issues/593)) ([ddebb2e](https://github.com/zgeoff/atc/commit/ddebb2e580121eb2166ab078107229c814c3fc97))
+* **geo-564:** bind a local caller's session from the kernel's peer pid ([#580](https://github.com/zgeoff/atc/issues/580)) ([c3a7c41](https://github.com/zgeoff/atc/commit/c3a7c412c29d2f241d30d1ec03003553b9749393))
+* **geo-875:** queue the answer notice in the settling statement ([#589](https://github.com/zgeoff/atc/issues/589)) ([532fa11](https://github.com/zgeoff/atc/commit/532fa1159ede4e74119dafd53e258c8e1b3a3187))
+* **geo-881:** add gateway id rules for session.adopt and auth.rebind ([#595](https://github.com/zgeoff/atc/issues/595)) ([996ffc1](https://github.com/zgeoff/atc/commit/996ffc15ce712660f815cd2e5e34d607441d6d15))
+
 ## [4.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.5.0...@zgeoff/atc@4.6.0) (2026-10-13)
 
 ### Features
