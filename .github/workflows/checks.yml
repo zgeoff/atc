@@ -116,7 +116,12 @@ jobs:
       - name: Install shellcheck
         run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
 
+      # the tests' temp files go on tmpfs: on the runner's disk, a writeback
+      # of the pages that checkout and install dirtied stalls every test that
+      # writes a file or fsyncs for seconds, past the test timeout
       - name: Test
+        env:
+          TMPDIR: /dev/shm
         run: bun run test --shard=${{ matrix.shard }}/2
 
   # the suite once more inside a home of canary files, failing when a test
@@ -142,5 +147,8 @@ jobs:
       - name: Install shellcheck
         run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
 
+      # on tmpfs for the same reason as the test job's suite
       - name: Test Isolation
+        env:
+          TMPDIR: /dev/shm
         run: bun run test:isolation
