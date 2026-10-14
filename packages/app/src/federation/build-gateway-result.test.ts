@@ -199,6 +199,16 @@ test('it passes the opaque fields of an answer unchanged', () => {
   ).toStrictEqual(answer);
 });
 
+test('it passes the revision of a session.auth.rebind answer unchanged', () => {
+  expect(
+    buildGatewayResult(
+      'session.auth.rebind',
+      { revision: 3 },
+      { name: 'cloud', incarnation: '0f6c2a8e' },
+    ),
+  ).toStrictEqual({ revision: 3 });
+});
+
 test('it refuses to pass on the answer of a method without id rules', () => {
   expect(() =>
     buildGatewayResult('fleet.list', { fleet: [] }, { name: 'cloud', incarnation: '0f6c2a8e' }),
