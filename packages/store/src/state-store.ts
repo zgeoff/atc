@@ -26,6 +26,7 @@ import type {
   Expression,
   ExpressionBuilder,
   LogEvent,
+  RawBuilder,
   SqlBool,
   Transaction,
 } from 'kysely';
@@ -757,7 +758,9 @@ export class StateStore {
 
   // Answers every given message the owner holds unanswered in one statement,
   // so a reader sees all of one turn's messages answered or none of them.
-  // Returns the messages it answered, oldest first.
+  // The same statement queues the answer notice of each message that has a
+  // sender session, so a stop after it never loses the notice. Returns the
+  // messages it answered, oldest first.
   async updateMessagesAnswered(
     ids: readonly MessageID[],
     owner: MessageOwner,
@@ -771,7 +774,13 @@ export class StateStore {
 
     const rows = await this.db
       .updateTable('messages')
-      .set({ status: 'answered', answered_at: at, answer, turn_id: turn })
+      .set({
+        status: 'answered',
+        answered_at: at,
+        answer,
+        turn_id: turn,
+        notice_queued_at: buildNoticeQueuedAt(at),
+      })
       .where('id', 'in', ids)
       .where('status', 'in', ['queued', 'delivered'])
       .where((eb) => buildOwnerFilter(eb, owner))
@@ -783,8 +792,9 @@ export class StateStore {
 
   // Marks every given message the owner holds unsettled as unanswered in one
   // statement, so a reader sees all of one turn's messages settled or none of
-  // them. A message already answered or unanswered is left as it is. Returns
-  // the messages it marked, oldest first.
+  // them. A message already answered or unanswered is left as it is. The
+  // same statement queues the answer notice of each message that has a
+  // sender session. Returns the messages it marked, oldest first.
   async updateMessagesUnanswered(
     ids: readonly MessageID[],
     owner: MessageOwner,
@@ -798,7 +808,13 @@ export class StateStore {
 
     const rows = await this.db
       .updateTable('messages')
-      .set({ status: 'unanswered', unanswered_at: at, unanswered_reason: reason, turn_id: turn })
+      .set({
+        status: 'unanswered',
+        unanswered_at: at,
+        unanswered_reason: reason,
+        turn_id: turn,
+        notice_queued_at: buildNoticeQueuedAt(at),
+      })
       .where('id', 'in', ids)
       .where('status', 'in', ['queued', 'delivered'])
       .where((eb) => buildOwnerFilter(eb, owner))
@@ -811,7 +827,8 @@ export class StateStore {
   // Marks every message the owner holds delivered as unanswered in one
   // statement, for a session whose process ended, so no turn is left to
   // settle them. A queued message stays queued for the session's next
-  // process. Returns the messages it marked, oldest first.
+  // process. The same statement queues the answer notice of each message
+  // that has a sender session. Returns the messages it marked, oldest first.
   async updateDeliveredMessagesUnanswered(
     owner: MessageOwner,
     reason: string,
@@ -819,31 +836,18 @@ export class StateStore {
   ): Promise<MessageRecord[]> {
     const rows = await this.db
       .updateTable('messages')
-      .set({ status: 'unanswered', unanswered_at: at, unanswered_reason: reason })
+      .set({
+        status: 'unanswered',
+        unanswered_at: at,
+        unanswered_reason: reason,
+        notice_queued_at: buildNoticeQueuedAt(at),
+      })
       .where('status', '=', 'delivered')
       .where((eb) => buildOwnerFilter(eb, owner))
       .returningAll()
       .execute();
 
     return rows.map((row) => toMessageRecord(row)).toSorted((a, b) => a.sentAt - b.sentAt);
-  }
-
-  // Queues the answer notice of a settled message that has a sender session,
-  // once: a message whose notice is already queued, or that has no sender
-  // session or no outcome yet, is left as it is. Returns the message when
-  // this call queued its notice, else null.
-  async updateNoticeQueued(id: MessageID, at: number): Promise<MessageRecord | null> {
-    const row = await this.db
-      .updateTable('messages')
-      .set({ notice_queued_at: at })
-      .where('id', '=', id)
-      .where('sender_session', 'is not', null)
-      .where('notice_queued_at', 'is', null)
-      .where('status', 'in', ['answered', 'unanswered'])
-      .returningAll()
-      .executeTakeFirst();
-
-    return row === undefined ? null : toMessageRecord(row);
   }
 
   // The answer notices queued for the sender session and not yet taken by
@@ -1714,6 +1718,13 @@ function buildOwnerFilter(
   return owner.agentSessionID === undefined
     ? byAtcID
     : eb.or([byAtcID, eb('agent_session_id', '=', owner.agentSessionID)]);
+}
+
+// The time a settling statement queues a message's answer notice at: the
+// settle time for a message that has a sender session, else none, since
+// no session waits on its outcome.
+function buildNoticeQueuedAt(at: number): RawBuilder<number | null> {
+  return sql<number | null>`case when ${sql.ref('sender_session')} is not null then ${at} end`;
 }
 
 function toIdempotencyRecord(row: Readonly<StateStoreSchema['idempotency']>): IdempotencyRecord {

@@ -1961,26 +1961,80 @@ test('it reads a message stored without a sender kind with its sender name alone
   });
 });
 
-test('it queues the answer notice of an answered message once', async () => {
+test('it queues the answer notice of a message in the statement that answers it', async () => {
   const ctx = await setupTest();
 
   const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
 
-  const first = await ctx.store.updateNoticeQueued(record.id, 4000);
-  const second = await ctx.store.updateNoticeQueued(record.id, 5000);
+  const answered = await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    'done',
+    3000,
+  );
 
-  expect(first).toStrictEqual({
-    ...record,
-    status: 'answered',
-    answeredAt: 3000,
-    answer: 'done',
-    noticeQueuedAt: 4000,
-  });
+  expect(answered).toStrictEqual([
+    {
+      ...record,
+      status: 'answered',
+      answeredAt: 3000,
+      answer: 'done',
+      noticeQueuedAt: 3000,
+    },
+  ]);
+});
 
-  expect(second).toBeNull();
+test('it queues the answer notice of a message in the statement that marks it unanswered', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
+
+  await ctx.store.writeMessage(record);
+
+  const unanswered = await ctx.store.updateMessagesUnanswered(
+    [record.id],
+    { atcID: record.atcID },
+    'interrupted',
+    3000,
+  );
+
+  expect(unanswered).toStrictEqual([
+    {
+      ...record,
+      status: 'unanswered',
+      unansweredAt: 3000,
+      unansweredReason: 'interrupted',
+      noticeQueuedAt: 3000,
+    },
+  ]);
+});
+
+test('it queues the answer notice of a delivered message in the statement that ends its session', async () => {
+  const ctx = await setupTest();
+
+  const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessageDelivered(record.id, { atcID: record.atcID }, 2000);
+
+  const unanswered = await ctx.store.updateDeliveredMessagesUnanswered(
+    { atcID: record.atcID },
+    'session_ended',
+    3000,
+  );
+
+  expect(unanswered).toStrictEqual([
+    {
+      ...record,
+      status: 'unanswered',
+      deliveredAt: 2000,
+      unansweredAt: 3000,
+      unansweredReason: 'session_ended',
+      noticeQueuedAt: 3000,
+    },
+  ]);
 });
 
 test('it queues no answer notice for a message without a sender session', async () => {
@@ -1989,23 +2043,71 @@ test('it queues no answer notice for a message without a sender session', async 
   const record = buildMockMessageRecord();
 
   await ctx.store.writeMessage(record);
-  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
 
-  const queued = await ctx.store.updateNoticeQueued(record.id, 4000);
+  const answered = await ctx.store.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    'done',
+    3000,
+  );
 
-  expect(queued).toBeNull();
+  expect(answered).toStrictEqual([
+    { ...record, status: 'answered', answeredAt: 3000, answer: 'done' },
+  ]);
 });
 
-test('it queues no answer notice for a message not yet settled', async () => {
+test('it keeps the answer notice of a message answered before a store reopen', async () => {
   const ctx = await setupTest();
 
-  const record = buildMockMessageRecord({ senderSession: toSessionID('sender') });
+  const sender = toSessionID('sender');
+  const record = buildMockMessageRecord({ senderSession: sender });
 
   await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+  await ctx.store.stop();
 
-  const queued = await ctx.store.updateNoticeQueued(record.id, 4000);
+  const second = await StateStore.open(ctx.dbPath);
 
-  expect(queued).toBeNull();
+  registerTestCleanup(() => second.stop());
+
+  const pending = await second.collectPendingNotices(sender);
+
+  expect(pending).toStrictEqual([
+    {
+      ...record,
+      status: 'answered',
+      answeredAt: 3000,
+      answer: 'done',
+      noticeQueuedAt: 3000,
+    },
+  ]);
+});
+
+test('it queues no second answer notice for a message answered again after a store reopen', async () => {
+  const ctx = await setupTest();
+
+  const sender = toSessionID('sender');
+  const record = buildMockMessageRecord({ senderSession: sender });
+
+  await ctx.store.writeMessage(record);
+  await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
+  await ctx.store.stop();
+
+  const second = await StateStore.open(ctx.dbPath);
+
+  registerTestCleanup(() => second.stop());
+
+  const again = await second.updateMessagesAnswered(
+    [record.id],
+    { atcID: record.atcID },
+    'done again',
+    4000,
+  );
+
+  const pending = await second.collectPendingNotices(sender);
+
+  expect(again).toStrictEqual([]);
+  expect(pending.map((x) => [x.id, x.noticeQueuedAt])).toStrictEqual([[record.id, 3000]]);
 });
 
 test('it lists the queued answer notices of a sender until its tap takes them', async () => {
@@ -2020,20 +2122,19 @@ test('it lists the queued answer notices of a sender until its tap takes them', 
     senderSession: toSessionID('other'),
   });
 
-  for (const record of [first, second, other]) {
-    await ctx.store.writeMessage(record);
+  await ctx.store.writeMessage(first);
+  await ctx.store.writeMessage(second);
+  await ctx.store.writeMessage(other);
 
-    await ctx.store.updateMessagesUnanswered(
-      [record.id],
-      { atcID: record.atcID },
-      'interrupted',
-      3000,
-    );
-  }
+  await ctx.store.updateMessagesUnanswered(
+    [second.id],
+    { atcID: second.atcID },
+    'interrupted',
+    4000,
+  );
 
-  await ctx.store.updateNoticeQueued(second.id, 4000);
-  await ctx.store.updateNoticeQueued(first.id, 5000);
-  await ctx.store.updateNoticeQueued(other.id, 5000);
+  await ctx.store.updateMessagesUnanswered([first.id], { atcID: first.atcID }, 'interrupted', 5000);
+  await ctx.store.updateMessagesUnanswered([other.id], { atcID: other.atcID }, 'interrupted', 5000);
 
   const pending = await ctx.store.collectPendingNotices(sender);
 
@@ -2056,7 +2157,6 @@ test('it refuses to deliver an answer notice twice or to another sender', async 
 
   await ctx.store.writeMessage(record);
   await ctx.store.updateMessagesAnswered([record.id], { atcID: record.atcID }, 'done', 3000);
-  await ctx.store.updateNoticeQueued(record.id, 4000);
 
   const byOther = await ctx.store.updateNoticeDelivered(record.id, toSessionID('other'), 5000);
   const first = await ctx.store.updateNoticeDelivered(record.id, sender, 5000);
