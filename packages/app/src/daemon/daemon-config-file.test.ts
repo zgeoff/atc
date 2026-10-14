@@ -15,8 +15,8 @@ import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
-import { buildStubTargets } from '../test-utils/build-stub-targets';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { buildStubTargets } from './testing/build-stub-targets';
 
 /**
  * The fixed parts of a daemon whose targets come from a config.json on disk

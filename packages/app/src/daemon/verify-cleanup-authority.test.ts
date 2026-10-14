@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubCredentialBroker } from '@atc/test-utils/build-stub-credential-broker';
+import { buildStubCredentialBroker } from './testing/build-stub-credential-broker';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
 function setupTest() {

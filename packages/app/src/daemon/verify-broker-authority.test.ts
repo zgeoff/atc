@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildStubCredentialBroker } from '@atc/test-utils/build-stub-credential-broker';
 import { BrokerAuthorityError } from './broker-authority-error';
+import { buildStubCredentialBroker } from './testing/build-stub-credential-broker';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
 test('it lets a scoped identity that may grant every bound secret activate the broker', async () => {

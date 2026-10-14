@@ -8,14 +8,14 @@ import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
 import type { HarnessStart, LaunchTicket } from '@atc/plugin-api/execution-provider';
 import { StateStore } from '@atc/store/state-store';
 import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
-import { buildStubCredentialBroker } from '@atc/test-utils/build-stub-credential-broker';
-import { buildStubPregrantedBrokerHost } from '@atc/test-utils/build-stub-pregranted-broker-host';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
+import { buildStubCredentialBroker } from './testing/build-stub-credential-broker';
+import { buildStubPregrantedBrokerHost } from './testing/build-stub-pregranted-broker-host';
 
 // A binder over a real state store, an imp provider's broker over a stub
 // imp port, which the test prepares as an operator prepares impd, and a
