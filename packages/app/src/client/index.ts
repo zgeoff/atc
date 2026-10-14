@@ -352,6 +352,11 @@ function openEject(sessionID: string) {
   renderEject();
 }
 
+// The restart prompt on screen while the TUI owns stdin, and the reader of
+// its key, which takes the next key in place of the current mode.
+let restartConsent: { readonly prompt: string; readonly answer: (key: string) => void } | null =
+  null;
+
 const picker = new SpawnPicker<MirrorSession>({
   sendRequest,
   ptyRows,
@@ -363,8 +368,12 @@ const picker = new SpawnPicker<MirrorSession>({
   toMirrorSession,
   upsertMirror,
   hasDaemonFeature,
+
+  // The restart prompt keeps the screen until it has its key.
   write: (chunk) => {
-    process.stdout.write(chunk);
+    if (restartConsent === null) {
+      process.stdout.write(chunk);
+    }
   },
   cwd: process.cwd(),
   home: resolveHomeDir(),
@@ -408,7 +417,7 @@ async function restoreFleet() {
   }
 }
 
-function quit(code = 0): never {
+function quit(code = 0, message?: string): never {
   detachFocused();
 
   client.onClose = () => {};
@@ -419,6 +428,10 @@ function quit(code = 0): never {
   try {
     process.stdin.setRawMode(false);
   } catch {}
+
+  if (message !== undefined) {
+    console.error(message);
+  }
 
   process.exit(code);
 }
@@ -883,6 +896,9 @@ let daemonWaiting = false;
 const reconnectDaemonOnce = makeSingleFlight(async () => {
   daemonWaiting = true;
 
+  // The reconnect leaves the picker, so no answer its flow still waits on
+  // draws it again.
+  picker.stopFlow();
   service.send({ type: 'OVERLAY' });
 
   scheduleStatus();
@@ -890,9 +906,18 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
   try {
     for (;;) {
       let next: DaemonBoot | null = null;
+      let restarted = false;
 
       try {
-        next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus, clock });
+        next = await bootDaemonClient({
+          onWaitForDaemon: scheduleStatus,
+          clock,
+          onProtocolMismatch: async (mismatch) => {
+            restarted = await waitForRestartConsent(mismatch, 'tui');
+
+            return restarted;
+          },
+        });
 
         client = next.client;
         daemonSocketPath = next.socketPath;
@@ -901,6 +926,10 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
         lastUsedAgent = next.lastUsedAgent;
         client.onEvent = applyDaemonEvent;
         client.onClose = handleDaemonClose;
+
+        if (restarted) {
+          await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
+        }
 
         await refreshMirror();
         await refreshAgents();
@@ -925,6 +954,12 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
+    // A daemon on another protocol that the user keeps in service cannot
+    // serve this client, so it leaves the way its first boot does.
+    if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
+      quit(1, message);
+    }
+
     console.error(message);
   } finally {
     daemonWaiting = false;
@@ -942,7 +977,7 @@ function handleDaemonClose() {
 const boot = await bootDaemonClient({
   clock,
   onProtocolMismatch: async (mismatch) => {
-    restartedOnBoot = await waitForRestartConsent(mismatch);
+    restartedOnBoot = await waitForRestartConsent(mismatch, 'boot');
 
     return restartedOnBoot;
   },
@@ -971,21 +1006,40 @@ await refreshAgents();
 /**
  * Asks on the terminal whether to restart a daemon that speaks another
  * protocol, reading a single key. Anything but `y` declines, and so does a
- * terminal that cannot answer.
+ * terminal that cannot answer. On the first boot the prompt goes to stderr
+ * and the key comes straight from stdin; once the TUI owns the screen and
+ * stdin, the prompt replaces the screen and the TUI's own reader passes
+ * the key on.
  */
-async function waitForRestartConsent(mismatch: ProtocolMismatch): Promise<boolean> {
+async function waitForRestartConsent(
+  mismatch: ProtocolMismatch,
+  phase: 'boot' | 'tui',
+): Promise<boolean> {
   if (!process.stdin.isTTY) {
     return false;
   }
 
-  process.stderr.write(
-    [
-      `atc: the daemon (pid ${mismatch.daemonPID}) speaks another protocol than this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}.`,
-      `The daemon answered: ${mismatch.daemonMessage}`,
-      'Restart it now? Every session it hosts ends, then the fleet is restored on the new daemon. [y/N] ',
-    ].join('\n'),
-  );
+  const lines = [
+    `atc: the daemon (pid ${mismatch.daemonPID}) speaks another protocol than this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}.`,
+    `The daemon answered: ${mismatch.daemonMessage}`,
+    'Restart it now? Every session it hosts ends, then the fleet is restored on the new daemon. [y/N] ',
+  ];
 
+  if (phase === 'tui') {
+    const prompt = lines.join('\r\n');
+
+    stdout.write(ansi.clear + prompt);
+
+    const key = await new Promise<string>((resolve) => {
+      restartConsent = { prompt, answer: resolve };
+    });
+
+    stdout.write(ansi.clear);
+
+    return key === 'y' || key === 'Y';
+  }
+
+  process.stderr.write(lines.join('\n'));
   process.stdin.setRawMode(true);
   process.stdin.resume();
 
@@ -1131,6 +1185,16 @@ process.stdin.resume();
 const stdinDecoder = new TextDecoder('utf-8');
 
 process.stdin.on('data', (buf: Buffer) => {
+  if (restartConsent !== null) {
+    const pending = restartConsent;
+
+    restartConsent = null;
+
+    pending.answer(buf.toString());
+
+    return;
+  }
+
   switch (service.getSnapshot().value) {
     case 'attached': {
       if (isLeaderKey(buf)) {
@@ -1203,6 +1267,14 @@ process.stdin.on('data', (buf: Buffer) => {
 });
 
 stdout.on('resize', () => {
+  // The restart prompt keeps the screen until it has its key, so a resize
+  // draws it again rather than the mode under it.
+  if (restartConsent !== null) {
+    stdout.write(ansi.clear + restartConsent.prompt);
+
+    return;
+  }
+
   const currentMode = service.getSnapshot().value;
 
   if (currentMode === 'attached' && focusedID !== null) {

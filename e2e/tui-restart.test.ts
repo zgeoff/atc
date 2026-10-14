@@ -1,13 +1,17 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { buildStubHeldZoxide } from '@atc/test-utils/build-stub-held-zoxide';
+import { createStubBin } from '@atc/test-utils/create-stub-bin';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
+import { waitFor } from '@atc/test-utils/wait-for';
 
 function setupTest() {
   return startTUIHarness();
@@ -74,6 +78,121 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   expect(legacy.signalCode).toBe('SIGTERM');
 });
 
+test('it restarts a daemon on another protocol that a reconnect meets after the user confirms', async () => {
+  const reconnect = await setupReconnectTest();
+
+  const ctx = reconnect.ctx;
+  const legacy = reconnect.legacy;
+
+  await ctx.waitFor('Restart it now?');
+
+  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+
+  ctx.reset();
+  ctx.write('y');
+
+  await legacy.exited;
+
+  await ctx.waitFor('idle');
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
+test('it draws the reconnect restart prompt again when the terminal resizes', async () => {
+  const reconnect = await setupReconnectTest();
+
+  const ctx = reconnect.ctx;
+  const legacy = reconnect.legacy;
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+  reconnect.pty.resize(100, 30);
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.write('y');
+
+  await legacy.exited;
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
+test('it keeps the reconnect restart prompt on screen when a directory listing answers late', async () => {
+  const ctx = setupTest();
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+  const socketPath = join(ctx.home, 'atc-daemon.sock');
+
+  mkdirSync(stateDir, { recursive: true });
+
+  // While the hold file exists, the client's own zoxide marks that it
+  // started and waits, so the picker's local directory listing answers
+  // only once the test removes the file.
+  createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
+  writeFileSync(join(ctx.home, 'zoxide-hold'), '');
+
+  // A daemon of an older build on this protocol offers no sources, so the
+  // picker lists directories on the client's host.
+  const older = await startStubDaemonProcess(socketPath, stateDir, 'current');
+
+  ctx.boot();
+
+  await ctx.waitFor('update ready');
+
+  ctx.write('n');
+
+  await ctx.waitFor('spawn: agent');
+
+  ctx.write(KEYS.enter);
+
+  await waitFor(() => {
+    expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
+  });
+
+  unlinkSync(socketPath);
+
+  const legacy = await startStubDaemonProcess(socketPath, stateDir);
+
+  older.kill('SIGTERM');
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+
+  const mark = ctx.countClientLogLines();
+
+  rmSync(join(ctx.home, 'zoxide-hold'));
+
+  await ctx.waitForClientLog('dropped local directory listing answer', mark);
+
+  expect(ctx.read()).not.toInclude('spawn:');
+
+  ctx.write('n');
+
+  const code = await ctx.waitForExit();
+
+  expect(code).toBe(1);
+  expect(legacy.exitCode).toBeNull();
+});
+
+test('it quits when the user keeps a daemon on another protocol that a reconnect meets', async () => {
+  const reconnect = await setupReconnectTest();
+
+  const ctx = reconnect.ctx;
+  const legacy = reconnect.legacy;
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+  ctx.write('n');
+
+  const code = await ctx.waitForExit();
+
+  expect(code).toBe(1);
+  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+  expect(legacy.exitCode).toBeNull();
+});
+
 test('it stops a daemon of an older build when the user asks for the update and boots its own build', async () => {
   const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
@@ -129,3 +248,83 @@ test('it stops a daemon of an older build when the user asks for the update and 
   expect(older.signalCode).toBe('SIGTERM');
   expect(screen.slice(screen.lastIndexOf('restarting daemon'))).not.toInclude('update ready');
 });
+
+/**
+ * Boots the client on a daemon of its own, then hands the socket path to a
+ * daemon on another protocol and kills the first daemon, so the client's
+ * reconnect reaches the other one. Returns the harness, that daemon's
+ * process, and the client's terminal.
+ */
+async function setupReconnectTest() {
+  const ctx = setupTest();
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+  const socketPath = join(ctx.home, 'atc-daemon.sock');
+  const pty = ctx.boot();
+
+  await ctx.waitFor('idle');
+
+  const first = findDaemonRecord(join(stateDir, 'daemon.json'));
+
+  if (first === null) {
+    throw new Error('the first daemon wrote no record');
+  }
+
+  // The first daemon keeps its listener and the client's connection after
+  // its socket file goes, so the other daemon can bind the path.
+  unlinkSync(socketPath);
+
+  const legacy = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      socketPath,
+      stateDir,
+    ],
+    { stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  registerTestCleanup(() => {
+    legacy.kill('SIGKILL');
+  });
+
+  const reader = legacy.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
+  ctx.reset();
+  process.kill(first.pid, 'SIGKILL');
+
+  return { ctx, legacy, pty };
+}
+
+/**
+ * Starts a stand-in daemon as its own process on the socket path, recorded
+ * in the state directory, and waits until it listens. It speaks another
+ * protocol, or this one as an older build when `build` is `current`. It is
+ * killed once the test finishes.
+ */
+async function startStubDaemonProcess(socketPath: string, stateDir: string, build?: 'current') {
+  const daemon = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      socketPath,
+      stateDir,
+      ...(build === undefined ? [] : [build]),
+    ],
+    { stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  registerTestCleanup(() => {
+    daemon.kill('SIGKILL');
+  });
+
+  const reader = daemon.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
+
+  return daemon;
+}
