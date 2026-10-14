@@ -390,7 +390,7 @@ test('it answers a tool list with an error when no daemon listens on the socket'
 
   expect(outcome).toStrictEqual({
     kind: 'reply',
-    body: { jsonrpc: '2.0', id: 7, error: { code: -32_603, message: expect.any(String) } },
+    body: { jsonrpc: '2.0', id: 7, error: { code: -32_603, message: expect.toBeString() } },
   });
 });
 
