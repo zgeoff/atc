@@ -26,14 +26,23 @@ for an attached client, not fleet state.
 The trail holds three groups of events, oldest first:
 
 - **Hook events**, as the adapter normalized them: a start, a submitted prompt, a pending input, a
-  finished turn and an end. Statusline heartbeats are stored for agent session id capture and left
-  out of every read.
+  finished turn and an end. Heartbeats and hook events the adapter leaves unclassified are stored
+  for the session's last activity time and left out of every read.
 - **Message status changes**: queued, delivered, answered and unanswered, each with its message id.
 - **Notes**, each with its label and its text up to a cap, kept once under the id the session helper
   gave it, so a resent note lands once.
 
 The daemon writes a message or note event to the trail before it broadcasts it, so a client that
-reads the trail when the broadcast arrives finds the event there. The trail is never pruned.
+reads the trail when the broadcast arrives finds the event there.
+
+The daemon prunes the trail when it starts and then on a timer, so `atc.db` stops growing on a
+daemon that runs for months. Each sweep drops every event older than the retention window, and every
+heartbeat or unclassified hook event at any age, because a reader needs only the newest of those.
+The sweep keeps the newest row under each atc session id and under each agent session id, so a
+session's last activity time and its place in the restore order survive. Past the retention window
+it keeps that row only while a fleet entry holds the session. The trail never reuses a row id, so a
+cursor that points at a dropped event still reads every later event, and a note read for a dropped
+note finds nothing.
 
 A caller reads the trail from a cursor, an opaque string it passes back and never builds. A read
 without a cursor returns the newest events. A read can hold open until an event arrives or a wait

@@ -231,6 +231,10 @@ export interface DaemonOptions {
   // against, in epoch milliseconds; the daemon's clock when unset.
   readonly forgetClock?: () => number;
 
+  // The clock the event trail's sweep is scheduled on; its cutoff still
+  // comes from the daemon's clock. The wall clock when unset.
+  readonly eventSweepClock?: Clock;
+
   // Called with a session's id when it reports its start and the daemon
   // leaves the last-used agent as it is, because no spawn is waiting on
   // that start.
@@ -341,6 +345,12 @@ const LOCAL_PRINCIPAL = 'local';
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const IDEMPOTENCY_SWEEP_MS = 60 * 60 * 1000;
 
+// A trail row is kept this long after it was recorded, and the sweep that
+// drops older ones, along with the rows the trail reads leave out, runs this
+// often.
+const EVENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const EVENT_SWEEP_MS = 60 * 60 * 1000;
+
 // How long a TCP handshake waits once its address has failed too often.
 const HANDSHAKE_FAILURE_DELAY_MS = 10_000;
 
@@ -424,6 +434,22 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   }, IDEMPOTENCY_SWEEP_MS);
 
   idempotencySweep.unref();
+
+  await tryRemoveExpiredEvents(store, clock);
+
+  // Each sweep schedules the next before it runs, so a failed sweep leaves
+  // the rows for the next one.
+  const eventSweepClock = opts.eventSweepClock ?? systemClock;
+  let stopEventSweep: (() => void) | null = null;
+
+  const scheduleEventSweep = () => {
+    stopEventSweep = eventSweepClock.schedule(() => {
+      scheduleEventSweep();
+      void tryRemoveExpiredEvents(store, clock);
+    }, EVENT_SWEEP_MS);
+  };
+
+  scheduleEventSweep();
 
   // With no configured targets the daemon serves the local one alone,
   // which needs no atc version since no atc runs inside it.
@@ -2557,6 +2583,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     released = true;
 
     clearInterval(idempotencySweep);
+    stopEventSweep?.();
     eventsServer?.stop();
     reporter.stop(true);
     mgr.detachAll();
@@ -2888,6 +2915,17 @@ function getDescriptor(mgr: SessionManager, id: SessionID): SessionDescriptor {
 async function tryRemoveExpiredIdempotencyKeys(store: StateStore, clock: Clock): Promise<boolean> {
   try {
     await store.removeExpiredIdempotencyKeys(clock.now() - IDEMPOTENCY_TTL_MS);
+  } catch {
+    return false;
+  }
+
+  return true;
+}
+
+// A sweep that fails leaves the rows for the next one.
+async function tryRemoveExpiredEvents(store: StateStore, clock: Clock): Promise<boolean> {
+  try {
+    await store.removeExpiredEvents(clock.now() - EVENT_TTL_MS);
   } catch {
     return false;
   }
