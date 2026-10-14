@@ -28,6 +28,13 @@ export interface FleetCaller {
 
 export interface ToolContext {
   readonly callerSessionID: string | null;
+
+  // Whether a send passes on the `from` its call gives. An older atc mcp
+  // hashed that `from` with a keyed message, so the daemon matches it to
+  // replay the message, and never labels the message with it. Only local
+  // stdio took a caller-given `from`, and a gateway hashes every param it
+  // forwards, so a remote caller never passes it on.
+  readonly passesLegacyFrom?: boolean;
 }
 
 /**

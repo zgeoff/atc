@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
+import { StateStore } from '@atc/store/state-store';
+import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
 import { waitFor } from '@atc/test-utils/wait-for';
 
@@ -107,6 +110,74 @@ test('it reads a message from a session through its atc mcp back as from that se
     from: 'harbor-refactor',
     sender: { kind: 'session', session: sender, name: 'harbor-refactor' },
   });
+});
+
+test('it replays a message key an older atc mcp stored with a given from, and labels each message by its caller', async () => {
+  const ctx = await setupTest();
+
+  writeFileSync(join(ctx.home, 'fake-claude-hold-start'), '');
+
+  const session = await ctx.mcp.spawnSession({ cwd: ctx.home });
+
+  const text = 'check the tide tables';
+
+  const first = await ctx.mcp.sendToolCall('atc_message_send', {
+    session,
+    text,
+    idempotencyKey: 'k-first',
+  });
+
+  const message = String(first.structured?.['message']);
+
+  // An older atc mcp sent the same message with from release-bot, and its
+  // daemon stored the SHA-256 of those params, keys sorted, without the key.
+  const seed = await StateStore.open(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+
+  const stopSeed = registerTestCleanup(() => seed.stop());
+  const id = { principal: 'local', operation: 'session.message', key: 'k-tide' };
+
+  await seed.claimIdempotencyKey({
+    ...id,
+    payloadHash: createHash('sha256')
+      .update(JSON.stringify({ from: 'release-bot', session, text }))
+      .digest('hex'),
+    effectRef: message,
+    at: Date.now(),
+  });
+
+  await seed.updateIdempotencyCompleted(
+    id,
+    JSON.stringify({ message, status: 'queued' }),
+    Date.now(),
+    null,
+  );
+
+  await stopSeed();
+
+  const retry = { session, text, from: 'release-bot', idempotencyKey: 'k-tide' };
+
+  const replayed = await ctx.mcp.sendToolCall('atc_message_send', retry);
+
+  const fresh = await ctx.mcp.sendToolCall('atc_message_send', {
+    ...retry,
+    idempotencyKey: 'k-fresh',
+  });
+
+  const senders = await Promise.all(
+    [message, fresh.structured?.['message']].map(async (sent) => {
+      const got = await ctx.mcp.sendToolCall('atc_message_get', { message: sent });
+
+      return [got.structured?.['from'], got.structured?.['sender']];
+    }),
+  );
+
+  expect(replayed.structured).toStrictEqual({ message, status: 'queued' });
+  expect(fresh.structured?.['message']).not.toBe(message);
+
+  expect(senders).toStrictEqual([
+    ['owner', { kind: 'owner', name: 'owner' }],
+    ['owner', { kind: 'owner', name: 'owner' }],
+  ]);
 });
 
 test('it holds a message read open while its wait runs', async () => {
