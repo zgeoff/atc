@@ -8,7 +8,7 @@ owner. `atc mcp --http` and atc-gateway act as the OAuth client that made each c
 ([MCP](../remote/mcp.md#remote-callers)).
 
 [The protocol](./protocol.md) covers the connection and its handshake, and the
-[configuration guide](../../guides/configuration.md#principals) covers setting the grants.
+[configuration guide](../../guides/configuration/principals.md) covers setting the grants.
 
 ## Acting as a principal
 

@@ -8,7 +8,7 @@ the session's target is refused instead of falling back to the daemon's machine.
 
 [The imp provider](./imp-provider.md) covers the one remote provider, [workspaces](./workspaces.md)
 covers building a session's working directory on its target, and the
-[configuration guide](../../guides/configuration.md#targets) covers setting targets.
+[configuration guide](../../guides/configuration/targets.md) covers setting targets.
 
 ## Providers and capabilities
 

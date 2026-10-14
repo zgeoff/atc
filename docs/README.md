@@ -11,8 +11,6 @@
   </p>
 </div>
 
----
-
 ## Architecture
 
 How atc is built: the parts, what each one owns, and what holds whatever a caller does.
@@ -80,8 +78,9 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 - [Installing atc](guides/install.md) — Homebrew, the install script and the environment atc takes
 - [Using atc](guides/using-atc.md) — spawning, the session list and its keys, Grok and Codex hooks,
   agents that drive agents, and restarting the daemon
-- [Configuration](guides/configuration.md) — every `config.json` field: agents, targets, gateways,
-  brokered credentials, principals and hooks
+- [Configuration](guides/configuration.md) — the `config.json` keys, with one guide per task:
+  workspaces, targets and imps, principals, agents and gateways, brokered credentials, subscriptions
+  on imps, and attention hooks
 - [Events](guides/events.md) — daemon hooks, `atc events` and the events socket
 - [Remote MCP](guides/remote-mcp.md) — serving a hosted assistant, adding and approving clients,
   grants, and the systemd units

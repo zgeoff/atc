@@ -65,7 +65,7 @@ as `_`, such as `ATC_GATEWAY_TOKEN_CLOUD`. A registry that cannot be read or par
 without its token, makes the gateway print each problem and exit 1.
 
 Give each daemon a `principals` entry for every OAuth client the gateway serves, with the targets
-that client may use ([configuration](./configuration.md#principals)).
+that client may use ([configuration](./configuration/principals.md)).
 
 ## Serving
 

@@ -74,7 +74,7 @@ atc grok-hooks > ~/.grok/hooks/atc-reporter.json
 atc codex-hooks
 ```
 
-The [configuration guide](./configuration.md#attention-hooks-grok-and-codex) covers both installs.
+The [configuration guide](./configuration/hooks.md) covers both installs.
 
 ## Agents that drive agents
 
