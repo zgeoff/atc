@@ -169,9 +169,16 @@ export class SessionRestorer {
   }
 
   // Lists why a restore could not start a session's terminal, in place of
-  // the wait it listed before.
-  updateRestoreRefusal(s: Session, reason: string): void {
+  // the wait it listed before, with the refusal's code when no later try
+  // lifts it.
+  updateRestoreRefusal(s: Session, reason: string, code: string | null): void {
     s.lastMsg = reason;
+
+    if (code === null) {
+      delete s.restoreRefusal;
+    } else {
+      s.restoreRefusal = { code, message: reason };
+    }
 
     this.callbacks.onEvent('state', s);
     this.fleet.emitChange();

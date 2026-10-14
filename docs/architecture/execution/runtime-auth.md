@@ -90,8 +90,13 @@ Rebinding binds the host to its agent's current auth selection at the next revis
 fails removes only the grants it added, keeps the old revision, and blocks launches until a rebind
 succeeds. A harness that is running or suspended keeps the guest settings it launched with until it
 restarts, and only a harness launched after the rebind reads the new revision's settings. Both
-requests act on a host's credentials, so only the owner may send them.
+requests act on a host's credentials, so only the owner may send them. The owner rebinds with
+`atc session rebind <session_id>` or the `atc_session_auth_rebind` MCP tool. A rebind starts
+nothing, so the owner then starts the session with `atc session adopt <session_id>` or
+`atc_session_adopt`.
 
 A launch whose agent takes no credential from the broker is refused while its host holds a binding
-in any state, so dropping `auth` from the config never reopens a blocked host. Forgetting the host's
-owner blocks launches, destroys the recorded imp and drops the binding.
+in any state, so dropping `auth` from the config never reopens a blocked host. A rebind refuses such
+an agent too, since it has no selection to bind, so its session stays refused until the agent's
+`auth` block is back or the owner forgets the session. Forgetting the host's owner blocks launches,
+destroys the recorded imp and drops the binding.

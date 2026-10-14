@@ -45,7 +45,7 @@ test('it lists each tool with only its name, description, schemas, and annotatio
   );
 });
 
-test('it lists an output schema for the type, stop, spawn options, event, and message tools', () => {
+test('it lists an output schema for the type, stop, adopt, rebind, spawn options, event, and message tools', () => {
   expect(
     buildToolList(new Set(DAEMON_FEATURES), null)
       .filter((tool) => tool.outputSchema !== undefined)
@@ -53,6 +53,8 @@ test('it lists an output schema for the type, stop, spawn options, event, and me
   ).toStrictEqual([
     'atc_terminal_type',
     'atc_session_stop',
+    'atc_session_adopt',
+    'atc_session_auth_rebind',
     'atc_spawn_options_get',
     'atc_events_read',
     'atc_message_send',

@@ -4,6 +4,7 @@ import type { Clock } from '@atc/core/system-clock';
 import { DaemonError } from '@atc/protocol/daemon-error';
 import type { FleetEntry } from '@atc/store/fleet-entry';
 import type { StateStore } from '@atc/store/state-store';
+import { formatRestoreRefusal } from './format-restore-refusal';
 import type { Session } from './session';
 import type { SessionRuntime } from './session-runtime';
 import type { SessionManager } from './sessions';
@@ -234,15 +235,25 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const refusals = new Map<Session, string>();
 
   // A session a caller stopped, revived, or forgot while the try ran keeps
-  // what the caller left, and gets no further try.
-  const recordRefusal = (s: Session, reason: string, retry: boolean, unchanged: boolean) => {
+  // what the caller left, and gets no further try. A refusal no later try
+  // lifts lists with its code, so a reader knows that only an action of
+  // its own brings the session back.
+  const recordRefusal = (
+    s: Session,
+    reason: string,
+    code: string | null,
+    retry: boolean,
+    unchanged: boolean,
+  ) => {
     const listed = unchanged && s.pty === null && mgr.sessions.includes(s);
     const retried = retry && listed;
 
     mgr.log(`atc could not revive session ${s.id} (${reason})${retried ? '; trying again' : ''}`);
 
     if (listed) {
-      mgr.updateRestoreRefusal(s, reason);
+      const finalCode = retried ? null : code;
+
+      mgr.updateRestoreRefusal(s, reason, finalCode);
       refusals.set(s, reason);
     }
 
@@ -273,7 +284,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
       const reason = error instanceof Error ? error.message : String(error);
 
-      recordRefusal(s, reason, false, isUnchanged());
+      recordRefusal(s, reason, null, false, isUnchanged());
 
       return false;
     }
@@ -281,7 +292,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     if (adopted.kind === 'refused') {
       recordRefusal(
         s,
-        adopted.refusal.message,
+        formatRestoreRefusal(s.id, adopted.refusal),
+        adopted.refusal.code,
         canRetry && RETRIED_ADOPT_CODES.has(adopted.refusal.code),
         isUnchanged(),
       );

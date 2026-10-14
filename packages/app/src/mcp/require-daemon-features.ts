@@ -30,7 +30,7 @@ const FEATURE_USES: Readonly<Record<DaemonFeature, string>> = {
   'git.probe': 'git.probe',
   'transport.tcp': 'a TCP connection to the daemon',
   'idempotency.replayOnly': 'a resend that only replays a held idempotency key',
-  'session.auth': 'session.auth.revoke and session.auth.rebind',
+  'session.auth': 'atc_session_auth_rebind, session.auth.revoke and session.auth.rebind',
   'session.kill.stopOnly': 'atc_session_stop',
   'session.record': "atc_session_scope_add and atc_session_spawn's scope",
   'session.update.parent': "atc_session_update's parent",

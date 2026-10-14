@@ -185,6 +185,18 @@ export function runTool(
 
       return buildObjectResult({ stopped: ok['stopped'] === true });
     })
+    .with('atc_session_adopt', async () => {
+      await caller.sendRequest('session.adopt', { session: args['session'], cols: 100, rows: 30 });
+
+      return buildObjectResult({ adopted: true });
+    })
+    .with('atc_session_auth_rebind', async () => {
+      const ok = await caller.sendRequest('session.auth.rebind', { session: args['session'] }, [
+        'session.auth',
+      ]);
+
+      return buildObjectResult({ revision: ok['revision'] });
+    })
     .with('atc_session_forget', async () => {
       const params = {
         session: args['session'],

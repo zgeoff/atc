@@ -191,6 +191,46 @@ const main = defineCommand({
             }),
         },
       }),
+    session: () =>
+      defineCommand({
+        meta: {
+          name: 'session',
+          description: "Rebind a session's host or start its terminal, as the daemon's owner",
+        },
+        subCommands: {
+          rebind: () =>
+            defineCommand({
+              meta: {
+                name: 'rebind',
+                description:
+                  "Bind a session's host to its agent's current auth profiles; then adopt it",
+              },
+              args: {
+                id: { type: 'positional', required: true, description: 'The atc session id' },
+              },
+              async run(ctx) {
+                const code = await runSessionCommand('rebind', ctx.args.id);
+
+                process.exit(code);
+              },
+            }),
+          adopt: () =>
+            defineCommand({
+              meta: {
+                name: 'adopt',
+                description: 'Start a terminal for a session that has none, resuming its agent',
+              },
+              args: {
+                id: { type: 'positional', required: true, description: 'The atc session id' },
+              },
+              async run(ctx) {
+                const code = await runSessionCommand('adopt', ctx.args.id);
+
+                process.exit(code);
+              },
+            }),
+        },
+      }),
     grants: () =>
       defineCommand({
         meta: {
@@ -561,6 +601,27 @@ function parseRestartArgs(args: RestartArgs): RestartFlags {
   const tokenFile = args['token-file'] === undefined ? null : resolve(args['token-file']);
 
   return { listen, tokenFile, timeoutSeconds: timeout };
+}
+
+// Runs one `atc session` action on the daemon, booting it when none
+// answers, at this terminal's size, and resolves to the exit code.
+async function runSessionCommand(action: 'rebind' | 'adopt', id: string): Promise<number> {
+  const boot = await import('@atc/lifecycle/boot-daemon');
+  const lifecycle = await import('./build-lifecycle-host');
+  const sessionAction = await import('./run-session-action');
+
+  const booted = await boot.bootDaemonClient(
+    lifecycle.buildLifecycleHost(process.env, hostServices),
+  );
+
+  const code = await sessionAction.runSessionAction(booted.client, action, id, {
+    cols: process.stdout.columns ?? 100,
+    rows: process.stdout.rows ?? 30,
+  });
+
+  booted.client.stop();
+
+  return code;
 }
 
 // Runs the daemon in the foreground until SIGTERM, with a TCP listener when

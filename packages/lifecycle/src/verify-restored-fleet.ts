@@ -31,7 +31,8 @@ const UNSIZED_READ_MS = 30_000;
  * failed to restore, and a listed row that is still without a live terminal
  * at the deadline failed to revive. A listed row without a live terminal
  * whose agent the new daemon's config no longer holds fails at once, since
- * no wait can revive it. The deadline counts from the call, and
+ * no wait can revive it, and so does one whose restore was refused in a
+ * way no later try lifts, with the refusal as its reason. The deadline counts from the call, and
  * every request to the daemon is held to it: the daemon must answer the first
  * list before it, and when it overtakes a later list, the verdict comes from
  * the last list the daemon answered. The deadline, the waits between lists,
@@ -234,6 +235,18 @@ async function collectFailedRows(
       // A finished restore lists every row it registers, so a row still
       // missing never appears; after a failed restore it may yet.
       pending ||= !restored;
+    } else if (
+      !row.exited &&
+      !(session['alive'] === true && session['kind'] === 'pty') &&
+      typeof session['restoreRefusal'] === 'string'
+    ) {
+      // A refusal no later try of the restore lifts waits on an action of
+      // the operator's own, so no wait revives the row.
+      failed.push({
+        name: row.name,
+        id: row.id,
+        reason: `restore refused (${session['restoreRefusal']}): ${String(session['lastMsg'])}`,
+      });
     } else if (!row.exited && !(session['alive'] === true && session['kind'] === 'pty')) {
       failed.push({
         name: row.name,

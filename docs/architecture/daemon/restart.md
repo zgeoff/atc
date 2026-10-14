@@ -53,7 +53,9 @@ exited is listed with a live terminal, or a deadline that grows with the number 
 A stored row that is not listed failed to restore, and a listed row without a live terminal at the
 deadline failed to revive. A row whose agent the new daemon's config no longer holds fails at once,
 since no wait gives it a terminal, so the restart ends without waiting out the deadline once every
-other row is back.
+other row is back. A row whose restore was refused for good fails at once for the same reason, with
+the refusal's code and message as its reason. The daemon marks such a row in its session view only
+while the row still lists that refusal and the restore has no further try for it.
 
 The report holds the final pid and build, `restored <n> of <m>`, each failed row with its reason,
 and the sessions the restart interrupted. The worker writes the same data as a result record, which

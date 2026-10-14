@@ -299,8 +299,8 @@ export class SessionManager {
     this.restorer.removeUnrestoredMark(id);
   }
 
-  updateRestoreRefusal(s: Session, reason: string): void {
-    this.restorer.updateRestoreRefusal(s, reason);
+  updateRestoreRefusal(s: Session, reason: string, code: string | null): void {
+    this.restorer.updateRestoreRefusal(s, reason, code);
   }
 
   updateRestoredIdentity(s: Session, identity: string): void {
@@ -573,6 +573,9 @@ export class SessionManager {
       unread: s.unread,
       lastMsg: s.lastMsg,
       ...(s.lastDetail === undefined ? {} : { lastDetail: s.lastDetail }),
+      ...(s.pty === null && s.restoreRefusal?.message === s.lastMsg
+        ? { restoreRefusal: s.restoreRefusal.code }
+        : {}),
       ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
       agent: s.agent,
       pinned: s.pinned,

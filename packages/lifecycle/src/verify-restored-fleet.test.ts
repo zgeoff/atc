@@ -141,6 +141,55 @@ test('it fails a row at once when its agent is not in the config', async () => {
   expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'agents.list', 'session.list']);
 });
 
+test('it fails a row at once with its refusal when its restore was refused for good', async () => {
+  const ctx = await setupTest();
+
+  const clock = buildStubClock(0);
+
+  ctx.daemon.lists.push(
+    { agents: [buildMockListedAgent({ id: 'claude' })] },
+    {
+      sessions: [
+        buildMockSessionDescriptor({ id: toSessionID('s-good'), kind: 'pty', alive: true }),
+        buildMockSessionDescriptor({
+          id: toSessionID('s-refused'),
+          agent: 'claude',
+          kind: 'headless',
+          alive: false,
+          state: 'running',
+          lastMsg: 'the auth profiles host s-refused uses changed since it was bound',
+          restoreRefusal: 'auth_rebind_required',
+        }),
+      ],
+    },
+  );
+
+  const outcome = await verifyRestoredFleet(
+    ctx.client,
+    60,
+    [
+      buildMockStoredRow({ id: 's-good', name: 'good' }),
+      buildMockStoredRow({ id: 's-refused', name: 'refused' }),
+    ],
+    clock,
+    15_000,
+  );
+
+  expect(outcome).toStrictEqual({
+    total: 2,
+    failed: [
+      {
+        name: 'refused',
+        id: 's-refused',
+        reason:
+          'restore refused (auth_rebind_required): the auth profiles host s-refused uses changed since it was bound',
+      },
+    ],
+  });
+
+  expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'agents.list', 'session.list']);
+});
+
 test('it keeps waiting on a row whose agent is in the config but not installed yet', async () => {
   const ctx = await setupTest();
 

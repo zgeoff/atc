@@ -5,6 +5,7 @@ import { parseConfig } from '@atc/config/config';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
 import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
 import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
 import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
@@ -541,6 +542,61 @@ test('it adopts a headless session back into a terminal', async () => {
   expect(listed).toMatchObject({
     sessions: [{ id: sessionID, kind: 'pty', alive: true, state: 'running' }],
   });
+});
+
+test('it stops the headless run of a session whose adopt is refused while its terminal is set up', async () => {
+  const headless = buildStubHeadlessRunner();
+  const scheduler = buildStubTimeoutScheduler();
+  let refuseSpawn = false;
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-headless-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        headlessRunner: headless.runner,
+        planSpawn: () => {
+          if (refuseSpawn) {
+            throw new DaemonError('unsupported_operation', 'the agent refuses this start');
+          }
+
+          return { bin: 'sleep', args: ['30'] };
+        },
+      }),
+      scheduleEjectSettle: scheduler.schedule,
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    name: 'handoff',
+    resume: 'sess-123',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sessionID = toSessionID(String(getRecord(spawned, 'session')['id']));
+
+  await daemon.client.sendRequest('session.eject', { session: sessionID, prompt: 'keep going' });
+
+  scheduler.runTimer(4000);
+
+  await headless.waitForRun(0);
+
+  refuseSpawn = true;
+
+  const adopted = daemon.client.sendRequest('session.adopt', {
+    session: sessionID,
+    cols: 80,
+    rows: 24,
+  });
+
+  await adopted.catch(() => null);
+
+  const listed = await daemon.client.sendRequest('session.list');
+
+  expect(adopted).rejects.toMatchObject({ code: 'unsupported_operation' });
+  expect(headless.runs.map((run) => run.stopped)).toStrictEqual([true]);
+  expect(listed['sessions']).toMatchObject([{ id: sessionID, kind: 'headless' }]);
 });
 
 test('it refuses to eject a session that never reported an agent session id', async () => {
