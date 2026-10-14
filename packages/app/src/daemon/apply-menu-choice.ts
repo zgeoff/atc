@@ -103,6 +103,18 @@ export async function applyMenuChoice(
 
   await runCursorWalk(terminal, menu, choice.option, waits);
 
+  // The cursor can move back between the walk's last read and Enter, such
+  // as when an agent ends a dialog's hold, so the screen is read once more.
+  const committed = await requireMatchingMenu(terminal, choice);
+
+  if (getHighlighted(committed) !== choice.option) {
+    throw new DaemonError(
+      'menu_busy',
+      `the cursor left option ${choice.option} before Enter, so nothing was picked; choose again`,
+      { menu: committed },
+    );
+  }
+
   terminal.write(KEYS.enter);
 
   return { pressed: 'enter', menu: await waitForSettledMenu(terminal, menu, waits) };
