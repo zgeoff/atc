@@ -7,7 +7,7 @@ to the agent's backend. atc owns the binding: which secrets and rules an imp may
 secrets and enforces the grants.
 
 [The imp provider](./imp-provider.md) covers the imp itself, and the
-[brokered credentials guide](../../guides/configuration.md#brokered-credentials) covers the config.
+[brokered credentials guide](../../guides/configuration/brokered-credentials.md) covers the config.
 
 ## The binding
 

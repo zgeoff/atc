@@ -45,7 +45,7 @@ the rest, and `?` for every other key.
 - **Grok Build** and **Codex CLI** take a one-time hook install that atc prints for you
   ([Grok and Codex hooks](./docs/guides/using-atc.md#grok-and-codex-hooks)).
 - **A Claude-compatible backend** runs as its own agent in the same fleet
-  ([gateways](./docs/guides/configuration.md#gateways)).
+  ([gateways](./docs/guides/configuration/agents.md#gateways)).
 
 ## Features
 
@@ -61,7 +61,7 @@ the rest, and `?` for every other key.
 - **Several machines.** atc-gateway serves the fleets of several daemons through one connector
   ([gateway](./docs/guides/gateway.md)).
 - **Sessions on imps.** A session can run in its own VM, sleeping when you kill it and waking where
-  it left off ([targets](./docs/guides/configuration.md#targets)).
+  it left off ([targets](./docs/guides/configuration/targets.md)).
 - **Event stream.** `atc events` prints every fleet event, and `config.json` hooks run your own
   commands on them ([events](./docs/guides/events.md)).
 

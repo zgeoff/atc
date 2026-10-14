@@ -82,11 +82,9 @@ jobs:
       - name: Doc links
         run: bash .claude/skills/docs-writing/scripts/check-links.sh
 
-      # Some READMEs and docs/ pages fail the shared length or prose rules, so this step reports
-      # its findings without failing the run. The root package is private, but its README is the
-      # product README, so it is checked against the package limits.
+      # The root package is private, but its README is the product README, so it is checked
+      # against the package limits.
       - name: Doc length and prose
-        continue-on-error: true
         run: bash .claude/skills/docs-writing/scripts/check-length.sh --package README.md
 
       - name: Typecheck
