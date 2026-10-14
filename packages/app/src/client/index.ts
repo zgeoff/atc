@@ -884,9 +884,10 @@ const service = createActor(
 let restartedOnBoot = false;
 let daemonWaiting = false;
 
-// The reader of the restart prompt's key while the TUI owns stdin, which
-// takes the next key in place of the current mode.
-let restartConsentKey: ((key: string) => void) | null = null;
+// The restart prompt on screen while the TUI owns stdin, and the reader of
+// its key, which takes the next key in place of the current mode.
+let restartConsent: { readonly prompt: string; readonly answer: (key: string) => void } | null =
+  null;
 
 const reconnectDaemonOnce = makeSingleFlight(async () => {
   daemonWaiting = true;
@@ -1018,10 +1019,12 @@ async function waitForRestartConsent(
   ];
 
   if (phase === 'tui') {
-    stdout.write(ansi.clear + lines.join('\r\n'));
+    const prompt = lines.join('\r\n');
+
+    stdout.write(ansi.clear + prompt);
 
     const key = await new Promise<string>((resolve) => {
-      restartConsentKey = resolve;
+      restartConsent = { prompt, answer: resolve };
     });
 
     stdout.write(ansi.clear);
@@ -1175,12 +1178,12 @@ process.stdin.resume();
 const stdinDecoder = new TextDecoder('utf-8');
 
 process.stdin.on('data', (buf: Buffer) => {
-  if (restartConsentKey !== null) {
-    const answer = restartConsentKey;
+  if (restartConsent !== null) {
+    const pending = restartConsent;
 
-    restartConsentKey = null;
+    restartConsent = null;
 
-    answer(buf.toString());
+    pending.answer(buf.toString());
 
     return;
   }
@@ -1257,6 +1260,14 @@ process.stdin.on('data', (buf: Buffer) => {
 });
 
 stdout.on('resize', () => {
+  // The restart prompt keeps the screen until it has its key, so a resize
+  // draws it again rather than the mode under it.
+  if (restartConsent !== null) {
+    stdout.write(ansi.clear + restartConsent.prompt);
+
+    return;
+  }
+
   const currentMode = service.getSnapshot().value;
 
   if (currentMode === 'attached' && focusedID !== null) {

@@ -1,13 +1,15 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
+import type { TUIHarness } from '@atc/test-utils/start-tui-harness';
 
 function setupTest() {
   return startTUIHarness();
@@ -77,7 +79,9 @@ test('it restarts a daemon on another protocol after the user confirms and resto
 test('it restarts a daemon on another protocol that a reconnect meets after the user confirms', async () => {
   const ctx = setupTest();
 
-  const legacy = await startLegacyDaemonOnReconnect(ctx);
+  const reconnect = await startLegacyDaemonOnReconnect(ctx);
+
+  const legacy = reconnect.legacy;
 
   await ctx.waitFor('Restart it now?');
 
@@ -93,10 +97,33 @@ test('it restarts a daemon on another protocol that a reconnect meets after the 
   expect(legacy.signalCode).toBe('SIGTERM');
 });
 
+test('it draws the reconnect restart prompt again when the terminal resizes', async () => {
+  const ctx = setupTest();
+
+  const reconnect = await startLegacyDaemonOnReconnect(ctx);
+
+  const legacy = reconnect.legacy;
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+  reconnect.pty.resize(100, 30);
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.write('y');
+
+  await legacy.exited;
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
 test('it quits when the user keeps a daemon on another protocol that a reconnect meets', async () => {
   const ctx = setupTest();
 
-  const legacy = await startLegacyDaemonOnReconnect(ctx);
+  const reconnect = await startLegacyDaemonOnReconnect(ctx);
+
+  const legacy = reconnect.legacy;
 
   await ctx.waitFor('Restart it now?');
 
@@ -169,19 +196,21 @@ test('it stops a daemon of an older build when the user asks for the update and 
 /**
  * Boots the client on a daemon of its own, then hands the socket path to a
  * daemon on another protocol and kills the first daemon, so the client's
- * reconnect reaches the other one. Returns that daemon's process.
+ * reconnect reaches the other one. Returns that daemon's process and the
+ * client's terminal.
  */
-async function startLegacyDaemonOnReconnect(ctx: ReturnType<typeof setupTest>) {
+async function startLegacyDaemonOnReconnect(ctx: Readonly<TUIHarness>) {
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
   const socketPath = join(ctx.home, 'atc-daemon.sock');
-
-  ctx.boot();
+  const pty = ctx.boot();
 
   await ctx.waitFor('idle');
 
-  const first = JSON.parse(readFileSync(join(stateDir, 'daemon.json'), 'utf8')) as {
-    readonly pid: number;
-  };
+  const first = findDaemonRecord(join(stateDir, 'daemon.json'));
+
+  if (first === null) {
+    throw new Error('the first daemon wrote no record');
+  }
 
   // The first daemon keeps its listener and the client's connection after
   // its socket file goes, so the other daemon can bind the path.
@@ -209,5 +238,5 @@ async function startLegacyDaemonOnReconnect(ctx: ReturnType<typeof setupTest>) {
   ctx.reset();
   process.kill(first.pid, 'SIGKILL');
 
-  return legacy;
+  return { legacy, pty };
 }
