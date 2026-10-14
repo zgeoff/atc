@@ -39,11 +39,13 @@ A grant holds one or more of four scopes, and each tool needs exactly one of the
 - `message` instructs a session's agent, and also renames, pins, detaches and marks a session read.
   Those session changes alter how atc lists and labels a session, and none of them reaches its
   terminal or ends it, so they need no more access than a message does.
-- `spawn` starts a session or a terminal for a session that has none, types into one, adds to a
-  session's record scope, and rebinds a host's runtime auth. Typing into a terminal takes `spawn`,
-  because a line typed into a session can do anything a new session can. Adding to a session's
-  record scope and rebinding a host take `spawn` too, because each widens what a session may touch.
-  The daemon opens a rebind to its owner only, so a remote client that holds `spawn` still gets
+- `spawn` starts a session or a terminal for a session that has none, types into one, answers a menu
+  in one, adds to a session's record scope, and rebinds a host's runtime auth. Typing into a
+  terminal takes `spawn`, because a line typed into a session can do anything a new session can.
+  Answering a menu takes the same scope as typing, because an option such as trusting a folder or
+  allowing a command gives the agent as much as a typed line does. Adding to a session's record
+  scope and rebinding a host take `spawn` too, because each widens what a session may touch. The
+  daemon opens a rebind to its owner only, so a remote client that holds `spawn` still gets
   `unauthorized` ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)).
 - `kill` stops or forgets a session. A tool atc does not know needs `kill`, the strictest.
 
@@ -65,6 +67,7 @@ A test compares this table with the tool definitions, so a tool added without a 
 | `atc_session_mark_read`   | `message` |
 | `atc_session_spawn`       | `spawn`   |
 | `atc_terminal_type`       | `spawn`   |
+| `atc_terminal_choose`     | `spawn`   |
 | `atc_session_scope_add`   | `spawn`   |
 | `atc_session_adopt`       | `spawn`   |
 | `atc_session_auth_rebind` | `spawn`   |

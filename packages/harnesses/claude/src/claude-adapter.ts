@@ -47,6 +47,7 @@ import type { ClaudeAdapterOptions } from './claude-adapter-options';
 import { CLAUDE_EFFORT_LEVELS } from './claude-effort-levels';
 import { ClaudeLaunchFiles } from './claude-launch-files';
 import { createLocalScratchDir } from './create-local-scratch-dir';
+import { findClaudeMenu } from './find-claude-menu';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { buildClaudeConfigSeed } from './guest/build-claude-config-seed';
 import { buildClaudeCredentialsFile } from './guest/build-claude-credentials-file';
@@ -83,6 +84,9 @@ export class ClaudeAdapter implements AgentAdapter {
   // newline in the composer, so a line is pasted and then submitted, with a
   // leading slash command's name typed so the command still runs.
   readonly planLineInput = planClaudeLineInput;
+
+  // Claude's dialogs draw a `❯` cursor beside their options.
+  readonly findMenu = findClaudeMenu;
 
   readonly loadName: (
     source: string,

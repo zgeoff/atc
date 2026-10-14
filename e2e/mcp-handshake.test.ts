@@ -154,7 +154,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true: listed under it, pinned and stopped with it, forgettable while it is pinned only by a call from inside the caller, and reached by a remote client only when the client reaches the caller. atc_session_update with parent null detaches it later. A directory the agent has not trusted opens its folder-trust dialog, which only a person can answer in the TUI; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.",
+            "description": "Start a new agent session in a directory and return its entry. prompt goes to the agent CLI as its first message at launch; the result does not show that the agent took it, so follow with atc_events_read. agent defaults to claude when it is registered, else the first registered agent. When this tool list was built, the host registered: claude, grok, codex (not installed). atc_spawn_options_get lists the agents, targets, models and effort levels this daemon takes, and anything else is refused before anything starts. Called from inside an atc session, the new session is a sub-session of the caller unless detached is true: listed under it, pinned and stopped with it, forgettable while it is pinned only by a call from inside the caller, and reached by a remote client only when the client reaches the caller. atc_session_update with parent null detaches it later. A directory the agent has not trusted opens its folder-trust dialog, which atc_terminal_choose answers for Claude Code and a person answers in the TUI for any agent; trustClonedWorkspace trusts a fresh workspace clone. A retry with the same idempotencyKey and arguments returns the first result.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -355,7 +355,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Type a line into a session's terminal and press Enter, as a person at the keyboard would. This tool cannot answer a menu: on a permission prompt, the folder-trust dialog or any other choice list, the text is dropped and Enter picks the highlighted option. A person answers those in the TUI. It is refused with permission_pending while the agent waits on a permission prompt. Use it for a plain-text prompt, or for an agent that takes no messages. When the agent takes messages (capabilities.message true in atc_spawn_options_get), use atc_message_send instead: atc tracks the message, stores the answer, and puts the outcome into a sending session's conversation as an <atc-answer> notice. Returns { written: true } once the line reaches the terminal; that does not show the agent took it, so check with atc_terminal_read or atc_events_read. A long line arrives as a paste, so the agent's input box and atc_terminal_read can show a placeholder such as [Pasted text #1] instead of the text.",
+            "description": "Type a line into a session's terminal and press Enter, as a person at the keyboard would. This tool cannot answer a menu: on a permission prompt, the folder-trust dialog or any other choice list, the text is dropped and Enter picks the highlighted option. atc_terminal_choose answers a Claude Code menu, and a person answers any other in the TUI. It is refused with permission_pending while the agent waits on a permission prompt. Use it for a plain-text prompt, or for an agent that takes no messages. When the agent takes messages (capabilities.message true in atc_spawn_options_get), use atc_message_send instead: atc tracks the message, stores the answer, and puts the outcome into a sending session's conversation as an <atc-answer> notice. Returns { written: true } once the line reaches the terminal; that does not show the agent took it, so check with atc_terminal_read or atc_events_read. A long line arrives as a paste, so the agent's input box and atc_terminal_read can show a placeholder such as [Pasted text #1] instead of the text.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -389,11 +389,119 @@ test('it lists the fleet tools', async () => {
           },
           {
             "annotations": {
+              "destructiveHint": true,
+              "openWorldHint": true,
+              "readOnlyHint": false,
+            },
+            "description": "Read or answer the menu a session's agent waits on in its terminal, such as a permission prompt, the folder-trust dialog or the new MCP servers list. Called with session alone, it presses no key and returns { menu }: the menu's text, its options with their numbers, labels, ticked boxes and cursor, and menuToken; menu is null when the screen shows no menu. To pick an option, call again with its option number, its label as read, and menuToken: atc checks all three against the screen before it presses a key, waits until the agent has printed nothing for a few seconds, since Claude Code refuses Enter on a menu that has just opened and then moves its cursor back, moves the cursor one arrow key at a time, and presses Enter only once the cursor is on that option. Enter on an option with a box ticks or clears that box and keeps the menu open; pick the menu's own item, such as Enable selected, to confirm it. key escape with menuToken presses Escape on that menu instead: it dismisses the menu, rejects every server on the new MCP servers list, and exits the agent on the folder-trust dialog. For a plain-text prompt, use atc_terminal_type. A choice returns { pressed, menu }: the key atc pressed last and the menu the screen shows once it settles, or null. The same menu with the cursor on the option means the agent ignored the key; call again with its menuToken. A refusal presses nothing that picks an option: menu_changed when the screen shows another menu or none, menu_label_mismatch when the option's label differs, and menu_busy when the cursor did not reach the option, so call again. It reads only Claude Code's menus, and refuses other agents with unsupported. In a menu without numbers, an option whose label wraps onto a second line reads as two options.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "description": "escape presses Escape on the menu instead of picking an option",
+                  "enum": [
+                    "escape",
+                  ],
+                  "type": "string",
+                },
+                "label": {
+                  "description": "The label of that option as the menu showed it",
+                  "type": "string",
+                },
+                "menuToken": {
+                  "description": "The menuToken of the menu this call answers, from a call with session alone; omit to only read the menu",
+                  "type": "string",
+                },
+                "option": {
+                  "description": "The number of the option to pick, counted from 1; give label with it",
+                  "type": "number",
+                },
+                "session": {
+                  "description": "The atc session id, from atc_sessions_list",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "session",
+              ],
+              "type": "object",
+            },
+            "name": "atc_terminal_choose",
+            "outputSchema": {
+              "properties": {
+                "menu": {
+                  "description": "The menu the screen shows, or null when it shows none: after a choice, the menu once the screen settles",
+                  "properties": {
+                    "menuToken": {
+                      "description": "The token a choice on this menu gives; it changes with the text, a label or a box, and not with the cursor",
+                      "type": "string",
+                    },
+                    "options": {
+                      "items": {
+                        "properties": {
+                          "checked": {
+                            "description": "Whether the option's box is ticked; null for an option with no box",
+                            "type": [
+                              "boolean",
+                              "null",
+                            ],
+                          },
+                          "highlighted": {
+                            "description": "Whether the cursor is on the option",
+                            "type": "boolean",
+                          },
+                          "label": {
+                            "description": "The text a choice gives as label",
+                            "type": "string",
+                          },
+                          "option": {
+                            "description": "The number a choice gives, counted from 1",
+                            "type": "number",
+                          },
+                        },
+                        "required": [
+                          "option",
+                          "label",
+                          "checked",
+                          "highlighted",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "text": {
+                      "description": "The menu's lines above its options",
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "text",
+                    "options",
+                    "menuToken",
+                  ],
+                  "type": [
+                    "object",
+                    "null",
+                  ],
+                },
+                "pressed": {
+                  "description": "After a choice, the key atc pressed last: enter or escape. Absent when the call only read the menu",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "menu",
+              ],
+              "type": "object",
+            },
+          },
+          {
+            "annotations": {
               "destructiveHint": false,
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read a session's terminal screen as plain text, as it is now. Use it to see a prompt, a menu or an error the agent printed. A stopped session keeps its last screen until it is forgotten; after a daemon restart, or for a headless session, there is no screen and the call returns session_dead.",
+            "description": "Read a session's terminal screen as plain text, as it is now. Use it to see a prompt, a menu or an error the agent printed; atc_terminal_choose reads a Claude Code menu as numbered options and answers it. A stopped session keeps its last screen until it is forgotten; after a daemon restart, or for a headless session, there is no screen and the call returns session_dead.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1165,7 +1273,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read one session: its entry as atc_sessions_list shows it, the prompt it was spawned with, when it last reported activity, pending (the agent's notification text while it is needs_you, such as "Claude needs your permission"; never a menu's options), result (the final reply of its latest finished turn) and sessionRecord (the scope atc recorded for it). A permission prompt or other menu cannot be answered through atc; a person answers it in the TUI.",
+            "description": "Read one session: its entry as atc_sessions_list shows it, the prompt it was spawned with, when it last reported activity, pending (the agent's notification text while it is needs_you, such as "Claude needs your permission"; never a menu's options), result (the final reply of its latest finished turn) and sessionRecord (the scope atc recorded for it). atc_terminal_choose reads and answers a Claude Code menu, such as a permission prompt; a person answers any other agent's menu in the TUI.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1558,6 +1666,14 @@ test('it lists every tool with its three safety hints', async () => {
         }),
         expect.objectContaining({
           name: 'atc_terminal_type',
+          annotations: {
+            readOnlyHint: expect.toBeBoolean(),
+            destructiveHint: expect.toBeBoolean(),
+            openWorldHint: expect.toBeBoolean(),
+          },
+        }),
+        expect.objectContaining({
+          name: 'atc_terminal_choose',
           annotations: {
             readOnlyHint: expect.toBeBoolean(),
             destructiveHint: expect.toBeBoolean(),

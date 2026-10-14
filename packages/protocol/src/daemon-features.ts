@@ -124,6 +124,11 @@ export const DAEMON_FEATURES = [
   // `message.get` and the `SessionMessage` and `InboxMessage` events return
   // `sender`.
   'message.sender',
+
+  // `session.menu` and `session.choose` exist: a client reads the menu a
+  // session's agent waits on and picks one of its options, or presses
+  // Escape on it.
+  'session.menu',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

@@ -51,6 +51,8 @@ import type { TrailEntry } from '@atc/store/trail-entry';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
+import { applyMenuChoice } from './apply-menu-choice';
+import type { MenuChoiceResult, MenuTiming } from './apply-menu-choice';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
 import { buildConfigRevision } from './build-config-revision';
@@ -58,6 +60,7 @@ import { buildDefaultWorkspaceDir } from './build-default-workspace-dir';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildFleetEvents } from './build-fleet-events';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
+import { buildMenuView } from './build-menu-view';
 import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
 import { buildNoteTrailEntry } from './build-note-trail-entry';
@@ -208,6 +211,9 @@ export interface DaemonOptions {
   // windows, and every other time the daemon stores; the wall clock when
   // unset.
   readonly clock?: Clock;
+
+  // How long a menu choice waits on a session's screen; tests shorten it.
+  readonly menuTiming?: MenuTiming;
 
   // Whether the daemon restores the stored fleet by itself once it is
   // listening, when that fleet holds sessions; off when unset.
@@ -1000,6 +1006,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // is consumed, not discarded.
     runtime?.screen?.record(data);
     scheduleDetect(s.id);
+
+    if (runtime !== undefined) {
+      runtime.lastOutputAt = clock.now();
+    }
 
     const conns = attachments.collectClients(s.id);
 
@@ -2088,6 +2098,83 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       const screen = runtimes.get(id)?.screen ?? null;
 
       return screen === null ? Promise.resolve('no_screen') : screen.renderText();
+    },
+    readSessionMenu: async (id) => {
+      const s = mgr.sessions.find((x) => x.id === id);
+
+      if (s === undefined) {
+        return 'missing';
+      }
+
+      const findMenu = mgr.findAdapter(s.agent)?.findMenu;
+
+      if (findMenu === undefined) {
+        return 'unsupported';
+      }
+
+      const screen = runtimes.get(id)?.screen ?? null;
+
+      if (screen === null) {
+        return 'no_screen';
+      }
+
+      const shown = await screen.renderText();
+
+      const menu = findMenu(shown.text);
+
+      return menu === null ? null : buildMenuView(menu);
+    },
+    applySessionMenuChoice: (id, choice) => {
+      const s = mgr.sessions.find((x) => x.id === id);
+
+      if (s === undefined) {
+        return Promise.resolve('missing');
+      }
+
+      const findMenu = mgr.findAdapter(s.agent)?.findMenu;
+
+      if (findMenu === undefined) {
+        return Promise.resolve('unsupported');
+      }
+
+      const runtime = getRuntime(id);
+      const screen = runtime.screen;
+
+      if (s.kind === 'headless' || s.pty === null || screen === null) {
+        return Promise.resolve('dead');
+      }
+
+      mgr.requireExecution(s, 'input');
+
+      const pty = s.pty;
+
+      const terminal = {
+        readMenu: async () => {
+          const shown = await screen.renderText();
+
+          const menu = findMenu(shown.text);
+
+          return menu === null ? null : buildMenuView(menu);
+        },
+        write: (data: string) => {
+          pty.write(data);
+        },
+        readLastOutputAt: () => runtime.lastOutputAt,
+        isLive: () => mgr.sessions.find((x) => x.id === id)?.pty === pty,
+      };
+
+      const applied = Promise.withResolvers<MenuChoiceResult>();
+
+      // The choice holds the session's input queue from its first read to
+      // its last, so no other input lands between the keys it presses.
+      runtime.input.schedule(async () => {
+        await applyMenuChoice(terminal, choice, clock, opts.menuTiming).then(
+          applied.resolve,
+          applied.reject,
+        );
+      });
+
+      return applied.promise;
     },
     answerPermission: (request, decision) => registry.answer(request, decision),
     attachSession: (client, sessionID, dims) => {

@@ -7,6 +7,7 @@ import { FLEET_ENTRY_VIEW_SCHEMA } from './fleet-entry-view';
 import { FLEET_EVENT_SCHEMA } from './fleet-event';
 import { GIT_PROBE_RESULT_SCHEMA } from './git-probe-result';
 import { HELLO_RESULT_SCHEMA } from './hello-result';
+import { MENU_VIEW_SCHEMA } from './menu-view';
 import { MESSAGE_ANSWER_SCHEMA } from './message-answer';
 import { MESSAGE_VIEW_SCHEMA } from './message-view';
 import { NOTE_VIEW_SCHEMA } from './note-view';
@@ -143,6 +144,16 @@ export const DAEMON_CONTRACT = {
       .meta(READ)
       .input(P['session.screen'])
       .output(z.object({ text: z.string(), cols: z.number(), rows: z.number() })),
+    menu: base
+      .meta(READ)
+      .input(P['session.menu'])
+      .output(z.object({ menu: MENU_VIEW_SCHEMA.nullable() })),
+
+    // pressed holds the key the daemon pressed last, and menu the menu the
+    // screen shows once it settles after that key, or null.
+    choose: base
+      .input(P['session.choose'])
+      .output(z.object({ pressed: z.string(), menu: MENU_VIEW_SCHEMA.nullable() })),
     eject: base.input(P['session.eject']).output(EMPTY),
     adopt: base.input(P['session.adopt']).output(EMPTY),
     get: base

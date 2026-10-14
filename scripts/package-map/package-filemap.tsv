@@ -353,6 +353,7 @@ src/protocol/hello-result.ts	protocol		packages/protocol/src/hello-result.ts	new
 src/protocol/hook-event.ts	protocol		packages/protocol/src/hook-event.ts	
 src/protocol/keyed-method-features.ts	protocol		packages/protocol/src/keyed-method-features.ts	new in ticket 4
 src/protocol/line-decoder.ts	protocol		packages/protocol/src/line-decoder.ts	
+src/protocol/menu-view.ts	protocol		packages/protocol/src/menu-view.ts	
 src/protocol/message-answer.ts	protocol		packages/protocol/src/message-answer.ts	new in ticket 4
 src/protocol/message-sender.ts	protocol		packages/protocol/src/message-sender.ts	
 src/protocol/message-status.ts	protocol		packages/protocol/src/message-status.ts	new in ticket 4

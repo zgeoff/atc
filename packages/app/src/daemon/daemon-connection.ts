@@ -790,6 +790,16 @@ export class DaemonConnection {
 
         return;
       }
+      case 'session.menu': {
+        await this.applySessionMenu(req, ctx);
+
+        return;
+      }
+      case 'session.choose': {
+        this.applySessionChoose(req, ctx);
+
+        return;
+      }
       case 'session.eject': {
         const parsed = parseRequestParams('session.eject', req.p);
 
@@ -1323,6 +1333,70 @@ export class DaemonConnection {
     this.sendInputResult(req, 'session.submit', sessionID, result);
   }
 
+  private async applySessionMenu(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('session.menu', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const id = parsed.data.session;
+
+    const menu = await ctx.readSessionMenu(id);
+
+    if (menu === 'missing' || !ctx.isSessionVisible(id)) {
+      this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+    } else if (menu === 'no_screen') {
+      this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
+    } else if (menu === 'unsupported') {
+      this.sendErr(req.id, 'unsupported', `atc cannot read the menus in session '${id}'`);
+    } else {
+      this.sendOk(req.id, 'session.menu', { menu });
+    }
+  }
+
+  // A choice whose menu, label, or cursor does not match the screen rejects
+  // with its DaemonError, which answers with that error's code.
+  private applySessionChoose(req: RequestMsg, ctx: DaemonContext): void {
+    const parsed = parseRequestParams('session.choose', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const id = parsed.data.session;
+    const menuToken = parsed.data.menuToken;
+
+    if (!ctx.isSessionVisible(id)) {
+      this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+
+      return;
+    }
+
+    const choice =
+      parsed.data.key === 'escape'
+        ? { menuToken, key: parsed.data.key }
+        : { menuToken, option: parsed.data.option ?? 0, label: parsed.data.label ?? '' };
+
+    this.answerAsync(req.id, async () => {
+      const result = await ctx.applySessionMenuChoice(id, choice);
+
+      if (result === 'missing') {
+        this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+      } else if (result === 'dead') {
+        this.sendErr(req.id, 'session_dead', `session '${id}' has no live process`);
+      } else if (result === 'unsupported') {
+        this.sendErr(req.id, 'unsupported', `atc cannot read the menus in session '${id}'`);
+      } else {
+        this.sendOk(req.id, 'session.choose', { ...result });
+      }
+    });
+  }
+
   private sendInputResult(
     req: RequestMsg,
     method: 'session.input' | 'session.submit',
@@ -1333,7 +1407,7 @@ export class DaemonConnection {
       this.sendErr(
         req.id,
         'permission_pending',
-        `session '${sessionID}' is waiting on a permission prompt; only a person can answer it in the atc TUI`,
+        `session '${sessionID}' is waiting on a permission prompt, where typed text picks the highlighted option; answer the prompt's menu with session.choose or in the atc TUI`,
       );
 
       return;
