@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { PROTOCOL_V } from '@atc/protocol/protocol';
@@ -74,6 +74,42 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   expect(legacy.signalCode).toBe('SIGTERM');
 });
 
+test('it restarts a daemon on another protocol that a reconnect meets after the user confirms', async () => {
+  const ctx = setupTest();
+
+  const legacy = await startLegacyDaemonOnReconnect(ctx);
+
+  await ctx.waitFor('Restart it now?');
+
+  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+
+  ctx.reset();
+  ctx.write('y');
+
+  await legacy.exited;
+
+  await ctx.waitFor('idle');
+
+  expect(legacy.signalCode).toBe('SIGTERM');
+});
+
+test('it quits when the user keeps a daemon on another protocol that a reconnect meets', async () => {
+  const ctx = setupTest();
+
+  const legacy = await startLegacyDaemonOnReconnect(ctx);
+
+  await ctx.waitFor('Restart it now?');
+
+  ctx.reset();
+  ctx.write('n');
+
+  const code = await ctx.waitForExit();
+
+  expect(code).toBe(1);
+  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+  expect(legacy.exitCode).toBeNull();
+});
+
 test('it stops a daemon of an older build when the user asks for the update and boots its own build', async () => {
   const ctx = setupTest();
   const stateDir = join(ctx.home, '.local', 'state', 'atc');
@@ -129,3 +165,49 @@ test('it stops a daemon of an older build when the user asks for the update and 
   expect(older.signalCode).toBe('SIGTERM');
   expect(screen.slice(screen.lastIndexOf('restarting daemon'))).not.toInclude('update ready');
 });
+
+/**
+ * Boots the client on a daemon of its own, then hands the socket path to a
+ * daemon on another protocol and kills the first daemon, so the client's
+ * reconnect reaches the other one. Returns that daemon's process.
+ */
+async function startLegacyDaemonOnReconnect(ctx: ReturnType<typeof setupTest>) {
+  const stateDir = join(ctx.home, '.local', 'state', 'atc');
+  const socketPath = join(ctx.home, 'atc-daemon.sock');
+
+  ctx.boot();
+
+  await ctx.waitFor('idle');
+
+  const first = JSON.parse(readFileSync(join(stateDir, 'daemon.json'), 'utf8')) as {
+    readonly pid: number;
+  };
+
+  // The first daemon keeps its listener and the client's connection after
+  // its socket file goes, so the other daemon can bind the path.
+  unlinkSync(socketPath);
+
+  const legacy = Bun.spawn(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      socketPath,
+      stateDir,
+    ],
+    { stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  registerTestCleanup(() => {
+    legacy.kill('SIGKILL');
+  });
+
+  const reader = legacy.stdout.getReader();
+
+  await reader.read();
+
+  reader.releaseLock();
+  ctx.reset();
+  process.kill(first.pid, 'SIGKILL');
+
+  return legacy;
+}

@@ -408,7 +408,7 @@ async function restoreFleet() {
   }
 }
 
-function quit(code = 0): never {
+function quit(code = 0, message?: string): never {
   detachFocused();
 
   client.onClose = () => {};
@@ -419,6 +419,10 @@ function quit(code = 0): never {
   try {
     process.stdin.setRawMode(false);
   } catch {}
+
+  if (message !== undefined) {
+    console.error(message);
+  }
 
   process.exit(code);
 }
@@ -880,6 +884,10 @@ const service = createActor(
 let restartedOnBoot = false;
 let daemonWaiting = false;
 
+// The reader of the restart prompt's key while the TUI owns stdin, which
+// takes the next key in place of the current mode.
+let restartConsentKey: ((key: string) => void) | null = null;
+
 const reconnectDaemonOnce = makeSingleFlight(async () => {
   daemonWaiting = true;
 
@@ -890,9 +898,18 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
   try {
     for (;;) {
       let next: DaemonBoot | null = null;
+      let restarted = false;
 
       try {
-        next = await bootDaemonClient({ onWaitForDaemon: scheduleStatus, clock });
+        next = await bootDaemonClient({
+          onWaitForDaemon: scheduleStatus,
+          clock,
+          onProtocolMismatch: async (mismatch) => {
+            restarted = await waitForRestartConsent(mismatch, 'tui');
+
+            return restarted;
+          },
+        });
 
         client = next.client;
         daemonSocketPath = next.socketPath;
@@ -901,6 +918,10 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
         lastUsedAgent = next.lastUsedAgent;
         client.onEvent = applyDaemonEvent;
         client.onClose = handleDaemonClose;
+
+        if (restarted) {
+          await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
+        }
 
         await refreshMirror();
         await refreshAgents();
@@ -925,6 +946,12 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
+    // A daemon on another protocol that the user keeps in service cannot
+    // serve this client, so it leaves the way its first boot does.
+    if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
+      quit(1, message);
+    }
+
     console.error(message);
   } finally {
     daemonWaiting = false;
@@ -942,7 +969,7 @@ function handleDaemonClose() {
 const boot = await bootDaemonClient({
   clock,
   onProtocolMismatch: async (mismatch) => {
-    restartedOnBoot = await waitForRestartConsent(mismatch);
+    restartedOnBoot = await waitForRestartConsent(mismatch, 'boot');
 
     return restartedOnBoot;
   },
@@ -971,21 +998,38 @@ await refreshAgents();
 /**
  * Asks on the terminal whether to restart a daemon that speaks another
  * protocol, reading a single key. Anything but `y` declines, and so does a
- * terminal that cannot answer.
+ * terminal that cannot answer. On the first boot the prompt goes to stderr
+ * and the key comes straight from stdin; once the TUI owns the screen and
+ * stdin, the prompt replaces the screen and the TUI's own reader passes
+ * the key on.
  */
-async function waitForRestartConsent(mismatch: ProtocolMismatch): Promise<boolean> {
+async function waitForRestartConsent(
+  mismatch: ProtocolMismatch,
+  phase: 'boot' | 'tui',
+): Promise<boolean> {
   if (!process.stdin.isTTY) {
     return false;
   }
 
-  process.stderr.write(
-    [
-      `atc: the daemon (pid ${mismatch.daemonPID}) speaks another protocol than this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}.`,
-      `The daemon answered: ${mismatch.daemonMessage}`,
-      'Restart it now? Every session it hosts ends, then the fleet is restored on the new daemon. [y/N] ',
-    ].join('\n'),
-  );
+  const lines = [
+    `atc: the daemon (pid ${mismatch.daemonPID}) speaks another protocol than this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}.`,
+    `The daemon answered: ${mismatch.daemonMessage}`,
+    'Restart it now? Every session it hosts ends, then the fleet is restored on the new daemon. [y/N] ',
+  ];
 
+  if (phase === 'tui') {
+    stdout.write(ansi.clear + lines.join('\r\n'));
+
+    const key = await new Promise<string>((resolve) => {
+      restartConsentKey = resolve;
+    });
+
+    stdout.write(ansi.clear);
+
+    return key === 'y' || key === 'Y';
+  }
+
+  process.stderr.write(lines.join('\n'));
   process.stdin.setRawMode(true);
   process.stdin.resume();
 
@@ -1131,6 +1175,16 @@ process.stdin.resume();
 const stdinDecoder = new TextDecoder('utf-8');
 
 process.stdin.on('data', (buf: Buffer) => {
+  if (restartConsentKey !== null) {
+    const answer = restartConsentKey;
+
+    restartConsentKey = null;
+
+    answer(buf.toString());
+
+    return;
+  }
+
   switch (service.getSnapshot().value) {
     case 'attached': {
       if (isLeaderKey(buf)) {
