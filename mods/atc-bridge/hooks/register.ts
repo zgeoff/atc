@@ -257,12 +257,9 @@ export const register: Register = (on) => {
 
     state.unseen.delete(msg.id);
 
-    try {
-      await $.process.run([...ATC_CLI, 'answer', '--message', msg.id], {
-        stdin: text,
-        timeoutMs: 5000,
-      });
-    } catch (error) {
+    const failure = await tryRunAnswer($, msg.id, text);
+
+    if (failure !== null) {
       // A turn that ended during the call no longer reports the message, so
       // the failed answer settles it instead of leaving it delivered.
       if (state.carried.get(turnID ?? '') === carried) {
@@ -271,7 +268,7 @@ export const register: Register = (on) => {
         scheduleUnansweredReport($, state, [msg.id], 'error', turnID);
       }
 
-      return { deny: `atc did not take the answer: ${String(error)}` };
+      return { deny: `atc did not take the answer: ${failure}` };
     }
 
     return { result: `Handed to atc as the answer to ${msg.id}.` };
@@ -280,6 +277,25 @@ export const register: Register = (on) => {
 
 function removeCarriedMessage(carried: TapMessage[], msg: TapMessage): void {
   carried.splice(carried.indexOf(msg), 1);
+}
+
+// Why atc did not take the answer, or null once it did: a run that throws
+// and a run that exits nonzero both fail.
+async function tryRunAnswer(
+  $: EngineInterface,
+  messageID: string,
+  text: string,
+): Promise<string | null> {
+  try {
+    const ran = await $.process.run([...ATC_CLI, 'answer', '--message', messageID], {
+      stdin: text,
+      timeoutMs: 5000,
+    });
+
+    return ran.exitCode === 0 ? null : `atc exited with ${String(ran.exitCode)}`;
+  } catch (error) {
+    return String(error);
+  }
 }
 
 function isNoteLabel(value: string): value is (typeof NOTE_LABELS)[number] {

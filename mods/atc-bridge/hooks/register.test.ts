@@ -857,6 +857,70 @@ test('it leaves a message to the final reply when atc does not take its answer',
   ]);
 });
 
+test('it leaves a message to the final reply when atc exits nonzero on its answer', async (engine, on) => {
+  const clock = mock.clock(on);
+  const ran: string[][] = [];
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('process.run', ($, e) => {
+    ran.push([...e.argv]);
+
+    return {
+      value: {
+        exitCode: e.argv.includes('--message') ? 1 : 0,
+        stdout: '',
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    };
+  });
+
+  on('turn.start', ($, e) => ({ turnId: e.turnId }));
+  on('turn.complete', ($, e) => ({ text: e.answer }));
+  on('session.start', ($, e) => ({ cwd: e.cwd }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"one"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await clock.settle();
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'for alice',
+  });
+
+  await engine.turn.complete({
+    answer: 'for the terminal',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await clock.settle();
+
+  expect(answered.deny).toBe('atc did not take the answer: atc exited with 1');
+
+  expect(ran).toStrictEqual([
+    ['atc', 'answer', '--message', 'm-1'],
+    ['atc', 'answer', '--messages', 'm-1', '--turn', 't-1'],
+  ]);
+});
+
 test('it reports a message unanswered when its answer fails after its turn ended', async (engine, on) => {
   const clock = mock.clock(on);
   const ran: string[][] = [];
