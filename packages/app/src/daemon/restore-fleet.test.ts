@@ -553,7 +553,7 @@ test('it starts no terminal for a queued session whose headless turn starts whil
   expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
 });
 
-test('it restores sessions stored before the providers moved into packages on the targets their rows hold', async () => {
+test('it restores sessions stored before the providers moved into packages by target id and target config revision', async () => {
   const built = buildExecutionTargets(
     [
       { id: 'local', provider: 'local-pty', options: {} },
@@ -579,8 +579,10 @@ test('it restores sessions stored before the providers moved into packages on th
 
   const ctx = await setupTest({ targets: built.targets });
 
-  // the identities a daemon stored for these targets before the providers
-  // moved; the cloud row is a killed session, so its restore reaches no impd
+  // a row binds to its target's identity, the digest of that target's
+  // config; these are the identities a daemon stored for these targets
+  // before the providers moved, and the cloud row is a killed session, so
+  // its restore reaches no impd
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-on-local'),
@@ -614,7 +616,7 @@ test('it restores sessions stored before the providers moved into packages on th
   ]);
 });
 
-test('it refuses a stored session whose target holds other connection options than its row was bound to', async () => {
+test('it refuses a stored session whose target config revision differs from the one its row was bound to', async () => {
   const built = buildExecutionTargets(
     [
       {
@@ -659,5 +661,52 @@ test('it refuses a stored session whose target holds other connection options th
 
   expect(ctx.mgr.sessions.map((s) => [s.id, s.state, s.lastMsg])).toStrictEqual([
     ['s-on-cloud', 'exited', "target 'cloud' changed"],
+  ]);
+});
+
+test('it restores a stored session on its own target config revision after another target is added', async () => {
+  const built = buildExecutionTargets(
+    [
+      { id: 'local', provider: 'local-pty', options: {} },
+      {
+        id: 'spare',
+        provider: 'imp',
+        options: { url: 'http://impd.example:7272', tokenEnv: 'FIXTURE_IMP_TOKEN' },
+      },
+    ],
+    buildMockHostServices({ version: '1.0.0' }),
+    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+  );
+
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
+
+  const ctx = await setupTest({ targets: built.targets });
+
+  // the added target changes the daemon-wide revision, and the row stays
+  // bound to the revision of its own target alone
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-on-local'),
+      cwd: ctx.dir,
+      target: 'local',
+      targetIdentity: 'local-pty:44136fa355b3678a',
+    }),
+  ]);
+
+  await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  expect(ctx.mgr.sessions.map((s) => [s.id, s.targetIdentity, s.state, s.lastMsg])).toStrictEqual([
+    ['s-on-local', 'local-pty:44136fa355b3678a', 'running', 'revived'],
   ]);
 });
