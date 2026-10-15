@@ -16,18 +16,19 @@ turn, and to keep that mark in the daemon store. That rule needs no flag. The th
 drop a reply that Codex cut short, so after a restart they give the same verdict only for a message
 whose mark the bridge never saw.
 
-The [App Server bridge spike](https://github.com/zgeoff/atc/blob/55592c3/docs/design/codex-app-server-bridge/spikes/app-server/README.md)
+The
+[App Server bridge spike](https://github.com/zgeoff/atc/blob/55592c3/docs/design/codex-app-server-bridge/spikes/app-server/README.md)
 covers the bridge design this spike builds on.
 
 ## Running the probe
 
 [`probe.ts`](./probe.ts) drives one thread through one scenario and appends every wire message, with
-its time in milliseconds since the probe started, to an NDJSON log.
-[`summarize.ts`](./summarize.ts) prints a log as the timeline that each file in [`runs/`](./runs/)
-holds.
+its time in milliseconds since the probe started, to an NDJSON log. [`summarize.ts`](./summarize.ts)
+prints a log as the timeline that each file in [`runs/`](./runs/) holds.
 
-1. Start an App Server with a scratch Codex home whose `config.toml` sets `approval_policy = "never"`
-   and turns hooks off, so a run never reaches the owner's `~/.codex` or a live atc daemon:
+1. Start an App Server with a scratch Codex home whose `config.toml` sets
+   `approval_policy = "never"` and turns hooks off, so a run never reaches the owner's `~/.codex` or
+   a live atc daemon:
 
    ```bash
    CODEX_HOME=<scratch-codex-home> codex app-server --listen ws://127.0.0.1:47291
@@ -53,9 +54,9 @@ A `turn/start` on a thread with an active turn returns that turn's id at once, b
 `userMessage` item does not appear until Codex adds the message to the thread's history. Codex does
 that between two model requests, and in no run during one:
 
-- During a streamed reply, Codex cuts the running request short. Its `rawResponse/completed`
-  arrives first, then the `userMessage` item, then a new request that reads the message
-  (`03-steer-stream`, `11-steer-stream-repeat`, `11-steer-early-repeat`).
+- During a streamed reply, Codex cuts the running request short. Its `rawResponse/completed` arrives
+  first, then the `userMessage` item, then a new request that reads the message (`03-steer-stream`,
+  `11-steer-stream-repeat`, `11-steer-early-repeat`).
 - During a command, the unified exec tool returns its output early, and the `userMessage` item
   follows that output within a few milliseconds, while the command runs on (`04-steer-command`,
   `11-steer-command-repeat`).
@@ -92,9 +93,9 @@ The flag lives in the loaded thread, not in its rollout. A thread started with
   and the next turn sent no raw notification.
 
 `thread/resume` takes no raw-events option, so the bridge cannot turn the flag back on. The App
-Server does not replay notifications from before a connection, and the stored turns hold no trace
-of a model request, so a read that only `rawResponse/completed` showed is lost at a restart. A
-daemon restart always restarts the App Server, because the App Server is the daemon's child.
+Server does not replay notifications from before a connection, and the stored turns hold no trace of
+a model request, so a read that only `rawResponse/completed` showed is lost at a restart. A daemon
+restart always restarts the App Server, because the App Server is the daemon's child.
 
 `ThreadStartParams` documents `experimentalRawEvents` as "for internal use only (e.g. Codex Cloud)",
 and `RawResponseCompletedNotification` calls itself an "internal-only notification". Without the
@@ -120,15 +121,15 @@ the stored turn holds the command after `m-i2`, although the command started bef
 ### The stored turns
 
 `thread/turns/list` with `itemsView: "full"` keeps a steered message's `userMessage` item in its
-place among the turn's items ([`06-stored-turns.txt`](./runs/06-stored-turns.txt)). For each
-steered message, an `agentMessage` after it appears in both completed turns and in neither
-interrupted one, which matches the live verdict. The default `summary` view leaves steered
-`userMessage` items out, so recovery must keep asking for `full`.
+place among the turn's items ([`06-stored-turns.txt`](./runs/06-stored-turns.txt)). For each steered
+message, an `agentMessage` after it appears in both completed turns and in neither interrupted one,
+which matches the live verdict. The default `summary` view leaves steered `userMessage` items out,
+so recovery must keep asking for `full`.
 
 The stored turns can still disagree with the live rule, because they hold only completed items. In
 `05-interrupt-stream`, the model streamed a reply to `m-j1` before the steer cut it short, so the
-live rule marks `m-j1` read. The stored turn holds no `agentMessage` at all, so a recovery that reads
-only the stored turns marks `m-j1` unread and delivers again a message whose reply the person
+live rule marks `m-j1` read. The stored turn holds no `agentMessage` at all, so a recovery that
+reads only the stored turns marks `m-j1` unread and delivers again a message whose reply the person
 interrupted. The stored turns therefore cannot replace a mark the bridge saw live.
 
 ### An interrupt before Codex adds the message
@@ -149,8 +150,7 @@ request did not include it. The model never saw `m-p2`, so by atc's rule it is d
 ## Recommendation
 
 Mark a Codex message read in the bridge at the first model item that starts after its `userMessage`
-item, and
-use that mark only where the interrupted or failed turn decides between two outcomes:
+item, and use that mark only where the interrupted or failed turn decides between two outcomes:
 
 - A message with a model item after its `userMessage` item stays unanswered with the turn's reason.
 - A message with no model item after it, or with no `userMessage` item in the turn, goes back to
@@ -173,9 +173,9 @@ with it:
   a `userMessage` item with its id in two turns. Recovery must settle such a message from the latest
   turn that holds the id.
 
-Do not use `rawResponse/completed` for the read mark. A bridge that wants a live mark sooner than the
-first model item could add it as a hint on a raw thread, but a restart drops the flag, and recovery
-cannot reproduce the hint.
+Do not use `rawResponse/completed` for the read mark. A bridge that wants a live mark sooner than
+the first model item could add it as a hint on a raw thread, but a restart drops the flag, and
+recovery cannot reproduce the hint.
 
 ## Limits
 
@@ -191,18 +191,18 @@ cannot reproduce the hint.
 
 ## The runs
 
-| Run                       | Scenario                                       | Raw flag | Read mark shown           |
-| ------------------------- | ---------------------------------------------- | -------- | ------------------------- |
-| `01-idle-raw`             | message on an idle thread                      | on       | read, one request         |
-| `02-idle-noraw`           | message on an idle thread                      | off      | no raw notifications      |
-| `03-steer-stream`         | steer during a streamed reply                  | on       | read by the second reply  |
-| `04-steer-command`        | steer during `sleep 12`                        | on       | read by the poll request  |
-| `05-interrupt-command`    | steer during `sleep 12`, then interrupt        | on       | unread                    |
-| `05-interrupt-stream`     | steer during a streamed reply, then interrupt  | on       | unread                    |
-| `06-stored-turns`         | stored turns of runs 03 to 05                  | on       | same verdicts as live     |
-| `07-observer`, `07-second-client` | raw thread resumed after it unloaded   | lost     | no raw notifications      |
-| `08-observer`, `08-second-client` | second subscriber on a loaded raw thread | on     | both get raw events       |
-| `09-after-restart`        | raw thread resumed after an App Server restart | lost     | no raw notifications      |
-| `10-terminal-probe`       | terminal joined to a raw thread                | on       | terminal renders normally |
-| `11-*-repeat`             | runs 03 and 04 again, plus a steer before any output | on | same verdicts         |
-| `12-interrupt-pending`    | interrupt before Codex adds the steer          | on       | message dropped           |
+| Run                               | Scenario                                             | Raw flag | Read mark shown           |
+| --------------------------------- | ---------------------------------------------------- | -------- | ------------------------- |
+| `01-idle-raw`                     | message on an idle thread                            | on       | read, one request         |
+| `02-idle-noraw`                   | message on an idle thread                            | off      | no raw notifications      |
+| `03-steer-stream`                 | steer during a streamed reply                        | on       | read by the second reply  |
+| `04-steer-command`                | steer during `sleep 12`                              | on       | read by the poll request  |
+| `05-interrupt-command`            | steer during `sleep 12`, then interrupt              | on       | unread                    |
+| `05-interrupt-stream`             | steer during a streamed reply, then interrupt        | on       | unread                    |
+| `06-stored-turns`                 | stored turns of runs 03 to 05                        | on       | same verdicts as live     |
+| `07-observer`, `07-second-client` | raw thread resumed after it unloaded                 | lost     | no raw notifications      |
+| `08-observer`, `08-second-client` | second subscriber on a loaded raw thread             | on       | both get raw events       |
+| `09-after-restart`                | raw thread resumed after an App Server restart       | lost     | no raw notifications      |
+| `10-terminal-probe`               | terminal joined to a raw thread                      | on       | terminal renders normally |
+| `11-*-repeat`                     | runs 03 and 04 again, plus a steer before any output | on       | same verdicts             |
+| `12-interrupt-pending`            | interrupt before Codex adds the steer                | on       | message dropped           |
