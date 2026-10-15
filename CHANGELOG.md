@@ -1,5 +1,37 @@
 # Changelog
 
+## [4.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.9.0...@zgeoff/atc@4.10.0) (2026-10-15)
+
+### Features
+
+- **geo-480:** call the impz cli and the zgeoff/impz repo
+  ([#627](https://github.com/zgeoff/atc/issues/627))
+  ([ee12fb0](https://github.com/zgeoff/atc/commit/ee12fb0e428f347ebd5176b3cb3993277f54a6ba))
+- **geo-928:** deliver messages to codex sessions through the app server
+  ([#628](https://github.com/zgeoff/atc/issues/628))
+  ([c0aa5ff](https://github.com/zgeoff/atc/commit/c0aa5ff672ceb3e89766facbaf689bb8c2c7412b))
+- **geo-939:** read and choose every option of a scrolled menu
+  ([#631](https://github.com/zgeoff/atc/issues/631))
+  ([a268494](https://github.com/zgeoff/atc/commit/a268494303fb9847dccb880fa7b147203be8da38))
+- **geo-984:** skip listed host-failing tests in the pre-push tests
+  ([#637](https://github.com/zgeoff/atc/issues/637))
+  ([0b299ad](https://github.com/zgeoff/atc/commit/0b299ad9d3c8d13f2bd293c923987f895895cbea))
+
+### Bug Fixes
+
+- **geo-916:** compare importers against the real root in check:bundle
+  ([#622](https://github.com/zgeoff/atc/issues/622))
+  ([302e44a](https://github.com/zgeoff/atc/commit/302e44ad62593a5392e5ffa39d1f70c7028a0e87))
+- **geo-940:** move the codex bridge to the thread the terminal shows
+  ([#632](https://github.com/zgeoff/atc/issues/632))
+  ([005fbf7](https://github.com/zgeoff/atc/commit/005fbf7854744f097eb44f3bf30ac47c78c375aa))
+- **geo-941:** retry overloaded codex sends on the spawn's model
+  ([#634](https://github.com/zgeoff/atc/issues/634))
+  ([2a989b0](https://github.com/zgeoff/atc/commit/2a989b0cedb6ff427ed7fb4b8dbe025114a050c2))
+- **geo-982:** state a scope for each member of the scoped context
+  ([#635](https://github.com/zgeoff/atc/issues/635))
+  ([43c6b07](https://github.com/zgeoff/atc/commit/43c6b074561f0fc50712b8bac64202e4da61bc65))
+
 ## [4.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.8.0...@zgeoff/atc@4.9.0) (2026-10-15)
 
 ### Features
