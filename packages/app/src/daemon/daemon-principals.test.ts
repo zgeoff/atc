@@ -20,8 +20,8 @@ import {
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildPrincipalCaller } from '../mcp/build-principal-caller';
-import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { runTool } from '../mcp/run-tool';
+import { TransportCaller } from '../mcp/transport-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildStubTargets } from './testing/build-stub-targets';
 
@@ -2682,7 +2682,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
     },
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+  const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -2756,7 +2756,7 @@ test('it reads the first of many large notes a principal may see while another c
     },
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+  const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 

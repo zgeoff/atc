@@ -17,7 +17,7 @@ import {
 } from '@atc/test-utils';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { DaemonCaller } from './daemon-caller';
+import { GatewayDaemonCaller } from './gateway-daemon-caller';
 import type { RegistryDaemon } from './types';
 
 // The principal every request in these tests acts as.
@@ -64,7 +64,7 @@ async function setupTest() {
 test('it answers a request through a daemon whose handshake returns the pinned id', async () => {
   const ctx = await setupTest();
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -85,7 +85,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
 test('it reads the build, features, and key retention from the handshake', async () => {
   const ctx = await setupTest();
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -111,7 +111,7 @@ test('it reads the build, features, and key retention from the handshake', async
 test('it refuses a daemon behind another state identity as daemon_changed and sends it nothing', async () => {
   const ctx = await setupTest();
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -141,7 +141,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
 test('it refuses a daemon that rejects the token as daemon_unauthorized', async () => {
   const ctx = await setupTest();
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -161,7 +161,7 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
 });
 
 test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
 
@@ -184,7 +184,7 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
 test("it passes a daemon's own error through with its code", async () => {
   const ctx = await setupTest();
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -213,7 +213,7 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
     mode: 'close',
   });
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
@@ -249,7 +249,7 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
     mode: 'close',
   });
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
@@ -282,7 +282,7 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
     mode: 'close',
   });
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
@@ -322,7 +322,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
       DaemonClient.open({ hostname: address.host, port: address.port }),
   ]);
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
@@ -370,7 +370,7 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
   const silent = startStubUnansweringListener();
   const clock = buildStubClock(0);
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: silent.port },
@@ -422,7 +422,7 @@ test('it answers outcome_unknown instead of retrying a keyed spawn on a reconnec
     () => DaemonClient.open(join(ctx.daemon.dir, 'legacy.sock')),
   ]);
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
@@ -463,7 +463,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
     { holdDial: 2 },
   );
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: proxy.port },
@@ -505,7 +505,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
 test('it holds concurrent first requests until the handshake answers, so the daemon never sees a pipelined line', async () => {
   const ctx = await setupTest();
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -535,7 +535,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
       DaemonClient.open({ hostname: address.host, port: address.port }),
   ]);
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -602,7 +602,7 @@ test('it refuses a principal request to a daemon that would not label its messag
     },
   });
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },
@@ -630,7 +630,7 @@ test('it refuses a principal request to a daemon that would not label its messag
 test('it sends the name of the principal beside it', async () => {
   const ctx = await setupTest();
 
-  const caller = new DaemonCaller({
+  const caller = new GatewayDaemonCaller({
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
       address: { host: '127.0.0.1', port: ctx.port },

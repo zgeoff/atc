@@ -97,13 +97,11 @@ function buildEntryPattern(entries: ReadonlyMap<string, readonly string[]>): Res
   const group: string[] = [];
 
   for (const [name, subpaths] of [...entries].toSorted(([a], [b]) => a.localeCompare(b))) {
-    group.push(`${name}/*`);
+    group.push(`${name}/*`, `${name}/*/**`);
 
     for (const subpath of subpaths.filter((candidate) => candidate !== '.')) {
       group.push(`!${name}/${subpath.slice(2)}`);
     }
-
-    group.push(`${name}/*/**`);
   }
 
   return { group, message: 'Import a package through an entry point its exports map lists.' };

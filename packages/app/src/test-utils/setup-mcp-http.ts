@@ -12,8 +12,8 @@ import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle } from '../daemon/daemon';
 import { createEnrollmentToken } from '../mcp/create-enrollment-token';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
-import { ReconnectingCaller } from '../mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
+import { TransportCaller } from '../mcp/transport-caller';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 
 interface MCPHTTPSetupOptions {
@@ -72,7 +72,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   stack.defer(() => daemon.stop());
 
-  const caller = new ReconnectingCaller(socketPath, 'atc/test-build', (path) =>
+  const caller = new TransportCaller(socketPath, 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 

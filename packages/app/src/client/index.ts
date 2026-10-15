@@ -1,11 +1,12 @@
 import { configFile, loadConfig } from '@atc/config';
 import { resolveHomeDir } from '@atc/config/host';
 import type { AgentID } from '@atc/core';
-import { ansi, makeSingleFlight, systemClock, waitUntil } from '@atc/core';
+import { ansi, makeSingleFlight, systemClock } from '@atc/core';
 import { countSessionStates, sortGroupedSessionViews, sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot, DaemonFeature, ProtocolMismatch } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-import type { EventMsg } from '@atc/protocol/wire';
+import type { DaemonClient, EventMsg } from '@atc/protocol/wire';
+import { DaemonTransport } from '@atc/protocol/wire/transport';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
@@ -113,9 +114,9 @@ function scheduleStatus() {
         focusedName: focused === null ? null : focused.name,
         urgentName: urgent === undefined ? null : urgent.name,
         leaderLabel: leader.label,
-        stale: daemonStale,
+        stale: getBoot().stale,
         restarting: daemonRestarting,
-        waiting: daemonWaiting,
+        waiting: isDaemonWaiting(),
         daemonName: remoteDaemonName,
       });
     }
@@ -124,7 +125,7 @@ function scheduleStatus() {
 
 async function sendQuiet(m: string, p?: Readonly<Record<string, unknown>>) {
   try {
-    await client.sendRequest(m, p);
+    await getClient().sendRequest(m, p);
   } catch {}
 }
 
@@ -132,7 +133,7 @@ async function sendQuiet(m: string, p?: Readonly<Record<string, unknown>>) {
 // host asks once more before the forget.
 async function sendKill(sessionID: string) {
   try {
-    await client.sendRequest('session.kill', { session: sessionID });
+    await getClient().sendRequest('session.kill', { session: sessionID });
   } catch (error) {
     if (error instanceof DaemonError && error.code === 'confirmation_required') {
       confirmDestroyID = sessionID;
@@ -148,12 +149,12 @@ async function sendKill(sessionID: string) {
 // the operator already confirmed in the overlay.
 async function sendForget(sessionID: string) {
   try {
-    const offered = await client.sendRequest('session.forget', { session: sessionID });
+    const offered = await getClient().sendRequest('session.forget', { session: sessionID });
 
     const confirmToken = offered['confirmToken'];
 
     if (typeof confirmToken === 'string') {
-      await client.sendRequest('session.forget', { session: sessionID, confirmToken });
+      await getClient().sendRequest('session.forget', { session: sessionID, confirmToken });
     }
   } catch {}
 }
@@ -162,7 +163,7 @@ async function attach(sessionID: string) {
   service.send({ type: 'ATTACH', sessionID });
 
   try {
-    await client.sendRequest('session.attach', {
+    await getClient().sendRequest('session.attach', {
       session: sessionID,
       cols: cols(),
       rows: ptyRows(),
@@ -194,7 +195,7 @@ let ejectInput = '';
 
 async function yankToHeadless(instruction: string) {
   try {
-    await client.sendRequest('session.eject', {
+    await getClient().sendRequest('session.eject', {
       session: ejectTarget,
       ...(instruction === '' ? {} : { prompt: instruction }),
     });
@@ -207,8 +208,7 @@ async function yankToHeadless(instruction: string) {
 
 async function adoptSession(id: string) {
   try {
-    await client.sendRequest('session.adopt', { session: id, cols: cols(), rows: ptyRows() });
-
+    await getClient().sendRequest('session.adopt', { session: id, cols: cols(), rows: ptyRows() });
     await attach(id);
   } catch (error) {
     recordActionFailure(id, error);
@@ -282,7 +282,7 @@ function renderOverlay() {
     confirmKill,
     confirmDestroy: confirmDestroyID !== null,
     filter: overlayFilter,
-    stale: daemonStale && !daemonRestarting,
+    stale: getBoot().stale && !daemonRestarting,
     grouped: overlayGrouped,
   });
 
@@ -295,7 +295,7 @@ function renderOverlay() {
 // keeps the column honest rather than trusting the boot-time answer.
 async function refreshAgents() {
   try {
-    const answer = await client.sendRequest('agents.list');
+    const answer = await getClient().sendRequest('agents.list');
 
     const meta = resolveAgentMetadata(loadConfig(SHIPPED_HARNESS_PLUGINS), answer);
 
@@ -378,7 +378,7 @@ const picker = new SpawnPicker<MirrorSession>({
   },
   log: logClientEvent,
   listingCache: openListingCache(host.listingCacheFile),
-  getDaemonSocketPath: () => daemonSocketPath,
+  getDaemonSocketPath: () => getBoot().socketPath,
   now: clock.now,
 });
 
@@ -387,11 +387,11 @@ function openPicker(resume: boolean) {
 }
 
 function hasDaemonFeature(feature: DaemonFeature): boolean {
-  return daemonFeatures.has(feature);
+  return getBoot().features.has(feature);
 }
 
 function sendRequest(m: string, p?: Readonly<Record<string, unknown>>) {
-  return client.sendRequest(m, p);
+  return getClient().sendRequest(m, p);
 }
 
 function getLastUsedAgent(): AgentID {
@@ -400,7 +400,7 @@ function getLastUsedAgent(): AgentID {
 
 async function restoreFleet() {
   try {
-    await client.sendRequest('fleet.restore', { cols: cols(), rows: ptyRows() });
+    await getClient().sendRequest('fleet.restore', { cols: cols(), rows: ptyRows() });
   } catch {
     return;
   }
@@ -415,9 +415,7 @@ async function restoreFleet() {
 function quit(code = 0, message?: string): never {
   detachFocused();
 
-  client.onClose = () => {};
-
-  client.stop();
+  transport.stop();
   stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
 
   try {
@@ -754,7 +752,7 @@ function applyOverlayKey(buf: Buffer) {
     return;
   }
 
-  if (ch === 'u' && daemonStale) {
+  if (ch === 'u' && getBoot().stale) {
     void restartDaemonOnce();
 
     return;
@@ -805,7 +803,7 @@ function applyOverlayKey(buf: Buffer) {
 
 async function yankResume(sessionID: string, eject: boolean) {
   try {
-    const answer = await client.sendRequest('session.resumeCommand', { session: sessionID });
+    const answer = await getClient().sendRequest('session.resumeCommand', { session: sessionID });
 
     const command = answer['command'];
 
@@ -883,108 +881,132 @@ const service = createActor(
   }),
 );
 
-// A daemon on another protocol is restarted only when the user confirms
-// it, and the fleet it hosted is then restored on the new one.
-let restartedOnBoot = false;
-let daemonWaiting = false;
+// What one open of the daemon gave the client: its boot, and whether the
+// user restarted a daemon on another protocol to get it, so the fleet that
+// daemon hosted is restored on the new one.
+interface DaemonLink {
+  readonly boot: DaemonBoot;
+  readonly restarted: boolean;
+}
 
-const reconnectDaemonOnce = makeSingleFlight(async () => {
-  daemonWaiting = true;
+// While a deliberate restart waits for the new daemon, an open that still
+// reaches the old one is refused until this time passes.
+let freshDaemonDeadline = 0;
+let daemonRestarting = false;
 
-  // The reconnect leaves the picker, so no answer its flow still waits on
-  // draws it again.
-  picker.stopFlow();
-  service.send({ type: 'OVERLAY' });
+/**
+ * The connection to the daemon, which reconnects as soon as it is lost. The
+ * first open is the client's boot, and its failure ends the client before
+ * the first frame. A later open waits for the daemon the way the boot does;
+ * a daemon on another protocol that the user keeps in service cannot serve
+ * this client, and a remote boot waits out an unreachable daemon itself, so
+ * either failure ends the client. Any other failure is logged and the next
+ * open follows a backoff.
+ */
+const transport: DaemonTransport<DaemonLink> = new DaemonTransport<DaemonLink>({
+  reconnect: 'always',
+  backoffMs: [0, 200, 1000, 2000],
+  clock,
+  getChannel: (link) => link.boot.client,
+  open: (opened) => {
+    const phase = opened === 0 ? 'boot' : 'tui';
 
-  scheduleStatus();
+    return openDaemonLink(phase);
+  },
+  isFatal: (error) =>
+    transport.findLatest() === null ||
+    (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
+    remoteDaemonName !== null,
+  onReady: (link) => {
+    lastUsedAgent = link.boot.lastUsedAgent;
+    link.boot.client.onEvent = applyDaemonEvent;
 
-  try {
-    for (;;) {
-      let next: DaemonBoot | null = null;
-      let restarted = false;
-
-      try {
-        next = await bootDaemonClient({
-          onWaitForDaemon: scheduleStatus,
-          clock,
-          onProtocolMismatch: async (mismatch) => {
-            restarted = await waitForRestartConsent(mismatch, 'tui');
-
-            return restarted;
-          },
-        });
-
-        client = next.client;
-        daemonSocketPath = next.socketPath;
-        daemonStale = next.stale;
-        daemonFeatures = next.features;
-        lastUsedAgent = next.lastUsedAgent;
-        client.onEvent = applyDaemonEvent;
-        client.onClose = handleDaemonClose;
-
-        if (restarted) {
-          await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
-        }
-
-        await refreshMirror();
-        await refreshAgents();
-
-        if (next.client.isClosed()) {
-          continue;
-        }
-
-        if (service.getSnapshot().value === 'overlay') {
-          renderOverlay();
-        }
-
-        break;
-      } catch (error) {
-        if (next !== null && next.client.isClosed()) {
-          continue;
-        }
-
-        throw error;
-      }
+    scheduleStatus();
+  },
+  onLost: () => {
+    // The reconnect leaves the picker, so no answer its flow still waits on
+    // draws it again. A deliberate restart keeps the screen it drew.
+    if (!daemonRestarting) {
+      picker.stopFlow();
+      service.send({ type: 'OVERLAY' });
     }
-  } catch (error) {
+
+    scheduleStatus();
+  },
+  onOpenFailed: (error, fatal) => {
     const message = error instanceof Error ? error.message : String(error);
 
-    // A daemon on another protocol that the user keeps in service cannot
-    // serve this client, so it leaves the way its first boot does. A remote
-    // boot waits out an unreachable daemon itself, so any failure that
-    // reaches here, such as a refused token, is final, and the client
-    // leaves rather than keep showing a fleet it can no longer reach.
-    if (
-      (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
-      remoteDaemonName !== null
-    ) {
+    if (fatal && transport.findLatest() !== null) {
       quit(1, `atc: ${message}`);
     }
 
-    console.error(message);
-  } finally {
-    daemonWaiting = false;
+    if (!daemonRestarting) {
+      logClientEvent(`reconnect: ${message}; trying again`);
+    }
 
     scheduleStatus();
-  }
+  },
 });
 
-function handleDaemonClose() {
-  if (!daemonRestarting) {
-    void reconnectDaemonOnce();
+// Opens and handshakes the daemon. A daemon on another protocol is
+// restarted only when the user confirms it: on the first open the prompt
+// goes to stderr, and once the TUI owns the screen it replaces the screen.
+async function openDaemonLink(phase: 'boot' | 'tui'): Promise<DaemonLink> {
+  let restarted = false;
+
+  const boot = await bootDaemonClient({
+    clock,
+    ...(phase === 'tui' ? { onWaitForDaemon: scheduleStatus } : {}),
+    onProtocolMismatch: async (mismatch) => {
+      restarted = await waitForRestartConsent(mismatch, phase);
+
+      return restarted;
+    },
+  });
+
+  // A stale answer means the old daemon still holds the socket, so the
+  // open is refused and the next one boots again.
+  if (boot.stale && clock.now() < freshDaemonDeadline) {
+    boot.client.stop();
+    throw new Error('the old daemon still answers');
+  }
+
+  if (phase === 'tui') {
+    void refreshAfterReconnect(boot, restarted);
+  }
+
+  return { boot, restarted };
+}
+
+// Brings the mirror up to date on a daemon the client reconnected to. A
+// connection lost on the way is left to the next reconnect, which runs
+// this again.
+async function refreshAfterReconnect(boot: DaemonBoot, restarted: boolean) {
+  await transport.waitForConnection();
+
+  try {
+    if (restarted) {
+      await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
+    }
+
+    await refreshMirror();
+    await refreshAgents();
+  } catch (error) {
+    if (!boot.client.isClosed()) {
+      logClientEvent(`reconnect: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    return;
+  }
+
+  if (service.getSnapshot().value === 'overlay') {
+    renderOverlay();
   }
 }
 
 // A boot that fails leaves before the first frame, with its message alone:
 // the message holds the daemon and what to do, and a stack would bury it.
-const boot = await bootDaemonClient({
-  clock,
-  onProtocolMismatch: async (mismatch) => {
-    restartedOnBoot = await waitForRestartConsent(mismatch, 'boot');
-
-    return restartedOnBoot;
-  },
-}).catch((error: unknown) => {
+const firstLink = await transport.waitForConnection().catch((error: unknown) => {
   stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
 
   try {
@@ -996,25 +1018,44 @@ const boot = await bootDaemonClient({
   return process.exit(1);
 });
 
-let client = boot.client;
-
-// The socket the daemon answered on, which a restart takes it out of
-// service by.
-let daemonSocketPath = boot.socketPath;
-let daemonStale = boot.stale;
-let daemonFeatures = boot.features;
-let daemonRestarting = false;
-
-lastUsedAgent = boot.lastUsedAgent;
-client.onEvent = applyDaemonEvent;
-client.onClose = handleDaemonClose;
-
-if (restartedOnBoot) {
+if (firstLink.restarted) {
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
 }
 
 await refreshMirror();
 await refreshAgents();
+
+// The client of the latest connection. A request on one that was lost
+// rejects at once, as the reconnect takes its place.
+function getClient(): DaemonClient {
+  const link = transport.findLatest();
+
+  if (link === null) {
+    throw new Error('the client has no daemon connection yet');
+  }
+
+  return link.boot.client;
+}
+
+// The boot of the latest connection: the daemon's socket, which a restart
+// takes it out of service by, its build, and its features.
+function getBoot(): DaemonBoot {
+  const link = transport.findLatest();
+
+  if (link === null) {
+    throw new Error('the client has no daemon connection yet');
+  }
+
+  return link.boot;
+}
+
+// Whether the client waits for the daemon after it lost its connection,
+// which a deliberate restart shows as its own.
+function isDaemonWaiting(): boolean {
+  const state = transport.readState();
+
+  return !daemonRestarting && (state === 'connecting' || state === 'backoff');
+}
 
 /**
  * Asks on the terminal whether to restart a daemon that speaks another
@@ -1078,7 +1119,7 @@ async function waitForRestartConsent(
 }
 
 async function refreshMirror() {
-  const list = await client.sendRequest('session.list');
+  const list = await getClient().sendRequest('session.list');
 
   const sessions = list['sessions'];
 
@@ -1094,7 +1135,9 @@ async function refreshMirror() {
     }
   }
 
-  const answer = await client.sendRequest('fleet.list').catch(() => ({}) as const);
+  const answer = await getClient()
+    .sendRequest('fleet.list')
+    .catch(() => ({}) as const);
 
   const entries = (answer as Record<string, unknown>)['fleet'];
 
@@ -1126,10 +1169,11 @@ async function restartDaemon() {
   // The step `atc daemon restart` takes: the user service that runs the
   // daemon restarts, or the daemon stops. A daemon that cannot be found or
   // restarted stays in service, and the client stays on it.
+  const socketPath = getBoot().socketPath;
   let restarted: boolean;
 
   try {
-    restarted = await restartDaemonAt(daemonSocketPath);
+    restarted = await restartDaemonAt(socketPath);
   } catch (error) {
     logClientEvent(
       `restart: ${error instanceof Error ? error.message : String(error)}; the daemon was left running`,
@@ -1139,43 +1183,10 @@ async function restartDaemon() {
   }
 
   if (!restarted) {
-    logClientEvent(
-      `restart: no pid found for the daemon at ${daemonSocketPath}; it was left running`,
-    );
+    logClientEvent(`restart: no pid found for the daemon at ${socketPath}; it was left running`);
 
     return;
   }
-
-  client.stop();
-
-  const deadline = clock.now() + 8000;
-
-  let next = await bootDaemonClient({ clock });
-
-  let attempts = 0;
-
-  // A stale answer means the old daemon still holds the socket, so each
-  // retry drops it and boots again.
-  await waitUntil(
-    async () => {
-      if (attempts++ > 0) {
-        next.client.stop();
-
-        next = await bootDaemonClient({ clock });
-      }
-
-      return !next.stale;
-    },
-    { clock, intervalMs: 200, deadlineMs: deadline },
-  );
-
-  client = next.client;
-  daemonSocketPath = next.socketPath;
-  daemonStale = next.stale;
-  daemonFeatures = next.features;
-  lastUsedAgent = next.lastUsedAgent;
-  client.onEvent = applyDaemonEvent;
-  client.onClose = handleDaemonClose;
 
   // A new daemon may map aliases differently, so rows fall back to the
   // config baseline until its own answer arrives; the target count goes
@@ -1186,6 +1197,18 @@ async function restartDaemon() {
   agentLabels = baseline.labels;
   agentModels = baseline.models;
   availableTargets = 0;
+
+  // The transport reconnects once the old connection is dropped, and
+  // refuses the old daemon while it still answers.
+  freshDaemonDeadline = clock.now() + 8000;
+
+  const old = transport.findLatest();
+
+  if (old !== null) {
+    transport.stopConnection(old);
+  }
+
+  await transport.waitForConnection();
 
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
   await refreshMirror().catch(() => {});

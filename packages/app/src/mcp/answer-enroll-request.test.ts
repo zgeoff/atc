@@ -15,9 +15,9 @@ import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { collectPasskeys } from './collect-passkeys';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
-import { ReconnectingCaller } from './reconnecting-caller';
 import { resetPasskeys } from './reset-passkeys';
 import { startMCPHTTPServer } from './start-mcp-http-server';
+import { TransportCaller } from './transport-caller';
 
 // `atc mcp --http` on a free port with no passkey enrolled, on a clock that
 // stands still unless a test advances it, with every security event line
@@ -30,7 +30,7 @@ async function setupTest() {
   const security: string[] = [];
   const clock = buildStubClock(Date.now());
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 

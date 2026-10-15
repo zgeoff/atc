@@ -13,7 +13,7 @@ import {
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { answerRPCRequest } from './answer-rpc-request';
-import { ReconnectingCaller } from './reconnecting-caller';
+import { TransportCaller } from './transport-caller';
 
 // A real daemon whose one agent is a `claude` that is not installed and
 // whose sessions run `sleep`, and `atc mcp`'s caller in front of it.
@@ -23,7 +23,7 @@ async function setupTest() {
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -433,7 +433,7 @@ test('it lists the agents to a caller holding only the read scope', async () => 
 test('it answers a tool list with an error when no daemon listens on the socket', async () => {
   const tmp = setupTempDir('atc-answer-rpc-');
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -459,7 +459,7 @@ test('it leaves the agents tool out of the list when the connected daemon does n
 
   startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -488,7 +488,7 @@ test('it lists the message tool in its older form when the connected daemon anno
 
   startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -542,7 +542,7 @@ test.each([
     const tmp = setupTempDir('atc-answer-rpc-');
     const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
-    const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
       DaemonClient.open(path),
     );
 
@@ -587,7 +587,7 @@ test.each([
     const tmp = setupTempDir('atc-answer-rpc-');
     const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'));
 
-    const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
       DaemonClient.open(path),
     );
 
@@ -648,7 +648,7 @@ test('it reads a message from an older daemon when the call asks for no wait', a
     },
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -806,7 +806,7 @@ test('it lists the agents tool without an output schema when the daemon takes no
     },
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -870,7 +870,7 @@ test('it returns the agents a daemon without spawn options lists', async () => {
     },
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 

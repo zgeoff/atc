@@ -8,15 +8,15 @@ import { match } from 'ts-pattern';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { buildGatewayError } from './build-gateway-error';
 import { buildGatewayResult } from './build-gateway-result';
-import type { DaemonCaller, ParamsPreparer } from './daemon-caller';
 import type { DaemonPool } from './daemon-pool';
+import type { GatewayDaemonCaller } from './gateway-daemon-caller';
 import { GatewayError } from './gateway-error';
 import type { GatewayStore } from './gateway-store';
 import { pickDaemonState } from './pick-daemon-state';
 import { readFleetEvents } from './read-fleet-events';
 import { requireServingDaemon } from './require-serving-daemon';
 import { resolveDaemonRequest } from './resolve-daemon-request';
-import type { GatewayFeature, GatewayRegistry, RegistryDaemon } from './types';
+import type { GatewayFeature, GatewayRegistry, ParamsPreparer, RegistryDaemon } from './types';
 import { waitForOutcome } from './wait-for-outcome';
 import type { CallOutcome } from './wait-for-outcome';
 
@@ -146,7 +146,8 @@ export class RoutingCaller {
     return features;
   }
 
-  private readonly getCaller = (name: string): DaemonCaller => this.opts.pool.getCaller(name);
+  private readonly getCaller = (name: string): GatewayDaemonCaller =>
+    this.opts.pool.getCaller(name);
 
   private getTimeout(): number {
     return this.opts.fanOutTimeoutMs ?? FAN_OUT_TIMEOUT_MS;

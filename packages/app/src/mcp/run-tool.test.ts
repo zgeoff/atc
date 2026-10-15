@@ -31,8 +31,8 @@ import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemo
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildPrincipalCaller } from './build-principal-caller';
-import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';
+import { TransportCaller } from './transport-caller';
 
 /**
  * A real daemon whose sessions run `sleep`, and `atc mcp`'s caller in front
@@ -100,7 +100,7 @@ async function setupTest() {
     },
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -332,7 +332,7 @@ test("it returns a message's whole answer on its answered event by default", asy
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -375,7 +375,7 @@ test('it returns the answer preview on an answered event when the call asks for 
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -540,7 +540,7 @@ test('it replays a message key an older atc mcp stored with a given from, and la
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -705,7 +705,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
     },
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -844,7 +844,7 @@ test('it refuses a spawn on a target unsent when the daemon predates targets', (
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -891,7 +891,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
     }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -939,7 +939,7 @@ test('it refuses a git workspace without a cwd unsent when the daemon predates p
     features: DAEMON_FEATURES.filter((feature) => feature !== 'spawn.workspace.autoDir'),
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -981,7 +981,7 @@ test('it refuses a spawn with a workspace unsent when the daemon predates worksp
     features: ['agents.list', 'events.more', 'events.session', 'message.turn', 'message.wait'],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1020,7 +1020,7 @@ test('it refuses a session input line unsent when the daemon predates line submi
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.submit'),
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1169,7 +1169,7 @@ test('it refuses a full events read unsent when the daemon predates answer reads
     features: DAEMON_FEATURES.filter((feature) => feature !== 'answer.get'),
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1189,7 +1189,7 @@ test('it reads previews from a daemon that predates answer reads', async () => {
     replies: { 'events.read': { events: [], cursor: 'c1', more: false } },
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1207,7 +1207,7 @@ test('it refuses a menu read unsent when the daemon predates menus', () => {
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.menu'),
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1260,7 +1260,7 @@ test('it refuses a stop unsent when the daemon predates stop-only kills', () => 
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.kill.stopOnly'),
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1335,7 +1335,7 @@ test('it refuses a rename unsent when the daemon predates a reported skipped ren
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.update.renameSkipped'),
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1362,7 +1362,7 @@ test('it refuses a detach unsent when the daemon predates a null parent on updat
     features: DAEMON_FEATURES.filter((feature) => feature !== 'session.update.parent'),
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1437,7 +1437,7 @@ test('it refuses an explicit trust decision unsent when the daemon predates clon
     ],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1465,7 +1465,7 @@ test.each([
     features: ['events.more', 'events.session', 'message.wait', 'message.idempotency', 'note.get'],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -2192,7 +2192,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
     }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -2297,7 +2297,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -2390,7 +2390,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -2485,7 +2485,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const owner = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const owner = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 

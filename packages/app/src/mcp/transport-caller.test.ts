@@ -12,12 +12,12 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { ReconnectingCaller } from './reconnecting-caller';
+import { TransportCaller } from './transport-caller';
 
 async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-reconnecting-caller-' });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', (path) =>
+  const caller = new TransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -48,7 +48,7 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
     protocol: PROTOCOL_V + 1,
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -70,7 +70,7 @@ test('it opens a fresh connection for the request after one whose handshake the 
     protocol: PROTOCOL_V + 1,
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -84,23 +84,18 @@ test('it opens a fresh connection for the request after one whose handshake the 
   expect(mismatched.connections.accepted).toBe(2);
 });
 
-test('it keeps a connection opened while the one before it was closing', async () => {
+test('it closes its connection and refuses later requests once stopped', async () => {
   const ctx = await setupTest();
 
   await ctx.caller.sendRequest('session.list');
-
-  const stopping = ctx.caller.stop();
-  const opening = ctx.caller.sendRequest('session.list');
-
-  await stopping;
-  await opening;
-
-  await ctx.caller.sendRequest('session.list');
+  await ctx.caller.stop();
 
   // The harness holds one connection of its own beside the caller's.
   await waitFor(() => {
-    expect(ctx.daemon.daemon.countClients()).toBe(2);
+    expect(ctx.daemon.daemon.countClients()).toBe(1);
   });
+
+  expect(ctx.caller.sendRequest('session.list')).rejects.toThrow('the daemon transport is stopped');
 });
 
 test('it refuses a filtered read unsent when an older daemon replaced the one it handshook with', async () => {
@@ -128,7 +123,7 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
     features: ['spawn.idempotency'],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -147,7 +142,7 @@ test('it retries a message on a fresh connection under the key its caller passed
     features: ['message.idempotency'],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -169,7 +164,7 @@ test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that
     features: ['spawn.idempotency', 'idempotency.replayOnly'],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -196,7 +191,7 @@ test('it refuses to retry a keyed spawn unsent when the daemon behind the socket
     retryFeatures: [],
   });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -212,7 +207,7 @@ test('it fails a spawn whose connection drops when the daemon takes no keys', ()
   const tmp = setupTempDir('atc-reconnecting-caller-');
   const dropping = startStubDroppingDaemon(join(tmp.dir, 'daemon.sock'), { features: [] });
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -243,8 +238,8 @@ test('it claims the session it was given in the handshake, and none when given n
     return client;
   };
 
-  const inside = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', openRecording, 's-a');
-  const outside = new ReconnectingCaller(daemon.socketPath, 'atc/test-build', openRecording, null);
+  const inside = new TransportCaller(daemon.socketPath, 'atc/test-build', openRecording, 's-a');
+  const outside = new TransportCaller(daemon.socketPath, 'atc/test-build', openRecording, null);
 
   registerTestCleanup(() => inside.stop());
   registerTestCleanup(() => outside.stop());
@@ -262,7 +257,7 @@ test("it sends a principal's name beside it, which labels the message the reques
   });
 
   // As `atc mcp --http` runs it: a connector has no inbox, so it claims no session.
-  const caller = new ReconnectingCaller(
+  const caller = new TransportCaller(
     daemon.socketPath,
     'atc/test-build',
     (path) => DaemonClient.open(path),

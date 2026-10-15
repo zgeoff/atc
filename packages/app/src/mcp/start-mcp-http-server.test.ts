@@ -20,11 +20,11 @@ import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { collectGrants } from './collect-grants';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { openMCPAuth } from './open-mcp-auth';
-import { ReconnectingCaller } from './reconnecting-caller';
 import { removeClient } from './remove-client';
 import { resetPasskeys } from './reset-passkeys';
 import { revokeGrant } from './revoke-grant';
 import { startMCPHTTPServer } from './start-mcp-http-server';
+import { TransportCaller } from './transport-caller';
 
 // A real daemon, `atc mcp --http` in front of it on a free port with every
 // request line and security event line it prints after the owner's passkey
@@ -44,7 +44,7 @@ async function setupTest() {
   const requests: string[] = [];
   const security: string[] = [];
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -317,7 +317,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
     }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -415,7 +415,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
     }),
   });
 
-  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+  const caller = new TransportCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
   );
 
@@ -1805,7 +1805,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
 
   const tokens = await readJSONRecord(exchanged);
 
-  const caller = new ReconnectingCaller(ctx.socketPath, 'atc/test-build', (path) =>
+  const caller = new TransportCaller(ctx.socketPath, 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1842,7 +1842,7 @@ test.each([
 ])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
   const tmp = setupTempDir('atc-mcp-http-');
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 
@@ -1867,7 +1867,7 @@ test.each([
 test('it listens beyond loopback behind an https public URL', async () => {
   const tmp = setupTempDir('atc-mcp-http-');
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 

@@ -1,9 +1,8 @@
 import type { Clock } from '@atc/core';
-import type { GatewayChannel } from './daemon-caller';
 import { DaemonPool } from './daemon-pool';
 import { GatewayStore } from './gateway-store';
 import { RoutingCaller } from './routing-caller';
-import type { GatewayRegistry, RegistryDaemon } from './types';
+import type { GatewayChannel, GatewayRegistry, RegistryDaemon } from './types';
 
 interface GatewayCallerOptions {
   readonly registry: GatewayRegistry;

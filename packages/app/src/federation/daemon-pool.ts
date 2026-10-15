@@ -1,7 +1,6 @@
 import type { Clock } from '@atc/core';
-import { DaemonCaller } from './daemon-caller';
-import type { GatewayChannel } from './daemon-caller';
-import type { GatewayRegistry, RegistryDaemon } from './types';
+import { GatewayDaemonCaller } from './gateway-daemon-caller';
+import type { GatewayChannel, GatewayRegistry, RegistryDaemon } from './types';
 
 interface DaemonPoolOptions {
   readonly registry: GatewayRegistry;
@@ -17,13 +16,13 @@ interface DaemonPoolOptions {
  * pin, so a call routed to one daemon never rides another's connection.
  */
 export class DaemonPool {
-  private readonly callers: ReadonlyMap<string, DaemonCaller>;
+  private readonly callers: ReadonlyMap<string, GatewayDaemonCaller>;
 
   constructor(opts: DaemonPoolOptions) {
     this.callers = new Map(
       [...opts.registry.daemons.values()].map((daemon) => [
         daemon.name,
-        new DaemonCaller({
+        new GatewayDaemonCaller({
           daemon,
           build: opts.build,
           openChannel: opts.openChannel,
@@ -43,7 +42,7 @@ export class DaemonPool {
    * The caller of a registry daemon. Throws for a name the registry does
    * not hold, which a route resolved through the registry never gives.
    */
-  getCaller(name: string): DaemonCaller {
+  getCaller(name: string): GatewayDaemonCaller {
     const caller = this.callers.get(name);
 
     if (caller === undefined) {

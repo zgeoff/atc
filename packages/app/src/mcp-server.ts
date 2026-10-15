@@ -2,7 +2,7 @@ import type { DaemonBoot } from '@atc/protocol';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonClient, LineDecoder } from '@atc/protocol/wire';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
-import { ReconnectingCaller } from './mcp/reconnecting-caller';
+import { TransportCaller } from './mcp/transport-caller';
 import type { FleetCaller, ToolContext } from './mcp/types';
 
 /**
@@ -27,7 +27,7 @@ export async function runMCPServer(
   // messages it sends.
   const callerSessionID = readSessionEnv(process.env).sessionID ?? null;
 
-  const caller = new ReconnectingCaller(
+  const caller = new TransportCaller(
     boot.socketPath,
     build,
     (path) => DaemonClient.open(path),
