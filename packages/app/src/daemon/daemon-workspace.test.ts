@@ -2715,6 +2715,42 @@ test('it materializes a git source without a cwd under the home on the local tar
   expect(readFileSync(join(dest, 'README.md'), 'utf8')).toBe(committed);
 });
 
+test('it groups a git source without a cwd that lands at the base of a root inside another work tree under its own clone', async () => {
+  const ctx = await setupTest();
+
+  const enclosing = join(ctx.dir, 'enclosing');
+  const root = join(enclosing, 'checkouts');
+  const base = join(root, 'upstream-main');
+
+  mkdirSync(enclosing);
+
+  await $`git init -q`.env(ctx.env).cwd(enclosing).quiet();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      workspaceRoots: { root, targetRoots: new Map() },
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: new LocalPTYProvider(),
+        }),
+      ],
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    target: 'local',
+    workspace: { kind: 'git', url: ctx.upstream, ref: 'main' },
+  });
+
+  expect(spawned).toMatchObject({ session: { cwd: base, repoRoot: base } });
+});
+
 test('it lands concurrent spawns of one repository without a cwd beside a directory that exists and leaves that directory as it was', async () => {
   const ctx = await setupTest();
 

@@ -53,6 +53,15 @@ On an impd or an imp agent from before them, the record lands in the guest folde
 root and mode 0444. A remote session's statusline shows its own state alone, never the rest of the
 fleet, because the imp holds no copy of the fleet.
 
+## Working directories
+
+A relative working directory inside an imp lies under the home of the user that the harness or
+command runs as, which is where the daemon's claims on directories place it. impd itself starts a
+process in a relative directory from the root, where its agent runs. The provider therefore starts
+such a process at the root as a shell that enters the directory from the home through every symlink
+on the way, then runs the process in its place. A harness and a command in one relative directory
+land in one physical directory, and a directory missing under the home fails the start.
+
 ## The session bridge
 
 A session inside an imp never reaches the daemon's sockets. Each harness gets a socket of its own

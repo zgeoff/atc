@@ -609,6 +609,101 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
   expect(readFileSync(join(`${base}-2`, 'README.md'), 'utf8')).toBe(committed);
 });
 
+test('it lands one of two concurrent sub-sessions without a cwd at the base of an absolute root on their shared imp', async () => {
+  const ctx = await setupTest();
+
+  // The broker sign-in of `glm` needs impd's token to manage `atc-*` imps
+  // and grant `glm`, and impd to hold `glm`.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+  const glmAdapter = buildStubBrokeredGatewayAdapter();
+  const root = join(ctx.dir, 'orchard-roots');
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter, glmAdapter],
+      workspaceRoots: { root, targetRoots: new Map() },
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  const home = join(ctx.dir, 'guest-home');
+  const base = join(root, 'upstream-main');
+
+  mkdirSync(home, { recursive: true });
+
+  ctx.port.setHomeDir(home);
+
+  const parent = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const parentID = getRecord(parent, 'session')['id'];
+  const workspace = { kind: 'git', url: ctx.upstream, ref: 'main' };
+
+  // Both spawns start before either checks the base: each waits on the
+  // host as it resolves the base.
+  const baseHold = ctx.port.startCommandHold(` sh ${base}`);
+  let landed = 0;
+
+  const spawning = Promise.all(
+    [0, 1].map(async () => {
+      const answer = await daemon.client.sendRequest('session.spawn', {
+        agent: 'glm',
+        target: 'box',
+        parent: parentID,
+        workspace,
+      });
+
+      landed += 1;
+
+      return answer;
+    }),
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.countHeldCommands()).toBe(2);
+  });
+
+  baseHold.stop();
+
+  // A spawn that moves on from the base then waits on the host at its
+  // second directory, so the other spawn checks the base while the first
+  // has claimed nothing else yet. The hold stops once each spawn has
+  // either landed or waits there.
+  const nextHold = ctx.port.startCommandHold(` sh ${base}-2`);
+
+  await waitFor(() => {
+    expect(landed + ctx.port.countHeldCommands()).toBe(2);
+  });
+
+  nextHold.stop();
+
+  const spawned = await spawning;
+
+  const dirs = spawned.map((answer) => getRecord(answer, 'session')['cwd']);
+
+  expect(dirs).toIncludeSameMembers([base, `${base}-2`]);
+});
+
 test('it materializes a workspace for a local spawn on the daemon host and starts the session there', async () => {
   const ctx = await setupTest();
 

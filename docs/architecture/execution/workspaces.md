@@ -81,10 +81,12 @@ starts without them on every provider, and so does each revive and headless run 
 On a shared host, a workspace spawn claims its directory against every session listed there and
 every other workspace spawn in flight there, in the same step that checks it, so two concurrent
 spawns never both take nested directories. Once the host is ready, the daemon checks the claim again
-with each directory as the host resolves it, symlinks included. A refused spawn's
-`workspace_overlap` holds the session or spawn it overlaps. Plain spawns, those without a workspace,
-share directories freely with each other and with listed sessions, but no plain spawn may start
-inside a directory that a failed workspace spawn is removing.
+with each directory as the host resolves it, symlinks included. A directory the daemon picked is
+claimed only at that second check, once per attempt, so two concurrent spawns of one repository
+never refuse each other a directory that neither holds yet, and one of them takes it. A refused
+spawn's `workspace_overlap` holds the session or spawn it overlaps. Plain spawns, those without a
+workspace, share directories freely with each other and with listed sessions, but no plain spawn may
+start inside a directory that a failed workspace spawn is removing.
 
 A failure takes back what the spawn made. It destroys a host the session owned, and on a host that
 stays, the parent's or the daemon's own machine, it removes only the directory its materialization

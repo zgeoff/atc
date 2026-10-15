@@ -176,6 +176,9 @@ export interface HarnessSpec {
   readonly host: string;
   readonly bin: string;
   readonly args: readonly string[];
+
+  // A relative directory on a remote host lies under the home of the user
+  // the harness runs there as, as it does for a command.
   readonly cwd: string;
 
   // The variables atc sets for the harness. A provider for the daemon's
@@ -316,6 +319,9 @@ export interface HarnessExit {
 
 export interface CommandSpec {
   readonly argv: readonly string[];
+
+  // A relative directory on a remote host lies under the home of the user
+  // the command runs there as, as it does for a harness.
   readonly cwd: string;
 
   // The host the command runs on; the daemon's own machine takes none.
