@@ -3,7 +3,6 @@ import { toSessionID } from '@atc/core';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { buildScopedContext } from './build-scoped-context';
 import { CONTEXT_MEMBER_SCOPES } from './context-member-scopes';
-import type { DaemonContext } from './daemon-context';
 import { TargetAccess } from './target-access';
 
 test("it gives a principal the daemon's own member for every member it does not narrow", () => {
@@ -12,9 +11,11 @@ test("it gives a principal the daemon's own member for every member it does not 
 
   const shared = Object.entries(CONTEXT_MEMBER_SCOPES)
     .filter(([, scope]) => scope !== 'narrowed')
-    .map(([member]) => member as keyof DaemonContext);
+    .map(([member]) => member);
 
-  expect(shared).toSatisfyAll((member: keyof DaemonContext) => scoped[member] === ctx[member]);
+  expect(shared).toSatisfyAll(
+    (member: string) => Reflect.get(scoped, member) === Reflect.get(ctx, member),
+  );
 });
 
 test('it gives a principal a member of its own for every member it narrows', () => {
@@ -23,9 +24,11 @@ test('it gives a principal a member of its own for every member it narrows', () 
 
   const narrowed = Object.entries(CONTEXT_MEMBER_SCOPES)
     .filter(([, scope]) => scope === 'narrowed')
-    .map(([member]) => member as keyof DaemonContext);
+    .map(([member]) => member);
 
-  expect(narrowed).toSatisfyAll((member: keyof DaemonContext) => scoped[member] !== ctx[member]);
+  expect(narrowed).toSatisfyAll(
+    (member: string) => Reflect.get(scoped, member) !== Reflect.get(ctx, member),
+  );
 });
 
 test('it leaves out a member the daemon leaves unset', () => {

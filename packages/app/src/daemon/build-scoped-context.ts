@@ -258,15 +258,18 @@ function requireTarget(canUseTarget: (target: string) => boolean, target: string
 // The daemon's own members that the principal's context keeps as they are.
 // A member the daemon leaves unset stays unset.
 function collectSharedMembers(ctx: DaemonContext): Pick<DaemonContext, SharedMember> {
-  const shared: Partial<Record<SharedMember, unknown>> = {};
+  const shared = Object.fromEntries(
+    Object.entries(CONTEXT_MEMBER_SCOPES)
+      .filter(([member, scope]) => scope !== 'narrowed' && member in ctx)
+      .map(([member]) => [member, isContextMember(member) ? ctx[member] : undefined]),
+  );
 
-  for (const [member, scope] of Object.entries(CONTEXT_MEMBER_SCOPES)) {
-    if (scope !== 'narrowed' && member in ctx) {
-      shared[member as SharedMember] = ctx[member as SharedMember];
-    }
-  }
-
-  // The scope table types each shared key, so the copy holds the type the
-  // daemon's context gives it.
+  // oxlint-disable-next-line no-unsafe-type-assertion -- the scope table holds a key for every member, and each shared value comes from the daemon's context under its own key
   return shared as Pick<DaemonContext, SharedMember>;
+}
+
+// Whether the key is a member of the daemon's context, as the scope table
+// holds a key for each one.
+function isContextMember(member: string): member is keyof DaemonContext {
+  return Object.hasOwn(CONTEXT_MEMBER_SCOPES, member);
 }
