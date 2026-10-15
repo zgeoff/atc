@@ -1,4 +1,4 @@
-import { setup } from 'xstate';
+import { assign, setup } from 'xstate';
 
 type ClientMachineEvent =
   | { readonly type: 'ATTACH'; readonly sessionID: string }
@@ -6,7 +6,39 @@ type ClientMachineEvent =
   | { readonly type: 'OVERLAY' }
   | { readonly type: 'HELP' }
   | { readonly type: 'SPAWN'; readonly resume: boolean }
-  | { readonly type: 'EJECT'; readonly sessionID: string };
+  | { readonly type: 'EJECT'; readonly sessionID: string }
+  | { readonly type: 'CONFIRM_KILL' }
+  | { readonly type: 'CONFIRM_DESTROY'; readonly sessionID: string }
+  | { readonly type: 'CONFIRM_DONE' }
+  | { readonly type: 'CONSENT_ASKED'; readonly consent: RestartConsent }
+  | { readonly type: 'CONSENT_ANSWERED' }
+  | { readonly type: 'DAEMON_LOST' }
+  | { readonly type: 'DAEMON_READY' }
+  | { readonly type: 'RESTART_STARTED' }
+  | { readonly type: 'RESTART_AWAITING_FRESH'; readonly freshUntil: number }
+  | { readonly type: 'RESTART_ENDED'; readonly connected: boolean };
+
+/**
+ * The restart prompt on screen while the TUI owns stdin, and the reader of
+ * its key, which takes the next key in place of the current mode.
+ */
+export interface RestartConsent {
+  readonly prompt: string;
+  readonly answer: (key: string) => void;
+}
+
+interface ClientMachineContext {
+  // The session whose kill the daemon refused until the operator confirms
+  // that forgetting it destroys its host.
+  readonly destroyID: string | null;
+
+  // The restart prompt that waits for its key.
+  readonly consent: RestartConsent | null;
+
+  // Until this time, a restart refuses a daemon that still runs the old
+  // build, so the client waits for the new one.
+  readonly freshUntil: number;
+}
 
 // What the machine borrows from the client that owns the screen, the fleet
 // mirror, and the daemon connection. Every prop is a side effect the machine
@@ -21,15 +53,31 @@ export interface ClientMachineDeps {
 }
 
 /**
- * The client's mode as a statechart: which mode each event moves to, and
- * what runs on entry. `ATTACH` and `OVERLAY` reach several of the modes
- * below because several keys and outcomes lead to the same place —
- * attaching a session, or falling back to the overlay — and each landing
- * runs the same entry work regardless of where it was sent from.
+ * The client as a statechart of four regions that run side by side.
+ *
+ * `mode` is the screen: which mode each event moves to, and what runs on
+ * entry. `ATTACH` and `OVERLAY` reach several of its modes because several
+ * keys and outcomes lead to the same place — attaching a session, or
+ * falling back to the overlay — and each landing runs the same entry work
+ * regardless of where it was sent from.
+ *
+ * `confirm` holds the overlay's pending confirmation: a kill, or a forget
+ * that destroys the session's host. The next key settles it, and opening
+ * the overlay again drops it.
+ *
+ * `consent` holds the restart prompt that waits for its key, so the key
+ * goes to the prompt in place of the current mode.
+ *
+ * `daemon` follows the connection: `connected`, `waiting` once it is lost
+ * until the transport opens the next one, and `restarting` while a
+ * deliberate restart runs, which a loss or a reconnect leaves as it is.
  */
 export function buildClientMachine(deps: ClientMachineDeps) {
   return setup({
     types: {
+      // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the context type past the type layer
+      context: {} as ClientMachineContext,
+
       // oxlint-disable-next-line no-unsafe-type-assertion -- xstate's typed-setup contract: this value is never read, it only carries the event union past the type layer
       events: {} as ClientMachineEvent,
     },
@@ -48,70 +96,133 @@ export function buildClientMachine(deps: ClientMachineDeps) {
       openHelp: () => {
         deps.openHelp();
       },
+      setDestroyID: assign({
+        destroyID: (args) => (args.event.type === 'CONFIRM_DESTROY' ? args.event.sessionID : null),
+      }),
+      resetDestroyID: assign({ destroyID: null }),
+      setConsent: assign({
+        consent: (args) => (args.event.type === 'CONSENT_ASKED' ? args.event.consent : null),
+      }),
+      resetConsent: assign({ consent: null }),
+      setFreshUntil: assign({
+        freshUntil: (args) =>
+          args.event.type === 'RESTART_AWAITING_FRESH' ? args.event.freshUntil : 0,
+      }),
+      resetFreshUntil: assign({ freshUntil: 0 }),
+    },
+    guards: {
+      isConnected: (args) => args.event.type === 'RESTART_ENDED' && args.event.connected,
     },
   }).createMachine({
     id: 'client',
-    initial: 'home',
+    type: 'parallel',
+    context: { destroyID: null, consent: null, freshUntil: 0 },
     states: {
-      home: {
-        entry: 'openHome',
-        on: {
-          ATTACH: 'attached',
-          HOME: { target: 'home', reenter: true },
-          OVERLAY: 'overlay',
-          SPAWN: {
-            target: 'picker',
-            actions: (args) => {
-              deps.openPicker(args.event.resume);
+      mode: {
+        initial: 'home',
+        states: {
+          home: {
+            entry: 'openHome',
+            on: {
+              ATTACH: 'attached',
+              HOME: { target: 'home', reenter: true },
+              OVERLAY: 'overlay',
+              SPAWN: {
+                target: 'picker',
+                actions: (args) => {
+                  deps.openPicker(args.event.resume);
+                },
+              },
+            },
+          },
+          attached: {
+            entry: 'openAttached',
+            on: {
+              OVERLAY: 'overlay',
+            },
+          },
+          overlay: {
+            entry: 'openOverlay',
+            on: {
+              ATTACH: 'attached',
+              HOME: 'home',
+              OVERLAY: { target: 'overlay', reenter: true },
+              HELP: 'help',
+              SPAWN: {
+                target: 'picker',
+                actions: (args) => {
+                  deps.openPicker(args.event.resume);
+                },
+              },
+              EJECT: {
+                target: 'picker-eject',
+                actions: (args) => {
+                  deps.openEject(args.event.sessionID);
+                },
+              },
+            },
+          },
+          help: {
+            entry: 'openHelp',
+            on: {
+              OVERLAY: 'overlay',
+            },
+          },
+          picker: {
+            on: {
+              ATTACH: 'attached',
+              HOME: 'home',
+              OVERLAY: 'overlay',
+            },
+          },
+          'picker-eject': {
+            on: {
+              ATTACH: 'attached',
+              HOME: 'home',
+              OVERLAY: 'overlay',
             },
           },
         },
       },
-      attached: {
-        entry: 'openAttached',
+      confirm: {
+        initial: 'none',
         on: {
-          OVERLAY: 'overlay',
+          CONFIRM_KILL: { target: '.kill', actions: 'resetDestroyID' },
+          CONFIRM_DESTROY: { target: '.destroy', actions: 'setDestroyID' },
+          CONFIRM_DONE: { target: '.none', actions: 'resetDestroyID' },
+          OVERLAY: { target: '.none', actions: 'resetDestroyID' },
+        },
+        states: {
+          none: {},
+          kill: {},
+          destroy: {},
         },
       },
-      overlay: {
-        entry: 'openOverlay',
-        on: {
-          ATTACH: 'attached',
-          HOME: 'home',
-          OVERLAY: { target: 'overlay', reenter: true },
-          HELP: 'help',
-          SPAWN: {
-            target: 'picker',
-            actions: (args) => {
-              deps.openPicker(args.event.resume);
+      consent: {
+        initial: 'none',
+        states: {
+          none: { on: { CONSENT_ASKED: { target: 'asking', actions: 'setConsent' } } },
+          asking: { on: { CONSENT_ANSWERED: { target: 'none', actions: 'resetConsent' } } },
+        },
+      },
+      daemon: {
+        initial: 'connected',
+        states: {
+          connected: {
+            on: { DAEMON_LOST: 'waiting', RESTART_STARTED: 'restarting' },
+          },
+          waiting: {
+            on: { DAEMON_READY: 'connected', RESTART_STARTED: 'restarting' },
+          },
+          restarting: {
+            on: {
+              RESTART_AWAITING_FRESH: { actions: 'setFreshUntil' },
+              RESTART_ENDED: [
+                { guard: 'isConnected', target: 'connected', actions: 'resetFreshUntil' },
+                { target: 'waiting', actions: 'resetFreshUntil' },
+              ],
             },
           },
-          EJECT: {
-            target: 'picker-eject',
-            actions: (args) => {
-              deps.openEject(args.event.sessionID);
-            },
-          },
-        },
-      },
-      help: {
-        entry: 'openHelp',
-        on: {
-          OVERLAY: 'overlay',
-        },
-      },
-      picker: {
-        on: {
-          ATTACH: 'attached',
-          HOME: 'home',
-          OVERLAY: 'overlay',
-        },
-      },
-      'picker-eject': {
-        on: {
-          ATTACH: 'attached',
-          HOME: 'home',
-          OVERLAY: 'overlay',
         },
       },
     },

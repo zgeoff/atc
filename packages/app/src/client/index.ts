@@ -11,6 +11,7 @@ import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildClientMachine } from './build-client-machine';
+import type { RestartConsent } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
 import { collectTargetPicks } from './collect-target-picks';
 import { findFuzzyScore, formatDir } from './dirs';
@@ -41,11 +42,6 @@ const remoteDaemonName = host.daemonName;
 // The time and the timers every wait of this client runs on.
 const clock = systemClock;
 let overlaySelected = 0;
-let confirmKill = false;
-
-// The session whose forget waits on a confirm because it destroys the
-// session's host, or null.
-let confirmDestroyID: string | null = null;
 
 // The client's mirror of the daemon's fleet, kept fresh by events.
 let fleet: MirrorSession[] = [];
@@ -105,7 +101,7 @@ function scheduleStatus() {
   statusTimer = setTimeout(() => {
     statusTimer = null;
 
-    if (service.getSnapshot().value !== 'attached') {
+    if (getMode() !== 'attached') {
       const focused = findFocused();
       const urgent = sortSessionViews(fleet).find((s) => s.state === 'needs_you');
 
@@ -115,7 +111,7 @@ function scheduleStatus() {
         urgentName: urgent === undefined ? null : urgent.name,
         leaderLabel: leader.label,
         stale: getBoot().stale,
-        restarting: daemonRestarting,
+        restarting: isDaemonRestarting(),
         waiting: isDaemonWaiting(),
         daemonName: remoteDaemonName,
       });
@@ -136,9 +132,9 @@ async function sendKill(sessionID: string) {
     await getClient().sendRequest('session.kill', { session: sessionID });
   } catch (error) {
     if (error instanceof DaemonError && error.code === 'confirmation_required') {
-      confirmDestroyID = sessionID;
+      service.send({ type: 'CONFIRM_DESTROY', sessionID });
 
-      if (service.getSnapshot().value === 'overlay') {
+      if (getMode() === 'overlay') {
         renderOverlay();
       }
     }
@@ -268,7 +264,9 @@ function pickOverlaySessions(): MirrorSession[] {
   );
 }
 
-function renderOverlay() {
+// Draws the overlay with the confirmation the machine holds, or with the one
+// given, for a caller that runs before the machine's step settles.
+function renderOverlay(confirm: 'none' | 'kill' | 'destroy' = getConfirm()) {
   const sessions = pickOverlaySessions();
 
   overlaySelected = Math.max(0, Math.min(overlaySelected, sessions.length - 1));
@@ -279,10 +277,10 @@ function renderOverlay() {
     agentModels,
     showTarget: availableTargets >= 2,
     selected: overlaySelected,
-    confirmKill,
-    confirmDestroy: confirmDestroyID !== null,
+    confirmKill: confirm === 'kill',
+    confirmDestroy: confirm === 'destroy',
     filter: overlayFilter,
-    stale: getBoot().stale && !daemonRestarting,
+    stale: getBoot().stale && !isDaemonRestarting(),
     grouped: overlayGrouped,
   });
 
@@ -306,14 +304,14 @@ async function refreshAgents() {
     return;
   }
 
-  if (service.getSnapshot().value === 'overlay') {
+  if (getMode() === 'overlay') {
     renderOverlay();
   }
 }
 
+// Runs as the overlay opens, inside the machine's step that also drops any
+// pending confirmation, so it draws without one.
 function openOverlay() {
-  confirmKill = false;
-  confirmDestroyID = null;
   overlayFilter = null;
   void refreshAgents();
   const focusedIndex = pickOverlaySessions().findIndex((s) => s.id === focusedID);
@@ -322,7 +320,7 @@ function openOverlay() {
 
   stdout.write(ansi.resetInputModes + ansi.clear);
 
-  renderOverlay();
+  renderOverlay('none');
 }
 
 function renderEject() {
@@ -347,11 +345,6 @@ function openEject(sessionID: string) {
   renderEject();
 }
 
-// The restart prompt on screen while the TUI owns stdin, and the reader of
-// its key, which takes the next key in place of the current mode.
-let restartConsent: { readonly prompt: string; readonly answer: (key: string) => void } | null =
-  null;
-
 const picker = new SpawnPicker<MirrorSession>({
   sendRequest,
   ptyRows,
@@ -366,7 +359,7 @@ const picker = new SpawnPicker<MirrorSession>({
 
   // The restart prompt keeps the screen until it has its key.
   write: (chunk) => {
-    if (restartConsent === null) {
+    if (findRestartConsent() === null) {
       process.stdout.write(chunk);
     }
   },
@@ -455,7 +448,7 @@ function upsertMirror(d: Readonly<MirrorSession>) {
 }
 
 function refreshScreens() {
-  const currentMode = service.getSnapshot().value;
+  const currentMode = getMode();
 
   if (currentMode === 'overlay') {
     renderOverlay();
@@ -480,7 +473,7 @@ function applyDaemonEvent(raw: EventMsg) {
 
   match(event)
     .with({ ev: 'SessionOutput' }, (e) => {
-      if (service.getSnapshot().value === 'attached' && e.s === focusedID) {
+      if (getMode() === 'attached' && e.s === focusedID) {
         stdout.write(e.d);
       }
     })
@@ -631,25 +624,28 @@ function applyOverlayFilterKey(buf: Buffer): boolean {
 function applyOverlayKey(buf: Buffer) {
   const filtered = pickOverlaySessions();
   const sel = filtered[overlaySelected];
+  const confirm = getConfirm();
 
-  if (confirmKill) {
+  if (confirm === 'kill') {
     if (buf[0] === 0x79 /* y */ && sel !== undefined) {
       void sendKill(sel.id);
     }
 
-    confirmKill = false;
+    service.send({ type: 'CONFIRM_DONE' });
 
     renderOverlay();
 
     return;
   }
 
-  if (confirmDestroyID !== null) {
+  const destroyID = service.getSnapshot().context.destroyID;
+
+  if (confirm === 'destroy' && destroyID !== null) {
     if (buf[0] === 0x79 /* y */) {
-      void sendForget(confirmDestroyID);
+      void sendForget(destroyID);
     }
 
-    confirmDestroyID = null;
+    service.send({ type: 'CONFIRM_DONE' });
 
     renderOverlay();
 
@@ -789,7 +785,7 @@ function applyOverlayKey(buf: Buffer) {
   }
 
   if (ch === 'K' && sel !== undefined) {
-    confirmKill = true;
+    service.send({ type: 'CONFIRM_KILL' });
 
     renderOverlay();
 
@@ -824,7 +820,7 @@ async function yankResume(sessionID: string, eject: boolean) {
       void sendQuiet('session.kill', { session: sessionID });
     }
 
-    if (service.getSnapshot().value === 'overlay') {
+    if (getMode() === 'overlay') {
       renderOverlay();
     }
   } catch (error) {
@@ -832,7 +828,7 @@ async function yankResume(sessionID: string, eject: boolean) {
     // the reason replaces the copy notice.
     recordActionFailure(sessionID, error);
 
-    if (service.getSnapshot().value === 'overlay') {
+    if (getMode() === 'overlay') {
       renderOverlay();
     }
   }
@@ -881,6 +877,22 @@ const service = createActor(
   }),
 );
 
+// The screen the client shows, as the machine's mode region holds it.
+function getMode() {
+  return service.getSnapshot().value.mode;
+}
+
+// The confirmation the overlay waits on: none, a kill, or a forget that
+// destroys the session's host.
+function getConfirm() {
+  return service.getSnapshot().value.confirm;
+}
+
+// The restart prompt that waits for its key, or null.
+function findRestartConsent(): RestartConsent | null {
+  return service.getSnapshot().context.consent;
+}
+
 // What one open of the daemon gave the client: its boot, and whether the
 // user restarted a daemon on another protocol to get it, so the fleet that
 // daemon hosted is restored on the new one.
@@ -888,11 +900,6 @@ interface DaemonLink {
   readonly boot: DaemonBoot;
   readonly restarted: boolean;
 }
-
-// While a deliberate restart waits for the new daemon, an open that still
-// reaches the old one is refused until this time passes.
-let freshDaemonDeadline = 0;
-let daemonRestarting = false;
 
 /**
  * The connection to the daemon, which reconnects as soon as it is lost. The
@@ -921,12 +928,16 @@ const transport: DaemonTransport<DaemonLink> = new DaemonTransport<DaemonLink>({
     lastUsedAgent = link.boot.lastUsedAgent;
     link.boot.client.onEvent = applyDaemonEvent;
 
+    service.send({ type: 'DAEMON_READY' });
+
     scheduleStatus();
   },
   onLost: () => {
     // The reconnect leaves the picker, so no answer its flow still waits on
     // draws it again. A deliberate restart keeps the screen it drew.
-    if (!daemonRestarting) {
+    service.send({ type: 'DAEMON_LOST' });
+
+    if (!isDaemonRestarting()) {
       picker.stopFlow();
       service.send({ type: 'OVERLAY' });
     }
@@ -940,7 +951,7 @@ const transport: DaemonTransport<DaemonLink> = new DaemonTransport<DaemonLink>({
       quit(1, `atc: ${message}`);
     }
 
-    if (!daemonRestarting) {
+    if (!isDaemonRestarting()) {
       logClientEvent(`reconnect: ${message}; trying again`);
     }
 
@@ -966,7 +977,7 @@ async function openDaemonLink(phase: 'boot' | 'tui'): Promise<DaemonLink> {
 
   // A stale answer means the old daemon still holds the socket, so the
   // open is refused and the next one boots again.
-  if (boot.stale && clock.now() < freshDaemonDeadline) {
+  if (boot.stale && clock.now() < service.getSnapshot().context.freshUntil) {
     boot.client.stop();
     throw new Error('the old daemon still answers');
   }
@@ -999,7 +1010,7 @@ async function refreshAfterReconnect(restarted: boolean, isClosed: () => boolean
     return;
   }
 
-  if (service.getSnapshot().value === 'overlay') {
+  if (getMode() === 'overlay') {
     renderOverlay();
   }
 }
@@ -1049,12 +1060,13 @@ function getBoot(): DaemonBoot {
   return link.boot;
 }
 
-// Whether the client waits for the daemon after it lost its connection,
-// which a deliberate restart shows as its own.
+// Where the client stands with the daemon, as the machine holds it.
 function isDaemonWaiting(): boolean {
-  const state = transport.readState();
+  return service.getSnapshot().matches({ daemon: 'waiting' });
+}
 
-  return !daemonRestarting && (state === 'connecting' || state === 'backoff');
+function isDaemonRestarting(): boolean {
+  return service.getSnapshot().matches({ daemon: 'restarting' });
 }
 
 /**
@@ -1085,7 +1097,7 @@ async function waitForRestartConsent(
     stdout.write(ansi.clear + prompt);
 
     const key = await new Promise<string>((resolve) => {
-      restartConsent = { prompt, answer: resolve };
+      service.send({ type: 'CONSENT_ASKED', consent: { prompt, answer: resolve } });
     });
 
     // The mode under the prompt may have changed while the reconnect
@@ -1152,14 +1164,14 @@ async function refreshMirror() {
  * the status bar says a restart is running until it finishes.
  */
 const restartDaemonOnce = makeSingleFlight(async () => {
-  daemonRestarting = true;
+  service.send({ type: 'RESTART_STARTED' });
 
   renderOverlay();
 
   try {
     await restartDaemon();
   } finally {
-    daemonRestarting = false;
+    service.send({ type: 'RESTART_ENDED', connected: transport.readState() === 'ready' });
 
     scheduleStatus();
   }
@@ -1200,7 +1212,7 @@ async function restartDaemon() {
 
   // The transport reconnects once the old connection is dropped, and
   // refuses the old daemon while it still answers.
-  freshDaemonDeadline = clock.now() + 8000;
+  service.send({ type: 'RESTART_AWAITING_FRESH', freshUntil: clock.now() + 8000 });
 
   const old = transport.findLatest();
 
@@ -1237,17 +1249,16 @@ process.stdin.resume();
 const stdinDecoder = new TextDecoder('utf-8');
 
 process.stdin.on('data', (buf: Buffer) => {
-  if (restartConsent !== null) {
-    const pending = restartConsent;
+  const pending = findRestartConsent();
 
-    restartConsent = null;
-
+  if (pending !== null) {
+    service.send({ type: 'CONSENT_ANSWERED' });
     pending.answer(buf.toString());
 
     return;
   }
 
-  switch (service.getSnapshot().value) {
+  switch (getMode()) {
     case 'attached': {
       if (isLeaderKey(buf)) {
         service.send({ type: 'OVERLAY' });
@@ -1321,13 +1332,15 @@ process.stdin.on('data', (buf: Buffer) => {
 stdout.on('resize', () => {
   // The restart prompt keeps the screen until it has its key, so a resize
   // draws it again rather than the mode under it.
-  if (restartConsent !== null) {
-    stdout.write(ansi.clear + restartConsent.prompt);
+  const consent = findRestartConsent();
+
+  if (consent !== null) {
+    stdout.write(ansi.clear + consent.prompt);
 
     return;
   }
 
-  if (service.getSnapshot().value === 'attached' && focusedID !== null) {
+  if (getMode() === 'attached' && focusedID !== null) {
     void sendQuiet('session.resize', { session: focusedID, cols: cols(), rows: ptyRows() });
   }
 
@@ -1340,7 +1353,7 @@ stdout.on('resize', () => {
  * left to the resize the daemon passes on.
  */
 function drawMode() {
-  switch (service.getSnapshot().value) {
+  switch (getMode()) {
     case 'home': {
       drawHome(fleetCount, leader.label);
       break;
