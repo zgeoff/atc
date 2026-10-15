@@ -147,6 +147,9 @@ export async function startCodexAppServerBridge(
     startDelivery: () => {
       bridge.startDelivery();
     },
+    updateThread: (next) => {
+      bridge.updateThread(next);
+    },
     stop,
   };
 }

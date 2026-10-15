@@ -6,6 +6,7 @@ import {
   startStubCodexAppServer,
   waitFor,
 } from '@atc/test-utils';
+import { z } from 'zod';
 import { AppServerBridge } from './app-server-bridge';
 import { AppServerConnection } from './app-server-connection';
 
@@ -556,4 +557,154 @@ test('it leaves a message the App Server refuses unanswered and keeps the connec
   ]);
 
   expect(server.requests.filter((r) => r.method === 'initialize')).toHaveLength(1);
+});
+
+// Starts a thread on the stand-in from a client of its own, as the terminal
+// does when it opens a new conversation, and resolves with the thread's id.
+async function startTerminalThread(socket: string): Promise<string> {
+  const terminal = await AppServerConnection.open(`ws+unix://${socket}`);
+
+  onTestFinished(() => {
+    terminal.dispose();
+  });
+
+  await terminal.sendRequest('initialize', {
+    clientInfo: { name: 'terminal', title: null, version: '1' },
+    capabilities: { experimentalApi: true },
+  });
+
+  const result = await terminal.sendRequest('thread/start', {});
+
+  return z.object({ thread: z.object({ id: z.string() }) }).parse(result).thread.id;
+}
+
+test('it delivers a message to the thread the terminal moved to and none to the old one', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { reply: 'the lint is clean' });
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 50 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  const first = await bridge.open();
+
+  bridge.startDelivery();
+
+  const moved = await startTerminalThread(ctx.socket);
+
+  bridge.updateThread(moved);
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'run the lint' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
+
+  const turnStarts = server.requests.filter((r) => r.method === 'turn/start');
+
+  expect(first).not.toBe(moved);
+  expect(turnStarts).toMatchObject([{ params: { threadId: moved, clientUserMessageId: 'm-1' } }]);
+
+  expect(server.requests.filter((r) => r.method === 'thread/resume')).toMatchObject([
+    { params: { threadId: moved } },
+  ]);
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'answered', messages: ['m-1'], answer: 'the lint is clean', turn: expect.any(String) },
+  ]);
+});
+
+test('it leaves a message unanswered and sends it nowhere else when the terminal moves while its turn runs', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { holdTurns: true });
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 50 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('delivered');
+  });
+
+  const moved = await startTerminalThread(ctx.socket);
+
+  bridge.updateThread(moved);
+
+  await waitFor(() => {
+    expect(stub.attaches).toBe(2);
+  });
+
+  expect(stub.statuses.get('m-1')).toBe('unanswered');
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
+  ]);
+
+  expect(server.requests.filter((r) => r.method === 'turn/start')).toHaveLength(1);
+});
+
+test('it changes nothing when the thread it is given is the one it serves', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, {});
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  const thread = await bridge.open();
+
+  bridge.startDelivery();
+
+  await waitFor(() => {
+    expect(stub.attaches).toBe(1);
+  });
+
+  bridge.updateThread(thread);
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
+
+  expect(stub.attaches).toBe(1);
+  expect(server.requests.map((r) => r.method)).not.toContain('thread/resume');
 });

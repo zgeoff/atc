@@ -109,6 +109,10 @@ export class AppServerBridge {
 
   private sending: Promise<void> = Promise.resolve();
 
+  // The notes that end the messages a thread switch left behind; a
+  // recovery waits for them, so it never reads one of those as unsettled.
+  private settling: Promise<void> = Promise.resolve();
+
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
 
   private retryDelay: number;
@@ -151,6 +155,63 @@ export class AppServerBridge {
   startDelivery(): void {
     this.delivering = true;
     void this.reconcileMessages();
+  }
+
+  /**
+   * Moves the bridge to the thread the terminal shows now, as after the
+   * terminal starts or resumes another thread. The connection drops, so
+   * nothing more goes to the old thread, and the next one resumes the new
+   * thread and recovers before it delivers. Each message a turn of the old
+   * thread still carries ends unanswered, since no turn of the new thread
+   * will carry it. The thread the bridge already serves changes nothing.
+   */
+  updateThread(thread: string): void {
+    if (this.stopped || thread === this.threadID) {
+      return;
+    }
+
+    this.config.host.log(
+      `codex app server: session ${this.config.session} moved from thread ${this.threadID ?? 'none'} to ${thread}`,
+    );
+
+    this.threadID = thread;
+
+    const stranded = [...this.carried.keys()];
+
+    for (const turn of this.carried.values()) {
+      this.settledTurns.add(turn);
+    }
+
+    this.carried.clear();
+    this.replies.clear();
+
+    if (stranded.length > 0) {
+      const previous = this.settling;
+
+      this.settling = (async () => {
+        await previous;
+
+        try {
+          await this.config.host.applyNote({
+            kind: 'unanswered',
+            messages: stranded,
+            reason: 'thread_switched',
+          });
+        } catch (error) {
+          this.config.host.log(
+            `codex app server: the messages left on the old thread kept their state (${String(error)})`,
+          );
+        }
+      })();
+    }
+
+    if (this.conn !== null) {
+      this.detachConnection();
+
+      this.retryDelay = this.config.retryMs?.first ?? 500;
+
+      this.scheduleReconnect();
+    }
   }
 
   /**
@@ -266,6 +327,8 @@ export class AppServerBridge {
     let turns: readonly AppServerTurn[];
 
     try {
+      await this.settling;
+
       unsettled = await this.config.host.collectUnsettledMessages();
 
       turns = unsettled.length === 0 ? [] : await this.collectTurns(conn, unsettled);
