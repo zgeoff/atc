@@ -109,7 +109,7 @@ its keys held by impd, looks like this:
 }
 ```
 
-Add the key to impd with `imp secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai`, and
+Add the key to impd with `impz secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai`, and
 list `jev-imp-agents` in the `--grantable` list of the target's token.
 
 ## API key header
@@ -122,7 +122,7 @@ Some backends take the key only in an `x-api-key` header and refuse a request th
 1. Add the key to impd with a rule that sets the raw value in `x-api-key`:
 
    ```sh
-   imp secret add muse --kind=custom --hosts=api.meta.ai --header=x-api-key --scheme=raw
+   impz secret add muse --kind=custom --hosts=api.meta.ai --header=x-api-key --scheme=raw
    ```
 
    impd reads the key from stdin or a prompt. List `muse` in the `--grantable` list of the target's
