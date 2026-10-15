@@ -22,23 +22,24 @@ interface AssertionCheck {
 }
 
 /**
- * Whether a posted WebAuthn assertion signs the owner in: it parses, its
+ * The id of the enrolled passkey a posted WebAuthn assertion signs the
+ * owner in with, or null when it does not: it parses, its
  * credential is an enrolled passkey, and it verifies against that passkey's
  * public key with the expected challenge, origin, and RP ID, with the user
  * verified and a signature counter past the stored one when the
  * authenticator keeps one. A passing assertion stores its counter and the
  * time of use, and passes only if the passkey still holds the counter it
- * was checked against when that store runs. Any failure is false, never a
+ * was checked against when that store runs. Any failure is null, never a
  * throw.
  */
 export async function verifyPasskeyAssertion(
   db: Kysely<MCPAuthSchema>,
   check: AssertionCheck,
-): Promise<boolean> {
+): Promise<string | null> {
   const response = parseAssertion(check.credential);
 
   if (response === null) {
-    return false;
+    return null;
   }
 
   const passkey = await db
@@ -48,7 +49,7 @@ export async function verifyPasskeyAssertion(
     .executeTakeFirst();
 
   if (passkey === undefined) {
-    return false;
+    return null;
   }
 
   const webAuthn = await loadWebAuthn();
@@ -71,11 +72,11 @@ export async function verifyPasskeyAssertion(
       },
     });
   } catch {
-    return false;
+    return null;
   }
 
   if (!verified.verified || !verified.authenticationInfo.userVerified) {
-    return false;
+    return null;
   }
 
   // Only while the passkey is still enrolled with the counter read above,
@@ -91,7 +92,7 @@ export async function verifyPasskeyAssertion(
     .where('counter', '=', passkey.counter)
     .executeTakeFirst();
 
-  return stored.numUpdatedRows > 0n;
+  return stored.numUpdatedRows > 0n ? passkey.id : null;
 }
 
 const ASSERTION_REPLY = z.object({

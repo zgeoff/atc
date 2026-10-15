@@ -8,6 +8,7 @@ import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runPasskeyEnrollment } from '@atc/test-utils/run-passkey-enrollment';
 import { runPasskeySignIn } from '@atc/test-utils/run-passkey-sign-in';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { sql } from 'kysely';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { createEnrollmentToken } from './create-enrollment-token';
@@ -188,6 +189,46 @@ test('it offers no sign-in and refuses a posted assertion while no passkey is en
   expect(html).not.toInclude('id="atc-passkey"');
   expect(posted.status).toBe(400);
   expect(posted.headers.getSetCookie()).toBeEmpty();
+  expect(ctx.security.at(-1)).toInclude('"reason":"not_enrolled"');
+});
+
+test('it signs nobody in when a reset commits after the assertion verifies and before the session exists', async () => {
+  const ctx = await setupTest();
+
+  // The sign-in stores the passkey's counter once the assertion verifies;
+  // this trigger runs a reset's deletes right then, in the same statement.
+  await sql`
+    CREATE TRIGGER reset_on_sign_in AFTER UPDATE OF counter ON atc_passkey
+    BEGIN
+      DELETE FROM atc_passkey;
+      DELETE FROM atc_enrollment_token;
+      DELETE FROM session;
+    END
+  `.execute(ctx.store.db);
+
+  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: ctx.clientID,
+    redirect_uri: 'https://dots.example/cb',
+    scope: 'read',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  }).toString();
+
+  const started = await fetch(authorize, { redirect: 'manual' });
+
+  const login = new URL(started.headers.get('location') ?? '/', ctx.url);
+
+  const signedIn = await runPasskeySignIn(ctx, login);
+  const passkeys = await ctx.store.db.selectFrom('atc_passkey').select('id').execute();
+  const sessions = await ctx.store.db.selectFrom('session').select('id').execute();
+
+  expect(passkeys).toBeEmpty();
+  expect(signedIn.status).toBe(400);
+  expect(signedIn.headers.getSetCookie()).toBeEmpty();
+  expect(sessions).toBeEmpty();
   expect(ctx.security.at(-1)).toInclude('"reason":"not_enrolled"');
 });
 

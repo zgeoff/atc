@@ -53,7 +53,7 @@ async function setupTest() {
   return { db: store.db, authenticator };
 }
 
-test('it verifies an assertion from the enrolled passkey and stores its counter and use', async () => {
+test('it returns the id of the enrolled passkey an assertion verifies against and stores its counter and use', async () => {
   const ctx = await setupTest();
 
   const assertion = await ctx.authenticator.get(
@@ -69,7 +69,7 @@ test('it verifies an assertion from the enrolled passkey and stores its counter 
     now: Date.UTC(2026, 9, 14, 13, 0, 0),
   });
 
-  expect(verified).toBeTrue();
+  expect(verified).toBe(ctx.authenticator.credentialID);
 
   const passkeyRows = await ctx.db
     .selectFrom('atc_passkey')
@@ -101,7 +101,7 @@ test.each([
     ...expected,
   });
 
-  expect(verified).toBeFalse();
+  expect(verified).toBeNull();
 });
 
 test('it refuses an assertion from a passkey that is not enrolled', async () => {
@@ -127,7 +127,7 @@ test('it refuses an assertion from a passkey that is not enrolled', async () => 
     now: Date.UTC(2026, 9, 14, 13, 0, 0),
   });
 
-  expect(verified).toBeFalse();
+  expect(verified).toBeNull();
 });
 
 test("it refuses an assertion signed by another key under the enrolled passkey's id", async () => {
@@ -157,7 +157,7 @@ test("it refuses an assertion signed by another key under the enrolled passkey's
     now: Date.UTC(2026, 9, 14, 13, 0, 0),
   });
 
-  expect(verified).toBeFalse();
+  expect(verified).toBeNull();
 });
 
 test('it refuses an assertion whose counter does not pass the stored one', async () => {
@@ -178,7 +178,7 @@ test('it refuses an assertion whose counter does not pass the stored one', async
     now: Date.UTC(2026, 9, 14, 13, 0, 0),
   });
 
-  expect(verified).toBeFalse();
+  expect(verified).toBeNull();
 });
 
 test.each([['not json'], ['{}'], ['{"id":"x","rawId":"x","type":"public-key","response":{}}']])(
@@ -194,7 +194,7 @@ test.each([['not json'], ['{}'], ['{"id":"x","rawId":"x","type":"public-key","re
       now: Date.UTC(2026, 9, 14, 13, 0, 0),
     });
 
-    expect(verified).toBeFalse();
+    expect(verified).toBeNull();
   },
 );
 
@@ -228,5 +228,5 @@ test('it passes only one of two assertions checked at once against the same stor
     }),
   ]);
 
-  expect(results.filter(Boolean)).toBeArrayOfSize(1);
+  expect(results.filter((id) => id !== null)).toBeArrayOfSize(1);
 });

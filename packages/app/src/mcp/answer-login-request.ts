@@ -6,6 +6,7 @@ import { PASSKEY_SCRIPT } from './passkey-script';
 import { renderLoginPage } from './render-login-page';
 import type { HTTPServerContext, OwnerAuthFailure, Requester } from './types';
 import { verifyPasskeyAssertion } from './verify-passkey-assertion';
+import { verifySessionPasskey } from './verify-session-passkey';
 
 /**
  * Answers `GET /login` and `POST /login`, the passkey sign-in page
@@ -18,8 +19,10 @@ import { verifyPasskeyAssertion } from './verify-passkey-assertion';
  * the owner in, binds the new owner session to this one request, and
  * better-auth carries the request on to the consent page. A failed
  * assertion shows the page again with a fresh challenge, and the fifth
- * failure ends the request. With no passkey enrolled, the page offers no
- * sign-in. No other credential signs the owner in.
+ * failure ends the request. A sign-in whose passkey a removal or reset
+ * deleted before the owner session existed fails, and its session goes.
+ * With no passkey enrolled, the page offers no sign-in. No other credential
+ * signs the owner in.
  *
  * Each posted sign-in writes one `owner_auth` security event: `succeeded`
  * once the owner session exists, or `failed` with why, carrying the
@@ -92,12 +95,12 @@ export async function answerLoginRequest(
 
   const taken = ctx.approvals.claimChallenge(oauthQuery);
 
-  const verified =
+  const passkeyID =
     taken.kind === 'taken'
       ? await verifyAssertion(ctx, form.get('credential') ?? '', taken.challenge)
-      : false;
+      : null;
 
-  if (!verified) {
+  if (passkeyID === null) {
     const reason: OwnerAuthFailure = taken.kind === 'expired' ? 'expired' : 'assertion_failed';
 
     if (ctx.approvals.recordFailure(oauthQuery) === 'locked') {
@@ -163,6 +166,22 @@ export async function answerLoginRequest(
     });
   }
 
+  // A passkey removal or reset that committed after the assertion verified
+  // and before the session existed deleted no session, so the session
+  // carries on only while the passkey that signed is still enrolled.
+  if (!(await verifySessionPasskey(ctx.store.db, { sessionID, passkeyID }))) {
+    ctx.security.record({
+      kind: 'owner_auth',
+      outcome: 'failed',
+      reason: 'not_enrolled',
+      ...context,
+    });
+
+    return buildPageResponse(400, {
+      message: 'The passkey that signed you in is no longer enrolled. Start again from the client.',
+    });
+  }
+
   ctx.approvals.recordApproved(sessionID, {
     binding: buildConsentBinding(oauthQuery),
     correlationID: approval.correlationID,
@@ -179,13 +198,13 @@ export async function answerLoginRequest(
   return new Response(null, { status: 302, headers });
 }
 
-// Whether the posted credential is an assertion of an enrolled passkey for
-// the challenge the caller claimed.
+// The enrolled passkey the posted credential is an assertion of, for the
+// challenge the caller claimed, or null.
 function verifyAssertion(
   ctx: HTTPServerContext,
   credential: string,
   challenge: string,
-): Promise<boolean> {
+): Promise<string | null> {
   return verifyPasskeyAssertion(ctx.store.db, {
     credential,
     challenge,

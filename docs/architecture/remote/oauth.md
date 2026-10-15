@@ -87,9 +87,12 @@ than letting the first visitor claim it.
 More than one passkey may be enrolled, so a second device covers a lost one. Removing a passkey, or
 the reset that `--reset` runs before it prints a new token, deletes every owner session, and a reset
 deletes every unused token too, so neither a lost authenticator nor an earlier token still works.
-Grants and their tokens survive both. Recovery has no remote path: the trust boundary is write
-access to `mcp-auth.db`, which the file mode keeps to the user who runs the server, and anyone with
-that access can enroll a passkey.
+Grants and their tokens survive both. A sign-in whose assertion verified just before a removal
+commits creates its session after the deletes ran. So once the session exists, the server checks in
+one transaction that the signing passkey is still enrolled, and deletes the session when it is not.
+Whichever commits first, no session outlives the removal. Recovery has no remote path: the trust
+boundary is write access to `mcp-auth.db`, which the file mode keeps to the user who runs the
+server, and anyone with that access can enroll a passkey.
 
 ## Grants and tokens
 
