@@ -1269,6 +1269,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
       void store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
       void store.updateTrailOwner(e.atcId, currentAgentSessionID);
+
+      // The terminal moved to another conversation, so the session's bridge
+      // moves with it and delivers nothing more to the old one.
+      messageBridges.get(e.atcId)?.updateThread(currentAgentSessionID);
     }
 
     for (const ev of events) {

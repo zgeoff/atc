@@ -154,6 +154,20 @@ export class AppServerBridge {
   }
 
   /**
+   * Moves the bridge to the thread the terminal shows now, as after the
+   * terminal starts or resumes another thread. The move waits behind the
+   * send in flight, so a message the old thread took is tracked there and
+   * never sent again. Then the connection drops, so nothing more goes to
+   * the old thread, and the next one resumes the new thread and recovers
+   * before it delivers. Each message a turn of the old thread still carries
+   * ends unanswered, since no turn of the new thread will carry it. The
+   * thread the bridge already serves changes nothing.
+   */
+  updateThread(thread: string): void {
+    this.scheduleSend(() => this.updateThreadNow(thread));
+  }
+
+  /**
    * Stops the bridge for good: no reconnect follows, and the tap detaches.
    */
   stop(): void {
@@ -461,6 +475,50 @@ export class AppServerBridge {
           };
 
     await this.config.host.applyNote(payload);
+  }
+
+  private async updateThreadNow(thread: string): Promise<void> {
+    if (this.stopped || thread === this.threadID) {
+      return;
+    }
+
+    this.config.host.log(
+      `codex app server: session ${this.config.session} moved from thread ${this.threadID ?? 'none'} to ${thread}`,
+    );
+
+    this.threadID = thread;
+
+    // Only the messages end here. Their turn may still run, and when the
+    // terminal comes back to it, a later message joins it and settles
+    // with it.
+    const stranded = [...this.carried.keys()];
+
+    this.carried.clear();
+    this.replies.clear();
+
+    const moving = this.conn !== null;
+
+    if (moving) {
+      this.detachConnection();
+    }
+
+    // The next recovery starts only after this note, so it never reads one
+    // of these messages as unsettled.
+    try {
+      if (stranded.length > 0) {
+        await this.config.host.applyNote({
+          kind: 'unanswered',
+          messages: stranded,
+          reason: 'thread_switched',
+        });
+      }
+    } finally {
+      if (moving) {
+        this.retryDelay = this.config.retryMs?.first ?? 500;
+
+        this.scheduleReconnect();
+      }
+    }
   }
 
   // Sends go out one at a time, in the order the tap handed them over.

@@ -86,11 +86,14 @@ export interface MessageBridgeRequest {
 /**
  * A bridge that is ready for its terminal: the plan that starts the
  * terminal against it, the start of delivery, which the daemon calls once
- * the session lists, and the stop, which ends the bridge and everything it
- * started and is safe to call more than once.
+ * the session lists, the thread update, which the daemon calls with the
+ * session's new agent session id once a hook shows the terminal moved to
+ * another conversation, and the stop, which ends the bridge and everything
+ * it started and is safe to call more than once.
  */
 export interface MessageBridge {
   readonly plan: SpawnPlan;
   readonly startDelivery: () => void;
+  readonly updateThread: (thread: string) => void;
   readonly stop: () => Promise<void>;
 }

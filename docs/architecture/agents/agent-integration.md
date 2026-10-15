@@ -121,6 +121,15 @@ the `<atc-message>` envelope, then injects one developer item, which writes the 
 model turn. The thread id is the session's agent session id, so a restored session resumes the same
 thread, and the tools and instructions come back with the rollout.
 
+The terminal can move to another thread, as when a person starts a new conversation or resumes an
+older one, and the bridge follows it so that a message reaches the conversation the terminal shows.
+The daemon learns of the move from the hook that reports a new agent session id, and hands that id
+to the bridge. The bridge drops its connection, so it sends nothing more to the old thread, and the
+next connection resumes the new thread and recovers before it delivers. A message that a turn of the
+old thread still carries becomes unanswered with the reason `thread_switched`, because no turn of
+the new thread will carry it. A thread the terminal starts itself has no atc tools or instructions,
+so a message there takes the turn's last reply as its answer.
+
 The bridge sends each message with `turn/start`, which opens a turn on an idle thread and joins the
 running turn otherwise. The request carries the message id as the client message id, and the bridge
 acks the message once the server takes it. When the turn completes, the turn's last reply answers

@@ -252,3 +252,105 @@ test('it leaves each message the App Server refuses unanswered and goes on to th
   expect(read['unansweredReason']).toBe('error');
   expect(earlier['status']).toBe('unanswered');
 });
+
+// Starts a thread on the session's App Server from a client of its own, as
+// the terminal does when it opens a new conversation, and resolves with the
+// thread's id.
+async function startTerminalThread(socket: string): Promise<string> {
+  const ws = new WebSocket(`ws+unix://${socket}`);
+  const answers = new Map<number, (value: unknown) => void>();
+
+  ws.addEventListener('message', (e) => {
+    const line = z
+      .looseObject({ id: z.unknown(), result: z.unknown() })
+      .safeParse(JSON.parse(String(e.data)));
+
+    if (line.success && typeof line.data.id === 'number') {
+      answers.get(line.data.id)?.(line.data.result);
+    }
+  });
+
+  await new Promise((resolve) => {
+    ws.addEventListener('open', resolve, { once: true });
+  });
+
+  const sendRequest = (id: number, method: string, params: unknown) =>
+    new Promise<unknown>((resolve) => {
+      answers.set(id, resolve);
+      ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+    });
+
+  await sendRequest(1, 'initialize', { clientInfo: { name: 'terminal', version: '1' } });
+
+  const started = await sendRequest(2, 'thread/start', {});
+
+  ws.close();
+
+  return z.object({ thread: z.object({ id: z.string() }) }).parse(started).thread.id;
+}
+
+test('it delivers a message to the thread a hook shows the terminal moved to and none to the old one', async () => {
+  const ctx = await setupTest();
+
+  writeFileSync(
+    join(ctx.stubDir, 'app-server-scenario.json'),
+    JSON.stringify({ reply: 'the lint is clean' }),
+  );
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  // The terminal runs once the bridge has opened the session's thread.
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('session.screen', { session: id });
+
+    expect(JSON.stringify(read)).toInclude('FAKE_CODEX_UP');
+  });
+
+  const socket = join(ctx.daemon.dir, 'sessions', id, 'codex', 'codex.sock');
+
+  await ctx.daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'thread-1' },
+  });
+
+  const moved = await startTerminalThread(socket);
+
+  await ctx.daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: moved },
+  });
+
+  await waitFor(async () => {
+    const listed = await ctx.daemon.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: moved });
+  });
+
+  const sent = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'run the lint',
+  });
+
+  const answered = await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('message.get', { message: sent['message'] });
+
+    expect(read['status']).toBe('answered');
+
+    return read;
+  });
+
+  expect(answered['answer']).toBe('the lint is clean');
+
+  expect(ctx.readRequests().filter((r) => r.method === 'turn/start')).toMatchObject([
+    { params: { threadId: moved, clientUserMessageId: sent['message'] } },
+  ]);
+});
