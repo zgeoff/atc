@@ -33,6 +33,7 @@ Codex adds an entry for each:
 | `baseURL`      | none                                 | Claude only. The backend's Anthropic-format endpoint; an entry that sets it is a [gateway](#gateways).                                                                                                                                          |
 | `apiKeyHelper` | none                                 | Claude only, with `baseURL`. Command the CLI runs on the daemon's machine to read the credential.                                                                                                                                               |
 | `auth`         | none                                 | Claude or Codex. The credential profiles impd's broker applies; [brokered credentials](./brokered-credentials.md), [Claude subscription on imps](./claude-subscription.md), and [Codex subscription on imps](./codex-subscription.md) cover it. |
+| `appServer`    | `false`                              | Codex only. `true` runs each local session on a Codex App Server of its own, so the session takes messages; [Codex sessions that take messages](#codex-sessions-that-take-messages) covers it.                                                  |
 
 `kind` defaults to the id for `claude`, `codex`, and `grok`, so `"codex": {}` is a Codex entry. A
 `kind` that contradicts one of those three ids, such as `"codex": { "kind": "claude" }`, is refused.
@@ -55,6 +56,22 @@ events, replies, and renames as the session that started the server. A Codex ent
 already hold `--no-daemon` gets no second copy, since Codex refuses a repeated flag. One whose
 `args` hold `--remote` gets no `--no-daemon`, since Codex refuses the pair; its sessions report as
 whatever environment the remote server runs in.
+
+## Codex sessions that take messages
+
+A Codex entry with `"appServer": true` takes messages that other sessions and tools send. For each
+local session, the daemon starts `codex app-server` on a Unix socket of the session's own, then
+starts the terminal as `codex resume <thread> --remote unix://<socket>`, so the terminal and the
+daemon share one thread. The entry's `args` go to the terminal alone, without `--no-daemon` or
+`--remote`, which the daemon sets.
+
+```json
+{ "agents": { "codex": { "appServer": true } } }
+```
+
+The App Server is an experimental Codex interface, so a Codex upgrade can change it. A session of
+the entry on a remote target starts as a plain Codex session and refuses messages once its start-up
+grace ends.
 
 ## Several entries per harness
 

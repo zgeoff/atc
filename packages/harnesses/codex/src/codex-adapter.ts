@@ -11,6 +11,8 @@ import type {
   GuestPaths,
   GuestSpawnPlan,
   HookPlan,
+  MessageBridge,
+  MessageBridgeRequest,
   NameUpdate,
   SpawnOptionSpecs,
   SpawnOptions,
@@ -27,6 +29,7 @@ import {
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
+import { startCodexAppServerBridge } from './app-server/start-codex-app-server-bridge';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 import { buildCodexHookEvent } from './build-codex-hook-event';
 import { buildCodexHookFile } from './build-codex-hook-file';
@@ -65,7 +68,12 @@ export class CodexAdapter implements AgentAdapter {
 
   readonly profile: AgentProfile;
 
-  readonly takesMessages = false;
+  // Only a session on an App Server of its own takes messages, through the
+  // bridge the daemon runs beside it.
+  readonly takesMessages: boolean;
+
+  // Present only for an entry with `appServer`.
+  readonly startMessageBridge?: (request: MessageBridgeRequest) => Promise<MessageBridge>;
 
   // Codex's TUI keeps a newline that arrives inside a burst of input, so a
   // line is pasted and then submitted, a slash command as two pastes.
@@ -92,6 +100,11 @@ export class CodexAdapter implements AgentAdapter {
     this.authProfiles = config?.authProfiles ?? new Map();
     this.codexHome = codexHome;
     this.id = entry.id;
+    this.takesMessages = entry.appServer === true;
+
+    if (entry.appServer === true) {
+      this.startMessageBridge = (request) => this.startAppServerBridge(request);
+    }
 
     if (entry.auth !== undefined) {
       this.planGuestSpawn = (opts, guest) => this.planSignedInGuestSpawn(opts, guest);
@@ -128,6 +141,52 @@ export class CodexAdapter implements AgentAdapter {
         // session directly. Both accept a prompt afterwards.
         ...(opts.resume === true ? ['resume'] : []),
         ...(typeof opts.resume === 'string' ? ['resume', opts.resume] : []),
+        ...(opts.prompt === '' ? [] : [opts.prompt]),
+      ],
+    };
+  }
+
+  // The bridge owns the thread a terminal on its App Server joins, so a
+  // resume through Codex's own session picker, which picks the thread in
+  // the terminal, is refused rather than started as a new thread.
+  private startAppServerBridge(request: MessageBridgeRequest): Promise<MessageBridge> {
+    if (request.options.resume === true) {
+      const refusal = new DaemonError(
+        'unsupported',
+        `agent '${this.id}' runs on a Codex App Server, which resumes a session by its id and has no session picker`,
+        { agent: this.id },
+      );
+
+      return Promise.reject(refusal);
+    }
+
+    return startCodexAppServerBridge(request, {
+      bin: this.entry.bin,
+      planTerminal: (remote, thread) => this.planRemoteTerminal(request.options, remote, thread),
+    });
+  }
+
+  // A terminal on the session's own App Server resumes the thread the
+  // bridge holds there, in place of the server of its own that a plain
+  // launch runs. A server choice the configured arguments carry gives way
+  // to it.
+  private planRemoteTerminal(opts: SpawnOptions, remote: string, thread: string): SpawnPlan {
+    const replaced = opts.model === undefined ? [REMOTE_FLAG] : [REMOTE_FLAG, ...CODEX_MODEL_FLAGS];
+
+    const args = buildArgsWithoutFlags(
+      this.entry.args.filter((arg) => arg !== NO_DAEMON_FLAG),
+      replaced,
+    );
+
+    return {
+      bin: this.entry.bin,
+      args: [
+        ...args,
+        ...(opts.model === undefined ? [] : ['-m', opts.model]),
+        'resume',
+        thread,
+        REMOTE_FLAG,
+        remote,
         ...(opts.prompt === '' ? [] : [opts.prompt]),
       ],
     };

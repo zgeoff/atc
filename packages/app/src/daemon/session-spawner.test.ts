@@ -46,6 +46,10 @@ async function setupTest(config: SetupTestConfig) {
     onRelay: mock<() => void>(),
     onEvent: mock<() => void>(),
     onProcessEnded: mock<() => void>(),
+
+    // No agent here takes its messages through a bridge in the daemon.
+    startMessageBridge: () => Promise.resolve(null),
+    stopMessageBridge: () => Promise.resolve(),
     log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,

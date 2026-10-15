@@ -10,7 +10,7 @@ import { buildAgentEntrySchema } from '@atc/config';
  */
 export function buildStubHarnessPlugins(): AgentConfigPlugin[] {
   const claudeFields = ['settings', 'env', 'baseURL', 'apiKeyHelper', 'auth'];
-  const codexFields = ['auth'];
+  const codexFields = ['auth', 'appServer'];
 
   return [
     {

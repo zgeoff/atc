@@ -28,7 +28,8 @@ stateDiagram-v2
 A caller sends a message with its text alone. The daemon refuses the message when the session cannot
 take one:
 
-- The session's agent has no tap, as Grok and Codex have none: `unsupported`.
+- The session's agent has no tap, as Grok and a Codex entry without an App Server have none:
+  `unsupported`.
 - A Claude Code session started some time ago and no tap has attached since, so the mod is missing:
   `unsupported`.
 - The session has no live process: `session_dead`.
@@ -68,6 +69,10 @@ every queued message in order, one at a time: it sends the next only after the t
 which bounds what waits in the connection's queue. The tap prints a message, then acks it, and the
 ack marks it delivered. A second tap for the same session replaces the first, which receives a
 closing event and exits, so one session never has two consumers.
+
+A Codex session on an App Server has its tap inside the daemon instead, held by the session's
+[App Server bridge](../agents/agent-integration.md#codex-on-an-app-server). That bridge acks a
+message once the App Server takes it into the thread.
 
 Delivered means the tap printed the message to the mod, not that the model saw it. The mod keeps the
 messages it holds for the current turn in memory, so a Claude Code process that dies after the ack

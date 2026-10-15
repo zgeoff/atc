@@ -1,10 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
-import type { AgentAdapter } from '@atc/plugin-api';
+import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { AuthSetup } from './auth-setup';
@@ -39,6 +39,13 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
+  // An agent takes its messages through no bridge unless a test says so.
+  const startMessageBridge = mock<SessionCallbacks['startMessageBridge']>(() =>
+    Promise.resolve(null),
+  );
+
+  const stopMessageBridge = mock<SessionCallbacks['stopMessageBridge']>(() => Promise.resolve());
+
   const callbacks: SessionCallbacks = {
     onOutput: mock<() => void>(),
     onChange: mock<() => void>(),
@@ -46,6 +53,8 @@ async function setupTest(config: SetupTestConfig) {
     onRelay: mock<() => void>(),
     onEvent: mock<() => void>(),
     onProcessEnded: mock<() => void>(),
+    startMessageBridge,
+    stopMessageBridge,
     log: mock<() => void>(),
     now: () => 0,
     getClock: () => systemClock,
@@ -75,7 +84,14 @@ async function setupTest(config: SetupTestConfig) {
   const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
   const adopter = new SessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
 
-  return { dir: tmp.dir, callbacks, registry, adopter };
+  return {
+    dir: tmp.dir,
+    callbacks,
+    startMessageBridge,
+    stopMessageBridge,
+    registry,
+    adopter,
+  };
 }
 
 test('it never revives a restored entry whose agent id is unregistered as another agent', async () => {
@@ -249,4 +265,86 @@ test('it starts nothing when the caller withdraws the revive', async () => {
 
   expect(adopted).toBeNull();
   expect(provider.harnesses).toStrictEqual([]);
+});
+
+test('it starts one bridge and one terminal when a second revive lands while the bridge starts', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.dir,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  const bridge = Promise.withResolvers<SpawnPlan | null>();
+
+  ctx.startMessageBridge.mockImplementationOnce(() => bridge.promise);
+
+  const first = ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  await waitFor(() => {
+    expect(ctx.startMessageBridge).toHaveBeenCalledOnce();
+  });
+
+  const second = await ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  bridge.resolve({ bin: 'stub-harness', args: ['--remote', 'unix://codex.sock'] });
+
+  const adopted = await first;
+
+  expect(adopted).toBe(session);
+  expect(second).toBeNull();
+  expect(ctx.startMessageBridge).toHaveBeenCalledOnce();
+  expect(ctx.stopMessageBridge).not.toHaveBeenCalled();
+  expect(provider.harnesses).toHaveLength(1);
+});
+
+test('it stops the message bridge when the revived terminal fails to start', async () => {
+  const provider = buildStubMemoryProvider({
+    kind: 'local-pty',
+    onSpawn: () => {
+      throw new Error('harness refused');
+    },
+  });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.dir,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  ctx.startMessageBridge.mockImplementationOnce(() =>
+    Promise.resolve({ bin: 'stub-harness', args: ['--remote', 'unix://codex.sock'] }),
+  );
+
+  const adopted = ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  expect(adopted).rejects.toThrowWithMessage(Error, 'harness refused');
+  expect(ctx.stopMessageBridge).toHaveBeenCalledExactlyOnceWith(toSessionID('s-c-1'));
 });

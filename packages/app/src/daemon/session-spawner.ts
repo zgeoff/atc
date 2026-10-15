@@ -86,7 +86,15 @@ interface SessionSpawnerDeps {
   >;
   readonly callbacks: Pick<
     SessionCallbacks,
-    'onBoot' | 'onEvent' | 'onRelay' | 'log' | 'now' | 'getClock' | 'getRecords'
+    | 'onBoot'
+    | 'onEvent'
+    | 'onRelay'
+    | 'log'
+    | 'now'
+    | 'getClock'
+    | 'getRecords'
+    | 'startMessageBridge'
+    | 'stopMessageBridge'
   >;
 }
 
@@ -363,26 +371,47 @@ export class SessionSpawner {
     const binding = this.harnesses.mintBridgeBinding(id, target, execution.identity, hostKey);
     let pty: HarnessHandle;
 
+    const env = {
+      ...plan.env,
+      ...buildSessionEnv({
+        sessionID: id,
+        socket: socketPath,
+        ...(published.path === null ? {} : { sessionRecord: published.path }),
+      }),
+    };
+
+    let launch = { bin: plan.bin, args: plan.args };
+
     // The caller's check runs again once the host is ready, before the
-    // harness starts. A refusal there, or a harness its provider cannot
-    // start, takes back what the spawn readied.
+    // harness starts. A refusal there, a bridge that cannot start, or a
+    // harness its provider cannot start, takes back what the spawn readied.
+    // A local agent that takes its messages through a bridge in the daemon
+    // starts the bridge first, and its terminal starts against it.
     try {
       requireInReach();
+
+      const bridged = provider.remote
+        ? null
+        : await this.callbacks.startMessageBridge({
+            adapter,
+            session: id,
+            cwd: dir,
+            env,
+            withheldEnv: materialized?.withheldEnv ?? [],
+            options: { prompt, resume, ...overrides },
+          });
+
+      requireInReach();
+
+      launch = bridged ?? launch;
 
       pty = provider.spawnHarness({
         session: id,
         host: hostKey,
-        bin: plan.bin,
-        args: plan.args,
+        bin: launch.bin,
+        args: launch.args,
         cwd: dir,
-        env: {
-          ...plan.env,
-          ...buildSessionEnv({
-            sessionID: id,
-            socket: socketPath,
-            ...(published.path === null ? {} : { sessionRecord: published.path }),
-          }),
-        },
+        env,
         withheldEnv: materialized?.withheldEnv ?? [],
         cols,
         rows,
@@ -392,6 +421,7 @@ export class SessionSpawner {
         },
       });
     } catch (error) {
+      await this.callbacks.stopMessageBridge(id);
       await this.rollback.removeLocalTrust(localTrust.remove, id);
       await this.callbacks.getRecords()?.remove(id);
       await this.rollback.removeFailedSpawnEffects(provider, id, hostKey, target, readied);

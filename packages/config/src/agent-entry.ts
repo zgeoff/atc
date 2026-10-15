@@ -26,7 +26,9 @@ export interface ClaudeMCPServer {
  * with a `baseURL` is a gateway; without one it is stock Claude, whose
  * `auth` holds profiles alone, for the subscription sign-in, and whose
  * `mcpServers` reach their hosts through those profiles. A Codex entry's
- * `auth` holds profiles alone too, for its ChatGPT sign-in.
+ * `auth` holds profiles alone too, for its ChatGPT sign-in, and its
+ * `appServer` routes a local session through a Codex App Server of its own,
+ * which lets the session take messages.
  */
 export interface AgentEntry {
   readonly id: AgentID;
@@ -41,6 +43,7 @@ export interface AgentEntry {
   readonly apiKeyHelper?: string;
   readonly auth?: GatewayAuth;
   readonly mcpServers?: readonly ClaudeMCPServer[];
+  readonly appServer?: boolean;
 }
 
 /**

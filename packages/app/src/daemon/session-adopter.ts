@@ -34,7 +34,14 @@ interface SessionAdopterDeps {
   readonly auth: Pick<AuthSetup, 'buildBrokerSpec' | 'resolveHarnessAuth' | 'setupHarnessOnHost'>;
   readonly callbacks: Pick<
     SessionCallbacks,
-    'onBoot' | 'onEvent' | 'onRelay' | 'log' | 'now' | 'getRecords'
+    | 'onBoot'
+    | 'onEvent'
+    | 'onRelay'
+    | 'log'
+    | 'now'
+    | 'getRecords'
+    | 'startMessageBridge'
+    | 'stopMessageBridge'
   >;
 }
 
@@ -188,25 +195,86 @@ export class SessionAdopter {
 
       plan = setup.plan;
       recordPath = setup.recordPath;
+    } catch (error) {
+      this.adopting.delete(id);
+      throw error;
+    }
+
+    let launch: HarnessLaunch;
+    let pty: HarnessHandle;
+
+    // The revive keeps the session taken until its terminal starts, so a
+    // second revive that lands while the message bridge starts finds it
+    // taken and starts nothing.
+    try {
+      // A kill, a second adopt, a failed spawn's rollback, or a change that
+      // takes the session out of the caller's reach can land while the host
+      // wakes.
+      if (
+        !canProceed() ||
+        s.pty !== null ||
+        !this.registry.sessions.includes(s) ||
+        this.rollback.rollingBack.has(id) ||
+        this.rollback.unconfirmedKills.has(id)
+      ) {
+        return null;
+      }
+
+      // A local agent that takes its messages through a bridge in the
+      // daemon starts the bridge first, on the thread the session resumes,
+      // and its terminal starts against it. A change that lands while the
+      // bridge starts stops it again.
+      if (!provider.remote) {
+        const bridged = await this.callbacks.startMessageBridge({
+          adapter,
+          session: s.id,
+          cwd: s.cwd,
+          env: {
+            ...plan.env,
+            ...buildSessionEnv({
+              sessionID: s.id,
+              socket: socketPath,
+              ...(recordPath === null ? {} : { sessionRecord: recordPath }),
+            }),
+          },
+          withheldEnv: s.withheldEnv,
+          options: {
+            prompt: '',
+            resume,
+            ...(s.model === undefined ? {} : { model: s.model }),
+            ...(s.effort === undefined ? {} : { effort: s.effort }),
+          },
+        });
+
+        if (
+          !canProceed() ||
+          s.pty !== null ||
+          !this.registry.sessions.includes(s) ||
+          this.rollback.rollingBack.has(id) ||
+          this.rollback.unconfirmedKills.has(id)
+        ) {
+          await this.callbacks.stopMessageBridge(s.id);
+
+          return null;
+        }
+
+        plan = bridged === null ? plan : { ...plan, bin: bridged.bin, args: bridged.args };
+      }
+
+      launch = { provider, plan, recordPath, cols, rows };
+
+      // A terminal that fails to start leaves no message bridge running
+      // without it.
+      try {
+        pty = this.startHarness(s, launch);
+      } catch (error) {
+        await this.callbacks.stopMessageBridge(s.id);
+
+        throw error;
+      }
     } finally {
       this.adopting.delete(id);
     }
-
-    // A kill, a second adopt, a failed spawn's rollback, or a change that
-    // takes the session out of the caller's reach can land while the host
-    // wakes.
-    if (
-      !canProceed() ||
-      s.pty !== null ||
-      !this.registry.sessions.includes(s) ||
-      this.rollback.rollingBack.has(id) ||
-      this.rollback.unconfirmedKills.has(id)
-    ) {
-      return null;
-    }
-
-    const launch: HarnessLaunch = { provider, plan, recordPath, cols, rows };
-    let pty = this.startHarness(s, launch);
 
     let start = await timer.withStep('harness-start', () =>
       auth === null

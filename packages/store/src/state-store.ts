@@ -762,6 +762,21 @@ export class StateStore {
     return rows.map((row) => toMessageRecord(row));
   }
 
+  // The messages the owner holds queued or delivered, which no turn has
+  // settled yet, oldest first.
+  async collectUnsettledMessages(owner: MessageOwner): Promise<MessageRecord[]> {
+    const rows = await this.db
+      .selectFrom('messages')
+      .selectAll()
+      .where('status', 'in', ['queued', 'delivered'])
+      .where((eb) => buildOwnerFilter(eb, owner))
+      .orderBy('sent_at', 'asc')
+      .orderBy(sql`rowid`, 'asc')
+      .execute();
+
+    return rows.map((row) => toMessageRecord(row));
+  }
+
   async findMessage(id: MessageID, owner: MessageOwner): Promise<MessageRecord | null> {
     const row = await this.db
       .selectFrom('messages')

@@ -4,6 +4,7 @@ import type { HookEvent } from '@atc/protocol/session';
 import type { DaemonError } from '@atc/protocol/wire';
 import type { AuthProfile } from './auth-profile';
 import type { GatewayAuth } from './gateway-auth';
+import type { MessageBridge, MessageBridgeRequest } from './message-bridge';
 
 export interface SpawnOptions {
   readonly prompt: string;
@@ -289,6 +290,12 @@ export interface AgentAdapter {
   // Whether a session under this agent can take inbox messages through a tap;
   // false refuses every message as unsupported.
   readonly takesMessages: boolean;
+
+  // Starts the bridge in the daemon that takes the session's messages on a
+  // launch on the daemon's machine, and resolves once the terminal can
+  // start against it. Absent: the session takes its messages through a tap
+  // its own processes open, if at all.
+  readonly startMessageBridge?: (request: MessageBridgeRequest) => Promise<MessageBridge>;
 
   // Absent on a stand-in adapter, which `agents.list` reports as not installed.
   readonly profile?: AgentProfile;

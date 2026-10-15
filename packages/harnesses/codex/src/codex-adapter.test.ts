@@ -1,9 +1,15 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { toAgentSessionID, toSessionID } from '@atc/core';
-import { getAgentEntry, setupTempDir, updateEnv } from '@atc/test-utils';
+import {
+  buildStubMessageBridgeHost,
+  createStubAppServerCodex,
+  getAgentEntry,
+  setupTempDir,
+  updateEnv,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { CodexAdapter } from './codex-adapter';
 import { CODEX_PLUGIN } from './codex-plugin';
@@ -194,10 +200,63 @@ test('it builds a codex resume command with the picker when no id was captured',
   expect(adapter.buildResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
 });
 
-test('it refuses inbox messages', () => {
+test('it refuses inbox messages without an App Server', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.takesMessages).toBeFalse();
+  expect(adapter.startMessageBridge).toBeUndefined();
+});
+
+test('it takes inbox messages on an App Server', () => {
+  const adapter = new CodexAdapter(
+    getAgentEntry(parseConfig([CODEX_PLUGIN], { agents: { codex: { appServer: true } } }), 'codex'),
+  );
+
+  expect(adapter.takesMessages).toBeTrue();
+});
+
+test("it starts the session's App Server and plans the terminal on the bridge's thread", async () => {
+  const ctx = setupTest();
+  const bin = createStubAppServerCodex(ctx.dir);
+
+  const adapter = new CodexAdapter(
+    getAgentEntry(
+      parseConfig([CODEX_PLUGIN], {
+        agents: {
+          codex: { appServer: true, bin, args: ['--no-daemon', '--search', '-m', 'gpt-a'] },
+        },
+      }),
+      'codex',
+    ),
+  );
+
+  invariant(adapter.startMessageBridge);
+
+  const bridge = await adapter.startMessageBridge({
+    session: toSessionID('s-1'),
+    cwd: ctx.dir,
+    env: {},
+    withheldEnv: [],
+    options: { prompt: 'fix the bug', resume: false, model: 'gpt-b' },
+    dir: join(ctx.dir, 'bridge'),
+    host: buildStubMessageBridgeHost().host,
+  });
+
+  onTestFinished(() => bridge.stop());
+
+  expect(bridge.plan).toStrictEqual({
+    bin,
+    args: [
+      '--search',
+      '-m',
+      'gpt-b',
+      'resume',
+      'thread-1',
+      '--remote',
+      `unix://${join(ctx.dir, 'bridge', 'codex.sock')}`,
+      'fix the bug',
+    ],
+  });
 });
 
 test('it selects the ChatGPT endpoint and its profiles for an entry with auth, without requiring the broker', () => {
@@ -794,4 +853,26 @@ test('it seeds no clone trust for an entry without auth', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planGuestWorkspaceTrust('/work')).toBeNull();
+});
+
+test('it refuses a resume through the session picker on an App Server', () => {
+  const ctx = setupTest();
+
+  const adapter = new CodexAdapter(
+    getAgentEntry(parseConfig([CODEX_PLUGIN], { agents: { codex: { appServer: true } } }), 'codex'),
+  );
+
+  invariant(adapter.startMessageBridge);
+
+  expect(
+    adapter.startMessageBridge({
+      session: toSessionID('s-1'),
+      cwd: ctx.dir,
+      env: {},
+      withheldEnv: [],
+      options: { prompt: '', resume: true },
+      dir: join(ctx.dir, 'bridge'),
+      host: buildStubMessageBridgeHost().host,
+    }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
 });
