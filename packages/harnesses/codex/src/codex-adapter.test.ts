@@ -115,14 +115,17 @@ test('it advertises a codex model with the configured default and no effort', ()
   });
 });
 
-test('it plans one event for each hook line and keeps no state between lines', () => {
+test('it plans one event for a hook line and records no thread before a session start', () => {
   const adapter = new CodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
-  const plan = adapter.planHookEvents({
-    atcId: toSessionID('s1'),
-    event: 'PermissionRequest',
-    payload: { session_id: 'c-1', tool_name: 'shell' },
-  });
+  const plan = adapter.planHookEvents(
+    {
+      atcId: toSessionID('s1'),
+      event: 'PermissionRequest',
+      payload: { session_id: 'c-1', tool_name: 'shell' },
+    },
+    undefined,
+  );
 
   expect(plan).toStrictEqual({
     events: [

@@ -123,12 +123,18 @@ restored session resumes the same thread, and the tools and instructions come ba
 
 The terminal can move to another thread, as when a person starts a new conversation or resumes an
 older one, and the bridge follows it so that a message reaches the conversation the terminal shows.
-The daemon learns of the move from the hook that reports a new agent session id, and hands that id
-to the bridge. The bridge drops its connection, so it sends nothing more to the old thread, and the
-next connection resumes the new thread and recovers before it delivers. A message that a turn of the
-old thread still carries becomes unanswered with the reason `thread_switched`, because no turn of
-the new thread will carry it. A thread the terminal starts itself has no atc tools or instructions,
-so a message there takes the turn's last reply as its answer.
+Codex reports a session start each time the terminal starts, resumes, clears, compacts, or forks a
+thread, and the daemon hands the bridge the thread of each session start and of no other hook. A
+turn of the old thread can still run after the move and end later, so its hooks report the old
+thread. The Codex adapter keeps the thread of the latest session start, and reads a hook from any
+other thread as a heartbeat alone, so the session's id, state, and bridge stay on the thread the
+terminal shows. An approval that a turn of the old thread asks for therefore raises no attention,
+because no later hook of that thread could clear the attention without overwriting the state of the
+thread the terminal shows. The bridge drops its connection, so it sends nothing more to the old
+thread, and the next connection resumes the new thread and recovers before it delivers. A message
+that a turn of the old thread still carries becomes unanswered with the reason `thread_switched`,
+because no turn of the new thread will carry it. A thread the terminal starts itself has no atc
+tools or instructions, so a message there takes the turn's last reply as its answer.
 
 The bridge sends each message with `turn/start`, which opens a turn on an idle thread and joins the
 running turn otherwise. The request carries the message id as the client message id, and the bridge
