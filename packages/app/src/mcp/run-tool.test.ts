@@ -344,8 +344,8 @@ test('it returns the answer preview on an answered event when the call asks for 
   );
 
   expect(answered).toStrictEqual({
-    cursor: expect.any(String),
-    at: expect.any(Number),
+    cursor: expect.toBeString(),
+    at: expect.toBeNumber(),
     session: id,
     name: 'one',
     kind: 'message-answered',
