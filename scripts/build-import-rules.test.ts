@@ -344,6 +344,45 @@ test('it keeps the synchronous spawn ban in a package override', async () => {
   });
 });
 
+test('it refuses a confined package in a mod, which only the mods config lints', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.json'),
+    JSON.stringify({ extends: [join(import.meta.dir, '..', '.oxlintrc.mods.json')] }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'mods/bridge/hooks/register.ts'),
+    "import { ImpClient } from '@zgeoff/imp-client';\n\nexport const VALUE = [ImpClient];\n",
+  );
+
+  const linted = await runCommand(
+    [
+      process.execPath,
+      ctx.oxlint,
+      '-c',
+      '.oxlintrc.json',
+      '-f',
+      'json',
+      'mods/bridge/hooks/register.ts',
+    ],
+    { cwd: ctx.dir },
+  );
+
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
+
+  expect(report.diagnostics).toStrictEqual([
+    expect.objectContaining({
+      code: 'eslint(no-restricted-imports)',
+      filename: 'mods/bridge/hooks/register.ts',
+      help: '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+    }),
+  ]);
+});
+
 test('it refuses a require call, whose specifier the import rules do not read', async () => {
   const ctx = setupTest();
 

@@ -6000,6 +6000,55 @@
           }
         ]
       }
+    },
+    {
+      "files": ["mods/**/*.{ts,tsx,js,mjs}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [],
+            "patterns": [
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

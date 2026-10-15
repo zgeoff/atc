@@ -44,7 +44,7 @@ const TEST_SOURCE = '*.test.{ts,tsx,js,mjs}';
 /**
  * The overrides file: per package a production override and a later test
  * override, an override for each file a confinement lists after them, then
- * e2e/ and scripts/.
+ * e2e/ and scripts/, then mods/.
  * `entries` holds each existing package's entry points, as its exports map
  * lists them, keyed by package name.
  */
@@ -87,6 +87,13 @@ export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>
     buildOverride([`e2e/**/${SOURCE}`, `scripts/**/${SOURCE}`], {
       paths: CHILD_PROCESS_PATHS,
       patterns: [DEEP_IMPORT, entryPattern, ...buildConfinementPatterns(null, 'test', [])],
+    }),
+
+    // the mods run inside Claude Code, and .oxlintrc.mods.json lints them
+    // with these rules alone
+    buildOverride([`mods/**/${SOURCE}`], {
+      paths: [],
+      patterns: buildConfinementPatterns(null, 'production', []),
     }),
   );
 

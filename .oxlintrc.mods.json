@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // the mods follow Claude Code's mod API rather than the repo's style rules,
+  // so they take only the generated import rules; .oxlintrc.json ignores them
+  "extends": ["./.oxlintrc.imports.json"],
+  "categories": { "correctness": "off" }
+}

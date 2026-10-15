@@ -101,6 +101,8 @@ another package's `src/`, a subpath that a package's `exports` map does not list
 production code, and a confined external package outside the packages and files that
 `scripts/package-confinement.ts` lists. Those rules read import and export statements and `import()`
 calls, and oxlint refuses a `require()` call, so every module load takes a form they read.
+`bun run lint:mods` applies the confinement rules to `mods/`, which the main oxlint config ignores
+because the mod follows Claude Code's mod API rather than the repo's style rules.
 `bun run check:manifests` fails on an import the manifest does not declare, on a package with no
 `exports` map or with a wildcard entry, on a relative path into another package, and on a specifier
 that no import rule can read: a module load whose specifier is not a quoted string, or a resolve
