@@ -1208,7 +1208,19 @@ async function restartDaemon() {
     transport.stopConnection(old);
   }
 
+  // A new daemon that has not answered by the deadline shows as a wait like
+  // any other, with each failed open logged; the restore still runs once
+  // it answers.
+  const cancelLate = clock.schedule(() => {
+    daemonRestarting = false;
+
+    logClientEvent('restart: the new daemon has not answered in 8s; still trying');
+    scheduleStatus();
+  }, 8000);
+
   await transport.waitForConnection();
+
+  cancelLate();
 
   await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
   await refreshMirror().catch(() => {});
