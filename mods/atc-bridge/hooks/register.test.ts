@@ -1063,6 +1063,77 @@ test('it sends a note through atc under the full tool name', async (engine, on) 
   ]);
 });
 
+test("it sends a note after the session's working folder is removed", async (engine, on) => {
+  const ran: { argv: string[]; cwd: string | undefined }[] = [];
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* () {
+    return { value: { code: 0, signal: null } };
+  });
+
+  // Claude Code runs a command without a cwd in the session's working folder,
+  // and Bun's spawn rejects with this text when that folder no longer exists.
+  on('process.run', ($, e) => {
+    ran.push({ argv: [...e.argv], cwd: e.init?.cwd });
+
+    if (e.init?.cwd === undefined) {
+      throw new Error("ENOENT: no such file or directory, posix_spawn '/tmp/atc/bin/atc'");
+    }
+
+    return {
+      value: {
+        exitCode: 0,
+        stdout: '',
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    };
+  });
+
+  on('session.start', ($, e) => ({ cwd: e.cwd }));
+
+  await engine.session.start({
+    cwd: '/work/.worktrees/removed',
+    surface: 'terminal',
+    isInteractive: true,
+  });
+
+  const answered = await engine.tool.call({ tool: 'mcp__atc-bridge__note', text: 'opened the PR' });
+
+  expect(answered.result).toBe('Handed to atc for its event feed.');
+  expect(ran).toStrictEqual([{ argv: ['atc', 'note', '--label', 'progress'], cwd: '/' }]);
+});
+
+test('it starts the tap in the root folder', async (engine, on) => {
+  const spawned: { argv: string[]; cwd: string | undefined }[] = [];
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
+
+  on('process.spawn', async function* ($, e) {
+    spawned.push({ argv: [...e.argv], cwd: e.cwd });
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('session.start', ($, e) => ({ cwd: e.cwd }));
+
+  await engine.session.start({
+    cwd: '/work/.worktrees/removed',
+    surface: 'terminal',
+    isInteractive: true,
+  });
+
+  expect(spawned).toStrictEqual([
+    { argv: ['atc', 'tap', '--session', 's-1', '--notices'], cwd: '/' },
+  ]);
+});
+
 test('it defaults a note without a label to progress', async (engine, on) => {
   const ctx = await startNoteSession(engine, on);
 

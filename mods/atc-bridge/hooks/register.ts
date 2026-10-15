@@ -74,6 +74,12 @@ const NOTE_TOOL = 'mcp__atc-bridge__note';
 const NOTE_LABELS = ['progress', 'blocked', 'decision'] as const;
 const ANSWER_TOOL = 'mcp__atc-bridge__answer';
 
+// Every atc command runs in the root folder. Left to the default, a command
+// runs in the session's working folder, which follows the agent's cd; once the
+// agent removes that folder, as when it cleans up a worktree it worked in, the
+// spawn fails with ENOENT on the atc binary itself.
+const ATC_CWD = '/';
+
 /**
  * Delivers the atc inbox of the session named by ATC_SESSION_ID into the
  * conversation and serves the note and answer tools. The answer tool reports
@@ -223,6 +229,7 @@ export const register: Register = (on) => {
 
     try {
       await $.process.run([...ATC_CLI, 'note', '--label', label], {
+        cwd: ATC_CWD,
         stdin: text,
         timeoutMs: 5000,
       });
@@ -288,6 +295,7 @@ async function tryRunAnswer(
 ): Promise<string | null> {
   try {
     const ran = await $.process.run([...ATC_CLI, 'answer', '--message', messageID], {
+      cwd: ATC_CWD,
       stdin: text,
       timeoutMs: 5000,
     });
@@ -303,7 +311,11 @@ function isNoteLabel(value: string): value is (typeof NOTE_LABELS)[number] {
 }
 
 async function runTap($: EngineInterface, state: BridgeState, sessionID: string): Promise<void> {
-  const tap = $.process.spawn({ argv: [...ATC_CLI, 'tap', '--session', sessionID, '--notices'] });
+  const tap = $.process.spawn({
+    argv: [...ATC_CLI, 'tap', '--session', sessionID, '--notices'],
+    cwd: ATC_CWD,
+  });
+
   let pending = '';
 
   try {
@@ -640,6 +652,7 @@ function scheduleAnsweredReport(
       await $.process.run(
         [...ATC_CLI, 'answer', '--messages', messageIDs.join(','), '--turn', turnID],
         {
+          cwd: ATC_CWD,
           stdin: answer,
           timeoutMs: 5000,
         },
@@ -671,7 +684,7 @@ function scheduleUnansweredReport(
           '--reason',
           reason,
         ],
-        { timeoutMs: 5000 },
+        { cwd: ATC_CWD, timeoutMs: 5000 },
       );
     })
     .catch((error: unknown) => {
