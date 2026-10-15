@@ -140,14 +140,20 @@ async function collectBundled(
     throw new Error(`bun build ${ENTRY} failed: ${logs}`);
   }
 
-  // a linked package's inputs can arrive under its link in node_modules,
-  // so each input counts at the path its link leads to; a stand-in holds no
+  // bun writes an input inside the working directory relative to it,
+  // whatever the build's root, and one outside it as an absolute path. A
+  // linked package's inputs can arrive under its link in node_modules, so
+  // each input counts at the path its link leads to; a stand-in holds no
   // provider code and counts as nothing
   const realRoot = realpathSync(root);
 
   return Object.keys(build.metafile.inputs)
     .filter((input) => !input.startsWith(`${STAND_IN_NAMESPACE}:`))
-    .map((input) => relative(realRoot, realpathSync(resolve(root, input))));
+    .map((input) => {
+      const path = realpathSync(resolve(process.cwd(), input));
+
+      return relative(realRoot, path);
+    });
 }
 
 function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): BunPlugin {
