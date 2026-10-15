@@ -299,7 +299,10 @@ export function runTool(
       const required: DaemonFeature[] = [
         'vocabulary.note',
         ...(filtered ? (['events.session'] as const) : []),
-        ...(previewOnly ? [] : (['note.get'] as const)),
+
+        // A daemon without a text read would hand back previews and move
+        // the cursor past them, so a full read refuses it instead.
+        ...(previewOnly ? [] : (['note.get', 'answer.get'] as const)),
       ];
 
       const ok = await caller.sendRequest(

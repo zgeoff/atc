@@ -110,7 +110,7 @@ test('it forwards an events session filter to the daemon', async () => {
     {
       m: 'events.read',
       p: { waitMs: 1000, session: 's1' },
-      required: ['vocabulary.note', 'events.session', 'note.get'],
+      required: ['vocabulary.note', 'events.session', 'note.get', 'answer.get'],
     },
   ]);
 });
@@ -138,7 +138,11 @@ test('it reads the whole text of each note of an events page by default', async 
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'events.read', p: { cursor: 'c0' }, required: ['vocabulary.note', 'note.get'] },
+    {
+      m: 'events.read',
+      p: { cursor: 'c0' },
+      required: ['vocabulary.note', 'note.get', 'answer.get'],
+    },
     { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
   ]);
 
@@ -1055,6 +1059,44 @@ test('it refuses a choice without a menu token and sends nothing', () => {
 
   expect(chosen).rejects.toMatchObject({ code: 'bad_args' });
   expect(caller.requests).toStrictEqual([]);
+});
+
+test('it refuses a full events read unsent when the daemon predates answer reads', () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'answer.get'),
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const read = runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+
+  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_events_read's full answers/);
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
+test('it reads previews from a daemon that predates answer reads', async () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'answer.get'),
+    replies: { 'events.read': { events: [], cursor: 'c1', more: false } },
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  await runTool(caller, 'atc_events_read', { previewOnly: true }, { callerSessionID: null });
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello', 'events.read']);
 });
 
 test('it refuses a menu read unsent when the daemon predates menus', () => {
