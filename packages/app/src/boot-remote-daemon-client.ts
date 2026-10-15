@@ -27,7 +27,7 @@ const NO_FALLBACK = 'The TUI did not fall back to the local daemon.';
  * boot tries again.
  */
 class RemoteDaemonUnreachableError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
+  constructor(message: string, options?: Readonly<ErrorOptions>) {
     super(message, options);
 
     this.name = 'RemoteDaemonUnreachableError';
