@@ -34,6 +34,17 @@ ws.addEventListener('message', (ev) => {
   for (const l of [...listeners]) l(m);
 });
 
+let isDone = false;
+
+// A socket that closes before the scenario ends leaves its requests
+// unanswered, so the probe fails the run instead of hanging.
+ws.addEventListener('close', () => {
+  if (!isDone) {
+    console.error(`socket closed with ${waiting.size} request(s) unanswered`);
+    process.exit(1);
+  }
+});
+
 function sendRequest(method: string, params: unknown): Promise<Msg> {
   const id = nextID++;
   const m = { jsonrpc: '2.0', id, method, params };
@@ -229,6 +240,8 @@ switch (scenario) {
 }
 
 await waitMs(1500);
+
+isDone = true;
 
 ws.close();
 process.exit(0);
