@@ -107,13 +107,33 @@ as the last `❯` cursor on the screen and the option lines beside it, with the 
 the dialog's border. Claude Code's prompt box also starts with `❯`, so a cursor line between two
 rules is no menu.
 
-A menu read returns a token built from the menu's text, its labels, and its ticked boxes, and a
-choice carries that token. The cursor is left out of the token, so the choice's own arrow keys never
-change it. The daemon runs a choice in five steps, and holds the session's other input until the
-last one:
+Claude Code draws a long list, such as the new MCP servers list, a few rows at a time, and marks the
+first and last rows with `↑` and `↓` in the cursor's column when options sit out of view. A taller
+terminal shows no more rows, because Claude Code caps the window at a fixed count. So a read that
+finds a mark reads the whole list with arrow keys. It waits for the screen to go quiet, as a choice
+does, moves the cursor up to the first option, then down one option at a time, and moves it back to
+where it started. The cursor's own row hides its mark, so the read finds the end of the list when
+the cursor passes the last option, onto the item after the list or back to the first option. A list
+that fills its window with the cursor on its last row shows no mark at all, though options may sit
+below it, so the reader treats it as one that may scroll and the read walks it too. The read holds
+the session's other input while it runs and never presses Enter or Escape.
 
-1. It reads the menu again and refuses the choice with `menu_changed` when the token differs, or
-   with `menu_label_mismatch` when the option's label differs, before it writes anything.
+The daemon keeps the whole menu for the session, and numbers each later read that shows part of it
+by the option's place in the whole list. A read or a choice made while the list sits scrolled
+therefore presses no key to learn the numbers. A read that finds no menu, or a menu that is not part
+of the kept one, drops it, and so does a new terminal for the session, so a list that closes and
+opens again is read afresh. A choice drops it too before it presses Enter or Escape, and so does any
+input from outside a menu read or choice, because each can open another list with the same text and
+the same rows in view. A part of the list whose labels match in more than one place gets no number
+from the kept menu, since the screen cannot show which place the cursor is in.
+
+A menu read returns a token built from the whole menu's text, its labels, and its ticked boxes, and
+a choice carries that token. The cursor is left out of the token, so the choice's own arrow keys
+never change it. The daemon runs a choice in five steps, and holds the session's other input until
+the last one:
+
+1. It reads the whole menu again and refuses the choice with `menu_changed` when the token differs,
+   or with `menu_label_mismatch` when the option's label differs, before it writes anything.
 2. It waits until the agent has printed nothing for longer than Claude Code holds a dialog that has
    just opened, then checks the menu again. During that hold Claude Code refuses Enter, and when the
    hold ends it moves the cursor back to the dialog's default option, so a choice made inside the
@@ -124,7 +144,8 @@ last one:
 4. Once the cursor sits on the option, it presses Enter. Enter on an option with a box ticks or
    clears the box and keeps the menu open, so a box menu takes one choice per box and one for its
    confirming item.
-5. It answers with the menu the screen shows once it stops changing, or none.
+5. It answers with the whole menu the screen shows once it stops changing, or none. A new list that
+   scrolls past the screen is read whole first, so its token is the one the next choice carries.
 
 Every refusal comes before Enter, so a refused choice never picks an option. Escape is the one other
 key a client can press, and it carries the token too, because Escape on Claude Code's folder-trust

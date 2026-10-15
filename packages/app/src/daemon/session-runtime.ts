@@ -1,3 +1,4 @@
+import type { ScreenMenu } from '@atc/plugin-api';
 import type { Dims } from './attach-registry';
 import type { ScreenModel } from './screen-model';
 import { SessionInputQueue } from './session-input-queue';
@@ -23,6 +24,11 @@ export class SessionRuntime {
   // When the session's PTY last printed anything, by the daemon's clock; a
   // menu choice waits for the screen to go quiet before its first key.
   lastOutputAt = 0;
+
+  // The whole menu atc last read through a list that scrolls past the
+  // screen, so a later read of part of that list numbers its options the
+  // same way, or null before any.
+  wholeMenu: ScreenMenu | null = null;
 
   dims: Dims | null = null;
 
@@ -63,7 +69,8 @@ export class SessionRuntime {
   harnessState: unknown = undefined;
 
   // Returns the boot-scoped state to how a fresh terminal starts, at the
-  // dims it boots with: no SessionStart yet and no tap since. Every path
+  // dims it boots with: no SessionStart yet, no tap since, and no whole
+  // menu read through a scrolled list. Every path
   // that boots a new terminal for an existing session runs it, so a revived
   // session never inherits its previous process's message gate.
   resetBoot(dims: Dims): void {
@@ -72,6 +79,7 @@ export class SessionRuntime {
     this.tapAttached = false;
     this.hasAgentHookLines = false;
     this.harnessState = undefined;
+    this.wholeMenu = null;
   }
 
   dispose(): void {

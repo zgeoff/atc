@@ -1,25 +1,16 @@
 import type { Clock } from '@atc/core';
+import type { ScreenMenu } from '@atc/plugin-api';
 import type { MenuView } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
-
-const KEYS = {
-  up: '\u001B[A',
-  down: '\u001B[B',
-  enter: '\r',
-  escape: '\u001B',
-} as const;
-
-/**
- * The session's terminal as a choice drives it: a fresh read of the menu
- * its screen shows, when its agent last printed anything, a write to its
- * PTY, and whether that PTY still runs.
- */
-export interface MenuTerminal {
-  readonly readMenu: () => Promise<MenuView | null>;
-  readonly readLastOutputAt: () => number;
-  readonly write: (data: string) => void;
-  readonly isLive: () => boolean;
-}
+import { buildMenuView } from './build-menu-view';
+import { expandScreenMenu } from './expand-screen-menu';
+import { MENU_KEYS, MENU_TIMING } from './menu-terminal';
+import type { MenuTerminal, MenuTiming, MenuWaits } from './menu-terminal';
+import { readKnownMenu } from './read-known-menu';
+import { readWholeMenu } from './read-whole-menu';
+import { sendMenuKey } from './send-menu-key';
+import { waitForMenuPoll } from './wait-for-menu-poll';
+import { waitForMenuQuiet } from './wait-for-menu-quiet';
 
 /**
  * The menu a choice answers, through its token, and either the option it
@@ -29,48 +20,16 @@ export type MenuChoice =
   | { readonly menuToken: string; readonly option: number; readonly label: string }
   | { readonly menuToken: string; readonly key: 'escape' };
 
-/**
- * How long a choice waits on the screen. Before its first key it waits for
- * the agent to print nothing for `quietMs`, at most `quietCapMs` in all. An
- * arrow key gets `moveMs` to move the cursor. After the last key, the
- * screen counts as settled once it stays the same for `stableMs`, or once
- * `settleMs` passes.
- */
-export interface MenuTiming {
-  readonly pollMs: number;
-  readonly quietMs: number;
-  readonly quietCapMs: number;
-  readonly moveMs: number;
-  readonly settleMs: number;
-  readonly stableMs: number;
-}
-
 export interface MenuChoiceResult {
   readonly pressed: 'enter' | 'escape';
   readonly menu: MenuView | null;
 }
 
-// The clock a choice reads the time from and waits on, and how long it waits.
-interface MenuWaits {
-  readonly clock: Clock;
-  readonly timing: MenuTiming;
-}
-
-// Claude Code refuses Enter and Escape for a hold after a dialog opens, and
-// resets the dialog's cursor to its default option when the hold ends, so
-// the quiet wait outlasts that hold.
-const MENU_TIMING: MenuTiming = {
-  pollMs: 50,
-  quietMs: 4000,
-  quietCapMs: 10_000,
-  moveMs: 1500,
-  settleMs: 4000,
-  stableMs: 300,
-};
-
 /**
  * Picks one option of the menu the session's screen shows, or presses
- * Escape on it. It first waits for the agent to stop printing, so a menu
+ * Escape on it. It reads the whole menu, scrolling a list longer than the
+ * screen with the arrow keys, and numbers each option by its place in the
+ * whole list. It first waits for the agent to stop printing, so a menu
  * that has just opened takes keys and keeps its cursor. It then checks the
  * menu's token and the option's label against the screen before it writes
  * anything, moves the cursor one arrow key at a time and reads the screen
@@ -90,22 +49,31 @@ export async function applyMenuChoice(
 
   // A choice that does not match fails at once; one that matches is checked
   // again once the screen is quiet, since the menu can change meanwhile.
-  await requireMatchingMenu(terminal, choice);
-  await waitForQuiet(terminal, waits);
+  const first = await readWholeMenuView(terminal, waits);
 
-  const menu = await requireMatchingMenu(terminal, choice);
+  requireMatchingMenu(first, choice);
+
+  await waitForMenuQuiet(terminal, waits);
+
+  const quiet = await readCheckedMenu(terminal, choice);
+
+  const menu = quiet.menu;
 
   if ('key' in choice) {
-    sendKey(terminal, KEYS.escape);
+    sendKeyFromScreen(terminal, MENU_KEYS.escape);
 
-    return { pressed: 'escape', menu: await waitForSettledMenu(terminal, menu, waits) };
+    const dismissed = await waitForSettledMenu(terminal, quiet.screen, waits);
+
+    return { pressed: 'escape', menu: await readSettledWholeMenu(terminal, dismissed, waits) };
   }
 
   await runCursorWalk(terminal, menu, choice.option, waits);
 
   // The cursor can move back between the walk's last read and Enter, such
   // as when an agent ends a dialog's hold, so the screen is read once more.
-  const committed = await requireMatchingMenu(terminal, choice);
+  const last = await readCheckedMenu(terminal, choice);
+
+  const committed = last.menu;
 
   if (getHighlighted(committed) !== choice.option) {
     throw new DaemonError(
@@ -115,28 +83,98 @@ export async function applyMenuChoice(
     );
   }
 
-  sendKey(terminal, KEYS.enter);
+  sendKeyFromScreen(terminal, MENU_KEYS.enter);
 
   // The settled menu is measured against the screen just before Enter, so a
   // cursor move from the walk never counts as Enter's response.
-  return { pressed: 'enter', menu: await waitForSettledMenu(terminal, committed, waits) };
+  const settled = await waitForSettledMenu(terminal, last.screen, waits);
+
+  return { pressed: 'enter', menu: await readSettledWholeMenu(terminal, settled, waits) };
 }
 
-// A session that exits keeps its last screen, so a menu read can still
-// match after its agent is gone; each key checks the PTY first.
-function sendKey(terminal: MenuTerminal, key: string): void {
-  if (!terminal.isLive()) {
-    throw new DaemonError('session_dead', 'the session has no live process, so nothing was picked');
+// The menu a choice answers with: once the screen has settled on a menu, the
+// whole of it, so a new list that scrolls past the screen returns the token
+// that the next choice on it carries. The key has already gone through, so a
+// whole read that fails answers with the settled menu as the screen shows it
+// instead of a refusal.
+async function readSettledWholeMenu(
+  terminal: MenuTerminal,
+  settled: MenuView | null,
+  waits: MenuWaits,
+): Promise<MenuView | null> {
+  if (settled === null) {
+    return null;
   }
 
-  terminal.write(key);
+  try {
+    const whole = await readWholeMenuView(terminal, waits);
+
+    return whole;
+  } catch (error) {
+    if (error instanceof DaemonError) {
+      return settled;
+    }
+
+    throw error;
+  }
+}
+
+// The whole menu as a client reads it, scrolling a list that has not been
+// read whole before.
+async function readWholeMenuView(
+  terminal: MenuTerminal,
+  waits: MenuWaits,
+): Promise<MenuView | null> {
+  const menu = await readWholeMenu(terminal, waits);
+
+  return menu === null ? null : buildMenuView(menu);
+}
+
+// The menu the screen shows, through the whole menu atc last read when the
+// screen shows part of it, as a client reads it. It presses no key, so it
+// can poll the screen while the cursor moves.
+async function readMenuView(terminal: MenuTerminal): Promise<MenuView | null> {
+  const menu = await readKnownMenu(terminal);
+
+  return menu === null ? null : buildMenuView(menu);
+}
+
+// One read of the screen, checked against the choice: the menu as a client
+// reads it, through the kept whole menu, and the same screen read alone,
+// which measures the response to the key that follows. One read serves both,
+// so the key reaches the screen the check passed.
+async function readCheckedMenu(
+  terminal: MenuTerminal,
+  choice: MenuChoice,
+): Promise<{ readonly menu: MenuView; readonly screen: MenuView }> {
+  const shown = await terminal.readScreenMenu();
+
+  const known = terminal.findWholeMenu();
+  const whole = shown === null || known === null ? null : expandScreenMenu(shown, known);
+
+  terminal.recordWholeMenu(whole);
+
+  const menu = requireMatchingMenu(buildViewOrNull(whole ?? shown), choice);
+
+  return { menu, screen: shown === null ? menu : buildMenuView(shown) };
+}
+
+// Presses Enter or Escape. Either key can open another list with the same
+// text and the same rows in view as the kept whole menu, so the kept menu
+// is dropped first and the menu the key leaves is read afresh.
+function sendKeyFromScreen(terminal: MenuTerminal, key: string): void {
+  terminal.recordWholeMenu(null);
+
+  sendMenuKey(terminal, key);
+}
+
+function buildViewOrNull(menu: ScreenMenu | null): MenuView | null {
+  return menu === null ? null : buildMenuView(menu);
 }
 
 // The menu the screen shows, when its token is the choice's and, for an
 // option, that option's label is the one the choice expects.
-async function requireMatchingMenu(terminal: MenuTerminal, choice: MenuChoice): Promise<MenuView> {
-  const menu = await terminal.readMenu();
-
+function requireMatchingMenu(menu: MenuView | null, choice: MenuChoice): MenuView {
   if (menu === null) {
     throw new DaemonError('menu_changed', 'the session shows no menu now', { menu: null });
   }
@@ -167,19 +205,6 @@ async function requireMatchingMenu(terminal: MenuTerminal, choice: MenuChoice): 
   return menu;
 }
 
-// Waits until the agent has printed nothing for the quiet time, or gives up
-// waiting once the cap passes, for a screen that never stops changing.
-async function waitForQuiet(terminal: MenuTerminal, waits: MenuWaits): Promise<void> {
-  const deadline = waits.clock.now() + waits.timing.quietCapMs;
-
-  while (
-    waits.clock.now() < deadline &&
-    waits.clock.now() - terminal.readLastOutputAt() < waits.timing.quietMs
-  ) {
-    await waitForPoll(waits);
-  }
-}
-
 // Each step presses the arrow toward the option and waits for the cursor to
 // move; the screen decides the next step, so a slow move never sends the
 // cursor past the option.
@@ -196,9 +221,9 @@ async function runCursorWalk(
       throw new DaemonError('menu_busy', `the cursor did not reach option ${option}`, { menu });
     }
 
-    const key = at < option ? KEYS.down : KEYS.up;
+    const key = at < option ? MENU_KEYS.down : MENU_KEYS.up;
 
-    sendKey(terminal, key);
+    sendMenuKey(terminal, key);
 
     const moved = await waitForMove(terminal, menu, at, waits);
 
@@ -224,9 +249,9 @@ async function waitForMove(
   const deadline = waits.clock.now() + waits.timing.moveMs;
 
   while (waits.clock.now() < deadline) {
-    await waitForPoll(waits);
+    await waitForMenuPoll(waits);
 
-    const now = await terminal.readMenu();
+    const now = await readMenuView(terminal);
 
     if (now === null || now.menuToken !== menu.menuToken) {
       throw new DaemonError('menu_changed', 'the menu changed while the cursor moved', {
@@ -255,7 +280,7 @@ async function waitForSettledMenu(
   const clock = waits.clock;
   const deadline = clock.now() + waits.timing.settleMs;
 
-  let last = await terminal.readMenu();
+  let last = await readMenuView(terminal);
 
   let lastChangeAt = isSameMenu(last, before) ? null : clock.now();
 
@@ -264,9 +289,9 @@ async function waitForSettledMenu(
       return last;
     }
 
-    await waitForPoll(waits);
+    await waitForMenuPoll(waits);
 
-    const now = await terminal.readMenu();
+    const now = await readMenuView(terminal);
 
     if (!isSameMenu(now, last)) {
       last = now;
@@ -275,12 +300,6 @@ async function waitForSettledMenu(
   }
 
   return last;
-}
-
-function waitForPoll(waits: MenuWaits): Promise<void> {
-  return new Promise((resolve) => {
-    waits.clock.schedule(resolve, waits.timing.pollMs);
-  });
 }
 
 function isSameMenu(a: MenuView | null, b: MenuView | null): boolean {

@@ -6,7 +6,13 @@ import { z } from 'zod';
  * the item the cursor starts on, the first when absent. `numbered` draws
  * `1. Yes`, `plain` draws the label alone, and `boxes` draws `[✔] name` for
  * each option, ticked as `checked` holds, with `submit` as a last item
- * without a box.
+ * without a box. `window` draws only that many options at a time, as Claude
+ * Code's lists do: `↑` and `↓` in the cursor's column beside the first and
+ * last rows mark options out of view, except on the cursor's own row; the
+ * list scrolls one row when the cursor moves onto its top row or past its
+ * bottom row; and the arrows wrap from the first option to the last and
+ * back, except that the down arrow on the last option of a box menu moves
+ * to `submit`.
  */
 const STUB_MENU_SCHEMA = z.object({
   kind: z.enum(['numbered', 'plain', 'boxes']),
@@ -15,6 +21,7 @@ const STUB_MENU_SCHEMA = z.object({
   checked: z.array(z.boolean()).readonly().optional(),
   submit: z.string().optional(),
   cursor: z.number().optional(),
+  window: z.number().optional(),
 });
 
 type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
@@ -27,7 +34,10 @@ type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
  * arrows move the cursor, while Enter and Escape do nothing and restart the
  * hold. When the hold ends, the cursor goes back to where it started.
  * `enterDelayMs` makes the stand-in answer each Enter only that long after
- * it reads the key, as a busy agent does.
+ * it reads the key, as a busy agent does. `pickOpensNext` shows the second
+ * menu in place of the outcome once an option of the first is picked, as a
+ * dialog that leads to another does. The second menu takes keys however it
+ * appears.
  */
 const STUB_MENU_SPEC_SCHEMA = z.object({
   menus: z.array(STUB_MENU_SCHEMA),
@@ -35,6 +45,7 @@ const STUB_MENU_SPEC_SCHEMA = z.object({
   exitFile: z.string().optional(),
   holdMs: z.number().optional(),
   enterDelayMs: z.number().optional(),
+  pickOpensNext: z.boolean().optional(),
 });
 
 const KEY_NAMES: Readonly<Record<string, string>> = {
@@ -72,6 +83,7 @@ function main() {
   const state = {
     menu: first,
     cursor: first.cursor ?? 0,
+    top: findWindowTop(first, first.cursor ?? 0),
     checked: [...(first.checked ?? [])],
     open: true,
     held: (spec.holdMs ?? 0) > 0,
@@ -83,7 +95,19 @@ function main() {
   };
 
   const draw = () => {
-    process.stdout.write(`\u001B[2J\u001B[H${renderMenu(state.menu, state.cursor, state.checked)}`);
+    process.stdout.write(
+      `\u001B[2J\u001B[H${renderMenu(state.menu, state.cursor, state.top, state.checked)}`,
+    );
+  };
+
+  const openMenu = (menu: StubMenu) => {
+    state.menu = menu;
+    state.cursor = menu.cursor ?? 0;
+    state.top = findWindowTop(menu, state.cursor);
+    state.checked = [...(menu.checked ?? [])];
+    state.open = true;
+
+    draw();
   };
 
   const drawOutcome = (line: string, entry: Readonly<Record<string, unknown>>) => {
@@ -109,7 +133,15 @@ function main() {
 
     const items = state.menu.options.length + (state.menu.submit === undefined ? 0 : 1);
 
-    if (data === '\u001B[A') {
+    if (data === '\u001B[A' && state.menu.window !== undefined) {
+      Object.assign(state, planWindowUp(state.menu, state.cursor, state.top));
+
+      draw();
+    } else if (data === '\u001B[B' && state.menu.window !== undefined) {
+      Object.assign(state, planWindowDown(state.menu, state.cursor, state.top));
+
+      draw();
+    } else if (data === '\u001B[A') {
       state.cursor = Math.max(0, state.cursor - 1);
 
       draw();
@@ -137,7 +169,12 @@ function main() {
     } else if (data === '\r') {
       const label = state.menu.options[state.cursor] ?? '';
 
-      drawOutcome(`Picked: ${label}`, { picked: label });
+      if (spec.pickOpensNext === true && second !== undefined && state.menu === first) {
+        log({ picked: label });
+        openMenu(second);
+      } else {
+        drawOutcome(`Picked: ${label}`, { picked: label });
+      }
     }
   };
 
@@ -163,6 +200,7 @@ function main() {
 
       state.held = false;
       state.cursor = first.cursor ?? 0;
+      state.top = findWindowTop(first, state.cursor);
 
       if (state.open) {
         draw();
@@ -186,12 +224,7 @@ function main() {
     const timer = setInterval(() => {
       if (existsSync(switchFile)) {
         clearInterval(timer);
-
-        state.menu = second;
-        state.cursor = second.cursor ?? 0;
-        state.checked = [...(second.checked ?? [])];
-
-        draw();
+        openMenu(second);
       }
     }, 20);
   }
@@ -200,9 +233,70 @@ function main() {
   setInterval(() => {}, 60_000);
 }
 
-function renderMenu(menu: StubMenu, cursor: number, checked: readonly boolean[]): string {
-  const rows = menu.options.map((label, index) => {
-    const pointer = index === cursor ? '❯ ' : '  ';
+// The first option a windowed menu shows when its cursor starts on
+// `cursor`: the top of the list, or the row that puts the cursor last.
+function findWindowTop(menu: StubMenu, cursor: number): number {
+  const size = menu.window ?? menu.options.length;
+
+  return Math.max(0, Math.min(cursor, menu.options.length - 1) - size + 1);
+}
+
+// Where a windowed menu's cursor sits, and the first option it shows.
+interface WindowState {
+  readonly cursor: number;
+  readonly top: number;
+}
+
+// The cursor and the window's first option after the up arrow.
+function planWindowUp(menu: StubMenu, cursor: number, top: number): WindowState {
+  const size = menu.window ?? menu.options.length;
+  const last = menu.options.length - 1;
+
+  if (cursor > last) {
+    return { cursor: last, top: Math.max(top, last - size + 1) };
+  }
+
+  if (cursor === 0) {
+    return { cursor: last, top: Math.max(0, last - size + 1) };
+  }
+
+  return { cursor: cursor - 1, top: cursor - 1 <= top ? Math.max(0, top - 1) : top };
+}
+
+// The cursor and the window's first option after the down arrow.
+function planWindowDown(menu: StubMenu, cursor: number, top: number): WindowState {
+  const size = menu.window ?? menu.options.length;
+  const last = menu.options.length - 1;
+
+  if (cursor > last) {
+    return { cursor, top };
+  }
+
+  if (cursor === last) {
+    return menu.kind === 'boxes' && menu.submit !== undefined
+      ? { cursor: last + 1, top }
+      : { cursor: 0, top: 0 };
+  }
+
+  return { cursor: cursor + 1, top: cursor + 1 >= top + size ? cursor + 2 - size : top };
+}
+
+function renderMenu(
+  menu: StubMenu,
+  cursor: number,
+  top: number,
+  checked: readonly boolean[],
+): string {
+  const size = menu.window ?? menu.options.length;
+  const shown = menu.options.slice(top, top + size);
+
+  const rows = shown.map((label, row) => {
+    const index = top + row;
+
+    const pointer = renderPointer(index === cursor, {
+      above: row === 0 && top > 0,
+      below: row === shown.length - 1 && top + size < menu.options.length,
+    });
 
     if (menu.kind === 'numbered') {
       return ` ${pointer}${index + 1}. ${label}`;
@@ -227,6 +321,26 @@ function renderMenu(menu: StubMenu, cursor: number, checked: readonly boolean[])
     '',
     ' Enter to confirm · Esc to cancel',
   ].join('\r\n');
+}
+
+// Whether one row of a windowed menu sits beside options out of view.
+interface RowMarks {
+  readonly above: boolean;
+  readonly below: boolean;
+}
+
+// The cursor's column of one row: the cursor, else the mark of options out
+// of view beside that row, else blank.
+function renderPointer(isCursor: boolean, more: RowMarks): string {
+  if (isCursor) {
+    return '❯ ';
+  }
+
+  if (more.below) {
+    return '↓ ';
+  }
+
+  return more.above ? '↑ ' : '  ';
 }
 
 main();
