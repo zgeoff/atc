@@ -69,7 +69,7 @@
     "check:disable-baseline": "bun scripts/check-disable-baseline.ts",
     "check:manifests": "bun scripts/check-manifests.ts",
     "check:reach": "bun scripts/check-reach.ts",
-    "deadcode": "knip",
+    "deadcode": "bun scripts/deadcode.ts",
     "demo:record": "bash scripts/record-demo.sh",
     "files:branch": "bun scripts/collect-branch-files.ts",
     "lint": "oxlint",

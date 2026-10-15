@@ -1,13 +1,22 @@
-import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { expect, mock, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
+import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
+import { ImpProvider } from '@atc/execution-imp/imp-provider';
+import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
+import { getOnlyImpName } from '@atc/execution-imp/testing/get-only-imp-name';
+import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
+import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
 import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubBrokeredAgentAdapter } from '@atc/test-utils/build-stub-brokered-agent-adapter';
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
@@ -17,17 +26,80 @@ import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
+import { DaemonPool } from '../federation/daemon-pool';
+import { GatewayStore } from '../federation/gateway-store';
+import { RoutingCaller } from '../federation/routing-caller';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { buildPrincipalCaller } from './build-principal-caller';
 import { ReconnectingCaller } from './reconnecting-caller';
 import { runTool } from './run-tool';
 
-// A real daemon whose sessions run `sleep`, and `atc mcp`'s caller in front
-// of it, which connects on its first request.
+/**
+ * A real daemon whose sessions run `sleep`, and `atc mcp`'s caller in front
+ * of it, which connects on its first request. The daemon has three targets:
+ * the default `local` target, whose sessions run on this machine; `box`, an
+ * imp target over a stub imp port; and `imp`, whose provider can destroy
+ * hosts and records each host it destroys in `stubProvider.destroyed`.
+ * `planSpawn` records the options of each launch the agent plans, a resume
+ * id among them. The daemon also listens on a loopback TCP port that takes
+ * one fixed token, for a gateway's pool to reach it.
+ */
 async function setupTest() {
+  const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({ bin: 'sleep', args: ['30'] }));
+
+  const stubProvider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
+
   const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-',
-    options: () => ({ adapter: buildMockAgentAdapter() }),
+    options: (paths) => {
+      // The token the listener takes, which a gateway's pool presents.
+      writeFileSync(join(paths.dir, 'token'), `${'c'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter({ planSpawn }),
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'test:local',
+            provider: new LocalPTYProvider(),
+          },
+          {
+            id: 'box',
+            kind: 'imp',
+            options: {},
+            identity: 'imp:test',
+            provider: new ImpProvider(
+              createStubImpPort(),
+              { guestDir: join(paths.dir, 'g') },
+              { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
+            ),
+          },
+          {
+            id: 'imp',
+            kind: stubProvider.kind,
+            options: {},
+            identity: 'test:imp',
+            provider: stubProvider,
+          },
+        ],
+
+        // The daemon reads principals only at boot, so the remote clients
+        // the reach tests act as are set here: ops may use box only, and a
+        // gateway's principal, gw, may use the local target only.
+        principals: new Map([
+          ['ops', ['box']],
+          ['gw', ['local']],
+        ]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'token') },
+      };
+    },
   });
 
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
@@ -36,7 +108,7 @@ async function setupTest() {
 
   registerTestCleanup(() => caller.stop());
 
-  return { caller, dir: daemon.dir };
+  return { caller, planSpawn, stubProvider, daemon, dir: daemon.dir };
 }
 
 test('it sends no sender of the call to the daemon, which labels the message itself', async () => {
@@ -1376,4 +1448,1033 @@ test.each([
 
   expect(call).rejects.toThrow(/^daemon_outdated: .*note and queued words/);
   expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
+test('it starts a stopped local session again with its agent session resumed', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'local',
+    resume: 'agent-session-1',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+
+  ctx.planSpawn.mockClear();
+
+  const adopted = await runTool(
+    ctx.caller,
+    'atc_session_adopt',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  expect(adopted.structured).toStrictEqual({ adopted: true });
+
+  expect(ctx.planSpawn.mock.calls.map(([opts]) => opts.resume)).toStrictEqual([
+    toAgentSessionID('agent-session-1'),
+  ]);
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [{ id, alive: true, kind: 'pty' }],
+  });
+});
+
+test('it wakes the imp of a session that a stop put to sleep and starts the session on it', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'box',
+    resume: 'agent-session-1',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+
+  const slept = await ctx.caller.sendRequest('session.list');
+
+  const adopted = await runTool(
+    ctx.caller,
+    'atc_session_adopt',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  expect(slept).toMatchObject({ sessions: [{ id, alive: false, lifecycle: { vm: 'asleep' } }] });
+  expect(adopted.structured).toStrictEqual({ adopted: true });
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [{ id, alive: true, lifecycle: { vm: 'awake', harness: 'running' } }],
+  });
+});
+
+test('it refuses a remote client a stopped session on a target outside its reach and starts nothing', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'local',
+    resume: 'agent-session-1',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+
+  ctx.planSpawn.mockClear();
+
+  const remote = buildPrincipalCaller(ctx.caller, { id: 'ops', name: 'ops-console' });
+  const refused = runTool(remote, 'atc_session_adopt', { session: id }, { callerSessionID: null });
+
+  await refused.catch(() => null);
+
+  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
+  expect(ctx.planSpawn.mock.calls).toStrictEqual([]);
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [{ id, alive: false }],
+  });
+});
+
+test('it lets a remote client wake a stopped session on a target in its reach', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'box',
+    resume: 'agent-session-1',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+
+  const remote = buildPrincipalCaller(ctx.caller, { id: 'ops', name: 'ops-console' });
+
+  const adopted = await runTool(
+    remote,
+    'atc_session_adopt',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  expect(adopted.structured).toStrictEqual({ adopted: true });
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [{ id, alive: true }],
+  });
+});
+
+test('it starts a stopped pinned session again, since a pin guards only against a forget', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'local',
+    resume: 'agent-session-1',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
+
+  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+
+  const adopted = await runTool(
+    ctx.caller,
+    'atc_session_adopt',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  expect(adopted.structured).toStrictEqual({ adopted: true });
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [{ id, alive: true, pinned: true }],
+  });
+});
+
+test('it returns the adopted session for atc_session_adopt through the gateway', async () => {
+  const ctx = await setupTest();
+  const hello = await ctx.daemon.client.sendHello(ctx.daemon.build);
+
+  // The daemon as `cloud`, the one daemon a gateway's registry holds.
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        buildMockRegistryDaemon({
+          name: 'cloud',
+          address: { host: '127.0.0.1', port: Number(ctx.daemon.daemon.listenPort) },
+          daemonID: String(hello['daemonID']),
+          token: 'c'.repeat(32),
+        }),
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const pool = new DaemonPool({
+    registry,
+    build: 'atc-gateway/test',
+    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => pool.stop());
+
+  const store = GatewayStore.open(join(ctx.dir, 'gateway.db'));
+
+  registerTestCleanup(() => {
+    store.stop();
+  });
+
+  // The gateway's caller, acting as `gw` the way `atc-gateway` hands it to
+  // the tool handlers.
+  const caller = buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), {
+    id: 'gw',
+    name: 'Harbor Desk',
+  });
+
+  const spawned = await caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await caller.sendRequest('session.kill', { session: id });
+
+  const adopted = await runTool(
+    caller,
+    'atc_session_adopt',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  const got = await caller.sendRequest('session.get', { session: id });
+
+  expect(adopted.structured).toStrictEqual({ adopted: true });
+  expect(getRecord(got, 'session')['alive']).toBe(true);
+});
+
+test('it refuses atc_session_auth_rebind through the gateway as unauthorized, since the gateway acts as a remote client', async () => {
+  const ctx = await setupTest();
+  const hello = await ctx.daemon.client.sendHello(ctx.daemon.build);
+
+  // The daemon as `cloud`, the one daemon a gateway's registry holds.
+  const registry = {
+    daemons: new Map([
+      [
+        'cloud',
+        buildMockRegistryDaemon({
+          name: 'cloud',
+          address: { host: '127.0.0.1', port: Number(ctx.daemon.daemon.listenPort) },
+          daemonID: String(hello['daemonID']),
+          token: 'c'.repeat(32),
+        }),
+      ],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const pool = new DaemonPool({
+    registry,
+    build: 'atc-gateway/test',
+    openChannel: (address) => DaemonClient.open({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => pool.stop());
+
+  const store = GatewayStore.open(join(ctx.dir, 'gateway.db'));
+
+  registerTestCleanup(() => {
+    store.stop();
+  });
+
+  // The gateway's caller, acting as `gw` the way `atc-gateway` hands it to
+  // the tool handlers.
+  const caller = buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), {
+    id: 'gw',
+    name: 'Harbor Desk',
+  });
+
+  const spawned = await caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const rebound = runTool(
+    caller,
+    'atc_session_auth_rebind',
+    { session: getRecord(spawned, 'session')['id'] },
+    { callerSessionID: null },
+  );
+
+  expect(rebound).rejects.toMatchObject({ code: 'unauthorized' });
+});
+
+test('it hands out a token and changes nothing for a live session on a host-destroying target', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'imp',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const offered = await runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id, stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(offered.structured).toStrictEqual({
+    confirmToken: expect.toBeString(),
+    expiresAt: expect.toBeNumber(),
+  });
+
+  expect(ctx.stubProvider.destroyed).toBeEmpty();
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, alive: true })],
+  });
+});
+
+test('it destroys the host and drops the live session when the second call carries the token', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'imp',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const offered = await runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id, stop: true },
+    { callerSessionID: null },
+  );
+
+  const forgotten = await runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id, stop: true, confirmToken: offered.structured?.['confirmToken'] },
+    { callerSessionID: null },
+  );
+
+  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: true });
+  expect<readonly unknown[]>(ctx.stubProvider.destroyed).toStrictEqual([id]);
+
+  expect(
+    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
+  ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
+});
+
+test('it hands out a token for a dead session on a host-destroying target and changes nothing', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'imp',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await ctx.caller.sendRequest('session.kill', { session: id });
+
+  const offered = await runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  expect(offered.structured).toStrictEqual({
+    confirmToken: expect.toBeString(),
+    expiresAt: expect.toBeNumber(),
+  });
+
+  expect(ctx.stubProvider.destroyed).toBeEmpty();
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, alive: false })],
+  });
+});
+
+test('it forgets a dead session on a local target in one call', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await ctx.caller.sendRequest('session.kill', { session: id });
+
+  const forgotten = await runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+
+  expect(
+    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
+  ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
+});
+
+test('it stops and forgets a live session on a local target in one call when stop is true', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const forgotten = await runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id, stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+
+  expect(
+    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
+  ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
+});
+
+test('it refuses a live session without stop and leaves it running', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    target: 'imp',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const refused = runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_live: .*stop: true/);
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, alive: true })],
+  });
+});
+
+test('it refuses a pinned session and leaves it listed', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
+
+  const refused = runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: id, stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
+  });
+});
+
+test('it refuses a sub-session of a pinned session and leaves both listed', async () => {
+  const ctx = await setupTest();
+
+  const spawnedParent = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const parent = getRecord(spawnedParent, 'session')['id'];
+
+  const spawnedChild = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    parent,
+  });
+
+  const child = getRecord(spawnedChild, 'session')['id'];
+
+  await ctx.caller.sendRequest('session.update', { session: parent, pinned: true });
+
+  const refused = runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: child, stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: /);
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id: parent }), expect.objectContaining({ id: child })],
+  });
+});
+
+test('it refuses a session a pin reaches just before the forget does', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  // The pin lands on the daemon right before each request the tool sends,
+  // the forget among them.
+  const pinning = buildStubFleetCaller({
+    answer: async (request) => {
+      await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
+
+      return ctx.caller.sendRequest(request.m, request.p, request.required, request.principal);
+    },
+  });
+
+  const refused = runTool(
+    pinning,
+    'atc_session_forget',
+    { session: id, stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+
+  expect(ctx.caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, pinned: true, alive: true })],
+  });
+});
+
+test('it checks the session itself and sends a plain forget to a daemon without the forget checks', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const older = buildStubFleetCaller({
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'session.forget.preconditions'),
+    answer: (request) =>
+      ctx.caller.sendRequest(request.m, request.p, request.required, request.principal),
+  });
+
+  const forgotten = await runTool(
+    older,
+    'atc_session_forget',
+    { session: id, stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+
+  expect(older.requests).toStrictEqual([
+    { m: 'session.get', p: { session: id } },
+    { m: 'session.forget', p: { session: id }, required: ['session.forget'] },
+  ]);
+});
+
+test('it falls back to its own check when a gateway routes the forget to a daemon without the forget checks', async () => {
+  // A current daemon behind the gateway announces the forget checks, so the
+  // gateway offers them, while the session the forget names lives on an
+  // older daemon that lacks them and holds it pinned.
+  const current = await startTestDaemon({
+    prefix: 'atc-run-tool-forget-',
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'token'), `${'t'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'token') },
+      };
+    },
+  });
+
+  const hello = await current.client.sendRequest('daemon.hello', {
+    client: current.build,
+    auth: { scheme: 'none' },
+  });
+
+  const currentID = String(hello['daemonID']);
+
+  const old = startStubLegacyDaemon(join(current.dir, 'old.sock'), {
+    replies: {
+      'daemon.hello': {
+        daemon: 'atc/legacy-build',
+        daemonID: 'abcdef0123456789abcdef0123456789',
+        features: [
+          'transport.tcp',
+          'daemon.id',
+          'request.principal',
+          'message.sender',
+          'session.forget',
+        ],
+      },
+      'session.get': { session: { id: 's-1', pinned: true, alive: true } },
+    },
+  });
+
+  const registry = {
+    daemons: new Map([
+      [
+        'current',
+        {
+          name: 'current',
+          address: { host: '127.0.0.1', port: current.daemon.listenPort ?? 0 },
+          daemonID: currentID,
+          incarnation: currentID.slice(0, 8),
+          token: 't'.repeat(32),
+        },
+      ],
+      [
+        'old',
+        {
+          name: 'old',
+          address: { host: 'old.sock', port: 0 },
+          daemonID: 'abcdef0123456789abcdef0123456789',
+          incarnation: 'abcdef01',
+          token: 't'.repeat(32),
+        },
+      ],
+    ]),
+    defaultDaemon: 'current',
+  };
+
+  // The older daemon listens on a unix socket in place of a TCP port.
+  const pool = new DaemonPool({
+    registry,
+    build: 'atc-gateway/test',
+    openChannel: (address) =>
+      address.host === 'old.sock'
+        ? DaemonClient.open(join(current.dir, 'old.sock'))
+        : DaemonClient.open({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => pool.stop());
+
+  const store = GatewayStore.open(join(current.dir, 'gateway.db'));
+
+  registerTestCleanup(() => {
+    store.stop();
+  });
+
+  const refused = runTool(
+    buildPrincipalCaller(new RoutingCaller({ registry, pool, store }), {
+      id: 'gw',
+      name: 'Lantern Notes',
+    }),
+    'atc_session_forget',
+    { session: 'old.abcdef01.s-1', stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(refused).rejects.toThrowWithMessage(Error, /^session_pinned: .*atc_session_update/);
+  expect(old.requests.map((request) => request.m)).toStrictEqual(['daemon.hello', 'session.get']);
+});
+
+test('it refuses an unknown session as no_such_session before any token exists', async () => {
+  const ctx = await setupTest();
+
+  const refused = runTool(
+    ctx.caller,
+    'atc_session_forget',
+    { session: 'nope', stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
+});
+
+test('it refuses a principal a session on a target it cannot use as no_such_session and keeps the session', async () => {
+  const provider = buildStubExecutionProvider({
+    kind: 'imp-like',
+    capabilities: { suspend: true, destroy: true },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-forget-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      targets: [
+        { id: 'local', kind: provider.kind, options: {}, identity: 'test:local', provider },
+      ],
+      principals: new Map([['outsider', ['elsewhere']]]),
+    }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const spawned = await caller.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  const refused = runTool(
+    buildPrincipalCaller(caller, { id: 'outsider', name: 'Lantern Notes' }),
+    'atc_session_forget',
+    { session: id, stop: true },
+    { callerSessionID: null },
+  );
+
+  expect(refused).rejects.toMatchObject({ code: 'no_such_session' });
+
+  expect(caller.sendRequest('session.list')).resolves.toMatchObject({
+    sessions: [expect.objectContaining({ id, alive: true })],
+  });
+
+  expect(provider.destroyed).toBeEmpty();
+});
+
+test('it rebinds the host of a session whose restore was refused for a changed auth selection', async () => {
+  const tmp = setupTempDir('atc-run-tool-auth-');
+  const port = createStubImpPort();
+
+  const provider = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: false },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: tmp.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const imp = getOnlyImpName(port);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const rebound = await runTool(
+    caller,
+    'atc_session_auth_rebind',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  const grants = await port.readGrants(imp);
+
+  expect(rebound.structured).toStrictEqual({ revision: 2, restartPending: [id] });
+  expect(grants).toIncludeSameMembers(['glm', 'judge']);
+});
+
+test('it adopts a session whose restore was refused once its host is rebound', async () => {
+  const tmp = setupTempDir('atc-run-tool-auth-');
+  const port = createStubImpPort();
+
+  const provider = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: false },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: tmp.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const toolContext = { callerSessionID: null };
+
+  await runTool(caller, 'atc_session_auth_rebind', { session: id }, toolContext);
+
+  const adopted = await runTool(caller, 'atc_session_adopt', { session: id }, toolContext);
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect(adopted.structured).toStrictEqual({ adopted: true });
+  expect(getRecord(got, 'session')).toMatchObject({ kind: 'pty', alive: true });
+});
+
+test('it refuses a rebind from a remote client acting as a principal and binds nothing', async () => {
+  const tmp = setupTempDir('atc-run-tool-auth-');
+  const port = createStubImpPort();
+
+  const provider = new ImpProvider(
+    port,
+    { guestDir: join(tmp.dir, 'g'), rebindChangedAuth: false },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider },
+      ],
+      defaultTarget: 'box',
+
+      // The remote client acts as ops, which may use box.
+      principals: new Map([['ops', ['box']]]),
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: tmp.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const imp = getOnlyImpName(port);
+
+  judgeSelected = true;
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const owner = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => owner.stop());
+
+  const caller = buildPrincipalCaller(owner, { id: 'ops', name: 'ops-console' });
+
+  const rebound = runTool(
+    caller,
+    'atc_session_auth_rebind',
+    { session: id },
+    { callerSessionID: null },
+  );
+
+  await rebound.catch(() => null);
+
+  const grants = await port.readGrants(imp);
+
+  expect(rebound).rejects.toMatchObject({ code: 'unauthorized' });
+  expect(grants).toStrictEqual(['glm']);
 });

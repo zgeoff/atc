@@ -1,4 +1,3 @@
-// oxlint-disable zgeoff/test-beside-module -- tests the knip config behind the deadcode script; GEO-433 gives it a module
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,10 +27,9 @@ test('it checks a project nested under a checkout whose tsconfig extends a packa
   writeFileSync(join(project, 'knip.json'), JSON.stringify({ entry: ['index.js'] }));
   writeFileSync(join(project, 'index.js'), 'export {};\n');
 
-  const run = await runCommand(
-    [process.execPath, join(import.meta.dir, '..', 'node_modules', '.bin', 'knip')],
-    { cwd: project },
-  );
+  const run = await runCommand([process.execPath, join(import.meta.dir, 'deadcode.ts')], {
+    cwd: project,
+  });
 
   expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
     exitCode: 0,
