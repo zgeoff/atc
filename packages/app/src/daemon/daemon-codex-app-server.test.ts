@@ -478,6 +478,7 @@ test('it raises no attention for an approval a turn of the old thread asks for a
   expect(listed['sessions']).toPartiallyContain({
     id,
     agentSessionID: moved,
-    state: expect.not.stringMatching(/^needs_you$/),
+    state: 'running',
+    lastMsg: 'started',
   });
 });
