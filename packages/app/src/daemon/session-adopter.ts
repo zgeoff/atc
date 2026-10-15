@@ -333,7 +333,7 @@ export class SessionAdopter {
   // A kill whose exit atc cannot confirm blocks the session's revives
   // until the process is gone. A kill, a rollback, or a change that takes
   // the session out of the caller's reach while the kill waits starts
-  // nothing. Either way the session is left exited.
+  // nothing.
   private async restartHarnessOnHost(
     s: Session,
     outdated: HarnessHandle,
@@ -344,24 +344,30 @@ export class SessionAdopter {
     // its exit leaves the session as it is.
     s.pty = null;
 
-    const exited = await this.rollback.killHarness(s.id, outdated);
+    let exited = false;
 
-    if (
-      exited &&
-      canProceed() &&
-      s.pty === null &&
-      this.registry.sessions.includes(s) &&
-      !this.rollback.rollingBack.has(s.id)
-    ) {
-      return this.startHarness(s, launch);
-    }
+    try {
+      exited = await this.rollback.killHarness(s.id, outdated);
 
-    if (s.pty === null) {
-      s.state = 'exited';
-      s.lastMsg = 'killed';
+      if (
+        exited &&
+        canProceed() &&
+        s.pty === null &&
+        this.registry.sessions.includes(s) &&
+        !this.rollback.rollingBack.has(s.id)
+      ) {
+        return this.startHarness(s, launch);
+      }
+    } finally {
+      // Every path that starts no harness, a kill that throws included,
+      // leaves the session exited.
+      if (s.pty === null) {
+        s.state = 'exited';
+        s.lastMsg = 'killed';
 
-      this.callbacks.onEvent('state', s);
-      this.fleet.emitChange();
+        this.callbacks.onEvent('state', s);
+        this.fleet.emitChange();
+      }
     }
 
     if (!exited) {
