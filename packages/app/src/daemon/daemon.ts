@@ -2438,10 +2438,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       mgr.requireExecution(s, 'input');
 
       const pty = s.pty;
+      const runtime = getRuntime(sessionID);
+
+      // Input from outside a menu read or choice can open another list that
+      // reads like the kept whole menu, so the kept menu is dropped.
+      runtime.wholeMenu = null;
 
       // Input goes out at once unless a line is still being typed into the
       // session, and then waits behind it.
-      getRuntime(sessionID).input.schedule(() => {
+      runtime.input.schedule(() => {
         pty.write(data);
       });
 
@@ -2467,6 +2472,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       const runtime = getRuntime(sessionID);
       const bracketedPaste = runtime.screen?.hasBracketedPaste() ?? false;
+
+      // A typed line can open another list that reads like the kept whole
+      // menu, so the kept menu is dropped.
+      runtime.wholeMenu = null;
+
       const adapter = mgr.findAdapter(s.agent);
       const steps = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
       const pty = s.pty;

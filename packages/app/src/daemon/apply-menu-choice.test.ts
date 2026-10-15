@@ -608,6 +608,55 @@ test('it reads afresh a long list that Enter opens with the same text and rows i
   ]);
 }, 15_000);
 
+test('it reads afresh a long list after input from outside a menu read or choice', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'plain',
+        text: ['Pick a colour'],
+        options: ['Amber', 'Teal', 'Plum', 'Coral', 'Slate'],
+        window: 3,
+      },
+      {
+        kind: 'plain',
+        text: ['Pick a colour'],
+        options: ['Amber', 'Teal', 'Plum', 'Ochre', 'Sage', 'Indigo'],
+        window: 3,
+      },
+    ],
+    switchFile: join(ctx.daemon.dir, 'switch'),
+  });
+
+  await ctx.daemon.client.sendRequest('session.input', { session: shown.session, d: 'x' });
+
+  await waitFor(() => {
+    expect(ctx.readLog().at(-1)).toStrictEqual({ key: 'x' });
+  });
+
+  writeFileSync(join(ctx.daemon.dir, 'switch'), '');
+
+  await waitFor(async () => {
+    const screen = await ctx.daemon.client.sendRequest('session.screen', {
+      session: shown.session,
+    });
+
+    expect(screen['text']).toInclude('↓ Plum');
+  });
+
+  const read = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
+
+  expect(getRecord(read, 'menu')['options']).toStrictEqual([
+    { option: 1, label: 'Amber', checked: null, highlighted: true },
+    { option: 2, label: 'Teal', checked: null, highlighted: false },
+    { option: 3, label: 'Plum', checked: null, highlighted: false },
+    { option: 4, label: 'Ochre', checked: null, highlighted: false },
+    { option: 5, label: 'Sage', checked: null, highlighted: false },
+    { option: 6, label: 'Indigo', checked: null, highlighted: false },
+  ]);
+}, 15_000);
+
 test('it reads afresh a long menu that opens again with the same text after closing', async () => {
   const ctx = await setupTest();
 

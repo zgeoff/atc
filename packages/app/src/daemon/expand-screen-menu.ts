@@ -42,16 +42,20 @@ export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMen
   return { text: whole.text, options: [...list, ...shown.after], highlighted };
 }
 
-// Where the window's rows start in the whole list: the first place their
+// Where the window's rows start in the whole list: the one place their
 // labels match in order, with options above it exactly when the window marks
 // some above, and options below it exactly when the window marks some below.
 // The cursor's own row hides its mark, so options may sit beyond an edge
-// without a mark when the cursor is on that edge's row.
+// without a mark when the cursor is on that edge's row. A window that matches
+// in more than one place, as repeated labels allow, has no place, since the
+// screen cannot show which one the cursor is in.
 function findListOffset(
   part: ScreenMenu,
   shown: readonly ScreenMenuOption[],
   known: readonly ScreenMenuOption[],
 ): number | null {
+  const found: number[] = [];
+
   for (let offset = 0; offset + shown.length <= known.length; offset++) {
     const matches = shown.every((option, index) => option.label === known[offset + index]?.label);
     const above = offset > 0;
@@ -62,11 +66,11 @@ function findListOffset(
       isEdgeConsistent(part.scroll?.above === true, above, part.highlighted === 0) &&
       isEdgeConsistent(part.scroll?.below === true, below, part.highlighted === shown.length - 1)
     ) {
-      return offset;
+      found.push(offset);
     }
   }
 
-  return null;
+  return found.length === 1 ? (found[0] ?? null) : null;
 }
 
 // Whether one edge of a window agrees with the whole list beyond it: a mark

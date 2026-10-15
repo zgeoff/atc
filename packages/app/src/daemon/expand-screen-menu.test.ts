@@ -202,3 +202,33 @@ test('it finds no whole menu for a window without marks whose cursor shows the l
 
   expect(expandScreenMenu(part, whole)).toBeNull();
 });
+
+test('it finds no whole menu for a window whose labels repeat in another place of the list', () => {
+  const part = {
+    text: 'Pick a colour',
+    options: [
+      { label: 'Amber', checked: null },
+      { label: 'Teal', checked: null },
+      { label: 'Plum', checked: null },
+    ],
+    highlighted: 1,
+    scroll: { above: true, below: true },
+  };
+
+  const whole = {
+    text: 'Pick a colour',
+    options: [
+      { label: 'Coral', checked: null },
+      { label: 'Amber', checked: null },
+      { label: 'Teal', checked: null },
+      { label: 'Plum', checked: null },
+      { label: 'Amber', checked: null },
+      { label: 'Teal', checked: null },
+      { label: 'Plum', checked: null },
+      { label: 'Slate', checked: null },
+    ],
+    highlighted: 0,
+  };
+
+  expect(expandScreenMenu(part, whole)).toBeNull();
+});

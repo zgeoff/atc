@@ -122,8 +122,10 @@ The daemon keeps the whole menu for the session, and numbers each later read tha
 by the option's place in the whole list. A read or a choice made while the list sits scrolled
 therefore presses no key to learn the numbers. A read that finds no menu, or a menu that is not part
 of the kept one, drops it, and so does a new terminal for the session, so a list that closes and
-opens again is read afresh. A choice drops it too before it presses Enter or Escape, because either
-key can open another list with the same text and the same rows in view.
+opens again is read afresh. A choice drops it too before it presses Enter or Escape, and so does any
+input from outside a menu read or choice, because each can open another list with the same text and
+the same rows in view. A part of the list whose labels match in more than one place gets no number
+from the kept menu, since the screen cannot show which place the cursor is in.
 
 A menu read returns a token built from the whole menu's text, its labels, and its ticked boxes, and
 a choice carries that token. The cursor is left out of the token, so the choice's own arrow keys
