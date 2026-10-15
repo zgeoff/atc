@@ -488,11 +488,10 @@ export class AppServerBridge {
 
     this.threadID = thread;
 
+    // Only the messages end here. Their turn may still run, and when the
+    // terminal comes back to it, a later message joins it and settles
+    // with it.
     const stranded = [...this.carried.keys()];
-
-    for (const turn of this.carried.values()) {
-      this.settledTurns.add(turn);
-    }
 
     this.carried.clear();
     this.replies.clear();

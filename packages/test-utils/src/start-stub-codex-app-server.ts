@@ -96,6 +96,8 @@ const TURNS_LIST_PARAMS_SCHEMA = z.looseObject({
  * -32_600, as Codex fails it. `requests` holds every request in order, and
  * `onRequest` sees each one as it arrives. `callTool` sends the latest
  * connection a dynamic tool call and resolves with the client's result.
+ * `completeHeldTurns` completes every turn still in progress, as a model
+ * that finishes its work does.
  */
 export function startStubCodexAppServer(
   socket: string,
@@ -354,6 +356,13 @@ export function startStubCodexAppServer(
       });
 
       return answered;
+    },
+    completeHeldTurns: () => {
+      for (const thread of threads.values()) {
+        for (const turn of thread.turns.filter((t) => t.status === 'inProgress')) {
+          updateTurnCompleted(thread, turn);
+        }
+      }
     },
     stop: async () => {
       await server.stop(true);

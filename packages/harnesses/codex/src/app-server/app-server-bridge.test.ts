@@ -818,3 +818,66 @@ test('it sends a message the old thread took nowhere else when the terminal move
     { params: { threadId: 'thread-1', clientUserMessageId: 'm-1' } },
   ]);
 });
+
+test('it settles a later message with the turn it left running when the terminal comes back to it', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { holdTurns: true, reply: 'both done' });
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 50 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  const first = await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('delivered');
+  });
+
+  const moved = await startTerminalThread(ctx.socket);
+
+  bridge.updateThread(moved);
+
+  await waitFor(() => {
+    expect(stub.attaches).toBe(2);
+  });
+
+  bridge.updateThread(first);
+
+  await waitFor(() => {
+    expect(stub.attaches).toBe(3);
+  });
+
+  stub.queueMessage({ id: 'm-2', from: 'planner', text: 'and the lint' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-2')).toBe('delivered');
+  });
+
+  server.completeHeldTurns();
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-2')).toBe('answered');
+  });
+
+  expect(stub.statuses.get('m-1')).toBe('unanswered');
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
+    { kind: 'answered', messages: ['m-2'], answer: 'both done', turn: expect.any(String) },
+  ]);
+});

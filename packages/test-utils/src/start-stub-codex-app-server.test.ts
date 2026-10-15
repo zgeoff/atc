@@ -485,3 +485,48 @@ test('it refuses every turn start when the scenario asks', async () => {
 
   expect(received).not.toPartiallyContain({ method: 'turn/started' });
 });
+
+test('it completes every held turn when the test asks', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { holdTurns: true, reply: 'done' });
+
+  onTestFinished(() => server.stop());
+
+  const ws = new WebSocket(`ws+unix://${ctx.socket}`);
+
+  const received: unknown[] = [];
+
+  onTestFinished(() => {
+    ws.close();
+  });
+
+  ws.addEventListener('message', (e) => {
+    received.push(JSON.parse(String(e.data)));
+  });
+
+  await new Promise((resolve) => {
+    ws.addEventListener('open', resolve, { once: true });
+  });
+
+  ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
+
+  ws.send(
+    JSON.stringify({
+      id: 2,
+      method: 'turn/start',
+      params: { threadId: 'thread-1', input: [{ type: 'text', text: 'one' }] },
+    }),
+  );
+
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 2 });
+  });
+
+  expect(received).not.toPartiallyContain({ method: 'turn/completed' });
+
+  server.completeHeldTurns();
+
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ method: 'turn/completed' });
+  });
+});
