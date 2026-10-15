@@ -263,7 +263,13 @@ export const register: Register = (on) => {
         timeoutMs: 5000,
       });
     } catch (error) {
-      carried.push(msg);
+      // A turn that ended during the call no longer reports the message, so
+      // the failed answer settles it instead of leaving it delivered.
+      if (state.carried.get(turnID ?? '') === carried) {
+        carried.push(msg);
+      } else {
+        scheduleUnansweredReport($, state, [msg.id], 'error', turnID);
+      }
 
       return { deny: `atc did not take the answer: ${String(error)}` };
     }
