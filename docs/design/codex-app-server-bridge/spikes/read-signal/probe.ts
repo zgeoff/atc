@@ -1,6 +1,6 @@
 // Probe: drives one App Server thread through a scenario and logs every wire message.
 // Usage: bun probe.ts <ws-url> <scenario> <log-file> [thread-id] [raw:0|1]
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync } from 'node:fs';
 
 type Msg = { id?: number; method?: string; params?: any; result?: any; error?: any };
 
@@ -90,8 +90,14 @@ if (threadID) {
 
   if (r.error) throw new Error(JSON.stringify(r.error));
 } else {
+  const cwd = `${import.meta.dir}/work`;
+
+  // A new thread runs its commands in this folder, which a fresh checkout
+  // does not hold.
+  mkdirSync(cwd, { recursive: true });
+
   const r = await sendRequest('thread/start', {
-    cwd: `${import.meta.dir}/work`,
+    cwd,
     approvalPolicy: 'never',
     sandbox: 'workspace-write',
     ...(raw ? { experimentalRawEvents: true } : {}),
@@ -118,40 +124,56 @@ function sendMessage(id: string, text: string): Promise<Msg> {
 const LONG = 'Write about 250 words on ocean tides. Do not use tools.';
 const CMD = 'Run the shell command `sleep 12` once, then reply with the single word DONE.';
 
+// Each scenario starts every wait before the request whose effects it
+// waits for, so a notification that arrives before the response is never
+// missed.
 switch (scenario) {
   case 'idle': {
+    const done = waitForMessage(isTurnDone);
+
     await sendMessage('m-idle', 'Reply with the single word KIWI.');
-    await waitForMessage(isTurnDone);
+    await done;
 
     break;
   }
   case 'steer-stream': {
-    await sendMessage('m-s1', LONG);
-
     let deltas = 0;
 
-    await waitForMessage((m) => m.method === 'item/agentMessage/delta' && ++deltas >= 20);
+    const streaming = waitForMessage(
+      (m) => m.method === 'item/agentMessage/delta' && ++deltas >= 20,
+    );
+
+    const done = waitForMessage(isTurnDone);
+
+    await sendMessage('m-s1', LONG);
+    await streaming;
     await sendMessage('m-s2', 'Also end your reply with the single word MANGO.');
-    await waitForMessage(isTurnDone);
+    await done;
 
     break;
   }
   case 'steer-early': {
+    const recorded = waitForMessage(isItemStarted('userMessage'));
+    const done = waitForMessage(isTurnDone);
+
     await sendMessage('m-e1', LONG);
-    await waitForMessage(isItemStarted('userMessage'));
+    await recorded;
     await sendMessage('m-e2', 'Also end your reply with the single word GUAVA.');
-    await waitForMessage(isTurnDone);
+    await done;
 
     break;
   }
   case 'interrupt-pending': {
+    const recorded = waitForMessage(isItemStarted('userMessage'));
+    const done = waitForMessage(isTurnDone);
+
     const r = await sendMessage('m-p1', LONG);
 
-    await waitForMessage(isItemStarted('userMessage'));
+    await recorded;
     await sendMessage('m-p2', 'Also end your reply with the single word QUINCE.');
     await waitMs(500);
     await sendRequest('turn/interrupt', { threadId: threadID, turnId: r.result.turn.id });
-    await waitForMessage(isTurnDone);
+    await done;
 
     const list = await sendRequest('thread/turns/list', {
       threadId: threadID,
@@ -169,42 +191,57 @@ switch (scenario) {
     );
 
     await waitMs(2000);
+
+    const nextDone = waitForMessage(isTurnDone);
+
     await sendMessage('m-p3', 'Reply with the single word KIWI.');
-    await waitForMessage(isTurnDone);
+    await nextDone;
 
     break;
   }
   case 'steer-command': {
+    const running = waitForMessage(isItemStarted('commandExecution'));
+    const done = waitForMessage(isTurnDone);
+
     await sendMessage('m-c1', CMD);
-    await waitForMessage(isItemStarted('commandExecution'));
+    await running;
     await waitMs(3000);
     await sendMessage('m-c2', 'Also add the single word PEAR to your reply.');
-    await waitForMessage(isTurnDone);
+    await done;
 
     break;
   }
   case 'interrupt-command': {
+    const running = waitForMessage(isItemStarted('commandExecution'));
+    const done = waitForMessage(isTurnDone);
+
     const r = await sendMessage('m-i1', CMD);
 
-    await waitForMessage(isItemStarted('commandExecution'));
+    await running;
     await waitMs(3000);
     await sendMessage('m-i2', 'Also add the single word PLUM to your reply.');
     await waitMs(1500);
     await sendRequest('turn/interrupt', { threadId: threadID, turnId: r.result.turn.id });
-    await waitForMessage(isTurnDone);
+    await done;
 
     break;
   }
   case 'interrupt-stream': {
-    const r = await sendMessage('m-j1', LONG);
-
     let deltas = 0;
 
-    await waitForMessage((m) => m.method === 'item/agentMessage/delta' && ++deltas >= 20);
+    const streaming = waitForMessage(
+      (m) => m.method === 'item/agentMessage/delta' && ++deltas >= 20,
+    );
+
+    const done = waitForMessage(isTurnDone);
+
+    const r = await sendMessage('m-j1', LONG);
+
+    await streaming;
     await sendMessage('m-j2', 'Also end your reply with the single word FIG.');
     await waitMs(300);
     await sendRequest('turn/interrupt', { threadId: threadID, turnId: r.result.turn.id });
-    await waitForMessage(isTurnDone);
+    await done;
 
     break;
   }
@@ -219,16 +256,20 @@ switch (scenario) {
     break;
   }
   case 'idle-hold': {
+    const done = waitForMessage(isTurnDone);
+
     await sendMessage('m-h1', 'Reply with the single word KIWI.');
-    await waitForMessage(isTurnDone);
+    await done;
     await waitMs(Number(process.env.OBSERVE_MS ?? 60_000));
+
+    const nextDone = waitForMessage(isTurnDone);
 
     await sendMessage(
       'm-h2',
       'Run the shell command `sleep 5` once, then reply with the single word LIME.',
     );
 
-    await waitForMessage(isTurnDone);
+    await nextDone;
 
     break;
   }
