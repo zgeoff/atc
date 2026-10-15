@@ -38,7 +38,14 @@ export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] 
   const drain = () => {
     const current = tap;
 
-    if (current === null) {
+    // An item the tap holds stays queued until its ack or note, and the
+    // next waits for it.
+    const holding =
+      [...noticeStatuses].some(
+        ([id, status]) => status === 'queued' && handed.has(`notice:${id}`),
+      ) || [...statuses].some(([id, status]) => status === 'queued' && handed.has(id));
+
+    if (current === null || holding) {
       return;
     }
 

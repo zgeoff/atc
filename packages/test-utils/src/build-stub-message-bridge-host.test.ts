@@ -50,6 +50,43 @@ test('it hands an attached tap a queued notice before a queued message, and the 
   expect(stub.noticeStatuses.get('m-0')).toBe('delivered');
 });
 
+test('it hands a message queued while the tap holds a notice only after the notice ack', async () => {
+  const stub = buildStubMessageBridgeHost();
+  const takeMessage = mock<() => void>();
+
+  stub.host.attachTap({ takeMessage, takeNotice: mock<() => void>(), close: mock<() => void>() });
+  stub.queueNotice({ id: 'm-0', from: 'reviewer', status: 'answered', answer: 'looks fine' });
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'first' });
+
+  const handedBeforeAck = takeMessage.mock.calls.length;
+
+  await stub.host.ackNotice('m-0');
+
+  expect(handedBeforeAck).toBe(0);
+
+  expect(takeMessage).toHaveBeenCalledExactlyOnceWith({
+    id: 'm-1',
+    from: 'planner',
+    text: 'first',
+  });
+});
+
+test('it hands a message queued while the tap holds another only after the first one settles', async () => {
+  const stub = buildStubMessageBridgeHost();
+  const takeMessage = mock<() => void>();
+
+  stub.host.attachTap({ takeMessage, takeNotice: mock<() => void>(), close: mock<() => void>() });
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'first' });
+  stub.queueMessage({ id: 'm-2', from: 'planner', text: 'second' });
+
+  const handedBeforeNote = takeMessage.mock.calls.length;
+
+  await stub.host.applyNote({ kind: 'unanswered', messages: ['m-1'], reason: 'error' });
+
+  expect(handedBeforeNote).toBe(1);
+  expect(takeMessage).toHaveBeenLastCalledWith({ id: 'm-2', from: 'planner', text: 'second' });
+});
+
 test('it hands a notice the last tap never acked to the next tap', () => {
   const stub = buildStubMessageBridgeHost();
 
