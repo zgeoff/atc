@@ -402,7 +402,7 @@ test('it resolves a tool call with the result the client answers', async () => {
     params: {
       threadId: 'thread-1',
       turnId: 'turn-2',
-      callId: expect.any(String),
+      callId: 'call-4',
       namespace: 'atc',
       tool: 'note',
       arguments: { text: 'halfway' },

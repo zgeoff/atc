@@ -170,7 +170,7 @@ test('it leaves alone a process whose pid the system gave out again', async () =
   expect(other.signalCode).toBeNull();
 });
 
-test('it kills a server that ignores the stop signal once the stop grace ends', async () => {
+test('it kills a server that ignores the stop signal once the stop grace ends', () => {
   const ctx = setupTest();
 
   // A server that never listens and ignores the stop signal, so the failed
@@ -199,7 +199,7 @@ test('it kills a server that ignores the stop signal once the stop grace ends', 
     },
   );
 
-  await expect(started).rejects.toMatchObject({ code: -1 });
+  expect(started).rejects.toMatchObject({ code: -1 });
 
   const pid = Number(readFileSync(join(ctx.dir, 'pid'), 'utf8').trim());
 
