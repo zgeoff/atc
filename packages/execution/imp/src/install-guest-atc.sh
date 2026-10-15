@@ -1,8 +1,13 @@
 # shellcheck shell=sh
-# Unpacks a gzipped tar from stdin that holds bin/atc into the guest folder,
-# replacing a link at bin/atc first so the copy never writes through it.
+# Unpacks a gzipped tar from stdin that holds bin/atc into a staging folder
+# inside the guest folder, then renames the unpacked atc over bin/atc. The
+# rename replaces bin/atc in one step, a link included, so a process that
+# runs bin/atc during the copy finds the old atc or the new one, never a
+# missing or half-written file.
 # $1: the guest folder.
 # $2: the exit code that answers an imp without gzip, checked before the
 #     archive is read.
 command -v gzip > /dev/null 2>&1 || exit "$2"
-mkdir -p "$1" && rm -f "$1/bin/atc" && tar -x -z -f - -C "$1"
+staging="$1/.atc-install.$$"
+trap 'rm -rf "$staging"' EXIT
+mkdir -p "$1/bin" "$staging" && tar -x -z -f - -C "$staging" && mv -f "$staging/bin/atc" "$1/bin/atc"
