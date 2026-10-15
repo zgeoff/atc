@@ -558,6 +558,84 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
   });
 });
 
+test('it fails on a CLI entry whose static imports load the core schema entry', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts', './schema': './src/schema/index.ts' },
+    }),
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/core/src/index.ts'), "export * from './is-error';\n");
+  await Bun.write(join(ctx.dir, 'packages/core/src/is-error.ts'), 'export const IS_ERROR = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/src/schema/index.ts'),
+    "export * from './build-optional-boolean';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/src/schema/build-optional-boolean.ts'),
+    'export const buildOptionalBoolean = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/cli.ts'),
+    "import { buildOptionalBoolean } from '@atc/core/schema';\n\nexport const CLI = buildOptionalBoolean;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/hook-report.ts'),
+    "import { IS_ERROR } from '@atc/core';\n\nexport const REPORT = IS_ERROR;\n",
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/run-bridge-tap.ts'),
+    'export const BRIDGE_TAP = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/statusline.ts'),
+    'export const STATUSLINE = 1;\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
+    stderr:
+      'slow reporter: packages/app/src/cli.ts loads packages/core/src/schema/build-optional-boolean.ts at start-up, outside the entries a reporter may load\nslow reporter: packages/app/src/cli.ts loads packages/core/src/schema/index.ts at start-up, outside the entries a reporter may load\n',
+  });
+});
+
 test('it fails on a missing reporter entry beside the CLI entry', async () => {
   const ctx = setupTest();
 

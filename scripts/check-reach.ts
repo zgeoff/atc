@@ -17,9 +17,10 @@
 // load before every subcommand, reaches no module whose top-level code builds
 // schemas, the protocol contract, or the store. Type-only imports and dynamic
 // imports load nothing at start-up, so the walk leaves them out. Of the
-// packages, the walk may reach core, the light entries of protocol and
-// config, and lifecycle's run-command entry. The rule holds for a tree that
-// has the atc CLI entry. Prints every finding and exits 1 when there is one.
+// packages, the walk may reach core outside its schema entry, which loads
+// Zod, the light entries of protocol and config, and lifecycle's run-command
+// entry. The rule holds for a tree that has the atc CLI entry. Prints every
+// finding and exits 1 when there is one.
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
@@ -175,19 +176,22 @@ const REPORTER_ENTRIES = [
   'statusline.ts',
 ].map((file) => `${APP_SOURCE}/${file}`);
 
-// The folders under src/ of each package that a reporter may load, by
-// package name: core whole, and the light entries of the packages whose
-// root entry builds schemas, the protocol contract, or the store. Every
-// other package, store among them, stays out of a reporter's reach.
-const REPORTER_FOLDERS: ReadonlyMap<string, readonly string[] | 'all'> = new Map<
-  string,
-  readonly string[] | 'all'
->([
-  ['core', 'all'],
-  ['protocol', ['session', 'wire']],
-  ['config', ['host', 'claude-statusline']],
-  ['lifecycle', ['run-command']],
-]);
+// The folders under src/ that a reporter may load, by package name: the
+// light entries of the packages whose root entry builds schemas, the
+// protocol contract, or the store, or, for a package whose root entry is
+// light, every folder but the ones its heavy entries hold. Core's schema
+// entry loads Zod. Every other package, store among them, stays out of a
+// reporter's reach.
+type ReporterAllowance = readonly string[] | { readonly except: readonly string[] };
+
+const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
+  [
+    ['core', { except: ['schema'] }],
+    ['protocol', ['session', 'wire']],
+    ['config', ['host', 'claude-statusline']],
+    ['lifecycle', ['run-command']],
+  ],
+);
 
 /**
  * The findings for the reporters' start-up: each package module that a
@@ -252,7 +256,11 @@ function isReporterLoadable(file: string): boolean {
   const folders = REPORTER_FOLDERS.get(rule.name) ?? [];
   const path = file.slice(`${rule.dir}/src/`.length);
 
-  return folders === 'all' || folders.some((folder) => path.startsWith(`${folder}/`));
+  if ('except' in folders) {
+    return !folders.except.some((folder) => path.startsWith(`${folder}/`));
+  }
+
+  return folders.some((folder) => path.startsWith(`${folder}/`));
 }
 
 interface Reach {
