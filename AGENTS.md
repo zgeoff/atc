@@ -98,7 +98,9 @@ package's row, a deep import into another package's `src/`, a test helper in pro
 confined external package outside its owner. `bun run check:manifests` fails on an import the
 manifest does not declare, on a relative path into another package, and on a module load whose
 specifier is a template literal, which the oxlint overrides cannot read. `bun run check:reach` fails
-when the gateway entry reaches a module the gateway must never load.
+when the gateway entry reaches a module the gateway must never load. `bun run check:bundle` fails
+when the atc bundle carries an execution provider that the shipped execution plugins list leaves
+out, or when a build whose list keeps only the local provider carries any other provider's code.
 `bun run check:disable-baseline` fails when more directives switch off an import rule than
 `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool definitions and request handling
 that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth

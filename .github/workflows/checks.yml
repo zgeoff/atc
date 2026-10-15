@@ -44,6 +44,9 @@ jobs:
       - name: Gateway Reach
         run: bun run check:reach
 
+      - name: Provider Bundle
+        run: bun run check:bundle
+
       - name: Import Rule Disables
         run: bun run check:disable-baseline
 

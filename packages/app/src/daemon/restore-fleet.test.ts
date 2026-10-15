@@ -1,4 +1,4 @@
-import { expect, mock, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID } from '@atc/core/to-agent-session-id';
 import { toSessionID } from '@atc/core/to-session-id';
@@ -6,11 +6,14 @@ import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { StateStore } from '@atc/store/state-store';
 import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
 import invariant from 'tiny-invariant';
+import type { ExecutionTarget } from './build-execution-targets';
+import { buildExecutionTargets } from './build-execution-targets';
 import { restoreFleet } from './restore-fleet';
 import type { Session } from './session';
 import { SessionRuntime } from './session-runtime';
@@ -20,7 +23,7 @@ import { startHeadlessTurn } from './start-headless-turn';
 /**
  * A session manager over a fresh state store, as one daemon life sees it.
  */
-async function setupTest() {
+async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[] }> = {}) {
   const tmp = setupTempDir('atc-restore-');
 
   const store = await StateStore.open(join(tmp.dir, 'state.db'));
@@ -29,7 +32,7 @@ async function setupTest() {
 
   const statusPath = join(tmp.dir, 'status.json');
 
-  const mgr = new SessionManager(buildMockAgentAdapter(), store, statusPath, []);
+  const mgr = new SessionManager(buildMockAgentAdapter(), store, statusPath, [], config.targets);
 
   registerTestCleanup(() => {
     mgr.detachAll();
@@ -548,4 +551,162 @@ test('it starts no terminal for a queued session whose headless turn starts whil
   ]);
 
   expect(headless.runs.map((run) => run.stopped)).toStrictEqual([false]);
+});
+
+test('it restores sessions stored before the providers moved into packages by target id and target config revision', async () => {
+  const built = buildExecutionTargets(
+    [
+      { id: 'local', provider: 'local-pty', options: {} },
+      {
+        id: 'cloud',
+        provider: 'imp',
+        options: {
+          url: 'http://impd.example:7070',
+          tokenEnv: 'FIXTURE_IMP_TOKEN',
+          image: 'atc-base',
+        },
+      },
+    ],
+    buildMockHostServices({ version: '1.0.0' }),
+    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+  );
+
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
+
+  const ctx = await setupTest({ targets: built.targets });
+
+  // a row binds to its target's identity, the digest of that target's
+  // config; these are the identities a daemon stored for these targets
+  // before the providers moved, and the cloud row is a killed session, so
+  // its restore reaches no impd
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-on-local'),
+      cwd: ctx.dir,
+      target: 'local',
+      targetIdentity: 'local-pty:44136fa355b3678a',
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-on-cloud'),
+      cwd: ctx.dir,
+      target: 'cloud',
+      targetIdentity: 'imp:reach-v1:c97f60aac21db24e',
+      exited: true,
+    }),
+  ]);
+
+  await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  expect(
+    ctx.mgr.sessions.map((s) => [s.id, s.target, s.targetIdentity, s.state, s.lastMsg]),
+  ).toStrictEqual([
+    ['s-on-local', 'local', 'local-pty:44136fa355b3678a', 'running', 'revived'],
+    ['s-on-cloud', 'cloud', 'imp:reach-v1:c97f60aac21db24e', 'exited', 'killed'],
+  ]);
+});
+
+test('it refuses a stored session whose target config revision differs from the one its row was bound to', async () => {
+  const built = buildExecutionTargets(
+    [
+      {
+        id: 'cloud',
+        provider: 'imp',
+        options: {
+          url: 'http://impd.example:7171',
+          tokenEnv: 'FIXTURE_IMP_TOKEN',
+          image: 'atc-base',
+        },
+      },
+    ],
+    buildMockHostServices({ version: '1.0.0' }),
+    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+  );
+
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
+
+  const ctx = await setupTest({ targets: built.targets });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-on-cloud'),
+      cwd: ctx.dir,
+      target: 'cloud',
+      targetIdentity: 'imp:reach-v1:c97f60aac21db24e',
+    }),
+  ]);
+
+  await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  expect(ctx.mgr.sessions.map((s) => [s.id, s.state, s.lastMsg])).toStrictEqual([
+    ['s-on-cloud', 'exited', "target 'cloud' changed"],
+  ]);
+});
+
+test('it restores a stored session on its own target config revision after another target is added', async () => {
+  const built = buildExecutionTargets(
+    [
+      { id: 'local', provider: 'local-pty', options: {} },
+      {
+        id: 'spare',
+        provider: 'imp',
+        options: { url: 'http://impd.example:7272', tokenEnv: 'FIXTURE_IMP_TOKEN' },
+      },
+    ],
+    buildMockHostServices({ version: '1.0.0' }),
+    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+  );
+
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
+
+  const ctx = await setupTest({ targets: built.targets });
+
+  // the added target changes the daemon-wide revision, and the row stays
+  // bound to the revision of its own target alone
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-on-local'),
+      cwd: ctx.dir,
+      target: 'local',
+      targetIdentity: 'local-pty:44136fa355b3678a',
+    }),
+  ]);
+
+  await restoreFleet({
+    mgr: ctx.mgr,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  expect(ctx.mgr.sessions.map((s) => [s.id, s.targetIdentity, s.state, s.lastMsg])).toStrictEqual([
+    ['s-on-local', 'local-pty:44136fa355b3678a', 'running', 'revived'],
+  ]);
 });
