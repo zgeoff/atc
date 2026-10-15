@@ -26,7 +26,6 @@ export function buildStubPeerSocket() {
 
   return {
     socket: {
-      // oxlint-disable-next-line prefer-readonly-parameter-types -- a readonly view cannot satisfy the writer contract; the stub never mutates chunks
       write: (data: Uint8Array): number => {
         if (!accepting) {
           return 0;

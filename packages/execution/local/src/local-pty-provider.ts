@@ -153,7 +153,6 @@ export class LocalPTYProvider implements ExecutionProvider {
 
   // Options the host passes to GNU tar through `TAR_OPTIONS` are ignored,
   // since one could leave tracked files out of the unpacked checkout.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive = async (archive: Uint8Array, dir: string): Promise<void> => {
     await mkdir(dir, { recursive: true });
 
@@ -191,7 +190,6 @@ export class LocalPTYProvider implements ExecutionProvider {
     argv: readonly string[],
     cwd: string,
 
-    // oxlint-disable-next-line prefer-readonly-parameter-types -- input bytes have no readonly form
     input: Uint8Array | null,
     env?: Readonly<Record<string, string | undefined>>,
   ): Promise<CommandResult> {

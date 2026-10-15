@@ -16,7 +16,6 @@ const BLOCK = 512;
  * splits at a slash into ustar's prefix and name fields, and a path that
  * fits no such split is refused.
  */
-// oxlint-disable-next-line prefer-readonly-parameter-types -- file bytes have no readonly form
 export function buildTarArchive(files: readonly ArchiveFile[]): Uint8Array {
   const encoder = new TextEncoder();
 

@@ -1,4 +1,3 @@
-// oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test: the answers to session.resumeCommand
 import { expect, test } from 'bun:test';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildMockAgentAdapter, getRecord } from '@atc/test-utils';

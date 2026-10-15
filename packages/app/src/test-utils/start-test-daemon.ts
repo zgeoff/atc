@@ -260,7 +260,6 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
       // A socket write accepts only what fits its buffer, so the rest goes
       // out as the socket drains, and the connection ends once all of it
       // has gone.
-      // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket is a live handle
       const sendRemainder = (socket: Socket) => {
         sent += socket.write(payload.subarray(sent));
 

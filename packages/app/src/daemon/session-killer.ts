@@ -30,7 +30,6 @@ export class SessionKiller {
 
   private readonly callbacks: SessionKillerDeps['callbacks'];
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: SessionKillerDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;

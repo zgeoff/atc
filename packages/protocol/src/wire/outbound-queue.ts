@@ -1,6 +1,5 @@
 // The slice of a Bun socket the queue needs; `write` returns bytes accepted.
 export interface SocketWriter {
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a readonly view cannot satisfy Bun's BufferSource union; the queue never mutates chunks
   readonly write: (data: Uint8Array) => number;
 }
 

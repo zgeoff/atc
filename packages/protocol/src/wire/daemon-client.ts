@@ -147,7 +147,6 @@ export class DaemonClient implements DaemonChannel {
     this.drainPending('client closed');
   }
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
   private applyChunk(buf: Uint8Array): void {
     for (const line of this.lines.splitChunk(buf)) {
       this.applyLine(line);

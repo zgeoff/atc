@@ -14,12 +14,10 @@ export class LineDecoder {
     return this.pending.length;
   }
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
   splitChunk(bytes: Uint8Array): string[] {
     return this.splitText(this.decodeText(bytes));
   }
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
   decodeText(bytes: Uint8Array): string {
     return this.decoder.decode(bytes, { stream: true });
   }

@@ -143,7 +143,6 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
 
 // Connects the client's link to the target, forwarding what the client
 // sent meanwhile, and ends the client when the target cannot be reached.
-// oxlint-disable-next-line prefer-readonly-parameter-types -- a socket is a live handle the proxy writes to
 async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions): Promise<void> {
   try {
     const upstream = await Bun.connect({

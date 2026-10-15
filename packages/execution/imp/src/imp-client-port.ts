@@ -249,7 +249,6 @@ export class ImpClientPort implements ImpPort {
     return written.path;
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   readonly runCommand = (name: string, command: ImpCommand): Promise<ImpCommandResult> =>
     this.tryCall((client) => runCommandInChunks(client, name, command));
 
@@ -347,7 +346,6 @@ type ClientSecret = Awaited<ReturnType<ImpClient['secrets']['list']>>[number];
 
 // A secret in the port's terms, with an oauth secret's sign-in status and
 // ID token claims and none of its other state.
-// oxlint-disable-next-line prefer-readonly-parameter-types -- a secret's dates have no readonly form
 function toImpSecret(secret: ClientSecret): ImpSecret {
   const listed: ImpSecret = {
     name: secret.name,
@@ -375,7 +373,6 @@ interface ClientLease {
   readonly until: Date | null;
 }
 
-// oxlint-disable-next-line prefer-readonly-parameter-types -- a lease's end is a Date
 function toLease(lease: ClientLease): ImpLease {
   return {
     name: lease.name,
@@ -440,7 +437,6 @@ function buildExecStart(request: ImpSessionRequest): ExecStartWithRequire {
   };
 }
 
-// oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle
 async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<ImpSessionOutcome> {
   const ended = await outcome;
 
@@ -465,7 +461,6 @@ async function runCommandInChunks(
   client: ImpClient,
   name: string,
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   command: ImpCommand,
 ): Promise<ImpCommandResult> {
   const options = command.cwd === undefined ? {} : { cwd: command.cwd };
@@ -499,7 +494,6 @@ async function runCommandInChunks(
   return { code: exit.code, stdout, stderr };
 }
 
-// oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle
 async function waitForListening(listening: Promise<unknown>): Promise<void> {
   await listening;
 }
@@ -508,13 +502,11 @@ async function waitForListening(listening: Promise<unknown>): Promise<void> {
 // its handlers and gets the relay back.
 type RelayAccept = (
   handlers: Readonly<{
-    // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
     onData: (data: Uint8Array) => void;
     onEof: () => void;
     onClose: (lost: boolean) => void;
   }>,
 ) => Readonly<{
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   send: (data: Uint8Array) => boolean;
   waitForRoom: () => Promise<void>;
   close: () => void;
@@ -523,7 +515,6 @@ type RelayAccept = (
 // Takes a guest connection at once, handing its bytes and its close to the
 // listeners the relay's owner adds.
 function openRelay(accept: RelayAccept): ImpRelayConnection {
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   const dataListeners: ((data: Uint8Array) => void)[] = [];
   const closeListeners: (() => void)[] = [];
   const endListeners: (() => void)[] = [];

@@ -366,7 +366,6 @@ export class ImpProvider implements ExecutionProvider {
     );
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive = async (archive: Uint8Array, dir: string, host?: string) => {
     // The archive crosses the network to impd, so it goes over gzipped:
     // imp-base ships gzip and no faster decompressor. An imp without gzip
@@ -826,7 +825,6 @@ export class ImpProvider implements ExecutionProvider {
   private async runOnHost(
     hostKey: string | undefined,
 
-    // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
     command: Readonly<{ argv: readonly string[]; cwd?: string; stdin?: Uint8Array }>,
   ) {
     if (hostKey === undefined) {

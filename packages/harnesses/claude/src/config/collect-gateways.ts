@@ -95,14 +95,14 @@ export function collectGateways(
       auth = checked;
     }
 
-    const firstOfMark = (parsed.data.mark ?? id).codePointAt(0);
+    // the mark's first code point; mark falls back to id, and both are
+    // checked non-empty above, so the empty default never applies
+    const [firstOfMark = ''] = parsed.data.mark ?? id;
 
     gateways.push({
       id,
       label: parsed.data.label ?? id,
-
-      // oxlint-disable-next-line no-unsafe-type-assertion -- mark falls back to id, and both are checked non-empty above, so codePointAt(0) always returns a code point
-      mark: String.fromCodePoint(firstOfMark as number),
+      mark: firstOfMark,
       bin: parsed.data.bin ?? claudeBin,
       args: parsed.data.args ?? claudeArgs,
       baseURL: parsed.data.baseURL,
