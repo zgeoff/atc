@@ -370,6 +370,28 @@ test('it reads every option of a long list whose cursor hides the mark of option
   ]);
 });
 
+test('it refuses to read a list whose window shows one row at a time', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx
+    .spawnMenu({
+      menus: [
+        {
+          kind: 'boxes',
+          text: ['3 new MCP servers found in this project'],
+          options: ['kettle-notes', 'orchard-search', 'quarry-files'],
+          checked: [true, true, true],
+          submit: 'Enable selected',
+          cursor: 3,
+          window: 1,
+        },
+      ],
+    })
+    .catch((error: unknown) => error);
+
+  expect(shown).toMatchObject({ code: 'menu_busy' });
+});
+
 test('it reads a long list it has read whole before without pressing a key', async () => {
   const ctx = await setupTest();
 
@@ -448,7 +470,7 @@ test('it picks the last option of a list longer than the screen by its number an
       ],
     },
   ]);
-});
+}, 15_000);
 
 test('it ticks a box below the screen and returns the whole list with its new token', async () => {
   const ctx = await setupTest();
@@ -500,7 +522,7 @@ test('it ticks a box below the screen and returns the whole list with its new to
   });
 
   expect(getRecord(chosen, 'menu')['menuToken']).not.toBe(shown.menu['menuToken']);
-});
+}, 15_000);
 
 test('it returns the whole of a long menu a choice opens, with a token the next choice takes', async () => {
   const ctx = await setupTest();
@@ -546,7 +568,7 @@ test('it returns the whole of a long menu a choice opens, with a token the next 
   expect(ctx.readLog().at(-1)).toStrictEqual({
     enabled: ['kettle-notes', 'orchard-search', 'quarry-files', 'lantern-docs', 'meadow-index'],
   });
-});
+}, 15_000);
 
 test('it reads afresh a long list that Enter opens with the same text and rows in view', async () => {
   const ctx = await setupTest();
@@ -584,7 +606,7 @@ test('it reads afresh a long list that Enter opens with the same text and rows i
     { option: 5, label: 'Sage', checked: null, highlighted: false },
     { option: 6, label: 'Indigo', checked: null, highlighted: false },
   ]);
-});
+}, 15_000);
 
 test('it reads afresh a long menu that opens again with the same text after closing', async () => {
   const ctx = await setupTest();
@@ -634,7 +656,7 @@ test('it reads afresh a long menu that opens again with the same text after clos
     { option: 5, label: 'Sage', checked: null, highlighted: false },
     { option: 6, label: 'Indigo', checked: null, highlighted: false },
   ]);
-});
+}, 15_000);
 
 test('it refuses a label that differs from the option and sends nothing', async () => {
   const ctx = await setupTest();

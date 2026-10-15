@@ -1,7 +1,9 @@
 import type { Clock } from '@atc/core';
+import type { ScreenMenu } from '@atc/plugin-api';
 import type { MenuView } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildMenuView } from './build-menu-view';
+import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS, MENU_TIMING } from './menu-terminal';
 import type { MenuTerminal, MenuTiming, MenuWaits } from './menu-terminal';
 import { readKnownMenu } from './read-known-menu';
@@ -53,16 +55,14 @@ export async function applyMenuChoice(
 
   await waitForMenuQuiet(terminal, waits);
 
-  const quiet = await readMenuView(terminal);
+  const quiet = await readCheckedMenu(terminal, choice);
 
-  const menu = requireMatchingMenu(quiet, choice);
+  const menu = quiet.menu;
 
   if ('key' in choice) {
-    const before = await readMenuBeforeKey(terminal, menu);
+    sendKeyFromScreen(terminal, MENU_KEYS.escape);
 
-    sendMenuKey(terminal, MENU_KEYS.escape);
-
-    const dismissed = await waitForSettledMenu(terminal, before, waits);
+    const dismissed = await waitForSettledMenu(terminal, quiet.screen, waits);
 
     return { pressed: 'escape', menu: await readSettledWholeMenu(terminal, dismissed, waits) };
   }
@@ -71,9 +71,9 @@ export async function applyMenuChoice(
 
   // The cursor can move back between the walk's last read and Enter, such
   // as when an agent ends a dialog's hold, so the screen is read once more.
-  const last = await readMenuView(terminal);
+  const last = await readCheckedMenu(terminal, choice);
 
-  const committed = requireMatchingMenu(last, choice);
+  const committed = last.menu;
 
   if (getHighlighted(committed) !== choice.option) {
     throw new DaemonError(
@@ -83,28 +83,13 @@ export async function applyMenuChoice(
     );
   }
 
-  const before = await readMenuBeforeKey(terminal, committed);
-
-  sendMenuKey(terminal, MENU_KEYS.enter);
+  sendKeyFromScreen(terminal, MENU_KEYS.enter);
 
   // The settled menu is measured against the screen just before Enter, so a
   // cursor move from the walk never counts as Enter's response.
-  const settled = await waitForSettledMenu(terminal, before, waits);
+  const settled = await waitForSettledMenu(terminal, last.screen, waits);
 
   return { pressed: 'enter', menu: await readSettledWholeMenu(terminal, settled, waits) };
-}
-
-// The screen just before Enter or Escape, as the screen alone shows it. Either
-// key can open another list that reads like the kept whole menu, with the
-// same text and the same rows in view, so the kept menu is dropped first and
-// the menu the key leaves is read afresh. A screen that shows no menu by
-// then measures the response against the menu the choice checked.
-async function readMenuBeforeKey(terminal: MenuTerminal, checked: MenuView): Promise<MenuView> {
-  terminal.recordWholeMenu(null);
-
-  const before = await readMenuView(terminal);
-
-  return before ?? checked;
 }
 
 // The menu a choice answers with: once the screen has settled on a menu, the
@@ -151,6 +136,39 @@ async function readWholeMenuView(
 async function readMenuView(terminal: MenuTerminal): Promise<MenuView | null> {
   const menu = await readKnownMenu(terminal);
 
+  return menu === null ? null : buildMenuView(menu);
+}
+
+// One read of the screen, checked against the choice: the menu as a client
+// reads it, through the kept whole menu, and the same screen read alone,
+// which measures the response to the key that follows. One read serves both,
+// so the key reaches the screen the check passed.
+async function readCheckedMenu(
+  terminal: MenuTerminal,
+  choice: MenuChoice,
+): Promise<{ readonly menu: MenuView; readonly screen: MenuView }> {
+  const shown = await terminal.readScreenMenu();
+
+  const known = terminal.findWholeMenu();
+  const whole = shown === null || known === null ? null : expandScreenMenu(shown, known);
+
+  terminal.recordWholeMenu(whole);
+
+  const menu = requireMatchingMenu(buildViewOrNull(whole ?? shown), choice);
+
+  return { menu, screen: shown === null ? menu : buildMenuView(shown) };
+}
+
+// Presses Enter or Escape. Either key can open another list with the same
+// text and the same rows in view as the kept whole menu, so the kept menu
+// is dropped first and the menu the key leaves is read afresh.
+function sendKeyFromScreen(terminal: MenuTerminal, key: string): void {
+  terminal.recordWholeMenu(null);
+
+  sendMenuKey(terminal, key);
+}
+
+function buildViewOrNull(menu: ScreenMenu | null): MenuView | null {
   return menu === null ? null : buildMenuView(menu);
 }
 

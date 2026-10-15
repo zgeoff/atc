@@ -71,6 +71,17 @@ async function collectScrolledMenu(
   };
 
   const startList = splitScreenMenu(start).list.length;
+
+  // A window of one row puts the cursor on its only row at every step, so
+  // the screen shows neither where the list starts nor where it wraps.
+  if (startList < 2) {
+    throw new DaemonError(
+      'menu_busy',
+      'the terminal is too short for atc to read the whole list; give the session more rows and read it again',
+      { menu: null },
+    );
+  }
+
   let now = start;
   let ups = 0;
 
