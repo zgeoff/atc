@@ -1,5 +1,49 @@
 # Changelog
 
+## [4.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.7.0...@zgeoff/atc@4.8.0) (2026-10-15)
+
+### Features
+
+- **geo-210:** document restarting a session through atc_session_adopt
+  ([#606](https://github.com/zgeoff/atc/issues/606))
+  ([f63e74f](https://github.com/zgeoff/atc/commit/f63e74f4eebeaf8d9aa1263b9e40be5b11a23544))
+- **geo-36:** sign the owner in with a passkey instead of a log code
+  ([#607](https://github.com/zgeoff/atc/issues/607))
+  ([6568e0d](https://github.com/zgeoff/atc/commit/6568e0d18ae12e5757ccd311c62f9eca87364780))
+
+### Bug Fixes
+
+- **geo-32:** remove a rollback's directory past a stale relative cwd
+  ([#600](https://github.com/zgeoff/atc/issues/600))
+  ([44be464](https://github.com/zgeoff/atc/commit/44be46469794bae1d2bd041296c1f21f01ab4213))
+- **geo-440:** state each atc tool's behaviour as the code has it
+  ([#596](https://github.com/zgeoff/atc/issues/596))
+  ([8af338e](https://github.com/zgeoff/atc/commit/8af338e4c60f3ea05bc2fe2fd3cbdd1a74be3729))
+- **geo-879:** replay a pre-upgrade message key that held a from
+  ([#601](https://github.com/zgeoff/atc/issues/601))
+  ([15acd78](https://github.com/zgeoff/atc/commit/15acd78437209f7431054f83b5bfc08ef1e6d736))
+- **geo-888:** serialise listing cache writes across clients
+  ([#602](https://github.com/zgeoff/atc/issues/602))
+  ([f7d6097](https://github.com/zgeoff/atc/commit/f7d6097973f5f4ebf7a966705fa65db1ac0b7bd4))
+- **geo-892:** compare a slow enter against the menu just before it
+  ([#598](https://github.com/zgeoff/atc/issues/598))
+  ([9cf56f6](https://github.com/zgeoff/atc/commit/9cf56f6b2b9a9481887656cc5fb72c3f9dd09d0f))
+- **geo-893:** draw the current mode again after restart consent
+  ([#603](https://github.com/zgeoff/atc/issues/603))
+  ([45aa84a](https://github.com/zgeoff/atc/commit/45aa84a22ffebeb105af1ff76a2a072e4765422e))
+- **geo-896:** set up bun before the cloud pin pull request step
+  ([#604](https://github.com/zgeoff/atc/issues/604))
+  ([415ec53](https://github.com/zgeoff/atc/commit/415ec5388a089f44e993e346844a20c6a0271c7c))
+- **geo-897:** let a process inside a session stream atc events
+  ([#609](https://github.com/zgeoff/atc/issues/609))
+  ([e3d92c6](https://github.com/zgeoff/atc/commit/e3d92c6711c77c165a66d4c47acb48d0deccdf2e))
+- **geo-901:** label a local program's message local, not owner
+  ([#608](https://github.com/zgeoff/atc/issues/608))
+  ([05a0ea6](https://github.com/zgeoff/atc/commit/05a0ea6a4c23a60fab75b2bda6474301820df513))
+- **geo-903:** swap the guest atc in by one rename, never remove it
+  ([#610](https://github.com/zgeoff/atc/issues/610))
+  ([5c0f749](https://github.com/zgeoff/atc/commit/5c0f749184df9e1578830a29f1f1a273735cd316))
+
 ## [4.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.6.0...@zgeoff/atc@4.7.0) (2026-10-14)
 
 ### Features
