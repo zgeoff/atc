@@ -3,9 +3,19 @@ import { toSessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildGrantFromFleetEntry } from './build-grant-from-fleet-entry';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
+import { CONTEXT_MEMBER_SCOPES } from './context-member-scopes';
 import type { DaemonContext } from './daemon-context';
 import type { KeyedRequest } from './idempotency-ledger';
 import type { TargetAccess, TargetGrant } from './target-access';
+
+type ContextMemberScopes = typeof CONTEXT_MEMBER_SCOPES;
+
+// The members the principal's context replaces.
+type NarrowedMember = {
+  [K in keyof ContextMemberScopes]: ContextMemberScopes[K] extends 'narrowed' ? K : never;
+}[keyof ContextMemberScopes];
+
+type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
 
 /**
  * The daemon as a principal with the given access sees it. Its keyed
@@ -72,8 +82,7 @@ export function buildScopedContext(
     }
   };
 
-  return {
-    ...ctx,
+  const narrowed: Pick<DaemonContext, NarrowedMember> = {
     isSessionVisible: canSee,
     collectSessions: () => ctx.collectSessions().filter((session) => canSee(session.id)),
     collectAgents: () => {
@@ -152,6 +161,10 @@ export function buildScopedContext(
       canSee(id) ? ctx.buildResumeCommand(id) : { refusal: 'missing' as const },
     readSessionScreen: (id) =>
       canSee(id) ? ctx.readSessionScreen(id) : Promise.resolve('missing' as const),
+    readSessionMenu: (id) =>
+      canSee(id) ? ctx.readSessionMenu(id) : Promise.resolve('missing' as const),
+    applySessionMenuChoice: (id, choice) =>
+      canSee(id) ? ctx.applySessionMenuChoice(id, choice) : Promise.resolve('missing' as const),
     answerPermission: (request, decision) => {
       const owner = ctx.findPermissionSession(request);
 
@@ -231,6 +244,8 @@ export function buildScopedContext(
         ? ctx.ackNotice(client, sessionID, messageID)
         : Promise.resolve('unknown' as const),
   };
+
+  return { ...collectSharedMembers(ctx), ...narrowed };
 }
 
 // Throws the refusal of a spawn to a target the access leaves out.
@@ -238,4 +253,20 @@ function requireTarget(canUseTarget: (target: string) => boolean, target: string
   if (!canUseTarget(target)) {
     throw buildTargetForbiddenError(target);
   }
+}
+
+// The daemon's own members that the principal's context keeps as they are.
+// A member the daemon leaves unset stays unset.
+function collectSharedMembers(ctx: DaemonContext): Pick<DaemonContext, SharedMember> {
+  const shared: Partial<Record<SharedMember, unknown>> = {};
+
+  for (const [member, scope] of Object.entries(CONTEXT_MEMBER_SCOPES)) {
+    if (scope !== 'narrowed' && member in ctx) {
+      shared[member as SharedMember] = ctx[member as SharedMember];
+    }
+  }
+
+  // The scope table types each shared key, so the copy holds the type the
+  // daemon's context gives it.
+  return shared as Pick<DaemonContext, SharedMember>;
 }
