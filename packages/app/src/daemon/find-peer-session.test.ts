@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toSessionID } from '@atc/core';
 import { findPeerSession } from './find-peer-session';
 
 test('it finds the session whose harness is the peer itself', () => {

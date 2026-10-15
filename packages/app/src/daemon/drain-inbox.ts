@@ -1,7 +1,6 @@
-import type { SessionID } from '@atc/core/session-id';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import type { MessageOwner } from '@atc/store/message-owner';
-import type { MessageRecord } from '@atc/store/message-record';
+import type { SessionID } from '@atc/core';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import type { MessageOwner, MessageRecord } from '@atc/store';
 import type { TapClient } from './daemon-context';
 import type { TapGeneration, TapRegistry } from './tap-registry';
 

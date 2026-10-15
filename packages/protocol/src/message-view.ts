@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { MESSAGE_SENDER_SCHEMA } from './message-sender';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
+import { MESSAGE_SENDER_SCHEMA } from './wire/message-sender';
 
 /**
  * An inbox message as `message.get` answers it: who sent it to which
@@ -27,5 +27,3 @@ export const MESSAGE_VIEW_SCHEMA = z.object({
   turn: z.string().nullable(),
   answeredWith: z.array(z.string()).readonly(),
 });
-
-export type MessageView = z.output<typeof MESSAGE_VIEW_SCHEMA>;

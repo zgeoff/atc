@@ -1,6 +1,5 @@
-import type { AgentID } from '@atc/core/agent-id';
-import type { PluginDefinition } from '@atc/plugin-api/define-plugin';
-import type { GatewayAuth } from '@atc/plugin-api/gateway-auth';
+import type { AgentID } from '@atc/core';
+import type { GatewayAuth, PluginDefinition } from '@atc/plugin-api';
 
 /**
  * The agent CLI an entry drives, which decides the adapter behind it.

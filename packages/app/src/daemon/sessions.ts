@@ -1,29 +1,27 @@
-import type { TargetConfigError } from '@atc/config/collect-targets';
-import { statusFile } from '@atc/config/config';
-import { LOCAL_TARGET } from '@atc/config/local-target';
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import type { SessionID } from '@atc/core/session-id';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
-import { truncateDetail } from '@atc/core/truncate-detail';
-import { truncateToBytes } from '@atc/core/truncate-to-bytes';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import type { AgentAdapter, HookPlan, SpawnOverrides } from '@atc/plugin-api/agent-adapter';
+import type { TargetConfigError } from '@atc/config';
+import { LOCAL_TARGET, statusFile } from '@atc/config';
+import type { AgentID, AgentSessionID, Clock, SessionID } from '@atc/core';
+import { systemClock, truncateDetail, truncateToBytes } from '@atc/core';
+import { LocalPTYProvider } from '@atc/execution-local';
 import type {
+  AgentAdapter,
   ExecutionCapability,
   ExecutionProvider,
   HarnessRelay,
-} from '@atc/plugin-api/execution-provider';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
-import type { PublishedRecord } from '@atc/protocol/published-record';
-import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
-import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
-import type { SessionState } from '@atc/protocol/session-state';
-import type { FleetEntry, FleetStore } from '@atc/store/fleet-entry';
+  HookPlan,
+  SpawnOverrides,
+} from '@atc/plugin-api';
+import type {
+  AdapterEvent,
+  DeclaredScope,
+  PublishedRecord,
+  SessionDescriptor,
+  SessionLifecycle,
+  SessionState,
+} from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
+import { DaemonError } from '@atc/protocol/wire';
+import type { FleetEntry, FleetStore } from '@atc/store';
 import { match } from 'ts-pattern';
 import { AuthSetup } from './auth-setup';
 import type { AuthRebound } from './auth-setup';

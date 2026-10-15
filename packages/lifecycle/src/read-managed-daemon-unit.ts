@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
+import { resolveHomeDir } from '@atc/config/host';
 
 /**
  * Finds an installed daemon user unit without a connection to the service

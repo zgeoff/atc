@@ -3,15 +3,15 @@ import { expect, mock, test } from 'bun:test';
 import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { StateStore } from '@atc/store/state-store';
-import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubLog } from '@atc/test-utils/build-stub-log';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { StateStore, buildTargetIdentity } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  buildStubLog,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { SessionFleetWriter } from './session-fleet-writer';
 import { SessionRegistry } from './session-registry';

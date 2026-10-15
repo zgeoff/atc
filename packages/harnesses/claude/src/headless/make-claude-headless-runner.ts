@@ -1,8 +1,4 @@
-import type {
-  HeadlessRunEvents,
-  HeadlessRunHandle,
-  HeadlessRunner,
-} from '@atc/plugin-api/agent-adapter';
+import type { HeadlessRunEvents, HeadlessRunHandle, HeadlessRunner } from '@atc/plugin-api';
 import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 
 /**

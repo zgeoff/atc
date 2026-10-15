@@ -1,4 +1,4 @@
-import type { ClaudeStyleHook } from '@atc/plugin-api/harness/build-claude-style-hook-event';
+import type { ClaudeStyleHook } from '@atc/plugin-api';
 
 /**
  * The hook events the Codex hook file registers, each with what it means

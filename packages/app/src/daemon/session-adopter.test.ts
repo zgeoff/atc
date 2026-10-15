@@ -1,13 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core/system-clock';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import { StateStore } from '@atc/store/state-store';
-import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
+import type { AgentAdapter } from '@atc/plugin-api';
+import { StateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/testing';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { AuthSetup } from './auth-setup';

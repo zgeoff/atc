@@ -1,5 +1,5 @@
-import { truncateDetail } from '@atc/core/truncate-detail';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { truncateDetail } from '@atc/core';
+import type { AdapterEvent } from '@atc/protocol';
 
 // The longest stretch of a prompt that a prompt-submitted event previews.
 const PROMPT_PREVIEW_LENGTH = 80;

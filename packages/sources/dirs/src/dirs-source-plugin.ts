@@ -1,4 +1,4 @@
-import { definePlugin } from '@atc/plugin-api/define-plugin';
+import { definePlugin } from '@atc/plugin-api';
 import { z } from 'zod';
 import { buildDirsSource } from './build-dirs-source';
 import { collectZoxideDirs } from './collect-zoxide-dirs';

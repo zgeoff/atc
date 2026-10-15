@@ -2,52 +2,41 @@ import { randomUUID } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { HooksConfig } from '@atc/config/collect-hooks';
-import type { TargetConfigError } from '@atc/config/collect-targets';
-import type { InvalidGitTransports } from '@atc/config/collect-workspaces-config';
-import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
-import { formatListenRefusal } from '@atc/config/listen/format-listen-refusal';
-import { isAllowedListenHost } from '@atc/config/listen/is-allowed-listen-host';
-import { loadListenerTokens } from '@atc/config/load-listener-tokens';
-import { LOCAL_TARGET } from '@atc/config/local-target';
-import { parseRestoreBootTimeoutMs } from '@atc/config/parse-restore-boot-timeout-ms';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
-import type { AgentID } from '@atc/core/agent-id';
-import { ansi } from '@atc/core/ansi';
-import { isRecord } from '@atc/core/is-record';
-import type { MessageID } from '@atc/core/message-id';
-import type { SessionID } from '@atc/core/session-id';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
-import { toMessageID } from '@atc/core/to-message-id';
-import { truncateToBytes } from '@atc/core/truncate-to-bytes';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { claimDaemonLock } from '@atc/lifecycle/claim-daemon-lock';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { writeDaemonRecord } from '@atc/lifecycle/write-daemon-record';
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
-import { planTypedLineInput } from '@atc/plugin-api/harness/plan-typed-line-input';
-import type { SourceProvider } from '@atc/plugin-api/types';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import { MESSAGE_ANSWER_SCHEMA } from '@atc/protocol/message-answer';
-import { MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/protocol';
-import type { EventMsg } from '@atc/protocol/protocol';
-import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
-import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
-import type { SessionState } from '@atc/protocol/session-state';
-import type { SessionWorkspace } from '@atc/protocol/session-workspace';
-import { SPAWN_ANSWER_SCHEMA } from '@atc/protocol/spawn-answer';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import type { IdempotencyRecord } from '@atc/store/idempotency-record';
-import type { MessageOwner } from '@atc/store/message-owner';
-import type { MessageRecord, MessageStatus } from '@atc/store/message-record';
-import { StateStore } from '@atc/store/state-store';
-import type { EventScope } from '@atc/store/state-store';
-import type { TrailEntry } from '@atc/store/trail-entry';
+import type { HooksConfig, InvalidGitTransports, TargetConfigError } from '@atc/config';
+import {
+  DEFAULT_GIT_TRANSPORTS,
+  LOCAL_TARGET,
+  loadListenerTokens,
+  parseRestoreBootTimeoutMs,
+} from '@atc/config';
+import { formatListenRefusal, isAllowedListenHost, resolveHomeDir } from '@atc/config/host';
+import type { AgentID, Clock, MessageID, SessionID } from '@atc/core';
+import { ansi, isRecord, systemClock, toMessageID, truncateToBytes } from '@atc/core';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
+import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
+import { EffectRemainsError, planTypedLineInput } from '@atc/plugin-api';
+import type {
+  AdapterEvent,
+  DaemonAnswer,
+  SessionDescriptor,
+  SessionState,
+  SessionWorkspace,
+  SpawnWorkspaceSource,
+} from '@atc/protocol';
+import { MESSAGE_ANSWER_SCHEMA, SPAWN_ANSWER_SCHEMA } from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
+import { DaemonError, MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import { StateStore, buildTargetIdentity } from '@atc/store';
+import type {
+  EventScope,
+  IdempotencyRecord,
+  MessageOwner,
+  MessageRecord,
+  MessageStatus,
+  TrailEntry,
+} from '@atc/store';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';

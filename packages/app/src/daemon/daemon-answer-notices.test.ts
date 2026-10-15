@@ -1,18 +1,17 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, beside the other daemon topic tests
 import { expect, mock, test } from 'bun:test';
-import { isRecord } from '@atc/core/is-record';
-import { toMessageID } from '@atc/core/to-message-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
-import type { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { EventMsg } from '@atc/protocol/protocol';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { isRecord, toMessageID, toSessionID } from '@atc/core';
+import { ClaudeAdapter } from '@atc/harness-claude';
+import type { DaemonClient, EventMsg } from '@atc/protocol/wire';
+import { StateStore } from '@atc/store';
+import {
+  buildMockAgentAdapter,
+  buildMockAgentEntry,
+  buildMockHostServices,
+  registerTestCleanup,
+  spawnNamedSession,
+  waitFor,
+} from '@atc/test-utils';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**

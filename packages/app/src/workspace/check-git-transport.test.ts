@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
+import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
 import { checkGitTransport } from './check-git-transport';
 
 test.each([

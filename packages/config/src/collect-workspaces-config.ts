@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 
 /**

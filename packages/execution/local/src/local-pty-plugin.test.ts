@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { buildMockHostServices } from '@atc/test-utils';
 import { LOCAL_PTY_PLUGIN } from './local-pty-plugin';
 import { LocalPTYProvider } from './local-pty-provider';
 

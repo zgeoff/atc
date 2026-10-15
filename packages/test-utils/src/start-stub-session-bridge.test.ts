@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { openBridgeSocket } from '@atc/protocol/session';
+import { registerTestCleanup } from './register-test-cleanup';
+import { setupTempDir } from './setup-temp-dir';
 import { startStubSessionBridge } from './start-stub-session-bridge';
+import { waitFor } from './wait-for';
 
 // A temp directory to hold the stub bridge's socket.
 function setupTest() {

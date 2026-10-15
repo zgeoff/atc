@@ -1,12 +1,10 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '@atc/config/config';
-import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
-import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
-import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
-import { CodexAdapter } from '@atc/harness-codex/codex-adapter';
-import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
+import { parseConfig } from '@atc/config';
+import { ClaudeAdapter, GatewayAdapter } from '@atc/harness-claude';
+import { getGatewayConfig } from '@atc/harness-claude/testing';
+import { CodexAdapter } from '@atc/harness-codex';
+import { GrokAdapter } from '@atc/harness-grok';
+import { buildMockHostServices, getAgentEntry } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';

@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -22,6 +21,7 @@ test('it passes packages whose manifests declare what their files import', async
     join(ctx.dir, 'packages/tui/package.json'),
     JSON.stringify({
       name: '@atc/tui',
+      exports: { '.': './src/index.ts' },
       dependencies: { '@atc/core': 'workspace:*', zod: 'catalog:' },
       devDependencies: { '@faker-js/faker': 'catalog:' },
     }),
@@ -62,11 +62,14 @@ test('it fails on a relative import into another package', async () => {
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/tui/package.json'), JSON.stringify({ name: '@atc/tui' }));
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/package.json'),
+    JSON.stringify({ name: '@atc/tui', exports: { '.': './src/index.ts' } }),
+  );
 
   await Bun.write(
     join(ctx.dir, 'packages/daemon/package.json'),
-    JSON.stringify({ name: '@atc/daemon' }),
+    JSON.stringify({ name: '@atc/daemon', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
@@ -107,7 +110,7 @@ test('it fails on a module load whose specifier is a template literal', async ()
 
   await Bun.write(
     join(ctx.dir, 'packages/core/package.json'),
-    JSON.stringify({ name: '@atc/core' }),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
@@ -143,10 +146,14 @@ test('it lets a listed helper test reach the app and no other helper test', asyn
 
   await Bun.write(
     join(ctx.dir, 'packages/test-utils/package.json'),
-    JSON.stringify({ name: '@atc/test-utils' }),
+    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/app/package.json'), JSON.stringify({ name: '@atc/app' }));
+  await Bun.write(
+    join(ctx.dir, 'packages/app/package.json'),
+    JSON.stringify({ name: '@atc/app', exports: {} }),
+  );
+
   await Bun.write(join(ctx.dir, 'packages/app/src/keymap.ts'), 'export const KEYMAP = [];\n');
 
   await Bun.write(
@@ -185,7 +192,10 @@ test('it fails on a literal dynamic import into another package', async () => {
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/mcp/package.json'), JSON.stringify({ name: '@atc/mcp' }));
+  await Bun.write(
+    join(ctx.dir, 'packages/mcp/package.json'),
+    JSON.stringify({ name: '@atc/mcp', exports: { '.': './src/index.ts' } }),
+  );
 
   await Bun.write(
     join(ctx.dir, 'packages/mcp/src/a.ts'),
@@ -220,7 +230,11 @@ test('it fails on a bare import the manifest does not declare', async () => {
 
   await Bun.write(
     join(ctx.dir, 'packages/tui/package.json'),
-    JSON.stringify({ name: '@atc/tui', dependencies: { '@atc/protocol': 'workspace:*' } }),
+    JSON.stringify({
+      name: '@atc/tui',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/protocol': 'workspace:*' },
+    }),
   );
 
   await Bun.write(
@@ -256,7 +270,11 @@ test('it fails on a production file importing a dev dependency', async () => {
 
   await Bun.write(
     join(ctx.dir, 'packages/store/package.json'),
-    JSON.stringify({ name: '@atc/store', devDependencies: { 'tiny-invariant': 'catalog:' } }),
+    JSON.stringify({
+      name: '@atc/store',
+      exports: { '.': './src/index.ts' },
+      devDependencies: { 'tiny-invariant': 'catalog:' },
+    }),
   );
 
   await Bun.write(
@@ -301,7 +319,11 @@ test('it fails on manifest entries that are not workspace or catalog references'
 
   await Bun.write(
     join(ctx.dir, 'packages/store/package.json'),
-    JSON.stringify({ name: '@atc/store', dependencies: { '@atc/core': '^0.1.0' } }),
+    JSON.stringify({
+      name: '@atc/store',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': '^0.1.0' },
+    }),
   );
 
   const checked = await runCommand([
@@ -332,7 +354,11 @@ test('it fails on a dependency outside the package row', async () => {
 
   await Bun.write(
     join(ctx.dir, 'packages/tui/package.json'),
-    JSON.stringify({ name: '@atc/tui', dependencies: { '@atc/lifecycle': 'workspace:*' } }),
+    JSON.stringify({
+      name: '@atc/tui',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/lifecycle': 'workspace:*' },
+    }),
   );
 
   const checked = await runCommand([
@@ -363,12 +389,12 @@ test('it fails on a package with no row or a name its row does not give', async 
 
   await Bun.write(
     join(ctx.dir, 'packages/extras/package.json'),
-    JSON.stringify({ name: '@atc/extras' }),
+    JSON.stringify({ name: '@atc/extras', exports: { '.': './src/index.ts' } }),
   );
 
   await Bun.write(
     join(ctx.dir, 'packages/tui/package.json'),
-    JSON.stringify({ name: '@atc/terminal' }),
+    JSON.stringify({ name: '@atc/terminal', exports: { '.': './src/index.ts' } }),
   );
 
   const checked = await runCommand([
@@ -397,8 +423,15 @@ test('it lets the root reach the app by path and nothing else', async () => {
     JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
   );
 
-  await Bun.write(join(ctx.dir, 'packages/app/package.json'), JSON.stringify({ name: '@atc/app' }));
-  await Bun.write(join(ctx.dir, 'packages/tui/package.json'), JSON.stringify({ name: '@atc/tui' }));
+  await Bun.write(
+    join(ctx.dir, 'packages/app/package.json'),
+    JSON.stringify({ name: '@atc/app', exports: {} }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/package.json'),
+    JSON.stringify({ name: '@atc/tui', exports: { '.': './src/index.ts' } }),
+  );
 
   await Bun.write(
     join(ctx.dir, 'e2e/journey.test.ts'),
@@ -450,5 +483,142 @@ test('it ignores a package named only to resolve a path', async () => {
     exitCode: 0,
     stdout: 'check-manifests: 1 packages, 1 files, 0 findings\n',
     stderr: '',
+  });
+});
+
+test('it passes imports of a package root and of a named entry point', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts', './wire': './src/wire/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/package.json'),
+    JSON.stringify({
+      name: '@atc/tui',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*', '@atc/protocol': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/src/a.ts'),
+    "import { isRecord } from '@atc/core';\nimport { DaemonClient } from '@atc/protocol/wire';\n\nexport const A = [isRecord, DaemonClient];\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-manifests: 4 packages, 1 files, 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it fails on an import of a subpath the exports map does not list', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/package.json'),
+    JSON.stringify({
+      name: '@atc/tui',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/src/a.ts'),
+    "import { isRecord } from '@atc/core/is-record';\n\nexport const A = isRecord;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 3 packages, 1 files, 1 findings\n',
+    stderr:
+      'unexported entry: packages/tui/src/a.ts imports @atc/core/is-record, which packages/core/package.json does not list as an entry point\n',
+  });
+});
+
+test('it fails on a package with no exports map or a wildcard entry', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core' }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts', './*': './src/*.ts' },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 3 packages, 0 files, 2 findings\n',
+    stderr:
+      'no exports: packages/core/package.json holds no exports map\nwildcard entry: packages/protocol/package.json exports ./*, which makes every matching file public; list each entry point\n',
   });
 });

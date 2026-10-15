@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { startStubImpdInfo } from '@atc/test-utils/start-stub-impd-info';
+import { startStubImpdInfo } from '@atc/test-utils';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { ImpClientPort } from './imp-client-port';
 import { createStubImpPort } from './testing/create-stub-imp-port';

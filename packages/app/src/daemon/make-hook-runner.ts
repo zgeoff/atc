@@ -1,5 +1,5 @@
-import type { HookEntry, HooksConfig } from '@atc/config/collect-hooks';
-import type { EventMsg } from '@atc/protocol/protocol';
+import type { HookEntry, HooksConfig } from '@atc/config';
+import type { EventMsg } from '@atc/protocol/wire';
 
 /**
  * The session paths a hook's `dir` filter is matched against. Null when the

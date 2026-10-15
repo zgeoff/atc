@@ -1,12 +1,14 @@
 import { join } from 'node:path';
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import { buildHeartbeatEvent } from '@atc/plugin-api/harness/build-heartbeat-event';
-import { buildNeedsInputEvent } from '@atc/plugin-api/harness/build-needs-input-event';
-import { buildPromptSubmittedEvent } from '@atc/plugin-api/harness/build-prompt-submitted-event';
-import { buildTurnDoneEvent } from '@atc/plugin-api/harness/build-turn-done-event';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import { normalizeHookEventName } from '@atc/protocol/normalize-hook-event';
+import { buildOptionalString } from '@atc/core/schema';
+import {
+  buildHeartbeatEvent,
+  buildNeedsInputEvent,
+  buildPromptSubmittedEvent,
+  buildTurnDoneEvent,
+} from '@atc/plugin-api';
+import type { AdapterEvent } from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
+import { normalizeHookEventName } from '@atc/protocol/session';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import { GROK_HOOKS } from './grok-hooks';

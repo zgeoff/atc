@@ -1,15 +1,17 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { buildStubSignedInGH } from '@atc/test-utils/build-stub-signed-in-gh';
-import { buildStubSignedOutGH } from '@atc/test-utils/build-stub-signed-out-gh';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { KEYS } from '@atc/test-utils/keys';
-import { openRepoStep } from '@atc/test-utils/open-repo-step';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
+import { DaemonClient } from '@atc/protocol/wire';
+import {
+  KEYS,
+  buildStubSignedInGH,
+  buildStubSignedOutGH,
+  createGitFixture,
+  createStubBin,
+  openRepoStep,
+  registerTestCleanup,
+  startTUIHarness,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 
 function setupTest() {

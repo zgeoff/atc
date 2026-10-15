@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { mcpAuthDBFile } from '@atc/config/config';
+import { mcpAuthDBFile } from '@atc/config';
 import { collectGrants } from './mcp/collect-grants';
 import { openMCPAuth } from './mcp/open-mcp-auth';
 import { revokeGrant } from './mcp/revoke-grant';

@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildClaudeHookEvent } from './build-claude-hook-event';
 
 test('it starts the session with the transcript as its name source and transcript', () => {

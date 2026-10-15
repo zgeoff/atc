@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseSystemdUnit } from '@atc/core/parse-systemd-unit';
+import { parseSystemdUnit } from '@atc/core';
 import type { LifecycleHost } from './lifecycle-host';
 
 /**

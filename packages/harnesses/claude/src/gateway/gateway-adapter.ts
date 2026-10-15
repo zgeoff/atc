@@ -1,13 +1,13 @@
-import type { Config } from '@atc/config/config';
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
-import { isBrokerVariable } from '@atc/core/is-broker-variable';
-import { isRecord } from '@atc/core/is-record';
-import type { SessionID } from '@atc/core/session-id';
-import { toShellArg } from '@atc/core/to-shell-arg';
+import type { Config } from '@atc/config';
+import { resolveAuthProfiles } from '@atc/config';
+import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
+import {
+  BROKER_PLACEHOLDER,
+  CLAUDE_CREDENTIAL_VARIABLES,
+  isBrokerVariable,
+  isRecord,
+  toShellArg,
+} from '@atc/core';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -16,19 +16,17 @@ import type {
   GuestSpawnPlan,
   HeadlessRunner,
   HookPlan,
+  HostServices,
   NameUpdate,
   ProjectSettingsCheck,
   ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
-} from '@atc/plugin-api/agent-adapter';
-import { buildAuthRevisionFolder } from '@atc/plugin-api/harness/build-auth-revision-folder';
-import { canResumeFromTranscript } from '@atc/plugin-api/harness/can-resume-from-transcript';
-import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
-import type { HostServices } from '@atc/plugin-api/host-services';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
+} from '@atc/plugin-api';
+import { buildAuthRevisionFolder, canResumeFromTranscript, findFlagValue } from '@atc/plugin-api';
+import type { HookEvent } from '@atc/protocol/session';
+import { DaemonError } from '@atc/protocol/wire';
 import { buildGuestBridgeFiles } from '../bridge/build-guest-bridge-files';
 import { buildClaudeArgs } from '../build-claude-args';
 import { buildClaudeHookEvent } from '../build-claude-hook-event';

@@ -1,11 +1,7 @@
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import type { SessionID } from '@atc/core/session-id';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import type { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
-import type { TranscriptRow } from '@atc/protocol/transcript-row';
+import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
+import type { AdapterEvent, SpawnOptionSpec, TranscriptRow } from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
+import type { DaemonError } from '@atc/protocol/wire';
 import type { AuthProfile } from './auth-profile';
 import type { GatewayAuth } from './gateway-auth';
 

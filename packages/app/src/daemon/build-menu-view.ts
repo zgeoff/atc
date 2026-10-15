@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { ScreenMenu } from '@atc/plugin-api/agent-adapter';
-import type { MenuView } from '@atc/protocol/menu-view';
+import type { ScreenMenu } from '@atc/plugin-api';
+import type { MenuView } from '@atc/protocol';
 
 /**
  * The menu as a client reads it: each option numbered from 1, and a token

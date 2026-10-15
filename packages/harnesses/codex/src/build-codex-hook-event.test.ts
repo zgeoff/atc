@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildCodexHookEvent } from './build-codex-hook-event';
 
 test('it starts the session with its id as the name source and its rollout as the transcript', () => {

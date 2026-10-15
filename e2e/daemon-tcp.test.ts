@@ -1,12 +1,10 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { findDaemonRecord } from '@atc/lifecycle';
+import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { DaemonClient } from '@atc/protocol/wire';
+import { registerTestCleanup, resolveATCCommand, setupTempDir } from '@atc/test-utils';
 import { z } from 'zod';
 
 /**

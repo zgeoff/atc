@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
 import { DIRS_SOURCE_PLUGIN } from './dirs-source-plugin';
 
 // A home directory the listed directories sit in.

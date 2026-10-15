@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@atc/test-utils';
 import { isProcessAlive } from './is-process-alive';
 
 test('it reports this process as running', () => {

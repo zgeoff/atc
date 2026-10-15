@@ -1,6 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { DaemonClient, DaemonError } from '@atc/protocol/wire';
 
 /**
  * Runs one probe of what the daemon lets a local client do, the way a

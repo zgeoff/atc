@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toAgentSessionID } from '@atc/core';
 import { parseFleetEntry } from './fleet-entry';
 
 test('it parses a well-formed row into a fleet entry', () => {

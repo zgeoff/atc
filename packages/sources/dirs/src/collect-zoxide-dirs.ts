@@ -1,4 +1,4 @@
-import type { HostServices } from '@atc/plugin-api/host-services';
+import type { HostServices } from '@atc/plugin-api';
 
 /**
  * zoxide's frecency list, most visited first, through the host's command

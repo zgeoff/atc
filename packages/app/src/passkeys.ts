@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { systemClock } from '@atc/core/system-clock';
+import { systemClock } from '@atc/core';
 import { collectPasskeys } from './mcp/collect-passkeys';
 import { createEnrollmentToken } from './mcp/create-enrollment-token';
 import { openMCPAuth } from './mcp/open-mcp-auth';

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockSortableSessionView } from '@atc/test-utils/build-mock-sortable-session-view';
+import { buildMockSortableSessionView } from '@atc/test-utils';
 import { sortGroupedSessionViews } from './sort-grouped-session-views';
 
 test('it clusters sessions sharing a repository even when states interleave', () => {

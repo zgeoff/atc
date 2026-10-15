@@ -1,9 +1,10 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
 import { resolve } from 'node:path';
-import { parseListenAddress } from '@atc/config/listen/parse-listen-address';
+import { parseListenAddress } from '@atc/config/host';
+import type { HostServices } from '@atc/plugin-api';
 import { defineCommand, runMain } from 'citty';
-import { buildHostServices } from './build-host-services';
+import pkg from '../package.json';
 import { collectRedirectURIs } from './collect-redirect-uris';
 import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
@@ -20,13 +21,15 @@ const DAEMON_ARGS = {
   },
 } as const;
 
-// This process's host services, built once for every subcommand.
-const hostServices = buildHostServices();
+// This process's host services, built once, on first use. The reporters
+// never use them, so a hook or statusline command starts without loading
+// the modules behind them.
+let pendingHostServices: Promise<HostServices> | null = null;
 
 const main = defineCommand({
   meta: {
     name: 'atc',
-    version: hostServices.version,
+    version: pkg.version,
     description: 'Terminal control tower for coding-agent sessions',
   },
   default: 'tui',
@@ -48,6 +51,7 @@ const main = defineCommand({
         async run(ctx) {
           const lifecycle = await import('./build-lifecycle-host');
           const slot = await import('./client/tui-host-slot');
+          const hostServices = await resolveHostServices();
 
           const lifecycleHost = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -56,7 +60,7 @@ const main = defineCommand({
 
             slot.tuiHostSlot.current = host.buildTUIHost(lifecycleHost);
           } else {
-            const config = await import('@atc/config/config');
+            const config = await import('@atc/config');
             const harnessPlugins = await import('./plugins/shipped-harness-plugins');
             const resolved = await import('./resolve-remote-daemon');
             const host = await import('./build-remote-tui-host');
@@ -112,8 +116,9 @@ const main = defineCommand({
           },
         },
         async run(ctx) {
-          const boot = await import('@atc/lifecycle/boot-daemon');
+          const boot = await import('@atc/lifecycle');
           const lifecycle = await import('./build-lifecycle-host');
+          const hostServices = await resolveHostServices();
 
           const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -165,7 +170,7 @@ const main = defineCommand({
               meta: { name: 'list', description: 'List the clients', hidden: true },
               async run() {
                 const clients = await import('./clients');
-                const config = await import('@atc/config/config');
+                const config = await import('@atc/config');
 
                 await clients.runClients(
                   { kind: 'list' },
@@ -186,7 +191,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
-                const config = await import('@atc/config/config');
+                const config = await import('@atc/config');
 
                 await clients.runClients(
                   {
@@ -209,7 +214,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const clients = await import('./clients');
-                const config = await import('@atc/config/config');
+                const config = await import('@atc/config');
 
                 await clients.runClients(
                   { kind: 'remove', clientID: ctx.args.id },
@@ -233,7 +238,7 @@ const main = defineCommand({
               meta: { name: 'list', description: 'List the enrolled passkeys', hidden: true },
               async run() {
                 const passkeys = await import('./passkeys');
-                const config = await import('@atc/config/config');
+                const config = await import('@atc/config');
 
                 await passkeys.runPasskeys(
                   { kind: 'list' },
@@ -256,7 +261,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const passkeys = await import('./passkeys');
-                const config = await import('@atc/config/config');
+                const config = await import('@atc/config');
 
                 await passkeys.runPasskeys(
                   { kind: 'enroll', reset: ctx.args.reset === true },
@@ -272,7 +277,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const passkeys = await import('./passkeys');
-                const config = await import('@atc/config/config');
+                const config = await import('@atc/config');
 
                 await passkeys.runPasskeys(
                   { kind: 'remove', id: ctx.args.id },
@@ -362,7 +367,7 @@ const main = defineCommand({
               },
               async run(ctx) {
                 const migrate = await import('./run-config-migrate');
-                const config = await import('@atc/config/config');
+                const config = await import('@atc/config');
 
                 const code = migrate.runConfigMigrate(
                   ctx.args.file ?? config.configFile,
@@ -407,8 +412,9 @@ const main = defineCommand({
                 description: "Print the running daemon's daemonID",
               },
               async run() {
-                const id = await import('@atc/lifecycle/run-daemon-id');
+                const id = await import('@atc/lifecycle');
                 const lifecycle = await import('./build-lifecycle-host');
+                const hostServices = await resolveHostServices();
 
                 await id.runDaemonID(lifecycle.buildLifecycleHost(process.env, hostServices));
               },
@@ -434,8 +440,9 @@ const main = defineCommand({
               async run(ctx) {
                 const options = parseRestartArgs(ctx.args);
 
-                const restart = await import('@atc/lifecycle/run-daemon-restart');
+                const restart = await import('@atc/lifecycle');
                 const lifecycle = await import('./build-lifecycle-host');
+                const hostServices = await resolveHostServices();
 
                 const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -463,8 +470,9 @@ const main = defineCommand({
               async run(ctx) {
                 const options = parseRestartArgs(ctx.args);
 
-                const worker = await import('@atc/lifecycle/run-daemon-restart-worker');
+                const worker = await import('@atc/lifecycle');
                 const lifecycle = await import('./build-lifecycle-host');
+                const hostServices = await resolveHostServices();
 
                 const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -499,7 +507,8 @@ const main = defineCommand({
             'Print the Codex hook entries to merge into $CODEX_HOME/hooks.json (trust them once in the Codex TUI)',
         },
         async run() {
-          const hook = await import('@atc/harness-codex/print-codex-hook-file');
+          const hook = await import('@atc/harness-codex');
+          const hostServices = await resolveHostServices();
 
           hook.printCodexHookFile(hostServices.atcArgv);
         },
@@ -511,7 +520,8 @@ const main = defineCommand({
           description: 'Print the Grok hook file to install at $GROK_HOME/hooks/atc-reporter.json',
         },
         async run() {
-          const hook = await import('@atc/harness-grok/print-grok-hook-file');
+          const hook = await import('@atc/harness-grok');
+          const hostServices = await resolveHostServices();
 
           hook.printGrokHookFile(hostServices.atcArgv);
         },
@@ -669,6 +679,20 @@ interface RestartFlags {
   readonly timeoutSeconds: number | null;
 }
 
+// This process's host services: the first call loads and builds them, and
+// every later call returns the same ones.
+function resolveHostServices(): Promise<HostServices> {
+  pendingHostServices ??= loadHostServices();
+
+  return pendingHostServices;
+}
+
+async function loadHostServices(): Promise<HostServices> {
+  const services = await import('./build-host-services');
+
+  return services.buildHostServices();
+}
+
 // Reads the flags the restart commands share, and stops the command on one
 // the replacement daemon would refuse after the old one is already gone.
 function parseRestartArgs(args: RestartArgs): RestartFlags {
@@ -697,9 +721,10 @@ function parseRestartArgs(args: RestartArgs): RestartFlags {
 // Runs one `atc session` action on the daemon, booting it when none
 // answers, at this terminal's size, and resolves to the exit code.
 async function runSessionCommand(action: 'rebind' | 'adopt', id: string): Promise<number> {
-  const boot = await import('@atc/lifecycle/boot-daemon');
+  const boot = await import('@atc/lifecycle');
   const lifecycle = await import('./build-lifecycle-host');
   const sessionAction = await import('./run-session-action');
+  const hostServices = await resolveHostServices();
 
   const booted = await boot.bootDaemonClient(
     lifecycle.buildLifecycleHost(process.env, hostServices),
@@ -731,14 +756,15 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   }
 
   const daemon = await import('./daemon/daemon');
-  const config = await import('@atc/config/config');
+  const config = await import('@atc/config');
   const harnessPlugins = await import('./plugins/shipped-harness-plugins');
   const adapterBuilder = await import('./agents/build-agent-adapters');
-  const headless = await import('@atc/harness-claude/headless/start-claude-headless-run');
+  const headless = await import('@atc/harness-claude');
   const targets = await import('./daemon/build-execution-targets');
   const sourceOrder = await import('./sources/build-sources');
   const builtinSources = await import('./sources/collect-builtin-sources');
-  const home = await import('@atc/config/resolve-home-dir');
+  const home = await import('@atc/config/host');
+  const hostServices = await resolveHostServices();
 
   // Test harnesses shrink the outbound queue to force overflow
   // deterministically; unset means the production default.

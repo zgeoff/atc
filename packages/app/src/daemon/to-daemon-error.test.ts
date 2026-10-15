@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
-import { toDaemonID } from '@atc/core/to-daemon-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { StaleOwnershipError } from '@atc/store/stale-ownership-error';
+import { toDaemonID, toSessionID } from '@atc/core';
+import { DaemonError } from '@atc/protocol/wire';
+import { StaleOwnershipError } from '@atc/store';
 import { toDaemonError } from './to-daemon-error';
 
 test('it answers a write refused for stale ownership with stale_epoch and the store message', () => {

@@ -21,9 +21,7 @@ async function main(): Promise<void> {
   const registry = readFileSync(join(root, REGISTRY), 'utf8');
 
   const shipped = providers.filter((provider) =>
-    collectImports(registry).specifiers.some((specifier) =>
-      specifier.startsWith(`${provider.name}/`),
-    ),
+    collectImports(registry).specifiers.some((specifier) => isEntryOf(provider, specifier)),
   );
 
   const local = providers.filter((provider) => provider.name === LOCAL_PROVIDER);
@@ -161,7 +159,7 @@ function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): Bun
     name: 'drop-providers',
     setup(builder) {
       builder.onResolve({ filter: /^@atc\/execution-/ }, (args) => {
-        const isDropped = dropped.some((provider) => args.path.startsWith(`${provider.name}/`));
+        const isDropped = dropped.some((provider) => isEntryOf(provider, args.path));
 
         if (args.importer !== registryPath || !isDropped) {
           return null;
@@ -174,9 +172,7 @@ function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): Bun
       });
 
       builder.onLoad({ filter: /.*/, namespace: STAND_IN_NAMESPACE }, (args) => {
-        const source = readFileSync(args.path, 'utf8');
-
-        const exports = new Bun.Transpiler({ loader: 'ts' }).scan(source).exports;
+        const exports = collectExportNames(args.path);
 
         return {
           contents: exports.map((name) => `export const ${name} = undefined;`).join('\n'),
@@ -185,6 +181,36 @@ function makeDropPlugin(registryPath: string, dropped: readonly Provider[]): Bun
       });
     },
   };
+}
+
+/**
+ * Whether a specifier names one of the provider's entry points: its root
+ * entry, such as `@atc/execution-imp`, or a named one below it.
+ */
+function isEntryOf(provider: Provider, specifier: string): boolean {
+  return specifier === provider.name || specifier.startsWith(`${provider.name}/`);
+}
+
+/**
+ * The names a module exports, following each `export * from` of a barrel
+ * into the module it re-exports.
+ */
+function collectExportNames(path: string): string[] {
+  const source = readFileSync(path, 'utf8');
+
+  const names = new Bun.Transpiler({ loader: 'ts' }).scan(source).exports;
+
+  for (const match of source.matchAll(/^export \* from '(?<specifier>[^']+)';$/gm)) {
+    const specifier = match.groups?.['specifier'];
+
+    if (specifier !== undefined) {
+      const target = Bun.resolveSync(specifier, dirname(path));
+
+      names.push(...collectExportNames(target));
+    }
+  }
+
+  return [...new Set(names)];
 }
 
 /**

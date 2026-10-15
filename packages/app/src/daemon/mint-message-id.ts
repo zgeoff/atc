@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { MessageID } from '@atc/core/message-id';
+import type { MessageID } from '@atc/core';
 
 /**
  * A fresh atc message id: a random uuid behind an `m-` prefix. The id is a

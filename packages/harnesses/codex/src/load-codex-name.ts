@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NameUpdate } from '@atc/plugin-api/agent-adapter';
+import type { NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
 // One line of the session index: a thread's id and its title.

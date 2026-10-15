@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { runShellcheck } from '@atc/test-utils/run-shellcheck';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { createGitFixture, runShellcheck } from '@atc/test-utils';
 import { $ } from 'bun';
 import { GUEST_CLONE_SCRIPT, createGuestClone } from './create-guest-clone';
 

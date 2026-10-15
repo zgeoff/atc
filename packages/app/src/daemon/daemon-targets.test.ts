@@ -1,15 +1,16 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { StateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  buildStubHeadlessRunner,
+  getRecord,
+  registerTestCleanup,
+  waitFor,
+} from '@atc/test-utils';
 import { buildTargetOptionsFromConfig } from '../test-utils/build-target-options-from-config';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

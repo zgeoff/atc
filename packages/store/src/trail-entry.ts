@@ -1,6 +1,4 @@
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import type { MessageID } from '@atc/core/message-id';
-import type { SessionID } from '@atc/core/session-id';
+import type { AgentSessionID, MessageID, SessionID } from '@atc/core';
 
 interface TrailEntryBase {
   // Epoch ms the status change or note happened.

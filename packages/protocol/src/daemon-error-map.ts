@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ERROR_CODES } from './protocol';
-import type { ErrorCode } from './protocol';
+import { ERROR_CODES } from './wire/protocol';
+import type { ErrorCode } from './wire/protocol';
 
 // The detail an error carries as `data`, whose fields each code defines.
 const ERROR_DATA_SCHEMA = z.record(z.string(), z.unknown()).optional();

@@ -1,12 +1,14 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core/system-clock';
-import { createStubSystemd } from '@atc/test-utils/create-stub-systemd';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/test-utils/update-env';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { systemClock } from '@atc/core';
+import {
+  createStubSystemd,
+  registerTestCleanup,
+  setupTempDir,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { LocalPTYProvider } from './local-pty-provider';
 import { SessionScopes } from './session-scopes';

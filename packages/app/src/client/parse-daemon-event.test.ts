@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import type { EventMsg } from '@atc/protocol/protocol';
+import type { EventMsg } from '@atc/protocol/wire';
 import { parseDaemonEvent } from './parse-daemon-event';
 
 test('it parses a SessionAdded event into a mirror session', () => {

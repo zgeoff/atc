@@ -1,11 +1,13 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { buildStubAuthenticator } from '@atc/test-utils/build-stub-authenticator';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
-import { runPasskeyEnrollment } from '@atc/test-utils/run-passkey-enrollment';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { DaemonClient } from '@atc/protocol/wire';
+import {
+  buildStubAuthenticator,
+  registerTestCleanup,
+  runMCPAuthorization,
+  runPasskeyEnrollment,
+  setupTempDir,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { collectGrants } from './collect-grants';

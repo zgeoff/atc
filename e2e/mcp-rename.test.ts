@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
-import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { setupMCPHome } from '@atc/lifecycle/testing';
+import { startMCPStdio, waitFor } from '@atc/test-utils';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();

@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core/session-id';
+import type { SessionID } from '@atc/core';
 import { findParentPID } from './find-parent-pid';
 
 // More steps than any real process tree is deep, so a cycle a reused pid

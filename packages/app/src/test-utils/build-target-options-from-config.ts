@@ -1,6 +1,6 @@
-import { collectTargets } from '@atc/config/collect-targets';
-import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import { collectTargets } from '@atc/config';
+import type { ExecutionProvider } from '@atc/plugin-api';
+import { buildTargetIdentity } from '@atc/store';
 import type { DaemonOptions } from '../daemon/daemon';
 
 interface RawTargetConfig {

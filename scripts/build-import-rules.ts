@@ -1,11 +1,13 @@
 // Writes .oxlintrc.imports.json, the oxlint overrides that hold each package
 // to the package rules: no package outside its row, no deep import into
-// another package's src/, no node: or bun: import in core, no test helper or
-// testing entry in production code, and no confined package outside its
-// owners. .oxlintrc.json extends the file. An override replaces a rule's
+// another package's src/, no subpath of a package that its exports map does
+// not list, no node: or bun: import in core, no test helper or testing entry
+// in production code, and no confined package outside its owners. .oxlintrc.json extends the file. An override replaces a rule's
 // options rather than merging them, and the last override that matches a
 // file wins, so each override repeats every ban that holds for its files.
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { PACKAGE_CONFINEMENT } from './package-confinement';
 import type { PackageRule } from './package-rules';
 import { PACKAGE_RULES } from './package-rules';
@@ -18,10 +20,9 @@ interface RestrictedPath {
   readonly message: string;
 }
 
-interface RestrictedPattern {
-  readonly regex: string;
-  readonly message: string;
-}
+type RestrictedPattern =
+  | { readonly regex: string; readonly message: string }
+  | { readonly group: readonly string[]; readonly message: string };
 
 interface RestrictionOptions {
   readonly paths: readonly RestrictedPath[];
@@ -36,19 +37,24 @@ interface Override {
 /**
  * The overrides file: per package a production override and a later test
  * override, the per-file exceptions after them, then e2e/ and scripts/.
+ * `entries` holds each existing package's entry points, as its exports map
+ * lists them, keyed by package name.
  */
-export function buildImportRules(): { readonly overrides: readonly Override[] } {
+export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>): {
+  readonly overrides: readonly Override[];
+} {
   const overrides: Override[] = [];
+  const entryPattern = buildEntryPattern(entries);
 
   for (const rule of PACKAGE_RULES) {
     // every module in the shared test helpers is test code
     const kind = rule.name === 'test-utils' ? 'test' : 'production';
 
     overrides.push(
-      buildOverride([`${rule.dir}/**/*.ts`], buildPackageOptions(rule, kind)),
+      buildOverride([`${rule.dir}/**/*.ts`], buildPackageOptions(rule, kind, entryPattern)),
       buildOverride(
         [`${rule.dir}/**/*.test.ts`, `${rule.dir}/**/testing/**/*.ts`, ...getHelperGlobs(rule)],
-        buildPackageOptions(rule, 'test'),
+        buildPackageOptions(rule, 'test', entryPattern),
       ),
     );
   }
@@ -62,7 +68,10 @@ export function buildImportRules(): { readonly overrides: readonly Override[] } 
       }
 
       overrides.push(
-        buildOverride([file], buildPackageOptions(owner, 'test', confinement.specifier)),
+        buildOverride(
+          [file],
+          buildPackageOptions(owner, 'test', entryPattern, confinement.specifier),
+        ),
       );
     }
   }
@@ -70,11 +79,34 @@ export function buildImportRules(): { readonly overrides: readonly Override[] } 
   overrides.push(
     buildOverride(['e2e/**/*.ts', 'scripts/**/*.ts'], {
       paths: CHILD_PROCESS_PATHS,
-      patterns: [DEEP_IMPORT, ...buildConfinementPatterns(null, 'test', null)],
+      patterns: [DEEP_IMPORT, entryPattern, ...buildConfinementPatterns(null, 'test', null)],
     }),
   );
 
   return { overrides };
+}
+
+/**
+ * One pattern that refuses every subpath of a package but the entry points
+ * its exports map lists. oxlint's regular expressions take no lookahead, so
+ * the pattern is a gitignore-style group: each package's subpaths at any
+ * depth, minus each named entry. A package with no manifest yet has no
+ * group, so the rules hold for it from the change that creates it.
+ */
+function buildEntryPattern(entries: ReadonlyMap<string, readonly string[]>): RestrictedPattern {
+  const group: string[] = [];
+
+  for (const [name, subpaths] of [...entries].toSorted(([a], [b]) => a.localeCompare(b))) {
+    group.push(`${name}/*`);
+
+    for (const subpath of subpaths.filter((candidate) => candidate !== '.')) {
+      group.push(`!${name}/${subpath.slice(2)}`);
+    }
+
+    group.push(`${name}/*/**`);
+  }
+
+  return { group, message: 'Import a package through an entry point its exports map lists.' };
 }
 
 function buildOverride(files: readonly string[], options: RestrictionOptions): Override {
@@ -96,6 +128,7 @@ type FileKind = 'production' | 'test';
 function buildPackageOptions(
   rule: PackageRule,
   kind: FileKind,
+  entryPattern: RestrictedPattern,
   allowed: string | null = null,
 ): RestrictionOptions {
   const outside = PACKAGE_RULES.map((other) => other.name).filter(
@@ -128,7 +161,7 @@ function buildPackageOptions(
     });
   }
 
-  patterns.push(DEEP_IMPORT);
+  patterns.push(DEEP_IMPORT, entryPattern);
 
   if (rule.name === 'core' && kind === 'production') {
     patterns.push({
@@ -203,13 +236,36 @@ function buildConfinementPatterns(
   }));
 }
 
+const MANIFEST_SCHEMA = z.object({
+  name: z.string(),
+  exports: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * The entry points of each package in the package rules whose manifest
+ * exists, as its exports map lists them, keyed by package name.
+ */
+export function collectEntries(root: string): Map<string, readonly string[]> {
+  const entries = new Map<string, readonly string[]>();
+
+  for (const rule of PACKAGE_RULES) {
+    const path = join(root, rule.dir, 'package.json');
+
+    if (existsSync(path)) {
+      const manifest = MANIFEST_SCHEMA.parse(JSON.parse(readFileSync(path, 'utf8')));
+
+      entries.set(manifest.name, Object.keys(manifest.exports ?? {}));
+    }
+  }
+
+  return entries;
+}
+
 async function main(): Promise<void> {
   const root = join(import.meta.dir, '..');
+  const rules = buildImportRules(collectEntries(root));
 
-  await Bun.write(
-    join(root, IMPORT_RULES_FILE),
-    `${JSON.stringify(buildImportRules(), null, 2)}\n`,
-  );
+  await Bun.write(join(root, IMPORT_RULES_FILE), `${JSON.stringify(rules, null, 2)}\n`);
 }
 
 if (import.meta.main) {

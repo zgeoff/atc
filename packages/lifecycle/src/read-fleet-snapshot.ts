@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core/system-clock';
-import { readStoredRows } from '@atc/store/snapshot/read-stored-rows';
-import type { StoredRow } from '@atc/store/snapshot/read-stored-rows';
+import type { Clock } from '@atc/core';
+import { readStoredRows } from '@atc/store';
+import type { StoredRow } from '@atc/store';
 import { tryOpenDaemon } from './try-open-daemon';
 
 const SNAPSHOT_DEADLINE_MS = 3000;

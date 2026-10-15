@@ -1,4 +1,4 @@
-import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
+import type { SessionLifecycle } from '@atc/protocol';
 
 // The session facts the layers derive from.
 interface LifecycleFacts {

@@ -1,8 +1,7 @@
-import type { AgentEntry } from '@atc/config/agent-entry';
-import { resolveAgentHome } from '@atc/config/resolve-agent-home';
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import { toShellArg } from '@atc/core/to-shell-arg';
+import type { AgentEntry } from '@atc/config';
+import { resolveAgentHome } from '@atc/config/host';
+import type { AgentID, AgentSessionID } from '@atc/core';
+import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -11,10 +10,10 @@ import type {
   ResumeCheck,
   SpawnOptions,
   SpawnPlan,
-} from '@atc/plugin-api/agent-adapter';
-import { planPastedLineInput } from '@atc/plugin-api/harness/plan-pasted-line-input';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import type { SpawnOptionSpec } from '@atc/protocol/spawn-option-spec';
+} from '@atc/plugin-api';
+import { planPastedLineInput } from '@atc/plugin-api';
+import type { SpawnOptionSpec } from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
 import { loadGrokName } from './load-grok-name';
 import { planGrokHookEvents } from './plan-grok-hook-events';
 

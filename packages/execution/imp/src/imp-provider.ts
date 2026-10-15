@@ -1,14 +1,12 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
-import { isCompiledBinary } from '@atc/config/is-compiled-binary';
-import { createStepTimer } from '@atc/core/create-step-timer';
-import { makeKeyedLock } from '@atc/core/make-keyed-lock';
-import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
-import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
+import { isCompiledBinary } from '@atc/config/host';
+import { createStepTimer, makeKeyedLock } from '@atc/core';
 import type {
   CommandResult,
   CommandSpec,
+  CredentialBroker,
   ExecutionCapabilities,
   ExecutionProvider,
   GuestLayout,
@@ -16,12 +14,10 @@ import type {
   HarnessRelay,
   HarnessSpec,
   HostRequest,
-} from '@atc/plugin-api/execution-provider';
-import { isHostNameAllowed } from '@atc/plugin-api/is-host-name-allowed';
-import { buildSessionEnv } from '@atc/protocol/build-session-env';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { LineDecoder } from '@atc/protocol/line-decoder';
-import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
+} from '@atc/plugin-api';
+import { EffectRemainsError, isHostNameAllowed } from '@atc/plugin-api';
+import { SESSION_ENV_NAMES, buildSessionEnv } from '@atc/protocol/session';
+import { DaemonError, LineDecoder } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import { buildHomeRelativeCommand } from './build-home-relative-command';

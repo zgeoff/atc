@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { buildStubMCPStdioServer } from '@atc/test-utils/build-stub-mcp-stdio-server';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
+import { buildStubMCPStdioServer } from './build-stub-mcp-stdio-server';
+import { createStubBin } from './create-stub-bin';
 import { setupTempDir } from './setup-temp-dir';
+import { startMCPStdio } from './start-mcp-stdio';
 
 // A home for the stand-in server each test writes and starts there. The
 // cases that start the real server run end to end.

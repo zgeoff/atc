@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { DaemonClient } from '@atc/protocol/wire';
 import { collectPasskeys } from '../../app/src/mcp/collect-passkeys';
 import { createEnrollmentToken } from '../../app/src/mcp/create-enrollment-token';
 import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';

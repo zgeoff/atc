@@ -1,13 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
-import { getString } from '@atc/test-utils/get-string';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { runATC } from '@atc/test-utils/run-atc';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { findDaemonRecord } from '@atc/lifecycle';
+import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { getString, resolveATCCommand, runATC, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 /**

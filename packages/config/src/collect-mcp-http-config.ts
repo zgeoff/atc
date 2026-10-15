@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 
 /**
  * The settings `atc mcp --http` reads from config.json's `mcpHTTP` section.

@@ -1,5 +1,4 @@
-import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
-import { buildHookEntry } from '@atc/plugin-api/harness/build-hook-entry';
+import { buildHookCommand, buildHookEntry } from '@atc/plugin-api';
 import { CODEX_HOOKS } from './codex-hooks';
 
 /**

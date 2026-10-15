@@ -1,7 +1,6 @@
-import { isRecord } from '@atc/core/is-record';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
-import { MAX_LINE } from '@atc/protocol/protocol';
+import { isRecord, systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
+import { MAX_LINE } from '@atc/protocol/wire';
 import { answerAuthorizeRequest } from './answer-authorize-request';
 import { answerConsentRequest } from './answer-consent-request';
 import { answerEnrollRequest } from './answer-enroll-request';

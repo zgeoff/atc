@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 import { z } from 'zod';
-import { IMPORT_RULES_FILE, buildImportRules } from './build-import-rules';
+import { IMPORT_RULES_FILE, buildImportRules, collectEntries } from './build-import-rules';
 
 // A temp tree standing in for the repo root, whose oxlint config extends the
 // repo's own, so each fixture is linted by the committed rules at the path it
@@ -21,7 +20,33 @@ function setupTest() {
 test('it keeps the committed rules file equal to what the generator builds', async () => {
   const committed: unknown = await Bun.file(join(import.meta.dir, '..', IMPORT_RULES_FILE)).json();
 
-  expect(committed).toStrictEqual(buildImportRules());
+  const entries = collectEntries(join(import.meta.dir, '..'));
+
+  expect(committed).toStrictEqual(buildImportRules(entries));
+});
+
+test('it reads the entry points of each package whose manifest exists', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts', './wire': './src/wire/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
+  );
+
+  expect(collectEntries(ctx.dir)).toStrictEqual(
+    new Map([
+      ['@atc/core', ['.']],
+      ['@atc/protocol', ['.', './wire']],
+    ]),
+  );
 });
 
 test.each([
@@ -48,6 +73,24 @@ test.each([
     'packages/tui/src/a.ts',
     '@atc/core/src/ids',
     'Import a package through its entry points, never its src/ files.',
+  ],
+  [
+    'a module that no entry point lists',
+    'packages/tui/src/a.ts',
+    '@atc/core/is-record',
+    'Import a package through an entry point its exports map lists.',
+  ],
+  [
+    'a module inside a named entry point',
+    'packages/tui/src/a.ts',
+    '@atc/protocol/wire/daemon-client',
+    'Import a package through an entry point its exports map lists.',
+  ],
+  [
+    'a module that no entry point lists, from e2e',
+    'e2e/a.test.ts',
+    '@atc/test-utils/wait-for',
+    'Import a package through an entry point its exports map lists.',
   ],
   [
     'a node: module in core',
@@ -199,13 +242,15 @@ test.each([
 
 test.each([
   ['a package in the row', 'packages/tui/src/a.ts', '@atc/protocol'],
+  ['a named entry point', 'packages/tui/src/a.ts', '@atc/protocol/wire'],
+  ['a named entry point from e2e', 'e2e/a.test.ts', '@atc/store/sqlite'],
   [
     'the daemon testing entry in a front-end test',
     'packages/tui/src/a.test.ts',
     '@atc/daemon/testing',
   ],
   ['the shared test helpers in a test', 'packages/store/src/a.test.ts', '@atc/test-utils'],
-  ['a testing entry in a testing folder', 'packages/store/src/testing/a.ts', '@atc/core/testing'],
+  ['a testing entry in a testing folder', 'packages/store/src/testing/a.ts', '@atc/store/testing'],
   ['bun:test in a core test', 'packages/core/src/a.test.ts', 'bun:test'],
   ['kysely in its owner', 'packages/store/src/a.ts', 'kysely'],
   ['bun-pty in a listed exception', 'packages/test-utils/src/start-tui-harness.ts', 'bun-pty'],

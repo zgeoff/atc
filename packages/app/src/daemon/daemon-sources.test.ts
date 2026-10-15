@@ -2,17 +2,19 @@
 import { expect, test } from 'bun:test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubDirProvider } from '@atc/execution-local/testing/build-stub-dir-provider';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubDirProvider } from '@atc/execution-local/testing';
 import { runCommand } from '@atc/lifecycle/run-command';
-import { buildDirsSource } from '@atc/source-dirs/build-dirs-source';
-import { buildGitSource } from '@atc/source-git/build-git-source';
-import { buildGitHubSource } from '@atc/source-github/build-github-source';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubGH } from '@atc/test-utils/build-stub-gh';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { buildDirsSource } from '@atc/source-dirs';
+import { buildGitSource } from '@atc/source-git';
+import { buildGitHubSource } from '@atc/source-github';
+import {
+  buildMockAgentAdapter,
+  buildStubGH,
+  createGitFixture,
+  createStubBin,
+  updateEnv,
+} from '@atc/test-utils';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it lists the sources it offers in order in agents.list', async () => {

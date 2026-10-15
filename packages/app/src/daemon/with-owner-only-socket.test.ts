@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 
 // A socket path in a fresh temp directory, under a umask that grants every

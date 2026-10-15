@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core';
 
 /**
  * How a call settled within its time: answered with a value, failed with

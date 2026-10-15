@@ -1,9 +1,7 @@
 import { test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { KEYS } from '@atc/test-utils/keys';
-import { spawnClaudeSession } from '@atc/test-utils/spawn-claude-session';
-import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
+import { KEYS, spawnClaudeSession, startTUIHarness } from '@atc/test-utils';
 
 function setupTest() {
   return startTUIHarness();

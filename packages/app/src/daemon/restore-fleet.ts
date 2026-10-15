@@ -1,9 +1,7 @@
-import type { SessionID } from '@atc/core/session-id';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { FleetEntry } from '@atc/store/fleet-entry';
-import type { StateStore } from '@atc/store/state-store';
+import type { Clock, SessionID } from '@atc/core';
+import { systemClock } from '@atc/core';
+import { DaemonError } from '@atc/protocol/wire';
+import type { FleetEntry, StateStore } from '@atc/store';
 import { formatRestoreRefusal } from './format-restore-refusal';
 import type { Session } from './session';
 import type { SessionRuntime } from './session-runtime';

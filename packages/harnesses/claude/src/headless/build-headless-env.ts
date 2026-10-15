@@ -1,6 +1,6 @@
-import { collectCleanEnv } from '@atc/config/collect-clean-env';
-import type { SessionID } from '@atc/core/session-id';
-import { buildSessionEnv } from '@atc/protocol/build-session-env';
+import { collectCleanEnv } from '@atc/config';
+import type { SessionID } from '@atc/core';
+import { buildSessionEnv } from '@atc/protocol/session';
 
 interface HeadlessEnvParams {
   readonly pluginDir?: string;

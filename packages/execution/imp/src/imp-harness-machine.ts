@@ -1,4 +1,4 @@
-import type { DaemonError } from '@atc/protocol/daemon-error';
+import type { DaemonError } from '@atc/protocol/wire';
 import { assign, setup } from 'xstate';
 
 type ImpHarnessEvent =

@@ -2,21 +2,21 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core/system-clock';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { getOnlyImpName } from '@atc/execution-imp/testing/get-only-imp-name';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { verifyRestoredFleet } from '@atc/lifecycle/verify-restored-fleet';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubBrokeredAgentAdapter } from '@atc/test-utils/build-stub-brokered-agent-adapter';
-import { buildStubProxiedAgentAdapter } from '@atc/test-utils/build-stub-proxied-agent-adapter';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { systemClock, toSessionID } from '@atc/core';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { verifyRestoredFleet } from '@atc/lifecycle';
+import { StateStore } from '@atc/store';
+import {
+  buildMockAgentAdapter,
+  buildStubBrokeredAgentAdapter,
+  buildStubProxiedAgentAdapter,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { RuntimeAuthBinder } from './runtime-auth-binder';

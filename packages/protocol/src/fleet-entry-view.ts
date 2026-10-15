@@ -27,5 +27,3 @@ export const FLEET_ENTRY_VIEW_SCHEMA = z.object({
   desired: z.enum(['sleep', 'stop']).optional(),
   hostKey: z.string().optional(),
 });
-
-export type FleetEntryView = z.output<typeof FLEET_ENTRY_VIEW_SCHEMA>;

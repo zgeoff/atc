@@ -1,4 +1,4 @@
-import { eventsSocketPath } from '@atc/config/config';
+import { eventsSocketPath } from '@atc/config';
 
 interface EventsIO {
   readonly socketPath: string;

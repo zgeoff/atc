@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/wire';
 import { trySendRequest } from './try-send-request';
 
 test('it returns an answer with the id replaced', async () => {

@@ -1,8 +1,7 @@
-import type { HostServices } from '@atc/plugin-api/host-services';
-import type { SourceProvider } from '@atc/plugin-api/types';
-import { DIRS_SOURCE_PLUGIN } from '@atc/source-dirs/dirs-source-plugin';
-import { GIT_SOURCE_PLUGIN } from '@atc/source-git/git-source-plugin';
-import { GITHUB_SOURCE_PLUGIN } from '@atc/source-github/github-source-plugin';
+import type { HostServices, SourceProvider } from '@atc/plugin-api';
+import { DIRS_SOURCE_PLUGIN } from '@atc/source-dirs';
+import { GIT_SOURCE_PLUGIN } from '@atc/source-git';
+import { GITHUB_SOURCE_PLUGIN } from '@atc/source-github';
 import { createPluginContract } from '../plugins/create-plugin-contract';
 
 interface BuiltinSourceOptions {

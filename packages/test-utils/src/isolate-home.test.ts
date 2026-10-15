@@ -21,7 +21,7 @@ test("it resolves every atc config and state path inside the run's own home", as
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { configFile, dbFile, legacyFleetFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
+import { configFile, dbFile, legacyFleetFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'process-paths')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home') + sep;
 
@@ -54,7 +54,7 @@ test("it resolves every atc socket and the daemon record inside the run's own ru
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
+import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'process-paths')}';
 
 const runtime = join(process.env['ATC_TEST_HOME'] ?? '', 'runtime') + sep;
 
@@ -87,7 +87,7 @@ test("it resolves the grok and codex homes inside the run's own home", async () 
     fixture,
     `import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'config', 'src', 'resolve-agent-home')}';
+import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'resolve-agent-home')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home');
 
@@ -120,7 +120,7 @@ test("it resolves the Claude config folder inside the run's own home", async () 
     fixture,
     `import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'config', 'src', 'resolve-agent-home')}';
+import { resolveAgentHome } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'resolve-agent-home')}';
 
 test('it resolves the Claude config folder under the home', () => {
   expect(resolveAgentHome('CLAUDE_CONFIG_DIR', '.claude')).toBe(
@@ -268,7 +268,8 @@ test("it writes a gateway's generated settings file inside the run's own home", 
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { GatewayAdapter } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'gateway', 'gateway-adapter')}';
-import { parseConfig, stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
+import { parseConfig } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
+import { stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'process-paths')}';
 
 test('it writes the settings file under the home', () => {
   const adapter = new GatewayAdapter(

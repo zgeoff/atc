@@ -1,7 +1,6 @@
-import type { GuestOAuthState } from '@atc/plugin-api/agent-adapter';
-import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
-import { CredentialBrokerError } from '@atc/plugin-api/credential-broker-error';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import type { CredentialBroker, GuestOAuthState } from '@atc/plugin-api';
+import { CredentialBrokerError } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 

@@ -1,4 +1,4 @@
-import { toDaemonID } from '@atc/core/to-daemon-id';
+import { toDaemonID } from '@atc/core';
 import type { DaemonContext } from '../daemon/daemon-context';
 import { TargetAccess } from '../daemon/target-access';
 

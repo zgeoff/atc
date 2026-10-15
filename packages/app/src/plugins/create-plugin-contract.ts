@@ -1,5 +1,4 @@
-import type { PluginContext, PluginDefinition, PluginKind } from '@atc/plugin-api/define-plugin';
-import type { HostServices } from '@atc/plugin-api/host-services';
+import type { HostServices, PluginContext, PluginDefinition, PluginKind } from '@atc/plugin-api';
 
 interface PluginContractArgs<K extends PluginKind, C> {
   readonly plugin: PluginDefinition<K, C>;

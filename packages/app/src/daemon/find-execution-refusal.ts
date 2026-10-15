@@ -1,6 +1,6 @@
-import type { TargetConfigError } from '@atc/config/collect-targets';
-import type { ExecutionCapability } from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import type { TargetConfigError } from '@atc/config';
+import type { ExecutionCapability } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import type { ExecutionTarget } from './build-execution-targets';
 
 // The target a session runs on and the identity it was bound to there; a

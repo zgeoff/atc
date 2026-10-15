@@ -3,12 +3,17 @@ import type { Token } from './collect-tokens';
 import { collectTokens } from './collect-tokens';
 
 // What a module imports: every literal specifier, the ones among them that
-// only a resolve form names, the line of each module reference whose
-// specifier is computed, and the line of each module load whose specifier is
-// a template literal, which oxlint's import rules do not read.
+// only a resolve form names, the ones a static import or export loads as the
+// module loads, the line of each module reference whose specifier is
+// computed, and the line of each module load whose specifier is a template
+// literal, which oxlint's import rules do not read.
 export interface ImportList {
   readonly specifiers: readonly string[];
   readonly resolveOnly: readonly string[];
+
+  // a type-only statement loads nothing, and a dynamic import loads its
+  // module only when the code reaches it
+  readonly staticLoads: readonly string[];
   readonly nonLiteralLines: readonly number[];
   readonly templateLines: readonly number[];
 }
@@ -26,13 +31,25 @@ export function collectImports(source: string): ImportList {
   // specifiers that a form which loads the module names: an import, an
   // export, `import(...)` or `require(...)`
   const loaded = new Set<string>();
+  const staticLoads = new Set<string>();
 
   const nonLiteralLines: number[] = [];
   const templateLines: number[] = [];
 
+  // whether the import or export statement the scan is inside is type-only
+  let isTypeOnly = false;
+
   for (const [i, token] of tokens.entries()) {
     const next = tokens[i + 1];
     const open = findLoadParen(tokens, i);
+
+    if (
+      (token.kind === SyntaxKind.ImportKeyword || token.kind === SyntaxKind.ExportKeyword) &&
+      next?.kind !== SyntaxKind.OpenParenToken &&
+      next?.kind !== SyntaxKind.DotToken
+    ) {
+      isTypeOnly = isTypeOnlyStatement(tokens, i);
+    }
 
     if (
       (token.kind === SyntaxKind.FromKeyword || token.kind === SyntaxKind.ImportKeyword) &&
@@ -40,6 +57,10 @@ export function collectImports(source: string): ImportList {
     ) {
       specifiers.add(next.value);
       loaded.add(next.value);
+
+      if (token.kind === SyntaxKind.ImportKeyword || !isTypeOnly) {
+        staticLoads.add(next.value);
+      }
     } else if (open !== null) {
       const argument = tokens[open + 1];
       const after = tokens[open + 2];
@@ -70,9 +91,26 @@ export function collectImports(source: string): ImportList {
   return {
     specifiers: [...specifiers],
     resolveOnly: [...specifiers].filter((specifier) => !loaded.has(specifier)),
+    staticLoads: [...staticLoads],
     nonLiteralLines,
     templateLines,
   };
+}
+
+/**
+ * Whether the import or export statement starting at token i is type-only,
+ * as `import type { A } from` and `export type { A } from` are. A `type`
+ * that is itself the imported name, as in `import type from`, is not.
+ */
+function isTypeOnlyStatement(tokens: readonly Token[], i: number): boolean {
+  const after = tokens[i + 2];
+
+  return (
+    tokens[i + 1]?.kind === SyntaxKind.TypeKeyword &&
+    after?.kind !== SyntaxKind.FromKeyword &&
+    after?.kind !== SyntaxKind.CommaToken &&
+    after?.kind !== SyntaxKind.EqualsToken
+  );
 }
 
 /**

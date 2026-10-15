@@ -1,9 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { statusFile } from '@atc/config/config';
-import { loadClaudeStatusLine } from '@atc/config/load-claude-statusline';
-import { isRecord } from '@atc/core/is-record';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
+import { loadClaudeStatusLine } from '@atc/config/claude-statusline';
+import { statusFile } from '@atc/config/host';
+import { isRecord } from '@atc/core';
+import { readSessionEnv, sendBridgeRequest } from '@atc/protocol/session';
 import { sendReport } from './shared/report';
 
 /**

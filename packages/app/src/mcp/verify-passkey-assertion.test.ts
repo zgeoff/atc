@@ -1,8 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { buildStubAuthenticator } from '@atc/test-utils/build-stub-authenticator';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { buildStubAuthenticator, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { openMCPAuth } from './open-mcp-auth';

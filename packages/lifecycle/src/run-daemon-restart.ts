@@ -8,9 +8,9 @@ import {
   statSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import type { Clock } from '@atc/core/system-clock';
-import { waitUntil } from '@atc/core/wait-until';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
+import type { Clock } from '@atc/core';
+import { waitUntil } from '@atc/core';
+import { readSessionEnv } from '@atc/protocol/session';
 import { buildATCCommand } from './build-atc-command';
 import { collectRestartEnv } from './collect-restart-env';
 import { collectRestartPlan } from './collect-restart-plan';

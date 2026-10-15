@@ -3,16 +3,18 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubChannelOpener } from '@atc/test-utils/build-stub-channel-opener';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { startCutProxy } from '@atc/test-utils/start-cut-proxy';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
-import { startStubUnansweringListener } from '@atc/test-utils/start-stub-unanswering-listener';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { DaemonClient } from '@atc/protocol/wire';
+import {
+  buildMockAgentAdapter,
+  buildStubChannelOpener,
+  buildStubClock,
+  getRecord,
+  registerTestCleanup,
+  startCutProxy,
+  startStubLegacyDaemon,
+  startStubUnansweringListener,
+  waitFor,
+} from '@atc/test-utils';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonCaller } from './daemon-caller';

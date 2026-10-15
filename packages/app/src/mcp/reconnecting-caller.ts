@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { DaemonChannel } from '@atc/protocol/daemon-channel';
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
-import { KEYED_METHOD_FEATURES } from '@atc/protocol/keyed-method-features';
-import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
-import type { Principal } from '@atc/protocol/principal';
-import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
+import type { DaemonFeature, Principal } from '@atc/protocol';
+import { KEYED_METHOD_FEATURES, PROCEDURE_TRAITS, parseDaemonFeatures } from '@atc/protocol';
+import { readSessionEnv } from '@atc/protocol/session';
+import type { DaemonChannel } from '@atc/protocol/wire';
 import { requireDaemonFeatures } from './require-daemon-features';
 import type { FleetCaller } from './types';
 

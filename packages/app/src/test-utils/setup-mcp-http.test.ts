@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { readJSONRecord } from '@atc/test-utils/read-json-record';
+import { readJSONRecord } from '@atc/test-utils';
 import { collectClients } from '../mcp/collect-clients';
 import { collectPasskeys } from '../mcp/collect-passkeys';
 import { setupMCPHTTP } from './setup-mcp-http';

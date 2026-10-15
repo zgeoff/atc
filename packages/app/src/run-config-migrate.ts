@@ -1,5 +1,5 @@
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
-import { systemClock } from '@atc/core/system-clock';
+import { systemClock } from '@atc/core';
 import { buildMigratedConfig } from './build-migrated-config';
 
 // Where the command's output goes, the console by default: text printed as

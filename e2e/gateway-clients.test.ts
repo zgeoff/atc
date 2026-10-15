@@ -1,9 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveGatewayCommand } from '@atc/test-utils/resolve-gateway-command';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { resolveGatewayCommand, runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 /**

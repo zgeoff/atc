@@ -2,13 +2,13 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toMessageID } from '@atc/core/to-message-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { buildMockPublishedRecord } from '@atc/test-utils/build-mock-published-record';
-import { readQueryPlan } from '@atc/test-utils/read-query-plan';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
+import {
+  buildMockPublishedRecord,
+  readQueryPlan,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import type { CompiledQuery } from 'kysely';
 import invariant from 'tiny-invariant';
 import { buildTargetIdentity } from './build-target-identity';

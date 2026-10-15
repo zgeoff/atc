@@ -1,8 +1,6 @@
-import { daemonSocketPath } from '@atc/config/config';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/message-sender';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
+import { daemonSocketPath } from '@atc/config/host';
+import { readSessionEnv } from '@atc/protocol/session';
+import { DaemonClient, DaemonError, MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import { z } from 'zod';
 import { buildHostServices } from './build-host-services';
 import { renderMessageLine } from './render-message-line';

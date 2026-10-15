@@ -1,10 +1,10 @@
 import type { SocketHandler } from 'bun';
-import type { DaemonChannel, HelloOptions } from '../daemon-channel';
-import { DaemonError } from '../daemon-error';
-import { LineDecoder } from '../line-decoder';
-import { OutboundQueue } from '../outbound-queue';
-import { PROTOCOL_V, decodeMessage, encodeMessage } from '../protocol';
-import type { EventMsg, ResponseMsg } from '../protocol';
+import type { DaemonChannel, HelloOptions } from './daemon-channel';
+import { DaemonError } from './daemon-error';
+import { LineDecoder } from './line-decoder';
+import { OutboundQueue } from './outbound-queue';
+import { PROTOCOL_V, decodeMessage, encodeMessage } from './protocol';
+import type { EventMsg, ResponseMsg } from './protocol';
 
 interface Pending {
   readonly method: string;

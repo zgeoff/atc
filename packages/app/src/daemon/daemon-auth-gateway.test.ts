@@ -2,18 +2,20 @@
 import { expect, test } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { parseConfig } from '@atc/config';
+import { toSessionID } from '@atc/core';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { StateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  buildMockHostServices,
+  createStubRecordingClaude,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

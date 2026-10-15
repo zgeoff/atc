@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildStubWaitClock } from '@atc/test-utils/build-stub-wait-clock';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubRecordingListener } from '@atc/test-utils/start-stub-recording-listener';
-import { startStubStalledListener } from '@atc/test-utils/start-stub-stalled-listener';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { buildStubWaitClock } from './build-stub-wait-clock';
+import { registerTestCleanup } from './register-test-cleanup';
+import { setupTempDir } from './setup-temp-dir';
+import { startStubRecordingListener } from './start-stub-recording-listener';
+import { startStubStalledListener } from './start-stub-stalled-listener';
 import { subscribeToSocketLines } from './subscribe-to-socket-lines';
+import { waitFor } from './wait-for';
 
 // A unix socket server and a subscriber connected to it; `peer` is the
 // server's side of that connection, which the test writes through, and

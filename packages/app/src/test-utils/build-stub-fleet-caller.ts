@@ -1,6 +1,5 @@
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
-import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
-import type { Principal } from '@atc/protocol/principal';
+import type { DaemonFeature, Principal } from '@atc/protocol';
+import { DAEMON_FEATURES } from '@atc/protocol';
 import type { FleetCaller, FleetFeature } from '../mcp/types';
 
 /**

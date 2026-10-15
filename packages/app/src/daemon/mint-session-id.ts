@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { SessionID } from '@atc/core/session-id';
+import type { SessionID } from '@atc/core';
 
 /**
  * A fresh atc session id: a random uuid. Every session the session manager

@@ -1,4 +1,4 @@
-import { definePlugin } from '@atc/plugin-api/define-plugin';
+import { definePlugin } from '@atc/plugin-api';
 import { z } from 'zod';
 import { buildGitHubSource } from './build-github-source';
 

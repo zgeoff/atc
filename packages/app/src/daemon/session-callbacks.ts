@@ -1,5 +1,5 @@
-import type { Clock } from '@atc/core/system-clock';
-import type { HarnessRelay } from '@atc/plugin-api/execution-provider';
+import type { Clock } from '@atc/core';
+import type { HarnessRelay } from '@atc/plugin-api';
 import type { BridgeBinding } from './is-binding-current';
 import type { PublishedRecords } from './published-records';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';

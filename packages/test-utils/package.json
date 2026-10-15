@@ -4,7 +4,7 @@
   "description": "The shared test helpers, stand-ins and factories, and the test preload",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",

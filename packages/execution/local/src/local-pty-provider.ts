@@ -1,8 +1,7 @@
 import { mkdir } from 'node:fs/promises';
-import { collectCleanEnv } from '@atc/config/collect-clean-env';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
-import { waitUntil } from '@atc/core/wait-until';
+import { collectCleanEnv } from '@atc/config';
+import { systemClock, waitUntil } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type {
   CommandResult,
   CommandSpec,
@@ -10,8 +9,8 @@ import type {
   ExecutionProvider,
   HarnessHandle,
   HarnessSpec,
-} from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
+} from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import { spawn } from 'bun-pty';
 import { buildHarnessArgv } from './build-harness-argv';
 import { readNativeEnvKeys } from './read-native-env-keys';

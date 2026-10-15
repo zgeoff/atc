@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -338,5 +337,347 @@ test('it follows a workspace package import through the package exports', async 
     stdout: 'check-reach: 2 files reached, 2 bundled, 2 findings\n',
     stderr:
       'unreachable module: packages/app/src/gateway.ts reaches packages/lifecycle/src/boot-daemon.ts (lifecycle)\nunreachable module: packages/app/src/gateway.ts bundles packages/lifecycle/src/boot-daemon.ts (lifecycle)\n',
+  });
+});
+
+test('it follows a workspace package import through a named entry point', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\npackages/store/src/sqlite/index.ts\tstore\tpackages/store/src/sqlite/index.ts\npackages/store/src/sqlite/open-sqlite.ts\tstore\tpackages/store/src/sqlite/open-sqlite.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\npackages/store/src/sqlite/index.ts\tstore\tsqlite\npackages/store/src/sqlite/open-sqlite.ts\tstore\tsqlite\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/store/package.json'),
+    JSON.stringify({
+      name: '@atc/store',
+      exports: { '.': './src/index.ts', './sqlite': './src/sqlite/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/store/src/sqlite/index.ts'),
+    "export * from './open-sqlite';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/store/src/sqlite/open-sqlite.ts'),
+    'export const OPEN = 1;\n',
+  );
+
+  mkdirSync(join(ctx.dir, 'node_modules/@atc'), { recursive: true });
+  symlinkSync(join(ctx.dir, 'packages/store'), join(ctx.dir, 'node_modules/@atc/store'));
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/gateway.ts'),
+    "import { OPEN } from '@atc/store/sqlite';\n\nconsole.log(OPEN);\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-reach: 3 files reached, 3 bundled, 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it passes reporters whose static imports load only light entry points', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts', './session': './src/session/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/src/index.ts'),
+    "export * from './schemas';\nexport * from './session';\n",
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/protocol/src/schemas.ts'), 'export const SCHEMA = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/src/session/index.ts'),
+    "export * from './read-session-env';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/src/session/read-session-env.ts'),
+    'export const ENV = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/cli.ts'),
+    "import type { SCHEMA } from '@atc/protocol';\nimport { ENV } from '@atc/protocol/session';\n\nconst schemas = await import('@atc/protocol');\n\nexport const CLI: [typeof SCHEMA, number, unknown] = [1, ENV, schemas];\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/hook-report.ts'),
+    "import { ENV } from '@atc/protocol/session';\n\nexport const REPORT = ENV;\n",
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/run-bridge-tap.ts'),
+    'export const BRIDGE_TAP = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/statusline.ts'),
+    'export const STATUSLINE = 1;\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it fails on a reporter whose static imports load a root entry point', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts', './session': './src/session/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/src/index.ts'),
+    "export * from './schemas';\nexport * from './session';\n",
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/protocol/src/schemas.ts'), 'export const SCHEMA = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/src/session/index.ts'),
+    "export * from './read-session-env';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/protocol/src/session/read-session-env.ts'),
+    'export const ENV = 1;\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/hook-report.ts'),
+    "import { ENV } from '@atc/protocol';\n\nexport const REPORT = ENV;\n",
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/run-bridge-tap.ts'),
+    'export const BRIDGE_TAP = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/statusline.ts'),
+    'export const STATUSLINE = 1;\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
+    stderr:
+      'slow reporter: packages/app/src/hook-report.ts loads packages/protocol/src/index.ts at start-up, outside the entries a reporter may load\nslow reporter: packages/app/src/hook-report.ts loads packages/protocol/src/schemas.ts at start-up, outside the entries a reporter may load\n',
+  });
+});
+
+test('it fails on a CLI entry whose static imports load the core schema entry', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts', './schema': './src/schema/index.ts' },
+    }),
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/core/src/index.ts'), "export * from './is-error';\n");
+  await Bun.write(join(ctx.dir, 'packages/core/src/is-error.ts'), 'export const IS_ERROR = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/src/schema/index.ts'),
+    "export * from './build-optional-boolean';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/core/src/schema/build-optional-boolean.ts'),
+    'export const buildOptionalBoolean = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/cli.ts'),
+    "import { buildOptionalBoolean } from '@atc/core/schema';\n\nexport const CLI = buildOptionalBoolean;\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/hook-report.ts'),
+    "import { IS_ERROR } from '@atc/core';\n\nexport const REPORT = IS_ERROR;\n",
+  );
+
+  await Bun.write(join(ctx.dir, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/tap.ts'), 'export const TAP = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/run-bridge-tap.ts'),
+    'export const BRIDGE_TAP = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/statusline.ts'),
+    'export const STATUSLINE = 1;\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
+    stderr:
+      'slow reporter: packages/app/src/cli.ts loads packages/core/src/schema/build-optional-boolean.ts at start-up, outside the entries a reporter may load\nslow reporter: packages/app/src/cli.ts loads packages/core/src/schema/index.ts at start-up, outside the entries a reporter may load\n',
+  });
+});
+
+test('it fails on a missing reporter entry beside the CLI entry', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-stagemap.tsv'),
+    'source\tfinal\tpath_wave1\nsrc/gateway.ts\tapp\tpackages/app/src/gateway.ts\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/package-map/package-filemap.tsv'),
+    'source\tpackage\tfolder\nsrc/gateway.ts\tapp\t\n',
+  );
+
+  await Bun.write(join(ctx.dir, 'scripts/package-map/interim.json'), '{}');
+  await Bun.write(join(ctx.dir, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/hook-report.ts'), 'export const REPORT = 1;\n');
+  await Bun.write(join(ctx.dir, 'packages/app/src/note.ts'), 'export const NOTE = 1;\n');
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/run-bridge-tap.ts'),
+    'export const BRIDGE_TAP = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/statusline.ts'),
+    'export const STATUSLINE = 1;\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr: 'missing reporter: packages/app/src/tap.ts does not exist\n',
   });
 });

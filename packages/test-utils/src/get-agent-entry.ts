@@ -1,5 +1,4 @@
-import type { AgentEntry } from '@atc/config/agent-entry';
-import type { Config } from '@atc/config/config';
+import type { AgentEntry, Config } from '@atc/config';
 
 /**
  * The registry entry a parsed config holds under an agent id. A test that

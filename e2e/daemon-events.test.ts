@@ -1,15 +1,17 @@
 import { expect, test } from 'bun:test';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
-import { createStubClaude } from '@atc/test-utils/create-stub-claude';
-import { createStubComposer } from '@atc/test-utils/create-stub-composer';
-import { getRecord } from '@atc/test-utils/get-record';
-import { getRecords } from '@atc/test-utils/get-records';
-import { getString } from '@atc/test-utils/get-string';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { startDaemonProcess } from '@atc/lifecycle/testing';
+import {
+  createStubClaude,
+  createStubComposer,
+  getRecord,
+  getRecords,
+  getString,
+  resolveATCCommand,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 
 /**
  * A home with a stub Claude CLI and an empty config directory, for the

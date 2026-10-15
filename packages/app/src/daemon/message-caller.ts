@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core/session-id';
+import type { SessionID } from '@atc/core';
 
 /**
  * Who a message send came from, as its connection and request show it: a

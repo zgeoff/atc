@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
 
 /**

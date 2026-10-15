@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core';
 import { formatSecurityEvent } from './format-security-event';
 import type { SecurityEvent } from './types';
 

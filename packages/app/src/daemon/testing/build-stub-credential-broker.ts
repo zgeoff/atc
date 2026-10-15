@@ -5,8 +5,8 @@ import type {
   BrokerSecretKind,
   BrokerSecretRule,
   CredentialBroker,
-} from '@atc/plugin-api/credential-broker';
-import { CredentialBrokerError } from '@atc/plugin-api/credential-broker-error';
+} from '@atc/plugin-api';
+import { CredentialBrokerError } from '@atc/plugin-api';
 
 /**
  * An in-memory credential broker that keeps the broker contract's

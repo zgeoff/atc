@@ -1,6 +1,6 @@
 import { expect } from 'bun:test';
-import type { EventMsg } from '@atc/protocol/protocol';
-import { waitFor } from '@atc/test-utils/wait-for';
+import type { EventMsg } from '@atc/protocol/wire';
+import { waitFor } from './wait-for';
 
 /**
  * Waits until the collected events hold one that matches the shape, as

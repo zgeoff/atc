@@ -1,4 +1,4 @@
-import type { Principal } from '@atc/protocol/principal';
+import type { Principal } from '@atc/protocol';
 import type { FleetCaller } from './types';
 
 /**

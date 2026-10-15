@@ -4,6 +4,7 @@
   "private": true,
   "description": "The atc and atc-gateway entrypoints and the modules they wire together",
   "type": "module",
+  "exports": {},
   "dependencies": {
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",

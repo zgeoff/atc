@@ -1,13 +1,9 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { expect, mock, test } from 'bun:test';
-import { toDaemonID } from '@atc/core/to-daemon-id';
-import { toMessageID } from '@atc/core/to-message-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockMessageRecord } from '@atc/store/testing/build-mock-message-record';
-import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
-import { buildStubPeerSocket } from '@atc/test-utils/build-stub-peer-socket';
+import { toDaemonID, toMessageID, toSessionID } from '@atc/core';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
+import { buildMockSessionDescriptor, buildStubPeerSocket } from '@atc/test-utils';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { DaemonConnection } from './daemon-connection';
 import type { DaemonContext } from './daemon-context';

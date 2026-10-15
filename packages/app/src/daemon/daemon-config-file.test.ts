@@ -2,18 +2,19 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadConfig, parseConfig } from '@atc/config/config';
-import { toSessionID } from '@atc/core/to-session-id';
-import { CodexAdapter } from '@atc/harness-codex/codex-adapter';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { loadConfig, parseConfig } from '@atc/config';
+import { toSessionID } from '@atc/core';
+import { CodexAdapter } from '@atc/harness-codex';
+import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  buildStubHeadlessRunner,
+  getAgentEntry,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { buildStubTargets } from './testing/build-stub-targets';

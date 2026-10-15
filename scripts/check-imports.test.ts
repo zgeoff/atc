@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root.
 function setupTest() {

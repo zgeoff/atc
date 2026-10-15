@@ -1,8 +1,7 @@
-import type { TargetConfig, TargetConfigError } from '@atc/config/collect-targets';
-import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import type { HostServices } from '@atc/plugin-api/host-services';
-import { TargetUnavailableError } from '@atc/plugin-api/target-unavailable-error';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import type { TargetConfig, TargetConfigError } from '@atc/config';
+import type { ExecutionProvider, HostServices } from '@atc/plugin-api';
+import { TargetUnavailableError } from '@atc/plugin-api';
+import { buildTargetIdentity } from '@atc/store';
 import { createPluginContract } from '../plugins/create-plugin-contract';
 import { SHIPPED_EXECUTION_PLUGINS } from '../plugins/shipped-execution-plugins';
 

@@ -1,6 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { readJSONRecord } from '@atc/test-utils/read-json-record';
-import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
+import { readJSONRecord, runMCPAuthorization } from '@atc/test-utils';
 import { runGrants } from './grants';
 import { setupMCPHTTP } from './test-utils/setup-mcp-http';
 

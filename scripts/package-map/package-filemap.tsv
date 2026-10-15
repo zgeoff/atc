@@ -7,6 +7,34 @@ source	package	folder	target	split_or_note
 .claude/hooks/skill-gate/types.ts	(repo tooling, unchanged)		.claude/hooks/skill-gate/types.ts	
 mods/atc-bridge/hooks/atc-cli.ts	(mods/atc-bridge, unchanged; embedded by harness-claude)		mods/atc-bridge/hooks/atc-cli.ts	
 mods/atc-bridge/hooks/register.ts	(mods/atc-bridge, unchanged; embedded by harness-claude)		mods/atc-bridge/hooks/register.ts	
+packages/config/src/claude-statusline/index.ts	config	claude-statusline	packages/config/src/claude-statusline/index.ts	entry point
+packages/config/src/host/index.ts	config	host	packages/config/src/host/index.ts	entry point
+packages/config/src/host/process-paths.ts	config	host	packages/config/src/host/process-paths.ts	
+packages/config/src/index.ts	config		packages/config/src/index.ts	entry point
+packages/core/src/index.ts	core		packages/core/src/index.ts	entry point
+packages/core/src/schema/index.ts	core	schema	packages/core/src/schema/index.ts	entry point
+packages/execution/imp/src/index.ts	execution-imp		packages/execution/imp/src/index.ts	entry point
+packages/execution/imp/src/testing/index.ts	execution-imp	testing	packages/execution/imp/src/testing/index.ts	entry point
+packages/execution/local/src/index.ts	execution-local		packages/execution/local/src/index.ts	entry point
+packages/execution/local/src/testing/index.ts	execution-local	testing	packages/execution/local/src/testing/index.ts	entry point
+packages/harnesses/claude/src/index.ts	harness-claude		packages/harnesses/claude/src/index.ts	entry point
+packages/harnesses/claude/src/testing/index.ts	harness-claude	testing	packages/harnesses/claude/src/testing/index.ts	entry point
+packages/harnesses/codex/src/index.ts	harness-codex		packages/harnesses/codex/src/index.ts	entry point
+packages/harnesses/grok/src/index.ts	harness-grok		packages/harnesses/grok/src/index.ts	entry point
+packages/lifecycle/src/index.ts	lifecycle		packages/lifecycle/src/index.ts	entry point
+packages/lifecycle/src/run-command/index.ts	lifecycle	run-command	packages/lifecycle/src/run-command/index.ts	entry point
+packages/lifecycle/src/testing/index.ts	lifecycle	testing	packages/lifecycle/src/testing/index.ts	entry point
+packages/plugin-api/src/index.ts	plugin-api		packages/plugin-api/src/index.ts	entry point
+packages/protocol/src/index.ts	protocol		packages/protocol/src/index.ts	entry point
+packages/protocol/src/session/index.ts	protocol	session	packages/protocol/src/session/index.ts	entry point
+packages/protocol/src/wire/index.ts	protocol	wire	packages/protocol/src/wire/index.ts	entry point
+packages/sources/dirs/src/index.ts	source-dirs		packages/sources/dirs/src/index.ts	entry point
+packages/sources/git/src/index.ts	source-git		packages/sources/git/src/index.ts	entry point
+packages/sources/github/src/index.ts	source-github		packages/sources/github/src/index.ts	entry point
+packages/store/src/index.ts	store		packages/store/src/index.ts	entry point
+packages/store/src/sqlite/index.ts	store	sqlite	packages/store/src/sqlite/index.ts	entry point
+packages/store/src/testing/index.ts	store	testing	packages/store/src/testing/index.ts	entry point
+packages/test-utils/src/index.ts	test-utils		packages/test-utils/src/index.ts	entry point
 scripts/build-atc-bridge.ts	(scripts, root)		scripts/build-atc-bridge.ts	
 scripts/check-imports.ts	(scripts, root)		scripts/check-imports.ts	
 scripts/collect-branch-files.ts	(scripts, root)		scripts/collect-branch-files.ts	
@@ -56,7 +84,7 @@ src/agents/grok-adapter.ts	harness-grok		packages/harnesses/grok/src/grok-adapte
 src/agents/host-services.ts	plugin-api		packages/plugin-api/src/host-services.ts	new in ticket 7
 src/agents/load-claude-config-bundle.ts	harness-claude	guest	packages/harnesses/claude/src/guest/load-claude-config-bundle.ts	
 src/agents/make-claude-headless-runner.ts	harness-claude	headless	packages/harnesses/claude/src/headless/make-claude-headless-runner.ts	
-src/agents/normalize-hook-event.ts	protocol		packages/protocol/src/normalize-hook-event.ts	
+src/agents/normalize-hook-event.ts	protocol		packages/protocol/src/session/normalize-hook-event.ts	
 src/agents/parse-claude-transcript-line.ts	harness-claude		packages/harnesses/claude/src/parse-claude-transcript-line.ts	
 src/agents/paste-markers.ts	plugin-api	harness	packages/plugin-api/src/harness/paste-markers.ts	
 src/agents/plan-claude-line-input.ts	harness-claude		packages/harnesses/claude/src/plan-claude-line-input.ts	
@@ -66,7 +94,7 @@ src/agents/plan-typed-line-input.ts	plugin-api	harness	packages/plugin-api/src/h
 src/agents/print-codex-hook-file.ts	harness-codex		packages/harnesses/codex/src/print-codex-hook-file.ts	
 src/agents/print-grok-hook-file.ts	harness-grok		packages/harnesses/grok/src/print-grok-hook-file.ts	
 src/agents/render-sdk-message.ts	harness-claude	headless	packages/harnesses/claude/src/headless/render-sdk-message.ts	
-src/agents/resolve-agent-home.ts	config		packages/config/src/resolve-agent-home.ts	
+src/agents/resolve-agent-home.ts	config		packages/config/src/host/resolve-agent-home.ts	
 src/agents/resolve-claude-global-config-path.ts	harness-claude	local-trust	packages/harnesses/claude/src/local-trust/resolve-claude-global-config-path.ts	
 src/agents/resolve-claude-permission-mode.ts	harness-claude		packages/harnesses/claude/src/resolve-claude-permission-mode.ts	
 src/agents/resolve-headless-executable.ts	harness-claude	headless	packages/harnesses/claude/src/headless/resolve-headless-executable.ts	
@@ -91,7 +119,7 @@ src/client/build-leader-chords.ts	tui		packages/tui/src/build-leader-chords.ts
 src/client/collect-agent-picks.ts	(deleted in ticket 19)		src/client/collect-agent-picks.ts	
 src/client/collect-path-completions.ts	source-dirs	complete	packages/sources/dirs/src/complete/collect-path-completions.ts	moves into source-dirs behind SourceProvider.complete (decision 9); the TUI asks the daemon
 src/client/collect-target-picks.ts	tui		packages/tui/src/collect-target-picks.ts	
-src/client/daemon-client.ts	protocol	client	packages/protocol/src/client/daemon-client.ts	moves to protocol (audit ticket 4)
+src/client/daemon-client.ts	protocol	client	packages/protocol/src/wire/daemon-client.ts	moves to protocol (audit ticket 4)
 src/client/dirs.ts	tui		packages/tui/src/dirs.ts	collectDirs and its imports are deleted (decision 8); formatDir, formatDirName, findFuzzyScore, pickMatches stay in tui
 src/client/format-protocol-mismatch.ts	protocol		packages/protocol/src/format-protocol-mismatch.ts	
 src/client/index.ts	tui		packages/tui/src/index.ts	
@@ -118,11 +146,11 @@ src/collect-redirect-uris.ts	app	cli	packages/app/src/cli/collect-redirect-uris.
 src/collect-restart-env.ts	lifecycle		packages/lifecycle/src/collect-restart-env.ts	
 src/collect-restart-plan.ts	lifecycle		packages/lifecycle/src/collect-restart-plan.ts	
 src/config/format-legacy-agent-keys.ts	config		packages/config/src/format-legacy-agent-keys.ts	new in ticket 5
-src/config/listen/format-listen-refusal.ts	config		packages/config/src/listen/format-listen-refusal.ts	new in ticket 5
+src/config/listen/format-listen-refusal.ts	config		packages/config/src/host/listen/format-listen-refusal.ts	new in ticket 5
 src/config/local-target.ts	config		packages/config/src/local-target.ts	new in ticket 5
 src/config/normalize-config-dir.ts	config		packages/config/src/normalize-config-dir.ts	new in ticket 5
-src/config/resolve-paths.ts	config		packages/config/src/resolve-paths.ts	new in ticket 5
-src/core/build-optional-non-empty-string.ts	core		packages/core/src/build-optional-non-empty-string.ts	new in ticket 5
+src/config/resolve-paths.ts	config		packages/config/src/host/resolve-paths.ts	new in ticket 5
+src/core/build-optional-non-empty-string.ts	core		packages/core/src/schema/build-optional-non-empty-string.ts	new in ticket 5
 src/daemon-process.ts	lifecycle		packages/lifecycle/src/daemon-process.ts	
 src/daemon/answer-byte-cap.ts	daemon	transport	packages/daemon/src/transport/answer-byte-cap.ts	
 src/daemon/attach-registry.ts	daemon	sessions	packages/daemon/src/sessions/attach-registry.ts	
@@ -179,7 +207,7 @@ src/daemon/imp-harness.ts	execution-imp		packages/execution/imp/src/imp-harness.
 src/daemon/imp-port-error.ts	execution-imp		packages/execution/imp/src/imp-port-error.ts	stays in execution-imp; daemon/auth reads plugin-api CredentialBrokerError instead
 src/daemon/imp-port.ts	execution-imp		packages/execution/imp/src/imp-port.ts	stays whole in execution-imp; daemon/auth stops importing it (CredentialBroker, decision taken 1)
 src/daemon/imp-provider.ts	execution-imp		packages/execution/imp/src/imp-provider.ts	version comes from HostServices, not ../../package.json
-src/daemon/is-allowed-listen-host.ts	config	listen	packages/config/src/listen/is-allowed-listen-host.ts	
+src/daemon/is-allowed-listen-host.ts	config	listen	packages/config/src/host/listen/is-allowed-listen-host.ts	
 src/daemon/is-binding-current.ts	daemon	auth	packages/daemon/src/auth/is-binding-current.ts	
 src/daemon/is-imp-name-allowed.ts	plugin-api		packages/plugin-api/src/is-host-name-allowed.ts	the broker contract defines host patterns, so daemon/auth and execution-imp both match them through plugin-api
 src/daemon/is-own-hook-event.ts	daemon	sessions	packages/daemon/src/sessions/is-own-hook-event.ts	
@@ -194,7 +222,7 @@ src/daemon/merge-recorded-scope.ts	daemon	auth	packages/daemon/src/auth/merge-re
 src/daemon/mint-message-id.ts	daemon	sessions	packages/daemon/src/sessions/mint-message-id.ts	
 src/daemon/mint-session-id.ts	daemon	sessions	packages/daemon/src/sessions/mint-session-id.ts	
 src/daemon/parse-hook-line.ts	daemon	transport	packages/daemon/src/transport/parse-hook-line.ts	
-src/daemon/parse-listen-address.ts	config	listen	packages/config/src/listen/parse-listen-address.ts	
+src/daemon/parse-listen-address.ts	config	listen	packages/config/src/host/listen/parse-listen-address.ts	
 src/daemon/parse-note.ts	daemon	sessions	packages/daemon/src/sessions/parse-note.ts	
 src/daemon/parse-spawn-overrides.ts	daemon	sessions	packages/daemon/src/sessions/parse-spawn-overrides.ts	
 src/daemon/permission-registry.ts	daemon	sessions	packages/daemon/src/sessions/permission-registry.ts	
@@ -267,7 +295,7 @@ src/is-daemon-command-line.ts	lifecycle		packages/lifecycle/src/is-daemon-comman
 src/is-daemon-process.ts	lifecycle		packages/lifecycle/src/is-daemon-process.ts	
 src/lifecycle-host.ts	lifecycle		packages/lifecycle/src/lifecycle-host.ts	
 src/lifecycle/atc-invocation.ts	lifecycle		packages/lifecycle/src/atc-invocation.ts	new in ticket 8
-src/lifecycle/run-command.ts	lifecycle		packages/lifecycle/src/run-command.ts	new in ticket 8
+src/lifecycle/run-command.ts	lifecycle		packages/lifecycle/src/run-command/run-command.ts	new in ticket 8
 src/mcp-http-server.ts	mcp	entry	packages/mcp/src/entry/mcp-http-server.ts	
 src/mcp-server.ts	mcp	entry	packages/mcp/src/entry/mcp-server.ts	
 src/mcp/answer-authorize-request.ts	mcp	auth	packages/mcp/src/auth/answer-authorize-request.ts	
@@ -301,6 +329,7 @@ src/mcp/format-tool-error.ts	mcp	tools	packages/mcp/src/tools/format-tool-error.
 src/mcp/is-allowed-redirect-uri.ts	mcp	auth	packages/mcp/src/auth/is-allowed-redirect-uri.ts	
 src/mcp/is-loopback-host.ts	mcp	http	packages/mcp/src/http/is-loopback-host.ts	
 src/mcp/is-supported-protocol-version.ts	mcp	tools	packages/mcp/src/tools/is-supported-protocol-version.ts	
+src/mcp/load-web-authn.ts	mcp	auth	packages/mcp/src/auth/load-web-authn.ts	
 src/mcp/mcp-auth-database.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-database.ts	
 src/mcp/mcp-auth-schema.ts	mcp	auth	packages/mcp/src/auth/mcp-auth-schema.ts	
 src/mcp/mcp-tools.ts	mcp	tools	packages/mcp/src/tools/mcp-tools.ts	
@@ -329,6 +358,7 @@ src/mcp/types.ts	mcp	tools	packages/mcp/src/tools/types.ts
 src/mcp/verify-oauth-query.ts	mcp	auth	packages/mcp/src/auth/verify-oauth-query.ts	
 src/mcp/verify-passkey-assertion.ts	mcp	auth	packages/mcp/src/auth/verify-passkey-assertion.ts	
 src/mcp/verify-passkey-registration.ts	mcp	auth	packages/mcp/src/auth/verify-passkey-registration.ts	
+src/mcp/verify-session-passkey.ts	mcp	auth	packages/mcp/src/auth/verify-session-passkey.ts	
 src/normalize-cli-args.ts	app	cli	packages/app/src/cli/normalize-cli-args.ts	
 src/note.ts	reporters		packages/reporters/src/note.ts	
 src/open-mcp-auth-database.ts	app		packages/app/src/open-mcp-auth-database.ts	
@@ -337,22 +367,22 @@ src/parse-gateway-state-dir.ts	app	cli	packages/app/src/cli/parse-gateway-state-
 src/parse-mismatch-build.ts	lifecycle		packages/lifecycle/src/parse-mismatch-build.ts	
 src/parse-port.ts	app	cli	packages/app/src/cli/parse-port.ts	
 src/parse-restart-result.ts	lifecycle		packages/lifecycle/src/parse-restart-result.ts	
-src/parse-systemd-unit.ts	lifecycle		packages/lifecycle/src/parse-systemd-unit.ts	
+src/parse-systemd-unit.ts	core		packages/core/src/parse-systemd-unit.ts	
 src/parse-worker-pid.ts	lifecycle		packages/lifecycle/src/parse-worker-pid.ts	
 src/passkeys.ts	mcp	entry	packages/mcp/src/entry/passkeys.ts	
 src/protocol/adapter-event.ts	protocol		packages/protocol/src/adapter-event.ts	
 src/protocol/agent-list.ts	protocol		packages/protocol/src/agent-list.ts	new in ticket 4
 src/protocol/answer-view.ts	protocol		packages/protocol/src/answer-view.ts	
-src/protocol/build-session-env.ts	protocol		packages/protocol/src/build-session-env.ts	new in ticket 4
+src/protocol/build-session-env.ts	protocol		packages/protocol/src/session/build-session-env.ts	new in ticket 4
 src/protocol/control-character.ts	protocol		packages/protocol/src/control-character.ts	
 src/protocol/count-session-states.ts	protocol		packages/protocol/src/count-session-states.ts	
 src/protocol/daemon-answer.ts	protocol		packages/protocol/src/daemon-answer.ts	new in ticket 4
 src/protocol/daemon-boot-options.ts	protocol		packages/protocol/src/daemon-boot-options.ts	new in ticket 8
 src/protocol/daemon-boot.ts	protocol		packages/protocol/src/daemon-boot.ts	new in ticket 8
-src/protocol/daemon-channel.ts	protocol		packages/protocol/src/daemon-channel.ts	
+src/protocol/daemon-channel.ts	protocol		packages/protocol/src/wire/daemon-channel.ts	
 src/protocol/daemon-contract.ts	protocol		packages/protocol/src/daemon-contract.ts	new in ticket 4
 src/protocol/daemon-error-map.ts	protocol		packages/protocol/src/daemon-error-map.ts	new in ticket 4
-src/protocol/daemon-error.ts	protocol		packages/protocol/src/daemon-error.ts	
+src/protocol/daemon-error.ts	protocol		packages/protocol/src/wire/daemon-error.ts	
 src/protocol/daemon-event.ts	protocol		packages/protocol/src/daemon-event.ts	new in ticket 4
 src/protocol/daemon-features.ts	(deleted in ticket 24)		src/protocol/daemon-features.ts	
 src/protocol/daemon-paths.ts	protocol		packages/protocol/src/daemon-paths.ts	new in ticket 8
@@ -364,17 +394,17 @@ src/protocol/fleet-event.ts	protocol		packages/protocol/src/fleet-event.ts	new i
 src/protocol/git-probe-result.ts	protocol		packages/protocol/src/git-probe-result.ts	new in ticket 4
 src/protocol/git-ref.ts	protocol		packages/protocol/src/git-ref.ts	new in ticket 4
 src/protocol/hello-result.ts	protocol		packages/protocol/src/hello-result.ts	new in ticket 4
-src/protocol/hook-event.ts	protocol		packages/protocol/src/hook-event.ts	
+src/protocol/hook-event.ts	protocol		packages/protocol/src/session/hook-event.ts	
 src/protocol/keyed-method-features.ts	protocol		packages/protocol/src/keyed-method-features.ts	new in ticket 4
-src/protocol/line-decoder.ts	protocol		packages/protocol/src/line-decoder.ts	
+src/protocol/line-decoder.ts	protocol		packages/protocol/src/wire/line-decoder.ts	
 src/protocol/menu-view.ts	protocol		packages/protocol/src/menu-view.ts	
 src/protocol/message-answer.ts	protocol		packages/protocol/src/message-answer.ts	new in ticket 4
-src/protocol/message-sender.ts	protocol		packages/protocol/src/message-sender.ts	
+src/protocol/message-sender.ts	protocol		packages/protocol/src/wire/message-sender.ts	
 src/protocol/message-status.ts	protocol		packages/protocol/src/message-status.ts	new in ticket 4
 src/protocol/message-view.ts	protocol		packages/protocol/src/message-view.ts	new in ticket 4
 src/protocol/note-view.ts	protocol		packages/protocol/src/note-view.ts	new in ticket 4
-src/protocol/open-bridge-socket.ts	protocol		packages/protocol/src/open-bridge-socket.ts	
-src/protocol/outbound-queue.ts	protocol		packages/protocol/src/outbound-queue.ts	
+src/protocol/open-bridge-socket.ts	protocol		packages/protocol/src/session/open-bridge-socket.ts	
+src/protocol/outbound-queue.ts	protocol		packages/protocol/src/wire/outbound-queue.ts	
 src/protocol/parse-daemon-features.ts	(deleted in ticket 24)		src/protocol/parse-daemon-features.ts	
 src/protocol/parse-declared-scope.ts	protocol		packages/protocol/src/parse-declared-scope.ts	
 src/protocol/parse-request-params.ts	protocol		packages/protocol/src/parse-request-params.ts	
@@ -382,15 +412,15 @@ src/protocol/pinned-group-key.ts	protocol		packages/protocol/src/pinned-group-ke
 src/protocol/principal.ts	protocol		packages/protocol/src/principal.ts	
 src/protocol/procedure-meta.ts	protocol		packages/protocol/src/procedure-meta.ts	new in ticket 4
 src/protocol/procedure-traits.ts	protocol		packages/protocol/src/procedure-traits.ts	new in ticket 4
-src/protocol/protocol.ts	protocol		packages/protocol/src/protocol.ts	
+src/protocol/protocol.ts	protocol		packages/protocol/src/wire/protocol.ts	
 src/protocol/published-record-schema.ts	protocol		packages/protocol/src/published-record-schema.ts	new in ticket 4
 src/protocol/published-record.ts	protocol		packages/protocol/src/published-record.ts	
-src/protocol/read-session-env.ts	protocol		packages/protocol/src/read-session-env.ts	new in ticket 4
+src/protocol/read-session-env.ts	protocol		packages/protocol/src/session/read-session-env.ts	new in ticket 4
 src/protocol/request-param-schemas.ts	protocol		packages/protocol/src/request-param-schemas.ts	
-src/protocol/send-bridge-request.ts	protocol		packages/protocol/src/send-bridge-request.ts	
+src/protocol/send-bridge-request.ts	protocol		packages/protocol/src/session/send-bridge-request.ts	
 src/protocol/session-descriptor.ts	protocol		packages/protocol/src/session-descriptor.ts	new in ticket 4
-src/protocol/session-env-names.ts	protocol		packages/protocol/src/session-env-names.ts	new in ticket 4
-src/protocol/session-env.ts	protocol		packages/protocol/src/session-env.ts	new in ticket 4
+src/protocol/session-env-names.ts	protocol		packages/protocol/src/session/session-env-names.ts	new in ticket 4
+src/protocol/session-env.ts	protocol		packages/protocol/src/session/session-env.ts	new in ticket 4
 src/protocol/session-lifecycle.ts	protocol		packages/protocol/src/session-lifecycle.ts	new in ticket 4
 src/protocol/session-state.ts	protocol		packages/protocol/src/session-state.ts	
 src/protocol/session-workspace.ts	protocol		packages/protocol/src/session-workspace.ts	new in ticket 4
@@ -428,9 +458,9 @@ src/shared/agent-session-id.ts	core		packages/core/src/agent-session-id.ts
 src/shared/ansi.ts	core		packages/core/src/ansi.ts	new in ticket 3
 src/shared/broker-placeholder.ts	core		packages/core/src/broker-placeholder.ts	new in ticket 3
 src/shared/build-atc-command.ts	lifecycle		packages/lifecycle/src/build-atc-command.ts	takes atcArgv from its caller (HostServices built in app); no import.meta.dir path
-src/shared/build-optional-boolean.ts	core		packages/core/src/build-optional-boolean.ts	
-src/shared/build-optional-string-array.ts	core		packages/core/src/build-optional-string-array.ts	
-src/shared/build-optional-string.ts	core		packages/core/src/build-optional-string.ts	
+src/shared/build-optional-boolean.ts	core		packages/core/src/schema/build-optional-boolean.ts	
+src/shared/build-optional-string-array.ts	core		packages/core/src/schema/build-optional-string-array.ts	
+src/shared/build-optional-string.ts	core		packages/core/src/schema/build-optional-string.ts	
 src/shared/build-workspace-destination.ts	core		packages/core/src/build-workspace-destination.ts	
 src/shared/bun-sqlite-driver.ts	store	sqlite	packages/store/src/sqlite/bun-sqlite-driver.ts	
 src/shared/check-gateway-auth.ts	harness-claude	config	packages/harnesses/claude/src/config/check-gateway-auth.ts	config slice check owned by harness-claude; agent-adapter.ts type import must go
@@ -463,11 +493,11 @@ src/shared/format-home-path.ts	core		packages/core/src/format-home-path.ts	new i
 src/shared/format-json-kind.ts	config		packages/config/src/format-json-kind.ts	
 src/shared/format-mixed-agent-keys.ts	config		packages/config/src/format-mixed-agent-keys.ts	
 src/shared/get-atc-build.ts	app		packages/app/src/build-host-services.ts	folded into HostServices.build in ticket 9
-src/shared/get-build.ts	config		packages/config/src/get-build.ts	drop both defaults: app passes the version and the scan root (workspace packages/ in source mode, execPath in a binary); no ../../package.json import
+src/shared/get-build.ts	config		packages/config/src/host/get-build.ts	drop both defaults: app passes the version and the scan root (workspace packages/ in source mode, execPath in a binary); no ../../package.json import
 src/shared/get-record.ts	test-utils		packages/test-utils/src/get-record.ts	
 src/shared/grant-scope.ts	mcp	auth	packages/mcp/src/auth/grant-scope.ts	
 src/shared/is-broker-variable.ts	core		packages/core/src/is-broker-variable.ts	
-src/shared/is-compiled-binary.ts	config		packages/config/src/is-compiled-binary.ts	
+src/shared/is-compiled-binary.ts	config		packages/config/src/host/is-compiled-binary.ts	
 src/shared/is-git-url.ts	core		packages/core/src/is-git-url.ts	
 src/shared/is-home-relative.ts	core		packages/core/src/is-home-relative.ts	new in ticket 3
 src/shared/is-process-alive.ts	lifecycle		packages/lifecycle/src/is-process-alive.ts	
@@ -480,7 +510,7 @@ src/shared/make-keyed-lock.ts	core		packages/core/src/make-keyed-lock.ts	new in 
 src/shared/make-single-flight.ts	core		packages/core/src/make-single-flight.ts	
 src/shared/message-id.ts	core		packages/core/src/message-id.ts	
 src/shared/normalize-client-name.ts	mcp	auth	packages/mcp/src/auth/normalize-client-name.ts	
-src/shared/note-kinds.ts	protocol		packages/protocol/src/note-kinds.ts	
+src/shared/note-kinds.ts	protocol		packages/protocol/src/session/note-kinds.ts	
 src/shared/outranking-variables.ts	core		packages/core/src/outranking-variables.ts	
 src/shared/parse-restore-boot-timeout-ms.ts	config		packages/config/src/parse-restore-boot-timeout-ms.ts	
 src/shared/pick-default-agent.ts	config		packages/config/src/pick-default-agent.ts	
@@ -489,9 +519,9 @@ src/shared/removed-config-keys.ts	config		packages/config/src/removed-config-key
 src/shared/report.ts	reporters		packages/reporters/src/send-report.ts	split: isRecord to core (is-record.ts); sendReport stays in reporters
 src/shared/reset-input-modes.ts	core		packages/core/src/reset-input-modes.ts	
 src/shared/resolve-auth-profiles.ts	config		packages/config/src/resolve-auth-profiles.ts	
-src/shared/resolve-home-dir.ts	config		packages/config/src/resolve-home-dir.ts	
+src/shared/resolve-home-dir.ts	config		packages/config/src/host/resolve-home-dir.ts	
 src/shared/resolve-repo-root.ts	daemon	sessions	packages/daemon/src/sessions/resolve-repo-root.ts	
-src/shared/resolve-state-dir.ts	config		packages/config/src/resolve-state-dir.ts	
+src/shared/resolve-state-dir.ts	config		packages/config/src/host/resolve-state-dir.ts	
 src/shared/sanitize-detail.ts	execution-imp		packages/execution/imp/src/sanitize-detail.ts	
 src/shared/session-id.ts	core		packages/core/src/session-id.ts	
 src/shared/sort-json-keys.ts	core		packages/core/src/sort-json-keys.ts	
@@ -726,5 +756,3 @@ src/workspace/sanitize-workspace-clone.ts	daemon	workspace	packages/daemon/src/w
 src/workspace/workspace-provenance.ts	daemon	workspace	packages/daemon/src/workspace/workspace-provenance.ts	
 src/workspace/workspace-source.ts	daemon	workspace	packages/daemon/src/workspace/workspace-source.ts	
 src/write-restart-result.ts	lifecycle		packages/lifecycle/src/write-restart-result.ts	
-src/mcp/load-web-authn.ts	mcp	auth	packages/mcp/src/auth/load-web-authn.ts	
-src/mcp/verify-session-passkey.ts	mcp	auth	packages/mcp/src/auth/verify-session-passkey.ts	

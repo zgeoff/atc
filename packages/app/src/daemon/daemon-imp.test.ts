@@ -2,24 +2,24 @@
 import { expect, test } from 'bun:test';
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { LOCAL_TARGET } from '@atc/config/local-target';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { getOnlyImpName } from '@atc/execution-imp/testing/get-only-imp-name';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { createStubEchoClaude } from '@atc/test-utils/create-stub-echo-claude';
-import { getRecord } from '@atc/test-utils/get-record';
-import { readJSONRecord } from '@atc/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { updateEnv } from '@atc/test-utils/update-env';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { LOCAL_TARGET } from '@atc/config';
+import { toSessionID } from '@atc/core';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { DaemonClient } from '@atc/protocol/wire';
+import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  createGitFixture,
+  createStubEchoClaude,
+  getRecord,
+  readJSONRecord,
+  registerTestCleanup,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

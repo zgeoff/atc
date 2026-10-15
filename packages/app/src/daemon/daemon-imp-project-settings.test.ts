@@ -2,20 +2,21 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
-import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
-import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { parseConfig } from '@atc/config';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import { ClaudeAdapter, GatewayAdapter } from '@atc/harness-claude';
+import { getGatewayConfig } from '@atc/harness-claude/testing';
+import {
+  buildMockHostServices,
+  createGitFixture,
+  createStubBin,
+  createStubRecordingClaude,
+  getAgentEntry,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

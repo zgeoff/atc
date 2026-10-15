@@ -1,5 +1,5 @@
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import type { GuestFile } from '@atc/plugin-api/agent-adapter';
+import { BROKER_PLACEHOLDER } from '@atc/core';
+import type { GuestFile } from '@atc/plugin-api';
 
 /**
  * The `.credentials.json` of a session's own Claude config folder, which

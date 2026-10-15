@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { setupTempDir, updateEnv } from '@atc/test-utils';
 import { logClientEvent } from './log-client-event';
 
 function setupTest() {

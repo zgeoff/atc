@@ -1,6 +1,6 @@
-import { isRecord } from '@atc/core/is-record';
-import type { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { isRecord } from '@atc/core';
+import type { DaemonClient } from '@atc/protocol/wire';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildATCCommand } from './build-atc-command';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import { collectDaemonSocketPaths } from './collect-daemon-socket-paths';

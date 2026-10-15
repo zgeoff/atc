@@ -4,7 +4,9 @@
   "description": "atc daemon process control: the lock, pid and record files, detached spawn, systemctl, and booting, stopping, restarting, and probing a daemon",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts",
+    "./run-command": "./src/run-command/index.ts",
+    "./testing": "./src/testing/index.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",

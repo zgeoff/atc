@@ -1,14 +1,15 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubDroppingDaemon } from '@atc/test-utils/start-stub-dropping-daemon';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { DaemonClient, PROTOCOL_V } from '@atc/protocol/wire';
+import {
+  buildMockAgentAdapter,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+  startStubDroppingDaemon,
+  startStubLegacyDaemon,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { ReconnectingCaller } from './reconnecting-caller';

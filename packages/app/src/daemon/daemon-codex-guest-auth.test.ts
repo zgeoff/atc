@@ -2,16 +2,18 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { createStubRecordingCodex } from '@atc/test-utils/create-stub-recording-codex';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { parseConfig } from '@atc/config';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import {
+  buildMockHostServices,
+  createStubBin,
+  createStubRecordingCodex,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

@@ -1,4 +1,4 @@
-import { parseJSONStrings } from '@atc/core/parse-json-strings';
+import { parseJSONStrings } from '@atc/core';
 import type {
   AuthenticationResponseJSON,
   VerifiedAuthenticationResponse,

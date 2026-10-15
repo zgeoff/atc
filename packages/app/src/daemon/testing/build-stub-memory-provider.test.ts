@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import type { HarnessExit } from '@atc/plugin-api/execution-provider';
+import type { HarnessExit } from '@atc/plugin-api';
 import { buildStubCredentialBroker } from './build-stub-credential-broker';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 

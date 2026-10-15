@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubHarnessPlugins } from '@atc/test-utils/build-stub-harness-plugins';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { buildStubHarnessPlugins, setupTempDir } from '@atc/test-utils';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
 
 function setupTest() {

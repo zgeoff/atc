@@ -1,5 +1,4 @@
-import type { RemoteDaemon } from '@atc/config/collect-remote-daemons';
-import type { Config } from '@atc/config/config';
+import type { Config, RemoteDaemon } from '@atc/config';
 
 type ResolvedRemoteDaemon =
   | { readonly ok: true; readonly daemon: RemoteDaemon }

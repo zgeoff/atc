@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { createEnrollmentToken } from './create-enrollment-token';
 import { deriveTokenHash } from './derive-token-hash';

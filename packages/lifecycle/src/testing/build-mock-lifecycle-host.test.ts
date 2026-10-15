@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { systemClock } from '@atc/core/system-clock';
+import { systemClock } from '@atc/core';
 import { buildMockLifecycleHost } from './build-mock-lifecycle-host';
 
 test('it builds a default lifecycle host', () => {

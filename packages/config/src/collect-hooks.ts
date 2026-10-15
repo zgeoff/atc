@@ -1,8 +1,8 @@
-import { buildOptionalNonEmptyString } from '@atc/core/build-optional-non-empty-string';
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
+import { buildOptionalNonEmptyString } from '@atc/core/schema';
 import { z } from 'zod';
+import { resolveHomeDir } from './host/resolve-home-dir';
 import { normalizeConfigDir } from './normalize-config-dir';
-import { resolveHomeDir } from './resolve-home-dir';
 
 /**
  * One configured hook: a shell command the daemon runs when the named wire

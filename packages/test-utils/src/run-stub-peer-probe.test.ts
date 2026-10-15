@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
+import { runCommand } from './run-command';
+import { setupTempDir } from './setup-temp-dir';
+import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
 // A socket path and an output path in a fresh temp directory, and the probe
 // script's path.

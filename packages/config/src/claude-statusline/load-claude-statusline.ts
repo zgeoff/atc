@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveAgentHome } from '../host/resolve-agent-home';
 import type { ClaudeStatusLine } from './parse-claude-statusline';
 import { parseClaudeStatusLine } from './parse-claude-statusline';
-import { resolveAgentHome } from './resolve-agent-home';
 
 /**
  * The statusline of the person's own Claude settings: `settings.json` in

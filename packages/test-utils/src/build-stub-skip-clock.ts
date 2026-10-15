@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core';
 
 /**
  * A clock whose time moves only by the delays it is asked to wait, for a

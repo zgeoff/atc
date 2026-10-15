@@ -1,9 +1,7 @@
-import type { Config } from '@atc/config/config';
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import type { GuestFile, GuestOAuthState } from '@atc/plugin-api/agent-adapter';
-import { buildCodexAuthFile } from '@atc/plugin-api/harness/build-codex-auth-file';
-import { buildCodexConfig } from '@atc/plugin-api/harness/build-codex-config';
-import { findCodexSignIn } from '@atc/plugin-api/harness/find-codex-sign-in';
+import type { Config } from '@atc/config';
+import { resolveAuthProfiles } from '@atc/config';
+import type { GuestFile, GuestOAuthState } from '@atc/plugin-api';
+import { buildCodexAuthFile, buildCodexConfig, findCodexSignIn } from '@atc/plugin-api';
 
 /**
  * A Codex home for the Codex CLI that a Claude session on a remote host

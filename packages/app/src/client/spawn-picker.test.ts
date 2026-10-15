@@ -1,12 +1,14 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
-import { buildStubDaemonRequests } from '@atc/test-utils/build-stub-daemon-requests';
-import { buildStubTerminal } from '@atc/test-utils/build-stub-terminal';
-import { KEYS } from '@atc/test-utils/keys';
+import { resolveHomeDir } from '@atc/config/host';
+import { DaemonError } from '@atc/protocol/wire';
+import {
+  KEYS,
+  buildMockSessionDescriptor,
+  buildStubDaemonRequests,
+  buildStubTerminal,
+} from '@atc/test-utils';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
 import { openListingCache } from './open-listing-cache';
 import { SpawnPicker } from './spawn-picker';

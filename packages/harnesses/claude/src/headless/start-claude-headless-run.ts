@@ -1,6 +1,6 @@
-import { isCompiledBinary } from '@atc/config/is-compiled-binary';
-import { truncateSummary } from '@atc/core/truncate-summary';
-import type { HeadlessRunEvents, HeadlessRunHandle } from '@atc/plugin-api/agent-adapter';
+import { isCompiledBinary } from '@atc/config/host';
+import { truncateSummary } from '@atc/core';
+import type { HeadlessRunEvents, HeadlessRunHandle } from '@atc/plugin-api';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 import type { ClaudeHeadlessRunRequest } from './build-claude-query-options';
 import { renderSDKMessage } from './render-sdk-message';

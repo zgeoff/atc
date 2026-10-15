@@ -1,14 +1,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { bootDaemonClient } from '@atc/lifecycle/boot-daemon';
-import { buildMockLifecycleHost } from '@atc/lifecycle/testing/build-mock-lifecycle-host';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { getSourceEntry } from '@atc/test-utils/get-source-entry';
-import { readJSONRecord } from '@atc/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { bootDaemonClient } from '@atc/lifecycle';
+import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { StateStore } from '@atc/store';
+import {
+  buildMockAgentAdapter,
+  getSourceEntry,
+  readJSONRecord,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
 

@@ -1,5 +1,5 @@
-import type { ClaudeMCPServer } from '@atc/config/agent-entry';
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
+import type { ClaudeMCPServer } from '@atc/config';
+import { BROKER_PLACEHOLDER } from '@atc/core';
 
 /**
  * The MCP config file that gives a session each server over HTTP with the

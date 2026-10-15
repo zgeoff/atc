@@ -1,5 +1,4 @@
-import { ansi } from '@atc/core/ansi';
-import { RESET_INPUT_MODES } from '@atc/core/reset-input-modes';
+import { RESET_INPUT_MODES, ansi } from '@atc/core';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/headless';
 

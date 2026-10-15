@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '@atc/config/config';
+import { parseConfig } from '@atc/config';
 import { CLAUDE_PLUGIN } from '../claude-plugin';
 import { getGatewayConfig } from './get-gateway-config';
 

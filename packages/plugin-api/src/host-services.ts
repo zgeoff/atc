@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core';
 
 /**
  * What atc's host gives every plugin it creates, built once by the

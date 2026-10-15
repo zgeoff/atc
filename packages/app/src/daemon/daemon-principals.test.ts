@@ -4,21 +4,20 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { collectPrincipals } from '@atc/config/collect-principals';
-import { collectTargets } from '@atc/config/collect-targets';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { encodeCursor } from '@atc/protocol/encode-cursor';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import type { EventMsg } from '@atc/protocol/protocol';
-import { buildStubAttentionAdapter } from '@atc/test-utils/build-stub-attention-adapter';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { buildStubHostHold } from '@atc/test-utils/build-stub-host-hold';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { startStubStalledClient } from '@atc/test-utils/start-stub-stalled-client';
-import { trySendRequest } from '@atc/test-utils/try-send-request';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { collectPrincipals, collectTargets } from '@atc/config';
+import { encodeCursor } from '@atc/protocol';
+import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import {
+  buildStubAttentionAdapter,
+  buildStubClock,
+  buildStubHostHold,
+  getRecord,
+  registerTestCleanup,
+  startStubStalledClient,
+  trySendRequest,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildPrincipalCaller } from '../mcp/build-principal-caller';

@@ -1,9 +1,7 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { runShellcheck } from '@atc/test-utils/run-shellcheck';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, runShellcheck, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildScratchLaunch } from './build-scratch-launch';
 

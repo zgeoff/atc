@@ -17,8 +17,6 @@ import { waitFor } from './wait-for';
  */
 export type TUIHarness = ReturnType<typeof startTUIHarness>;
 
-const cliPath = getSourceEntry('atc');
-
 interface TUIHarnessOptions {
   // How long a wait gives the client to draw its first byte; 9 seconds
   // unless set.
@@ -59,6 +57,7 @@ interface TUIHarnessOptions {
 export function startTUIHarness(options: TUIHarnessOptions = {}) {
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
+  const cliPath = getSourceEntry('atc');
   const tmp = setupTempDir('atc-tui-');
 
   // Registered after the home, so it releases first: the client and its

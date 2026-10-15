@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
-import { getRecord } from '@atc/test-utils/get-record';
+import { DAEMON_FEATURES } from '@atc/protocol';
+import { getRecord } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildToolList } from './build-tool-list';
 import { MCP_TOOLS } from './mcp-tools';

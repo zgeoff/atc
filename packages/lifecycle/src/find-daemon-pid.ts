@@ -1,4 +1,4 @@
-import type { DaemonPaths } from '@atc/protocol/daemon-paths';
+import type { DaemonPaths } from '@atc/protocol';
 import { findDaemonRecord } from './find-daemon-record';
 import { findPidFilePID } from './find-pid-file-pid';
 import { isDaemonProcess } from './is-daemon-process';

@@ -1,11 +1,9 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { expect, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { getRecord } from '@atc/test-utils/get-record';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { DaemonError } from '@atc/protocol/wire';
+import { buildMockAgentAdapter, getRecord, waitFor } from '@atc/test-utils';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it streams the output of a session harness on the local pty provider', async () => {

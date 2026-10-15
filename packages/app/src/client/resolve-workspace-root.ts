@@ -1,6 +1,6 @@
-import type { WorkspacesConfig } from '@atc/config/collect-workspaces-config';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
-import { expandHome } from '@atc/core/expand-home';
+import type { WorkspacesConfig } from '@atc/config';
+import { resolveHomeDir } from '@atc/config/host';
+import { expandHome } from '@atc/core';
 
 type WorkspaceRoot =
   | { readonly ok: true; readonly root: string }

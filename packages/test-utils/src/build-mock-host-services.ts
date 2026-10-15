@@ -1,5 +1,5 @@
-import { systemClock } from '@atc/core/system-clock';
-import type { HostServices } from '@atc/plugin-api/host-services';
+import { systemClock } from '@atc/core';
+import type { HostServices } from '@atc/plugin-api';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from './merge-deep';
 import type { MockOverrides } from './mock-overrides';

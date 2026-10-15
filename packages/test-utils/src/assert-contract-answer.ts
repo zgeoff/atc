@@ -1,4 +1,4 @@
-import { findAnswerSchema } from '@atc/protocol/find-answer-schema';
+import { findAnswerSchema } from '@atc/protocol';
 
 /**
  * Throws unless a daemon answer parses under its method's contract output

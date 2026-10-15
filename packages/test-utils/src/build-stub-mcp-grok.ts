@@ -1,7 +1,5 @@
 import { getSourceEntry } from './get-source-entry';
 
-const CLI_PATH = getSourceEntry('atc');
-
 /**
  * The script of a stand-in `grok` for the stdio MCP suites. It appends its
  * pid to `$HOME/stub-pids`, prints `FAKE_GROK_UP args: ` and its arguments,
@@ -10,10 +8,12 @@ const CLI_PATH = getSourceEntry('atc');
  * that input closes.
  */
 export function buildStubMCPGrok(): string {
+  const cliPath = getSourceEntry('atc');
+
   return `#!/usr/bin/env bash
 echo $$ >> "$HOME/stub-pids"
 echo "FAKE_GROK_UP args: $@"
-printf '{"hookEventName":"session_start","sessionId":"fake-grok-1","cwd":"%s"}' "$PWD" | "${process.execPath}" "${CLI_PATH}" hook-report
+printf '{"hookEventName":"session_start","sessionId":"fake-grok-1","cwd":"%s"}' "$PWD" | "${process.execPath}" "${cliPath}" hook-report
 exec cat
 `;
 }

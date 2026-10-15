@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core/session-id';
-import type { MessageSender } from '@atc/protocol/message-sender';
+import type { SessionID } from '@atc/core';
+import type { MessageSender } from '@atc/protocol/wire';
 import type { MessageCaller } from './message-caller';
 
 // The name a message from the owner holds.

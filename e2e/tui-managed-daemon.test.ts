@@ -1,11 +1,13 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
-import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
-import { waitFor } from '@atc/test-utils/wait-for';
+import {
+  buildMockAgentAdapter,
+  registerTestCleanup,
+  startStubLegacyDaemon,
+  startTUIHarness,
+  waitFor,
+} from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
 

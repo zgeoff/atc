@@ -1,10 +1,7 @@
-import type { AgentEntry } from '@atc/config/agent-entry';
-import type { AgentEntryRead } from '@atc/config/build-agent-entry-schema';
-import { collectProfileEnvProblems } from '@atc/config/collect-profile-env-problems';
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import { isRecord } from '@atc/core/is-record';
-import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { AgentEntry, AgentEntryRead } from '@atc/config';
+import { collectProfileEnvProblems, resolveAuthProfiles } from '@atc/config';
+import { isRecord, isSubscriptionOverrideVariable } from '@atc/core';
+import type { AuthProfile } from '@atc/plugin-api';
 import { checkGatewayAuth } from './check-gateway-auth';
 import { collectClaudeAuth } from './collect-claude-auth';
 

@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { DaemonClient } from '@atc/protocol/wire';
+import { registerTestCleanup } from './register-test-cleanup';
+import { setupTempDir } from './setup-temp-dir';
 import { startStubRestoreDaemon } from './start-stub-restore-daemon';
 
 // A temp directory holding the stub daemon's socket, with the daemon started.

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { RemoteDaemon } from '@atc/config/collect-remote-daemons';
+import type { RemoteDaemon } from '@atc/config';
 
 // How long a token command may run before the read gives up on it.
 const TOKEN_COMMAND_TIMEOUT_MS = 10_000;

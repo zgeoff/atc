@@ -1,7 +1,7 @@
-import { resolvePaths } from '@atc/config/resolve-paths';
-import { systemClock } from '@atc/core/system-clock';
-import { mergeDeep } from '@atc/test-utils/merge-deep';
-import type { MockOverrides } from '@atc/test-utils/mock-overrides';
+import { resolvePaths } from '@atc/config/host';
+import { systemClock } from '@atc/core';
+import { mergeDeep } from '@atc/test-utils';
+import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { LifecycleHost } from '../lifecycle-host';
 

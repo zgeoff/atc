@@ -1,4 +1,4 @@
-import type { CommandResult, ExecutionProvider } from '@atc/plugin-api/execution-provider';
+import type { CommandResult, ExecutionProvider } from '@atc/plugin-api';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { REPOSITORY_ENV_VARS } from '../workspace/repository-env-vars';
 

@@ -1,9 +1,5 @@
-import type { SessionID } from '@atc/core/session-id';
-import type {
-  ExecutionProvider,
-  HarnessHandle,
-  HarnessStart,
-} from '@atc/plugin-api/execution-provider';
+import type { SessionID } from '@atc/core';
+import type { ExecutionProvider, HarnessHandle, HarnessStart } from '@atc/plugin-api';
 import { formatAuthNotice } from './format-auth-notice';
 import type { BridgeBinding } from './is-binding-current';
 import type { Session } from './session';

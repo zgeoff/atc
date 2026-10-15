@@ -1,17 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentEntry } from '@atc/config/agent-entry';
-import type { Config } from '@atc/config/config';
-import { parseClaudeStatusLine } from '@atc/config/parse-claude-statusline';
-import { resolveAgentHome } from '@atc/config/resolve-agent-home';
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
-import { isRecord } from '@atc/core/is-record';
-import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
-import { OUTRANKING_VARIABLES } from '@atc/core/outranking-variables';
-import type { SessionID } from '@atc/core/session-id';
-import { toShellArg } from '@atc/core/to-shell-arg';
+import type { AgentEntry, Config } from '@atc/config';
+import { parseClaudeStatusLine } from '@atc/config/claude-statusline';
+import { resolveAgentHome } from '@atc/config/host';
+import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
+import {
+  BROKER_PLACEHOLDER,
+  CLAUDE_CREDENTIAL_VARIABLES,
+  OUTRANKING_VARIABLES,
+  isRecord,
+  isSubscriptionOverrideVariable,
+  toShellArg,
+} from '@atc/core';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -21,20 +20,22 @@ import type {
   GuestSpawnPlan,
   HeadlessRunner,
   HookPlan,
+  HostServices,
   NameUpdate,
   ProjectSettingsCheck,
   ResumeCheck,
   SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
-} from '@atc/plugin-api/agent-adapter';
-import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
-import { buildAuthRevisionFolder } from '@atc/plugin-api/harness/build-auth-revision-folder';
-import { canResumeFromTranscript } from '@atc/plugin-api/harness/can-resume-from-transcript';
-import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
-import type { HostServices } from '@atc/plugin-api/host-services';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
+} from '@atc/plugin-api';
+import {
+  buildArgsWithoutFlags,
+  buildAuthRevisionFolder,
+  canResumeFromTranscript,
+  findFlagValue,
+} from '@atc/plugin-api';
+import type { HookEvent } from '@atc/protocol/session';
+import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
 import { buildGuestBridgeFiles } from './bridge/build-guest-bridge-files';
 import { buildClaudeArgs } from './build-claude-args';

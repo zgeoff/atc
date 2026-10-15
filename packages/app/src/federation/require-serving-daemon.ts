@@ -1,4 +1,4 @@
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import type { DaemonFeature } from '@atc/protocol';
 import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import type { DaemonCaller, DaemonHello } from './daemon-caller';
 import type { RegistryDaemon } from './types';

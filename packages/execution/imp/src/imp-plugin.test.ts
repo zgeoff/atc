@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { TargetUnavailableError } from '@atc/plugin-api/target-unavailable-error';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { TargetUnavailableError } from '@atc/plugin-api';
+import { buildMockHostServices } from '@atc/test-utils';
 import { IMP_PLUGIN } from './imp-plugin';
 import { ImpProvider } from './imp-provider';
 

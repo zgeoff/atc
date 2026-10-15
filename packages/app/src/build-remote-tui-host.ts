@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
-import type { RemoteDaemon } from '@atc/config/collect-remote-daemons';
-import type { LifecycleHost } from '@atc/lifecycle/lifecycle-host';
-import { logClientEvent } from '@atc/lifecycle/log-client-event';
+import type { RemoteDaemon } from '@atc/config';
+import type { LifecycleHost } from '@atc/lifecycle';
+import { logClientEvent } from '@atc/lifecycle';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 import type { TUIHost } from './client/tui-host';
 

@@ -2,10 +2,8 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { parseConfig } from '@atc/config';
+import { buildMockHostServices, createStubRecordingClaude, waitFor } from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

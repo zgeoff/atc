@@ -1,8 +1,6 @@
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import type { SessionID } from '@atc/core/session-id';
-import { truncateDetail } from '@atc/core/truncate-detail';
-import type { MessageRecord } from '@atc/store/message-record';
-import type { TrailEntry } from '@atc/store/trail-entry';
+import type { AgentSessionID, SessionID } from '@atc/core';
+import { truncateDetail } from '@atc/core';
+import type { MessageRecord, TrailEntry } from '@atc/store';
 
 /**
  * The trail entry for one change of a message's answer notice: queued for

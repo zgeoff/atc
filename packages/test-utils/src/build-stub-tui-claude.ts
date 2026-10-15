@@ -1,7 +1,5 @@
 import { getSourceEntry } from './get-source-entry';
 
-const CLI_PATH = getSourceEntry('atc');
-
 /**
  * The script of a stand-in `claude` for the TUI suites. It prints
  * `FAKE_CLAUDE_UP args: ` and its arguments at start and again on every
@@ -15,7 +13,7 @@ const CLI_PATH = getSourceEntry('atc');
  * or reports anything, while `fake-claude-hold-resume` exists.
  */
 export function buildStubTUIClaude(): string {
-  const report = `"${process.execPath}" "${CLI_PATH}" hook-report`;
+  const report = `"${process.execPath}" "${getSourceEntry('atc')}" hook-report`;
 
   return `#!/usr/bin/env bash
 ARGS="$*"

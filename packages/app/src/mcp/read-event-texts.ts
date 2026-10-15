@@ -1,6 +1,5 @@
-import { isRecord } from '@atc/core/is-record';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
+import { isRecord, systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { formatToolError } from './format-tool-error';
 import type { FleetCaller } from './types';
 

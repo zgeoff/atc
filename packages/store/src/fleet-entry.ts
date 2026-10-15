@@ -1,13 +1,7 @@
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import type { DaemonID } from '@atc/core/daemon-id';
-import { isRecord } from '@atc/core/is-record';
-import type { SessionID } from '@atc/core/session-id';
-import { toAgentID } from '@atc/core/to-agent-id';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import type { SessionWorkspace } from '@atc/protocol/session-workspace';
+import type { AgentID, AgentSessionID, DaemonID, SessionID } from '@atc/core';
+import { isRecord, toAgentID, toAgentSessionID } from '@atc/core';
+import { buildOptionalBoolean, buildOptionalString } from '@atc/core/schema';
+import type { SessionWorkspace } from '@atc/protocol';
 import { z } from 'zod';
 
 // One fleet row. The atc session id keys it and stays the same for the

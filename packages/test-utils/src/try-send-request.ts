@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { DaemonError } from '@atc/protocol/wire';
 
 /**
  * Sends a request and returns its answer as plain data, `{ ok }` or, when

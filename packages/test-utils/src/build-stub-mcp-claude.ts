@@ -1,7 +1,5 @@
 import { getSourceEntry } from './get-source-entry';
 
-const CLI_PATH = getSourceEntry('atc');
-
 /**
  * The script of a stand-in `claude` for the stdio MCP suites. It appends its
  * pid to `$HOME/stub-pids`, prints `FAKE_CLAUDE_UP args: ` and its
@@ -13,7 +11,7 @@ const CLI_PATH = getSourceEntry('atc');
  * files that file's text as a note labelled `decision`.
  */
 export function buildStubMCPClaude(): string {
-  const cli = `"${process.execPath}" "${CLI_PATH}"`;
+  const cli = `"${process.execPath}" "${getSourceEntry('atc')}"`;
 
   return `#!/usr/bin/env bash
 echo $$ >> "$HOME/stub-pids"

@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core/session-id';
+import type { SessionID } from '@atc/core';
 
 /**
  * What one session bridge was opened for: the session, the target and

@@ -1,9 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolvePaths } from '@atc/config/resolve-paths';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { resolvePaths } from '@atc/config/host';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { restartDaemonAtSocket } from './restart-daemon-at-socket';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 

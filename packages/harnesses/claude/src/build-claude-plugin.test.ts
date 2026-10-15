@@ -1,9 +1,7 @@
 import { expect, test } from 'bun:test';
-import { collectAgents } from '@atc/config/collect-agents';
-import { parseConfig } from '@atc/config/config';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
-import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { collectAgents, parseConfig } from '@atc/config';
+import type { AuthProfile } from '@atc/plugin-api';
+import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
 import { buildClaudePlugin } from './build-claude-plugin';
 import { ClaudeAdapter } from './claude-adapter';
 import { GatewayAdapter } from './gateway/gateway-adapter';

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { getRecord } from '@atc/test-utils/get-record';
+import { getRecord } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { MCP_TOOLS } from './mcp-tools';

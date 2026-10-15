@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { buildMockHostServices } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildExecutionTargets } from './build-execution-targets';
 

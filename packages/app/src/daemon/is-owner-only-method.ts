@@ -1,5 +1,4 @@
-import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
-import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
+import { PROCEDURE_TRAITS, REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
 
 /**
  * Whether a request method is open to the daemon's owner alone, as its

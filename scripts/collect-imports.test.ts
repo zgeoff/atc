@@ -17,9 +17,24 @@ test('it collects static, type-only, dynamic and required specifiers', () => {
   ).toStrictEqual({
     specifiers: ['./a', '@atc/core', 'zod', './side-effect', './d', './e'],
     resolveOnly: [],
+    staticLoads: ['./a', 'zod', './side-effect'],
     nonLiteralLines: [],
     templateLines: [],
   });
+});
+
+test('it counts a statement as type-only only when type is its modifier', () => {
+  expect(
+    collectImports(
+      [
+        "export type { A } from './a';",
+        "import type from './b';",
+        "import type, { c } from './c';",
+        "import { type D, e } from './d';",
+        '',
+      ].join('\n'),
+    ).staticLoads,
+  ).toStrictEqual(['./b', './c', './d']);
 });
 
 test('it marks a specifier that only a resolve form names', () => {
@@ -36,6 +51,7 @@ test('it marks a specifier that only a resolve form names', () => {
   ).toStrictEqual({
     specifiers: ['bun-pty/package.json', './b', './c.txt'],
     resolveOnly: ['bun-pty/package.json', './c.txt'],
+    staticLoads: ['./b'],
     nonLiteralLines: [],
     templateLines: [],
   });
@@ -44,7 +60,13 @@ test('it marks a specifier that only a resolve form names', () => {
 test('it reports the line of a module reference whose specifier is computed', () => {
   expect(
     collectImports("const name = './a';\n\nexport const A = await import(name);\n"),
-  ).toStrictEqual({ specifiers: [], resolveOnly: [], nonLiteralLines: [3], templateLines: [] });
+  ).toStrictEqual({
+    specifiers: [],
+    resolveOnly: [],
+    staticLoads: [],
+    nonLiteralLines: [3],
+    templateLines: [],
+  });
 });
 
 test('it reports the line of a module load whose specifier is a template literal', () => {
@@ -60,6 +82,7 @@ test('it reports the line of a module load whose specifier is a template literal
   ).toStrictEqual({
     specifiers: ['node:fs', './a.txt', './b'],
     resolveOnly: ['./a.txt'],
+    staticLoads: [],
     nonLiteralLines: [],
     templateLines: [1, 3],
   });
@@ -68,5 +91,11 @@ test('it reports the line of a module load whose specifier is a template literal
 test('it ignores import text inside comments and strings', () => {
   expect(
     collectImports("// import { a } from './a';\nexport const TEXT = \"import b from './b'\";\n"),
-  ).toStrictEqual({ specifiers: [], resolveOnly: [], nonLiteralLines: [], templateLines: [] });
+  ).toStrictEqual({
+    specifiers: [],
+    resolveOnly: [],
+    staticLoads: [],
+    nonLiteralLines: [],
+    templateLines: [],
+  });
 });

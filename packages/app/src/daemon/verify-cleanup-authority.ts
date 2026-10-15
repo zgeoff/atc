@@ -1,4 +1,4 @@
-import type { BrokerHost, CredentialBroker } from '@atc/plugin-api/credential-broker';
+import type { BrokerHost, CredentialBroker } from '@atc/plugin-api';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { verifyTokenImpAuthority } from './verify-token-imp-authority';
 

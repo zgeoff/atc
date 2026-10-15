@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { DaemonClient } from '@atc/protocol/wire';
 import { loadGatewayRegistry } from './federation/load-gateway-registry';
 import { openGatewayCaller } from './federation/open-gateway-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';

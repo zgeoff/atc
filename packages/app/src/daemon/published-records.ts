@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { makeKeyedLock } from '@atc/core/make-keyed-lock';
-import type { SessionID } from '@atc/core/session-id';
-import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
-import type { PublishedRecord, RecordedScope } from '@atc/protocol/published-record';
-import type { SessionWorkspace } from '@atc/protocol/session-workspace';
+import { makeKeyedLock } from '@atc/core';
+import type { SessionID } from '@atc/core';
+import type { ExecutionProvider } from '@atc/plugin-api';
+import type {
+  DeclaredScope,
+  PublishedRecord,
+  RecordedScope,
+  SessionWorkspace,
+} from '@atc/protocol';
 import { checkSessionScope } from './check-session-scope';
 import type { CheckedScope } from './check-session-scope';
 import { findHostBranch } from './find-host-branch';

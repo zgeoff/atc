@@ -1,5 +1,5 @@
-import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
+import { DaemonError } from '@atc/protocol/wire';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
 interface GitRunOptions {

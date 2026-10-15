@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { CredentialBrokerError } from '@atc/plugin-api/credential-broker-error';
+import { CredentialBrokerError } from '@atc/plugin-api';
 import { buildStubCredentialBroker } from './build-stub-credential-broker';
 
 test('it names each host under its prefix', () => {

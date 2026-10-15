@@ -1,4 +1,4 @@
-import type { HostServices } from '@atc/plugin-api/host-services';
+import type { HostServices } from '@atc/plugin-api';
 import { z } from 'zod';
 import { readGitProtocol } from './read-git-protocol';
 import { runGH } from './run-gh';

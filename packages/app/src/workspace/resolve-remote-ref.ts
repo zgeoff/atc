@@ -1,4 +1,4 @@
-import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
+import { COMMIT_ID_PATTERN } from '@atc/core';
 import { findRemoteRef } from './find-remote-ref';
 import { runGit } from './run-git';
 import type { WorkspaceSource } from './workspace-source';

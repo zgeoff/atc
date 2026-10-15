@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 
 interface PrincipalsConfig {
   // The targets each principal may use, by principal; null when the config

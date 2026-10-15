@@ -1,16 +1,18 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { createStubClaude } from '@atc/test-utils/create-stub-claude';
-import { createStubComposer } from '@atc/test-utils/create-stub-composer';
-import { createStubNativeClaude } from '@atc/test-utils/create-stub-native-claude';
-import { getRecord } from '@atc/test-utils/get-record';
-import { getString } from '@atc/test-utils/get-string';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { startDaemonProcess } from '@atc/lifecycle/testing';
+import {
+  createGitFixture,
+  createStubClaude,
+  createStubComposer,
+  createStubNativeClaude,
+  getRecord,
+  getString,
+  resolveATCCommand,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 
 /**

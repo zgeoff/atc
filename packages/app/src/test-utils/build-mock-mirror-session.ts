@@ -1,5 +1,5 @@
-import { mergeDeep } from '@atc/test-utils/merge-deep';
-import type { MockOverrides } from '@atc/test-utils/mock-overrides';
+import { mergeDeep } from '@atc/test-utils';
+import type { MockOverrides } from '@atc/test-utils';
 import { faker } from '@faker-js/faker';
 import type { MirrorSession } from '../client/to-mirror-session';
 

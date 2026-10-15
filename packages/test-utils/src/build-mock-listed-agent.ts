@@ -1,7 +1,7 @@
-import type { AgentEntry } from '@atc/protocol/agent-list';
-import { mergeDeep } from '@atc/test-utils/merge-deep';
-import type { MockOverrides } from '@atc/test-utils/mock-overrides';
+import type { AgentEntry } from '@atc/protocol';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from './merge-deep';
+import type { MockOverrides } from './mock-overrides';
 
 type ListedAgentOverrides = MockOverrides<AgentEntry, keyof AgentEntry>;
 

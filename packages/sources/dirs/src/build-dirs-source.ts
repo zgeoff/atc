@@ -1,8 +1,7 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { expandHome } from '@atc/core/expand-home';
-import { formatHomePath } from '@atc/core/format-home-path';
-import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api/types';
+import { expandHome, formatHomePath } from '@atc/core';
+import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api';
 import { collectRootDirs } from './collect-root-dirs';
 import { collectPathCompletions } from './complete/collect-path-completions';
 

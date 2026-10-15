@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/message-sender';
-import { openBridgeSocket } from '@atc/protocol/open-bridge-socket';
-import type { BridgeSocket } from '@atc/protocol/open-bridge-socket';
+import { openBridgeSocket } from '@atc/protocol/session';
+import type { BridgeSocket } from '@atc/protocol/session';
+import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
 import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';

@@ -1,9 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { runCommand } from '@atc/test-utils/run-command';
-import { runShellcheck } from '@atc/test-utils/run-shellcheck';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { createStubBin, runCommand, runShellcheck, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildHarnessArgv } from './build-harness-argv';
 

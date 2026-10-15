@@ -1,12 +1,14 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
-import type { HarnessAttachment, HarnessExit } from '@atc/plugin-api/execution-provider';
-import { buildStubFailingAttachmentListener } from '@atc/test-utils/build-stub-failing-attachment-listener';
-import { buildStubLaunchAdmission } from '@atc/test-utils/build-stub-launch-admission';
-import { createStubHarnessGuest } from '@atc/test-utils/create-stub-harness-guest';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import type { HarnessAttachment, HarnessExit } from '@atc/plugin-api';
+import {
+  buildStubFailingAttachmentListener,
+  buildStubLaunchAdmission,
+  createStubHarnessGuest,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { ImpHarness } from './imp-harness';
 import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
 import { createStubImpPort } from './testing/create-stub-imp-port';

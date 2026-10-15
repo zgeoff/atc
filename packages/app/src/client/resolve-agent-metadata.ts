@@ -1,6 +1,6 @@
-import type { Config } from '@atc/config/config';
-import type { AgentID } from '@atc/core/agent-id';
-import { isRecord } from '@atc/core/is-record';
+import type { Config } from '@atc/config';
+import type { AgentID } from '@atc/core';
+import { isRecord } from '@atc/core';
 
 // What the overlay needs to know per agent to label a row: the readable
 // name, and the tier-alias map a gateway's env configures.

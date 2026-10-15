@@ -1,8 +1,4 @@
-import type {
-  BrokerSecret,
-  BrokerSecretKind,
-  BrokerSecretRule,
-} from '@atc/plugin-api/credential-broker';
+import type { BrokerSecret, BrokerSecretKind, BrokerSecretRule } from '@atc/plugin-api';
 
 /**
  * One secret as a resolved binding expects impd to hold it: its kind and

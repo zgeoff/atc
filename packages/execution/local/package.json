@@ -4,7 +4,8 @@
   "description": "The local execution provider: sessions run in PTYs on the daemon's own machine, with stub providers for tests under ./testing",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",

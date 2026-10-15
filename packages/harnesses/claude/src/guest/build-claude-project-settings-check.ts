@@ -1,6 +1,6 @@
-import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
-import type { ProjectSettingsCheck } from '@atc/plugin-api/agent-adapter';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { isSubscriptionOverrideVariable } from '@atc/core';
+import type { ProjectSettingsCheck } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
 
 /**

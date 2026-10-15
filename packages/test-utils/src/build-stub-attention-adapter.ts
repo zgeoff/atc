@@ -1,4 +1,4 @@
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
+import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 
 /**

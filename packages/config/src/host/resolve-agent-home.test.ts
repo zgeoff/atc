@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { updateEnv } from '@atc/test-utils';
 import { resolveAgentHome } from './resolve-agent-home';
 
 test('it returns the env var when set and non-empty', () => {

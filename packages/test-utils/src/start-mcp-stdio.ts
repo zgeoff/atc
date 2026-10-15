@@ -1,8 +1,6 @@
-import { isRecord } from '@atc/core/is-record';
-import { getSourceEntry } from '@atc/test-utils/get-source-entry';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-
-const CLI_PATH = getSourceEntry('atc');
+import { isRecord } from '@atc/core';
+import { getSourceEntry } from './get-source-entry';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface MCPStdioOptions {
   // The home the server runs with, as its `HOME` and `XDG_RUNTIME_DIR`.
@@ -44,19 +42,22 @@ interface MCPToolResult {
  * stays up for the home to stop.
  */
 export async function startMCPStdio(options: MCPStdioOptions) {
-  const proc = Bun.spawn([...(options.command ?? [process.execPath, CLI_PATH, 'mcp'])], {
-    env: {
-      ...process.env,
-      HOME: options.home,
-      XDG_RUNTIME_DIR: options.home,
-      PATH: '/usr/sbin:/usr/bin:/bin',
-      ATC_SESSION_ID: options.callerSessionID ?? '',
-      ATC_TAP_GRACE_MS: '0',
+  const proc = Bun.spawn(
+    [...(options.command ?? [process.execPath, getSourceEntry('atc'), 'mcp'])],
+    {
+      env: {
+        ...process.env,
+        HOME: options.home,
+        XDG_RUNTIME_DIR: options.home,
+        PATH: '/usr/sbin:/usr/bin:/bin',
+        ATC_SESSION_ID: options.callerSessionID ?? '',
+        ATC_TAP_GRACE_MS: '0',
+      },
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'ignore',
     },
-    stdin: 'pipe',
-    stdout: 'pipe',
-    stderr: 'ignore',
-  });
+  );
 
   const stop = registerTestCleanup(async (): Promise<void> => {
     void proc.stdin.end();

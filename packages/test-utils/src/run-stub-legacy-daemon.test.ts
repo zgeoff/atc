@@ -1,12 +1,11 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { DaemonClient, PROTOCOL_V } from '@atc/protocol/wire';
+import { registerTestCleanup } from './register-test-cleanup';
+import { runCommand } from './run-command';
+import { setupTempDir } from './setup-temp-dir';
+import { waitFor } from './wait-for';
 
 // The legacy daemon started on a socket in a temp directory, which is also
 // its state directory. Cleanup kills the daemon, then removes the directory.

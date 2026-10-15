@@ -1,8 +1,8 @@
-import type { SessionID } from '@atc/core/session-id';
-import { truncateDetail } from '@atc/core/truncate-detail';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import type { EventMsg } from '@atc/protocol/protocol';
-import type { MessageRecord } from '@atc/store/message-record';
+import type { SessionID } from '@atc/core';
+import { truncateDetail } from '@atc/core';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import type { MessageRecord } from '@atc/store';
 
 /**
  * The `SessionMessage` event for one message status change, addressed by

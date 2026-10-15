@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { MCP_TOOLS } from './mcp-tools';

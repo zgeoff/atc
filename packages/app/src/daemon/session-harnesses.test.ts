@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
-import { buildStubLog } from '@atc/test-utils/build-stub-log';
+import { toSessionID } from '@atc/core';
+import { buildStubLog } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { SessionHarnesses } from './session-harnesses';

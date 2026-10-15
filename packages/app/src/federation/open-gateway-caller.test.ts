@@ -2,19 +2,21 @@ import { expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core/is-record';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubAuthenticator } from '@atc/test-utils/build-stub-authenticator';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { getRecord } from '@atc/test-utils/get-record';
-import { readJSONRecord } from '@atc/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
-import { runPasskeyEnrollment } from '@atc/test-utils/run-passkey-enrollment';
-import { sendMCPRequest } from '@atc/test-utils/send-mcp-request';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { isRecord } from '@atc/core';
+import { DaemonClient } from '@atc/protocol/wire';
+import {
+  buildMockAgentAdapter,
+  buildStubAuthenticator,
+  buildStubClock,
+  getRecord,
+  readJSONRecord,
+  registerTestCleanup,
+  runMCPAuthorization,
+  runPasskeyEnrollment,
+  sendMCPRequest,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { createEnrollmentToken } from '../mcp/create-enrollment-token';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';

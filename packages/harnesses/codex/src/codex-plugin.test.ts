@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
-import { collectAgents } from '@atc/config/collect-agents';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
-import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { collectAgents } from '@atc/config';
+import type { AuthProfile } from '@atc/plugin-api';
+import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
 import { CodexAdapter } from './codex-adapter';
 import { CODEX_PLUGIN } from './codex-plugin';
 

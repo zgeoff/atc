@@ -1,4 +1,4 @@
-import type { SortableSessionView } from '@atc/protocol/sortable-session-view';
+import type { SortableSessionView } from '@atc/protocol';
 import { faker } from '@faker-js/faker';
 
 /**

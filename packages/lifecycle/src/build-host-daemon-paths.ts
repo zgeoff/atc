@@ -1,4 +1,4 @@
-import type { DaemonPaths } from '@atc/protocol/daemon-paths';
+import type { DaemonPaths } from '@atc/protocol';
 import type { LifecycleHost } from './lifecycle-host';
 
 /**

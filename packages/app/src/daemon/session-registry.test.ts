@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { toSessionID } from '@atc/core';
+import { buildTargetIdentity } from '@atc/store';
+import { buildMockAgentAdapter } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { SessionRegistry } from './session-registry';

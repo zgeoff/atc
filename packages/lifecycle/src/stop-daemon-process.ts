@@ -1,5 +1,5 @@
-import type { Clock } from '@atc/core/system-clock';
-import { waitUntil } from '@atc/core/wait-until';
+import type { Clock } from '@atc/core';
+import { waitUntil } from '@atc/core';
 import { isProcessAlive } from './is-process-alive';
 
 const EXIT_WAIT_MS = 10_000;

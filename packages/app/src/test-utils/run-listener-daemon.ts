@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/test-utils';
 import { startDaemon } from '../daemon/daemon';
 
 /**

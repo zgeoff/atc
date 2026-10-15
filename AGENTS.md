@@ -94,14 +94,17 @@ and `daemon/`. `bun run check:imports` fails on an import cycle and on an import
 forbids; the rules live in `scripts/check-imports.ts`. `scripts/package-rules.ts` holds the packages
 and the internal packages each may depend on, and three gates read it. The oxlint overrides in
 `.oxlintrc.imports.json`, which `bun run build:import-rules` generates, refuse an import outside a
-package's row, a deep import into another package's `src/`, a test helper in production code, and a
-confined external package outside its owner. `bun run check:manifests` fails on an import the
-manifest does not declare, on a relative path into another package, and on a module load whose
-specifier is a template literal, which the oxlint overrides cannot read. `bun run check:reach` fails
-when the gateway entry reaches a module the gateway must never load. `bun run check:bundle` fails
-when the atc bundle carries an execution provider that the shipped execution plugins list leaves
-out, or when a build whose list keeps only the local provider carries any other provider's code.
-`bun run check:disable-baseline` fails when more directives switch off an import rule than
+package's row, a deep import into another package's `src/`, a subpath that a package's `exports` map
+does not list, a test helper in production code, and a confined external package outside its owner.
+`bun run check:manifests` fails on an import the manifest does not declare, on an `@atc/*` import of
+a subpath that the target's `exports` map does not list, on a package with no `exports` map or with
+a wildcard entry, on a relative path into another package, and on a module load whose specifier is a
+template literal, which the oxlint overrides cannot read. `bun run check:reach` fails when the
+gateway entry reaches a module the gateway must never load, and when the static import graph of a
+reporter or of `cli.ts` reaches a package module outside the light entries. `bun run check:bundle`
+fails when the atc bundle carries an execution provider that the shipped execution plugins list
+leaves out, or when a build whose list keeps only the local provider carries any other provider's
+code. `bun run check:disable-baseline` fails when more directives switch off an import rule than
 `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool definitions and request handling
 that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts` and the better-auth
 authorization server and its pages. `federation/` holds the gateway's daemon registry, per-daemon
@@ -116,6 +119,24 @@ so it does not depend on where the app sits. No production module imports either
 repo root holds the end-to-end suites that run the whole program, and `bin/atc` is the dev shim that
 runs the app's CLI entrypoint from a checkout. `mods/` holds the `atc-bridge` Claude Code mod.
 `scripts/` holds repo tooling, not app code.
+
+Each workspace package lists its entry points in an explicit `exports` map, so another package
+imports only what the package means to share. An entry point is the `index.ts` at the root of a
+folder: it re-exports what other packages may use, and the rest of the folder stays internal. Most
+packages have one entry, `.`, at `src/index.ts`, and a package with a `src/testing/` folder adds a
+`./testing` entry that `.` never re-exports. A second entry moves its modules into a folder of its
+own, and a package gets one only for a reason, never one entry per file. The reason is usually
+start-up time. A compiled entry point runs the top-level code of every module it re-exports, and a
+hook or statusline command starts once per event inside a session, so the reporters and the static
+imports of `cli.ts` load only the light entries that `scripts/check-reach.ts` lists. A package whose
+`.` entry builds Zod schemas, the protocol contract, or the store keeps the modules a reporter needs
+in a light entry, and its `.` entry re-exports that light entry, so a module off the reporters' path
+can import everything through `.`. Core's `.` entry is itself light: it leaves the Zod field
+builders, whose import loads Zod, to its `./schema` entry. The store's `./sqlite` entry gives the
+gateway its `mcp-auth.db` opener without the rest of the store. A module never imports its own
+package by name: imports inside a package stay relative. `@atc/test-utils` has one `.` entry, and
+the preload modules that `bunfig.toml` loads by path stay out of it, because they run top-level
+code.
 
 ## Runtime rules
 

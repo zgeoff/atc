@@ -1,7 +1,5 @@
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import type { MessageID } from '@atc/core/message-id';
-import type { SessionID } from '@atc/core/session-id';
-import type { MessageSender } from '@atc/protocol/message-sender';
+import type { AgentSessionID, MessageID, SessionID } from '@atc/core';
+import type { MessageSender } from '@atc/protocol/wire';
 
 export type MessageStatus = 'queued' | 'delivered' | 'answered' | 'unanswered';
 

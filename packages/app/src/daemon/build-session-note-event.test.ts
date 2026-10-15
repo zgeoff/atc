@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toSessionID } from '@atc/core';
 import { buildSessionNoteEvent } from './build-session-note-event';
 
 test('it builds a note event carrying the note label as its kind', () => {

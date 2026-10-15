@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { sortJSONKeys } from '@atc/core/sort-json-keys';
+import { sortJSONKeys } from '@atc/core';
 
 /**
  * The SHA-256 of a keyed request's params as canonical JSON: object keys

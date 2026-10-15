@@ -1,4 +1,4 @@
-import type { HostCommandResult, HostServices } from '@atc/plugin-api/host-services';
+import type { HostCommandResult, HostServices } from '@atc/plugin-api';
 
 interface StubGHReply {
   readonly stdout?: string;

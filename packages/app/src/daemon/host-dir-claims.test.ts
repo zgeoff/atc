@@ -1,9 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { toSessionID } from '@atc/core/to-session-id';
-import { runShellcheck } from '@atc/test-utils/run-shellcheck';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { toSessionID } from '@atc/core';
+import { runShellcheck, setupTempDir } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import type { ExecutionTarget } from './build-execution-targets';

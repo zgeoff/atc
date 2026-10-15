@@ -1,7 +1,7 @@
-import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
 import type {
   CommandResult,
   CommandSpec,
+  CredentialBroker,
   ExecutionCapabilities,
   ExecutionProvider,
   GuestLayout,
@@ -9,7 +9,7 @@ import type {
   HarnessHandle,
   HarnessSpec,
   HostRequest,
-} from '@atc/plugin-api/execution-provider';
+} from '@atc/plugin-api';
 
 interface StubMemoryProviderConfig {
   // The provider kind the stand-in reports; `memory` when absent.

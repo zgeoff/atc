@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { isRecord } from '@atc/core/is-record';
-import { getRecord } from '@atc/test-utils/get-record';
+import { isRecord } from '@atc/core';
+import { getRecord } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildCodexAuthFile } from './build-codex-auth-file';
 

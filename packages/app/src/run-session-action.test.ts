@@ -1,12 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubBrokeredAgentAdapter } from '@atc/test-utils/build-stub-brokered-agent-adapter';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import { LocalPTYProvider } from '@atc/execution-local';
+import {
+  buildStubBrokeredAgentAdapter,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import { runSessionAction } from './run-session-action';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 

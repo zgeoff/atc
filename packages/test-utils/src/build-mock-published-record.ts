@@ -1,7 +1,7 @@
-import type { PublishedRecord } from '@atc/protocol/published-record';
-import { mergeDeep } from '@atc/test-utils/merge-deep';
-import type { MockOverrides } from '@atc/test-utils/mock-overrides';
+import type { PublishedRecord } from '@atc/protocol';
 import { faker } from '@faker-js/faker';
+import { mergeDeep } from './merge-deep';
+import type { MockOverrides } from './mock-overrides';
 
 type DefaultedKey = keyof PublishedRecord;
 

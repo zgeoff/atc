@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { loadOAuthStates } from './load-oauth-states';
 

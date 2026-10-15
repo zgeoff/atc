@@ -1,6 +1,6 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
+import { resolveHomeDir } from './host/resolve-home-dir';
 import { normalizeConfigDir } from './normalize-config-dir';
-import { resolveHomeDir } from './resolve-home-dir';
 
 /**
  * Reads `dirs.roots`: the directories whose children the spawn picker

@@ -2,19 +2,21 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { encodeCursor } from '@atc/protocol/encode-cursor';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
-import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { parseConfig } from '@atc/config';
+import { GrokAdapter } from '@atc/harness-grok';
+import { encodeCursor } from '@atc/protocol';
+import { DaemonClient } from '@atc/protocol/wire';
+import { StateStore } from '@atc/store';
+import {
+  buildMockAgentAdapter,
+  buildStubClock,
+  getAgentEntry,
+  getRecord,
+  registerTestCleanup,
+  spawnNamedSession,
+  subscribeToSocketLines,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

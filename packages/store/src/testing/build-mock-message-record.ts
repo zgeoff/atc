@@ -1,5 +1,4 @@
-import { toMessageID } from '@atc/core/to-message-id';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toMessageID, toSessionID } from '@atc/core';
 import { faker } from '@faker-js/faker';
 import type { MessageRecord } from '../message-record';
 

@@ -1,7 +1,6 @@
-import { IMP_PLUGIN } from '@atc/execution-imp/imp-plugin';
-import { LOCAL_PTY_PLUGIN } from '@atc/execution-local/local-pty-plugin';
-import type { PluginDefinition } from '@atc/plugin-api/define-plugin';
-import type { ExecutionTargetConfig } from '@atc/plugin-api/execution-target-config';
+import { IMP_PLUGIN } from '@atc/execution-imp';
+import { LOCAL_PTY_PLUGIN } from '@atc/execution-local';
+import type { ExecutionTargetConfig, PluginDefinition } from '@atc/plugin-api';
 
 /**
  * The execution plugins atc ships, each selected by a target's `provider`.

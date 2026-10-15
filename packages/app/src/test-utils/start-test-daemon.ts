@@ -1,10 +1,12 @@
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { EventMsg } from '@atc/protocol/protocol';
-import { assertContractAnswer } from '@atc/test-utils/assert-contract-answer';
-import { assertContractEvent } from '@atc/test-utils/assert-contract-event';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { DaemonClient } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import {
+  assertContractAnswer,
+  assertContractEvent,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import type { Socket } from 'bun';
 import { startDaemon } from '../daemon/daemon';
 import type { DaemonHandle, DaemonOptions } from '../daemon/daemon';

@@ -1,10 +1,9 @@
-import type { MessageID } from '@atc/core/message-id';
-import type { SessionID } from '@atc/core/session-id';
-import { toMessageID } from '@atc/core/to-message-id';
-import type { HarnessRelay } from '@atc/plugin-api/execution-provider';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import type { EventMsg } from '@atc/protocol/protocol';
-import type { MessageRecord } from '@atc/store/message-record';
+import type { MessageID, SessionID } from '@atc/core';
+import { toMessageID } from '@atc/core';
+import type { HarnessRelay } from '@atc/plugin-api';
+import type { HookEvent } from '@atc/protocol/session';
+import type { EventMsg } from '@atc/protocol/wire';
+import type { MessageRecord } from '@atc/store';
 import { z } from 'zod';
 import type { TapClient } from './daemon-context';
 import { isBindingCurrent } from './is-binding-current';

@@ -1,8 +1,8 @@
-import { isRecord } from '@atc/core/is-record';
-import type { Clock } from '@atc/core/system-clock';
-import type { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { StoredRow } from '@atc/store/snapshot/read-stored-rows';
-import { readStoredRows } from '@atc/store/snapshot/read-stored-rows';
+import { isRecord } from '@atc/core';
+import type { Clock } from '@atc/core';
+import type { DaemonClient } from '@atc/protocol/wire';
+import type { StoredRow } from '@atc/store';
+import { readStoredRows } from '@atc/store';
 import type { RestartFailedRow } from './parse-restart-result';
 
 interface FleetVerdict {

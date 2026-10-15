@@ -12,13 +12,15 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { buildTarArchive } from '@atc/core/build-tar-archive';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { runShellcheck } from '@atc/test-utils/run-shellcheck';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubImpd } from '@atc/test-utils/start-stub-impd';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { buildTarArchive } from '@atc/core';
+import {
+  createStubBin,
+  registerTestCleanup,
+  runShellcheck,
+  setupTempDir,
+  startStubImpd,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import { ImpClientPort } from './imp-client-port';

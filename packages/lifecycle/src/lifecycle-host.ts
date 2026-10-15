@@ -1,7 +1,7 @@
-import type { Paths } from '@atc/config/resolve-paths';
-import type { Clock } from '@atc/core/system-clock';
+import type { Paths } from '@atc/config/host';
+import type { Clock } from '@atc/core';
 import type { ATCInvocation } from './atc-invocation';
-import type { CommandResult } from './run-command';
+import type { CommandResult } from './run-command/run-command';
 
 /**
  * What the daemon's process control reaches outside its own code, which the

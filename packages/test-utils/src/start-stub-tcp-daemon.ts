@@ -1,6 +1,6 @@
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { z } from 'zod';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface StubTCPDaemon {
   readonly port: number;

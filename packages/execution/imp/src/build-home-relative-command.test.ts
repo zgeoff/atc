@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 import { buildHomeRelativeCommand } from './build-home-relative-command';
 
 /**

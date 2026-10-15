@@ -1,13 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core/to-session-id';
-import { EffectRemainsError } from '@atc/plugin-api/effect-remains-error';
-import { StateStore } from '@atc/store/state-store';
-import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
-import { buildStubLog } from '@atc/test-utils/build-stub-log';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { toSessionID } from '@atc/core';
+import { EffectRemainsError } from '@atc/plugin-api';
+import { StateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/testing';
+import { buildStubLog, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { HostDirClaims } from './host-dir-claims';
