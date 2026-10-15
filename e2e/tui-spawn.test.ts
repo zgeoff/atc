@@ -250,7 +250,7 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
 
   ctx.write(fixture.work);
 
-  await ctx.waitFor(`> ${fixture.work}`);
+  await ctx.waitFor(ctx.formatInput(fixture.work));
 
   ctx.write(KEYS.enter);
 

@@ -137,6 +137,32 @@ test('it forgets what the client drew on reset', async () => {
   expect(ctx.tui.read()).not.toInclude('atc — control tower');
 });
 
+test('it formats a short text as the whole input row', () => {
+  const tui = startTUIHarness();
+
+  expect(tui.formatInput('/srv/ledger')).toBe('> /srv/ledger');
+});
+
+test('it formats a text too long for the input row as the tail the picker draws', async () => {
+  const ctx = await setupTest();
+
+  const typed = `/srv/${'orchard-'.repeat(12)}ledger`;
+
+  ctx.tui.write('n');
+
+  await ctx.tui.waitFor('spawn: agent');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('spawn: directory');
+
+  ctx.tui.write(typed);
+
+  await ctx.tui.waitFor(`> …${typed.slice(-81)}`);
+
+  expect(ctx.tui.formatInput(typed)).toBe(`> …${typed.slice(-81)}`);
+});
+
 test('it passes the arguments a boot gives to the client', async () => {
   const tui = startTUIHarness();
 

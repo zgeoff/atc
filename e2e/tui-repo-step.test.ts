@@ -50,7 +50,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor(`> ${dest}`);
+  await ctx.waitFor(ctx.formatInput(dest));
 
   expect(ctx.read()).toInclude(`main → ${fixture.sha.slice(0, 12)}`);
   expect(ctx.read()).toInclude('dest    local:/');
@@ -63,7 +63,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(`> ${fixture.upstream}`);
+  await ctx.waitFor(ctx.formatInput(fixture.upstream));
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -83,7 +83,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(`> ${dest}`);
+  await ctx.waitFor(ctx.formatInput(dest));
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -368,7 +368,7 @@ test("it builds each target's own default destination when the target changes", 
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor(`> ${join(ctx.home, '.local', 'share', 'atc', 'workspaces', name)}`);
+  await ctx.waitFor(ctx.formatInput(join(ctx.home, '.local', 'share', 'atc', 'workspaces', name)));
 
   ctx.reset();
   ctx.write(KEYS.esc);
@@ -378,7 +378,7 @@ test("it builds each target's own default destination when the target changes", 
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(`> ${fixture.upstream}`);
+  await ctx.waitFor(ctx.formatInput(fixture.upstream));
 
   ctx.reset();
   ctx.write(KEYS.esc);
@@ -393,7 +393,7 @@ test("it builds each target's own default destination when the target changes", 
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor(`> ${fixture.upstream}`);
+  await ctx.waitFor(ctx.formatInput(fixture.upstream));
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -403,7 +403,7 @@ test("it builds each target's own default destination when the target changes", 
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor(`> ${join(ctx.home, 'alt-ws', name)}`);
+  await ctx.waitFor(ctx.formatInput(join(ctx.home, 'alt-ws', name)));
 
   expect(ctx.read()).toInclude('target  alt (local-pty)');
 }, 30_000);
@@ -559,7 +559,7 @@ test('it drops a typed destination when the repository changes', async () => {
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(`> ${custom}`);
+  await ctx.waitFor(ctx.formatInput(custom));
 
   ctx.reset();
   ctx.write(KEYS.esc);
@@ -569,7 +569,7 @@ test('it drops a typed destination when the repository changes', async () => {
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(`> ${fixture.upstream}`);
+  await ctx.waitFor(ctx.formatInput(fixture.upstream));
 
   ctx.reset();
   ctx.write(KEYS.ctrlU);
