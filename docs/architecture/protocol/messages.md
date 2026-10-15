@@ -4,11 +4,11 @@ A message is text one caller sends a session for its agent to act on, such as on
 another a task. The daemon keeps each message in the session's inbox in `atc.db` until the session
 takes it, so a message survives a daemon restart and a fleet restore. The daemon never types a
 message into the session's terminal: a process inside the session takes it through a tap, and the
-`atc-bridge` mod inside Claude Code hands it to the model. The answer to a message is the final
-output of the turn that carried it, which the mod reports when the turn ends. A turn that ends
-without a reply leaves the message unanswered. When the sender is itself a session that takes
-messages, the daemon queues an answer notice in the sender's inbox, so the outcome reaches the
-sender's conversation without a read.
+`atc-bridge` mod inside Claude Code hands it to the model. The answer to a message is the text the
+model sends with the mod's `answer` tool or, if none, the final reply of the turn that carried it,
+which the mod reports when the turn ends. A turn that ends without a reply leaves the message
+unanswered. When the sender is itself a session that takes messages, the daemon queues an answer
+notice in the sender's inbox, so the outcome reaches the sender's conversation without a read.
 
 [Agent integration](../agents/agent-integration.md#the-atc-bridge-mod) covers the mod, and
 [events](./events.md) covers the trail that records each status change.
@@ -81,17 +81,25 @@ resumes or clears it, so a resumed session keeps its queue.
 
 The mod wraps each message in an `<atc-message>` envelope that holds the sender and the message id.
 When the session is idle, the mod submits the message as a new turn; when a turn is running, it adds
-the message to that turn. One turn can therefore carry several messages, and each of them gets the
-same answer: the turn's final reply. When the turn ends with a reply, the mod sends one answer that
-holds every message the turn carried and the turn's id, and the daemon marks them all answered in
-one statement, so a reader that finds one of them answered finds the whole group answered. A turn
-that ends without a reply, because a person interrupted it, it failed, or the model refused, gets
-one `unanswered` report instead, with the turn's id and a one-word reason: `interrupted`, `error` or
-`refusal`. A message whose prompt a hook dropped is reported `unanswered` with the reason
-`not_started`, because no turn will ever carry it. A prompt queued behind a running turn keeps
-waiting when that turn ends without a reply, because the session can still run the queued prompt as
-a turn of its own. A message the model never saw, one added to a running turn that ended before its
-next step, is delivered again instead.
+the message to that turn. One turn can therefore carry several messages.
+
+The final reply of a turn is meant for the person at the terminal, so the model answers each message
+on its own with the mod's `answer` tool, which takes the message id and the answer text. The mod
+reports that answer at once, with no turn id, and the daemon marks the message answered before the
+turn ends. A message keeps its first answer, because the daemon settles only a queued or delivered
+message.
+
+When the turn ends with a reply, each message the turn carried that the `answer` tool left without
+an answer takes the final reply. The mod sends one answer that holds those messages and the turn's
+id, and the daemon marks them all answered in one statement, so a reader that finds one of them
+answered finds the whole group answered. A turn that ends without a reply, because a person
+interrupted it, it failed, or the model refused, gets one `unanswered` report for those messages
+instead, with the turn's id and a one-word reason: `interrupted`, `error` or `refusal`. A message
+whose prompt a hook dropped is reported `unanswered` with the reason `not_started`, because no turn
+will ever carry it. A prompt queued behind a running turn keeps waiting when that turn ends without
+a reply, because the session can still run the queued prompt as a turn of its own. A message the
+model never saw, one added to a running turn that ended before its next step, is delivered again
+instead.
 
 Unanswered is final. A later answer for that message changes nothing, and atc never delivers the
 message again, because redelivering after an interrupt would restart work a person stopped, and
@@ -167,8 +175,7 @@ before its next step, is delivered again, as an unseen message is.
 
 A note is progress a session sends with no message attached, through the mod's `note` tool, labelled
 `progress`, `blocked` or `decision`. The daemon records each note in the event trail and broadcasts
-it. A note never answers a message, so a model that sends a note mid-turn still answers its messages
-with the turn's final reply.
+it. A note never answers a message: the `answer` tool or the turn's final reply does.
 
 ## Remote sessions
 

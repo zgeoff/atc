@@ -31,7 +31,7 @@ Every Claude Code session starts with files atc wrote for it:
   prompt submit, notification and stop, and a chained statusline. Hooks that an entry's extra
   session settings add run after atc's own, so they join the reporter rather than replacing it.
 - **The `atc-bridge` mod**, passed with `--plugin-dir`, connects the session to its inbox and gives
-  the model a `note` tool.
+  the model a `note` tool and an `answer` tool.
 - **A scratch folder of its own**, passed as an added directory and as `TMPDIR`, so a session's
   temporary files never land in another session's.
 
@@ -69,18 +69,22 @@ turn otherwise. The envelope holds the message id, the sender's name and the sen
 session id when the sender is a session ([messages](../protocol/messages.md#who-a-message-is-from)).
 A tap line without a kind, from a daemon that predates typed senders, gets an envelope with the name
 alone. The mod adds a section to the system prompt that says what the envelope means, so the model
-treats a relayed message as one from another tool rather than the owner's own words. When a turn
-that carried messages ends with a reply, the mod reports every message the turn carried as answered
-with that reply and the turn's id, in one call; a turn that ends without a reply is reported as
-unanswered, with the cause ([messages](../protocol/messages.md#answers)). The mod's tap also asks
-for answer notices, and the mod hands each one to the model in an `<atc-answer>` envelope that holds
-the outcome of a message the session sent. The model learns from the system prompt section that a
-notice needs no reply, and the mod never reports an answer for one
+treats a relayed message as one from another tool rather than the owner's own words. The same
+section tells the model to answer each message with the `answer` tool, because the final reply of a
+turn is meant for the person at the terminal. The mod reports an `answer` call at once, as the
+answer to that one message. When a turn that carried messages ends with a reply, the mod reports
+every message the turn carried that has no answer as answered with that reply and the turn's id, in
+one call; a turn that ends without a reply is reported as unanswered for those messages, with the
+cause ([messages](../protocol/messages.md#answers)). The mod's tap also asks for answer notices, and
+the mod hands each one to the model in an `<atc-answer>` envelope that holds the outcome of a
+message the session sent. The model learns from the system prompt section that a notice needs no
+reply, and the mod never reports an answer for one
 ([delivering answers](../protocol/messages.md#delivering-answers)).
 
 The `note` tool sends progress mid-turn, labelled `progress`, `blocked` or `decision`, and never
-answers a message. The mods API is early access, so CI validates and tests the mod against one
-pinned Claude Code version.
+answers a message. The `answer` tool takes the id of a message the running turn carries and the text
+of its answer, and refuses a message that already has one. The mods API is early access, so CI
+validates and tests the mod against one pinned Claude Code version.
 
 ## Grok and Codex
 

@@ -1599,6 +1599,109 @@ test('it stores no turn for an answer reported without one', async () => {
   expect(secondGot).toMatchObject({ answer: 'both', turn: null, answeredWith: [] });
 });
 
+test("it answers one message of a running turn with the answer tool's text before the turn ends", async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const first = await daemon.client.sendRequest('session.message', { session: id, text: 'one' });
+  const second = await daemon.client.sendRequest('session.message', { session: id, text: 'two' });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: first['message'] });
+  await tap.sendRequest('message.ack', { session: id, message: second['message'] });
+  await daemon.sendHookLines({ atcId: id, event: 'UserPromptSubmit', payload: {} });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: first['message'], answer: 'the lighthouse is lit' },
+  });
+
+  await waitFor(async () => {
+    const got = await daemon.client.sendRequest('message.get', { message: first['message'] });
+
+    expect(got).toMatchObject({
+      status: 'answered',
+      answer: 'the lighthouse is lit',
+      turn: null,
+      answeredWith: [],
+    });
+  });
+
+  const secondGot = await daemon.client.sendRequest('message.get', {
+    message: second['message'],
+  });
+
+  expect(secondGot['status']).toBe('delivered');
+});
+
+test('it gives the final reply only to the message of a turn that the answer tool left unanswered', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const tap = await daemon.openClient();
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+  const first = await daemon.client.sendRequest('session.message', { session: id, text: 'one' });
+  const second = await daemon.client.sendRequest('session.message', { session: id, text: 'two' });
+
+  await tap.sendRequest('session.tap', { session: id });
+  await tap.sendRequest('message.ack', { session: id, message: first['message'] });
+  await tap.sendRequest('message.ack', { session: id, message: second['message'] });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: first['message'], answer: 'the lighthouse is lit' },
+  });
+
+  await waitFor(async () => {
+    const got = await daemon.client.sendRequest('message.get', { message: first['message'] });
+
+    expect(got['status']).toBe('answered');
+  });
+
+  // The turn's report holds both ids, as a report that crossed the answer
+  // would, so the store alone keeps the first answer.
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: {
+      kind: 'answered',
+      messages: [first['message'], second['message']],
+      answer: 'the tide is out',
+      turn: 't-1',
+    },
+  });
+
+  await waitFor(async () => {
+    const got = await daemon.client.sendRequest('message.get', { message: second['message'] });
+
+    expect(got).toMatchObject({
+      status: 'answered',
+      answer: 'the tide is out',
+      turn: 't-1',
+      answeredWith: [],
+    });
+  });
+
+  const firstGot = await daemon.client.sendRequest('message.get', { message: first['message'] });
+
+  expect(firstGot).toMatchObject({
+    status: 'answered',
+    answer: 'the lighthouse is lit',
+    turn: null,
+    answeredWith: [],
+  });
+});
+
 test('it holds message.get open until the message status changes', async () => {
   const clock = buildStubClock(0);
 

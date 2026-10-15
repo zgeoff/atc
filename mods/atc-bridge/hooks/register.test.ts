@@ -634,7 +634,224 @@ test('it registers the note tool with a label input', async (engine, on) => {
 
   expect(registered).toStrictEqual([
     { name: 'note', properties: ['text', 'label'], required: ['text'] },
+    { name: 'answer', properties: ['message', 'text'], required: ['message', 'text'] },
   ]);
+});
+
+test('it tells the model to answer each message with the answer tool', async (engine, on) => {
+  setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('prompt.compose', ($, e) => ({ sections: e.sections }));
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    return { value: { code: 0, signal: null } };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+
+  const composed = await engine.prompt.compose({
+    sections: [],
+    promptModel: 'claude-opus-5-5',
+    outputStyle: null,
+    tools: [],
+    traits: [],
+    surfaces: [],
+  });
+
+  expect(composed.sections).toStrictEqual([
+    {
+      id: 'atc-bridge:messages',
+      scope: 'session',
+      text: expect.stringContaining(
+        "Answer each <atc-message> with the answer tool, giving its id and your answer to that sender; atc stores the text as the message's answer, and it reaches a sending session as a notice. Your final reply goes to the user at this terminal, not to a sender: only a message you leave without an answer takes the final reply of its turn as its answer.",
+      ),
+    },
+  ]);
+});
+
+test('it reports an answer for one carried message before the turn ends', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"is the lamp lit?"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'the lamp is lit',
+  });
+
+  expect(answered.result).toBe('Handed to atc as the answer to m-1.');
+
+  expect(ctx.ran).toStrictEqual([
+    { argv: ['atc', 'answer', '--message', 'm-1'], stdin: 'the lamp is lit' },
+  ]);
+});
+
+test('it gives the final reply only to the carried message the answer tool left without an answer', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield {
+      stream: 'stdout',
+      text: '{"id":"m-1","from":"alice","text":"one"}\n{"id":"m-2","from":"bob","text":"two"}\n',
+    };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', ($, e) => ({ text: e.text }));
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+
+  await engine.turn.start({
+    text: '<atc-message id="m-1" from="alice">\none\n</atc-message>\n\n<atc-message id="m-2" from="bob">\ntwo\n</atc-message>',
+    turnId: 't-1',
+  });
+
+  await engine.tool.call({ tool: 'mcp__atc-bridge__answer', message: 'm-1', text: 'for alice' });
+
+  await engine.turn.complete({
+    answer: 'for the terminal',
+    durationMs: 5,
+    isAborted: false,
+    turnId: 't-1',
+    reason: 'answer',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    { argv: ['atc', 'answer', '--message', 'm-1'], stdin: 'for alice' },
+    { argv: ['atc', 'answer', '--messages', 'm-2', '--turn', 't-1'], stdin: 'for the terminal' },
+  ]);
+});
+
+test('it reports nothing at the end of a turn whose every message the answer tool answered', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"one"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+  await engine.tool.call({ tool: 'mcp__atc-bridge__answer', message: 'm-1', text: 'for alice' });
+
+  await engine.turn.complete({
+    answer: '',
+    durationMs: 5,
+    isAborted: true,
+    turnId: 't-1',
+    reason: 'aborted',
+  });
+
+  await ctx.clock.settle();
+
+  expect(ctx.ran).toStrictEqual([
+    { argv: ['atc', 'answer', '--message', 'm-1'], stdin: 'for alice' },
+  ]);
+});
+
+test('it refuses a second answer for one message', async (engine, on) => {
+  const ctx = setupTest({ on });
+
+  mock.env(on, { ATC_SESSION_ID: 's-1' });
+
+  on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__answer' } }));
+
+  on('process.spawn', async function* () {
+    yield { stream: 'stdout', text: '{"id":"m-1","from":"alice","text":"one"}\n' };
+
+    return { value: { code: 0, signal: null } };
+  });
+
+  on('prompt.submit', async ($, e) => {
+    await engine.turn.start({ text: e.text, turnId: 't-1' });
+
+    return { text: e.text };
+  });
+
+  await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });
+  await ctx.clock.settle();
+  await engine.tool.call({ tool: 'mcp__atc-bridge__answer', message: 'm-1', text: 'first' });
+
+  const second = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: 'second',
+  });
+
+  expect(second.deny).toBe(
+    'answer takes the id of an <atc-message> the running turn carries that has no answer yet, not "m-1"',
+  );
+
+  expect(ctx.ran).toStrictEqual([{ argv: ['atc', 'answer', '--message', 'm-1'], stdin: 'first' }]);
+});
+
+test('it refuses an answer when no turn runs', async (engine, on) => {
+  const ctx = await startNoteSession(engine, on);
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-9',
+    text: 'for nobody',
+  });
+
+  expect(answered.deny).toBe(
+    'answer takes the id of an <atc-message> the running turn carries that has no answer yet, not "m-9"',
+  );
+
+  expect(ctx.ran).toStrictEqual([]);
+});
+
+test('it refuses an answer without text', async (engine, on) => {
+  const ctx = await startNoteSession(engine, on);
+
+  const answered = await engine.tool.call({
+    tool: 'mcp__atc-bridge__answer',
+    message: 'm-1',
+    text: '  ',
+  });
+
+  expect(answered.deny).toBe('answer needs non-empty text');
+  expect(ctx.ran).toStrictEqual([]);
 });
 
 test('it sends a note through atc under the full tool name', async (engine, on) => {
