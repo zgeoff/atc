@@ -258,9 +258,9 @@ class StubImpPort implements ImpPort {
   // Called at the start of every lease acquisition, in the caller's turn.
   private readonly leaseAcquireListeners = new Set<(name: string, label: string) => void>();
 
-  // The directory a relative or missing working directory resolves
-  // against inside every imp, as a guest's home does; null for the test's
-  // own working directory.
+  // The guest's home inside every imp: a missing working directory
+  // resolves to it and every process takes it as HOME, as impd gives one;
+  // null for the test's own working directory and environment.
   private homeDir: string | null = null;
 
   private guestPath = GUEST_PATH;
@@ -1308,9 +1308,9 @@ class StubImpPort implements ImpPort {
   }
 
   /**
-   * Resolves every relative working directory inside an imp against dir,
-   * as impd resolves one against the guest's home, and runs every command
-   * with dir as its HOME.
+   * Starts every process inside an imp with dir as its HOME, and in dir
+   * when the request holds no working directory, as impd does with the
+   * guest's home.
    */
   setHomeDir(dir: string): void {
     this.homeDir = dir;
@@ -1758,13 +1758,14 @@ class StubImpPort implements ImpPort {
   }
 
   // A working directory as impd resolves it inside an imp: a relative one
-  // against the guest's home, when the test gave one.
+  // from the root, as its agent runs there, and a missing one as the
+  // guest's home, when the test gave one.
   private resolveGuestCwd(cwd: string | undefined): string | undefined {
-    if (this.homeDir === null || (cwd !== undefined && posix.isAbsolute(cwd))) {
-      return cwd;
+    if (cwd === undefined) {
+      return this.homeDir ?? undefined;
     }
 
-    return posix.resolve(this.homeDir, cwd ?? '.');
+    return posix.resolve('/', cwd);
   }
 
   private startProcess(imp: StubImp, request: ImpSessionRequest): StubProcess | null {
@@ -1777,7 +1778,7 @@ class StubImpPort implements ImpPort {
       cols: request.cols,
       rows: request.rows,
       cwd: this.resolveGuestCwd(request.cwd) ?? request.cwd,
-      env: { ...request.env },
+      env: { ...request.env, ...(this.homeDir === null ? {} : { HOME: this.homeDir }) },
     });
 
     const proc: StubProcess = {

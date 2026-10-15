@@ -60,7 +60,6 @@ interface SessionSpawnerDeps {
   readonly fleet: Pick<SessionFleetWriter, 'tryWriteFleet' | 'writeStatus'>;
   readonly claims: Pick<
     HostDirClaims,
-    | 'reservations'
     | 'claimHostDir'
     | 'claimMachineDir'
     | 'claimPlainDir'
@@ -172,9 +171,6 @@ export class SessionSpawner {
       overrides.trustClonedWorkspace ??
       this.registry.targets.get(target)?.options['trustClonedWorkspace'] === true;
 
-    // A remote directory is not on the daemon's machine, so it is its own
-    // root.
-    const repoRoot = provider.remote ? cwd : resolveRepoRoot(cwd);
     const hostKey = this.pickHostKey(id, parent, target, execution.identity);
     const auth = this.auth.resolveHarnessAuth(adapter, provider, target);
 
@@ -219,21 +215,13 @@ export class SessionSpawner {
       throw refusal;
     }
 
-    // A directory the daemon picked is checked on the host once per
-    // attempt, so a held one moves the spawn to the next attempt instead of
-    // refusing it.
+    // A directory the daemon picked is checked and reserved on the host
+    // once per attempt, so a held one moves the spawn to the next attempt
+    // instead of refusing it.
     if (hostKey !== id) {
       if (materialize === null) {
         this.claims.claimPlainDir(id, hostKey, target, cwd);
-      } else if (autoDir) {
-        this.claims.reservations.set(id, {
-          hostKey,
-          target,
-          dir: cwd,
-          resolved: null,
-          kind: 'workspace',
-        });
-      } else {
+      } else if (!autoDir) {
         this.claims.claimWorkspace(id, hostKey, target, cwd);
       }
     } else if (materialize === null && !this.registry.hasHostLifecycle(target)) {
@@ -320,6 +308,7 @@ export class SessionSpawner {
               hostKey,
               target,
               cwd,
+              autoDir,
               execution.identity,
               materialize,
               setupHost,
@@ -358,6 +347,11 @@ export class SessionSpawner {
     // A spawn whose directory the daemon picked runs in the one it claimed,
     // as the host resolves it.
     const dir = autoDir && prepared.root !== null ? prepared.root : cwd;
+
+    // The repository is read once the workspace is in place, so a clone
+    // inside another work tree is its own. A remote directory is not on
+    // the daemon's machine, so it is its own root.
+    const repoRoot = provider.remote ? dir : resolveRepoRoot(dir);
     const setup = prepared.setup;
     const materialized = prepared.materialized;
     const readied: SpawnReadied = { attemptID: setup.attemptID, root: prepared.root };
@@ -431,7 +425,7 @@ export class SessionSpawner {
       agent,
       pinned: false,
       lastAttachedAt: this.callbacks.getClock().now(),
-      repoRoot: dir === cwd ? repoRoot : dir,
+      repoRoot,
       namedBy,
       createdAt: this.callbacks.getClock().now(),
       parent,
@@ -503,6 +497,7 @@ export class SessionSpawner {
     hostKey: SessionID,
     target: string,
     dir: string,
+    autoDir: boolean,
     targetIdentity: string,
     materialize: SpawnMaterializer,
     setupHost: () => Promise<HarnessSetup>,
@@ -540,7 +535,14 @@ export class SessionSpawner {
 
             const landing = await timer.withStep('dir-claim', () =>
               this.registry.hasHostLifecycle(target)
-                ? this.claims.claimHostDir(provider, id, hostKey, target, candidate)
+                ? this.claims.claimHostDir(
+                    provider,
+                    id,
+                    hostKey,
+                    target,
+                    candidate,
+                    autoDir && hostKey !== id,
+                  )
                 : this.claims.resolveHostDir(provider, null, candidate),
             );
 

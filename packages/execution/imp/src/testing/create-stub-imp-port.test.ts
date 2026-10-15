@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { KEYS } from '@atc/test-utils/keys';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
@@ -3671,14 +3671,14 @@ test('it sends nothing for a session whose gate throws', async () => {
   expect(ctx.port.sessionRequests).toStrictEqual([]);
 });
 
-test('it starts a session with a relative working directory under the guest home once the test gives one', async () => {
+test('it starts a session with a relative working directory from the root, as impd does, even once the test gives a home', async () => {
   const ctx = setupTest();
 
   await ctx.port.createImp({ name: 'imp-a' });
 
   mkdirSync(join(ctx.dir, 'work'));
 
-  ctx.port.setHomeDir(ctx.dir);
+  ctx.port.setHomeDir(join(ctx.dir, 'home'));
 
   const chunks: Uint8Array[] = [];
 
@@ -3689,7 +3689,7 @@ test('it starts a session with a relative working directory under the guest home
       session: 's1',
       argv: ['pwd'],
       env: {},
-      cwd: 'work',
+      cwd: relative('/', join(ctx.dir, 'work')),
       cols: 80,
       rows: 24,
     },
@@ -3704,6 +3704,39 @@ test('it starts a session with a relative working directory under the guest home
   await connection.outcome;
 
   expect(Buffer.concat(chunks).toString()).toBe(`${join(ctx.dir, 'work')}\r\n`);
+});
+
+test('it starts a session with the guest home as HOME once the test gives one', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  ctx.port.setHomeDir(ctx.dir);
+
+  const chunks: Uint8Array[] = [];
+
+  const connection = ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sh', '-c', 'cd && pwd'],
+      env: {},
+      cwd: '/',
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: () => {},
+      onOutput: (d) => {
+        chunks.push(d);
+      },
+    },
+  );
+
+  await connection.outcome;
+
+  expect(Buffer.concat(chunks).toString()).toBe(`${ctx.dir}\r\n`);
 });
 
 test('it finds no undelivered exit once an attach has delivered it', async () => {

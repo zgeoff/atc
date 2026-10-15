@@ -24,6 +24,7 @@ import { LineDecoder } from '@atc/protocol/line-decoder';
 import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
+import { buildHomeRelativeCommand } from './build-home-relative-command';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { buildImpName } from './build-imp-name';
 import { buildShortName } from './build-short-name';
@@ -331,6 +332,7 @@ export class ImpProvider implements ExecutionProvider {
     host.harnesses += 1;
 
     const reporter = spec.onRelay === undefined ? null : this.openReporter(host, spec);
+    const command = buildHomeRelativeCommand([spec.bin, ...spec.args], spec.cwd);
 
     return new ImpHarness(
       this.port,
@@ -338,14 +340,14 @@ export class ImpProvider implements ExecutionProvider {
         kind: 'start',
         name: host.name,
         session: buildImpSessionName(spec.session),
-        argv: [spec.bin, ...spec.args],
+        argv: command.argv,
         env: {
           ...buildGuestEnv(spec.env),
           ...(reporter === null
             ? {}
             : buildSessionEnv({ socket: reporter.path, bridge: true, outbox: reporter.outbox })),
         },
-        cwd: spec.cwd,
+        cwd: command.cwd,
         cols: spec.cols,
         rows: spec.rows,
         ...(spec.requireBroker === true ? { require: ['broker'] } : {}),
@@ -396,7 +398,7 @@ export class ImpProvider implements ExecutionProvider {
   };
 
   readonly runCommand = async (spec: CommandSpec): Promise<CommandResult> => {
-    const result = await this.runOnHost(spec.host, { argv: spec.argv, cwd: spec.cwd });
+    const result = await this.runOnHost(spec.host, buildHomeRelativeCommand(spec.argv, spec.cwd));
 
     const decoder = new TextDecoder();
 

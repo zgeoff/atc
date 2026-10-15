@@ -878,6 +878,81 @@ test('it asks impd to require the broker on a harness start that requires one', 
   ]);
 });
 
+test('it starts a harness with a relative working directory under the guest home, which impd would resolve from the root', async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await ctx.port.createImp({ name: 'atc-s1' });
+
+  mkdirSync(join(ctx.dir, 'home', 'orchard'), { recursive: true });
+
+  ctx.port.setHomeDir(join(ctx.dir, 'home'));
+
+  const harness = provider.spawnHarness({
+    session: 's1',
+    host: 's1',
+    bin: 'pwd',
+    args: [],
+    cwd: 'orchard',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const exited = Promise.withResolvers<void>();
+
+  harness.onExit(() => {
+    exited.resolve();
+  });
+
+  await exited.promise;
+
+  expect(output.join('')).toBe(`${join(ctx.dir, 'home', 'orchard')}\r\n`);
+});
+
+test('it runs a command with a relative working directory under the guest home, which impd would resolve from the root', async () => {
+  const ctx = setupTest();
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g') },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await ctx.port.createImp({ name: 'atc-s1' });
+
+  mkdirSync(join(ctx.dir, 'home', 'orchard'), { recursive: true });
+
+  ctx.port.setHomeDir(join(ctx.dir, 'home'));
+
+  const result = await provider.runCommand({ argv: ['pwd'], cwd: 'orchard', host: 's1' });
+
+  expect(result).toStrictEqual({
+    exitCode: 0,
+    stdout: `${join(ctx.dir, 'home', 'orchard')}\n`,
+    stderr: '',
+  });
+});
+
 test('it keeps a full UUID imp session name inside the session limit', async () => {
   const ctx = setupTest();
 

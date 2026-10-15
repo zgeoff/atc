@@ -168,13 +168,16 @@ export class HostDirClaims {
   // physical path, never the requested one. On a shared host the spawn's
   // claim is checked again against every directory as the host resolves
   // it, and records the physical path, in the turn after the last wait,
-  // with the sessions listed then.
+  // with the sessions listed then. A directory the daemon picked on a
+  // shared host is reserved only here, once checked, so two spawns that
+  // picked the same one never refuse each other before either holds it.
   async claimHostDir(
     provider: ExecutionProvider,
     id: SessionID,
     hostKey: SessionID,
     target: string,
     dir: string,
+    picked = false,
   ): Promise<string> {
     const before = this.collectHostSessionIDs(hostKey, target);
 
@@ -182,16 +185,14 @@ export class HostDirClaims {
     const listed = await this.resolveListedDirs(provider, hostKey, target);
 
     if (this.collectHostSessionIDs(hostKey, target) !== before) {
-      return this.claimHostDir(provider, id, hostKey, target, dir);
+      return this.claimHostDir(provider, id, hostKey, target, dir, picked);
     }
 
     const reservation = this.reservations.get(id);
 
-    if (reservation !== undefined) {
+    if (reservation !== undefined || picked) {
       this.requireSeparateWorkspace(id, hostKey, target, dir, [dir, physical], listed.dirs);
-
-      reservation.dir = dir;
-      reservation.resolved = physical;
+      this.reservations.set(id, { hostKey, target, dir, resolved: physical, kind: 'workspace' });
     }
 
     return physical;
@@ -473,7 +474,8 @@ export class HostDirClaims {
 
   // A directory on a host with every symlink in it resolved: an absolute
   // one through its nearest existing directory, and a relative one as a
-  // harness started in it sees it, since impd resolves both alike. A null
+  // harness started in it sees it, since the provider starts both from
+  // the home of the user they run as. A null
   // host resolves it on the daemon's own machine. A caller may pass a
   // stricter script that prints the same form.
   async resolveHostDir(
