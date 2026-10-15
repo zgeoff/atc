@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+# Layers atc-specific settings over the shared config in zgeoff/coderabbit.
+# A value here overrides the shared value. A list item here comes first, and
+# the shared items follow. CodeRabbit reads AGENTS.md as a guidelines file by
+# default, so this file does not list it.
+inheritance: true
