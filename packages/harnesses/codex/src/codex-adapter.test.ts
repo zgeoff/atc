@@ -1,12 +1,9 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { parseConfig } from '@atc/config';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { getAgentEntry, setupTempDir, updateEnv } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { CodexAdapter } from './codex-adapter';
 import { CODEX_PLUGIN } from './codex-plugin';

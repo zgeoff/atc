@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import type { EventMsg } from '@atc/protocol/protocol';
-import { buildStubWaitClock } from '@atc/test-utils/build-stub-wait-clock';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import { buildStubWaitClock } from './build-stub-wait-clock';
 import { waitForEvent } from './wait-for-event';
 
 test('it resolves with an event collected before the wait began', async () => {

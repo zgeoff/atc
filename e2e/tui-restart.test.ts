@@ -1,18 +1,20 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubHeldZoxide } from '@atc/test-utils/build-stub-held-zoxide';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { KEYS } from '@atc/test-utils/keys';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { toAgentSessionID } from '@atc/core';
+import { findDaemonRecord } from '@atc/lifecycle';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import { StateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  KEYS,
+  buildMockAgentAdapter,
+  buildStubHeldZoxide,
+  createStubBin,
+  registerTestCleanup,
+  startTUIHarness,
+  waitFor,
+} from '@atc/test-utils';
 import { buildHostServices } from '../packages/app/src/build-host-services';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
 

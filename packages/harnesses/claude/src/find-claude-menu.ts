@@ -1,4 +1,4 @@
-import type { ScreenMenu, ScreenMenuOption } from '@atc/plugin-api/agent-adapter';
+import type { ScreenMenu, ScreenMenuOption } from '@atc/plugin-api';
 
 const POINTER = '❯ ';
 

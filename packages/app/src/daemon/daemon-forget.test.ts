@@ -1,12 +1,14 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
-import { getRecord } from '@atc/test-utils/get-record';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import {
+  buildMockAgentAdapter,
+  buildStubHeadlessRunner,
+  getRecord,
+  waitFor,
+} from '@atc/test-utils';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it answers a forget on a host-destroying target with a token and destroys nothing yet', async () => {

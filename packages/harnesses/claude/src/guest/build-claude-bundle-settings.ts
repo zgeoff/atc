@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 
 /**
  * The user settings a session's own Claude config folder starts with, from

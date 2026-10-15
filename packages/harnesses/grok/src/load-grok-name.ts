@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import type { NameUpdate } from '@atc/plugin-api/agent-adapter';
+import { buildOptionalString } from '@atc/core/schema';
+import type { NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
 // The fields of a session's summary.json a name comes from. A wrong-typed

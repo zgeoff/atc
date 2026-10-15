@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { setupTempDir, updateEnv } from '@atc/test-utils';
 import { loadClaudeStatusLine } from './load-claude-statusline';
 
 // A home folder for the Claude settings a test writes.

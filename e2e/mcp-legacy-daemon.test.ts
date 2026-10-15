@@ -1,10 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
-import { getRecord } from '@atc/test-utils/get-record';
-import { getRecords } from '@atc/test-utils/get-records';
-import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
+import { setupMCPHome } from '@atc/lifecycle/testing';
+import { getRecord, getRecords, startMCPStdio, startStubLegacyDaemon } from '@atc/test-utils';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();

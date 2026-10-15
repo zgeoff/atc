@@ -1,4 +1,4 @@
-import type { ExecutionCapabilities } from '@atc/plugin-api/execution-provider';
+import type { ExecutionCapabilities } from '@atc/plugin-api';
 import type { ExecutionTarget } from './build-execution-targets';
 
 export interface TargetEntry {

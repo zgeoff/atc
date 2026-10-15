@@ -1,4 +1,4 @@
-import type { NameUpdate } from '@atc/plugin-api/agent-adapter';
+import type { NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
 // The two transcript lines a name comes from: a custom title that /rename

@@ -1,10 +1,9 @@
 import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { AgentID } from '@atc/core/agent-id';
-import { buildOptionalBoolean } from '@atc/core/build-optional-boolean';
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { AgentID } from '@atc/core';
+import { isRecord } from '@atc/core';
+import { buildOptionalBoolean, buildOptionalString } from '@atc/core/schema';
+import type { AuthProfile } from '@atc/plugin-api';
 import { z } from 'zod';
 import type { AgentConfigPlugin, AgentEntry } from './agent-entry';
 import { collectAgents } from './collect-agents';
@@ -23,12 +22,12 @@ import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 import { formatJSONKind } from './format-json-kind';
 import { formatLegacyAgentKeys } from './format-legacy-agent-keys';
 import { formatMixedAgentKeys } from './format-mixed-agent-keys';
+import { configFile, stateDir } from './host/process-paths';
+import { resolveHomeDir } from './host/resolve-home-dir';
 import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
 import { LOCAL_TARGET } from './local-target';
 import { pickDefaultAgent } from './pick-default-agent';
 import { REMOVED_CONFIG_KEYS } from './removed-config-keys';
-import { resolveHomeDir } from './resolve-home-dir';
-import { resolvePaths } from './resolve-paths';
 
 export interface Config {
   // The agents atc offers, in menu order, and the problems that left an
@@ -120,23 +119,6 @@ const DEFAULTS: Omit<Config, 'agents' | 'agentErrors' | 'defaultAgent'> = {
   restoreFleetOnRestart: true,
   removedKeys: [],
 };
-
-// The paths of the environment this process started in.
-const paths = resolvePaths(process.env);
-
-export const configFile = paths.configFile;
-export const stateDir = paths.stateDir;
-export const socketPath = paths.socketPath;
-export const daemonSocketPath = paths.daemonSocketPath;
-export const eventsSocketPath = paths.eventsSocketPath;
-export const statusFile = paths.statusFile;
-export const dbFile = paths.dbFile;
-export const mcpAuthDBFile = paths.mcpAuthDBFile;
-export const legacyFleetFile = paths.legacyFleetFile;
-export const daemonPidFile = paths.daemonPidFile;
-export const daemonRecordFile = paths.daemonRecordFile;
-export const restartsDir = paths.restartsDir;
-export const restartLockFile = paths.restartLockFile;
 
 // A user-written config.json's top-level keys. An absent or wrong-typed
 // field parses to undefined rather than failing the file, so a bad config

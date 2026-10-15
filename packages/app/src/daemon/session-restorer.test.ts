@@ -1,11 +1,9 @@
 import { expect, mock, test } from 'bun:test';
-import { systemClock } from '@atc/core/system-clock';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
+import type { AgentAdapter } from '@atc/plugin-api';
+import { buildTargetIdentity } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import { buildMockAgentAdapter } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import type { ExecutionTarget } from './build-execution-targets';

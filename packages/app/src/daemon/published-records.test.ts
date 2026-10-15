@@ -1,16 +1,17 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core/to-session-id';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { parsePublishedRecord } from '@atc/store/parse-published-record';
-import { StateStore } from '@atc/store/state-store';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { getRecord } from '@atc/test-utils/get-record';
-import { readJSONRecord } from '@atc/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { runShellcheck } from '@atc/test-utils/run-shellcheck';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { toSessionID } from '@atc/core';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { StateStore, parsePublishedRecord } from '@atc/store';
+import {
+  createGitFixture,
+  getRecord,
+  readJSONRecord,
+  registerTestCleanup,
+  runShellcheck,
+  setupTempDir,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import { PLACE_COPY, PublishedRecords, REFRESH_COPY } from './published-records';
 

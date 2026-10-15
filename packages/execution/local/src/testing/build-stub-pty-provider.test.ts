@@ -1,7 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { LocalPTYProvider } from '../local-pty-provider';
 import { buildStubPTYProvider } from './build-stub-pty-provider';
 

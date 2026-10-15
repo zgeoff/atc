@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core/session-id';
+import type { SessionID } from '@atc/core';
 
 /**
  * Where a spawn's workspace stands on its way to the execution target:

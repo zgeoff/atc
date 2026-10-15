@@ -1,6 +1,6 @@
-import { OutboundQueue } from '@atc/protocol/outbound-queue';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { OutboundQueue } from '@atc/protocol/wire';
+import { registerTestCleanup } from './register-test-cleanup';
+import { waitFor } from './wait-for';
 
 interface SocketLines {
   // Every complete newline-terminated line the peer sent, in order.

@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { formatJSONKind } from './format-json-kind';
 import { LOCAL_TARGET } from './local-target';
 

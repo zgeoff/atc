@@ -1,9 +1,9 @@
-import { socketPath } from '@atc/config/config';
-import { createStepTimer } from '@atc/core/create-step-timer';
-import type { SessionID } from '@atc/core/session-id';
-import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api/execution-provider';
-import { buildSessionEnv } from '@atc/protocol/build-session-env';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { socketPath } from '@atc/config';
+import { createStepTimer } from '@atc/core';
+import type { SessionID } from '@atc/core';
+import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
+import { buildSessionEnv } from '@atc/protocol/session';
+import { DaemonError } from '@atc/protocol/wire';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from './auth-setup';
 import type { Session } from './session';

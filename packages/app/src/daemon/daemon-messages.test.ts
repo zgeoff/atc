@@ -2,24 +2,25 @@
 import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core/is-record';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ClaudeAdapter } from '@atc/harness-claude/claude-adapter';
-import { encodeCursor } from '@atc/protocol/encode-cursor';
-import { decodeMessage } from '@atc/protocol/protocol';
-import type { EventMsg } from '@atc/protocol/protocol';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
-import { startStubTap } from '@atc/test-utils/start-stub-tap';
-import { subscribeToSocketLines } from '@atc/test-utils/subscribe-to-socket-lines';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { isRecord, toSessionID } from '@atc/core';
+import { ClaudeAdapter } from '@atc/harness-claude';
+import { encodeCursor } from '@atc/protocol';
+import { decodeMessage } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import { StateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  buildMockAgentEntry,
+  buildMockHostServices,
+  buildStubClock,
+  getRecord,
+  registerTestCleanup,
+  spawnNamedSession,
+  startStubTap,
+  subscribeToSocketLines,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import type { RestoreSettled } from './restore-fleet';

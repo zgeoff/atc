@@ -1,4 +1,4 @@
-import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api/execution-provider';
+import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
 import { LocalPTYProvider } from '../local-pty-provider';
 
 /**

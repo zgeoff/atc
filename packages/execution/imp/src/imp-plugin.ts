@@ -1,6 +1,8 @@
-import { definePlugin } from '@atc/plugin-api/define-plugin';
-import { EXECUTION_TARGET_CONFIG_SCHEMA } from '@atc/plugin-api/execution-target-config';
-import { TargetUnavailableError } from '@atc/plugin-api/target-unavailable-error';
+import {
+  EXECUTION_TARGET_CONFIG_SCHEMA,
+  TargetUnavailableError,
+  definePlugin,
+} from '@atc/plugin-api';
 import { buildImpProvider } from './build-imp-provider';
 
 /**

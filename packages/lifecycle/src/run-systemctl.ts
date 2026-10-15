@@ -1,4 +1,4 @@
-import { runCommand } from './run-command';
+import { runCommand } from './run-command/run-command';
 
 /**
  * Runs `systemctl --user` with `args` and returns its exit code and output.

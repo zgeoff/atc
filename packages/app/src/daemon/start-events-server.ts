@@ -1,7 +1,6 @@
 import { unlinkSync } from 'node:fs';
-import { OutboundQueue } from '@atc/protocol/outbound-queue';
-import { encodeMessage } from '@atc/protocol/protocol';
-import type { EventMsg } from '@atc/protocol/protocol';
+import { OutboundQueue, encodeMessage } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 
 interface EventsServerOptions {

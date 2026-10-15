@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
-import { startStubTap } from '@atc/test-utils/start-stub-tap';
-import { waitFor } from '@atc/test-utils/wait-for';
 import { startTestDaemon } from '../../app/src/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { spawnNamedSession } from './spawn-named-session';
+import { startStubTap } from './start-stub-tap';
+import { waitFor } from './wait-for';
 
 // A daemon whose agent takes messages, one session on it, and a second
 // client to make that session's tap.

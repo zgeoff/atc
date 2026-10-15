@@ -1,5 +1,5 @@
-import type { StepTimer } from '@atc/core/create-step-timer';
-import type { DaemonError } from '@atc/protocol/daemon-error';
+import type { StepTimer } from '@atc/core';
+import type { DaemonError } from '@atc/protocol/wire';
 import type { CredentialBroker } from './credential-broker';
 
 /**

@@ -1,6 +1,6 @@
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import { resolveAuthProfiles } from '@atc/config';
+import { isRecord } from '@atc/core';
+import type { AuthProfile } from '@atc/plugin-api';
 
 interface CollectedCodexAuth {
   readonly profiles: readonly string[] | null;

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { systemClock } from '@atc/core/system-clock';
+import { systemClock } from '@atc/core';
 import { sql } from 'kysely';
 import type { Generated, Kysely } from 'kysely';
 import { DEFAULT_MIGRATION_TABLE, Migrator } from 'kysely/migration';

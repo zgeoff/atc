@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
 import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 import type { GatewayRegistry, RegistryDaemon } from './types';

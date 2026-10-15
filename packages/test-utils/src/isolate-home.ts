@@ -1,6 +1,6 @@
 import { afterEach } from 'bun:test';
 import { join, normalize } from 'node:path';
-import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
+import { SESSION_ENV_NAMES } from '@atc/protocol/session';
 import { removeEnvOverrides } from './remove-env-overrides';
 
 // Holds every test run to the isolated home the package test scripts set

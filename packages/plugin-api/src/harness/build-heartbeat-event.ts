@@ -1,5 +1,5 @@
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { toAgentSessionID } from '@atc/core';
+import type { AdapterEvent } from '@atc/protocol';
 
 /**
  * The event a hook line means when it means nothing more: a heartbeat,

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { encodeCursor } from '@atc/protocol/encode-cursor';
+import { encodeCursor } from '@atc/protocol';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';

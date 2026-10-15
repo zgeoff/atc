@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { MenuView } from '@atc/protocol/menu-view';
+import type { Clock } from '@atc/core';
+import type { MenuView } from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
 
 const KEYS = {
   up: '\u001B[A',

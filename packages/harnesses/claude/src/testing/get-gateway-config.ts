@@ -1,5 +1,5 @@
-import type { Config } from '@atc/config/config';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
+import type { Config } from '@atc/config';
+import { getAgentEntry } from '@atc/test-utils';
 import type { GatewayConfig } from '../config/collect-gateways';
 
 /**

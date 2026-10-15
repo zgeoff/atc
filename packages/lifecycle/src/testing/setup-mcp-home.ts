@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core/system-clock';
-import { buildStubMCPClaude } from '@atc/test-utils/build-stub-mcp-claude';
-import { buildStubMCPGrok } from '@atc/test-utils/build-stub-mcp-grok';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { systemClock } from '@atc/core';
+import {
+  buildStubMCPClaude,
+  buildStubMCPGrok,
+  createStubBin,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { findPidFilePID } from '../find-pid-file-pid';
 import { stopDaemonProcess } from '../stop-daemon-process';
 

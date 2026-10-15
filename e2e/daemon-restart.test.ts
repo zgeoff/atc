@@ -1,23 +1,23 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core/is-record';
-import { toAgentID } from '@atc/core/to-agent-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { findDaemonRecord } from '@atc/lifecycle/find-daemon-record';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { createStubClaude } from '@atc/test-utils/create-stub-claude';
-import { createStubComposer } from '@atc/test-utils/create-stub-composer';
-import { createStubSystemd } from '@atc/test-utils/create-stub-systemd';
-import { getRecords } from '@atc/test-utils/get-records';
-import { getString } from '@atc/test-utils/get-string';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { runATC } from '@atc/test-utils/run-atc';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { isRecord, toAgentID, toSessionID } from '@atc/core';
+import { findDaemonRecord } from '@atc/lifecycle';
+import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { StateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  createStubClaude,
+  createStubComposer,
+  createStubSystemd,
+  getRecords,
+  getString,
+  registerTestCleanup,
+  resolveATCCommand,
+  runATC,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 /**

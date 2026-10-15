@@ -1,8 +1,7 @@
-import type { AgentEntry } from '@atc/config/agent-entry';
-import { isRecord } from '@atc/core/is-record';
-import { collectClaudeAuth } from '@atc/harness-claude/config/collect-claude-auth';
-import { collectGateways } from '@atc/harness-claude/config/collect-gateways';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { AgentEntry } from '@atc/config';
+import { isRecord } from '@atc/core';
+import { collectClaudeAuth, collectGateways } from '@atc/harness-claude';
+import type { AuthProfile } from '@atc/plugin-api';
 
 /**
  * The agent keys of the old config.json shape, already defaulted: a binary and arguments per harness, and the raw `claudeAuth`

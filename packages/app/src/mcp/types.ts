@@ -1,6 +1,5 @@
-import type { Clock } from '@atc/core/system-clock';
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
-import type { Principal } from '@atc/protocol/principal';
+import type { Clock } from '@atc/core';
+import type { DaemonFeature, Principal } from '@atc/protocol';
 import type { ApprovalState } from './approval-state';
 import type { EnrollmentState } from './enrollment-state';
 import type { openMCPAuth } from './open-mcp-auth';

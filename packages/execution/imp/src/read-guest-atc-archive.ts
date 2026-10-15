@@ -1,6 +1,6 @@
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
-import { buildTarArchive } from '@atc/core/build-tar-archive';
+import { buildTarArchive } from '@atc/core';
 
 const gzipAsync = promisify(gzip);
 

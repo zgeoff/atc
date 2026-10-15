@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
 /**

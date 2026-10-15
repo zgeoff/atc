@@ -1,8 +1,7 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test: the answers to session.resumeCommand
 import { expect, test } from 'bun:test';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { getRecord } from '@atc/test-utils/get-record';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { buildMockAgentAdapter, getRecord } from '@atc/test-utils';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 test('it answers the adapter command for a session on the daemon machine', async () => {

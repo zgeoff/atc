@@ -1,5 +1,4 @@
-import type { DaemonID } from '@atc/core/daemon-id';
-import type { SessionID } from '@atc/core/session-id';
+import type { DaemonID, SessionID } from '@atc/core';
 
 interface StaleOwnership {
   readonly sessionID: SessionID;

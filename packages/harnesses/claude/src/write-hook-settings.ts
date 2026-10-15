@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { stateDir } from '@atc/config/config';
-import { loadClaudeStatusLine } from '@atc/config/load-claude-statusline';
+import { stateDir } from '@atc/config';
+import { loadClaudeStatusLine } from '@atc/config/claude-statusline';
 import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 

@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { DaemonClient } from '@atc/protocol/wire';
+import { registerTestCleanup } from './register-test-cleanup';
+import { setupTempDir } from './setup-temp-dir';
 import { startStubDroppingDaemon } from './start-stub-dropping-daemon';
+import { waitFor } from './wait-for';
 
 // A temp directory to hold the daemon's socket, removed once the test
 // finishes.

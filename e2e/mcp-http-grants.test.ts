@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
-import { readJSONRecord } from '@atc/test-utils/read-json-record';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { runCommand } from '@atc/test-utils/run-command';
-import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
+import {
+  readJSONRecord,
+  resolveATCCommand,
+  runCommand,
+  runMCPAuthorization,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { setupMCPHTTP } from '../packages/app/src/test-utils/setup-mcp-http';
 

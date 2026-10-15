@@ -1,5 +1,5 @@
-import type { TargetConfig } from '@atc/config/collect-targets';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
+import type { TargetConfig } from '@atc/config';
+import { buildTargetIdentity } from '@atc/store';
 import type { ExecutionTarget } from '../build-execution-targets';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 

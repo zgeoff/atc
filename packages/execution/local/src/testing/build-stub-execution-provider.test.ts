@@ -1,9 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { LocalPTYProvider } from '../local-pty-provider';
 import { buildStubExecutionProvider } from './build-stub-execution-provider';
 

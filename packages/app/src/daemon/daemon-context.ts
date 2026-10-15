@@ -1,20 +1,22 @@
-import type { TargetConfigError } from '@atc/config/collect-targets';
-import type { AgentID } from '@atc/core/agent-id';
-import type { DaemonID } from '@atc/core/daemon-id';
-import type { MessageID } from '@atc/core/message-id';
-import type { SessionID } from '@atc/core/session-id';
-import type { AgentAdapter, SpawnOptions, SpawnOverrides } from '@atc/plugin-api/agent-adapter';
-import type { SourceKind, SourceProvider } from '@atc/plugin-api/types';
-import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
-import type { MenuView } from '@atc/protocol/menu-view';
-import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
-import type { EventMsg } from '@atc/protocol/protocol';
-import type { PublishedRecord } from '@atc/protocol/published-record';
-import type { SpawnWorkspaceSource } from '@atc/protocol/request-param-schemas';
-import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
-import type { FleetEntry } from '@atc/store/fleet-entry';
-import type { MessageRecord } from '@atc/store/message-record';
-import type { TurnSibling } from '@atc/store/state-store';
+import type { TargetConfigError } from '@atc/config';
+import type { AgentID, DaemonID, MessageID, SessionID } from '@atc/core';
+import type {
+  AgentAdapter,
+  SourceKind,
+  SourceProvider,
+  SpawnOptions,
+  SpawnOverrides,
+} from '@atc/plugin-api';
+import type {
+  DaemonAnswer,
+  DeclaredScope,
+  MenuView,
+  PublishedRecord,
+  SessionDescriptor,
+  SpawnWorkspaceSource,
+} from '@atc/protocol';
+import type { EventMsg } from '@atc/protocol/wire';
+import type { FleetEntry, MessageRecord, TurnSibling } from '@atc/store';
 import type { checkRepositoryAccess } from '../workspace/check-repository-access';
 import type { MenuChoice, MenuChoiceResult } from './apply-menu-choice';
 import type { Dims } from './attach-registry';

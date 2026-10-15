@@ -2,11 +2,13 @@ import { expect, test } from 'bun:test';
 import { getEventListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { buildStubForkingGH } from '@atc/test-utils/build-stub-forking-gh';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import {
+  buildStubForkingGH,
+  createStubBin,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runCommand } from './run-command';
 

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
 // The folder the host's Claude config folder and its symlink targets sit in.

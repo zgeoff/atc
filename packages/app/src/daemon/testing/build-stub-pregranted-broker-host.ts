@@ -1,4 +1,4 @@
-import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
+import type { CredentialBroker } from '@atc/plugin-api';
 
 /**
  * A credential broker whose new hosts already hold a grant of `secret` when its

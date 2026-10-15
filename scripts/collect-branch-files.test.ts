@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { runCommand } from '@atc/test-utils/run-command';
+import { createGitFixture, runCommand } from '@atc/test-utils';
 import { $ } from 'bun';
 import { collectBranchFiles } from './collect-branch-files';
 

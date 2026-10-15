@@ -1,10 +1,6 @@
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import type { SessionID } from '@atc/core/session-id';
-import type { HarnessHandle } from '@atc/plugin-api/execution-provider';
-import type { SessionLifecycle } from '@atc/protocol/session-lifecycle';
-import type { SessionState } from '@atc/protocol/session-state';
-import type { SessionWorkspace } from '@atc/protocol/session-workspace';
+import type { AgentID, AgentSessionID, SessionID } from '@atc/core';
+import type { HarnessHandle } from '@atc/plugin-api';
+import type { SessionLifecycle, SessionState, SessionWorkspace } from '@atc/protocol';
 
 export interface Session {
   id: SessionID;

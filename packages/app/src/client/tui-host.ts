@@ -1,5 +1,4 @@
-import type { DaemonBoot } from '@atc/protocol/daemon-boot';
-import type { DaemonBootOptions } from '@atc/protocol/daemon-boot-options';
+import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
 
 /**
  * What the TUI reaches outside its own process, which the entry wires in:

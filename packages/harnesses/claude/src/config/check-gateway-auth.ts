@@ -1,11 +1,11 @@
-import { collectProfileEnvProblems } from '@atc/config/collect-profile-env-problems';
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import { CLAUDE_CREDENTIAL_VARIABLES } from '@atc/core/claude-credential-variables';
-import { isBrokerVariable } from '@atc/core/is-broker-variable';
-import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
-import type { GatewayAuth } from '@atc/plugin-api/gateway-auth';
+import { collectProfileEnvProblems, resolveAuthProfiles } from '@atc/config';
+import {
+  BROKER_PLACEHOLDER,
+  CLAUDE_CREDENTIAL_VARIABLES,
+  isBrokerVariable,
+  isRecord,
+} from '@atc/core';
+import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
 
 /**
  * The fields of a gateway entry that its auth is checked against.

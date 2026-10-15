@@ -1,7 +1,6 @@
-import type { AgentID } from '@atc/core/agent-id';
-import { toShellArg } from '@atc/core/to-shell-arg';
-import { buildHookCommand } from '@atc/plugin-api/harness/build-hook-command';
-import { buildHookEntry } from '@atc/plugin-api/harness/build-hook-entry';
+import type { AgentID } from '@atc/core';
+import { toShellArg } from '@atc/core';
+import { buildHookCommand, buildHookEntry } from '@atc/plugin-api';
 import { z } from 'zod';
 import { CLAUDE_HOOKS } from './claude-hooks';
 

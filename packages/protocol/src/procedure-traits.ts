@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { isContractProcedure } from '@orpc/contract';
 import { DAEMON_CONTRACT } from './daemon-contract';
 import { PROCEDURE_META_SCHEMA } from './procedure-meta';

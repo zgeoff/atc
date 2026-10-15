@@ -1,6 +1,6 @@
-import type { SessionID } from '@atc/core/session-id';
-import type { ExecutionCapability } from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import type { SessionID } from '@atc/core';
+import type { ExecutionCapability } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionFleetWriter } from './session-fleet-writer';

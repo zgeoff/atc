@@ -1,10 +1,9 @@
-import { parseRestoreBootTimeoutMs } from '@atc/config/parse-restore-boot-timeout-ms';
-import { resolvePaths } from '@atc/config/resolve-paths';
-import { systemClock } from '@atc/core/system-clock';
-import type { LifecycleHost } from '@atc/lifecycle/lifecycle-host';
-import { readManagedDaemonUnit } from '@atc/lifecycle/read-managed-daemon-unit';
-import { runSystemctl } from '@atc/lifecycle/run-systemctl';
-import type { HostServices } from '@atc/plugin-api/host-services';
+import { parseRestoreBootTimeoutMs } from '@atc/config';
+import { resolvePaths } from '@atc/config/host';
+import { systemClock } from '@atc/core';
+import type { LifecycleHost } from '@atc/lifecycle';
+import { readManagedDaemonUnit, runSystemctl } from '@atc/lifecycle';
+import type { HostServices } from '@atc/plugin-api';
 import { buildATCInvocation } from './build-atc-invocation';
 
 /**

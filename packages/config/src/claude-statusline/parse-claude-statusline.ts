@@ -1,5 +1,5 @@
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
+import { buildOptionalString } from '@atc/core/schema';
 import { z } from 'zod';
 
 /**

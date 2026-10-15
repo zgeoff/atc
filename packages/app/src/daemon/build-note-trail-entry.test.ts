@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildNoteTrailEntry } from './build-note-trail-entry';
 
 test('it builds a note entry carrying the note label and a text preview', () => {

@@ -1,9 +1,7 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { claimDaemonLock } from './claim-daemon-lock';
 

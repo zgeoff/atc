@@ -1,5 +1,5 @@
-import type { BrokerIdentity } from '@atc/plugin-api/credential-broker';
-import { isHostNameAllowed } from '@atc/plugin-api/is-host-name-allowed';
+import type { BrokerIdentity } from '@atc/plugin-api';
+import { isHostNameAllowed } from '@atc/plugin-api';
 import { BrokerAuthorityError } from './broker-authority-error';
 
 /**

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { KEYS } from '@atc/test-utils/keys';
+import { KEYS } from '@atc/test-utils';
 import { planCodexLineInput } from './plan-codex-line-input';
 
 test('it pastes a slash command name, pauses, then pastes its argument and submits', () => {

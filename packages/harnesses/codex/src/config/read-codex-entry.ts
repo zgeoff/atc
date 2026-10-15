@@ -1,6 +1,5 @@
-import type { AgentEntry } from '@atc/config/agent-entry';
-import type { AgentEntryRead } from '@atc/config/build-agent-entry-schema';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { AgentEntry, AgentEntryRead } from '@atc/config';
+import type { AuthProfile } from '@atc/plugin-api';
 import { collectCodexAuth } from './collect-codex-auth';
 
 interface CodexEntryArgs {

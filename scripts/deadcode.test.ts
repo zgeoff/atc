@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory that stands in for a checkout, with a project nested
 // inside it the way AGENTS.md places a worktree.

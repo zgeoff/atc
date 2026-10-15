@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
+import { buildMockAuthProfile } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildAuthBinding } from './build-auth-binding';
 

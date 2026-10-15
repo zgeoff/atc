@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { StaleOwnershipError } from '@atc/store/stale-ownership-error';
+import { DaemonError } from '@atc/protocol/wire';
+import { StaleOwnershipError } from '@atc/store';
 
 /**
  * The protocol error a store failure answers with: a write refused for stale

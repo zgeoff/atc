@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils';
 import { openSQLite } from './open-sqlite';
 
 function setupTest() {

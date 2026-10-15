@@ -1,19 +1,20 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { GrokAdapter } from '@atc/harness-grok/grok-adapter';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
-import { buildStubTimeoutScheduler } from '@atc/test-utils/build-stub-timeout-scheduler';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
-import { getRecord } from '@atc/test-utils/get-record';
-import { updateEnv } from '@atc/test-utils/update-env';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { parseConfig } from '@atc/config';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { GrokAdapter } from '@atc/harness-grok';
+import { DaemonError } from '@atc/protocol/wire';
+import {
+  buildMockAgentAdapter,
+  buildStubHeadlessRunner,
+  buildStubTimeoutScheduler,
+  createGitFixture,
+  getAgentEntry,
+  getRecord,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 

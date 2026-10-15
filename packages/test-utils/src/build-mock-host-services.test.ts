@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { systemClock } from '@atc/core/system-clock';
+import { systemClock } from '@atc/core';
 import { buildMockHostServices } from './build-mock-host-services';
 
 test('it builds default host services', () => {

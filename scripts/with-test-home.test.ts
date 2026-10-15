@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory that holds the host config a test hands the script, and
 // the directory outside any repository that the script's command runs in.

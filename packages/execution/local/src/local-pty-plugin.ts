@@ -1,6 +1,5 @@
-import { systemClock } from '@atc/core/system-clock';
-import { definePlugin } from '@atc/plugin-api/define-plugin';
-import { EXECUTION_TARGET_CONFIG_SCHEMA } from '@atc/plugin-api/execution-target-config';
+import { systemClock } from '@atc/core';
+import { EXECUTION_TARGET_CONFIG_SCHEMA, definePlugin } from '@atc/plugin-api';
 import { LocalPTYProvider } from './local-pty-provider';
 import { startSessionScopes } from './start-session-scopes';
 

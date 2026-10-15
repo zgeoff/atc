@@ -1,13 +1,7 @@
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
-import {
-  MAX_CHUNK,
-  MAX_LINE,
-  PROTOCOL_V,
-  decodeMessage,
-  encodeMessage,
-} from '@atc/protocol/protocol';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import type { DaemonFeature } from '@atc/protocol';
+import { MAX_CHUNK, MAX_LINE, PROTOCOL_V, decodeMessage, encodeMessage } from '@atc/protocol/wire';
 import type { SocketHandler } from 'bun';
+import { registerTestCleanup } from './register-test-cleanup';
 
 interface ReceivedRequest {
   readonly m: string;

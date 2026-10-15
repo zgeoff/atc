@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core';
 import type { DaemonPaths } from './daemon-paths';
 import type { ProtocolMismatch } from './format-protocol-mismatch';
 

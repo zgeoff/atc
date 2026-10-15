@@ -1,6 +1,5 @@
-import { isRecord } from '@atc/core/is-record';
-import { decodeCursor } from '@atc/protocol/decode-cursor';
-import { encodeCursor } from '@atc/protocol/encode-cursor';
+import { isRecord } from '@atc/core';
+import { decodeCursor, encodeCursor } from '@atc/protocol';
 import { buildGatewayID } from './build-gateway-id';
 import { buildRuledValue } from './build-ruled-value';
 import { encodeGatewayCursor } from './encode-gateway-cursor';

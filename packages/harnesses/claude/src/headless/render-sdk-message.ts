@@ -4,7 +4,7 @@ import type {
   SDKResultError,
   SDKResultSuccess,
 } from '@anthropic-ai/claude-agent-sdk';
-import { truncateSummary } from '@atc/core/truncate-summary';
+import { truncateSummary } from '@atc/core';
 import { match } from 'ts-pattern';
 
 type ContentBlock = SDKAssistantMessage['message']['content'][number];

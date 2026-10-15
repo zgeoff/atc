@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils';
 import { buildDirsSource } from './build-dirs-source';
 
 // A temp directory that stands for the daemon user's home.

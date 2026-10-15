@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubGHCommand } from '@atc/test-utils/build-stub-gh-command';
+import { buildStubGHCommand } from '@atc/test-utils';
 import { buildGitHubSource } from './build-github-source';
 
 test("it lists a scope's repositories as clone URLs of the gh protocol, with privacy and description as detail", async () => {

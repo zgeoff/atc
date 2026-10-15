@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { buildStubGHCommand } from '@atc/test-utils/build-stub-gh-command';
+import { buildStubGHCommand } from '@atc/test-utils';
 import { runGH } from './run-gh';
 
 test('it returns what gh printed and its exit code', async () => {

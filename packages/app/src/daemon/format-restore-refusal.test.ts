@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import { toSessionID } from '@atc/core';
+import { DaemonError } from '@atc/protocol/wire';
 import { formatRestoreRefusal } from './format-restore-refusal';
 
 test('it adds the rebind and adopt commands to a refusal for a changed auth selection', () => {

@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { buildConsentBinding } from './build-consent-binding';
 import { buildPageResponse } from './build-page-response';
 import { findOwnerSessionID } from './find-owner-session-id';

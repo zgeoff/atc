@@ -1,14 +1,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolvePaths } from '@atc/config/resolve-paths';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
-import { startStubUnansweringUnixListener } from '@atc/test-utils/start-stub-unanswering-unix-listener';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { resolvePaths } from '@atc/config/host';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import {
+  buildStubClock,
+  registerTestCleanup,
+  setupTempDir,
+  startStubLegacyDaemon,
+  startStubUnansweringUnixListener,
+  waitFor,
+} from '@atc/test-utils';
 import { bootDaemonClient } from './boot-daemon';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 

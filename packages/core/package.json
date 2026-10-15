@@ -4,7 +4,8 @@
   "description": "Pure helpers every other package shares: ids, the clock, truncation, canonical JSON and the broker vocabulary",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
   },
   "dependencies": {
     "type-fest": "catalog:",

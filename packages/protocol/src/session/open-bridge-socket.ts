@@ -1,4 +1,4 @@
-import { LineDecoder } from './line-decoder';
+import { LineDecoder } from '../wire/line-decoder';
 
 /**
  * One line-framed connection to a session bridge, from inside a remote

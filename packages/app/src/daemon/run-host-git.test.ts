@@ -1,9 +1,8 @@
 import { expect, mock, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import type { ExecutionProvider } from '@atc/plugin-api';
+import { createGitFixture, updateEnv } from '@atc/test-utils';
 import { runHostGit } from './run-host-git';
 
 test('it runs git on the daemon machine for a local provider, past a GIT_DIR the daemon inherited', async () => {

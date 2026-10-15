@@ -1,21 +1,18 @@
 import { posix } from 'node:path';
-import type { AgentID } from '@atc/core/agent-id';
-import { buildTarArchive } from '@atc/core/build-tar-archive';
-import type { StepTimer } from '@atc/core/create-step-timer';
-import { isBrokerVariable } from '@atc/core/is-broker-variable';
-import type { SessionID } from '@atc/core/session-id';
+import type { AgentID, SessionID, StepTimer } from '@atc/core';
+import { buildTarArchive, isBrokerVariable } from '@atc/core';
 import type {
   AgentAdapter,
+  CredentialBroker,
+  ExecutionProvider,
   GuestPaths,
   GuestSpawnPlan,
+  HarnessSpec,
   SpawnOptions,
   SpawnPlan,
-} from '@atc/plugin-api/agent-adapter';
-import type { CredentialBroker } from '@atc/plugin-api/credential-broker';
-import type { ExecutionProvider, HarnessSpec } from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { FleetStore } from '@atc/store/fleet-entry';
-import type { RuntimeAuthBinding } from '@atc/store/runtime-auth-binding';
+} from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
+import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';

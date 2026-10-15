@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { stateDir } from '@atc/config/config';
-import type { SessionID } from '@atc/core/session-id';
+import { stateDir } from '@atc/config';
+import type { SessionID } from '@atc/core';
 import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
 
 /**

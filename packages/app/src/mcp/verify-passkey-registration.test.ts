@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubAuthenticator } from '@atc/test-utils/build-stub-authenticator';
+import { buildStubAuthenticator } from '@atc/test-utils';
 import { verifyPasskeyRegistration } from './verify-passkey-registration';
 
 test('it returns the passkey a verified registration creates', async () => {

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
+import { createGitFixture } from '@atc/test-utils';
 import { $ } from 'bun';
 import { sanitizeWorkspaceClone } from './sanitize-workspace-clone';
 

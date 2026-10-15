@@ -1,24 +1,23 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import type { SessionID } from '@atc/core/session-id';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { buildStubHeldProvider } from '@atc/execution-local/testing/build-stub-held-provider';
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { buildStubHeadlessRunner } from '@atc/test-utils/build-stub-headless-runner';
-import { buildStubLog } from '@atc/test-utils/build-stub-log';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import type { SessionID } from '@atc/core';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import { buildStubHeldProvider } from '@atc/execution-local/testing';
+import type { AgentAdapter } from '@atc/plugin-api';
+import { buildTargetIdentity, StateStore } from '@atc/store';
+import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  buildMockHostServices,
+  buildStubClock,
+  buildStubHeadlessRunner,
+  buildStubLog,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildExecutionTargets } from './build-execution-targets';

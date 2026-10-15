@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toSessionID } from '@atc/core';
 import { AttachRegistry } from './attach-registry';
 
 test('it reports the smallest width and height across attached clients', () => {

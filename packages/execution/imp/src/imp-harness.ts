@@ -1,13 +1,12 @@
-import { ansi } from '@atc/core/ansi';
-import { truncateSummary } from '@atc/core/truncate-summary';
+import { ansi, truncateSummary } from '@atc/core';
 import type {
   HarnessAttachment,
   HarnessExit,
   HarnessHandle,
   HarnessStart,
   LaunchTicket,
-} from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
+} from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import { P, match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { z } from 'zod';

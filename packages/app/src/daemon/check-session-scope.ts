@@ -1,13 +1,13 @@
 import { runCommand } from '@atc/lifecycle/run-command';
-import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
+import type { ExecutionProvider } from '@atc/plugin-api';
 import type {
+  DeclaredScope,
   RecordedBranch,
   RecordedPullRequest,
   RecordedWorktree,
-} from '@atc/protocol/published-record';
-import { runGH } from '@atc/source-github/run-gh';
+} from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
+import { runGH } from '@atc/source-github';
 import { z } from 'zod';
 import { findHostBranch } from './find-host-branch';
 import { runHostGit } from './run-host-git';

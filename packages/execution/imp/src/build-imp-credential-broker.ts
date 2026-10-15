@@ -1,5 +1,5 @@
-import type { BrokerSecret, CredentialBroker } from '@atc/plugin-api/credential-broker';
-import { CredentialBrokerError } from '@atc/plugin-api/credential-broker-error';
+import type { BrokerSecret, CredentialBroker } from '@atc/plugin-api';
+import { CredentialBrokerError } from '@atc/plugin-api';
 import type { ImpPort, ImpSecret, ImpView } from './imp-port';
 import { ImpPortError } from './imp-port-error';
 

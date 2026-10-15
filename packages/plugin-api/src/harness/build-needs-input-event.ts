@@ -1,5 +1,5 @@
-import { truncateDetail } from '@atc/core/truncate-detail';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { truncateDetail } from '@atc/core';
+import type { AdapterEvent } from '@atc/protocol';
 
 /**
  * The agent waits on a person: the event on top of `base`, holding what it

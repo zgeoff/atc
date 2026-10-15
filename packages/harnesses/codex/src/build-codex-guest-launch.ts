@@ -1,4 +1,4 @@
-import type { SpawnPlan } from '@atc/plugin-api/agent-adapter';
+import type { SpawnPlan } from '@atc/plugin-api';
 import { CODEX_TRUST_SEED_FILE } from './codex-trust-seed-file';
 
 /**

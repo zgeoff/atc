@@ -1,8 +1,7 @@
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import { buildClaudeStyleHookEvent } from '@atc/plugin-api/harness/build-claude-style-hook-event';
-import { buildNeedsInputEvent } from '@atc/plugin-api/harness/build-needs-input-event';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import type { HookEvent } from '@atc/protocol/hook-event';
+import { buildOptionalString } from '@atc/core/schema';
+import { buildClaudeStyleHookEvent, buildNeedsInputEvent } from '@atc/plugin-api';
+import type { AdapterEvent } from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
 import { z } from 'zod';
 import { CODEX_HOOKS } from './codex-hooks';
 

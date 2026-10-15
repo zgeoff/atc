@@ -1,4 +1,4 @@
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
+import type { AgentAdapter } from '@atc/plugin-api';
 
 /**
  * An agent adapter for daemon tests: id `claude`, a spawn that runs

@@ -1,31 +1,28 @@
 import { basename, isAbsolute } from 'node:path';
-import type { AgentID } from '@atc/core/agent-id';
-import { isRecord } from '@atc/core/is-record';
-import type { SessionID } from '@atc/core/session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import type { SourceProvider, SourceRequest } from '@atc/plugin-api/types';
-import { CONTROL_CHARACTER } from '@atc/protocol/control-character';
-import type { DaemonAnswer } from '@atc/protocol/daemon-answer';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
-import { decodeCursor } from '@atc/protocol/decode-cursor';
-import { encodeCursor } from '@atc/protocol/encode-cursor';
-import { LineDecoder } from '@atc/protocol/line-decoder';
-import { OutboundQueue } from '@atc/protocol/outbound-queue';
-import type { SocketWriter } from '@atc/protocol/outbound-queue';
-import { parseDeclaredScope } from '@atc/protocol/parse-declared-scope';
-import type { DeclaredScope } from '@atc/protocol/parse-declared-scope';
-import { parseRequestParams } from '@atc/protocol/parse-request-params';
-import type { RequestMethod } from '@atc/protocol/parse-request-params';
+import type { AgentID, SessionID } from '@atc/core';
+import { isRecord, toSessionID } from '@atc/core';
+import type { SourceProvider, SourceRequest } from '@atc/plugin-api';
 import {
+  CONTROL_CHARACTER,
+  DAEMON_FEATURES,
+  REQUEST_PARAM_SCHEMAS,
+  decodeCursor,
+  encodeCursor,
+  parseDeclaredScope,
+  parseRequestParams,
+} from '@atc/protocol';
+import type { DaemonAnswer, DeclaredScope, RequestMethod } from '@atc/protocol';
+import {
+  DaemonError,
+  LineDecoder,
   MAX_CHUNK,
   MAX_LINE,
+  OutboundQueue,
   PROTOCOL_V,
   decodeMessage,
   encodeMessage,
-} from '@atc/protocol/protocol';
-import type { ErrorCode, EventMsg, RequestMsg } from '@atc/protocol/protocol';
-import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
+} from '@atc/protocol/wire';
+import type { ErrorCode, EventMsg, RequestMsg, SocketWriter } from '@atc/protocol/wire';
 import { buildLegacyMessageHashes } from './build-legacy-message-hashes';
 import { buildPayloadHash } from './build-payload-hash';
 import { buildScopedContext } from './build-scoped-context';

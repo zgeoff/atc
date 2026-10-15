@@ -1,8 +1,6 @@
-import type { Config } from '@atc/config/config';
-import type { ClaudeHostPaths } from '@atc/harness-claude/claude-host-paths';
-import type { ClaudeHeadlessRun } from '@atc/harness-claude/headless/make-claude-headless-runner';
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import type { HostServices } from '@atc/plugin-api/host-services';
+import type { Config } from '@atc/config';
+import type { ClaudeHeadlessRun, ClaudeHostPaths } from '@atc/harness-claude';
+import type { AgentAdapter, HostServices } from '@atc/plugin-api';
 import { buildHarnessPlugins } from '../plugins/build-harness-plugins';
 
 /**

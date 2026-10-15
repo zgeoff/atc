@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { createGitFixture, updateEnv } from '@atc/test-utils';
 import { $ } from 'bun';
 import { resolvePathSource } from './resolve-path-source';
 

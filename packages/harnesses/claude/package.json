@@ -4,7 +4,8 @@
   "description": "The Claude Code harness: the stock and gateway adapters, their hook settings, the atc-bridge mod embed, guest launches, and headless turns",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "catalog:",

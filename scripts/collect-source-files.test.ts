@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils';
 import { collectSourceFiles } from './collect-source-files';
 
 // A temp directory standing in for a repo root.

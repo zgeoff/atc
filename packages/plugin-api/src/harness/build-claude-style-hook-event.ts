@@ -1,5 +1,5 @@
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import type { HookEvent } from '@atc/protocol/hook-event';
+import type { AdapterEvent } from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
 import { match } from 'ts-pattern';
 import { buildHeartbeatEvent } from './build-heartbeat-event';
 import { buildPromptSubmittedEvent } from './build-prompt-submitted-event';

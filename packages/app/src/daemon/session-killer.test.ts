@@ -1,11 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core/to-session-id';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { StateStore } from '@atc/store/state-store';
-import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { toSessionID } from '@atc/core';
+import { StateStore, buildTargetIdentity } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/testing';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import type { ExecutionTarget } from './build-execution-targets';

@@ -1,4 +1,4 @@
-import type { LineInputStep } from '@atc/plugin-api/agent-adapter';
+import type { LineInputStep } from '@atc/plugin-api';
 
 // The terminal a line is typed into: a write to it, and whether it is still
 // the one the line started on.

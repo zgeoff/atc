@@ -1,10 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { buildMockImpIdentity } from '@atc/execution-imp/testing/build-mock-imp-identity';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
+import { toSessionID } from '@atc/core';
+import { ImpProvider } from '@atc/execution-imp';
+import { buildMockImpIdentity, createStubImpPort } from '@atc/execution-imp/testing';
+import { buildTargetIdentity } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 
 function setupTest() {

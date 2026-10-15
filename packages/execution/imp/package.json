@@ -4,7 +4,8 @@
   "description": "The imp execution provider: sessions run on imp hosts that impd manages, with its harness, its port to impd, and its credential broker",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",

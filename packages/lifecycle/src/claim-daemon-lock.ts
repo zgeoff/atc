@@ -1,7 +1,7 @@
 import { FFIType, dlopen, ptr } from 'bun:ffi';
 import { closeSync, writeFileSync } from 'node:fs';
-import type { Clock } from '@atc/core/system-clock';
-import { systemClock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core';
+import { systemClock } from '@atc/core';
 
 export interface DaemonLock {
   // Releases the lock; safe to call more than once.

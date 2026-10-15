@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { parseSystemdUnit } from '@atc/core/parse-systemd-unit';
+import { parseSystemdUnit } from '@atc/core';
 import { findSystemdVersion } from './find-systemd-version';
 import { SessionScopes } from './session-scopes';
 

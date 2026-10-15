@@ -1,8 +1,8 @@
-import type { HarnessPlugin } from '@atc/config/agent-entry';
-import { buildClaudePlugin } from '@atc/harness-claude/build-claude-plugin';
-import type { ClaudeAdapterOptions } from '@atc/harness-claude/claude-adapter-options';
-import { CODEX_PLUGIN } from '@atc/harness-codex/codex-plugin';
-import { GROK_PLUGIN } from '@atc/harness-grok/grok-plugin';
+import type { HarnessPlugin } from '@atc/config';
+import { buildClaudePlugin } from '@atc/harness-claude';
+import type { ClaudeAdapterOptions } from '@atc/harness-claude';
+import { CODEX_PLUGIN } from '@atc/harness-codex';
+import { GROK_PLUGIN } from '@atc/harness-grok';
 
 /**
  * The harness plugins atc ships, in the order a config without `agents`

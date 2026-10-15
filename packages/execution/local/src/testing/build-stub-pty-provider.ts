@@ -1,8 +1,4 @@
-import type {
-  ExecutionCapabilities,
-  ExecutionProvider,
-  HarnessSpec,
-} from '@atc/plugin-api/execution-provider';
+import type { ExecutionCapabilities, ExecutionProvider, HarnessSpec } from '@atc/plugin-api';
 import { LocalPTYProvider } from '../local-pty-provider';
 
 interface StubPTYProviderConfig {

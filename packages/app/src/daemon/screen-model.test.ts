@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { RESET_INPUT_MODES } from '@atc/core/reset-input-modes';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { RESET_INPUT_MODES } from '@atc/core';
+import { waitFor } from '@atc/test-utils';
 import { ScreenModel } from './screen-model';
 
 test('it replays text written to the screen', async () => {

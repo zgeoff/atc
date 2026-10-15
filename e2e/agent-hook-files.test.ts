@@ -1,9 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { runATC } from '@atc/test-utils/run-atc';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
 
 /**
  * A home for the printing CLI, removed once the test finishes.

@@ -1,8 +1,7 @@
-import type { Clock } from '@atc/core/system-clock';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { HELLO_RESULT_SCHEMA } from '@atc/protocol/hello-result';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
+import type { Clock } from '@atc/core';
+import { HELLO_RESULT_SCHEMA } from '@atc/protocol';
+import { readSessionEnv } from '@atc/protocol/session';
+import { DaemonClient, DaemonError } from '@atc/protocol/wire';
 
 // The fields of the handshake answer a probe reads; a daemon from before
 // either field answers without it.

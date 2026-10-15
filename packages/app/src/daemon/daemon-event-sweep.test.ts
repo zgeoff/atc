@@ -1,12 +1,14 @@
 // oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test: the event trail's sweep
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/test-utils/wait-for';
+import type { AdapterEvent } from '@atc/protocol';
+import {
+  buildMockAgentAdapter,
+  buildStubClock,
+  getRecord,
+  registerTestCleanup,
+  waitFor,
+} from '@atc/test-utils';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 
 /**

@@ -1,5 +1,5 @@
 import { userInfo } from 'node:os';
-import { resolveStateDir } from '@atc/config/resolve-state-dir';
+import { resolveStateDir } from '@atc/config/host';
 import { isDaemonCommandLine } from './is-daemon-command-line';
 import { readProcProcess } from './read-proc-process';
 

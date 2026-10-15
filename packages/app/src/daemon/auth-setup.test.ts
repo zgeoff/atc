@@ -1,10 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { createStepTimer } from '@atc/core/create-step-timer';
-import { toDaemonID } from '@atc/core/to-daemon-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { runShellcheck } from '@atc/test-utils/run-shellcheck';
+import { createStepTimer, toDaemonID, toSessionID } from '@atc/core';
+import type { AgentAdapter } from '@atc/plugin-api';
+import { buildMockAgentAdapter, runShellcheck } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { AuthSetup, READ_PROJECT_SETTINGS_SCRIPT } from './auth-setup';
 import type { ExecutionTarget } from './build-execution-targets';

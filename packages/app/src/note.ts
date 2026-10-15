@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { NOTE_KINDS } from '@atc/protocol/note-kinds';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
-import { sendBridgeRequest } from '@atc/protocol/send-bridge-request';
+import { NOTE_KINDS, readSessionEnv, sendBridgeRequest } from '@atc/protocol/session';
 import { sendReport } from './shared/report';
 
 interface NoteOptions {

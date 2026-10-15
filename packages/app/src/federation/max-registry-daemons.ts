@@ -1,4 +1,4 @@
-import { encodeCursor } from '@atc/protocol/encode-cursor';
+import { encodeCursor } from '@atc/protocol';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
 import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
 

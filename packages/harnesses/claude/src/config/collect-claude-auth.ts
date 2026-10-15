@@ -1,9 +1,7 @@
-import type { ClaudeMCPServer } from '@atc/config/agent-entry';
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import { isRecord } from '@atc/core/is-record';
-import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import type { ClaudeMCPServer } from '@atc/config';
+import { resolveAuthProfiles } from '@atc/config';
+import { BROKER_PLACEHOLDER, isRecord, isSubscriptionOverrideVariable } from '@atc/core';
+import type { AuthProfile } from '@atc/plugin-api';
 
 /**
  * The profiles a stock Claude session on a target that reaches impd's

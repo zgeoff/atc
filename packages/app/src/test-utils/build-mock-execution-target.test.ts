@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
+import { LocalPTYProvider } from '@atc/execution-local';
 import { buildMockExecutionTarget } from './build-mock-execution-target';
 
 test('it builds a default execution target', () => {

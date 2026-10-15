@@ -1,11 +1,10 @@
 import { createHash } from 'node:crypto';
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import type { AuthProfileProblem, ResolvedAuthSecret } from '@atc/config/resolve-auth-profiles';
-import type { AgentID } from '@atc/core/agent-id';
-import { sortJSONKeys } from '@atc/core/sort-json-keys';
-import type { GatewayConfig } from '@atc/harness-claude/config/collect-gateways';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
-import type { GatewayAuth } from '@atc/plugin-api/gateway-auth';
+import { resolveAuthProfiles } from '@atc/config';
+import type { AuthProfileProblem, ResolvedAuthSecret } from '@atc/config';
+import type { AgentID } from '@atc/core';
+import { sortJSONKeys } from '@atc/core';
+import type { GatewayConfig } from '@atc/harness-claude';
+import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
 
 /**
  * What a session's runtime is bound to through impd's broker: every

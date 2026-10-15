@@ -1,4 +1,4 @@
-import type { RemoteDaemon } from '@atc/config/collect-remote-daemons';
+import type { RemoteDaemon } from '@atc/config';
 import { faker } from '@faker-js/faker';
 
 /**

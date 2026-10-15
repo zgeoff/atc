@@ -1,8 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseClaudeTranscriptLine } from '@atc/harness-claude/parse-claude-transcript-line';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { parseClaudeTranscriptLine } from '@atc/harness-claude';
+import { setupTempDir } from '@atc/test-utils';
 import { loadTranscriptPage } from './load-transcript-page';
 
 function setupTest() {

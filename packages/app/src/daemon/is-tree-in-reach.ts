@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core/session-id';
+import type { SessionID } from '@atc/core';
 import type { TargetAccess, TargetGrant } from './target-access';
 
 // A session as the tree check reads it: its id, its parent if it has one,

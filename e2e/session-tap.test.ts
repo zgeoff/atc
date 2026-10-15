@@ -1,13 +1,15 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { EventMsg } from '@atc/protocol/protocol';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { DaemonClient } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import {
+  buildMockAgentAdapter,
+  registerTestCleanup,
+  resolveATCCommand,
+  setupTempDir,
+  spawnNamedSession,
+  waitFor,
+} from '@atc/test-utils';
 import { startDaemon } from '../packages/app/src/daemon/daemon';
 
 /**

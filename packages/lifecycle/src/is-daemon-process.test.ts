@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { isDaemonProcess } from './is-daemon-process';
 
 /**

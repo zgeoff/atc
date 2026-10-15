@@ -10,11 +10,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core/is-record';
-import type { Clock } from '@atc/core/system-clock';
-import { systemClock } from '@atc/core/system-clock';
-import { waitUntil } from '@atc/core/wait-until';
-import { isProcessAlive } from '@atc/lifecycle/is-process-alive';
+import { isRecord, systemClock, waitUntil } from '@atc/core';
+import type { Clock } from '@atc/core';
+import { isProcessAlive } from '@atc/lifecycle';
 
 /**
  * One source listing as the daemon answered it: the candidates as they

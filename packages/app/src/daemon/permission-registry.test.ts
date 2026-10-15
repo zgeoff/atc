@@ -1,7 +1,7 @@
 import { expect, expectTypeOf, test } from 'bun:test';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
+import type { AgentSessionID } from '@atc/core';
+import { toSessionID } from '@atc/core';
+import { buildStubClock } from '@atc/test-utils';
 import { PermissionRegistry } from './permission-registry';
 
 test('it emits the request with its respondable flag on open', () => {

@@ -1,8 +1,8 @@
 import { realpathSync } from 'node:fs';
 import { posix } from 'node:path';
-import type { SessionID } from '@atc/core/session-id';
-import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import type { SessionID } from '@atc/core';
+import type { ExecutionProvider } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import type { SessionRegistry } from './session-registry';
 
 // A workspace directory a spawn on a shared host holds, as the spawn gave

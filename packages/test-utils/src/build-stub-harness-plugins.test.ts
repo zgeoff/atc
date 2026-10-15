@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { collectAgents } from '@atc/config/collect-agents';
+import { collectAgents } from '@atc/config';
 import { buildStubHarnessPlugins } from './build-stub-harness-plugins';
 
 test('it builds stand-ins for claude, grok, and codex in that order', () => {

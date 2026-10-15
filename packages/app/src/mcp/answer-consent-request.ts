@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { GRANT_SCOPES } from '../shared/grant-scope';
 import { normalizeClientName } from '../shared/normalize-client-name';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';

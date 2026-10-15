@@ -1,13 +1,15 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubSkipClock } from '@atc/test-utils/build-stub-skip-clock';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
-import { startStubRefusingListener } from '@atc/test-utils/start-stub-refusing-listener';
-import { startStubUnansweringListener } from '@atc/test-utils/start-stub-unanswering-listener';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import {
+  buildMockAgentAdapter,
+  buildStubSkipClock,
+  setupTempDir,
+  startStubLegacyDaemon,
+  startStubRefusingListener,
+  startStubUnansweringListener,
+} from '@atc/test-utils';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 import { startTestDaemon } from './test-utils/start-test-daemon';

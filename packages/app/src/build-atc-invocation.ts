@@ -1,5 +1,5 @@
-import type { ATCInvocation } from '@atc/lifecycle/atc-invocation';
-import type { HostServices } from '@atc/plugin-api/host-services';
+import type { ATCInvocation } from '@atc/lifecycle';
+import type { HostServices } from '@atc/plugin-api';
 
 /**
  * How this process runs atc again, from its host services: the argv that

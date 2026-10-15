@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root, with a local and a remote
 // execution provider package linked where the bundler resolves them.
@@ -156,6 +155,51 @@ test('it fails a bundle that carries a provider the shipped list leaves out when
     exitCode: 1,
     stderr:
       'unshipped provider: atc bundles packages/execution/remote/src/remote-plugin.ts (@atc/execution-remote)\nunshipped provider: atc bundles remote-sdk, which only @atc/execution-remote depends on\nunshipped provider: local-only atc bundles packages/execution/remote/src/remote-plugin.ts (@atc/execution-remote)\nunshipped provider: local-only atc bundles remote-sdk, which only @atc/execution-remote depends on\n',
+  });
+});
+
+test('it drops a provider that the shipped list imports through its root entry point', async () => {
+  const ctx = await setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'packages/execution/remote/package.json'),
+    JSON.stringify({
+      name: '@atc/execution-remote',
+      exports: { '.': './src/index.ts' },
+      dependencies: { 'remote-sdk': '1.0.0' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/execution/remote/src/index.ts'),
+    "export * from './remote-plugin';\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\nimport { REMOTE_PLUGIN } from '@atc/execution-remote';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN, REMOTE_PLUGIN];\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/cli.ts'),
+    "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-bundle.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout:
+      'check-bundle: atc keeps @atc/execution-local, @atc/execution-remote and bundles 6 inputs\ncheck-bundle: local-only atc keeps @atc/execution-local and bundles 3 inputs\ncheck-bundle: 0 findings\n',
+    stderr: '',
   });
 });
 

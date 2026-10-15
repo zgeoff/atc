@@ -1,7 +1,5 @@
-import { bootDaemonClient } from '@atc/lifecycle/boot-daemon';
-import type { LifecycleHost } from '@atc/lifecycle/lifecycle-host';
-import { logClientEvent } from '@atc/lifecycle/log-client-event';
-import { restartDaemonAtSocket } from '@atc/lifecycle/restart-daemon-at-socket';
+import { bootDaemonClient, logClientEvent, restartDaemonAtSocket } from '@atc/lifecycle';
+import type { LifecycleHost } from '@atc/lifecycle';
 import type { TUIHost } from './client/tui-host';
 
 /**

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockSortableSessionView } from '@atc/test-utils/build-mock-sortable-session-view';
+import { buildMockSortableSessionView } from '@atc/test-utils';
 import { sortSessionViews } from './sort-session-views';
 
 test('it leads with pinned sessions in most-recently-attached order', () => {

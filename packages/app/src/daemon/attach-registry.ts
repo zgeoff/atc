@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core/session-id';
+import type { SessionID } from '@atc/core';
 
 export interface Dims {
   readonly cols: number;

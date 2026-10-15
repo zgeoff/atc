@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import type { GrantScope } from '../shared/grant-scope';

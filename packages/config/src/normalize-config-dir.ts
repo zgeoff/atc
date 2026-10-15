@@ -1,4 +1,4 @@
-import { expandHome } from '@atc/core/expand-home';
+import { expandHome } from '@atc/core';
 
 /**
  * A directory a config.json names, in the form atc compares: a leading `~`

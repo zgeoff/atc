@@ -1,6 +1,5 @@
 import { resolve } from 'node:path';
-import { expandHome } from '@atc/core/expand-home';
-import { isHomeRelative } from '@atc/core/is-home-relative';
+import { expandHome, isHomeRelative } from '@atc/core';
 
 /**
  * Where the picker looks a typed path up: `~` and `~/…` under the home

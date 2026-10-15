@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/test-utils';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { isOwnerOnlyMethod } from './is-owner-only-method';
 

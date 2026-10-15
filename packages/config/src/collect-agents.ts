@@ -1,5 +1,5 @@
-import { isRecord } from '@atc/core/is-record';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import { isRecord } from '@atc/core';
+import type { AuthProfile } from '@atc/plugin-api';
 import type { AgentConfigPlugin, AgentEntry, ParsedAgentEntry } from './agent-entry';
 
 interface CollectedAgents {

@@ -1,4 +1,4 @@
-import type { SpawnOptions } from '@atc/plugin-api/agent-adapter';
+import type { SpawnOptions } from '@atc/plugin-api';
 import { buildClaudeOverrideArgs } from './build-claude-override-args';
 
 /**

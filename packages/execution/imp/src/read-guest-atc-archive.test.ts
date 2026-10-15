@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { buildTarArchive } from '@atc/core/build-tar-archive';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { buildTarArchive } from '@atc/core';
+import { setupTempDir } from '@atc/test-utils';
 import { readGuestATCArchive } from './read-guest-atc-archive';
 
 /**

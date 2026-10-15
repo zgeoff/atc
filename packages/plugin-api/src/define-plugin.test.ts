@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { systemClock } from '@atc/core/system-clock';
+import { systemClock } from '@atc/core';
 import { z } from 'zod';
 import { definePlugin } from './define-plugin';
 import type { SourceProvider } from './types';

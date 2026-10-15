@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import { createGitFixture, setupTempDir } from '@atc/test-utils';
 import { $ } from 'bun';
 import { findHostBranch } from './find-host-branch';
 

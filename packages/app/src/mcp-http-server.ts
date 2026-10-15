@@ -1,12 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { MCPHTTPConfig } from '@atc/config/collect-mcp-http-config';
-import { mcpAuthDBFile } from '@atc/config/config';
-import { loadMCPHTTPConfig } from '@atc/config/load-mcp-http-config';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { DaemonBoot } from '@atc/protocol/daemon-boot';
-import type { DaemonBootOptions } from '@atc/protocol/daemon-boot-options';
-import type { DaemonPaths } from '@atc/protocol/daemon-paths';
+import type { MCPHTTPConfig } from '@atc/config';
+import { loadMCPHTTPConfig, mcpAuthDBFile } from '@atc/config';
+import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
+import { DaemonClient } from '@atc/protocol/wire';
 import { collectClients } from './mcp/collect-clients';
 import { collectPasskeys } from './mcp/collect-passkeys';
 import type { MCPAuthDatabase } from './mcp/mcp-auth-database';

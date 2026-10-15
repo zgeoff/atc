@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '@atc/config/config';
+import { parseConfig } from '@atc/config';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 

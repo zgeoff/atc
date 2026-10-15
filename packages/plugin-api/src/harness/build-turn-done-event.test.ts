@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
+import { toAgentSessionID } from '@atc/core';
 import { buildTurnDoneEvent } from './build-turn-done-event';
 
 test('it holds the last message as the result and the detail', () => {

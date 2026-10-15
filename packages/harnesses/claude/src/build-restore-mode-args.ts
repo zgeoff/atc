@@ -1,4 +1,4 @@
-import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
+import { findFlagValue } from '@atc/plugin-api';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 
 /**

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { KEYS } from '@atc/test-utils/keys';
+import { KEYS } from '@atc/test-utils';
 import { planPastedLineInput } from './plan-pasted-line-input';
 
 test('it pastes a line between bracketed paste markers and submits it in a second write', () => {

@@ -1,8 +1,10 @@
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
-import { isBrokerVariable } from '@atc/core/is-broker-variable';
-import { isRecord } from '@atc/core/is-record';
-import { isSubscriptionOverrideVariable } from '@atc/core/is-subscription-override-variable';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
+import {
+  BROKER_PLACEHOLDER,
+  isBrokerVariable,
+  isRecord,
+  isSubscriptionOverrideVariable,
+} from '@atc/core';
+import type { AuthProfile } from '@atc/plugin-api';
 
 interface AuthProfiles {
   readonly profiles: ReadonlyMap<string, AuthProfile>;

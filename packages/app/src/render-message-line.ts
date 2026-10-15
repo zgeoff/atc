@@ -1,4 +1,4 @@
-import type { MessageSender } from '@atc/protocol/message-sender';
+import type { MessageSender } from '@atc/protocol/wire';
 
 /**
  * The fields of one inbox message a tap prints: its id, its sender's name,

@@ -1,30 +1,32 @@
-import type { WorkspacesConfig } from '@atc/config/collect-workspaces-config';
-import { loadConfig } from '@atc/config/config';
-import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
-import { LOCAL_TARGET } from '@atc/config/local-target';
-import type { AgentID } from '@atc/core/agent-id';
-import { ansi } from '@atc/core/ansi';
-import { buildWorkspaceDestination } from '@atc/core/build-workspace-destination';
-import { COMMIT_ID_PATTERN } from '@atc/core/commit-id-pattern';
-import { expandHome } from '@atc/core/expand-home';
-import { isGitURL } from '@atc/core/is-git-url';
-import { isHomeRelative } from '@atc/core/is-home-relative';
-import { isRecord } from '@atc/core/is-record';
-import { systemClock } from '@atc/core/system-clock';
+import type { WorkspacesConfig } from '@atc/config';
+import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadConfig } from '@atc/config';
+import type { AgentID } from '@atc/core';
+import {
+  COMMIT_ID_PATTERN,
+  ansi,
+  buildWorkspaceDestination,
+  expandHome,
+  isGitURL,
+  isHomeRelative,
+  isRecord,
+  systemClock,
+} from '@atc/core';
 import { runCommand } from '@atc/lifecycle/run-command';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
-import { GIT_REF_SCHEMA } from '@atc/protocol/git-ref';
-import type { GitRef } from '@atc/protocol/git-ref';
-import { SOURCE_CANDIDATE_SCHEMA } from '@atc/protocol/source-candidate';
-import { SOURCE_ENTRY_SCHEMA } from '@atc/protocol/source-entry';
-import type { SourceEntry } from '@atc/protocol/source-entry';
-import { SOURCE_INTERPRETATION_SCHEMA } from '@atc/protocol/source-interpretation';
-import type { SourceInterpretation } from '@atc/protocol/source-interpretation';
-import type { SourcePick } from '@atc/protocol/source-pick';
-import { collectZoxideDirs } from '@atc/source-dirs/collect-zoxide-dirs';
-import { collectPathCompletions } from '@atc/source-dirs/complete/collect-path-completions';
-import { resolvePathInput } from '@atc/source-dirs/complete/resolve-path-input';
+import type {
+  DaemonFeature,
+  GitRef,
+  SourceEntry,
+  SourceInterpretation,
+  SourcePick,
+} from '@atc/protocol';
+import {
+  GIT_REF_SCHEMA,
+  SOURCE_CANDIDATE_SCHEMA,
+  SOURCE_ENTRY_SCHEMA,
+  SOURCE_INTERPRETATION_SCHEMA,
+} from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
+import { collectPathCompletions, collectZoxideDirs, resolvePathInput } from '@atc/source-dirs';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectAgentPicks } from './collect-agent-picks';
 import type { AgentPick } from './collect-agent-picks';

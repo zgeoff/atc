@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toAgentSessionID, toSessionID } from '@atc/core';
 import { z } from 'zod';
 import { buildClaudeStyleHookEvent } from './build-claude-style-hook-event';
 

@@ -1,20 +1,21 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ATC_BRIDGE_FILES } from '@atc/harness-claude/bridge/atc-bridge-files';
-import { buildStubClaudeHeadlessRun } from '@atc/harness-claude/testing/build-stub-claude-headless-run';
-import { buildMockAgentEntry } from '@atc/test-utils/build-mock-agent-entry';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { getAgentEntry } from '@atc/test-utils/get-agent-entry';
-import { KEYS } from '@atc/test-utils/keys';
-import { runCommand } from '@atc/test-utils/run-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { parseConfig } from '@atc/config';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import {
+  KEYS,
+  buildMockAgentEntry,
+  buildMockHostServices,
+  getAgentEntry,
+  runCommand,
+  setupTempDir,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { ATC_BRIDGE_FILES } from './bridge/atc-bridge-files';
 import { ClaudeAdapter } from './claude-adapter';
 import { CLAUDE_PLUGIN } from './claude-plugin';
+import { buildStubClaudeHeadlessRun } from './testing/build-stub-claude-headless-run';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
 // host config folder, or a guest folder a launch runs in.

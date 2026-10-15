@@ -1,13 +1,15 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing/start-daemon-process';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { getRecord } from '@atc/test-utils/get-record';
-import { getString } from '@atc/test-utils/get-string';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { startDaemonProcess } from '@atc/lifecycle/testing';
+import {
+  createStubBin,
+  getRecord,
+  getString,
+  resolveATCCommand,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 
 /**
  * A home with an empty config directory for the `atc daemon` each test
@@ -24,7 +26,7 @@ function setupTest() {
     home: tmp.dir,
     atc: resolveATCCommand(),
     configPath: join(configDir, 'config.json'),
-    probe: Bun.resolveSync('@atc/test-utils/run-stub-peer-probe', import.meta.dir),
+    probe: join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-peer-probe.ts'),
     outPath: join(tmp.dir, 'probe.json'),
   };
 }

@@ -1,4 +1,4 @@
-import { isRecord } from '@atc/core/is-record';
+import { isRecord } from '@atc/core';
 
 /**
  * The daemon/client wire dialect: NDJSON over a unix socket, one JSON object

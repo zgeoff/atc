@@ -1,25 +1,21 @@
 import type { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { LOCAL_TARGET } from '@atc/config/local-target';
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import type { DaemonID } from '@atc/core/daemon-id';
-import type { MessageID } from '@atc/core/message-id';
-import { parseJSONStrings } from '@atc/core/parse-json-strings';
-import type { SessionID } from '@atc/core/session-id';
-import { systemClock } from '@atc/core/system-clock';
-import { toAgentID } from '@atc/core/to-agent-id';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toDaemonID } from '@atc/core/to-daemon-id';
-import { toMessageID } from '@atc/core/to-message-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
-import type { HookEvent } from '@atc/protocol/hook-event';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/message-sender';
-import type { MessageSender } from '@atc/protocol/message-sender';
-import type { PublishedRecord } from '@atc/protocol/published-record';
-import type { SessionWorkspace } from '@atc/protocol/session-workspace';
+import { LOCAL_TARGET } from '@atc/config';
+import type { AgentID, AgentSessionID, DaemonID, MessageID, SessionID } from '@atc/core';
+import {
+  parseJSONStrings,
+  systemClock,
+  toAgentID,
+  toAgentSessionID,
+  toDaemonID,
+  toMessageID,
+  toSessionID,
+} from '@atc/core';
+import type { AdapterEvent, PublishedRecord, SessionWorkspace } from '@atc/protocol';
+import type { HookEvent } from '@atc/protocol/session';
+import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
+import type { MessageSender } from '@atc/protocol/wire';
 import { Kysely, sql } from 'kysely';
 import type {
   CompiledQuery,

@@ -1,5 +1,4 @@
-import { buildSQLiteDialect } from '@atc/store/sqlite/build-sqlite-dialect';
-import { openSQLite } from '@atc/store/sqlite/open-sqlite';
+import { buildSQLiteDialect, openSQLite } from '@atc/store/sqlite';
 import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
 
 /**

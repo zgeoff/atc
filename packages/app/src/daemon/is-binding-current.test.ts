@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toSessionID } from '@atc/core';
 import { isBindingCurrent } from './is-binding-current';
 
 test('it holds a binding current while the live session matches it in every field', () => {

@@ -1,17 +1,16 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildTargetIdentity } from '@atc/store/build-target-identity';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { createMigratedStateDB } from '@atc/store/testing/create-migrated-state-db';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubLog } from '@atc/test-utils/build-stub-log';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { StateStore, buildTargetIdentity } from '@atc/store';
+import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  buildStubLog,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { SessionManager } from './sessions';

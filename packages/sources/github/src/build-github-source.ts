@@ -1,6 +1,5 @@
-import type { HostServices } from '@atc/plugin-api/host-services';
-import type { SourceProvider } from '@atc/plugin-api/types';
-import { DaemonError } from '@atc/protocol/daemon-error';
+import type { HostServices, SourceProvider } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import { collectGitHubRepos } from './collect-github-repos';
 import { findGitHubAlternateURL } from './find-github-alternate-url';
 import { readGitProtocol } from './read-git-protocol';

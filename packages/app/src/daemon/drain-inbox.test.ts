@@ -1,9 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toMessageID } from '@atc/core/to-message-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
-import type { EventMsg } from '@atc/protocol/protocol';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
 import { buildStubHeldInboxSource } from '../test-utils/build-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 

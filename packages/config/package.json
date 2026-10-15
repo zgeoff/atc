@@ -4,7 +4,9 @@
   "description": "atc's config: the state paths, the config file loader and its section parsers, and the listen address rules",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts",
+    "./claude-statusline": "./src/claude-statusline/index.ts",
+    "./host": "./src/host/index.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",

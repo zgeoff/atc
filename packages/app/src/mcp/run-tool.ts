@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { isRecord } from '@atc/core/is-record';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import { isRecord } from '@atc/core';
+import type { DaemonFeature } from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { parseIdempotencyKey } from './parse-idempotency-key';
 import { readEventTexts } from './read-event-texts';

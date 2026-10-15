@@ -1,13 +1,9 @@
-import type { RemoteDaemon } from '@atc/config/collect-remote-daemons';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
-import { toAgentID } from '@atc/core/to-agent-id';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { DaemonBoot } from '@atc/protocol/daemon-boot';
-import type { DaemonBootOptions } from '@atc/protocol/daemon-boot-options';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { parseDaemonFeatures } from '@atc/protocol/parse-daemon-features';
-import { PROTOCOL_V } from '@atc/protocol/protocol';
+import type { RemoteDaemon } from '@atc/config';
+import { systemClock, toAgentID } from '@atc/core';
+import type { Clock } from '@atc/core';
+import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
+import { parseDaemonFeatures } from '@atc/protocol';
+import { DaemonClient, DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 
 // How long one attempt gives the remote daemon to take the connection and

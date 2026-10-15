@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { parseConfig } from '@atc/config/config';
+import { parseConfig } from '@atc/config';
 import { buildStubHarnessPlugins } from './build-stub-harness-plugins';
 import { getAgentEntry } from './get-agent-entry';
 

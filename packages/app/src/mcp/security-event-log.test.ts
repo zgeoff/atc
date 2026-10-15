@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubClock } from '@atc/test-utils/build-stub-clock';
+import { buildStubClock } from '@atc/test-utils';
 import { SecurityEventLog } from './security-event-log';
 
 // A log on a clock that moves only when the test advances it, with every

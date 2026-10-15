@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
 import { collectBuiltinSources } from './collect-builtin-sources';
 
 // A home directory with a path a gh executable may be written to.

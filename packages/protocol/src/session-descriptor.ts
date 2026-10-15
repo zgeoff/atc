@@ -1,6 +1,4 @@
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toDaemonID } from '@atc/core/to-daemon-id';
-import { toSessionID } from '@atc/core/to-session-id';
+import { toAgentSessionID, toDaemonID, toSessionID } from '@atc/core';
 import { z } from 'zod';
 import { SESSION_LIFECYCLE_SCHEMA } from './session-lifecycle';
 import { SESSION_WORKSPACE_SCHEMA } from './session-workspace';

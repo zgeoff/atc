@@ -1,8 +1,7 @@
 import { mkdir, rmdir, stat, utimes } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { Clock } from '@atc/core/system-clock';
-import { systemClock } from '@atc/core/system-clock';
-import { waitUntil } from '@atc/core/wait-until';
+import type { Clock } from '@atc/core';
+import { systemClock, waitUntil } from '@atc/core';
 
 // A lock older than this belongs to a holder that died: the Claude CLI's
 // lock library refreshes a held lock's age well inside it.

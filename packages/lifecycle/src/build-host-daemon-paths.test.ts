@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { resolvePaths } from '@atc/config/resolve-paths';
+import { resolvePaths } from '@atc/config/host';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 

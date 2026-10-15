@@ -2,27 +2,25 @@ import { expect, mock, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core/is-record';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { getOnlyImpName } from '@atc/execution-imp/testing/get-only-imp-name';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
-import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { buildStubBrokeredAgentAdapter } from '@atc/test-utils/build-stub-brokered-agent-adapter';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { isRecord, toAgentSessionID, toSessionID } from '@atc/core';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubExecutionProvider } from '@atc/execution-local/testing';
+import type { AgentAdapter } from '@atc/plugin-api';
+import { DAEMON_FEATURES, REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
+import { DaemonClient } from '@atc/protocol/wire';
+import { StateStore } from '@atc/store';
+import {
+  buildMockAgentAdapter,
+  buildStubBrokeredAgentAdapter,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+  spawnNamedSession,
+  startStubLegacyDaemon,
+  waitFor,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { buildPayloadHash } from '../daemon/build-payload-hash';

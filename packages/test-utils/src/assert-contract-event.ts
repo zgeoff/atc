@@ -1,5 +1,5 @@
-import { DAEMON_EVENT_SCHEMA } from '@atc/protocol/daemon-event';
-import type { EventMsg } from '@atc/protocol/protocol';
+import { DAEMON_EVENT_SCHEMA } from '@atc/protocol';
+import type { EventMsg } from '@atc/protocol/wire';
 
 /**
  * Throws unless a daemon event, apart from its protocol version, parses

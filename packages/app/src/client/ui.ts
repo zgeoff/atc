@@ -1,7 +1,7 @@
-import type { AgentID } from '@atc/core/agent-id';
-import { ansi } from '@atc/core/ansi';
-import { PINNED_GROUP_KEY } from '@atc/protocol/pinned-group-key';
-import type { SessionState } from '@atc/protocol/session-state';
+import type { AgentID } from '@atc/core';
+import { ansi } from '@atc/core';
+import { PINNED_GROUP_KEY } from '@atc/protocol';
+import type { SessionState } from '@atc/protocol';
 import { formatDir } from './dirs';
 import { pickPinTarget } from './pick-pin-target';
 import { planOverlayColumns } from './plan-overlay-columns';

@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { basename, join, relative, sep } from 'node:path';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
-import type { GuestFile } from '@atc/plugin-api/agent-adapter';
+import { resolveHomeDir } from '@atc/config/host';
+import type { GuestFile } from '@atc/plugin-api';
 import { buildClaudeBundleSettings } from './build-claude-bundle-settings';
 
 /**

@@ -1,13 +1,15 @@
 import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core/is-record';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
+import { isRecord } from '@atc/core';
+import { DaemonClient } from '@atc/protocol/wire';
+import {
+  buildMockAgentAdapter,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+  startStubLegacyDaemon,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { answerRPCRequest } from './answer-rpc-request';

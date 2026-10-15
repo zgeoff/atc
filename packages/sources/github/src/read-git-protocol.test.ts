@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubGHCommand } from '@atc/test-utils/build-stub-gh-command';
+import { buildStubGHCommand } from '@atc/test-utils';
 import { readGitProtocol } from './read-git-protocol';
 
 test.each([

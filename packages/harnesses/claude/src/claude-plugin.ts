@@ -1,4 +1,4 @@
-import type { HarnessPlugin } from '@atc/config/agent-entry';
+import type { HarnessPlugin } from '@atc/config';
 import { buildClaudePlugin } from './build-claude-plugin';
 
 /**

@@ -1,6 +1,6 @@
-import { isRecord } from '@atc/core/is-record';
-import { getSourceEntry } from '@atc/test-utils/get-source-entry';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
+import { isRecord } from '@atc/core';
+import { getSourceEntry } from './get-source-entry';
+import { registerTestCleanup } from './register-test-cleanup';
 
 const CLI_PATH = getSourceEntry('atc');
 

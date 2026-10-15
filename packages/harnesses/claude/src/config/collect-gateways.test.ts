@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import type { AuthProfile } from '@atc/plugin-api/auth-profile';
-import { buildMockAuthProfile } from '@atc/test-utils/build-mock-auth-profile';
+import type { AuthProfile } from '@atc/plugin-api';
+import { buildMockAuthProfile } from '@atc/test-utils';
 import { collectGateways } from './collect-gateways';
 
 test('it reads an entry into a gateway with its own menu row on the Claude binary', () => {

@@ -8,14 +8,25 @@
 // package; a file the gateway reaches with no row in the map is a finding, so
 // the map stays complete. A second step bundles the entry with
 // `bun build --metafile` and holds every bundled source file to the same
-// rule, which catches a reach the source walk cannot read. Prints every
-// finding and exits 1 when there is one.
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+// rule, which catches a reach the source walk cannot read.
+//
+// A second rule holds the reporters to their start-up time. A hook or
+// statusline command starts once per event inside a session, and a compiled
+// entry point runs the top-level code of every module it re-exports, so the
+// static import graph of each reporter and of cli.ts, whose static imports
+// load before every subcommand, reaches no module whose top-level code builds
+// schemas, the protocol contract, or the store. Type-only imports and dynamic
+// imports load nothing at start-up, so the walk leaves them out. Of the
+// packages, the walk may reach core, the light entries of protocol and
+// config, and lifecycle's run-command entry. The rule holds for a tree that
+// has the atc CLI entry. Prints every finding and exits 1 when there is one.
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { z } from 'zod';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
+import { PACKAGE_RULES } from './package-rules';
 
 async function main(): Promise<void> {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
@@ -23,7 +34,14 @@ async function main(): Promise<void> {
 
   const known = new Set(collectSourceFiles(root, 'packages'));
 
-  const reached = collectReached(root, known, ENTRY);
+  const exports = collectExports(root);
+
+  const reached = collectReached(
+    known,
+    exports,
+    [ENTRY],
+    (file) => collectImports(readFileSync(join(root, file), 'utf8')).specifiers,
+  );
 
   const bundled = await collectBundled(root, ENTRY);
 
@@ -34,6 +52,7 @@ async function main(): Promise<void> {
       .filter((file) => known.has(file))
       .toSorted()
       .flatMap((file) => checkFile(map, 'bundles', file)),
+    ...checkReporters(root, known, exports),
   ];
 
   for (const finding of findings) {
@@ -143,27 +162,119 @@ function checkFile(map: ReadonlyMap<string, MapRow>, verb: string, file: string)
   return allowed ? [] : [`unreachable module: ${ENTRY} ${verb} ${file} (${row.pkg})`];
 }
 
+const APP_SOURCE = 'packages/app/src';
+
+// The reporters, and cli.ts, whose static imports load before every
+// subcommand, the reporters among them.
+const REPORTER_ENTRIES = [
+  'cli.ts',
+  'hook-report.ts',
+  'note.ts',
+  'tap.ts',
+  'run-bridge-tap.ts',
+  'statusline.ts',
+].map((file) => `${APP_SOURCE}/${file}`);
+
+// The folders under src/ of each package that a reporter may load, by
+// package name: core whole, and the light entries of the packages whose
+// root entry builds schemas, the protocol contract, or the store. Every
+// other package, store among them, stays out of a reporter's reach.
+const REPORTER_FOLDERS: ReadonlyMap<string, readonly string[] | 'all'> = new Map([
+  ['core', 'all'],
+  ['protocol', ['session', 'wire']],
+  ['config', ['host', 'claude-statusline']],
+  ['lifecycle', ['run-command']],
+]);
+
+/**
+ * The findings for the reporters' start-up: each package module that a
+ * reporter's static import graph loads outside the folders the reporters
+ * may load, a reporter entry that is missing, and a static import that
+ * resolves to no file.
+ */
+function checkReporters(
+  root: string,
+  known: ReadonlySet<string>,
+  exports: ReadonlyMap<string, string>,
+): string[] {
+  if (!existsSync(join(root, APP_SOURCE, 'cli.ts'))) {
+    return [];
+  }
+
+  const missing = REPORTER_ENTRIES.filter((entry) => !known.has(entry));
+
+  if (missing.length > 0) {
+    return missing.map((entry) => `missing reporter: ${entry} does not exist`);
+  }
+
+  const findings: string[] = [];
+
+  for (const entry of REPORTER_ENTRIES) {
+    const reached = collectReached(
+      known,
+      exports,
+      [entry],
+      (file) => collectImports(readFileSync(join(root, file), 'utf8')).staticLoads,
+    );
+
+    for (const file of [...reached.files].toSorted()) {
+      if (!isReporterLoadable(file)) {
+        findings.push(
+          `slow reporter: ${entry} loads ${file} at start-up, outside the entries a reporter may load`,
+        );
+      }
+    }
+
+    findings.push(...reached.unresolved);
+  }
+
+  return findings;
+}
+
+/**
+ * Whether a reporter may load the file at start-up: an app module, or a
+ * package module inside a folder that the package's row allows.
+ */
+function isReporterLoadable(file: string): boolean {
+  if (file.startsWith(`${APP_SOURCE}/`)) {
+    return true;
+  }
+
+  const rule = PACKAGE_RULES.find((candidate) => file.startsWith(`${candidate.dir}/src/`));
+
+  if (rule === undefined) {
+    return false;
+  }
+
+  const folders = REPORTER_FOLDERS.get(rule.name) ?? [];
+  const path = file.slice(`${rule.dir}/src/`.length);
+
+  return folders === 'all' || folders.some((folder) => path.startsWith(`${folder}/`));
+}
+
 interface Reach {
   readonly files: ReadonlySet<string>;
   readonly unresolved: readonly string[];
 }
 
 /**
- * Every workspace source file the entry imports, however indirectly. An
- * `@atc/*` import resolves through the target package's exports.
+ * Every workspace source file the entries import, however indirectly,
+ * following the specifiers that `pick` returns for each file. An `@atc/*`
+ * import resolves through the target package's exports.
  */
-function collectReached(root: string, known: ReadonlySet<string>, entry: string): Reach {
-  const exports = collectExports(root);
-
-  const files = new Set([entry]);
+function collectReached(
+  known: ReadonlySet<string>,
+  exports: ReadonlyMap<string, string>,
+  entries: readonly string[],
+  pick: (file: string) => readonly string[],
+): Reach {
+  const files = new Set(entries);
 
   const unresolved: string[] = [];
-  const pending = [entry];
+  const pending = [...entries];
 
   for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
-    const source = readFileSync(join(root, file), 'utf8');
-
-    for (const specifier of collectImports(source).specifiers) {
+    for (const specifier of pick(file)) {
       const target = resolveSpecifier(known, exports, file, specifier);
 
       if (target === null) {
@@ -195,7 +306,9 @@ function resolveSpecifier(
   }
 
   if (specifier.startsWith('@atc/')) {
-    return findExport(exports, specifier);
+    const target = findExport(exports, specifier);
+
+    return target !== null && known.has(target) ? target : null;
   }
 
   return undefined;

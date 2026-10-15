@@ -1,7 +1,6 @@
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { DaemonBoot } from '@atc/protocol/daemon-boot';
-import { LineDecoder } from '@atc/protocol/line-decoder';
-import { readSessionEnv } from '@atc/protocol/read-session-env';
+import type { DaemonBoot } from '@atc/protocol';
+import { readSessionEnv } from '@atc/protocol/session';
+import { DaemonClient, LineDecoder } from '@atc/protocol/wire';
 import { answerRPCRequest } from './mcp/answer-rpc-request';
 import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import type { FleetCaller, ToolContext } from './mcp/types';

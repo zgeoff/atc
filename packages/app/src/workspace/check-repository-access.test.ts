@@ -1,14 +1,16 @@
 import { expect, test } from 'bun:test';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DEFAULT_GIT_TRANSPORTS } from '@atc/config/default-git-transports';
-import { buildStubRecordingGit } from '@atc/test-utils/build-stub-recording-git';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { startGitHTTPServer } from '@atc/test-utils/start-git-http-server';
-import { startStubSilentServer } from '@atc/test-utils/start-stub-silent-server';
-import { updateEnv } from '@atc/test-utils/update-env';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
+import {
+  buildStubRecordingGit,
+  createGitFixture,
+  createStubBin,
+  startGitHTTPServer,
+  startStubSilentServer,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import { checkRepositoryAccess } from './check-repository-access';
 

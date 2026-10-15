@@ -1,5 +1,4 @@
-import type { DaemonClient } from '@atc/protocol/client/daemon-client';
-import type { EventMsg } from '@atc/protocol/protocol';
+import type { DaemonClient, EventMsg } from '@atc/protocol/wire';
 
 /**
  * Makes the client the session's tap and acks each message the tap is

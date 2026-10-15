@@ -1,12 +1,14 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { KEYS } from '@atc/test-utils/keys';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { spawnClaudeSession } from '@atc/test-utils/spawn-claude-session';
-import { startTUIHarness } from '@atc/test-utils/start-tui-harness';
+import { DaemonClient } from '@atc/protocol/wire';
+import {
+  KEYS,
+  createGitFixture,
+  registerTestCleanup,
+  spawnClaudeSession,
+  startTUIHarness,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 
 function setupTest() {

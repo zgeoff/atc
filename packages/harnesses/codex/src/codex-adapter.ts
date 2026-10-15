@@ -1,10 +1,8 @@
-import type { AgentEntry } from '@atc/config/agent-entry';
-import type { Config } from '@atc/config/config';
-import { resolveAgentHome } from '@atc/config/resolve-agent-home';
-import { resolveAuthProfiles } from '@atc/config/resolve-auth-profiles';
-import type { AgentID } from '@atc/core/agent-id';
-import type { AgentSessionID } from '@atc/core/agent-session-id';
-import { toShellArg } from '@atc/core/to-shell-arg';
+import type { AgentEntry, Config } from '@atc/config';
+import { resolveAuthProfiles } from '@atc/config';
+import { resolveAgentHome } from '@atc/config/host';
+import type { AgentID, AgentSessionID } from '@atc/core';
+import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
   AgentProfile,
@@ -17,16 +15,18 @@ import type {
   SpawnOptionSpecs,
   SpawnOptions,
   SpawnPlan,
-} from '@atc/plugin-api/agent-adapter';
-import { buildArgsWithoutFlags } from '@atc/plugin-api/harness/build-args-without-flags';
-import { buildAuthRevisionFolder } from '@atc/plugin-api/harness/build-auth-revision-folder';
-import { buildCodexAuthFile } from '@atc/plugin-api/harness/build-codex-auth-file';
-import { buildCodexConfig } from '@atc/plugin-api/harness/build-codex-config';
-import { canResumeFromTranscript } from '@atc/plugin-api/harness/can-resume-from-transcript';
-import { findCodexSignIn } from '@atc/plugin-api/harness/find-codex-sign-in';
-import { findFlagValue } from '@atc/plugin-api/harness/find-flag-value';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { HookEvent } from '@atc/protocol/hook-event';
+} from '@atc/plugin-api';
+import {
+  buildArgsWithoutFlags,
+  buildAuthRevisionFolder,
+  buildCodexAuthFile,
+  buildCodexConfig,
+  canResumeFromTranscript,
+  findCodexSignIn,
+  findFlagValue,
+} from '@atc/plugin-api';
+import type { HookEvent } from '@atc/protocol/session';
+import { DaemonError } from '@atc/protocol/wire';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 import { buildCodexHookEvent } from './build-codex-hook-event';
 import { buildCodexHookFile } from './build-codex-hook-file';

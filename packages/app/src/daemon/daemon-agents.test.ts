@@ -2,9 +2,8 @@
 import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { getRecords } from '@atc/test-utils/get-records';
+import { parseConfig } from '@atc/config';
+import { buildMockHostServices, getRecords } from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../test-utils/start-test-daemon';

@@ -4,7 +4,7 @@
   "description": "The contracts a harness, execution, or source plugin implements, the host services atc gives it, and the helpers harnesses share",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from '@atc/core/is-record';
-import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
-import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
+import { isRecord } from '@atc/core';
+import { setupMCPHome } from '@atc/lifecycle/testing';
+import { startMCPStdio } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 function setupTest() {

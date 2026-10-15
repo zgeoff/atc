@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { MESSAGE_SENDER_SCHEMA } from './message-sender';
 import { MESSAGE_STATUS_SCHEMA } from './message-status';
+import { MESSAGE_SENDER_SCHEMA } from './wire/message-sender';
 
 /**
  * An inbox message as `message.get` answers it: who sent it to which

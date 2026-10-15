@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils/run-command';
+import { runCommand } from '@atc/test-utils';
 
 test('it passes a gate that leaves the synthetic home alone', async () => {
   const run = await runCommand([

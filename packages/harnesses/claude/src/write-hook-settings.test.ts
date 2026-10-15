@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentID } from '@atc/core/to-agent-id';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { toAgentID } from '@atc/core';
+import { setupTempDir, updateEnv } from '@atc/test-utils';
 import { writeHookSettings } from './write-hook-settings';
 
 // A state folder for the settings file and a home for the Claude settings

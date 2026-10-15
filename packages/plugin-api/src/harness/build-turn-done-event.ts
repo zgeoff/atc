@@ -1,5 +1,5 @@
-import { truncateDetail } from '@atc/core/truncate-detail';
-import type { AdapterEvent } from '@atc/protocol/adapter-event';
+import { truncateDetail } from '@atc/core';
+import type { AdapterEvent } from '@atc/protocol';
 
 /**
  * The agent finished its turn: the event on top of `base`, holding the

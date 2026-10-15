@@ -1,10 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/test-utils/update-env';
+import { parseConfig } from '@atc/config';
+import { createStubBin, setupTempDir, updateEnv } from '@atc/test-utils';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { collectAgentPicks } from './collect-agent-picks';
 

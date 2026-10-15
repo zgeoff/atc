@@ -2,9 +2,7 @@ import { expect, test } from 'bun:test';
 import { once } from 'node:events';
 import { connect } from 'node:net';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import type { Socket } from 'bun';
 import { OutboundQueue } from './outbound-queue';
 

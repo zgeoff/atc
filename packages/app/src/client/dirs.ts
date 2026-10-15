@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
-import { resolveHomeDir } from '@atc/config/resolve-home-dir';
-import { formatHomePath } from '@atc/core/format-home-path';
-import { collectRootDirs } from '@atc/source-dirs/collect-root-dirs';
+import { resolveHomeDir } from '@atc/config/host';
+import { formatHomePath } from '@atc/core';
+import { collectRootDirs } from '@atc/source-dirs';
 
 /**
  * Every source the picker lists, merged in the order the reader expects

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runConfigMigrate } from './run-config-migrate';
 

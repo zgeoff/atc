@@ -1,6 +1,6 @@
-import { encodeCursor } from '@atc/protocol/encode-cursor';
-import type { SessionDescriptor } from '@atc/protocol/session-descriptor';
-import type { StoredAnswer } from '@atc/store/state-store';
+import { encodeCursor } from '@atc/protocol';
+import type { SessionDescriptor } from '@atc/protocol';
+import type { StoredAnswer } from '@atc/store';
 
 /**
  * One message answer as `answer.get` returns it: the cursor of its

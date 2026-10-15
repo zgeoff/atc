@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { buildMockHostServices } from '@atc/test-utils';
 import { buildATCInvocation } from './build-atc-invocation';
 
 test("it starts the CLI with the host's argv", () => {

@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core/system-clock';
+import type { Clock } from '@atc/core';
 import type { GatewayChannel } from './daemon-caller';
 import { DaemonPool } from './daemon-pool';
 import { GatewayStore } from './gateway-store';

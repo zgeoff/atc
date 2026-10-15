@@ -1,5 +1,5 @@
-import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol/request-param-schemas';
-import { SESSION_ENV_NAMES } from '@atc/protocol/session-env-names';
+import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
+import { SESSION_ENV_NAMES } from '@atc/protocol/session';
 import { z } from 'zod';
 import type { GrantScope } from '../shared/grant-scope';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';

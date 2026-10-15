@@ -1,7 +1,6 @@
-import type { AgentID } from '@atc/core/agent-id';
-import { isRecord } from '@atc/core/is-record';
-import { toAgentID } from '@atc/core/to-agent-id';
-import type { SessionState } from '@atc/protocol/session-state';
+import type { AgentID } from '@atc/core';
+import { isRecord, toAgentID } from '@atc/core';
+import type { SessionState } from '@atc/protocol';
 import { z } from 'zod';
 
 export interface MirrorSession {

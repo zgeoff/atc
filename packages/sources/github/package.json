@@ -4,7 +4,7 @@
   "description": "The GitHub source: the repositories gh on the daemon's host can see",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@atc/plugin-api": "workspace:*",

@@ -1,12 +1,13 @@
-import type { AgentEntry } from '@atc/config/agent-entry';
-import { collectAuthProfiles } from '@atc/config/collect-auth-profiles';
-import { formatJSONKind } from '@atc/config/format-json-kind';
-import { formatMixedAgentKeys } from '@atc/config/format-mixed-agent-keys';
-import { LEGACY_AGENT_KEYS } from '@atc/config/legacy-agent-keys';
-import { REMOVED_CONFIG_KEYS } from '@atc/config/removed-config-keys';
-import { buildOptionalString } from '@atc/core/build-optional-string';
-import { buildOptionalStringArray } from '@atc/core/build-optional-string-array';
-import { isRecord } from '@atc/core/is-record';
+import type { AgentEntry } from '@atc/config';
+import {
+  LEGACY_AGENT_KEYS,
+  REMOVED_CONFIG_KEYS,
+  collectAuthProfiles,
+  formatJSONKind,
+  formatMixedAgentKeys,
+} from '@atc/config';
+import { isRecord } from '@atc/core';
+import { buildOptionalString, buildOptionalStringArray } from '@atc/core/schema';
 import { z } from 'zod';
 import { collectLegacyAgents } from './shared/collect-legacy-agents';
 

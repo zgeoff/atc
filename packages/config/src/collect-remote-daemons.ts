@@ -1,7 +1,5 @@
 import { isAbsolute } from 'node:path';
-import { expandHome } from '@atc/core/expand-home';
-import { isHomeRelative } from '@atc/core/is-home-relative';
-import { isRecord } from '@atc/core/is-record';
+import { expandHome, isHomeRelative, isRecord } from '@atc/core';
 
 /**
  * Where the client reads a remote daemon's bearer token: a file that holds

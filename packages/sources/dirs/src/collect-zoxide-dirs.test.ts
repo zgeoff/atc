@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
+import { buildMockHostServices } from '@atc/test-utils';
 import { collectZoxideDirs } from './collect-zoxide-dirs';
 
 test("it lists zoxide's directories, most visited first", async () => {

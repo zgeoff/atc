@@ -13,23 +13,23 @@ import {
 } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { buildStubDirProvider } from '@atc/execution-local/testing/build-stub-dir-provider';
-import { buildStubExecutionProvider } from '@atc/execution-local/testing/build-stub-execution-provider';
-import type { ExecutionProvider } from '@atc/plugin-api/execution-provider';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import { StateStore } from '@atc/store/state-store';
-import { buildMockFleetEntry } from '@atc/store/testing/build-mock-fleet-entry';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { createGitFixture } from '@atc/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { startGitHTTPServer } from '@atc/test-utils/start-git-http-server';
-import { updateEnv } from '@atc/test-utils/update-env';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { buildStubDirProvider, buildStubExecutionProvider } from '@atc/execution-local/testing';
+import type { ExecutionProvider } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
+import { StateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
+import {
+  buildMockAgentAdapter,
+  createGitFixture,
+  createStubBin,
+  getRecord,
+  registerTestCleanup,
+  startGitHTTPServer,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';

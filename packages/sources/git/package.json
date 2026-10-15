@@ -4,7 +4,7 @@
   "description": "The git URL source: a repository at a typed git URL",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",

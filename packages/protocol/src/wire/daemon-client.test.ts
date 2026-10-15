@@ -1,14 +1,16 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { startStubClosingListener } from '@atc/test-utils/start-stub-closing-listener';
-import { startStubStalledListener } from '@atc/test-utils/start-stub-stalled-listener';
-import { startStubTCPDaemon } from '@atc/test-utils/start-stub-tcp-daemon';
-import { startStubUnansweringListener } from '@atc/test-utils/start-stub-unanswering-listener';
-import { waitFor } from '@atc/test-utils/wait-for';
-import { PROTOCOL_V } from '../protocol';
+import {
+  registerTestCleanup,
+  setupTempDir,
+  startStubClosingListener,
+  startStubStalledListener,
+  startStubTCPDaemon,
+  startStubUnansweringListener,
+  waitFor,
+} from '@atc/test-utils';
 import { DaemonClient } from './daemon-client';
+import { PROTOCOL_V } from './protocol';
 
 /**
  * A daemon socket in a fresh temp directory whose listener closes every

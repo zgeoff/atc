@@ -1,10 +1,8 @@
-import { isRecord } from '@atc/core/is-record';
-import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
-import { decodeCursor } from '@atc/protocol/decode-cursor';
-import { encodeCursor } from '@atc/protocol/encode-cursor';
-import type { Principal } from '@atc/protocol/principal';
+import { isRecord } from '@atc/core';
+import type { Clock } from '@atc/core';
+import type { DaemonFeature, Principal } from '@atc/protocol';
+import { decodeCursor, encodeCursor } from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
 import type { DaemonCaller } from './daemon-caller';

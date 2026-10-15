@@ -1,10 +1,9 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolvePaths } from '@atc/config/resolve-paths';
-import { buildMockLifecycleHost } from '@atc/lifecycle/testing/build-mock-lifecycle-host';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { resolvePaths } from '@atc/config/host';
+import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { buildMockAgentAdapter, setupTempDir } from '@atc/test-utils';
 import { buildRemoteTUIHost } from './build-remote-tui-host';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 import { startTestDaemon } from './test-utils/start-test-daemon';

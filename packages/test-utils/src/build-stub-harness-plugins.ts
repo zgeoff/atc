@@ -1,5 +1,5 @@
-import type { AgentConfigPlugin } from '@atc/config/agent-entry';
-import { buildAgentEntrySchema } from '@atc/config/build-agent-entry-schema';
+import type { AgentConfigPlugin } from '@atc/config';
+import { buildAgentEntrySchema } from '@atc/config';
 
 /**
  * Stand-ins for the config side of the harness plugins atc ships, in the

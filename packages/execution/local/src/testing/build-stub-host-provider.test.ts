@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { setupTempDir } from '@atc/test-utils';
 import { buildStubHostProvider } from './build-stub-host-provider';
 
 function setupTest() {

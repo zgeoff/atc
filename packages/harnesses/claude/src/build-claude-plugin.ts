@@ -1,6 +1,6 @@
-import type { HarnessPlugin } from '@atc/config/agent-entry';
-import { buildAgentEntrySchema } from '@atc/config/build-agent-entry-schema';
-import { definePlugin } from '@atc/plugin-api/define-plugin';
+import type { HarnessPlugin } from '@atc/config';
+import { buildAgentEntrySchema } from '@atc/config';
+import { definePlugin } from '@atc/plugin-api';
 import { ClaudeAdapter } from './claude-adapter';
 import type { ClaudeAdapterOptions } from './claude-adapter-options';
 import { readClaudeEntry } from './config/read-claude-entry';

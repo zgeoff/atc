@@ -1,4 +1,4 @@
-import { BROKER_PLACEHOLDER } from '@atc/core/broker-placeholder';
+import { BROKER_PLACEHOLDER } from '@atc/core';
 
 /**
  * The `auth.json` a Codex session on a remote host signs in with, which

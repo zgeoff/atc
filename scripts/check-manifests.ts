@@ -1,6 +1,9 @@
 // Checks that every workspace package's manifest declares what its files
 // import, and that no file reaches into another package by a relative path.
-// A bare import resolves to a package the manifest declares: in
+// Each workspace package lists its entry points in an explicit exports map
+// with no wildcard, and an `@atc/*` import of a workspace package names one
+// of them: the package itself for `.`, or a named entry such as
+// `@atc/protocol/wire`. A bare import resolves to a package the manifest declares: in
 // dependencies for production files, in either list for tests and testing
 // modules. Each `@atc/*` entry is `workspace:*`, each other entry `catalog:`,
 // and a package's `@atc/*` dependencies stay inside its row of the package
@@ -75,6 +78,7 @@ const WORKSPACES_SCHEMA = z.object({ packages: z.array(z.string()).optional() })
 
 const MANIFEST_SCHEMA = z.object({
   name: z.string().optional(),
+  exports: z.record(z.string(), z.unknown()).optional(),
   workspaces: WORKSPACES_SCHEMA,
   dependencies: DEPENDENCIES_SCHEMA,
   devDependencies: DEPENDENCIES_SCHEMA,
@@ -82,6 +86,7 @@ const MANIFEST_SCHEMA = z.object({
 
 interface Manifest {
   readonly name?: string | undefined;
+  readonly exports?: Readonly<Record<string, unknown>> | undefined;
   readonly workspaces?: { readonly packages?: readonly string[] | undefined } | undefined;
   readonly dependencies?: Readonly<Record<string, string>> | undefined;
   readonly devDependencies?: Readonly<Record<string, string>> | undefined;
@@ -154,6 +159,18 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     );
   }
 
+  // an empty map is explicit too: it leaves a package, such as the app,
+  // with no entry point another package can import
+  if (pkg.manifest.exports === undefined) {
+    findings.push(`no exports: ${manifestPath} holds no exports map`);
+  }
+
+  for (const entry of Object.keys(pkg.manifest.exports ?? {}).filter((key) => key.includes('*'))) {
+    findings.push(
+      `wildcard entry: ${manifestPath} exports ${entry}, which makes every matching file public; list each entry point`,
+    );
+  }
+
   for (const name of Object.keys(pkg.manifest.dependencies ?? {})) {
     if (name.startsWith('@atc/') && !rule.deps.includes(name.slice('@atc/'.length))) {
       findings.push(
@@ -194,6 +211,36 @@ function checkSpecifier(
 
   const name = getPackageName(specifier);
 
+  return [...checkEntry(packages, file, specifier, name), ...checkDeclared(pkg, file, name)];
+}
+
+/**
+ * The finding for an import of a workspace package that names no entry
+ * point its exports map lists. An import of a package outside the
+ * workspace has none.
+ */
+function checkEntry(
+  packages: readonly WorkspacePackage[],
+  file: string,
+  specifier: string,
+  name: string,
+): string[] {
+  const target = packages.find((candidate) => candidate.manifest.name === name);
+
+  if (target === undefined || target.dir === '.') {
+    return [];
+  }
+
+  const entry = specifier === name ? '.' : `./${specifier.slice(name.length + 1)}`;
+
+  return entry in (target.manifest.exports ?? {})
+    ? []
+    : [
+        `unexported entry: ${file} imports ${specifier}, which ${target.dir}/package.json does not list as an entry point`,
+      ];
+}
+
+function checkDeclared(pkg: WorkspacePackage, file: string, name: string): string[] {
   if (name === pkg.manifest.name || name in (pkg.manifest.dependencies ?? {})) {
     return [];
   }

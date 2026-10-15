@@ -1,11 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { resolveATCCommand } from '@atc/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { DaemonClient } from '@atc/protocol/wire';
+import { registerTestCleanup, resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 /**

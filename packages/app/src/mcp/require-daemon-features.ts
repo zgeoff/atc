@@ -1,4 +1,4 @@
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
+import type { DaemonFeature } from '@atc/protocol';
 
 // What each feature lets a tool call ask for, as an outdated-daemon refusal
 // states it.

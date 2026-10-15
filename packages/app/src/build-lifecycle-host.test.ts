@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core/system-clock';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { systemClock } from '@atc/core';
+import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
 import { buildLifecycleHost } from './build-lifecycle-host';
 
 test('it builds the paths, the /proc root, and the restore boot time from the environment', () => {

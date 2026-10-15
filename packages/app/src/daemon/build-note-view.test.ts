@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core/to-agent-session-id';
-import { toSessionID } from '@atc/core/to-session-id';
-import { decodeCursor } from '@atc/protocol/decode-cursor';
-import { buildMockSessionDescriptor } from '@atc/test-utils/build-mock-session-descriptor';
+import { toAgentSessionID, toSessionID } from '@atc/core';
+import { decodeCursor } from '@atc/protocol';
+import { buildMockSessionDescriptor } from '@atc/test-utils';
 import { buildNoteView } from './build-note-view';
 
 test('it names a note by the live session holding its agent session id', () => {

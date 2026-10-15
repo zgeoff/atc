@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { systemClock } from '@atc/core/system-clock';
-import type { Clock } from '@atc/core/system-clock';
-import { DaemonError } from '@atc/protocol/daemon-error';
-import type { DaemonFeature } from '@atc/protocol/daemon-features';
-import type { Principal } from '@atc/protocol/principal';
-import { PROCEDURE_TRAITS } from '@atc/protocol/procedure-traits';
+import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
+import type { DaemonFeature, Principal } from '@atc/protocol';
+import { PROCEDURE_TRAITS } from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { buildGatewayError } from './build-gateway-error';

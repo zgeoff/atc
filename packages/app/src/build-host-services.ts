@@ -1,10 +1,9 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { getBuild } from '@atc/config/get-build';
-import { isCompiledBinary } from '@atc/config/is-compiled-binary';
-import { systemClock } from '@atc/core/system-clock';
+import { getBuild, isCompiledBinary } from '@atc/config/host';
+import { systemClock } from '@atc/core';
 import { runCommand } from '@atc/lifecycle/run-command';
-import type { HostServices } from '@atc/plugin-api/host-services';
+import type { HostServices } from '@atc/plugin-api';
 import pkg from '../package.json';
 
 // The packages folder of this checkout. Each package's src tree sits under

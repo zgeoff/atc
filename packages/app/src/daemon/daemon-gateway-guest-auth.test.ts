@@ -2,20 +2,22 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config/config';
-import { ImpProvider } from '@atc/execution-imp/imp-provider';
-import { createStubImpPort } from '@atc/execution-imp/testing/create-stub-imp-port';
-import { LocalPTYProvider } from '@atc/execution-local/local-pty-provider';
-import { GatewayAdapter } from '@atc/harness-claude/gateway/gateway-adapter';
-import { getGatewayConfig } from '@atc/harness-claude/testing/get-gateway-config';
-import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
-import { createStubBin } from '@atc/test-utils/create-stub-bin';
-import { createStubRecordingClaude } from '@atc/test-utils/create-stub-recording-claude';
-import { getRecord } from '@atc/test-utils/get-record';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/test-utils/update-env';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { parseConfig } from '@atc/config';
+import { ImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import { LocalPTYProvider } from '@atc/execution-local';
+import { GatewayAdapter } from '@atc/harness-claude';
+import { getGatewayConfig } from '@atc/harness-claude/testing';
+import {
+  buildMockHostServices,
+  createStubBin,
+  createStubRecordingClaude,
+  getRecord,
+  registerTestCleanup,
+  setupTempDir,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';

@@ -2,11 +2,9 @@ import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupMCPHome } from '@atc/lifecycle/testing/setup-mcp-home';
-import { StateStore } from '@atc/store/state-store';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { startMCPStdio } from '@atc/test-utils/start-mcp-stdio';
-import { waitFor } from '@atc/test-utils/wait-for';
+import { setupMCPHome } from '@atc/lifecycle/testing';
+import { StateStore } from '@atc/store';
+import { registerTestCleanup, startMCPStdio, waitFor } from '@atc/test-utils';
 
 async function setupTest() {
   const mcpHome = setupMCPHome();

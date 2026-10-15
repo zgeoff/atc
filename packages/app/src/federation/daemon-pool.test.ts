@@ -1,10 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DaemonClient } from '@atc/protocol/client/daemon-client';
-import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
-import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { DaemonClient } from '@atc/protocol/wire';
+import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { DaemonPool } from './daemon-pool';
