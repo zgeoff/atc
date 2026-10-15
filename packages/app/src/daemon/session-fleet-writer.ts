@@ -96,6 +96,7 @@ export class SessionFleetWriter {
         ...(s.desired === 'run' ? {} : { desired: s.desired }),
         ...(s.hostKey === s.id ? {} : { hostKey: s.hostKey }),
         ...(s.authRevision === undefined ? {} : { authRevision: s.authRevision }),
+        ...(!live && s.suspended ? { suspended: true } : {}),
       });
     }
 

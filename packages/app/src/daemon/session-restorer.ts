@@ -88,12 +88,17 @@ export class SessionRestorer {
     const exited =
       entry.exited === true || entry.agentSessionID === undefined || targetRefusal !== null;
 
+    // A harness kept inside a host that went to sleep, whether the operator
+    // or the host's own owner put it there, comes back asleep, so a restore
+    // leaves the host asleep until a revive wakes it.
+    const suspended = exited && (entry.suspended === true || entry.desired === 'sleep');
+
     // An entry whose agent is no longer registered still gets its row, so a
     // backend dropped from the config shows as itself instead of vanishing or
     // reviving under another agent. Adopting a terminal for it is refused.
     let lastMsg = 'waiting to restore';
 
-    if (exited && entry.desired === 'sleep') {
+    if (suspended) {
       lastMsg = 'asleep';
     } else if (entry.exited !== true && entry.agentSessionID === undefined) {
       lastMsg = 'nothing to resume';
@@ -135,8 +140,8 @@ export class SessionRestorer {
       ...(entry.workspace === undefined ? {} : { workspace: entry.workspace }),
       withheldEnv: entry.withheldEnv ?? [],
       desired: entry.desired ?? 'run',
-      suspended: exited && entry.desired === 'sleep',
-      vm: this.pickRestoredVM(target, entry.desired),
+      suspended,
+      vm: this.pickRestoredVM(target, suspended),
       attachment: this.registry.hasHostLifecycle(target) ? 'detached' : 'local',
       hostKey: entry.hostKey ?? entry.sessionID,
       bridgeEpoch: 0,
@@ -196,18 +201,15 @@ export class SessionRestorer {
     this.callbacks.onEvent('state', s);
   }
 
-  // The host state a restored session lists with: asleep when the operator
-  // left it asleep, unknown for any other remote host until the daemon
-  // reaches it, and none on the daemon's own machine.
-  private pickRestoredVM(
-    target: string,
-    desired: 'sleep' | 'stop' | undefined,
-  ): SessionLifecycle['vm'] {
+  // The host state a restored session lists with: asleep when the harness
+  // was left inside a sleeping host, unknown for any other remote host until
+  // the daemon reaches it, and none on the daemon's own machine.
+  private pickRestoredVM(target: string, suspended: boolean): SessionLifecycle['vm'] {
     if (!this.registry.hasHostLifecycle(target)) {
       return 'none';
     }
 
-    return desired === 'sleep' ? 'asleep' : 'unknown';
+    return suspended ? 'asleep' : 'unknown';
   }
 }
 

@@ -163,9 +163,10 @@ test('it marks a session exited and reports its process ended when its harness e
   expect(session.lastMsg).toBe('process exited');
   expect(session.pty).toBeNull();
   expect(ctx.callbacks.onProcessEnded).toHaveBeenCalledExactlyOnceWith(session);
+  expect(ctx.fleet.tryWriteFleet).not.toHaveBeenCalled();
 });
 
-test('it marks a session asleep and suspended without reporting its process ended when its host sleeps', () => {
+test('it marks a session asleep and suspended and writes the fleet without reporting its process ended when its host sleeps', () => {
   const ctx = setupTest();
 
   const session = buildMockSession({
@@ -193,6 +194,7 @@ test('it marks a session asleep and suspended without reporting its process ende
   expect(session.vm).toBe('asleep');
   expect(session.suspended).toBeTrue();
   expect(session.lastMsg).toBe('asleep');
+  expect(ctx.fleet.tryWriteFleet).toHaveBeenCalledExactlyOnceWith(toSessionID('s-1'));
   expect(ctx.callbacks.onProcessEnded).not.toHaveBeenCalled();
 });
 
