@@ -1098,6 +1098,37 @@ test('it sends a choice with its option, label and menu token', async () => {
   ]);
 });
 
+test('it returns the partial flag of a choice whose menu the daemon could not read whole', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => ({
+      pressed: 'enter',
+      menu: {
+        text: 'Pick a lamp for the porch',
+        options: [{ option: 1, label: 'amber-lamp', checked: null, highlighted: true }],
+        menuToken: 'menu-of-the-test',
+      },
+      partial: true,
+    }),
+  });
+
+  const result = await runTool(
+    caller,
+    'atc_terminal_choose',
+    { session: 's1', menuToken: 'menu-before-the-choice', option: 1, label: 'Yes' },
+    { callerSessionID: null },
+  );
+
+  expect(result.structured).toStrictEqual({
+    pressed: 'enter',
+    menu: {
+      text: 'Pick a lamp for the porch',
+      options: [{ option: 1, label: 'amber-lamp', checked: null, highlighted: true }],
+      menuToken: 'menu-of-the-test',
+    },
+    partial: true,
+  });
+});
+
 test('it sends Escape on a menu with its menu token', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ pressed: 'escape', menu: null }) });
 

@@ -570,6 +570,67 @@ test('it returns the whole of a long menu a choice opens, with a token the next 
   });
 }, 15_000);
 
+test('it returns the menu the screen shows, marked partial, when the read of the menu a choice opens fails after moving the cursor', async () => {
+  const ctx = await setupTest();
+
+  // Six rows with one label scroll the window without a change atc can see,
+  // so the read's down arrow from the fifth row seems ignored.
+  const shown = await ctx.spawnMenu({
+    menus: [
+      { kind: 'numbered', text: ['Do you trust this folder?'], options: ['Yes', 'No'] },
+      {
+        kind: 'plain',
+        text: ['Pick a mirror for the parcel index'],
+        options: [
+          'harbor-mirror',
+          'harbor-mirror',
+          'harbor-mirror',
+          'harbor-mirror',
+          'harbor-mirror',
+          'harbor-mirror',
+        ],
+        window: 5,
+      },
+    ],
+    pickOpensNext: true,
+  });
+
+  const chosen = await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 1,
+    label: 'Yes',
+  });
+
+  const screen = await ctx.daemon.client.sendRequest('session.screen', {
+    session: shown.session,
+  });
+
+  expect(chosen).toStrictEqual({
+    pressed: 'enter',
+    partial: true,
+    menu: {
+      text: 'Pick a mirror for the parcel index',
+      options: [
+        { option: 1, label: 'harbor-mirror', checked: null, highlighted: false },
+        { option: 2, label: 'harbor-mirror', checked: null, highlighted: false },
+        { option: 3, label: 'harbor-mirror', checked: null, highlighted: false },
+        { option: 4, label: 'harbor-mirror', checked: null, highlighted: false },
+        { option: 5, label: 'harbor-mirror', checked: null, highlighted: true },
+      ],
+      menuToken: expect.toBeString(),
+    },
+  });
+
+  expect(String(screen['text']).split('\n').slice(3, 8)).toStrictEqual([
+    ' ↑ harbor-mirror',
+    '   harbor-mirror',
+    '   harbor-mirror',
+    '   harbor-mirror',
+    ' ❯ harbor-mirror',
+  ]);
+}, 15_000);
+
 test('it reads afresh a long list that Enter opens with the same text and rows in view', async () => {
   const ctx = await setupTest();
 

@@ -155,10 +155,16 @@ export const DAEMON_CONTRACT = {
       .output(z.object({ menu: MENU_VIEW_SCHEMA.nullable() })),
 
     // pressed holds the key the daemon pressed last, and menu the menu the
-    // screen shows once it settles after that key, or null.
-    choose: base
-      .input(P['session.choose'])
-      .output(z.object({ pressed: z.string(), menu: MENU_VIEW_SCHEMA.nullable() })),
+    // screen shows once it settles after that key, or null. partial is true
+    // when the daemon could not read the whole of that menu, so menu holds
+    // only the part the screen shows.
+    choose: base.input(P['session.choose']).output(
+      z.object({
+        pressed: z.string(),
+        menu: MENU_VIEW_SCHEMA.nullable(),
+        partial: z.literal(true).optional(),
+      }),
+    ),
     eject: base.input(P['session.eject']).output(EMPTY),
     adopt: base.input(P['session.adopt']).output(EMPTY),
     get: base
