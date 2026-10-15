@@ -32,7 +32,7 @@ function setupTest() {
   return { dir: tmp.dir, port, provider };
 }
 
-test('it prints the new revision and the adopt command after a rebind', async () => {
+test('it prints the new revision, the adopt command and the sessions pending a restart after a rebind', async () => {
   const ctx = setupTest();
   let judgeSelected = false;
 
@@ -100,9 +100,12 @@ test('it prints the new revision and the adopt command after a rebind', async ()
 
   expect(code).toBe(0);
 
-  expect(io.print).toHaveBeenCalledExactlyOnceWith(
-    `rebound the host of session ${id} at revision 2; start it with: atc session adopt ${id}`,
-  );
+  expect(io.print.mock.calls).toStrictEqual([
+    [`rebound the host of session ${id} at revision 2; start it with: atc session adopt ${id}`],
+    [
+      `these sessions keep an older revision's settings until their next launch: ${id}; stop a running one, then atc session adopt <session_id>`,
+    ],
+  ]);
 
   expect(io.printError).not.toHaveBeenCalled();
 });

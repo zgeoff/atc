@@ -3169,6 +3169,50 @@ test('it throws reading the generation of a session the imp does not run', async
   );
 });
 
+test('it reads the command line of the process a session runs', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const started: ImpSessionStarted[] = [];
+
+  ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: ['sleep', '30'],
+      env: {},
+      cwd: ctx.dir,
+      cols: 80,
+      rows: 24,
+    },
+    {
+      onStarted: (s) => {
+        started.push(s);
+      },
+      onOutput: () => {},
+    },
+  );
+
+  await waitFor(() => {
+    expect(started).toHaveLength(1);
+  });
+
+  expect(ctx.port.getProcessArgv('imp-a', 's1')).toStrictEqual(['sleep', '30']);
+});
+
+test('it throws reading the command line of a session the imp does not run', async () => {
+  const ctx = setupTest();
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  expect(() => ctx.port.getProcessArgv('imp-a', 's1')).toThrowWithMessage(
+    Error,
+    'no session s1 on imp imp-a',
+  );
+});
+
 test('it writes what a connection sends to the session process', async () => {
   const ctx = setupTest();
 

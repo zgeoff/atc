@@ -26,6 +26,7 @@ import type { SessionState } from '@atc/protocol/session-state';
 import type { FleetEntry, FleetStore } from '@atc/store/fleet-entry';
 import { match } from 'ts-pattern';
 import { AuthSetup } from './auth-setup';
+import type { AuthRebound } from './auth-setup';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import { HostDirClaims } from './host-dir-claims';
@@ -315,7 +316,7 @@ export class SessionManager {
     return this.auth.revokeAuth(id);
   }
 
-  updateAuth(id: SessionID): Promise<number | null> {
+  updateAuth(id: SessionID): Promise<AuthRebound | null> {
     return this.auth.updateAuth(id);
   }
 

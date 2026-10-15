@@ -230,7 +230,10 @@ export function runTool(
         'session.auth',
       ]);
 
-      return buildObjectResult({ revision: ok['revision'] });
+      return buildObjectResult({
+        revision: ok['revision'],
+        restartPending: Array.isArray(ok['restartPending']) ? ok['restartPending'] : [],
+      });
     })
     .with('atc_session_forget', async () => {
       const params = {

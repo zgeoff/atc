@@ -199,14 +199,14 @@ test('it passes the opaque fields of an answer unchanged', () => {
   ).toStrictEqual(answer);
 });
 
-test('it passes the revision of a session.auth.rebind answer unchanged', () => {
+test('it passes the revision of a session.auth.rebind answer unchanged and rewrites each pending session id', () => {
   expect(
     buildGatewayResult(
       'session.auth.rebind',
-      { revision: 3 },
+      { revision: 3, restartPending: ['s1', 's2'] },
       { name: 'cloud', incarnation: '0f6c2a8e' },
     ),
-  ).toStrictEqual({ revision: 3 });
+  ).toStrictEqual({ revision: 3, restartPending: ['cloud.0f6c2a8e.s1', 'cloud.0f6c2a8e.s2'] });
 });
 
 test('it refuses to pass on the answer of a method without id rules', () => {

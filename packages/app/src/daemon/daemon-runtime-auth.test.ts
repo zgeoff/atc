@@ -2715,7 +2715,113 @@ test('it rebinds a revoked session so it revives under the next revision', async
 
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  expect(rebound).toStrictEqual({ revision: 2 });
+  expect(rebound).toStrictEqual({ revision: 2, restartPending: [id] });
+
+  // The adopt attaches the harness the imp kept asleep, ends it, and starts
+  // a fresh one under the new revision.
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    expect.objectContaining({
+      kind: 'start',
+      argv: ['sh', '-c', 'echo "revision 1"; exec sleep 30'],
+    }),
+    expect.objectContaining({
+      kind: 'start',
+      argv: ['sh', '-c', 'echo "revision 2"; exec sleep 30'],
+    }),
+    expect.objectContaining({
+      kind: 'start',
+      argv: ['sh', '-c', 'echo "revision 2"; exec sleep 30'],
+    }),
+  ]);
+});
+
+test('it restarts a suspended harness under the new revision when a rebind comes before its adopt', async () => {
+  const ctx = setupTest();
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  // The kill puts the imp to sleep with the harness kept inside it.
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  judgeSelected = true;
+
+  const rebound = await daemon.client.sendRequest('session.auth.rebind', { session: id });
+  const pending = await daemon.client.sendRequest('session.get', { session: id });
+
+  const [started] = ctx.port.sessionRequests;
+
+  invariant(started !== undefined);
+
+  await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  const adopted = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect(rebound).toStrictEqual({ revision: 2, restartPending: [id] });
+
+  expect(getRecord(pending, 'session')).toMatchObject({
+    alive: false,
+    lastMsg: 'auth revision 2 applies at the next launch',
+  });
+
+  expect(ctx.port.getProcessArgv(started.name, started.session)).toStrictEqual([
+    'sh',
+    '-c',
+    'echo "revision 2"; exec sleep 30',
+  ]);
+
+  expect(getRecord(adopted, 'session')).toMatchObject({ alive: true, lastMsg: 'revived' });
 
   expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
     expect.objectContaining({
@@ -2726,6 +2832,185 @@ test('it rebinds a revoked session so it revives under the next revision', async
       kind: 'start',
       argv: ['sh', '-c', 'echo "revision 2"; exec sleep 30'],
     }),
+    expect.objectContaining({
+      kind: 'start',
+      argv: ['sh', '-c', 'echo "revision 2"; exec sleep 30'],
+    }),
+  ]);
+});
+
+test('it refuses an adopt whose outdated harness ignores its kill, leaves the session exited and blocks a second adopt', async () => {
+  const ctx = setupTest();
+  let judgeSelected = false;
+  let ignoresHangup = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+    ignoresHangup: () => ignoresHangup,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+
+      // The kill waits this long for an exit that never comes.
+      failedSpawnExitWaitMs: 100,
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  // The kill puts the imp to sleep with the harness kept inside it.
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  judgeSelected = true;
+  ignoresHangup = false;
+
+  await daemon.client.sendRequest('session.auth.rebind', { session: id });
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  await expect(adopt).rejects.toMatchObject({ code: 'session_dead' });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  const again = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  await expect(again).rejects.toMatchObject({ code: 'no_such_session' });
+
+  const [started] = ctx.port.sessionRequests;
+
+  invariant(started !== undefined);
+
+  expect(getRecord(got, 'session')).toMatchObject({ alive: false, lastMsg: 'killed' });
+
+  expect(ctx.port.getProcessArgv(started.name, started.session)).toStrictEqual([
+    'sh',
+    '-c',
+    `trap '' HUP; echo "revision 1"; exec sleep 30`,
+  ]);
+
+  expect(ctx.port.sessionRequests).toHaveLength(2);
+});
+
+test('it lists a running harness as pending a restart after a rebind and leaves it running', async () => {
+  const ctx = setupTest();
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  judgeSelected = true;
+
+  const rebound = await daemon.client.sendRequest('session.auth.rebind', { session: id });
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  const [started] = ctx.port.sessionRequests;
+
+  invariant(started !== undefined);
+
+  expect(rebound).toStrictEqual({ revision: 2, restartPending: [id] });
+
+  expect(getRecord(got, 'session')).toMatchObject({
+    alive: true,
+    lastMsg: 'auth revision 2 applies at the next launch',
+  });
+
+  expect(ctx.port.getProcessArgv(started.name, started.session)).toStrictEqual([
+    'sh',
+    '-c',
+    'echo "revision 1"; exec sleep 30',
   ]);
 });
 
@@ -4064,7 +4349,7 @@ test('it shows a harness restored after a daemon restart that its auth revision 
   });
 });
 
-test('it shows a revived session that attached to its suspended harness that its auth revision applies at the next launch', async () => {
+test('it restarts a suspended harness under the revision a revive rebinds a changed selection to', async () => {
   const ctx = setupTest({ rebindChangedAuth: true });
   let judgeSelected = false;
 
@@ -4130,8 +4415,15 @@ test('it shows a revived session that attached to its suspended harness that its
 
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
-  expect(getRecord(got, 'session')).toMatchObject({
-    kind: 'pty',
-    lastMsg: 'auth revision 2 applies at the next launch',
-  });
+  const [started] = ctx.port.sessionRequests;
+
+  invariant(started !== undefined);
+
+  expect(getRecord(got, 'session')).toMatchObject({ kind: 'pty', lastMsg: 'revived' });
+
+  expect(ctx.port.getProcessArgv(started.name, started.session)).toStrictEqual([
+    'sh',
+    '-c',
+    'echo "revision 2"; exec sleep 30',
+  ]);
 });

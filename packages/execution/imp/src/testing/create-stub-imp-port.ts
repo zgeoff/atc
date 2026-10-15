@@ -83,6 +83,9 @@ interface StubConnection {
 interface StubProcess {
   readonly pty: IPty;
   readonly generation: string;
+
+  // The command line the process started with.
+  readonly argv: readonly string[];
   ring: Uint8Array;
   end: number;
   exited: { readonly code: number | null } | null;
@@ -1436,6 +1439,17 @@ class StubImpPort implements ImpPort {
     return proc.generation;
   }
 
+  // The command line of the process running under a session name.
+  getProcessArgv(name: string, session: string): readonly string[] {
+    const proc = this.getImp(name).sessions.get(session);
+
+    if (proc === undefined) {
+      throw new Error(`no session ${session} on imp ${name}`);
+    }
+
+    return proc.argv;
+  }
+
   /**
    * The exit a session's process left that no connection has received, or
    * null while the process runs, once an attach delivered the exit, and for
@@ -1784,6 +1798,7 @@ class StubImpPort implements ImpPort {
     const proc: StubProcess = {
       pty,
       generation: randomBytes(16).toString('hex'),
+      argv: [...request.argv],
       ring: new Uint8Array(0),
       end: 0,
       exited: null,

@@ -739,12 +739,12 @@ export class DaemonConnection {
 
         const id = parsed.data.session;
 
-        const revision = await ctx.updateSessionAuth(id);
+        const rebound = await ctx.updateSessionAuth(id);
 
-        if (revision === null) {
+        if (rebound === null) {
           this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
         } else {
-          this.sendOk(req.id, 'session.auth.rebind', { revision });
+          this.sendOk(req.id, 'session.auth.rebind', { ...rebound });
         }
 
         return;

@@ -1,7 +1,9 @@
 import { socketPath } from '@atc/config/config';
 import { createStepTimer } from '@atc/core/create-step-timer';
 import type { SessionID } from '@atc/core/session-id';
+import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api/execution-provider';
 import { buildSessionEnv } from '@atc/protocol/build-session-env';
+import { DaemonError } from '@atc/protocol/daemon-error';
 import { resolveRepoRoot } from '../shared/resolve-repo-root';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from './auth-setup';
 import type { Session } from './session';
@@ -25,7 +27,10 @@ interface SessionAdopterDeps {
     | 'waitForAuthStart'
     | 'withHostReadying'
   >;
-  readonly rollback: Pick<SpawnRollback, 'rollingBack' | 'unconfirmedKills' | 'isRollbackSettled'>;
+  readonly rollback: Pick<
+    SpawnRollback,
+    'rollingBack' | 'unconfirmedKills' | 'isRollbackSettled' | 'killHarness'
+  >;
   readonly auth: Pick<AuthSetup, 'buildBrokerSpec' | 'resolveHarnessAuth' | 'setupHarnessOnHost'>;
   readonly callbacks: Pick<
     SessionCallbacks,
@@ -100,6 +105,11 @@ export class SessionAdopter {
     if (!s || s.pty !== null || s.agentSessionID === undefined || this.adopting.has(id)) {
       return null;
     }
+
+    // Only a harness that sleeps inside its host restarts when it launched
+    // under an older revision: one that runs, such as a harness a restore
+    // finds after a daemon restart, may be inside a turn a restart ends.
+    const wasAsleep = s.suspended;
 
     const settled = await this.rollback.isRollbackSettled(id);
 
@@ -187,6 +197,62 @@ export class SessionAdopter {
       return null;
     }
 
+    let pty = this.startHarness(s, provider, plan, recordPath, cols, rows);
+
+    let start = await timer.withStep('harness-start', () =>
+      auth === null
+        ? Promise.resolve(undefined)
+        : this.harnesses.waitForAuthStart(s, provider, pty),
+    );
+
+    if (
+      plan.admission !== null &&
+      start?.created === false &&
+      wasAsleep &&
+      s.pty === pty &&
+      isLaunchOutdated(s, plan)
+    ) {
+      pty = await this.restartOutdatedHarness(s, provider, pty, plan, recordPath, cols, rows);
+
+      start = await timer.withStep('harness-restart', () =>
+        this.harnesses.waitForAuthStart(s, provider, pty),
+      );
+    }
+
+    if (plan.admission !== null) {
+      this.harnesses.updateLaunchRevision(
+        s,
+        plan.admission.revision,
+        plan.heldRevision,
+        start?.created ?? true,
+      );
+    }
+
+    if (provider.remote) {
+      this.callbacks.log(
+        `atc: wake of session ${s.id} on target '${s.target}' took ${timer.formatSteps()}`,
+      );
+    }
+
+    for (const asleep of this.registry.sessions) {
+      if (asleep.hostKey === s.hostKey && asleep.target === s.target && asleep.suspended) {
+        await this.tryAdoptSibling(asleep, s, cols, rows);
+      }
+    }
+
+    return s;
+  }
+
+  // Starts the harness that revives a session, or attaches the one its
+  // host still runs, and follows it as the session's terminal.
+  private startHarness(
+    s: Session,
+    provider: ExecutionProvider,
+    plan: HarnessPlan,
+    recordPath: string | null,
+    cols: number,
+    rows: number,
+  ): HarnessHandle {
     const binding = this.harnesses.mintBridgeBinding(s.id, s.target, s.targetIdentity, s.hostKey);
 
     const pty = provider.spawnHarness({
@@ -234,33 +300,89 @@ export class SessionAdopter {
     this.callbacks.onEvent('state', s);
     this.fleet.emitChange();
 
-    const start = await timer.withStep('harness-start', () =>
-      auth === null
-        ? Promise.resolve(undefined)
-        : this.harnesses.waitForAuthStart(s, provider, pty),
-    );
-
-    if (plan.admission !== null) {
-      this.harnesses.updateLaunchRevision(
-        s,
-        plan.admission.revision,
-        plan.heldRevision,
-        start?.created ?? true,
-      );
-    }
-
-    if (provider.remote) {
-      this.callbacks.log(
-        `atc: wake of session ${s.id} on target '${s.target}' took ${timer.formatSteps()}`,
-      );
-    }
-
-    for (const asleep of this.registry.sessions) {
-      if (asleep.hostKey === s.hostKey && asleep.target === s.target && asleep.suspended) {
-        await this.tryAdoptSibling(asleep, s, cols, rows);
-      }
-    }
-
-    return s;
+    return pty;
   }
+
+  // Ends a harness the host still ran from before a rebind, since it keeps
+  // the guest settings of the revision it launched under, and starts a
+  // fresh one that resumes the same agent session under the plan's
+  // revision. The host counts as readying throughout, so it is never idle
+  // between the two, and no other revive of the session starts meanwhile.
+  private async restartOutdatedHarness(
+    s: Session,
+    provider: ExecutionProvider,
+    outdated: HarnessHandle,
+    plan: HarnessPlan,
+    recordPath: string | null,
+    cols: number,
+    rows: number,
+  ): Promise<HarnessHandle> {
+    this.adopting.add(s.id);
+
+    try {
+      return await this.harnesses.withHostReadying(s.hostKey, () =>
+        this.restartHarnessOnHost(s, provider, outdated, plan, recordPath, cols, rows),
+      );
+    } finally {
+      this.adopting.delete(s.id);
+    }
+  }
+
+  // A kill whose exit atc cannot confirm leaves the session exited and
+  // blocks its revives until the process is gone.
+  private async restartHarnessOnHost(
+    s: Session,
+    provider: ExecutionProvider,
+    outdated: HarnessHandle,
+    plan: HarnessPlan,
+    recordPath: string | null,
+    cols: number,
+    rows: number,
+  ): Promise<HarnessHandle> {
+    // The outdated harness stops being the session's terminal first, so
+    // its exit leaves the session as it is.
+    s.pty = null;
+
+    const exited = await this.rollback.killHarness(s.id, outdated);
+
+    if (!exited) {
+      s.state = 'exited';
+      s.lastMsg = 'killed';
+
+      this.callbacks.onEvent('state', s);
+      this.fleet.emitChange();
+
+      throw new DaemonError(
+        'session_dead',
+        `session ${s.id} still runs a harness from an older auth revision that did not exit after its kill; adopt it again once that process is gone`,
+        { session: s.id },
+      );
+    }
+
+    if (
+      !this.registry.sessions.includes(s) ||
+      s.pty !== null ||
+      this.rollback.rollingBack.has(s.id)
+    ) {
+      throw new DaemonError('no_such_session', `session ${s.id} changed during its restart`, {
+        session: s.id,
+      });
+    }
+
+    return this.startHarness(s, provider, plan, recordPath, cols, rows);
+  }
+}
+
+// Whether the process a revive attached to launched under an older runtime
+// auth revision than the one the revive's plan holds: the revision the
+// session recorded at its latest launch, or else the one its host held
+// before the revive.
+function isLaunchOutdated(s: Session, plan: HarnessPlan): boolean {
+  if (plan.admission === null) {
+    return false;
+  }
+
+  const launched = s.authRevision ?? plan.heldRevision ?? plan.admission.revision;
+
+  return launched < plan.admission.revision;
 }

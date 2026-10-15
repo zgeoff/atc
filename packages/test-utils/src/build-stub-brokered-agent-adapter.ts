@@ -18,6 +18,11 @@ interface StubBrokeredAgentAdapterConfig {
   // the moment of the call, as a config change can add or drop a profile
   // for an agent whose sessions already exist. Absent reaches only `glm`.
   readonly isJudgeSelected?: () => boolean;
+
+  // Whether a guest spawn under a binding planned at the moment of the call
+  // ignores the hangup signal a kill sends, so its kill never confirms an
+  // exit. Absent plans a shell that exits on it.
+  readonly ignoresHangup?: () => boolean;
 }
 
 /**
@@ -30,7 +35,8 @@ interface StubBrokeredAgentAdapterConfig {
  * judge.example. A guest spawn under a binding runs a shell that
  * prints `revision <n>` for the binding's revision and then sleeps, with
  * the binding's variables and `CLAUDE_CONFIG_DIR` set to `claude-config`
- * in the guest folder; a guest spawn without one, and a local spawn, sleep.
+ * in the guest folder, ignoring the hangup signal first while
+ * `ignoresHangup` holds; a guest spawn without one, and a local spawn, sleep.
  * Its profile is a `GLM` agent of the claude kind run through `sh`, which
  * offers no model or effort choice. Every other member is the plain agent
  * adapter's.
@@ -69,7 +75,10 @@ export function buildStubBrokeredAgentAdapter(
         ? { bin: 'sleep', args: ['30'], files: {} }
         : {
             bin: 'sh',
-            args: ['-c', `echo "revision ${String(guest.auth.revision)}"; exec sleep 30`],
+            args: [
+              '-c',
+              `${config.ignoresHangup?.() === true ? "trap '' HUP; " : ''}echo "revision ${String(guest.auth.revision)}"; exec sleep 30`,
+            ],
             files: {},
             env: { ...guest.auth.env, CLAUDE_CONFIG_DIR: `${guest.dir}/claude-config` },
           },

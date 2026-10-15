@@ -271,16 +271,30 @@ export class SpawnRollback {
   // throws or an exit it cannot confirm leaves the harness recorded as
   // possibly running, which blocks revives of the session.
   private async killFailedSpawn(id: SessionID, pty: HarnessHandle): Promise<void> {
+    const exited = await this.killHarness(id, pty);
+
+    if (!exited) {
+      throw new Error(`session ${id} did not exit after its kill`);
+    }
+  }
+
+  /**
+   * Kills a session's harness and waits for its exit, and returns whether
+   * the exit was confirmed. An exit it cannot confirm leaves the harness
+   * recorded as possibly running, which blocks revives of the session until
+   * a later check finds it gone.
+   */
+  async killHarness(id: SessionID, pty: HarnessHandle): Promise<boolean> {
     this.unconfirmedKills.set(id, pty);
     pty.kill();
 
     const exited = await this.waitForKilledExit(pty);
 
-    if (!exited) {
-      throw new Error(`session ${id} did not exit after its kill`);
+    if (exited) {
+      this.unconfirmedKills.delete(id);
     }
 
-    this.unconfirmedKills.delete(id);
+    return exited;
   }
 
   // Waits for a killed harness to exit, ending it with a signal it cannot

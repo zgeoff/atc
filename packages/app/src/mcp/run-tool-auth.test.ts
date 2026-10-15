@@ -115,7 +115,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
 
   const grants = await ctx.port.readGrants(imp);
 
-  expect(rebound.structured).toStrictEqual({ revision: 2 });
+  expect(rebound.structured).toStrictEqual({ revision: 2, restartPending: [id] });
   expect(grants).toIncludeSameMembers(['glm', 'judge']);
 });
 

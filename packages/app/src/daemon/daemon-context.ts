@@ -18,6 +18,7 @@ import type { TurnSibling } from '@atc/store/state-store';
 import type { checkRepositoryAccess } from '../workspace/check-repository-access';
 import type { MenuChoice, MenuChoiceResult } from './apply-menu-choice';
 import type { Dims } from './attach-registry';
+import type { AuthRebound } from './auth-setup';
 import type { AgentEntry } from './build-agent-list';
 import type { FleetEvent } from './build-fleet-events';
 import type { NoteView } from './build-note-view';
@@ -274,8 +275,9 @@ export interface DaemonContext {
   readonly revokeSessionAuth: (id: SessionID) => Promise<boolean>;
 
   // Binds a session's host to its agent's current auth selection, and
-  // answers the new revision, or null for no such session.
-  readonly updateSessionAuth: (id: SessionID) => Promise<number | null>;
+  // answers the new revision with the sessions whose harness reads it only
+  // at its next launch, or null for no such session.
+  readonly updateSessionAuth: (id: SessionID) => Promise<AuthRebound | null>;
 
   // Renames, pins, or makes top-level a session; false for no such session,
   // 'shared_host' for a detach or a pin of a sub-session in its parent's

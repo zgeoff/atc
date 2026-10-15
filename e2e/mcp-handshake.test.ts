@@ -959,7 +959,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": true,
               "readOnlyHint": false,
             },
-            "description": "Start a terminal for a session that has none, resuming its agent session, as the TUI's P key does: a session a restore left without a terminal, an exited session such as one atc_session_stop stopped, or one that runs headless. A headless turn still running stops before the terminal is set up, and it stays stopped when that setup is then refused, such as with auth_rebind_required: the session is left with neither the turn nor a terminal, so adopt a session that runs a headless turn only when you mean to end that turn. On an imp the host wakes first, every other session asleep on it revives, and a harness still running there is attached instead of started again; the call returns after those revives. Use it after atc_session_auth_rebind for a session whose restore was refused with auth_rebind_required. Returns { adopted: true } once the terminal starts; that does not show the agent booted, so check with atc_session_get or atc_terminal_read. Refused with session_dead when atc finds nothing to resume, an unknown session id included, which leaves the session as it was. A pin never refuses an adopt. A remote client is refused with no_such_session for a session whose tree runs on a target outside its reach, as atc_session_stop and atc_session_forget refuse it. Refused with no_such_session when the session already has a terminal or another adopt of it runs; that refusal, and a refusal of the session's target, can come after a running headless turn stopped. A retry once the terminal runs is refused and starts nothing.",
+            "description": "Start a terminal for a session that has none, resuming its agent session, as the TUI's P key does: a session a restore left without a terminal, an exited session such as one atc_session_stop stopped, or one that runs headless. A headless turn still running stops before the terminal is set up, and it stays stopped when that setup is then refused, such as with auth_rebind_required: the session is left with neither the turn nor a terminal, so adopt a session that runs a headless turn only when you mean to end that turn. On an imp the host wakes first, every other session asleep on it revives, and a harness still running there is attached instead of started again, unless it launched under an older auth revision than its host holds, which ends it and starts a new one that resumes the agent session; the call returns after those revives. Use it after atc_session_auth_rebind for a session whose restore was refused with auth_rebind_required. Returns { adopted: true } once the terminal starts; that does not show the agent booted, so check with atc_session_get or atc_terminal_read. Refused with session_dead when atc finds nothing to resume, an unknown session id included, which leaves the session as it was. A pin never refuses an adopt. A remote client is refused with no_such_session for a session whose tree runs on a target outside its reach, as atc_session_stop and atc_session_forget refuse it. Refused with no_such_session when the session already has a terminal or another adopt of it runs; that refusal, and a refusal of the session's target, can come after a running headless turn stopped. A retry once the terminal runs is refused and starts nothing.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -994,7 +994,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": false,
             },
-            "description": "Bind the runtime auth of a session's host to the auth profiles its agent selects now, at the next revision. Use it when atc_session_adopt or a restore is refused with auth_rebind_required because the agent's auth profiles changed, or with auth_blocked after a revoke or a failed rebind; then start the session with atc_session_adopt, since a rebind starts nothing. The host gains every grant the agent's auth profiles now select and loses every grant they no longer select, for every session on that host. A harness already running keeps the settings it launched with until its next launch. Returns { revision }, the new revision. Open to the daemon's owner only: a remote client is refused with unauthorized. Refused with unsupported_operation for a host with no auth binding, or for an agent that takes no credential from impd's broker, such as one whose auth block was dropped from the config: put the block back, or forget the session. Refused with auth_blocked while the binding is in another state, such as a revoke still pending. Launches on the host are refused with auth_blocked while a rebind runs. A rebind whose grant step fails leaves the host blocked at its old revision until a rebind succeeds; one refused before that step leaves the binding as it was. Each call that succeeds moves the binding to a new revision, a retry included.",
+            "description": "Bind the runtime auth of a session's host to the auth profiles its agent selects now, at the next revision. Use it when atc_session_adopt or a restore is refused with auth_rebind_required because the agent's auth profiles changed, or with auth_blocked after a revoke or a failed rebind; then start the session with atc_session_adopt, since a rebind starts nothing. The host gains every grant the agent's auth profiles now select and loses every grant they no longer select, for every session on that host. A harness keeps the settings it launched with until its next launch, and a rebind restarts none: restart a running session with atc_session_stop then atc_session_adopt. Returns { revision, restartPending }: the new revision, and the sessions on the host whose harness still holds an older revision's settings. Open to the daemon's owner only: a remote client is refused with unauthorized. Refused with unsupported_operation for a host with no auth binding, or for an agent that takes no credential from impd's broker, such as one whose auth block was dropped from the config: put the block back, or forget the session. Refused with auth_blocked while the binding is in another state, such as a revoke still pending. Launches on the host are refused with auth_blocked while a rebind runs. A rebind whose grant step fails leaves the host blocked at its old revision until a rebind succeeds; one refused before that step leaves the binding as it was. Each call that succeeds moves the binding to a new revision, a retry included.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1012,6 +1012,13 @@ test('it lists the fleet tools', async () => {
             "name": "atc_session_auth_rebind",
             "outputSchema": {
               "properties": {
+                "restartPending": {
+                  "description": "the ids of the sessions on the host whose harness launched under an older revision and keeps that revision's settings until its next launch; empty when none",
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
                 "revision": {
                   "description": "the revision the host's runtime auth binding holds after the rebind",
                   "type": "number",
@@ -1019,6 +1026,7 @@ test('it lists the fleet tools', async () => {
               },
               "required": [
                 "revision",
+                "restartPending",
               ],
               "type": "object",
             },

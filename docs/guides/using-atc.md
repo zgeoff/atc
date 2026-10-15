@@ -105,11 +105,14 @@ signs in with, a coordinating agent calls `atc_session_stop` and then `atc_sessi
 does what `P` does in the list. The stop ends the process, and the adopt starts a new one with the
 conversation resumed. On an imp, the same two calls suspend and resume instead: a stop of a session
 that owns its imp puts the host to sleep with the agent process inside, and the adopt wakes the host
-and attaches that same process, so it keeps the login it started with. A message to a stopped or
-sleeping session is refused with `session_dead` until the adopt starts or resumes it. An adopt
-refused with `auth_rebind_required` needs `atc_session_auth_rebind` first, then a second adopt. A
-pin never blocks an adopt. A remote client needs the `kill` scope to stop and the `spawn` scope to
-adopt, and may adopt only a session on a target its grant reaches, as with a stop or a forget.
+and attaches that same process, so it keeps the login it started with. One exception: when the
+host's runtime auth moved to a newer revision after that process started, such as through
+`atc_session_auth_rebind`, the adopt ends the process and starts a new one, with the conversation
+resumed, under the new revision's settings. A message to a stopped or sleeping session is refused
+with `session_dead` until the adopt starts or resumes it. An adopt refused with
+`auth_rebind_required` needs `atc_session_auth_rebind` first, then a second adopt. A pin never
+blocks an adopt. A remote client needs the `kill` scope to stop and the `spawn` scope to adopt, and
+may adopt only a session on a target its grant reaches, as with a stop or a forget.
 
 ## Restarting the daemon
 
