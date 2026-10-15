@@ -34,7 +34,10 @@ type StubMenu = Readonly<z.output<typeof STUB_MENU_SCHEMA>>;
  * arrows move the cursor, while Enter and Escape do nothing and restart the
  * hold. When the hold ends, the cursor goes back to where it started.
  * `enterDelayMs` makes the stand-in answer each Enter only that long after
- * it reads the key, as a busy agent does.
+ * it reads the key, as a busy agent does. `pickOpensNext` shows the second
+ * menu in place of the outcome once an option of the first is picked, as a
+ * dialog that leads to another does. The second menu takes keys however it
+ * appears.
  */
 const STUB_MENU_SPEC_SCHEMA = z.object({
   menus: z.array(STUB_MENU_SCHEMA),
@@ -42,6 +45,7 @@ const STUB_MENU_SPEC_SCHEMA = z.object({
   exitFile: z.string().optional(),
   holdMs: z.number().optional(),
   enterDelayMs: z.number().optional(),
+  pickOpensNext: z.boolean().optional(),
 });
 
 const KEY_NAMES: Readonly<Record<string, string>> = {
@@ -94,6 +98,16 @@ function main() {
     process.stdout.write(
       `\u001B[2J\u001B[H${renderMenu(state.menu, state.cursor, state.top, state.checked)}`,
     );
+  };
+
+  const openMenu = (menu: StubMenu) => {
+    state.menu = menu;
+    state.cursor = menu.cursor ?? 0;
+    state.top = findWindowTop(menu, state.cursor);
+    state.checked = [...(menu.checked ?? [])];
+    state.open = true;
+
+    draw();
   };
 
   const drawOutcome = (line: string, entry: Readonly<Record<string, unknown>>) => {
@@ -155,7 +169,12 @@ function main() {
     } else if (data === '\r') {
       const label = state.menu.options[state.cursor] ?? '';
 
-      drawOutcome(`Picked: ${label}`, { picked: label });
+      if (spec.pickOpensNext === true && second !== undefined && state.menu === first) {
+        log({ picked: label });
+        openMenu(second);
+      } else {
+        drawOutcome(`Picked: ${label}`, { picked: label });
+      }
     }
   };
 
@@ -205,13 +224,7 @@ function main() {
     const timer = setInterval(() => {
       if (existsSync(switchFile)) {
         clearInterval(timer);
-
-        state.menu = second;
-        state.cursor = second.cursor ?? 0;
-        state.top = findWindowTop(second, state.cursor);
-        state.checked = [...(second.checked ?? [])];
-
-        draw();
+        openMenu(second);
       }
     }, 20);
   }

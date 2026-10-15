@@ -69,7 +69,8 @@ export class SessionRuntime {
   harnessState: unknown = undefined;
 
   // Returns the boot-scoped state to how a fresh terminal starts, at the
-  // dims it boots with: no SessionStart yet and no tap since. Every path
+  // dims it boots with: no SessionStart yet, no tap since, and no whole
+  // menu read through a scrolled list. Every path
   // that boots a new terminal for an existing session runs it, so a revived
   // session never inherits its previous process's message gate.
   resetBoot(dims: Dims): void {
@@ -78,6 +79,7 @@ export class SessionRuntime {
     this.tapAttached = false;
     this.hasAgentHookLines = false;
     this.harnessState = undefined;
+    this.wholeMenu = null;
   }
 
   dispose(): void {

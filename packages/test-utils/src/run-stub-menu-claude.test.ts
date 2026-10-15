@@ -254,6 +254,42 @@ test('it wraps the cursor of a long plain list from its first option to its last
   });
 });
 
+test('it opens the second menu in place of the outcome when a pick opens the next', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [
+      { kind: 'plain', text: ['Trust this folder?'], options: ['Yes', 'No'] },
+      { kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal'] },
+    ],
+    pickOpensNext: true,
+  });
+
+  menu.pty.write(KEYS.enter);
+
+  await waitFor(() => {
+    expect(menu.output.text).toInclude('❯ Amber');
+  });
+
+  menu.pty.write(KEYS.down);
+
+  await waitFor(() => {
+    expect(menu.output.text).toInclude('❯ Teal');
+  });
+
+  menu.pty.write(KEYS.enter);
+
+  await waitFor(() => {
+    expect(ctx.readLog()).toStrictEqual([
+      { key: 'enter' },
+      { picked: 'Yes' },
+      { key: 'down' },
+      { key: 'enter' },
+      { picked: 'Teal' },
+    ]);
+  });
+});
+
 test('it dismisses the menu on Escape', async () => {
   const ctx = setupTest();
 

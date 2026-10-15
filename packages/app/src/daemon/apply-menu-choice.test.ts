@@ -465,6 +465,102 @@ test('it ticks a box below the screen and returns the whole list with its new to
   expect(getRecord(chosen, 'menu')['menuToken']).not.toBe(shown.menu['menuToken']);
 });
 
+test('it returns the whole of a long menu a choice opens, with a token the next choice takes', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      { kind: 'numbered', text: ['Do you trust this folder?'], options: ['Yes', 'No'] },
+      {
+        kind: 'boxes',
+        text: ['6 new MCP servers found in this project'],
+        options: [
+          'kettle-notes',
+          'orchard-search',
+          'quarry-files',
+          'lantern-docs',
+          'meadow-index',
+          'willow-cache',
+        ],
+        checked: [true, true, true, true, true, false],
+        submit: 'Enable selected',
+        window: 3,
+      },
+    ],
+    pickOpensNext: true,
+  });
+
+  const opened = await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 1,
+    label: 'Yes',
+  });
+
+  const chosen = await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: getRecord(opened, 'menu')['menuToken'],
+    option: 7,
+    label: 'Enable selected',
+  });
+
+  expect(chosen).toStrictEqual({ pressed: 'enter', menu: null });
+
+  expect(ctx.readLog().at(-1)).toStrictEqual({
+    enabled: ['kettle-notes', 'orchard-search', 'quarry-files', 'lantern-docs', 'meadow-index'],
+  });
+});
+
+test('it reads afresh a long menu that opens again with the same text after closing', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'plain',
+        text: ['Pick a colour'],
+        options: ['Amber', 'Teal', 'Plum', 'Coral', 'Slate'],
+        window: 3,
+      },
+      {
+        kind: 'plain',
+        text: ['Pick a colour'],
+        options: ['Amber', 'Teal', 'Plum', 'Ochre', 'Sage', 'Indigo'],
+        window: 3,
+      },
+    ],
+    switchFile: join(ctx.daemon.dir, 'switch'),
+  });
+
+  await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 1,
+    label: 'Amber',
+  });
+
+  writeFileSync(join(ctx.daemon.dir, 'switch'), '');
+
+  await waitFor(async () => {
+    const screen = await ctx.daemon.client.sendRequest('session.screen', {
+      session: shown.session,
+    });
+
+    expect(screen['text']).toInclude('Enter to confirm');
+  });
+
+  const read = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
+
+  expect(getRecord(read, 'menu')['options']).toStrictEqual([
+    { option: 1, label: 'Amber', checked: null, highlighted: true },
+    { option: 2, label: 'Teal', checked: null, highlighted: false },
+    { option: 3, label: 'Plum', checked: null, highlighted: false },
+    { option: 4, label: 'Ochre', checked: null, highlighted: false },
+    { option: 5, label: 'Sage', checked: null, highlighted: false },
+    { option: 6, label: 'Indigo', checked: null, highlighted: false },
+  ]);
+});
+
 test('it refuses a label that differs from the option and sends nothing', async () => {
   const ctx = await setupTest();
 

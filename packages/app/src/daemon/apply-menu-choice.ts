@@ -60,7 +60,9 @@ export async function applyMenuChoice(
   if ('key' in choice) {
     sendMenuKey(terminal, MENU_KEYS.escape);
 
-    return { pressed: 'escape', menu: await waitForSettledMenu(terminal, menu, waits) };
+    const dismissed = await waitForSettledMenu(terminal, menu, waits);
+
+    return { pressed: 'escape', menu: await readSettledWholeMenu(terminal, dismissed, waits) };
   }
 
   await runCursorWalk(terminal, menu, choice.option, waits);
@@ -83,7 +85,20 @@ export async function applyMenuChoice(
 
   // The settled menu is measured against the screen just before Enter, so a
   // cursor move from the walk never counts as Enter's response.
-  return { pressed: 'enter', menu: await waitForSettledMenu(terminal, committed, waits) };
+  const settled = await waitForSettledMenu(terminal, committed, waits);
+
+  return { pressed: 'enter', menu: await readSettledWholeMenu(terminal, settled, waits) };
+}
+
+// The menu a choice answers with: once the screen has settled on a menu, the
+// whole of it, so a new list that scrolls past the screen returns the token
+// that the next choice on it carries.
+async function readSettledWholeMenu(
+  terminal: MenuTerminal,
+  settled: MenuView | null,
+  waits: MenuWaits,
+): Promise<MenuView | null> {
+  return settled === null ? null : await readWholeMenuView(terminal, waits);
 }
 
 // The whole menu as a client reads it, scrolling a list that has not been

@@ -14,7 +14,7 @@ export interface MenuTerminal {
   readonly write: (data: string) => void;
   readonly isLive: () => boolean;
   readonly findWholeMenu: () => ScreenMenu | null;
-  readonly recordWholeMenu: (menu: ScreenMenu) => void;
+  readonly recordWholeMenu: (menu: ScreenMenu | null) => void;
 }
 
 /**

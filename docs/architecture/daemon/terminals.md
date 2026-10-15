@@ -118,7 +118,9 @@ read holds the session's other input while it runs and never presses Enter or Es
 
 The daemon keeps the whole menu for the session, and numbers each later read that shows part of it
 by the option's place in the whole list. A read or a choice made while the list sits scrolled
-therefore presses no key to learn the numbers.
+therefore presses no key to learn the numbers. A read that finds no menu, or a menu that is not part
+of the kept one, drops it, and so does a new terminal for the session, so a list that closes and
+opens again is read afresh.
 
 A menu read returns a token built from the whole menu's text, its labels, and its ticked boxes, and
 a choice carries that token. The cursor is left out of the token, so the choice's own arrow keys
@@ -137,7 +139,8 @@ the last one:
 4. Once the cursor sits on the option, it presses Enter. Enter on an option with a box ticks or
    clears the box and keeps the menu open, so a box menu takes one choice per box and one for its
    confirming item.
-5. It answers with the menu the screen shows once it stops changing, or none.
+5. It answers with the whole menu the screen shows once it stops changing, or none. A new list that
+   scrolls past the screen is read whole first, so its token is the one the next choice carries.
 
 Every refusal comes before Enter, so a refused choice never picks an option. Escape is the one other
 key a client can press, and it carries the token too, because Escape on Claude Code's folder-trust
