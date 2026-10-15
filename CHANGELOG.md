@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.8.0...@zgeoff/atc@4.9.0) (2026-10-15)
+
+
+### Features
+
+* **geo-24:** open a remote daemon's fleet with atc --daemon ([#611](https://github.com/zgeoff/atc/issues/611)) ([ff3d5d0](https://github.com/zgeoff/atc/commit/ff3d5d0690827883f34aad67bb5fb7006a92de9e))
+* **geo-296:** answer each atc message with the bridge's answer tool ([#612](https://github.com/zgeoff/atc/issues/612)) ([4567738](https://github.com/zgeoff/atc/commit/456773830432e8e383547d335878073dc9fe8522))
+* **geo-297:** return the whole answer on message-answered events ([#616](https://github.com/zgeoff/atc/issues/616)) ([1abf0fe](https://github.com/zgeoff/atc/commit/1abf0fee9fdc6c7266dd203e630ff49bc8646aad))
+* **geo-50:** restart an outdated suspended harness on adopt ([#613](https://github.com/zgeoff/atc/issues/613)) ([5a7c247](https://github.com/zgeoff/atc/commit/5a7c247ccfce36d87f31723df2dc777d403052f5))
+
+
+### Bug Fixes
+
+* **geo-128:** settle the edge cases of picked workspace directories ([#615](https://github.com/zgeoff/atc/issues/615)) ([bb929e6](https://github.com/zgeoff/atc/commit/bb929e6e5f451f28560c875bd5f71580ea6ae2e2))
+* **geo-187:** pin bun 1.4.3 and poll the ready pipe without a spawn ([#618](https://github.com/zgeoff/atc/issues/618)) ([d0b5878](https://github.com/zgeoff/atc/commit/d0b58780ca025bd02806dac79bebff8e343ea46c))
+* **geo-894:** keep the test suite's temp files on tmpfs in ci ([#605](https://github.com/zgeoff/atc/issues/605)) ([319b513](https://github.com/zgeoff/atc/commit/319b5138cb939f97ddcef2c9a5f1ada3a1aa35aa))
+* **geo-917:** run the bridge's atc commands in the root folder ([#619](https://github.com/zgeoff/atc/issues/619)) ([26db9d6](https://github.com/zgeoff/atc/commit/26db9d60f2cd70d0639d8256d667b044fd904c73))
+
 ## [4.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@4.7.0...@zgeoff/atc@4.8.0) (2026-10-15)
 
 ### Features
