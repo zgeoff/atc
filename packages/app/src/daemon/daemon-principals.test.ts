@@ -2488,6 +2488,134 @@ test('it answers a note of a session outside the principal as a note that does n
   expect(answered).toStrictEqual(unknown);
 });
 
+test('it answers an answer read of a session outside the principal as an answer that does not exist', async () => {
+  const harnesses: string[] = [];
+
+  const daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildStubAttentionAdapter(),
+        targets: buildStubTargets(targets.targets, { spawned: harnesses }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({ 'client-a': { targets: ['local'] } }).principals,
+      };
+    },
+  });
+
+  const hiddenSpawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'box',
+    resume: `a-${randomUUID()}`,
+  });
+
+  const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: hidden,
+    text: 'what is the release plan?',
+  });
+
+  await daemon.sendHookLines({
+    atcId: hidden,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'secret release plan' },
+  });
+
+  const answeredEntry = z.object({ cursor: z.string(), kind: z.literal('message-answered') });
+  const eventList = z.object({ events: z.array(z.unknown()) });
+
+  const event = await waitFor(async () => {
+    const owner = await daemon.client.sendRequest('events.read', { waitMs: 0 });
+
+    const found = eventList.parse(owner).events.find((e) => answeredEntry.safeParse(e).success);
+
+    return answeredEntry.parse(found);
+  });
+
+  const cursor = event.cursor;
+  const missing = encodeCursor({ kind: 'events', id: 999_999 });
+
+  const owner = await daemon.client.sendRequest('answer.get', { answer: cursor });
+
+  const refused = await trySendRequest(
+    () => daemon.client.sendRequest('answer.get', { answer: cursor }, 'client-a'),
+    cursor,
+  );
+
+  const unknown = await trySendRequest(
+    () => daemon.client.sendRequest('answer.get', { answer: missing }, 'client-a'),
+    missing,
+  );
+
+  expect(owner).toMatchObject({ session: hidden, text: 'secret release plan' });
+  expect(refused).toStrictEqual(unknown);
+});
+
+test('it gives a principal the answer of a session it may see', async () => {
+  const harnesses: string[] = [];
+
+  const daemon = await startTestDaemon({
+    options: () => {
+      const targets = collectTargets(
+        { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
+        undefined,
+      );
+
+      return {
+        adapter: buildStubAttentionAdapter(),
+        targets: buildStubTargets(targets.targets, { spawned: harnesses }),
+        defaultTarget: targets.defaultTarget,
+        targetErrors: targets.errors,
+        principals: collectPrincipals({ 'client-a': { targets: ['local'] } }).principals,
+      };
+    },
+  });
+
+  const shownSpawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    target: 'local',
+    resume: `a-${randomUUID()}`,
+  });
+
+  const shown = String(getRecord(shownSpawned, 'session')['id']);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: shown,
+    text: 'what is the release plan?',
+  });
+
+  await daemon.sendHookLines({
+    atcId: shown,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'open release plan' },
+  });
+
+  const answeredEntry = z.object({ cursor: z.string(), kind: z.literal('message-answered') });
+  const eventList = z.object({ events: z.array(z.unknown()) });
+
+  const event = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('events.read', { waitMs: 0 }, 'client-a');
+
+    const found = eventList.parse(read).events.find((e) => answeredEntry.safeParse(e).success);
+
+    return answeredEntry.parse(found);
+  });
+
+  const answer = await daemon.client.sendRequest(
+    'answer.get',
+    { answer: event.cursor },
+    'client-a',
+  );
+
+  expect(answer).toMatchObject({ session: shown, text: 'open release plan', complete: true });
+});
+
 test('it gives a principal the note of a session it may see', async () => {
   const harnesses: string[] = [];
 

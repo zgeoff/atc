@@ -963,6 +963,11 @@ export class DaemonConnection {
 
         return;
       }
+      case 'answer.get': {
+        await this.applyAnswerGet(req, ctx);
+
+        return;
+      }
 
       // The handshake is answered before a request is admitted, so it never
       // runs as one.
@@ -1632,6 +1637,32 @@ export class DaemonConnection {
     }
 
     this.sendOk(req.id, 'note.get', { ...read.view });
+  }
+
+  // A cursor that is not an events cursor, one at a row that holds no
+  // answer, and one at an answer outside the access all get one refusal,
+  // as a note read does.
+  private async applyAnswerGet(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+    const parsed = parseRequestParams('answer.get', req.p);
+
+    if (!parsed.ok) {
+      this.sendErr(req.id, 'bad_args', parsed.message);
+
+      return;
+    }
+
+    const decoded = decodeCursor(parsed.data.answer);
+
+    const read =
+      decoded === null || decoded.kind !== 'events' ? null : await ctx.readAnswer(decoded.id, null);
+
+    if (read === null || !ctx.isSessionVisible(read.owner)) {
+      this.sendErr(req.id, 'bad_args', `no answer '${parsed.data.answer}'`);
+
+      return;
+    }
+
+    this.sendOk(req.id, 'answer.get', { ...read.view });
   }
 
   private async applySessionMessage(req: RequestMsg, ctx: DaemonContext): Promise<void> {

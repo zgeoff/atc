@@ -336,6 +336,44 @@ test('it has a rule for every id in a note.get answer', async () => {
   expect(collectUnruledIDPaths(note, ID_RULES['note.get'] ?? new Map())).toStrictEqual([]);
 });
 
+test('it has a rule for every id in an answer.get answer', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.cwd,
+    resume: `a-${randomUUID()}`,
+  });
+
+  const sessionID = getRecord(spawned, 'session')['id'];
+
+  const sent = await ctx.client.sendRequest('session.message', {
+    session: sessionID,
+    text: 'ping',
+  });
+
+  await ctx.sendHookLines({
+    atcId: sessionID,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer: 'pong' },
+  });
+
+  const event = await waitFor(async () => {
+    const page = await ctx.client.sendRequest('events.read', {});
+
+    const found = [page['events']]
+      .flat()
+      .find((e) => isRecord(e) && e['kind'] === 'message-answered');
+
+    invariant(isRecord(found), 'no answered event yet');
+
+    return found;
+  });
+
+  const answer = await ctx.client.sendRequest('answer.get', { answer: event['cursor'] });
+
+  expect(collectUnruledIDPaths(answer, ID_RULES['answer.get'] ?? new Map())).toStrictEqual([]);
+});
+
 test('it has a rule for the confirm token in a session.forget answer', () => {
   expect(
     collectUnruledIDPaths(

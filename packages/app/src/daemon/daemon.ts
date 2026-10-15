@@ -55,6 +55,7 @@ import { applyMenuChoice } from './apply-menu-choice';
 import type { MenuChoiceResult, MenuTiming } from './apply-menu-choice';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
+import { buildAnswerView } from './build-answer-view';
 import { buildConfigRevision } from './build-config-revision';
 import { buildDefaultWorkspaceDir } from './build-default-workspace-dir';
 import type { ExecutionTarget } from './build-execution-targets';
@@ -2456,6 +2457,21 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return {
         owner: stored.atcID,
         view: buildNoteView(stored, naming, aliases),
+      };
+    },
+    readAnswer: async (id, access) => {
+      const stored = await store.findAnswer(id, buildEventScope(null, access));
+
+      if (stored === null) {
+        return null;
+      }
+
+      const naming = collectNamingDescriptors(access);
+      const aliases = access === null ? naming : [];
+
+      return {
+        owner: stored.atcID,
+        view: buildAnswerView(stored, naming, aliases),
       };
     },
     writeSessionMessage: async (sessionID, caller, text, keyed, access, callerSession) => {

@@ -363,6 +363,12 @@ export const REQUEST_PARAM_SCHEMAS = {
       note: buildDefaultedString(''),
     })
     .refine((v) => v.note !== '', { message: 'note.get requires a note' }),
+  'answer.get': z
+    .object({
+      // The cursor events.read returned with the message-answered event.
+      answer: buildDefaultedString(''),
+    })
+    .refine((v) => v.answer !== '', { message: 'answer.get requires an answer' }),
   'message.ack': SESSION_DEFAULTED.extend({
     message: buildDefaultedString('').transform(toMessageID),
   }).refine((v) => v.message !== '', { message: 'message.ack requires a message' }),

@@ -29,6 +29,8 @@ The trail holds three groups of events, oldest first:
   finished turn and an end. Heartbeats and hook events the adapter leaves unclassified are stored
   for the session's last activity time and left out of every read.
 - **Message status changes**: queued, delivered, answered and unanswered, each with its message id.
+  An answered event keeps the whole answer beside its preview, so a reader of the trail gets the
+  answer without a message read.
 - **Notes**, each with its label and its text up to a cap, kept once under the id the session helper
   gave it, so a resent note lands once.
 
@@ -58,7 +60,10 @@ narrowed read and a full read take each other's cursors.
 Two other reads follow the same cursor rules. A session's transcript read returns a Claude Code
 transcript as user and assistant rows, a page at a time, and a cursor from an earlier transcript
 file, such as one from before `/clear`, restarts at the top of the current file. Grok and Codex have
-no transcript reader. A note read takes a note event's cursor and returns the note's whole text.
+no transcript reader. A note read takes a note event's cursor and returns the note's whole text, and
+an answer read takes an answered event's cursor and returns the whole answer. An answered event from
+before the trail kept whole answers holds only its preview, and the answer read returns that preview
+marked incomplete.
 
 ## The events socket
 

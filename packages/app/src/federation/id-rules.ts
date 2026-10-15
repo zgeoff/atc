@@ -73,11 +73,18 @@ export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
     ['session', 'id'],
     ['text', 'opaque'],
   ]),
+  'answer.get': new Map([
+    ['answer', 'id'],
+    ['session', 'id'],
+    ['message', 'id'],
+    ['text', 'opaque'],
+  ]),
   'events.read': new Map([
     ['events[].session', 'id'],
     ['events[].message', 'id'],
     ['events[].parent', 'id'],
     ['events[].note', 'id'],
+    ['events[].answer', 'id'],
     ['events[].cursor', 'cursor'],
     ['cursor', 'cursor'],
   ]),

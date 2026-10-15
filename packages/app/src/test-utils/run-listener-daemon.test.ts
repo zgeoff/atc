@@ -91,6 +91,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
       'session.forget.preconditions',
       'session.submit',
       'note.get',
+      'answer.get',
       'sources',
       'git.probe',
       'transport.tcp',

@@ -149,6 +149,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
       'session.forget.preconditions',
       'session.submit',
       'note.get',
+      'answer.get',
       'sources',
       'git.probe',
       'transport.tcp',

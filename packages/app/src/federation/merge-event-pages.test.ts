@@ -801,3 +801,44 @@ test("it gives a note event its daemon's own cursor as a qualified note handle b
     },
   ]);
 });
+
+test("it gives a message-answered event its daemon's own cursor as a qualified answer handle beside the merged cursor", () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [
+            {
+              cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+              at: 1,
+              session: 's1',
+              kind: 'message-answered',
+              message: 'm-1',
+              detail: 'done',
+            },
+          ],
+          cursor: 'eyJrIjoiZXYiLCJpIjo3fQ',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor:
+        'eyJ2IjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6ImV5SnJJam9pWlhZaUxDSnBJam8zZlEifX0',
+      at: 1,
+      session: 'pc.9a1b2c3d.s1',
+      kind: 'message-answered',
+      message: 'pc.9a1b2c3d.m-1',
+      detail: 'done',
+      answer: 'pc.9a1b2c3d.eyJrIjoiZXYiLCJpIjo3fQ',
+    },
+  ]);
+});

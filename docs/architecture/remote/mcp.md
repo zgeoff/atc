@@ -119,12 +119,14 @@ longer than a reconnect takes, so the daemon replays a call it got and runs a ca
 once. A replay-only resend would fail that second call. atc-gateway resends as replay-only
 ([the gateway](./gateway.md#lost-answers)).
 
-## Reading notes
+## Reading notes and answers
 
-The events tool returns notes among the fleet's other events, each with its whole text. A page that
-reads whole texts is bounded by the total text it holds and by the time it spends reading, and it
-stops before the first note that does not fit, so the next call starts at that note and every page
-holds at least its first. The answer marks a note it could not read: one whose daemon kept only its
-preview, one whose read failed, and, under atc-gateway, the daemons that did not answer, each of
-which keeps its place in the cursor. A caller that wants previews only asks for them and skips the
-reads.
+The events tool returns notes among the fleet's other events, each with its whole text, and each
+answered message's event with the whole answer, so a coordinator catches up on its messages without
+one read per message. The tool reads each text from the trail by its event's cursor. Notes and
+answers share one page bound on the total text a page holds and on the time it spends reading. The
+page stops before the first note or answer that does not fit, so the next call starts at that event
+and every page holds at least its first. The result marks a text it could not read: one whose daemon
+kept only its preview, such as an answer stored before the trail kept whole answers, one whose read
+failed, and, under atc-gateway, the daemons that did not answer, each of which keeps its place in
+the cursor. A caller that wants previews only asks for them and skips the reads.

@@ -4,7 +4,7 @@ import { DaemonError } from '@atc/protocol/daemon-error';
 import type { DaemonFeature } from '@atc/protocol/daemon-features';
 import { match } from 'ts-pattern';
 import { parseIdempotencyKey } from './parse-idempotency-key';
-import { readNoteTexts } from './read-note-texts';
+import { readEventTexts } from './read-event-texts';
 import type { FleetCaller, ToolContext } from './types';
 
 /**
@@ -313,11 +313,11 @@ export function runTool(
         required,
       );
 
-      // Each note's whole text rides the same call, so a reader catches up
-      // without one note read per note.
-      const page = previewOnly ? ok : await readNoteTexts(caller, ok);
+      // Each note's whole text and each message's whole answer ride the
+      // same call, so a reader catches up without one read per event.
+      const page = previewOnly ? ok : await readEventTexts(caller, ok);
 
-      return buildObjectResult(buildPageWithoutNoteHandles(page));
+      return buildObjectResult(buildPageWithoutTextHandles(page));
     })
     .with('atc_message_send', async () => {
       const key = parseIdempotencyKey(args['idempotencyKey']);
@@ -375,9 +375,9 @@ export function runTool(
     .otherwise(() => Promise.reject(new Error(`unknown tool '${name}'`)));
 }
 
-// A page without the per-event note handle, which only a note read takes and
-// no tool offers to a caller.
-function buildPageWithoutNoteHandles(
+// A page without the per-event note and answer handles, which only a text
+// read takes and no tool offers to a caller.
+function buildPageWithoutTextHandles(
   page: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
   const events: unknown = page['events'];
@@ -393,7 +393,7 @@ function buildPageWithoutNoteHandles(
         return event;
       }
 
-      const { note: _handle, ...rest } = event;
+      const { note: _note, answer: _answer, ...rest } = event;
 
       return rest;
     }),

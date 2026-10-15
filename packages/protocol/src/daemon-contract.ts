@@ -1,6 +1,7 @@
 import { eventIterator, oc } from '@orpc/contract';
 import { z } from 'zod';
 import { AGENT_LIST_SCHEMA } from './agent-list';
+import { ANSWER_VIEW_SCHEMA } from './answer-view';
 import { DAEMON_ERROR_MAP } from './daemon-error-map';
 import { DAEMON_EVENT_SCHEMA } from './daemon-event';
 import { FLEET_ENTRY_VIEW_SCHEMA } from './fleet-entry-view';
@@ -210,5 +211,8 @@ export const DAEMON_CONTRACT = {
   },
   note: {
     get: base.meta(READ).input(P['note.get']).output(NOTE_VIEW_SCHEMA),
+  },
+  answer: {
+    get: base.meta(READ).input(P['answer.get']).output(ANSWER_VIEW_SCHEMA),
   },
 };

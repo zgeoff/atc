@@ -101,12 +101,12 @@ Each output-schema property's `description` holds what the field means. The tool
 one sentence saying that a partial or failing result is flagged and where to look, because many
 clients never show the output schema to the model. `atc_events_read` keeps that sentence:
 
-> A partial read says so: complete false or textError on a note, and, under the gateway,
-> unavailable, started or truncated, with their meanings in the output schema.
+> A partial read says so: complete false or textError on a note or an answer, and, under the
+> gateway, unavailable, started or truncated, with their meanings in the output schema.
 
-and its schema holds the meaning: `complete` is "false: atc kept only this note's preview, and text
-holds it". A list the agent needs before it calls stays in the description, and the property points
-there: the event `kind` is "the event kind; the tool description lists them".
+and its schema holds the meaning: `complete` is "false: atc kept only the preview of this note or
+answer, and text holds it". A list the agent needs before it calls stays in the description, and the
+property points there: the event `kind` is "the event kind; the tool description lists them".
 
 ### 6. Keep output schemas open
 

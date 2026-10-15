@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core/is-record';
 import { toSessionID } from '@atc/core/to-session-id';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
@@ -10,8 +11,11 @@ import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter'
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
 import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
+import invariant from 'tiny-invariant';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -246,6 +250,157 @@ test('it reads a note by the handle of its event before stripping it', async () 
     m: 'note.get',
     p: { note: 'h1' },
     required: ['note.get'],
+  });
+});
+
+test("it returns a message's whole answer on its answered event by default", async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const answer = 'The importer skips empty rows. '.repeat(40);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'does the importer skip empty rows?',
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer },
+  });
+
+  const read = await waitFor(async () => {
+    const tool = await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+
+    expect(JSON.stringify(tool.structured)).toInclude('message-answered');
+
+    return tool;
+  });
+
+  expect(read.structured?.['events']).toPartiallyContain({
+    kind: 'message-answered',
+    message: sent['message'],
+    detail: `${answer.slice(0, 599)}…`,
+    text: answer,
+    complete: true,
+  });
+});
+
+test('it returns the answer preview on an answered event when the call asks for previews only', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const answer = 'The importer skips empty rows. '.repeat(40);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'does the importer skip empty rows?',
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer },
+  });
+
+  const read = await waitFor(async () => {
+    const tool = await runTool(
+      caller,
+      'atc_events_read',
+      { previewOnly: true },
+      { callerSessionID: null },
+    );
+
+    expect(JSON.stringify(tool.structured)).toInclude('message-answered');
+
+    return tool;
+  });
+
+  const events = read.structured?.['events'];
+
+  invariant(Array.isArray(events), 'no events');
+
+  const answered: unknown = events.find(
+    (e: unknown) => isRecord(e) && e['kind'] === 'message-answered',
+  );
+
+  expect(answered).toStrictEqual({
+    cursor: expect.any(String),
+    at: expect.any(Number),
+    session: id,
+    name: 'one',
+    kind: 'message-answered',
+    message: sent['message'],
+    detail: `${answer.slice(0, 599)}…`,
+  });
+});
+
+test('it reads an answer by the handle of its event and strips the handle', async () => {
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      request.m === 'events.read'
+        ? {
+            events: [
+              {
+                cursor: 'c1',
+                at: 1,
+                session: 's1',
+                name: null,
+                kind: 'message-answered',
+                message: 'm-1',
+                detail: 'yes',
+                answer: 'handle-1',
+              },
+            ],
+            cursor: 'c1',
+            more: false,
+          }
+        : { text: 'yes, every row', complete: true },
+  });
+
+  const read = await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+
+  expect(caller.requests.at(-1)).toStrictEqual({
+    m: 'answer.get',
+    p: { answer: 'handle-1' },
+    required: ['answer.get'],
+  });
+
+  expect(read.structured).toStrictEqual({
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        name: null,
+        kind: 'message-answered',
+        message: 'm-1',
+        detail: 'yes',
+        text: 'yes, every row',
+        complete: true,
+      },
+    ],
+    cursor: 'c1',
+    more: false,
   });
 });
 

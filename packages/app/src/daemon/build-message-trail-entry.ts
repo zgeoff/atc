@@ -8,23 +8,28 @@ import type { TrailEntry } from '@atc/store/trail-entry';
  * The trail entry for one message status change, addressed like its SessionMessage
  * broadcast. It is stamped with the status's own time and the owning session's agent
  * session id, falling back to the one the message carries, and the detail previews
- * the answer once there is one, else the text.
+ * the answer once there is one, else the text. An answered entry also holds the
+ * whole answer.
  */
 export function buildMessageTrailEntry(
   sessionID: SessionID,
   agentSessionID: AgentSessionID | undefined,
   record: MessageRecord,
 ): TrailEntry {
-  const previewText = record.status === 'answered' ? (record.answer ?? record.text) : record.text;
-
-  return {
+  const base = {
     at: pickStatusTime(record),
     atcID: sessionID,
     agentSessionID: agentSessionID ?? record.agentSessionID ?? null,
-    kind: pickMessageKind(record.status),
     message: record.id,
-    detail: truncateDetail(previewText),
   };
+
+  if (record.status === 'answered') {
+    const answer = record.answer ?? record.text;
+
+    return { ...base, kind: 'message-answered', detail: truncateDetail(answer), text: answer };
+  }
+
+  return { ...base, kind: pickMessageKind(record.status), detail: truncateDetail(record.text) };
 }
 
 function pickStatusTime(record: MessageRecord): number {
@@ -44,12 +49,8 @@ function pickStatusTime(record: MessageRecord): number {
 }
 
 function pickMessageKind(
-  status: MessageStatus,
-): 'message-queued' | 'message-delivered' | 'message-answered' | 'message-unanswered' {
-  if (status === 'answered') {
-    return 'message-answered';
-  }
-
+  status: Exclude<MessageStatus, 'answered'>,
+): 'message-queued' | 'message-delivered' | 'message-unanswered' {
   if (status === 'unanswered') {
     return 'message-unanswered';
   }

@@ -60,6 +60,11 @@ interface EventsTable {
   // A note row's whole text, which detail previews; null on every other
   // row, and on a note row written before the column existed.
   note_text: string | null;
+
+  // A message-answered row's whole answer, which detail previews; null on
+  // every other row, and on a message-answered row written before the
+  // column existed.
+  answer_text: string | null;
 }
 
 interface SpawnHistoryTable {
@@ -655,6 +660,11 @@ const MIGRATIONS: Record<string, Migration> = {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema.alterTable('messages').addColumn('sender_kind', 'text').execute();
       await db.schema.alterTable('messages').addColumn('sender_id', 'text').execute();
+    },
+  },
+  '034_add_events_answer_text': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('events').addColumn('answer_text', 'text').execute();
     },
   },
 };
