@@ -22,7 +22,7 @@ import type {
   ScreenMenu,
   SourceProvider,
 } from '@atc/plugin-api';
-import { EffectRemainsError, planTypedLineInput } from '@atc/plugin-api';
+import { planTypedLineInput } from '@atc/plugin-api';
 import type {
   AdapterEvent,
   DaemonAnswer,
@@ -1486,10 +1486,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A spawn with a workspace source materializes it once every refusal has
   // passed and its host is ready, and the session registers only once its
-  // workspace is ready, so no session ever lists over a half-built checkout. A spawn that throws once its process has
-  // started takes the session back before it throws, so a failed start
-  // leaves nothing running and a keyed retry spawns once. When taking it
-  // back fails too, the session may still stand, and the throw says so.
+  // workspace is ready, so no session ever lists over a half-built checkout.
+  // A spawn that fails unwinds its own steps before it throws, so a failed
+  // start leaves nothing running and a keyed retry spawns once. When an
+  // undo fails too, the session may still stand, and the throw says so.
   const startSpawn = async (
     p: SpawnParams,
     id: SessionID,
@@ -1513,31 +1513,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
             return prepared;
           };
 
-    try {
-      const session = await startSpawnedSession(p, id, materialize, requireInReach);
+    const session = await startSpawnedSession(p, id, materialize, requireInReach);
 
-      return warnings.length === 0 ? { session } : { session, warnings };
-    } catch (error) {
-      // A failed spawn gives back the workspace directory it reserved,
-      // unless what it did may still stand: its key then stays held as
-      // outcome_unknown, and so does its directory.
-      if (!(error instanceof EffectRemainsError)) {
-        mgr.releaseWorkspace(id);
-      }
-
-      try {
-        await mgr.removeFailedSpawn(id);
-      } catch (cleanupError) {
-        throw new EffectRemainsError(
-          `spawn of session ${id} failed and taking it back failed too`,
-          {
-            cause: cleanupError,
-          },
-        );
-      }
-
-      throw error;
-    }
+    return warnings.length === 0 ? { session } : { session, warnings };
   };
 
   // Materializes a spawn's workspace on the host its spawn readies once the
@@ -1601,7 +1579,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       | null,
     requireInReach: () => void,
   ): Promise<SessionDescriptor> => {
-    const s = await mgr.spawn(
+    // The answer is built as the spawn's last step, so a failure there
+    // takes the spawn back like any other step's.
+    const answered: { descriptor: SessionDescriptor | null } = { descriptor: null };
+
+    await mgr.spawn(
       p.cwd,
       p.name,
       p.prompt,
@@ -1618,21 +1600,28 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       requireInReach,
       p.autoDir,
       p.scope,
+      (s) => {
+        const runtime = runtimes.get(s.id);
+
+        if (runtime !== undefined) {
+          runtime.pendingLastUsed = true;
+        }
+
+        void store.recordSpawnDir(
+          s.cwd,
+          { target: s.target, targetIdentity: s.targetIdentity },
+          clock.now(),
+        );
+
+        answered.descriptor = getDescriptor(mgr, s.id);
+      },
     );
 
-    const runtime = runtimes.get(s.id);
-
-    if (runtime !== undefined) {
-      runtime.pendingLastUsed = true;
+    if (answered.descriptor === null) {
+      throw new Error(`the spawn of session ${id} returned without its answer`);
     }
 
-    void store.recordSpawnDir(
-      s.cwd,
-      { target: s.target, targetIdentity: s.targetIdentity },
-      clock.now(),
-    );
-
-    return getDescriptor(mgr, s.id);
+    return answered.descriptor;
   };
 
   // A retried spawn answers with the session as it stands now when it is

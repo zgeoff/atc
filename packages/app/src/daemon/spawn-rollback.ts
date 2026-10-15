@@ -4,7 +4,7 @@ import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
 import type { HostDirClaims } from './host-dir-claims';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionFleetWriter } from './session-fleet-writer';
-import type { SessionHarnesses, SpawnReadied } from './session-harnesses';
+import type { SessionHarnesses } from './session-harnesses';
 import type { SessionRegistry } from './session-registry';
 
 // How long a failed spawn's rollback waits for the killed process to exit
@@ -14,7 +14,7 @@ const FAILED_SPAWN_EXIT_WAIT_MS = 2000;
 interface SpawnRollbackDeps {
   readonly registry: Pick<SessionRegistry, 'sessions' | 'findProvider' | 'remove'>;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'writeFleet'>;
-  readonly claims: Pick<HostDirClaims, 'reservations' | 'releaseWorkspace' | 'removeClaimedDir'>;
+  readonly claims: Pick<HostDirClaims, 'reservations' | 'removeClaimedDir'>;
   readonly harnesses: Pick<
     SessionHarnesses,
     'readying' | 'startingSpawns' | 'isHostIdle' | 'trySuspendIdleHost'
@@ -106,39 +106,67 @@ export class SpawnRollback {
     }
   }
 
-  // Takes back what a spawn readied when it fails once its host is ready,
-  // before or after its session lists. An attempt that provisioned the
-  // host takes back its imp and binding; a host of the spawn's own without
-  // one is destroyed while no other session or launch uses it. On a host
-  // that stays, such as a parent's, only the workspace directory the spawn
-  // created goes. A directory it cannot confirm gone stays reserved, is
-  // logged for an operator to remove, and throws that it may still stand.
-  async removeFailedSpawnEffects(
+  // Whether taking back a failed spawn's host takes the whole host: an
+  // attempt that provisioned the host takes back its imp and binding, and a
+  // host the spawn destroys goes with everything on it. A host that stays,
+  // such as a parent's, keeps everything but what the spawn itself made.
+  shouldTakeHost(
     provider: ExecutionProvider,
     id: SessionID,
     hostKey: SessionID,
     target: string,
-    readied: SpawnReadied,
-  ): Promise<void> {
+    attemptID: string | null,
+  ): boolean {
+    return attemptID !== null || this.shouldDestroyHost(provider, id, hostKey, target);
+  }
+
+  // Whether a failed spawn's host is destroyed, with the workspace on it: a
+  // host of the spawn's own that its provider can destroy, while no other
+  // session or launch uses it.
+  shouldDestroyHost(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+  ): boolean {
     const isHostInUse =
       this.harnesses.readying.has(hostKey) ||
       this.registry.sessions.some((other) => other.hostKey === hostKey && other.target === target);
 
-    if (
-      readied.attemptID !== null ||
-      (hostKey === id && provider.capabilities.destroy && !isHostInUse)
-    ) {
-      await this.destroyFailedSpawnHost(provider, id, hostKey, readied.attemptID);
+    return hostKey === id && provider.capabilities.destroy && !isHostInUse;
+  }
 
-      return;
+  // Takes back the workspace directory a failed spawn created on a host
+  // that stays. A directory it cannot confirm gone stays reserved, is logged
+  // for an operator to remove, and throws. A shared host stays awake for the
+  // removal, then goes back to sleep when nothing else runs there.
+  async removeSpawnWorkspace(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    root: string,
+  ): Promise<void> {
+    try {
+      await this.removeWorkspaceDir(provider, id, hostKey, target, root);
+    } finally {
+      if (
+        hostKey !== id &&
+        provider.capabilities.suspend &&
+        this.harnesses.isHostIdle(hostKey, target)
+      ) {
+        await this.harnesses.trySuspendIdleHost(provider, hostKey, target);
+      }
     }
+  }
 
-    const root = readied.root;
-
-    if (root === null) {
-      return;
-    }
-
+  private async removeWorkspaceDir(
+    provider: ExecutionProvider,
+    id: SessionID,
+    hostKey: SessionID,
+    target: string,
+    root: string,
+  ): Promise<void> {
     let removed = false;
     let failure: { readonly cause: unknown; readonly message: string } | null = null;
 
@@ -163,10 +191,7 @@ export class SpawnRollback {
       `atc: left ${root} on target '${target}' after the spawn of session ${id} failed to start, since ${reason}; remove it by hand`,
     );
 
-    throw new EffectRemainsError(
-      `spawn of session ${id} failed and its workspace ${root} on target '${target}' could not be removed`,
-      options,
-    );
+    throw new Error(`the workspace ${root} on target '${target}' could not be removed`, options);
   }
 
   // Takes back what a spawn attempt bound when the spawn fails before its
@@ -186,16 +211,16 @@ export class SpawnRollback {
     await binder.removeAttempt(host, hostKey, attemptID);
   }
 
-  // Takes back a spawn that failed after its process started: the process
-  // dies, the session leaves the list and the fleet, and what the spawn
-  // readied on its host goes, so the spawn leaves nothing behind. It
-  // resolves only once the process has exited, the fleet without the
-  // session is durable, and that take-back is confirmed, and throws when
-  // any of them cannot be confirmed. A session whose exit is not
-  // confirmed stays listed, so the spawn's caller can still find it, and
-  // no revive starts it until its process is found gone. A session that
-  // never registered is left alone.
-  async removeFailedSpawn(id: SessionID): Promise<void> {
+  // Takes back a listed spawn's harness: the process dies, and the session
+  // leaves the list and the fleet. It resolves only once the process has
+  // exited and the fleet without the session is durable, and throws when
+  // either cannot be confirmed. A session whose exit is not confirmed stays
+  // listed, so the spawn's caller can still find it, and no revive starts
+  // it until its process is found gone. The session counts as rolling back
+  // from here until the spawn's caller ends the rollback. A directory the
+  // spawn made on a shared host stays held once the session leaves the
+  // list, so no other workspace lands in or around it before it goes.
+  async removeListedSpawn(id: SessionID, root: string | null): Promise<void> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
@@ -203,78 +228,35 @@ export class SpawnRollback {
     }
 
     const pty = s.pty;
-    const readied = this.harnesses.startingSpawns.get(id) ?? null;
 
     this.harnesses.startingSpawns.delete(id);
     this.rollingBack.add(id);
 
-    try {
-      if (pty !== null) {
-        await this.killFailedSpawn(id, pty);
-      }
-
-      // A harness other than the killed one would outlive the rollback.
-      if (s.pty !== null && s.pty !== pty) {
-        throw new Error(`session ${id} started another harness while its spawn rolled back`);
-      }
-
-      s.pty = null;
-
-      // The directory stays held on a shared host once the session leaves
-      // the list, so no other workspace lands in or around it before it goes.
-      if (readied !== null && readied.root !== null && s.hostKey !== id) {
-        this.claims.reservations.set(id, {
-          hostKey: s.hostKey,
-          target: s.target,
-          dir: s.cwd,
-          resolved: readied.root,
-          kind: 'workspace',
-        });
-      }
-
-      this.registry.remove(s);
-      this.fleet.emitChange();
-
-      await this.fleet.writeFleet();
-
-      if (readied !== null) {
-        const provider = this.registry.findProvider(s);
-
-        if (provider === null) {
-          throw new Error(`the target of session ${id} is gone, so its failed spawn stays`);
-        }
-
-        try {
-          await this.removeFailedSpawnEffects(provider, id, s.hostKey, s.target, readied);
-        } finally {
-          // A shared host stays awake for the checkout's removal, then goes
-          // back to sleep when nothing else runs there.
-          if (
-            readied.root !== null &&
-            s.hostKey !== id &&
-            provider.capabilities.suspend &&
-            this.harnesses.isHostIdle(s.hostKey, s.target)
-          ) {
-            await this.harnesses.trySuspendIdleHost(provider, s.hostKey, s.target);
-          }
-        }
-      }
-
-      this.claims.releaseWorkspace(id);
-    } finally {
-      this.rollingBack.delete(id);
-    }
-  }
-
-  // Kills a failed spawn's harness and waits for its exit. A kill that
-  // throws or an exit it cannot confirm leaves the harness recorded as
-  // possibly running, which blocks revives of the session.
-  private async killFailedSpawn(id: SessionID, pty: HarnessHandle): Promise<void> {
-    const exited = await this.killHarness(id, pty);
-
-    if (!exited) {
+    if (pty !== null && !(await this.killHarness(id, pty))) {
       throw new Error(`session ${id} did not exit after its kill`);
     }
+
+    // A harness other than the killed one would outlive the rollback.
+    if (s.pty !== null && s.pty !== pty) {
+      throw new Error(`session ${id} started another harness while its spawn rolled back`);
+    }
+
+    s.pty = null;
+
+    if (root !== null && s.hostKey !== id) {
+      this.claims.reservations.set(id, {
+        hostKey: s.hostKey,
+        target: s.target,
+        dir: s.cwd,
+        resolved: root,
+        kind: 'workspace',
+      });
+    }
+
+    this.registry.remove(s);
+    this.fleet.emitChange();
+
+    await this.fleet.writeFleet();
   }
 
   /**
