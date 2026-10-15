@@ -682,14 +682,13 @@ test('it starts the thread and each turn on the model the spawn asked for', asyn
     expect(stub.statuses.get('m-1')).toBe('answered');
   });
 
-  expect(server.requests).toPartiallyContain({
-    method: 'thread/start',
-    params: expect.objectContaining({ model: 'gpt-test-large' }),
+  expect(server.requests.find((r) => r.method === 'thread/start')?.params).toMatchObject({
+    model: 'gpt-test-large',
   });
 
-  expect(server.requests).toPartiallyContain({
-    method: 'turn/start',
-    params: expect.objectContaining({ clientUserMessageId: 'm-1', model: 'gpt-test-large' }),
+  expect(server.requests.find((r) => r.method === 'turn/start')?.params).toMatchObject({
+    clientUserMessageId: 'm-1',
+    model: 'gpt-test-large',
   });
 });
 
@@ -716,9 +715,9 @@ test('it resumes the thread it was given on the model the spawn asked for', asyn
 
   await bridge.open();
 
-  expect(server.requests).toPartiallyContain({
-    method: 'thread/resume',
-    params: expect.objectContaining({ threadId: thread, model: 'gpt-test-large' }),
+  expect(server.requests.find((r) => r.method === 'thread/resume')?.params).toMatchObject({
+    threadId: thread,
+    model: 'gpt-test-large',
   });
 });
 

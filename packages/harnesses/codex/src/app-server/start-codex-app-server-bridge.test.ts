@@ -9,6 +9,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { z } from 'zod';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 
 function setupTest() {
@@ -111,19 +112,20 @@ test('it starts the thread and a message sent right after the spawn on the model
     expect(stub.statuses.get('m-1')).toBe('answered');
   });
 
-  const requests: unknown[] = readFileSync(join(ctx.dir, 'app-server-requests.jsonl'), 'utf8')
-    .trim()
-    .split('\n')
-    .map((line) => JSON.parse(line));
+  const requests = z.array(z.looseObject({ method: z.string(), params: z.unknown() })).parse(
+    readFileSync(join(ctx.dir, 'app-server-requests.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line): unknown => JSON.parse(line)),
+  );
 
-  expect(requests).toPartiallyContain({
-    method: 'thread/start',
-    params: expect.objectContaining({ model: 'gpt-test-large' }),
+  expect(requests.find((r) => r.method === 'thread/start')?.params).toMatchObject({
+    model: 'gpt-test-large',
   });
 
-  expect(requests).toPartiallyContain({
-    method: 'turn/start',
-    params: expect.objectContaining({ clientUserMessageId: 'm-1', model: 'gpt-test-large' }),
+  expect(requests.find((r) => r.method === 'turn/start')?.params).toMatchObject({
+    clientUserMessageId: 'm-1',
+    model: 'gpt-test-large',
   });
 });
 

@@ -537,7 +537,7 @@ test('it answers the first turn starts the scenario names as overloaded and take
 
   expect(received).toPartiallyContain({
     id: 3,
-    result: { turn: expect.objectContaining({ id: 'turn-2' }) },
+    result: { turn: { id: 'turn-2', status: 'completed', items: [] } },
   });
 });
 
