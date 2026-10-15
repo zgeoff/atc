@@ -2,12 +2,15 @@
 // to the package rules: no package outside its row, no deep import into
 // another package's src/, no subpath of a package that its exports map does
 // not list, no node: or bun: import in core, no test helper or testing entry
-// in production code, and no confined package outside its owners. .oxlintrc.json extends the file. An override replaces a rule's
-// options rather than merging them, and the last override that matches a
-// file wins, so each override repeats every ban that holds for its files.
+// in production code, and no confined package outside its owners and files.
+// These per-import rules have no other gate. .oxlintrc.json extends the file.
+// An override replaces a rule's options rather than merging them, and the
+// last override that matches a file wins, so each override repeats every ban
+// that holds for its files.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import type { Confinement } from './package-confinement';
 import { PACKAGE_CONFINEMENT } from './package-confinement';
 import type { PackageRule } from './package-rules';
 import { PACKAGE_RULES } from './package-rules';
@@ -34,9 +37,14 @@ interface Override {
   readonly rules: { readonly 'no-restricted-imports': readonly ['error', RestrictionOptions] };
 }
 
+// Every extension oxlint lints that a workspace module uses.
+const SOURCE = '*.{ts,tsx,js,mjs}';
+const TEST_SOURCE = '*.test.{ts,tsx,js,mjs}';
+
 /**
  * The overrides file: per package a production override and a later test
- * override, the per-file exceptions after them, then e2e/ and scripts/.
+ * override, an override for each file a confinement lists after them, then
+ * e2e/ and scripts/.
  * `entries` holds each existing package's entry points, as its exports map
  * lists them, keyed by package name.
  */
@@ -51,35 +59,34 @@ export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>
     const kind = rule.name === 'test-utils' ? 'test' : 'production';
 
     overrides.push(
-      buildOverride([`${rule.dir}/**/*.ts`], buildPackageOptions(rule, kind, entryPattern)),
+      buildOverride([`${rule.dir}/**/${SOURCE}`], buildPackageOptions(rule, kind, entryPattern)),
       buildOverride(
-        [`${rule.dir}/**/*.test.ts`, `${rule.dir}/**/testing/**/*.ts`, ...getHelperGlobs(rule)],
+        [
+          `${rule.dir}/**/${TEST_SOURCE}`,
+          `${rule.dir}/**/testing/**/${SOURCE}`,
+          ...getHelperGlobs(rule),
+        ],
         buildPackageOptions(rule, 'test', entryPattern),
       ),
     );
   }
 
-  for (const confinement of PACKAGE_CONFINEMENT) {
-    for (const file of confinement.exceptions) {
-      const owner = PACKAGE_RULES.find((rule) => file.startsWith(`${rule.dir}/`));
+  for (const [file, allowed] of collectConfinedFiles()) {
+    const owner = PACKAGE_RULES.find((rule) => file.startsWith(`${rule.dir}/`));
 
-      if (owner === undefined) {
-        throw new Error(`no package holds the confinement exception ${file}`);
-      }
-
-      overrides.push(
-        buildOverride(
-          [file],
-          buildPackageOptions(owner, 'test', entryPattern, confinement.specifier),
-        ),
-      );
+    if (owner === undefined) {
+      throw new Error(`no package holds ${file}, which a confinement lists`);
     }
+
+    const kind = getFileKind(owner, file);
+
+    overrides.push(buildOverride([file], buildPackageOptions(owner, kind, entryPattern, allowed)));
   }
 
   overrides.push(
-    buildOverride(['e2e/**/*.ts', 'scripts/**/*.ts'], {
+    buildOverride([`e2e/**/${SOURCE}`, `scripts/**/${SOURCE}`], {
       paths: CHILD_PROCESS_PATHS,
-      patterns: [DEEP_IMPORT, entryPattern, ...buildConfinementPatterns(null, 'test', null)],
+      patterns: [DEEP_IMPORT, entryPattern, ...buildConfinementPatterns(null, 'test', [])],
     }),
   );
 
@@ -107,6 +114,22 @@ function buildEntryPattern(entries: ReadonlyMap<string, readonly string[]>): Res
   return { group, message: 'Import a package through an entry point its exports map lists.' };
 }
 
+/**
+ * Each file that a confinement lists, with every confined package it may
+ * import, in the order the table lists them.
+ */
+function collectConfinedFiles(): Map<string, string[]> {
+  const files = new Map<string, string[]>();
+
+  for (const confinement of PACKAGE_CONFINEMENT) {
+    for (const file of confinement.files) {
+      files.set(file, [...(files.get(file) ?? []), confinement.specifier]);
+    }
+  }
+
+  return files;
+}
+
 function buildOverride(files: readonly string[], options: RestrictionOptions): Override {
   return { files, rules: { 'no-restricted-imports': ['error', options] } };
 }
@@ -114,20 +137,31 @@ function buildOverride(files: readonly string[], options: RestrictionOptions): O
 // The app keeps its shared test helpers in its own test-utils folder until
 // they move to the test-utils package.
 function getHelperGlobs(rule: PackageRule): string[] {
-  return rule.name === 'app' ? [`${rule.dir}/src/test-utils/**/*.ts`] : [];
+  return rule.name === 'app' ? [`${rule.dir}/src/test-utils/**/${SOURCE}`] : [];
 }
 
 type FileKind = 'production' | 'test';
 
+// The kind the package overrides give one file of the package.
+function getFileKind(rule: PackageRule, file: string): FileKind {
+  const isTest =
+    rule.name === 'test-utils' ||
+    /\.test\.[a-z]+$/.test(file) ||
+    file.slice(rule.dir.length).split('/').includes('testing') ||
+    (rule.name === 'app' && file.startsWith(`${rule.dir}/src/test-utils/`));
+
+  return isTest ? 'test' : 'production';
+}
+
 /**
- * Every ban that holds for one kind of file in a package. `allowed` names a
- * confined package that the file may import as an exception.
+ * Every ban that holds for one kind of file in a package. `allowed` holds
+ * the confined packages that a confinement lists the file for.
  */
 function buildPackageOptions(
   rule: PackageRule,
   kind: FileKind,
   entryPattern: RestrictedPattern,
-  allowed: string | null = null,
+  allowed: readonly string[] = [],
 ): RestrictionOptions {
   const outside = PACKAGE_RULES.map((other) => other.name).filter(
     (name) => name !== rule.name && !rule.deps.includes(name),
@@ -212,26 +246,36 @@ const CHILD_PROCESS_PATHS: readonly RestrictedPath[] = ['node:child_process', 'c
 );
 
 /**
- * One pattern per confined package that the package does not own. `owner`
- * is null for files outside every workspace package.
+ * One pattern per confined package that the package does not own and the
+ * file may not import. `owner` is null for files outside every workspace
+ * package.
  */
 function buildConfinementPatterns(
   owner: string | null,
   kind: FileKind,
-  allowed: string | null,
+  allowed: readonly string[],
 ): RestrictedPattern[] {
   return PACKAGE_CONFINEMENT.filter(
     (confinement) =>
       (owner === null || !confinement.owners.includes(owner)) &&
       (kind === 'production' || confinement.inTests) &&
-      confinement.specifier !== allowed,
+      !allowed.includes(confinement.specifier),
   ).map((confinement) => ({
     regex: `^${confinement.specifier}(/|$)`,
-    message:
-      confinement.owners.length === 0
-        ? `No file imports ${confinement.specifier}.`
-        : `${confinement.specifier} belongs to ${confinement.owners.map((name) => `@atc/${name}`).join(', ')}.`,
+    message: formatConfinement(confinement),
   }));
+}
+
+function formatConfinement(confinement: Confinement): string {
+  const owners = confinement.owners.map((name) => `@atc/${name}`);
+
+  if (confinement.files.length > 0) {
+    owners.push('the files that scripts/package-confinement.ts lists');
+  }
+
+  return owners.length === 0
+    ? `No file imports ${confinement.specifier}.`
+    : `${confinement.specifier} belongs to ${owners.join(', ')}.`;
 }
 
 const MANIFEST_SCHEMA = z.object({

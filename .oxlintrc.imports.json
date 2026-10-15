@@ -1,7 +1,7 @@
 {
   "overrides": [
     {
-      "files": ["packages/core/**/*.ts"],
+      "files": ["packages/core/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -91,15 +91,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -123,7 +123,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -131,7 +131,10 @@
       }
     },
     {
-      "files": ["packages/core/**/*.test.ts", "packages/core/**/testing/**/*.ts"],
+      "files": [
+        "packages/core/**/*.test.{ts,tsx,js,mjs}",
+        "packages/core/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -209,15 +212,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -225,7 +228,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -233,7 +236,7 @@
       }
     },
     {
-      "files": ["packages/protocol/**/*.ts"],
+      "files": ["packages/protocol/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -319,15 +322,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -351,7 +354,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -359,7 +362,10 @@
       }
     },
     {
-      "files": ["packages/protocol/**/*.test.ts", "packages/protocol/**/testing/**/*.ts"],
+      "files": [
+        "packages/protocol/**/*.test.{ts,tsx,js,mjs}",
+        "packages/protocol/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -437,15 +443,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -453,7 +459,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -461,7 +467,7 @@
       }
     },
     {
-      "files": ["packages/plugin-api/**/*.ts"],
+      "files": ["packages/plugin-api/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -547,15 +553,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -579,7 +585,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -587,7 +593,10 @@
       }
     },
     {
-      "files": ["packages/plugin-api/**/*.test.ts", "packages/plugin-api/**/testing/**/*.ts"],
+      "files": [
+        "packages/plugin-api/**/*.test.{ts,tsx,js,mjs}",
+        "packages/plugin-api/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -665,15 +674,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -681,7 +690,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -689,7 +698,7 @@
       }
     },
     {
-      "files": ["packages/config/**/*.ts"],
+      "files": ["packages/config/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -775,15 +784,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -807,7 +816,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -815,7 +824,10 @@
       }
     },
     {
-      "files": ["packages/config/**/*.test.ts", "packages/config/**/testing/**/*.ts"],
+      "files": [
+        "packages/config/**/*.test.{ts,tsx,js,mjs}",
+        "packages/config/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -893,15 +905,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -909,7 +921,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -917,7 +929,7 @@
       }
     },
     {
-      "files": ["packages/store/**/*.ts"],
+      "files": ["packages/store/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1003,15 +1015,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^better-auth(/|$)",
@@ -1027,7 +1039,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1035,7 +1047,10 @@
       }
     },
     {
-      "files": ["packages/store/**/*.test.ts", "packages/store/**/testing/**/*.ts"],
+      "files": [
+        "packages/store/**/*.test.{ts,tsx,js,mjs}",
+        "packages/store/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1113,15 +1128,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -1129,7 +1144,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1137,7 +1152,7 @@
       }
     },
     {
-      "files": ["packages/lifecycle/**/*.ts"],
+      "files": ["packages/lifecycle/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1223,15 +1238,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -1255,7 +1270,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1263,7 +1278,10 @@
       }
     },
     {
-      "files": ["packages/lifecycle/**/*.test.ts", "packages/lifecycle/**/testing/**/*.ts"],
+      "files": [
+        "packages/lifecycle/**/*.test.{ts,tsx,js,mjs}",
+        "packages/lifecycle/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1341,15 +1359,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -1357,7 +1375,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1365,7 +1383,7 @@
       }
     },
     {
-      "files": ["packages/daemon/**/*.ts"],
+      "files": ["packages/daemon/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1451,15 +1469,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -1483,7 +1501,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1491,7 +1509,10 @@
       }
     },
     {
-      "files": ["packages/daemon/**/*.test.ts", "packages/daemon/**/testing/**/*.ts"],
+      "files": [
+        "packages/daemon/**/*.test.{ts,tsx,js,mjs}",
+        "packages/daemon/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1569,15 +1590,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -1585,7 +1606,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1593,7 +1614,7 @@
       }
     },
     {
-      "files": ["packages/harnesses/claude/**/*.ts"],
+      "files": ["packages/harnesses/claude/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1679,11 +1700,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -1707,7 +1732,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1716,8 +1741,8 @@
     },
     {
       "files": [
-        "packages/harnesses/claude/**/*.test.ts",
-        "packages/harnesses/claude/**/testing/**/*.ts"
+        "packages/harnesses/claude/**/*.test.{ts,tsx,js,mjs}",
+        "packages/harnesses/claude/**/testing/**/*.{ts,tsx,js,mjs}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -1796,11 +1821,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -1808,7 +1837,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1816,7 +1845,7 @@
       }
     },
     {
-      "files": ["packages/harnesses/codex/**/*.ts"],
+      "files": ["packages/harnesses/codex/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -1902,15 +1931,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -1934,7 +1963,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -1943,8 +1972,8 @@
     },
     {
       "files": [
-        "packages/harnesses/codex/**/*.test.ts",
-        "packages/harnesses/codex/**/testing/**/*.ts"
+        "packages/harnesses/codex/**/*.test.{ts,tsx,js,mjs}",
+        "packages/harnesses/codex/**/testing/**/*.{ts,tsx,js,mjs}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -2023,15 +2052,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -2039,7 +2068,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2047,7 +2076,7 @@
       }
     },
     {
-      "files": ["packages/harnesses/grok/**/*.ts"],
+      "files": ["packages/harnesses/grok/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -2133,15 +2162,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -2165,7 +2194,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2174,8 +2203,8 @@
     },
     {
       "files": [
-        "packages/harnesses/grok/**/*.test.ts",
-        "packages/harnesses/grok/**/testing/**/*.ts"
+        "packages/harnesses/grok/**/*.test.{ts,tsx,js,mjs}",
+        "packages/harnesses/grok/**/testing/**/*.{ts,tsx,js,mjs}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -2254,15 +2283,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -2270,7 +2299,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2278,7 +2307,7 @@
       }
     },
     {
-      "files": ["packages/execution/local/**/*.ts"],
+      "files": ["packages/execution/local/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -2363,12 +2392,16 @@
                 "message": "Production code never imports a testing entry or a testing/ folder."
               },
               {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -2392,7 +2425,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2401,8 +2434,8 @@
     },
     {
       "files": [
-        "packages/execution/local/**/*.test.ts",
-        "packages/execution/local/**/testing/**/*.ts"
+        "packages/execution/local/**/*.test.{ts,tsx,js,mjs}",
+        "packages/execution/local/**/testing/**/*.{ts,tsx,js,mjs}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -2480,12 +2513,16 @@
                 "message": "Import a package through an entry point its exports map lists."
               },
               {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -2493,7 +2530,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2501,7 +2538,7 @@
       }
     },
     {
-      "files": ["packages/execution/imp/**/*.ts"],
+      "files": ["packages/execution/imp/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -2587,11 +2624,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -2615,7 +2656,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2623,7 +2664,10 @@
       }
     },
     {
-      "files": ["packages/execution/imp/**/*.test.ts", "packages/execution/imp/**/testing/**/*.ts"],
+      "files": [
+        "packages/execution/imp/**/*.test.{ts,tsx,js,mjs}",
+        "packages/execution/imp/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -2701,11 +2745,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -2713,7 +2761,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2721,7 +2769,7 @@
       }
     },
     {
-      "files": ["packages/sources/dirs/**/*.ts"],
+      "files": ["packages/sources/dirs/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -2807,15 +2855,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -2839,7 +2887,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2847,7 +2895,10 @@
       }
     },
     {
-      "files": ["packages/sources/dirs/**/*.test.ts", "packages/sources/dirs/**/testing/**/*.ts"],
+      "files": [
+        "packages/sources/dirs/**/*.test.{ts,tsx,js,mjs}",
+        "packages/sources/dirs/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -2925,15 +2976,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -2941,7 +2992,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -2949,7 +3000,7 @@
       }
     },
     {
-      "files": ["packages/sources/github/**/*.ts"],
+      "files": ["packages/sources/github/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3035,15 +3086,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -3067,7 +3118,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3076,8 +3127,8 @@
     },
     {
       "files": [
-        "packages/sources/github/**/*.test.ts",
-        "packages/sources/github/**/testing/**/*.ts"
+        "packages/sources/github/**/*.test.{ts,tsx,js,mjs}",
+        "packages/sources/github/**/testing/**/*.{ts,tsx,js,mjs}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -3156,15 +3207,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -3172,7 +3223,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3180,7 +3231,7 @@
       }
     },
     {
-      "files": ["packages/sources/git/**/*.ts"],
+      "files": ["packages/sources/git/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3266,15 +3317,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -3298,7 +3349,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3306,7 +3357,10 @@
       }
     },
     {
-      "files": ["packages/sources/git/**/*.test.ts", "packages/sources/git/**/testing/**/*.ts"],
+      "files": [
+        "packages/sources/git/**/*.test.{ts,tsx,js,mjs}",
+        "packages/sources/git/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3384,15 +3438,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -3400,7 +3454,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3408,7 +3462,7 @@
       }
     },
     {
-      "files": ["packages/tui/**/*.ts"],
+      "files": ["packages/tui/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3494,15 +3548,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -3526,7 +3580,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3534,7 +3588,10 @@
       }
     },
     {
-      "files": ["packages/tui/**/*.test.ts", "packages/tui/**/testing/**/*.ts"],
+      "files": [
+        "packages/tui/**/*.test.{ts,tsx,js,mjs}",
+        "packages/tui/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3616,15 +3673,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -3632,7 +3689,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3640,7 +3697,7 @@
       }
     },
     {
-      "files": ["packages/mcp/**/*.ts"],
+      "files": ["packages/mcp/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3726,15 +3783,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -3750,7 +3807,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3758,7 +3815,10 @@
       }
     },
     {
-      "files": ["packages/mcp/**/*.test.ts", "packages/mcp/**/testing/**/*.ts"],
+      "files": [
+        "packages/mcp/**/*.test.{ts,tsx,js,mjs}",
+        "packages/mcp/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3840,15 +3900,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -3856,7 +3916,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3864,7 +3924,7 @@
       }
     },
     {
-      "files": ["packages/gateway/**/*.ts"],
+      "files": ["packages/gateway/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -3950,15 +4010,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -3982,7 +4042,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -3990,7 +4050,10 @@
       }
     },
     {
-      "files": ["packages/gateway/**/*.test.ts", "packages/gateway/**/testing/**/*.ts"],
+      "files": [
+        "packages/gateway/**/*.test.{ts,tsx,js,mjs}",
+        "packages/gateway/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -4072,15 +4135,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4088,7 +4151,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4096,7 +4159,7 @@
       }
     },
     {
-      "files": ["packages/reporters/**/*.ts"],
+      "files": ["packages/reporters/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -4182,15 +4245,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^bun:sqlite(/|$)",
@@ -4214,7 +4277,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4222,7 +4285,10 @@
       }
     },
     {
-      "files": ["packages/reporters/**/*.test.ts", "packages/reporters/**/testing/**/*.ts"],
+      "files": [
+        "packages/reporters/**/*.test.{ts,tsx,js,mjs}",
+        "packages/reporters/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -4304,15 +4370,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4320,7 +4386,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4328,7 +4394,7 @@
       }
     },
     {
-      "files": ["packages/test-utils/**/*.ts"],
+      "files": ["packages/test-utils/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -4406,15 +4472,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4422,7 +4488,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4430,7 +4496,10 @@
       }
     },
     {
-      "files": ["packages/test-utils/**/*.test.ts", "packages/test-utils/**/testing/**/*.ts"],
+      "files": [
+        "packages/test-utils/**/*.test.{ts,tsx,js,mjs}",
+        "packages/test-utils/**/testing/**/*.{ts,tsx,js,mjs}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -4508,15 +4577,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4524,7 +4593,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4532,7 +4601,7 @@
       }
     },
     {
-      "files": ["packages/app/**/*.ts"],
+      "files": ["packages/app/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -4614,11 +4683,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4626,7 +4699,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4635,9 +4708,9 @@
     },
     {
       "files": [
-        "packages/app/**/*.test.ts",
-        "packages/app/**/testing/**/*.ts",
-        "packages/app/src/test-utils/**/*.ts"
+        "packages/app/**/*.test.{ts,tsx,js,mjs}",
+        "packages/app/**/testing/**/*.{ts,tsx,js,mjs}",
+        "packages/app/src/test-utils/**/*.{ts,tsx,js,mjs}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -4712,11 +4785,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4724,7 +4801,128 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/local/src/local-pty-provider.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/execution-local may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/config/*/**",
+                  "@atc/core/*",
+                  "!@atc/core/schema",
+                  "@atc/core/*/**",
+                  "@atc/execution-imp/*",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-imp/*/**",
+                  "@atc/execution-local/*",
+                  "!@atc/execution-local/testing",
+                  "@atc/execution-local/*/**",
+                  "@atc/harness-claude/*",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-claude/*/**",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/lifecycle/*/**",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "@atc/protocol/*/**",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/store/*/**",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4809,8 +5007,12 @@
                 "message": "Import a package through an entry point its exports map lists."
               },
               {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4818,7 +5020,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -4904,11 +5106,11 @@
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -4916,7 +5118,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -5002,11 +5204,11 @@
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -5014,7 +5216,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -5100,11 +5302,11 @@
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -5112,7 +5314,491 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/execution/imp/src/imp-client-port.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-claude|harness-codex|harness-grok|execution-local|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/execution-imp may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/config/*/**",
+                  "@atc/core/*",
+                  "!@atc/core/schema",
+                  "@atc/core/*/**",
+                  "@atc/execution-imp/*",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-imp/*/**",
+                  "@atc/execution-local/*",
+                  "!@atc/execution-local/testing",
+                  "@atc/execution-local/*/**",
+                  "@atc/harness-claude/*",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-claude/*/**",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/lifecycle/*/**",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "@atc/protocol/*/**",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/store/*/**",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/harnesses/claude/src/headless/build-claude-query-options.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/config/*/**",
+                  "@atc/core/*",
+                  "!@atc/core/schema",
+                  "@atc/core/*/**",
+                  "@atc/execution-imp/*",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-imp/*/**",
+                  "@atc/execution-local/*",
+                  "!@atc/execution-local/testing",
+                  "@atc/execution-local/*/**",
+                  "@atc/harness-claude/*",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-claude/*/**",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/lifecycle/*/**",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "@atc/protocol/*/**",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/store/*/**",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/harnesses/claude/src/headless/render-sdk-message.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/config/*/**",
+                  "@atc/core/*",
+                  "!@atc/core/schema",
+                  "@atc/core/*/**",
+                  "@atc/execution-imp/*",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-imp/*/**",
+                  "@atc/execution-local/*",
+                  "!@atc/execution-local/testing",
+                  "@atc/execution-local/*/**",
+                  "@atc/harness-claude/*",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-claude/*/**",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/lifecycle/*/**",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "@atc/protocol/*/**",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/store/*/**",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/harnesses/claude/src/headless/start-claude-headless-run.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              },
+              {
+                "name": "child_process",
+                "importNames": ["spawnSync", "execSync", "execFileSync"],
+                "message": "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069)."
+              }
+            ],
+            "patterns": [
+              {
+                "regex": "^@atc/(store|lifecycle|daemon|harness-codex|harness-grok|execution-local|execution-imp|source-dirs|source-github|source-git|tui|mcp|gateway|reporters|test-utils|app)(/|$)",
+                "message": "@atc/harness-claude may depend only on @atc/plugin-api, @atc/core, @atc/config, @atc/protocol."
+              },
+              {
+                "regex": "^@atc/[^/]+/src(/|$)",
+                "message": "Import a package through its entry points, never its src/ files."
+              },
+              {
+                "group": [
+                  "@atc/app/*",
+                  "@atc/app/*/**",
+                  "@atc/config/*",
+                  "!@atc/config/claude-statusline",
+                  "!@atc/config/host",
+                  "@atc/config/*/**",
+                  "@atc/core/*",
+                  "!@atc/core/schema",
+                  "@atc/core/*/**",
+                  "@atc/execution-imp/*",
+                  "!@atc/execution-imp/testing",
+                  "@atc/execution-imp/*/**",
+                  "@atc/execution-local/*",
+                  "!@atc/execution-local/testing",
+                  "@atc/execution-local/*/**",
+                  "@atc/harness-claude/*",
+                  "!@atc/harness-claude/testing",
+                  "@atc/harness-claude/*/**",
+                  "@atc/harness-codex/*",
+                  "@atc/harness-codex/*/**",
+                  "@atc/harness-grok/*",
+                  "@atc/harness-grok/*/**",
+                  "@atc/lifecycle/*",
+                  "!@atc/lifecycle/run-command",
+                  "!@atc/lifecycle/testing",
+                  "@atc/lifecycle/*/**",
+                  "@atc/plugin-api/*",
+                  "@atc/plugin-api/*/**",
+                  "@atc/protocol/*",
+                  "!@atc/protocol/session",
+                  "!@atc/protocol/wire",
+                  "@atc/protocol/*/**",
+                  "@atc/source-dirs/*",
+                  "@atc/source-dirs/*/**",
+                  "@atc/source-git/*",
+                  "@atc/source-git/*/**",
+                  "@atc/source-github/*",
+                  "@atc/source-github/*/**",
+                  "@atc/store/*",
+                  "!@atc/store/sqlite",
+                  "!@atc/store/testing",
+                  "@atc/store/*/**",
+                  "@atc/test-utils/*",
+                  "@atc/test-utils/*/**"
+                ],
+                "message": "Import a package through an entry point its exports map lists."
+              },
+              {
+                "regex": "^@atc/test-utils(/|$)",
+                "message": "Production code never imports the shared test helpers."
+              },
+              {
+                "regex": "(^|/)testing(/|$)",
+                "message": "Production code never imports a testing entry or a testing/ folder."
+              },
+              {
+                "regex": "^bun-pty(/|$)",
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@zgeoff/imp-client(/|$)",
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^bun:sqlite(/|$)",
+                "message": "bun:sqlite belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^kysely(/|$)",
+                "message": "kysely belongs to @atc/store, @atc/app."
+              },
+              {
+                "regex": "^better-auth(/|$)",
+                "message": "better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@better-auth(/|$)",
+                "message": "@better-auth belongs to @atc/mcp, @atc/app."
+              },
+              {
+                "regex": "^@modelcontextprotocol/sdk(/|$)",
+                "message": "No file imports @modelcontextprotocol/sdk."
+              },
+              {
+                "regex": "^proper-lockfile(/|$)",
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }
@@ -5198,11 +5884,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
+              },
+              {
+                "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -5214,7 +5904,7 @@
       }
     },
     {
-      "files": ["e2e/**/*.ts", "scripts/**/*.ts"],
+      "files": ["e2e/**/*.{ts,tsx,js,mjs}", "scripts/**/*.{ts,tsx,js,mjs}"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -5288,15 +5978,15 @@
               },
               {
                 "regex": "^bun-pty(/|$)",
-                "message": "bun-pty belongs to @atc/execution-local."
+                "message": "bun-pty belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@zgeoff/imp-client(/|$)",
-                "message": "@zgeoff/imp-client belongs to @atc/execution-imp."
+                "message": "@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@anthropic-ai/claude-agent-sdk(/|$)",
-                "message": "@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app."
+                "message": "@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists."
               },
               {
                 "regex": "^@modelcontextprotocol/sdk(/|$)",
@@ -5304,7 +5994,7 @@
               },
               {
                 "regex": "^proper-lockfile(/|$)",
-                "message": "No file imports proper-lockfile."
+                "message": "proper-lockfile belongs to the files that scripts/package-confinement.ts lists."
               }
             ]
           }

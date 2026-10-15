@@ -1,14 +1,11 @@
 // Checks the import graph under the app's source root, packages/app/src/: no
-// cycles (type-only imports count), each directory imports only the
-// directories its row allows, and the packages that belong to one owner are
-// imported nowhere else. Modules at the source root have a row of their own.
-// The composition root may import any directory, and test files are exempt
-// from the direction rules. An import or module reference whose specifier is
-// not a literal is a finding, since no rule can check it. The packages that
-// belong to one owner are also checked in e2e/, scripts/, and mods/, outside
-// node_modules, whose modules follow no other rule here. What the gateway
-// entry may reach is check-reach's job. Prints every finding and exits 1 when
-// there is one.
+// cycles (type-only imports count), and each directory imports only the
+// directories its row allows. Modules at the source root have a row of their
+// own. The composition root may import any directory, and test files are
+// exempt from the direction rules. What the gateway entry may reach is
+// check-reach's job, which external packages a file may import is the oxlint
+// import rules' job, and a module load whose specifier is not a quoted string
+// is check-manifests' job. Prints every finding and exits 1 when there is one.
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { collectImports } from './collect-imports';
@@ -22,31 +19,16 @@ function main(): void {
   const graph = new Map<string, string[]>();
 
   const findings: string[] = [];
-  const outside = OUTSIDE_DIRS.flatMap((dir) => collectSourceFiles(root, dir));
-
-  for (const file of outside) {
-    for (const specifier of collectImports(readFileSync(join(root, file), 'utf8')).specifiers) {
-      findings.push(...checkConfinement(file, specifier));
-    }
-  }
 
   for (const file of files) {
     const imports = collectImports(readFileSync(join(root, file), 'utf8'));
     const targets: string[] = [];
 
-    for (const line of imports.nonLiteralLines) {
-      findings.push(`non-literal import: ${file}:${line} imports a computed specifier`);
-    }
+    for (const specifier of imports.specifiers.filter((candidate) => candidate.startsWith('.'))) {
+      const target = resolveImport(file, specifier, known);
 
-    for (const specifier of imports.specifiers) {
-      if (specifier.startsWith('.')) {
-        const target = resolveImport(file, specifier, known);
-
-        if (target !== null) {
-          targets.push(target);
-        }
-      } else {
-        findings.push(...checkConfinement(file, specifier));
+      if (target !== null) {
+        targets.push(target);
       }
     }
 
@@ -65,7 +47,7 @@ function main(): void {
   }
 
   console.log(
-    `check-imports: ${files.length + outside.length} files, ${cycles.length} cycles, ${findings.length - cycles.length} other findings`,
+    `check-imports: ${files.length} files, ${cycles.length} cycles, ${findings.length - cycles.length} other findings`,
   );
 
   if (findings.length > 0) {
@@ -77,10 +59,6 @@ function main(): void {
 // and rules start from.
 const SOURCE_ROOT = 'packages/app/src';
 
-// The directories outside the source root whose modules the confinement rule
-// covers.
-const OUTSIDE_DIRS = ['e2e', 'scripts', 'mods'];
-
 function resolveImport(file: string, specifier: string, known: ReadonlySet<string>): string | null {
   const base = relative('.', join(dirname(file), specifier.replace(/\.js$/, '')));
 
@@ -91,40 +69,6 @@ function resolveImport(file: string, specifier: string, known: ReadonlySet<strin
   }
 
   return null;
-}
-
-const CONFINED_PACKAGES: Readonly<Record<string, readonly string[]>> = {
-  // the fake impd runs its guests in real PTYs, as impd does, the TUI
-  // harness runs the real client in one, as a terminal does, and the raw-mode
-  // reads of the stub composer and the stub menu need a real terminal to run in
-  'bun-pty': [
-    'packages/execution/local/src/local-pty-provider.ts',
-    'packages/execution/imp/src/testing/create-stub-imp-port.ts',
-    'packages/test-utils/src/start-tui-harness.ts',
-    'packages/test-utils/src/create-stub-composer.test.ts',
-    'packages/test-utils/src/run-stub-menu-claude.test.ts',
-  ],
-  '@zgeoff/imp-client': ['packages/execution/imp/src/imp-client-port.ts'],
-  '@anthropic-ai/claude-agent-sdk': [
-    'packages/harnesses/claude/src/headless/build-claude-query-options.ts',
-    'packages/harnesses/claude/src/headless/start-claude-headless-run.ts',
-  ],
-};
-
-function checkConfinement(file: string, specifier: string): string[] {
-  const findings: string[] = [];
-
-  for (const [pkg, owners] of Object.entries(CONFINED_PACKAGES)) {
-    const isPackage = specifier === pkg || specifier.startsWith(`${pkg}/`);
-
-    if (isPackage && !owners.includes(file)) {
-      findings.push(
-        `confined package: ${file} imports ${pkg}, allowed only in ${owners.join(', ')}`,
-      );
-    }
-  }
-
-  return findings;
 }
 
 // The entrypoints that wire concrete modules together, exempt from the

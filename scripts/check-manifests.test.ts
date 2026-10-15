@@ -132,7 +132,88 @@ test('it fails on a module load whose specifier is a template literal', async ()
     exitCode: 1,
     stdout: 'check-manifests: 2 packages, 1 files, 1 findings\n',
     stderr:
-      'template specifier: packages/core/src/a.ts:1 loads a module through a template literal, which the import lint rules cannot read; quote the specifier\n',
+      'computed specifier: packages/core/src/a.ts:1 references a module through a specifier that no import rule can read; quote it\n',
+  });
+});
+
+test('it fails on a module load or a resolve form whose specifier is computed', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/package.json'),
+    JSON.stringify({ name: '@atc/app', exports: {} }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/store/rows.ts'),
+    [
+      "const name = '../daemon/ids';",
+      'export const A = await import(name);',
+      'export const B = require(name);',
+      'export const C = import.meta.resolve(name);',
+      'export const D = Bun.resolveSync(name, import.meta.dir);',
+      'export const E = new URL(name, import.meta.url);',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 2 packages, 1 files, 5 findings\n',
+    stderr: [
+      'computed specifier: packages/app/src/store/rows.ts:2 references a module through a specifier that no import rule can read; quote it',
+      'computed specifier: packages/app/src/store/rows.ts:3 references a module through a specifier that no import rule can read; quote it',
+      'computed specifier: packages/app/src/store/rows.ts:4 references a module through a specifier that no import rule can read; quote it',
+      'computed specifier: packages/app/src/store/rows.ts:5 references a module through a specifier that no import rule can read; quote it',
+      'computed specifier: packages/app/src/store/rows.ts:6 references a module through a specifier that no import rule can read; quote it',
+      '',
+    ].join('\n'),
+  });
+});
+
+test('it lets the root package resolve a computed specifier and never load one', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/bundle.ts'),
+    "const name = './plugin';\nexport const PATH = Bun.resolveSync(name, import.meta.dir);\nexport const PLUGIN = await import(name);\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 1 packages, 1 files, 1 findings\n',
+    stderr:
+      'computed specifier: scripts/bundle.ts:3 references a module through a specifier that no import rule can read; quote it\n',
   });
 });
 
@@ -539,7 +620,7 @@ test('it passes imports of a package root and of a named entry point', async () 
   });
 });
 
-test('it fails on an import of a subpath the exports map does not list', async () => {
+test('it leaves a subpath the exports map does not list to the import lint rules', async () => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -577,10 +658,9 @@ test('it fails on an import of a subpath the exports map does not list', async (
     stdout: checked.stdout,
     stderr: checked.stderr,
   }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-manifests: 3 packages, 1 files, 1 findings\n',
-    stderr:
-      'unexported entry: packages/tui/src/a.ts imports @atc/core/is-record, which packages/core/package.json does not list as an entry point\n',
+    exitCode: 0,
+    stdout: 'check-manifests: 3 packages, 1 files, 0 findings\n',
+    stderr: '',
   });
 });
 

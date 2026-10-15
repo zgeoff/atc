@@ -213,6 +213,9 @@
         ]
       }
     ],
+    // the import rules read import and export statements and import() calls,
+    // not require() calls, so a module loads only through the forms they read
+    "typescript/no-require-imports": "error",
     "max-statements": "off",
     "max-lines-per-function": "off",
     "max-lines": "off",

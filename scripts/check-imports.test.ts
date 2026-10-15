@@ -233,43 +233,12 @@ test('it lets the composition root and a test file import any directory', async 
   });
 });
 
-test('it fails on a confined package imported outside the file that owns it', async () => {
+test('it leaves a confined package and a computed specifier to the other gates', async () => {
   const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'packages/execution/local/src/local-pty-provider.ts'),
-    "import { spawn } from 'bun-pty';\n\nexport const SPAWN = spawn;\n",
-  );
 
   await Bun.write(
     join(ctx.dir, 'packages/app/src/daemon/imp-provider.ts'),
-    "import type { IPty } from 'bun-pty';\n\nexport type Handle = IPty;\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.dir,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
-    stderr:
-      'confined package: packages/app/src/daemon/imp-provider.ts imports bun-pty, allowed only in packages/execution/local/src/local-pty-provider.ts, packages/execution/imp/src/testing/create-stub-imp-port.ts, packages/test-utils/src/start-tui-harness.ts, packages/test-utils/src/create-stub-composer.test.ts, packages/test-utils/src/run-stub-menu-claude.test.ts\n',
-  });
-});
-
-test('it fails on a confined package imported outside the source root', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'packages/execution/imp/src/imp-client-port.ts'),
-    "import { ImpClient } from '@zgeoff/imp-client';\n\nexport const CLIENT = ImpClient;\n",
+    "import type { IPty } from 'bun-pty';\n\nconst name = './ids';\n\nexport const IDS = await import(name);\nexport type Handle = IPty;\n",
   );
 
   await Bun.write(
@@ -277,21 +246,6 @@ test('it fails on a confined package imported outside the source root', async ()
     "import { ImpClient } from '@zgeoff/imp-client';\n\nexport const CLIENT = ImpClient;\n",
   );
 
-  await Bun.write(
-    join(ctx.dir, 'scripts/probe.mjs'),
-    "const client = await import('@zgeoff/imp-client');\n\nexport default client;\n",
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'mods/bridge/hooks/register.tsx'),
-    "export { ImpClient } from '@zgeoff/imp-client';\n",
-  );
-
-  await Bun.write(
-    join(ctx.dir, 'mods/bridge/node_modules/dep/index.js'),
-    "export { ImpClient } from '@zgeoff/imp-client';\n",
-  );
-
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
@@ -303,14 +257,9 @@ test('it fails on a confined package imported outside the source root', async ()
     stdout: checked.stdout,
     stderr: checked.stderr,
   }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 3 files, 0 cycles, 3 other findings\n',
-    stderr: [
-      'confined package: e2e/imp.test.ts imports @zgeoff/imp-client, allowed only in packages/execution/imp/src/imp-client-port.ts',
-      'confined package: scripts/probe.mjs imports @zgeoff/imp-client, allowed only in packages/execution/imp/src/imp-client-port.ts',
-      'confined package: mods/bridge/hooks/register.tsx imports @zgeoff/imp-client, allowed only in packages/execution/imp/src/imp-client-port.ts',
-      '',
-    ].join('\n'),
+    exitCode: 0,
+    stdout: 'check-imports: 1 files, 0 cycles, 0 other findings\n',
+    stderr: '',
   });
 });
 
@@ -507,56 +456,6 @@ test('it reads a dynamic import whose specifier is a template literal', async ()
   });
 });
 
-test('it fails on a dynamic import whose specifier is computed', async () => {
-  const ctx = setupTest();
-
-  // oxlint-disable-next-line no-template-curly-in-string -- the fixture is source text whose template literal holds a substitution
-  const source = "const n = 'x';\nexport const L = import(`../daemon/${n}`);\n";
-
-  await Bun.write(join(ctx.dir, 'packages/app/src/store/rows.ts'), source);
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.dir,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
-    stderr: 'non-literal import: packages/app/src/store/rows.ts:2 imports a computed specifier\n',
-  });
-});
-
-test('it fails on a require call whose specifier is computed', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "const path = '../daemon/ids';\nexport const LOADED = require(path);\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.dir,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 1 files, 0 cycles, 1 other findings\n',
-    stderr: 'non-literal import: packages/app/src/store/rows.ts:2 imports a computed specifier\n',
-  });
-});
-
 test('it reads an import that follows a regular expression holding a quote', async () => {
   const ctx = setupTest();
 
@@ -722,32 +621,6 @@ test('it reads a literal module located with a URL relative to import.meta.url',
     stdout: 'check-imports: 2 files, 0 cycles, 1 other findings\n',
     stderr:
       'forbidden edge: packages/app/src/store/rows.ts imports packages/app/src/daemon/ids.ts (store -> daemon)\n',
-  });
-});
-
-test('it fails on a module resolved from a computed specifier', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.dir, 'packages/app/src/store/rows.ts'),
-    "const name = '../daemon/ids';\nexport const A = import.meta.resolve(name);\nexport const B = Bun.resolveSync(name, import.meta.dir);\nexport const C = new URL(name, import.meta.url);\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-imports.ts'),
-    ctx.dir,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-imports: 1 files, 0 cycles, 3 other findings\n',
-    stderr:
-      'non-literal import: packages/app/src/store/rows.ts:2 imports a computed specifier\nnon-literal import: packages/app/src/store/rows.ts:3 imports a computed specifier\nnon-literal import: packages/app/src/store/rows.ts:4 imports a computed specifier\n',
   });
 });
 

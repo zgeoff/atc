@@ -1,16 +1,17 @@
 // Checks that every workspace package's manifest declares what its files
 // import, and that no file reaches into another package by a relative path.
 // Each workspace package lists its entry points in an explicit exports map
-// with no wildcard, and an `@atc/*` import of a workspace package names one
-// of them: the package itself for `.`, or a named entry such as
-// `@atc/protocol/wire`. A bare import resolves to a package the manifest declares: in
-// dependencies for production files, in either list for tests and testing
-// modules. Each `@atc/*` entry is `workspace:*`, each other entry `catalog:`,
-// and a package's `@atc/*` dependencies stay inside its row of the package
-// rules. A module load whose specifier is a template literal fails, since
-// oxlint's import rules read only quoted specifiers and so would never apply
-// the package rules to it. A relative specifier, literal `import()` included, must resolve
-// inside the importing file's package. Bun links every workspace package
+// with no wildcard; the oxlint import rules, not this check, refuse an import
+// of a subpath the map does not list. A bare import resolves to a package the
+// manifest declares: in dependencies for production files, in either list for
+// tests and testing modules. Each `@atc/*` entry is `workspace:*`, each other
+// entry `catalog:`, and a package's `@atc/*` dependencies stay inside its row
+// of the package rules. A module load whose specifier is not a quoted string
+// fails, since oxlint's import rules read only quoted specifiers and so would
+// never apply the package rules to it, and so does a resolve form in a
+// workspace package whose specifier is not a literal, since the import graph
+// could not follow it. A relative specifier, literal
+// `import()` included, must resolve inside the importing file's package. Bun links every workspace package
 // where any package can resolve it, so only the manifest proves a package
 // meant to depend on another. A specifier that only resolves a path, such as
 // `Bun.resolveSync(...)`, is not an import here, since its base directory
@@ -50,9 +51,16 @@ function main(): void {
         }
       }
 
-      for (const line of imports.templateLines) {
+      // the root package's tooling resolves computed paths, and no graph
+      // reads its resolve forms
+      const computedLines = [
+        ...imports.computedLoadLines,
+        ...(pkg.dir === '.' ? [] : imports.computedResolveLines),
+      ].toSorted((a, b) => a - b);
+
+      for (const line of computedLines) {
         findings.push(
-          `template specifier: ${file}:${line} loads a module through a template literal, which the import lint rules cannot read; quote the specifier`,
+          `computed specifier: ${file}:${line} references a module through a specifier that no import rule can read; quote it`,
         );
       }
     }
@@ -209,35 +217,7 @@ function checkSpecifier(
     return [];
   }
 
-  const name = getPackageName(specifier);
-
-  return [...checkEntry(packages, file, specifier, name), ...checkDeclared(pkg, file, name)];
-}
-
-/**
- * The finding for an import of a workspace package that names no entry
- * point its exports map lists. An import of a package outside the
- * workspace has none.
- */
-function checkEntry(
-  packages: readonly WorkspacePackage[],
-  file: string,
-  specifier: string,
-  name: string,
-): string[] {
-  const target = packages.find((candidate) => candidate.manifest.name === name);
-
-  if (target === undefined || target.dir === '.') {
-    return [];
-  }
-
-  const entry = specifier === name ? '.' : `./${specifier.slice(name.length + 1)}`;
-
-  return entry in (target.manifest.exports ?? {})
-    ? []
-    : [
-        `unexported entry: ${file} imports ${specifier}, which ${target.dir}/package.json does not list as an entry point`,
-      ];
+  return checkDeclared(pkg, file, getPackageName(specifier));
 }
 
 function checkDeclared(pkg: WorkspacePackage, file: string, name: string): string[] {

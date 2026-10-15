@@ -141,34 +141,58 @@ test.each([
     'A test in @atc/tui may use @atc/daemon/testing, never the daemon itself.',
   ],
   [
-    'bun-pty outside its owner',
+    'bun-pty outside its files',
     'packages/daemon/src/a.ts',
     'bun-pty',
-    'bun-pty belongs to @atc/execution-local.',
+    'bun-pty belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
-    'bun-pty in a test helper that is no exception',
+    'bun-pty in a file of the local provider package that the table does not list',
+    'packages/execution/local/src/a.ts',
+    'bun-pty',
+    'bun-pty belongs to the files that scripts/package-confinement.ts lists.',
+  ],
+  [
+    'bun-pty in a test helper that the table does not list',
     'packages/test-utils/src/start-stub-terminal.ts',
     'bun-pty',
-    'bun-pty belongs to @atc/execution-local.',
+    'bun-pty belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
-    'bun-pty in the app, which no longer owns it',
+    'bun-pty in the app',
     'packages/app/src/a.ts',
     'bun-pty',
-    'bun-pty belongs to @atc/execution-local.',
+    'bun-pty belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
-    'the imp client outside its owner',
-    'packages/daemon/src/a.ts',
+    'the shared test helpers in a production file the table lists',
+    'packages/execution/local/src/local-pty-provider.ts',
+    '@atc/test-utils',
+    'Production code never imports the shared test helpers.',
+  ],
+  [
+    'the imp client outside its file',
+    'packages/execution/imp/src/a.ts',
     '@zgeoff/imp-client',
-    '@zgeoff/imp-client belongs to @atc/execution-imp.',
+    '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
-    'the Claude SDK outside its owner',
-    'packages/daemon/src/a.ts',
+    'the imp client in an e2e journey',
+    'e2e/a.test.ts',
+    '@zgeoff/imp-client',
+    '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+  ],
+  [
+    'the imp client in a script module',
+    'scripts/a.mjs',
+    '@zgeoff/imp-client',
+    '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+  ],
+  [
+    'the Claude SDK outside its files',
+    'packages/harnesses/claude/src/a.ts',
     '@anthropic-ai/claude-agent-sdk',
-    '@anthropic-ai/claude-agent-sdk belongs to @atc/harness-claude, @atc/app.',
+    '@anthropic-ai/claude-agent-sdk belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
     'bun:sqlite outside its owner',
@@ -204,13 +228,13 @@ test.each([
     'proper-lockfile in the Claude config lock itself',
     'packages/harnesses/claude/src/local-trust/with-claude-config-lock.ts',
     'proper-lockfile',
-    'No file imports proper-lockfile.',
+    'proper-lockfile belongs to the files that scripts/package-confinement.ts lists.',
   ],
   [
     'proper-lockfile in an e2e journey',
     'e2e/a.test.ts',
     'proper-lockfile',
-    'No file imports proper-lockfile.',
+    'proper-lockfile belongs to the files that scripts/package-confinement.ts lists.',
   ],
 ])('it refuses %s', async (_label, file, specifier, help) => {
   const ctx = setupTest();
@@ -253,7 +277,17 @@ test.each([
   ['a testing entry in a testing folder', 'packages/store/src/testing/a.ts', '@atc/store/testing'],
   ['bun:test in a core test', 'packages/core/src/a.test.ts', 'bun:test'],
   ['kysely in its owner', 'packages/store/src/a.ts', 'kysely'],
-  ['bun-pty in a listed exception', 'packages/test-utils/src/start-tui-harness.ts', 'bun-pty'],
+  ['bun-pty in a listed test helper', 'packages/test-utils/src/start-tui-harness.ts', 'bun-pty'],
+  [
+    'bun-pty in the local provider',
+    'packages/execution/local/src/local-pty-provider.ts',
+    'bun-pty',
+  ],
+  [
+    'the Claude SDK in a listed file',
+    'packages/harnesses/claude/src/headless/render-sdk-message.ts',
+    '@anthropic-ai/claude-agent-sdk',
+  ],
   [
     'proper-lockfile in the Claude config lock test',
     'packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts',
@@ -307,5 +341,38 @@ test('it keeps the synchronous spawn ban in a package override', async () => {
   expect(report.diagnostics).toPartiallyContain({
     code: 'eslint(no-restricted-imports)',
     help: "Use an async spawn: Bun runs these through its synchronous spawn, which can lose a child's exit and hang (oven-sh/bun#34069).",
+  });
+});
+
+test('it refuses a require call, whose specifier the import rules do not read', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.dir, '.oxlintrc.json'), JSON.stringify(ctx.config));
+
+  await Bun.write(
+    join(ctx.dir, 'packages/daemon/src/a.ts'),
+    "export const PTY: unknown = require('bun-pty');\n",
+  );
+
+  const linted = await runCommand(
+    [
+      process.execPath,
+      ctx.oxlint,
+      '-c',
+      '.oxlintrc.json',
+      '-f',
+      'json',
+      'packages/daemon/src/a.ts',
+    ],
+    { cwd: ctx.dir },
+  );
+
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
+
+  expect(report.diagnostics).toPartiallyContain({
+    code: 'typescript(no-require-imports)',
+    filename: 'packages/daemon/src/a.ts',
   });
 });
