@@ -2911,13 +2911,13 @@ test('it refuses an adopt whose outdated harness ignores its kill, leaves the se
 
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  await expect(adopt).rejects.toMatchObject({ code: 'session_dead' });
+  expect(adopt).rejects.toMatchObject({ code: 'session_dead' });
 
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   const again = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  await expect(again).rejects.toMatchObject({ code: 'no_such_session' });
+  expect(again).rejects.toMatchObject({ code: 'no_such_session' });
 
   const [started] = ctx.port.sessionRequests;
 

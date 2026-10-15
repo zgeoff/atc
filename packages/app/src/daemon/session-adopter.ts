@@ -41,7 +41,7 @@ interface SessionAdopterDeps {
 // What a revive starts its harness with on the session's host.
 interface HarnessLaunch {
   readonly provider: ExecutionProvider;
-  readonly plan: HarnessPlan;
+  readonly plan: Omit<HarnessPlan, 'args'> & { readonly args: readonly string[] };
   readonly recordPath: string | null;
   readonly cols: number;
   readonly rows: number;
@@ -220,7 +220,7 @@ export class SessionAdopter {
       start?.created === false &&
       wasAsleep &&
       s.pty === pty &&
-      isLaunchOutdated(s, plan)
+      isLaunchOutdated(s, plan.admission.revision, plan.heldRevision)
     ) {
       pty = await this.restartOutdatedHarness(s, pty, launch, canProceed);
 
@@ -379,15 +379,9 @@ export class SessionAdopter {
 }
 
 // Whether the process a revive attached to launched under an older runtime
-// auth revision than the one the revive's plan holds: the revision the
+// auth revision than the one the revive launches under: the revision the
 // session recorded at its latest launch, or else the one its host held
 // before the revive.
-function isLaunchOutdated(s: Session, plan: HarnessPlan): boolean {
-  if (plan.admission === null) {
-    return false;
-  }
-
-  const launched = s.authRevision ?? plan.heldRevision ?? plan.admission.revision;
-
-  return launched < plan.admission.revision;
+function isLaunchOutdated(s: Session, revision: number, heldRevision: number | null): boolean {
+  return (s.authRevision ?? heldRevision ?? revision) < revision;
 }
