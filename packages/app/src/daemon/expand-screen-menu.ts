@@ -43,10 +43,10 @@ export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMen
 }
 
 // Where the window's rows start in the whole list: the first place their
-// labels match in order, with options above it only when the window marks
-// some above, and options below it only when the window marks some below.
-// A window without marks may sit anywhere, as one whose cursor hides its
-// mark does.
+// labels match in order, with options above it exactly when the window marks
+// some above, and options below it exactly when the window marks some below.
+// The cursor's own row hides its mark, so options may sit beyond an edge
+// without a mark when the cursor is on that edge's row.
 function findListOffset(
   part: ScreenMenu,
   shown: readonly ScreenMenuOption[],
@@ -59,12 +59,19 @@ function findListOffset(
 
     if (
       matches &&
-      (part.scroll?.above !== true || above) &&
-      (part.scroll?.below !== true || below)
+      isEdgeConsistent(part.scroll?.above === true, above, part.highlighted === 0) &&
+      isEdgeConsistent(part.scroll?.below === true, below, part.highlighted === shown.length - 1)
     ) {
       return offset;
     }
   }
 
   return null;
+}
+
+// Whether one edge of a window agrees with the whole list beyond it: a mark
+// needs options there, and options there need a mark unless the cursor sits
+// on that edge's row.
+function isEdgeConsistent(marked: boolean, beyond: boolean, isCursorOnEdge: boolean): boolean {
+  return marked ? beyond : !beyond || isCursorOnEdge;
 }

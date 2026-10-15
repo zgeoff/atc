@@ -92,13 +92,29 @@ export async function applyMenuChoice(
 
 // The menu a choice answers with: once the screen has settled on a menu, the
 // whole of it, so a new list that scrolls past the screen returns the token
-// that the next choice on it carries.
+// that the next choice on it carries. The key has already gone through, so a
+// whole read that fails answers with the settled menu as the screen shows it
+// instead of a refusal.
 async function readSettledWholeMenu(
   terminal: MenuTerminal,
   settled: MenuView | null,
   waits: MenuWaits,
 ): Promise<MenuView | null> {
-  return settled === null ? null : await readWholeMenuView(terminal, waits);
+  if (settled === null) {
+    return null;
+  }
+
+  try {
+    const whole = await readWholeMenuView(terminal, waits);
+
+    return whole;
+  } catch (error) {
+    if (error instanceof DaemonError) {
+      return settled;
+    }
+
+    throw error;
+  }
 }
 
 // The whole menu as a client reads it, scrolling a list that has not been

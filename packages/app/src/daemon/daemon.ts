@@ -725,7 +725,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // so a restarted session counts as gone.
   const buildMenuTerminal = (
     id: SessionID,
-    screen: ScreenModel,
     findMenu: (text: string) => ScreenMenu | null,
   ): MenuTerminal => {
     const runtime = getRuntime(id);
@@ -733,7 +732,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     return {
       readScreenMenu: async () => {
-        const shown = await screen.renderText();
+        if (runtime.screen === null) {
+          return null;
+        }
+
+        const shown = await runtime.screen.renderText();
 
         return findMenu(shown.text);
       },
@@ -2293,7 +2296,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'no_screen';
       }
 
-      const terminal = buildMenuTerminal(id, screen, findMenu);
+      const terminal = buildMenuTerminal(id, findMenu);
 
       const known = await readKnownMenu(terminal);
 
@@ -2336,7 +2339,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       mgr.requireExecution(s, 'input');
 
-      const terminal = buildMenuTerminal(id, screen, findMenu);
+      const terminal = buildMenuTerminal(id, findMenu);
       const applied = Promise.withResolvers<MenuChoiceResult>();
 
       // The choice holds the session's input queue from its first read to

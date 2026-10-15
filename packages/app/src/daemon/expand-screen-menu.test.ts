@@ -179,3 +179,26 @@ test('it finds no whole menu when the window marks options below that the list l
 
   expect(expandScreenMenu(part, whole)).toBeNull();
 });
+
+test('it finds no whole menu for a window without marks whose cursor shows the list ends there', () => {
+  const part = {
+    text: 'Pick a colour',
+    options: [
+      { label: 'Amber', checked: null },
+      { label: 'Teal', checked: null },
+    ],
+    highlighted: 0,
+  };
+
+  const whole = {
+    text: 'Pick a colour',
+    options: [
+      { label: 'Amber', checked: null },
+      { label: 'Teal', checked: null },
+      { label: 'Plum', checked: null },
+    ],
+    highlighted: 0,
+  };
+
+  expect(expandScreenMenu(part, whole)).toBeNull();
+});
