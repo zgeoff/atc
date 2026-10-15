@@ -197,6 +197,48 @@ test('it persists a session the agent has not yet given a session id', async () 
   ]);
 });
 
+test('it persists a harness kept inside a sleeping host as suspended while the operator still wants it running', async () => {
+  const ctx = await setupTest();
+
+  ctx.registry.sessions.push(
+    buildMockSession({
+      id: toSessionID('s-dozer'),
+      name: 'dozer',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-dozer'),
+      agent: 'claude',
+      kind: 'pty',
+      pty: null,
+      state: 'exited',
+      desired: 'run',
+      vm: 'asleep',
+      suspended: true,
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      lastAttachedAt: 1000,
+    }),
+  );
+
+  await ctx.writer.writeFleet();
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(stored).toStrictEqual([
+    {
+      sessionID: toSessionID('s-dozer'),
+      name: 'dozer',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-dozer'),
+      agent: 'claude',
+      exited: true,
+      suspended: true,
+      target: 'box',
+      targetIdentity: 'imp:0123456789abcdef',
+      lastAttachedAt: 1000,
+    },
+  ]);
+});
+
 test('it logs a background fleet write that fails and keeps the change in memory', async () => {
   const ctx = await setupTest();
 

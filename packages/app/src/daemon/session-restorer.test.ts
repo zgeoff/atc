@@ -296,6 +296,43 @@ test('it lists an exited entry left asleep as asleep on a target whose host can 
   });
 });
 
+test('it lists an exited entry whose host went to sleep on its own as asleep while the operator still wants it running', () => {
+  const ctx = setupTest({
+    adapters: [buildMockAgentAdapter()],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'box',
+        kind: 'imp-like',
+        identity: 'imp-like:test',
+        provider: buildStubMemoryProvider({ capabilities: { suspend: true }, remote: true }),
+      }),
+    ],
+  });
+
+  const session = ctx.restorer.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-dozer'),
+      name: 'dozer',
+      cwd: '/work/proj',
+      agentSessionID: toAgentSessionID('c-dozer'),
+      agent: 'claude',
+      exited: true,
+      suspended: true,
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  );
+
+  expect(session).toMatchObject({
+    state: 'exited',
+    lastMsg: 'asleep',
+    desired: 'run',
+    vm: 'asleep',
+    suspended: true,
+    attachment: 'detached',
+  });
+});
+
 test('it marks a restored live session as still waiting for its terminal', () => {
   const ctx = setupTest({
     adapters: [buildMockAgentAdapter()],

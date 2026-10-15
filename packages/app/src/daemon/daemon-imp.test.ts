@@ -826,6 +826,58 @@ test('it lists a session whose imp another owner put to sleep as asleep', async 
   });
 });
 
+test('it restores a session whose imp another owner put to sleep as suspended after a daemon restart', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    cols: 80,
+    rows: 24,
+    resume: 'agent-session-1',
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+  const [imp] = ctx.port.collectImpNames();
+
+  await ctx.client.sendRequest('session.attach', { session: id, cols: 80, rows: 24 });
+
+  await waitFor(() => {
+    expect(
+      ctx.events
+        .filter((event) => event.ev === 'SessionOutput')
+        .map((event) => String(event['d']))
+        .join(''),
+    ).toInclude('UP:');
+  });
+
+  ctx.port.suspendWithForce(String(imp));
+
+  await waitFor(async () => {
+    const listed = await ctx.client.sendRequest('session.list');
+
+    expect(listed).toMatchObject({ sessions: [{ id, lastMsg: 'asleep' }] });
+  });
+
+  await ctx.restart();
+
+  const client = await ctx.openClient();
+
+  await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const listed = await client.sendRequest('session.list');
+
+  expect(listed).toMatchObject({
+    sessions: [
+      {
+        id,
+        state: 'exited',
+        lastMsg: 'asleep',
+        lifecycle: { desired: 'run', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
+      },
+    ],
+  });
+});
+
 test('it revives a session whose imp another owner put to sleep in the same process', async () => {
   const ctx = await setupTest();
 

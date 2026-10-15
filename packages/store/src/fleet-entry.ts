@@ -66,6 +66,11 @@ export interface FleetEntry {
   // so a harness a restore attaches to keeps it; absent for a harness that
   // takes no credential from impd's broker.
   readonly authRevision?: number;
+
+  // Whether the harness is kept inside a host that went to sleep, whether
+  // the operator or the host's own owner put it to sleep; absent for any
+  // other harness.
+  readonly suspended?: true;
 }
 
 export interface FleetStore {

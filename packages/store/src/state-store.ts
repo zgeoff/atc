@@ -248,6 +248,7 @@ export class StateStore {
         'fleet.desired',
         'fleet.host_key',
         'fleet.auth_revision',
+        'fleet.suspended',
       ])
       .execute();
 
@@ -287,6 +288,7 @@ export class StateStore {
         ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
         ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
         ...(row.auth_revision === null ? {} : { authRevision: row.auth_revision }),
+        ...(row.suspended === 1 ? { suspended: true } : {}),
       });
     }
 
@@ -428,6 +430,7 @@ export class StateStore {
             desired: entry.desired ?? null,
             host_key: entry.hostKey ?? null,
             auth_revision: entry.authRevision ?? null,
+            suspended: entry.suspended === true ? 1 : 0,
           })
           .execute();
 

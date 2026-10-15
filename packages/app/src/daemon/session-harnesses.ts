@@ -1,6 +1,7 @@
 import type { SessionID } from '@atc/core';
 import type { ExecutionProvider, HarnessHandle, HarnessStart } from '@atc/plugin-api';
 import { formatAuthNotice } from './format-auth-notice';
+import { HARNESS_EXIT_TRANSITIONS } from './harness-exit-transitions';
 import type { BridgeBinding } from './is-binding-current';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
@@ -102,13 +103,18 @@ export class SessionHarnesses {
         s.attachment = 'detached';
       }
 
+      const transition = HARNESS_EXIT_TRANSITIONS[exit.reason ?? 'exited'];
+
       if (s.kind === 'pty' && s.state !== 'exited') {
         s.state = 'exited';
         s.unread = this.registry.focusedId !== s.id;
-        s.lastMsg = pickExitMessage(exit);
+
+        s.lastMsg = transition.takesDetail
+          ? (exit.detail ?? transition.message)
+          : transition.message;
       }
 
-      if (exit.reason === 'suspended') {
+      if (transition.suspends) {
         s.vm = 'asleep';
         s.suspended = true;
       }
@@ -116,7 +122,11 @@ export class SessionHarnesses {
       this.callbacks.onEvent('state', s);
       this.fleet.emitChange();
 
-      if (exit.reason === undefined || exit.reason === 'exited') {
+      if (transition.writesFleet) {
+        void this.fleet.tryWriteFleet(s.id);
+      }
+
+      if (transition.endsProcess) {
         this.callbacks.onProcessEnded(s);
       }
     });
@@ -247,17 +257,4 @@ export class SessionHarnesses {
 
     return s.authRevision !== undefined && revision !== undefined && s.authRevision < revision;
   }
-}
-
-// Why a harness stopped, as a session's last message.
-function pickExitMessage(exit: Readonly<{ reason?: string; detail?: string }>): string {
-  if (exit.reason === 'suspended') {
-    return 'asleep';
-  }
-
-  if (exit.reason === 'ended') {
-    return exit.detail ?? 'host lost the process';
-  }
-
-  return 'process exited';
 }

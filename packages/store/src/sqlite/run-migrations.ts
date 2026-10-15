@@ -41,6 +41,12 @@ interface FleetTable {
   // Null for a harness that takes no credential from impd's broker, and for
   // a row from before launch revisions were recorded.
   auth_revision: number | null;
+
+  // 1 when the session's harness is kept inside a host that went to sleep,
+  // whoever put it to sleep, so a restore after a daemon restart lists it
+  // as suspended. 0 for any other harness, and null for a row from before
+  // a sleep was recorded.
+  suspended: number | null;
 }
 
 interface EventsTable {
@@ -665,6 +671,11 @@ const MIGRATIONS: Record<string, Migration> = {
   '034_add_events_answer_text': {
     async up(db: Kysely<StateStoreSchema>) {
       await db.schema.alterTable('events').addColumn('answer_text', 'text').execute();
+    },
+  },
+  '035_add_fleet_suspended': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('suspended', 'integer').execute();
     },
   },
 };
