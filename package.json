@@ -73,7 +73,7 @@
     "demo:record": "bash scripts/record-demo.sh",
     "files:branch": "bun scripts/collect-branch-files.ts",
     "lint": "oxlint",
-    "lint:files": "oxlint",
+    "lint:files": "oxlint --no-error-on-unmatched-pattern",
     "lint:fix": "oxlint --fix",
     "lint:shell": "git ls-files -z '*.sh' ':!.claude/**' | xargs -0 sh -c 'shellcheck \"$@\" && shfmt -d \"$@\"' sh",
     "lint:full": "oxlint --type-aware --type-check --report-unused-disable-directives-severity error",
