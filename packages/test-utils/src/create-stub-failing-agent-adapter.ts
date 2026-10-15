@@ -1,3 +1,4 @@
+import { closeSync, constants, openSync, readSync } from 'node:fs';
 import type { AgentAdapter } from '@atc/plugin-api/agent-adapter';
 import { runCommand } from '@atc/test-utils/run-command';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
@@ -37,10 +38,9 @@ interface FailingAgentAdapterConfig {
  *
  * With a ready pipe, the stub makes the pipe at that path before it
  * resolves, and the first failing read blocks until a process writes its
- * pid there, which the headless runner read is synchronous for. A read that finds no writer
- * within the timeout throws instead of failing the start. `getReadyPID`
- * returns the pid that read took. `countPlans` reads how many spawns the
- * adapter has planned.
+ * pid there. A read that finds no writer within the timeout throws instead
+ * of failing the start. `getReadyPID` returns the pid that read took.
+ * `countPlans` reads how many spawns the adapter has planned.
  */
 export async function createStubFailingAgentAdapter(config: FailingAgentAdapterConfig) {
   let planned = 0;
@@ -99,15 +99,49 @@ async function createPipe(path: string): Promise<void> {
   }
 }
 
-// Reading the pipe blocks until a writer opens it and closes it, so the
-// read returns once the process has written its pid.
-function readPID(ready: ReadyPipe): number {
-  // oxlint-disable-next-line no-restricted-properties -- the adapter reads the pid inside a synchronous getter, so only a blocking read fits
-  const read = Bun.spawnSync({ cmd: ['cat', ready.path], timeout: ready.timeoutMs });
+const PIPE_POLL_MS = 5;
 
-  if (read.exitedDueToTimeout === true) {
-    throw new Error(`no process wrote ${ready.path} within ${String(ready.timeoutMs)}ms`);
+// The read opens the pipe without blocking and polls it, since the adapter
+// reads the pid inside a synchronous getter. Before a writer opens the pipe,
+// a read finds it at its end, so the pid is complete only once some bytes
+// have come and a later read finds the end again: the writer has closed it.
+function readPID(ready: ReadyPipe): number {
+  const fd = openSync(ready.path, constants.O_RDONLY | constants.O_NONBLOCK);
+  const deadline = performance.now() + ready.timeoutMs;
+  const chunk = Buffer.alloc(64);
+  let text = '';
+
+  try {
+    while (performance.now() < deadline) {
+      const size = tryReadPipe(fd, chunk);
+
+      if (size === 0 && text !== '') {
+        return Number(text.trim());
+      }
+
+      if (size !== null && size > 0) {
+        text += chunk.toString('utf8', 0, size);
+        continue;
+      }
+
+      Bun.sleepSync(PIPE_POLL_MS);
+    }
+  } finally {
+    closeSync(fd);
   }
 
-  return Number(read.stdout.toString().trim());
+  throw new Error(`no process wrote ${ready.path} within ${String(ready.timeoutMs)}ms`);
+}
+
+// Null when a writer holds the pipe open with nothing written yet.
+function tryReadPipe(fd: number, chunk: Buffer): number | null {
+  try {
+    return readSync(fd, chunk);
+  } catch (error) {
+    if (error instanceof Error && Reflect.get(error, 'code') === 'EAGAIN') {
+      return null;
+    }
+
+    throw error;
+  }
 }
