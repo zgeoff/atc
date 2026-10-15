@@ -145,36 +145,3 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
     { v: 4, ev: 'SessionRemoved', s: 'sx' },
   ]);
 });
-
-test('it closes a peer it refuses before collecting a snapshot for it', async () => {
-  const ctx = setupTest();
-
-  const server = startEventsServer({
-    socketPath: ctx.socketPath,
-    collectSnapshot: ctx.collectSnapshot,
-    shouldRefusePeer: () => true,
-  });
-
-  registerTestCleanup(() => {
-    server.stop();
-  });
-
-  const refused = connect(ctx.socketPath);
-
-  registerTestCleanup(() => {
-    refused.destroy();
-  });
-
-  refused.on('error', () => {});
-  refused.on('data', () => {});
-
-  const closed = Promise.withResolvers<void>();
-
-  refused.on('close', () => {
-    closed.resolve();
-  });
-
-  await closed.promise;
-
-  expect(ctx.snapshots).toStrictEqual([]);
-});

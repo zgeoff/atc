@@ -12,10 +12,6 @@ interface EventsServerOptions {
   // speaking the client protocol.
   readonly collectSnapshot: () => readonly EventMsg[];
 
-  // Whether to close a connection the moment it opens, before it reads
-  // anything, given the accepted socket.
-  readonly shouldRefusePeer?: (socket: object) => boolean;
-
   // Outbound queue capacity per subscriber; small values force the overflow
   // disconnect in tests.
   readonly queueBytes?: number;
@@ -36,8 +32,7 @@ interface Subscriber {
  * handshake and receives NDJSON wire events: first the snapshot, then every
  * broadcast behind it. Input on the socket is ignored. A subscriber whose
  * outbound queue overflows is disconnected rather than stalled — on
- * reconnect it gets a fresh snapshot instead of the backlog it missed. A
- * peer the options refuse is closed before it gets the snapshot.
+ * reconnect it gets a fresh snapshot instead of the backlog it missed.
  */
 export function startEventsServer(opts: EventsServerOptions): EventsServer {
   const subscribers = new Set<Subscriber>();
@@ -59,12 +54,6 @@ export function startEventsServer(opts: EventsServerOptions): EventsServer {
           };
 
           socket.data = subscriber;
-
-          if (opts.shouldRefusePeer?.(socket) === true) {
-            subscriber.end();
-
-            return;
-          }
 
           subscribers.add(subscriber);
 

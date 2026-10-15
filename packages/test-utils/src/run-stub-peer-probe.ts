@@ -18,10 +18,6 @@ import { DaemonError } from '@atc/protocol/daemon-error';
  *   `client-7`, named `Lantern Notes`.
  * - `hello` sends a handshake that gives the session. It writes
  *   `{ "ok": true }`, or the refusal's `code`.
- * - `events` connects to the socket path as an events socket and waits for
- *   the daemon to close it, writing one empty line once it is connected. It
- *   writes how many bytes it read first, none when the close failed the
- *   connect.
  */
 async function main() {
   const [probe, socketPath, session, outPath] = process.argv.slice(2);
@@ -35,49 +31,9 @@ async function main() {
     throw new Error('usage: run-stub-peer-probe.ts <probe> <socket path> <session> <out path>');
   }
 
-  const outcome =
-    probe === 'events' ? await readEvents(socketPath) : await tryProbe(probe, socketPath, session);
+  const outcome = await tryProbe(probe, socketPath, session);
 
   writeFileSync(outPath, JSON.stringify(outcome));
-}
-
-async function readEvents(socketPath: string): Promise<Readonly<Record<string, unknown>>> {
-  const closed = Promise.withResolvers<void>();
-  let bytes = 0;
-
-  // A close that lands while the connect completes fails the connect itself
-  // with a reset, which reads nothing as well. Any other failure, such as a
-  // missing socket, stops the probe without an outcome.
-  try {
-    const socket = await Bun.connect({
-      unix: socketPath,
-      socket: {
-        data(_socket, buf) {
-          bytes += buf.byteLength;
-        },
-        close() {
-          closed.resolve();
-        },
-        error() {
-          closed.resolve();
-        },
-      },
-    });
-
-    // The daemon ignores input on the events socket; the line tells a
-    // stand-in listener that the connect completed.
-    socket.write('\n');
-  } catch (error) {
-    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ECONNRESET') {
-      throw error;
-    }
-
-    closed.resolve();
-  }
-
-  await closed.promise;
-
-  return { bytes };
 }
 
 async function tryProbe(

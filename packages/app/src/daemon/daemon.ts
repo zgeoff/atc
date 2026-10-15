@@ -548,8 +548,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return findPeerSession(pid, harnesses);
   };
 
-  // A process inside a session never reads the events socket: it gets the
-  // fleet only through its own connection, which acts as that session.
+  // Any local process reads the events socket, a process inside a session
+  // too: the socket only streams, so the session a peer runs inside binds
+  // nothing on it.
   const eventsServer =
     opts.eventsSocketPath === undefined
       ? null
@@ -561,7 +562,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
               ev: 'SessionAdded',
               session,
             })),
-          shouldRefusePeer: (socket) => findSocketSession(socket) !== null,
           ...(opts.queueBytes === undefined ? {} : { queueBytes: opts.queueBytes }),
         });
 
