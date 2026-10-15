@@ -4,9 +4,11 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   readlinkSync,
   rmSync,
   symlinkSync,
+  writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
@@ -212,6 +214,107 @@ test("it copies the daemon's atc in when the image's atc runs another version", 
   expect(log).toHaveBeenCalledExactlyOnceWith(
     `imp atc-s1 runs hooks through the daemon's atc 1.0.0, copied to ${join(ctx.dir, 'g')}/bin/atc: the image's atc at ${guestATC} is 0.9.0`,
   );
+});
+
+test.each([
+  ['before the new atc has a byte on disk', 0],
+  ['with the new atc half written', 20_480],
+])(
+  "it keeps the guest's old atc runnable while the copy that replaces it is paused %s",
+  async (_label, bytes) => {
+    const ctx = setupTest();
+    const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+
+    // A comment pads the new atc past the bytes the pause lets through, so
+    // the pause falls inside the file and not after it. tar writes in
+    // records of 10 KiB, so a pause after two of them leaves the new atc on
+    // disk and half written.
+    const atcBinary = createStubBin(
+      ctx.dir,
+      'daemon-atc',
+      `#!/bin/sh\n# ${'x'.repeat(30_000)}\necho 1.0.0\n`,
+    );
+
+    createStubBin(join(ctx.dir, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.9.0\n');
+
+    const provider = new ImpProvider(
+      ctx.port,
+      { guestDir: join(ctx.dir, 'g'), guestATC },
+      { atcBinary, version: '1.0.0' },
+    );
+
+    registerTestCleanup(() => {
+      provider.dispose();
+    });
+
+    // A gzip ahead of the guest's own on its PATH hands tar the first bytes
+    // of the unpacked archive, marks the pause, and holds the rest back
+    // until the test lets it go, as a slow link to impd does.
+    const realGzip = Bun.which('gzip');
+
+    invariant(realGzip !== null);
+
+    const bin = join(ctx.dir, 'bin');
+    const paused = join(ctx.dir, 'paused');
+    const resume = join(ctx.dir, 'resume');
+
+    createStubBin(
+      bin,
+      'gzip',
+      `#!/bin/sh\n'${realGzip}' "$@" | { dd bs=1 count=${bytes} 2> /dev/null; touch '${paused}'; until [ -e '${resume}' ]; do sleep 0.01; done; cat; }\n`,
+    );
+
+    registerTestCleanup(() => {
+      writeFileSync(resume, '');
+    });
+
+    ctx.port.setGuestPath(`${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`);
+
+    const prepared = provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+    await waitFor(() => {
+      expect(existsSync(paused)).toBeTrue();
+    });
+
+    const during = Bun.spawn(['sh', '-c', 'exec "$0"', join(ctx.dir, 'g', 'bin', 'atc')], {
+      stdout: 'pipe',
+    });
+
+    const exitCode = await during.exited;
+
+    const stdout = await new Response(during.stdout).text();
+
+    await Bun.write(resume, '');
+
+    await prepared;
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe('0.9.0\n');
+
+    expect(readFileSync(join(ctx.dir, 'g', 'bin', 'atc'), 'utf8')).toBe(
+      `#!/bin/sh\n# ${'x'.repeat(30_000)}\necho 1.0.0\n`,
+    );
+  },
+);
+
+test("it leaves no staging folder in the guest folder after it copies the daemon's atc in", async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.dir, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = createStubBin(ctx.dir, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const provider = new ImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.dir, 'g'), guestATC },
+    { atcBinary, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
+
+  expect(readdirSync(join(ctx.dir, 'g')).toSorted()).toStrictEqual(['bin', 'run']);
 });
 
 test("it copies the daemon's atc in when the image has no atc at the target's path", async () => {
