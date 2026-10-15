@@ -42,6 +42,7 @@ if (host === null) {
 const bootDaemonClient = host.bootDaemon;
 const restartDaemonAt = host.restartDaemon;
 const logClientEvent = host.logEvent;
+const remoteDaemonName = host.daemonName;
 
 // The time and the timers every wait of this client runs on.
 const clock = systemClock;
@@ -122,7 +123,7 @@ function scheduleStatus() {
         stale: daemonStale,
         restarting: daemonRestarting,
         waiting: daemonWaiting,
-        daemonName: host.daemonName,
+        daemonName: remoteDaemonName,
       });
     }
   }, 50);
