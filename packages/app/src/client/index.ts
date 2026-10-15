@@ -972,7 +972,7 @@ async function openDaemonLink(phase: 'boot' | 'tui'): Promise<DaemonLink> {
   }
 
   if (phase === 'tui') {
-    void refreshAfterReconnect(boot, restarted);
+    void refreshAfterReconnect(restarted, () => boot.client.isClosed());
   }
 
   return { boot, restarted };
@@ -981,7 +981,7 @@ async function openDaemonLink(phase: 'boot' | 'tui'): Promise<DaemonLink> {
 // Brings the mirror up to date on a daemon the client reconnected to. A
 // connection lost on the way is left to the next reconnect, which runs
 // this again.
-async function refreshAfterReconnect(boot: DaemonBoot, restarted: boolean) {
+async function refreshAfterReconnect(restarted: boolean, isClosed: () => boolean) {
   await transport.waitForConnection();
 
   try {
@@ -992,7 +992,7 @@ async function refreshAfterReconnect(boot: DaemonBoot, restarted: boolean) {
     await refreshMirror();
     await refreshAgents();
   } catch (error) {
-    if (!boot.client.isClosed()) {
+    if (!isClosed()) {
       logClientEvent(`reconnect: ${error instanceof Error ? error.message : String(error)}`);
     }
 

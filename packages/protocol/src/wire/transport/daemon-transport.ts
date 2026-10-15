@@ -118,8 +118,7 @@ export class DaemonTransport<C> {
   }
 
   readState(): TransportState {
-    // oxlint-disable-next-line no-unsafe-type-assertion -- the machine's top-level states are exactly these names
-    return this.actor.getSnapshot().value as TransportState;
+    return this.actor.getSnapshot().value;
   }
 
   /**

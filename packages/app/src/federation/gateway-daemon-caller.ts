@@ -30,6 +30,9 @@ interface OpenConnection {
   readonly hello: DaemonHello;
 }
 
+// A connection as a request reads it, which never replaces its callback.
+type SendingConnection = Readonly<{ channel: Readonly<GatewayChannel>; hello: DaemonHello }>;
+
 const CONNECT_TIMEOUT_MS = 10_000;
 const RESPONSE_TIMEOUT_MS = 30_000;
 
@@ -165,7 +168,7 @@ export class GatewayDaemonCaller {
   // the daemon never held or has dropped, and which ends as
   // `outcome_unknown`.
   private async trySend(
-    connection: OpenConnection,
+    connection: SendingConnection,
     m: string,
     p: Readonly<Record<string, unknown>>,
     as: Principal | undefined,
