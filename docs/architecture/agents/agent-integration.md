@@ -135,10 +135,11 @@ running turn otherwise. The request carries the message id as the client message
 acks the message once the server takes it. Each turn request holds the spawn's model, because a
 message can arrive before the terminal applies that model to the thread. A server that turns a
 message or a notice away as overloaded has taken nothing, so the item stays queued and the bridge
-sends it again after a wait that doubles with each refusal. When the turn completes, the turn's last
-reply answers every message the turn carried that `atc.answer` left without an answer. An
-interrupted or failed turn leaves them unanswered. The bridge answers only its own tool calls, so
-approvals stay with the terminal.
+sends it again after a wait that doubles with each refusal. Later sends wait behind it, because the
+daemon hands the bridge a newer message without waiting for the older one's ack. When the turn
+completes, the turn's last reply answers every message the turn carried that `atc.answer` left
+without an answer. An interrupted or failed turn leaves them unanswered. The bridge answers only its
+own tool calls, so approvals stay with the terminal.
 
 The App Server keeps no record of the client message ids it took, so a resent message runs twice. On
 every connection, the bridge therefore recovers before it sends anything. It reads the thread's

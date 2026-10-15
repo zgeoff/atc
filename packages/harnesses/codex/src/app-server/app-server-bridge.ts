@@ -78,7 +78,8 @@ const OVERLOADED_CODE = -32_001;
  * marks it delivered once the server takes it, and settles it when its
  * turn ends: answered with the turn's last reply, or unanswered. A send the
  * server turns away as overloaded leaves the message or notice queued, and
- * the bridge sends it again after a wait that doubles with each refusal.
+ * the bridge sends it again after a wait that doubles with each refusal;
+ * later sends wait behind it, so the order holds.
  * The thread and each turn run on the model the spawn asked for, so a
  * message that arrives before the terminal applies that model still runs
  * on it. It serves
@@ -126,7 +127,8 @@ export class AppServerBridge {
 
   private retryDelay: number;
 
-  private overloadTimer: ReturnType<typeof setTimeout> | undefined;
+  // Ends the overload wait in progress early, so its send gives up.
+  private endOverloadWait: (() => void) | undefined;
 
   private overloadDelay: number;
 
@@ -182,6 +184,12 @@ export class AppServerBridge {
    * thread the bridge already serves changes nothing.
    */
   updateThread(thread: string): void {
+    // A send that waits out an overload holds the queue, so the move ends
+    // the wait rather than wait behind it.
+    if (thread !== this.threadID) {
+      this.endOverloadWait?.();
+    }
+
     this.scheduleSend(() => this.updateThreadNow(thread));
   }
 
@@ -586,7 +594,11 @@ export class AppServerBridge {
           `codex app server: the App Server is overloaded; message ${message.id} stayed queued (${error.message})`,
         );
 
-        this.scheduleOverloadRetry(conn, () => this.sendMessage(message));
+        const again = await this.waitOutOverload(conn);
+
+        if (again) {
+          await this.sendMessage(message);
+        }
 
         return;
       }
@@ -648,7 +660,11 @@ export class AppServerBridge {
           `codex app server: the App Server is overloaded; notice ${notice.id} stayed queued (${error.message})`,
         );
 
-        this.scheduleOverloadRetry(conn, () => this.sendNotice(notice));
+        const again = await this.waitOutOverload(conn);
+
+        if (again) {
+          await this.sendNotice(notice);
+        }
 
         return;
       }
@@ -688,23 +704,34 @@ export class AppServerBridge {
     return this.config.model === undefined ? {} : { model: this.config.model };
   }
 
-  // Sends the item again once the wait ends. The daemon hands the next item
-  // only after this one is acked or settled, so the order holds. A
-  // connection that drops first cancels the retry, and its successor's tap
-  // hands the item over again.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the retry belongs to the live connection
-  private scheduleOverloadRetry(conn: AppServerConnection, send: () => Promise<void>): void {
+  // Waits out the overload inside the send in flight, so every item the
+  // daemon hands over meanwhile queues behind it and the order holds.
+  // Resolves true when the item should go again on the same connection.
+  // A dropped connection, a stop or a thread move ends the wait with false,
+  // and the item stays queued for the next connection's tap.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the wait belongs to the live connection
+  private async waitOutOverload(conn: AppServerConnection): Promise<boolean> {
     const delay = this.overloadDelay;
 
     this.overloadDelay = Math.min(delay * 2, this.config.retryMs?.max ?? 30_000);
 
-    this.overloadTimer = setTimeout(() => {
-      this.overloadTimer = undefined;
+    const wait = Promise.withResolvers<boolean>();
 
-      if (conn === this.conn) {
-        this.scheduleSend(send);
-      }
+    const timer = setTimeout(() => {
+      wait.resolve(false);
     }, delay);
+
+    this.endOverloadWait = () => {
+      clearTimeout(timer);
+
+      wait.resolve(true);
+    };
+
+    const ended = await wait.promise;
+
+    this.endOverloadWait = undefined;
+
+    return !ended && conn === this.conn && !this.stopped;
   }
 
   // Serves a call to one of the bridge's own tools on its thread; every
@@ -795,10 +822,7 @@ export class AppServerBridge {
 
     this.conn = null;
     this.ready = false;
-
-    clearTimeout(this.overloadTimer);
-
-    this.overloadTimer = undefined;
+    this.endOverloadWait?.();
 
     // The next connection's recovery reads the stored turns, which hold
     // everything these held, and a stale reply here would outrank them.
