@@ -1273,9 +1273,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     if (currentAgentSessionID !== undefined && currentAgentSessionID !== previousAgentSessionID) {
       void store.updateMessageOwner(e.atcId, previousAgentSessionID, currentAgentSessionID);
       void store.updateTrailOwner(e.atcId, currentAgentSessionID);
+    }
 
-      // The terminal moved to another conversation, so the session's bridge
-      // moves with it and delivers nothing more to the old one.
+    // Only a session start shows the terminal on a conversation: a turn of
+    // an older one can still end after the terminal moves on. The session's
+    // bridge follows the terminal and delivers nothing more to the older
+    // conversation; a start on the conversation it serves changes nothing.
+    if (currentAgentSessionID !== undefined && events.some((ev) => ev.kind === 'started')) {
       messageBridges.get(e.atcId)?.updateThread(currentAgentSessionID);
     }
 

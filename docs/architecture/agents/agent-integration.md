@@ -123,8 +123,12 @@ restored session resumes the same thread, and the tools and instructions come ba
 
 The terminal can move to another thread, as when a person starts a new conversation or resumes an
 older one, and the bridge follows it so that a message reaches the conversation the terminal shows.
-The daemon learns of the move from the hook that reports a new agent session id, and hands that id
-to the bridge. The bridge drops its connection, so it sends nothing more to the old thread, and the
+Codex reports a session start each time the terminal starts, resumes, clears, compacts, or forks a
+thread, and the daemon hands the bridge the thread of each session start and of no other hook. A
+turn of the old thread can still run after the move and end later, so its hooks report the old
+thread. The Codex adapter keeps the thread of the latest session start, and reads a turn's hook from
+any other thread without its agent session id, so the session and its bridge stay on the thread the
+terminal shows. The bridge drops its connection, so it sends nothing more to the old thread, and the
 next connection resumes the new thread and recovers before it delivers. A message that a turn of the
 old thread still carries becomes unanswered with the reason `thread_switched`, because no turn of
 the new thread will carry it. A thread the terminal starts itself has no atc tools or instructions,
