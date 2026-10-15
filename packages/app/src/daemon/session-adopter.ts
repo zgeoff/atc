@@ -34,7 +34,14 @@ interface SessionAdopterDeps {
   readonly auth: Pick<AuthSetup, 'buildBrokerSpec' | 'resolveHarnessAuth' | 'setupHarnessOnHost'>;
   readonly callbacks: Pick<
     SessionCallbacks,
-    'onBoot' | 'onEvent' | 'onRelay' | 'log' | 'now' | 'getRecords'
+    | 'onBoot'
+    | 'onEvent'
+    | 'onRelay'
+    | 'log'
+    | 'now'
+    | 'getRecords'
+    | 'startMessageBridge'
+    | 'stopMessageBridge'
   >;
 }
 

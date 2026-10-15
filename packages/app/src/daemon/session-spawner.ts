@@ -86,7 +86,15 @@ interface SessionSpawnerDeps {
   >;
   readonly callbacks: Pick<
     SessionCallbacks,
-    'onBoot' | 'onEvent' | 'onRelay' | 'log' | 'now' | 'getClock' | 'getRecords'
+    | 'onBoot'
+    | 'onEvent'
+    | 'onRelay'
+    | 'log'
+    | 'now'
+    | 'getClock'
+    | 'getRecords'
+    | 'startMessageBridge'
+    | 'stopMessageBridge'
   >;
 }
 
