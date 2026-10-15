@@ -92,6 +92,42 @@ test('it fails on more import rule directives than the baseline', async () => {
   });
 });
 
+test('it counts a directive that switches off the require ban, in a mod too', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'scripts/disable-baseline.json'),
+    JSON.stringify({ importRuleDisables: 0 }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'mods/bridge/hooks/register.ts'),
+    "// oxlint-disable-next-line typescript/no-require-imports\nexport const PTY: unknown = require('bun-pty');\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/tui/src/a.ts'),
+    "// eslint-disable-next-line @typescript-eslint/no-require-imports\nexport const PTY: unknown = require('bun-pty');\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-disable-baseline.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-disable-baseline: 2 directives, baseline 0\n',
+    stderr:
+      'import rule disabled: packages/tui/src/a.ts:1\nimport rule disabled: mods/bridge/hooks/register.ts:1\ncheck-disable-baseline: 2 more than the baseline in scripts/disable-baseline.json\n',
+  });
+});
+
 test('it counts a block directive whose rules span several lines', async () => {
   const ctx = setupTest();
 

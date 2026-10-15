@@ -29,6 +29,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -162,6 +163,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -264,6 +266,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -393,6 +396,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -495,6 +499,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -624,6 +629,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -726,6 +732,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -855,6 +862,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -957,6 +965,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1078,6 +1087,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1180,6 +1190,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1309,6 +1320,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1411,6 +1423,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1540,6 +1553,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1642,6 +1656,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1771,6 +1786,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -1873,6 +1889,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2002,6 +2019,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2104,6 +2122,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2233,6 +2252,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2335,6 +2355,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2464,6 +2485,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2566,6 +2588,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2695,6 +2718,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2797,6 +2821,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -2926,6 +2951,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3028,6 +3054,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3157,6 +3184,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3259,6 +3287,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3388,6 +3417,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3490,6 +3520,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3623,6 +3654,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3725,6 +3757,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3850,6 +3883,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -3952,6 +3986,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4085,6 +4120,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4187,6 +4223,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4320,6 +4357,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4422,6 +4460,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4527,6 +4566,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4625,6 +4665,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4735,6 +4776,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -4837,38 +4879,40 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
+                  "@atc/config/*/**",
                   "!@atc/config/claude-statusline",
                   "!@atc/config/host",
-                  "@atc/config/*/**",
                   "@atc/core/*",
-                  "!@atc/core/schema",
                   "@atc/core/*/**",
+                  "!@atc/core/schema",
                   "@atc/execution-imp/*",
-                  "!@atc/execution-imp/testing",
                   "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
                   "@atc/execution-local/*",
-                  "!@atc/execution-local/testing",
                   "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
                   "@atc/harness-claude/*",
-                  "!@atc/harness-claude/testing",
                   "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
                   "@atc/harness-codex/*",
                   "@atc/harness-codex/*/**",
                   "@atc/harness-grok/*",
                   "@atc/harness-grok/*/**",
                   "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
                   "!@atc/lifecycle/run-command",
                   "!@atc/lifecycle/testing",
-                  "@atc/lifecycle/*/**",
                   "@atc/plugin-api/*",
                   "@atc/plugin-api/*/**",
                   "@atc/protocol/*",
+                  "@atc/protocol/*/**",
                   "!@atc/protocol/session",
                   "!@atc/protocol/wire",
-                  "@atc/protocol/*/**",
+                  "!@atc/protocol/wire/transport",
                   "@atc/source-dirs/*",
                   "@atc/source-dirs/*/**",
                   "@atc/source-git/*",
@@ -4876,9 +4920,9 @@
                   "@atc/source-github/*",
                   "@atc/source-github/*/**",
                   "@atc/store/*",
+                  "@atc/store/*/**",
                   "!@atc/store/sqlite",
                   "!@atc/store/testing",
-                  "@atc/store/*/**",
                   "@atc/test-utils/*",
                   "@atc/test-utils/*/**"
                 ],
@@ -4958,6 +5002,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -5056,6 +5101,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -5154,6 +5200,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -5252,6 +5299,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -5350,38 +5398,40 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
+                  "@atc/config/*/**",
                   "!@atc/config/claude-statusline",
                   "!@atc/config/host",
-                  "@atc/config/*/**",
                   "@atc/core/*",
-                  "!@atc/core/schema",
                   "@atc/core/*/**",
+                  "!@atc/core/schema",
                   "@atc/execution-imp/*",
-                  "!@atc/execution-imp/testing",
                   "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
                   "@atc/execution-local/*",
-                  "!@atc/execution-local/testing",
                   "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
                   "@atc/harness-claude/*",
-                  "!@atc/harness-claude/testing",
                   "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
                   "@atc/harness-codex/*",
                   "@atc/harness-codex/*/**",
                   "@atc/harness-grok/*",
                   "@atc/harness-grok/*/**",
                   "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
                   "!@atc/lifecycle/run-command",
                   "!@atc/lifecycle/testing",
-                  "@atc/lifecycle/*/**",
                   "@atc/plugin-api/*",
                   "@atc/plugin-api/*/**",
                   "@atc/protocol/*",
+                  "@atc/protocol/*/**",
                   "!@atc/protocol/session",
                   "!@atc/protocol/wire",
-                  "@atc/protocol/*/**",
+                  "!@atc/protocol/wire/transport",
                   "@atc/source-dirs/*",
                   "@atc/source-dirs/*/**",
                   "@atc/source-git/*",
@@ -5389,9 +5439,9 @@
                   "@atc/source-github/*",
                   "@atc/source-github/*/**",
                   "@atc/store/*",
+                  "@atc/store/*/**",
                   "!@atc/store/sqlite",
                   "!@atc/store/testing",
-                  "@atc/store/*/**",
                   "@atc/test-utils/*",
                   "@atc/test-utils/*/**"
                 ],
@@ -5471,38 +5521,40 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
+                  "@atc/config/*/**",
                   "!@atc/config/claude-statusline",
                   "!@atc/config/host",
-                  "@atc/config/*/**",
                   "@atc/core/*",
-                  "!@atc/core/schema",
                   "@atc/core/*/**",
+                  "!@atc/core/schema",
                   "@atc/execution-imp/*",
-                  "!@atc/execution-imp/testing",
                   "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
                   "@atc/execution-local/*",
-                  "!@atc/execution-local/testing",
                   "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
                   "@atc/harness-claude/*",
-                  "!@atc/harness-claude/testing",
                   "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
                   "@atc/harness-codex/*",
                   "@atc/harness-codex/*/**",
                   "@atc/harness-grok/*",
                   "@atc/harness-grok/*/**",
                   "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
                   "!@atc/lifecycle/run-command",
                   "!@atc/lifecycle/testing",
-                  "@atc/lifecycle/*/**",
                   "@atc/plugin-api/*",
                   "@atc/plugin-api/*/**",
                   "@atc/protocol/*",
+                  "@atc/protocol/*/**",
                   "!@atc/protocol/session",
                   "!@atc/protocol/wire",
-                  "@atc/protocol/*/**",
+                  "!@atc/protocol/wire/transport",
                   "@atc/source-dirs/*",
                   "@atc/source-dirs/*/**",
                   "@atc/source-git/*",
@@ -5510,9 +5562,9 @@
                   "@atc/source-github/*",
                   "@atc/source-github/*/**",
                   "@atc/store/*",
+                  "@atc/store/*/**",
                   "!@atc/store/sqlite",
                   "!@atc/store/testing",
-                  "@atc/store/*/**",
                   "@atc/test-utils/*",
                   "@atc/test-utils/*/**"
                 ],
@@ -5592,38 +5644,40 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
+                  "@atc/config/*/**",
                   "!@atc/config/claude-statusline",
                   "!@atc/config/host",
-                  "@atc/config/*/**",
                   "@atc/core/*",
-                  "!@atc/core/schema",
                   "@atc/core/*/**",
+                  "!@atc/core/schema",
                   "@atc/execution-imp/*",
-                  "!@atc/execution-imp/testing",
                   "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
                   "@atc/execution-local/*",
-                  "!@atc/execution-local/testing",
                   "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
                   "@atc/harness-claude/*",
-                  "!@atc/harness-claude/testing",
                   "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
                   "@atc/harness-codex/*",
                   "@atc/harness-codex/*/**",
                   "@atc/harness-grok/*",
                   "@atc/harness-grok/*/**",
                   "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
                   "!@atc/lifecycle/run-command",
                   "!@atc/lifecycle/testing",
-                  "@atc/lifecycle/*/**",
                   "@atc/plugin-api/*",
                   "@atc/plugin-api/*/**",
                   "@atc/protocol/*",
+                  "@atc/protocol/*/**",
                   "!@atc/protocol/session",
                   "!@atc/protocol/wire",
-                  "@atc/protocol/*/**",
+                  "!@atc/protocol/wire/transport",
                   "@atc/source-dirs/*",
                   "@atc/source-dirs/*/**",
                   "@atc/source-git/*",
@@ -5631,9 +5685,9 @@
                   "@atc/source-github/*",
                   "@atc/source-github/*/**",
                   "@atc/store/*",
+                  "@atc/store/*/**",
                   "!@atc/store/sqlite",
                   "!@atc/store/testing",
-                  "@atc/store/*/**",
                   "@atc/test-utils/*",
                   "@atc/test-utils/*/**"
                 ],
@@ -5713,38 +5767,40 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
+                  "@atc/config/*/**",
                   "!@atc/config/claude-statusline",
                   "!@atc/config/host",
-                  "@atc/config/*/**",
                   "@atc/core/*",
-                  "!@atc/core/schema",
                   "@atc/core/*/**",
+                  "!@atc/core/schema",
                   "@atc/execution-imp/*",
-                  "!@atc/execution-imp/testing",
                   "@atc/execution-imp/*/**",
+                  "!@atc/execution-imp/testing",
                   "@atc/execution-local/*",
-                  "!@atc/execution-local/testing",
                   "@atc/execution-local/*/**",
+                  "!@atc/execution-local/testing",
                   "@atc/harness-claude/*",
-                  "!@atc/harness-claude/testing",
                   "@atc/harness-claude/*/**",
+                  "!@atc/harness-claude/testing",
                   "@atc/harness-codex/*",
                   "@atc/harness-codex/*/**",
                   "@atc/harness-grok/*",
                   "@atc/harness-grok/*/**",
                   "@atc/lifecycle/*",
+                  "@atc/lifecycle/*/**",
                   "!@atc/lifecycle/run-command",
                   "!@atc/lifecycle/testing",
-                  "@atc/lifecycle/*/**",
                   "@atc/plugin-api/*",
                   "@atc/plugin-api/*/**",
                   "@atc/protocol/*",
+                  "@atc/protocol/*/**",
                   "!@atc/protocol/session",
                   "!@atc/protocol/wire",
-                  "@atc/protocol/*/**",
+                  "!@atc/protocol/wire/transport",
                   "@atc/source-dirs/*",
                   "@atc/source-dirs/*/**",
                   "@atc/source-git/*",
@@ -5752,9 +5808,9 @@
                   "@atc/source-github/*",
                   "@atc/source-github/*/**",
                   "@atc/store/*",
+                  "@atc/store/*/**",
                   "!@atc/store/sqlite",
                   "!@atc/store/testing",
-                  "@atc/store/*/**",
                   "@atc/test-utils/*",
                   "@atc/test-utils/*/**"
                 ],
@@ -5834,6 +5890,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",
@@ -5928,6 +5985,7 @@
               },
               {
                 "group": [
+                  "@atc/app",
                   "@atc/app/*",
                   "@atc/app/*/**",
                   "@atc/config/*",

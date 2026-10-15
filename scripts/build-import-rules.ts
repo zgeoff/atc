@@ -102,15 +102,20 @@ export function buildImportRules(entries: ReadonlyMap<string, readonly string[]>
 
 /**
  * One pattern that refuses every subpath of a package but the entry points
- * its exports map lists. oxlint's regular expressions take no lookahead, so
- * the pattern is a gitignore-style group: each package's subpaths at any
- * depth, minus each named entry. A package with no manifest yet has no
+ * its exports map lists, and the bare name of a package whose map lists no
+ * `.` entry. oxlint's regular expressions take no lookahead, so the pattern
+ * is a gitignore-style group: each package's subpaths at any depth, minus
+ * each named entry. A package with no manifest yet has no
  * group, so the rules hold for it from the change that creates it.
  */
 function buildEntryPattern(entries: ReadonlyMap<string, readonly string[]>): RestrictedPattern {
   const group: string[] = [];
 
   for (const [name, subpaths] of [...entries].toSorted(([a], [b]) => a.localeCompare(b))) {
+    if (!subpaths.includes('.')) {
+      group.push(name);
+    }
+
     group.push(`${name}/*`, `${name}/*/**`);
 
     for (const subpath of subpaths.filter((candidate) => candidate !== '.')) {

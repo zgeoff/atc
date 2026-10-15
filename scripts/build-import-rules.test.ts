@@ -87,6 +87,12 @@ test.each([
     'Import a package through an entry point its exports map lists.',
   ],
   [
+    'the bare name of a package whose exports map lists no root entry',
+    'e2e/a.test.ts',
+    '@atc/app',
+    'Import a package through an entry point its exports map lists.',
+  ],
+  [
     'a module that no entry point lists, from e2e',
     'e2e/a.test.ts',
     '@atc/test-utils/wait-for',
@@ -380,6 +386,44 @@ test('it refuses a confined package in a mod, which only the mods config lints',
     code: 'eslint(no-restricted-imports)',
     filename: 'mods/bridge/hooks/register.ts',
     help: '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+  });
+});
+
+test('it refuses a require call in a mod', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.json'),
+    JSON.stringify({ extends: [join(import.meta.dir, '..', '.oxlintrc.mods.json')] }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'mods/bridge/hooks/register.ts'),
+    "export const PTY: unknown = require('bun-pty');\n",
+  );
+
+  const linted = await runCommand(
+    [
+      process.execPath,
+      ctx.oxlint,
+      '-c',
+      '.oxlintrc.json',
+      '-f',
+      'json',
+      'mods/bridge/hooks/register.ts',
+    ],
+    { cwd: ctx.dir },
+  );
+
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
+
+  expect(report.diagnostics).toHaveLength(1);
+
+  expect(report.diagnostics).toPartiallyContain({
+    code: 'typescript(no-require-imports)',
+    filename: 'mods/bridge/hooks/register.ts',
   });
 });
 
