@@ -424,3 +424,60 @@ test('it keeps delivering to the thread the terminal moved to when a turn of the
 
   expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: moved });
 });
+
+test('it raises no attention for an approval a turn of the old thread asks for after the terminal moved', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  // The terminal runs once the bridge has opened the session's thread.
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('session.screen', { session: id });
+
+    expect(JSON.stringify(read)).toInclude('FAKE_CODEX_UP');
+  });
+
+  const socket = join(ctx.daemon.dir, 'sessions', id, 'codex', 'codex.sock');
+
+  await ctx.daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: 'thread-1' },
+  });
+
+  const moved = await startTerminalThread(socket);
+
+  await ctx.daemon.sendHookLines({
+    atcId: id,
+    event: 'SessionStart',
+    payload: { session_id: moved },
+  });
+
+  await ctx.daemon.sendHookLines(
+    {
+      atcId: id,
+      event: 'PermissionRequest',
+      payload: { session_id: 'thread-1', tool_name: 'shell' },
+    },
+    {
+      atcId: id,
+      event: 'Stop',
+      payload: { session_id: 'thread-1', last_assistant_message: 'the old turn is done' },
+    },
+  );
+
+  const listed = await ctx.daemon.client.sendRequest('session.list');
+
+  expect(listed['sessions']).toPartiallyContain({
+    id,
+    agentSessionID: moved,
+    state: expect.not.stringMatching(/^needs_you$/),
+  });
+});

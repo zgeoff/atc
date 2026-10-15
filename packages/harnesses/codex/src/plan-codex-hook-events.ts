@@ -20,8 +20,10 @@ interface CodexHookPlan {
  * terminal starts, resumes, clears, compacts, or forks a thread, so only a
  * session start moves the session to another thread. A turn of the old
  * thread can still run after the move, and its hook lines report the old
- * thread: such a line keeps no thread, name, or transcript, and means only
- * that the session is alive, or that it waits on a person's approval. A
+ * thread: such a line means only that the session is alive. Its approval
+ * request raises no attention, because the session's state follows the
+ * thread the terminal shows, and no later line of the old thread could
+ * clear that attention without overwriting the shown thread's state. A
  * line before the first session start is taken as it reads.
  */
 export function planCodexHookEvents(e: HookEvent, prev: unknown): CodexHookPlan {
@@ -38,12 +40,6 @@ export function planCodexHookEvents(e: HookEvent, prev: unknown): CodexHookPlan 
 
   if (state === undefined || thread === undefined || thread === state.thread) {
     return { events: [ev], ...keep };
-  }
-
-  if (ev.kind === 'needs-input') {
-    const { agentSessionID: _, ...rest } = ev;
-
-    return { events: [rest], ...keep };
   }
 
   return { events: [{ kind: 'heartbeat' }], ...keep };

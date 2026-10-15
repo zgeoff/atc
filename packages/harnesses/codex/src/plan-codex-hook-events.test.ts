@@ -75,7 +75,7 @@ test('it reads a submitted prompt of another thread as a heartbeat without a thr
   ).toStrictEqual({ events: [{ kind: 'heartbeat' }], next: { thread: 'thread-b' } });
 });
 
-test('it reads a permission request of another thread as needs-input without a thread', () => {
+test('it reads a permission request of another thread as a heartbeat without a thread', () => {
   expect(
     planCodexHookEvents(
       {
@@ -85,16 +85,7 @@ test('it reads a permission request of another thread as needs-input without a t
       },
       { thread: 'thread-b' },
     ),
-  ).toStrictEqual({
-    events: [
-      {
-        kind: 'needs-input',
-        message: 'waiting for approval: shell',
-        detail: 'waiting for approval: shell',
-      },
-    ],
-    next: { thread: 'thread-b' },
-  });
+  ).toStrictEqual({ events: [{ kind: 'heartbeat' }], next: { thread: 'thread-b' } });
 });
 
 test('it reads a session end of another thread as a heartbeat without a thread', () => {
