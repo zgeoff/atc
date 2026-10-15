@@ -1224,7 +1224,7 @@ async function restartDaemon() {
   // any other, with each failed open logged; the restore still runs once
   // it answers.
   const cancelLate = clock.schedule(() => {
-    daemonRestarting = false;
+    service.send({ type: 'RESTART_ENDED', connected: false });
 
     logClientEvent('restart: the new daemon has not answered in 8s; still trying');
     scheduleStatus();

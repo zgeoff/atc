@@ -480,6 +480,19 @@ test.each([
   expect(ctx.actor.getSnapshot().context.freshUntil).toBe(0);
 });
 
+test('it connects a restart that ended waiting once its late daemon is ready', () => {
+  const ctx = setupTest();
+
+  ctx.actor.start();
+  ctx.actor.send({ type: 'RESTART_STARTED' });
+  ctx.actor.send({ type: 'RESTART_AWAITING_FRESH', freshUntil: 9000 });
+  ctx.actor.send({ type: 'RESTART_ENDED', connected: false });
+  ctx.actor.send({ type: 'DAEMON_READY' });
+  ctx.actor.send({ type: 'RESTART_ENDED', connected: true });
+
+  expect(ctx.actor.getSnapshot().value.daemon).toBe('connected');
+});
+
 test('it starts a restart while it waits for a lost daemon', () => {
   const ctx = setupTest();
 
