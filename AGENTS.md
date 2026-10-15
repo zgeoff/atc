@@ -101,23 +101,23 @@ another package's `src/`, a subpath that a package's `exports` map does not list
 production code, and a confined external package outside the packages and files that
 `scripts/package-confinement.ts` lists. Those rules read import and export statements and `import()`
 calls, and oxlint refuses a `require()` call, so every module load takes a form they read.
-`bun run lint:mods` applies the confinement rules and the `require()` ban to `mods/`, which the main
-oxlint config ignores because the mod follows Claude Code's mod API rather than the repo's style
-rules. `bun run check:manifests` fails on an import the manifest does not declare, on a package with
-no `exports` map or with a wildcard entry, on a relative path into another package, and on a
-specifier that no import rule can read: a module load whose specifier is not a quoted string, or a
-resolve form in a workspace package whose specifier is not a literal. `bun run check:reach` fails
-when the gateway entry reaches a module the gateway must never load, and when the static import
-graph of a reporter or of `cli.ts` reaches a package module outside the light entries.
-`bun run check:bundle` fails when the atc bundle carries an execution provider that the shipped
-execution plugins list leaves out, or when a build whose list keeps only the local provider carries
-any other provider's code. `bun run check:disable-baseline` fails when more directives switch off an
-import rule than `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool definitions and
-request handling that `mcp-server.ts` serves, plus the HTTP transport behind `mcp-http-server.ts`
-and the better-auth authorization server and its pages. `federation/` holds the gateway's daemon
-registry, per-daemon callers, and id and cursor rewriting, and imports only `shared/` and
-`protocol/`. The app's `test-utils/` holds the helpers that start or drive the daemon. The
-`@atc/plugin-api` package (`packages/plugin-api/`) holds the contracts a harness, execution, or
+`bun run lint:mods` applies the confinement rules and the bans on `require()` and on `import()`
+types to `mods/`, which the main oxlint config ignores because the mod follows Claude Code's mod API
+rather than the repo's style rules. `bun run check:manifests` fails on an import the manifest does
+not declare, on a package with no `exports` map or with a wildcard entry, on a relative path into
+another package, and on a specifier that no import rule can read: a module load whose specifier is
+not a quoted string, or a resolve form in a workspace package whose specifier is not a literal.
+`bun run check:reach` fails when the gateway entry reaches a module the gateway must never load, and
+when the static import graph of a reporter or of `cli.ts` reaches a package module outside the light
+entries. `bun run check:bundle` fails when the atc bundle carries an execution provider that the
+shipped execution plugins list leaves out, or when a build whose list keeps only the local provider
+carries any other provider's code. `bun run check:disable-baseline` fails when more directives
+switch off an import rule than `scripts/disable-baseline.json` allows. `mcp/` holds the MCP tool
+definitions and request handling that `mcp-server.ts` serves, plus the HTTP transport behind
+`mcp-http-server.ts` and the better-auth authorization server and its pages. `federation/` holds the
+gateway's daemon registry, per-daemon callers, and id and cursor rewriting, and imports only
+`shared/` and `protocol/`. The app's `test-utils/` holds the helpers that start or drive the daemon.
+The `@atc/plugin-api` package (`packages/plugin-api/`) holds the contracts a harness, execution, or
 source plugin implements, among them the `AgentAdapter` interface, the host services a plugin
 receives, and the helpers harnesses share. The `@atc/test-utils` package (`packages/test-utils/`)
 holds the generic test helpers, stand-ins, and factories and the test preload, each helper with its

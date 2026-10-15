@@ -427,6 +427,44 @@ test('it refuses a require call in a mod', async () => {
   });
 });
 
+test('it refuses an import() type annotation in a mod', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, '.oxlintrc.json'),
+    JSON.stringify({ extends: [join(import.meta.dir, '..', '.oxlintrc.mods.json')] }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'mods/bridge/hooks/register.ts'),
+    "export type Client = import('@zgeoff/imp-client').ImpClient;\n",
+  );
+
+  const linted = await runCommand(
+    [
+      process.execPath,
+      ctx.oxlint,
+      '-c',
+      '.oxlintrc.json',
+      '-f',
+      'json',
+      'mods/bridge/hooks/register.ts',
+    ],
+    { cwd: ctx.dir },
+  );
+
+  const report = z
+    .object({ diagnostics: z.array(z.looseObject({})) })
+    .parse(JSON.parse(linted.stdout));
+
+  expect(report.diagnostics).toHaveLength(1);
+
+  expect(report.diagnostics).toPartiallyContain({
+    code: 'typescript(consistent-type-imports)',
+    filename: 'mods/bridge/hooks/register.ts',
+  });
+});
+
 test('it refuses a require call, whose specifier the import rules do not read', async () => {
   const ctx = setupTest();
 

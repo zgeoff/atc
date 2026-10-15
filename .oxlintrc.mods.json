@@ -4,6 +4,13 @@
   // so they take only the generated import rules; .oxlintrc.json ignores them
   "extends": ["./.oxlintrc.imports.json"],
   "categories": { "correctness": "off" },
-  // the import rules read no require() call, so the mods refuse one too
-  "rules": { "typescript/no-require-imports": "error" }
+  // the import rules read neither a require() call nor an import() type
+  // annotation, so the mods refuse both
+  "rules": {
+    "typescript/no-require-imports": "error",
+    "typescript/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports", "fixStyle": "separate-type-imports" }
+    ]
+  }
 }

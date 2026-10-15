@@ -10,7 +10,8 @@
 // fails, since oxlint's import rules read only quoted specifiers and so would
 // never apply the package rules to it, and so does a resolve form in a
 // workspace package whose specifier is not a literal, since the import graph
-// could not follow it. A relative specifier, literal
+// could not follow it. The module loads of mods/, which belongs to no
+// package, are held to the same rule. A relative specifier, literal
 // `import()` included, must resolve inside the importing file's package. Bun links every workspace package
 // where any package can resolve it, so only the manifest proves a package
 // meant to depend on another. A specifier that only resolves a path, such as
@@ -22,6 +23,7 @@ import { readFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { z } from 'zod';
+import type { ImportList } from './collect-imports';
 import { collectImports } from './collect-imports';
 import { collectSourceFiles } from './collect-source-files';
 import { PACKAGE_RULES } from './package-rules';
@@ -53,17 +55,20 @@ function main(): void {
 
       // the root package's tooling resolves computed paths, and no graph
       // reads its resolve forms
-      const computedLines = [
-        ...imports.computedLoadLines,
-        ...(pkg.dir === '.' ? [] : imports.computedResolveLines),
-      ].toSorted((a, b) => a - b);
-
-      for (const line of computedLines) {
-        findings.push(
-          `computed specifier: ${file}:${line} references a module through a specifier that no import rule can read; quote it`,
-        );
-      }
+      findings.push(...checkComputed(file, imports, pkg.dir !== '.'));
     }
+  }
+
+  // the mods belong to no workspace package, but the confinement rules that
+  // lint:mods applies read only quoted specifiers too
+  const mods = collectSourceFiles(root, 'mods');
+
+  fileCount += mods.length;
+
+  for (const file of mods) {
+    const imports = collectImports(readFileSync(join(root, file), 'utf8'));
+
+    findings.push(...checkComputed(file, imports, false));
   }
 
   for (const finding of findings) {
@@ -188,6 +193,20 @@ function checkManifest(pkg: WorkspacePackage): string[] {
   }
 
   return findings;
+}
+
+/**
+ * The finding for each module load in the file whose specifier is not a
+ * quoted string, and, when `withResolves` holds, for each resolve form whose
+ * specifier is not a literal.
+ */
+function checkComputed(file: string, imports: ImportList, withResolves: boolean): string[] {
+  return [...imports.computedLoadLines, ...(withResolves ? imports.computedResolveLines : [])]
+    .toSorted((a, b) => a - b)
+    .map(
+      (line) =>
+        `computed specifier: ${file}:${line} references a module through a specifier that no import rule can read; quote it`,
+    );
 }
 
 function checkSpecifier(

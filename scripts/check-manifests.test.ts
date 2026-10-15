@@ -186,6 +186,37 @@ test('it fails on a module load or a resolve form whose specifier is computed', 
   });
 });
 
+test('it fails on a mod that loads a module through a template literal', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'mods/bridge/hooks/register.ts'),
+    'export const CLIENT: unknown = await import(`@zgeoff/imp-client`);\n',
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 1 packages, 1 files, 1 findings\n',
+    stderr:
+      'computed specifier: mods/bridge/hooks/register.ts:1 references a module through a specifier that no import rule can read; quote it\n',
+  });
+});
+
 test('it lets the root package resolve a computed specifier and never load one', async () => {
   const ctx = setupTest();
 
