@@ -38,14 +38,42 @@ const main = defineCommand({
           description: 'Open the session list client',
           hidden: true,
         },
-        async run() {
+        args: {
+          daemon: {
+            type: 'string',
+            description:
+              "Connect to this daemon from the config's daemons map instead of the local daemon",
+          },
+        },
+        async run(ctx) {
           const lifecycle = await import('./build-lifecycle-host');
-          const host = await import('./build-tui-host');
           const slot = await import('./client/tui-host-slot');
 
-          slot.tuiHostSlot.current = host.buildTUIHost(
-            lifecycle.buildLifecycleHost(process.env, hostServices),
-          );
+          const lifecycleHost = lifecycle.buildLifecycleHost(process.env, hostServices);
+
+          if (ctx.args.daemon === undefined) {
+            const host = await import('./build-tui-host');
+
+            slot.tuiHostSlot.current = host.buildTUIHost(lifecycleHost);
+          } else {
+            const config = await import('@atc/config/config');
+            const harnessPlugins = await import('./plugins/shipped-harness-plugins');
+            const resolved = await import('./resolve-remote-daemon');
+            const host = await import('./build-remote-tui-host');
+
+            const picked = resolved.resolveRemoteDaemon(
+              config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS),
+              ctx.args.daemon,
+              config.configFile,
+            );
+
+            if (!picked.ok) {
+              console.error(`atc: ${picked.message}`);
+              process.exit(1);
+            }
+
+            slot.tuiHostSlot.current = host.buildRemoteTUIHost(lifecycleHost, picked.daemon);
+          }
 
           await import('./client');
         },

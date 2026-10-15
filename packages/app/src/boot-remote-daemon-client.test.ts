@@ -1,0 +1,264 @@
+import { expect, mock, onTestFinished, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { PROTOCOL_V } from '@atc/protocol/protocol';
+import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubSkipClock } from '@atc/test-utils/build-stub-skip-clock';
+import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
+import { startStubRefusingListener } from '@atc/test-utils/start-stub-refusing-listener';
+import { startStubUnansweringListener } from '@atc/test-utils/start-stub-unanswering-listener';
+import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
+import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
+import { startTestDaemon } from './test-utils/start-test-daemon';
+
+function setupTest() {
+  const tmp = setupTempDir('atc-remote-boot-');
+
+  return { dir: tmp.dir, tokenFile: join(tmp.dir, 'box.token') };
+}
+
+test('it connects to a daemon over TCP as the entry principal and lists its fleet', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['laptop', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.dir, 'gateway-token') },
+      };
+    },
+  });
+
+  if (daemon.daemon.listenPort === null) {
+    throw new Error('the test daemon bound no TCP port');
+  }
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.dir,
+    agent: 'claude',
+    name: 'on-the-box',
+    cols: 80,
+    rows: 24,
+  });
+
+  const boot = await bootRemoteDaemonClient(
+    buildMockRemoteDaemon({
+      name: 'box',
+      host: '127.0.0.1',
+      port: daemon.daemon.listenPort,
+      token: { kind: 'file', path: ctx.tokenFile },
+      principal: 'laptop',
+    }),
+    'atc/test-client',
+  );
+
+  onTestFinished(() => {
+    boot.client.stop();
+  });
+
+  const listed = await boot.client.sendRequest('session.list');
+
+  expect(boot).toMatchObject({
+    stale: false,
+    socketPath: `127.0.0.1:${daemon.daemon.listenPort}`,
+  });
+
+  expect(listed['sessions']).toStrictEqual([
+    expect.objectContaining({ name: 'on-the-box', alive: true }),
+  ]);
+});
+
+test('it rejects an unreachable daemon with its name and address and never waits without being asked', () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  // A port the kernel handed out and this test then freed, so nothing
+  // listens on it.
+  const freed = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+  const port = freed.port;
+
+  freed.stop(true);
+
+  expect(
+    bootRemoteDaemonClient(
+      buildMockRemoteDaemon({
+        name: 'box',
+        host: '127.0.0.1',
+        port,
+        token: { kind: 'file', path: ctx.tokenFile },
+      }),
+      'atc/test-client',
+    ),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `cannot reach daemon 'box' at 127.0.0.1:${port}: ECONNREFUSED. The TUI did not fall back to the local daemon.`,
+  );
+});
+
+test('it rejects a daemon on another protocol with both builds and versions and never offers a restart', () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  const legacy = startStubLegacyDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    { protocol: PROTOCOL_V + 1 },
+  );
+
+  if (legacy.port === null) {
+    throw new Error('the stub daemon bound no TCP port');
+  }
+
+  const onProtocolMismatch = mock(() => Promise.resolve(true));
+
+  expect(
+    bootRemoteDaemonClient(
+      buildMockRemoteDaemon({
+        name: 'box',
+        host: '127.0.0.1',
+        port: legacy.port,
+        token: { kind: 'file', path: ctx.tokenFile },
+      }),
+      'atc/test-client',
+      { onProtocolMismatch },
+    ),
+  ).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: [
+      `daemon 'box' at 127.0.0.1:${legacy.port} speaks another protocol than this client, atc/test-client on protocol v${PROTOCOL_V}.`,
+      `The daemon answered: atc/test-client speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      "The TUI did not fall back to the local daemon. Run an atc build on the daemon's protocol here, or update the daemon on its host.",
+    ].join('\n'),
+  });
+
+  expect(onProtocolMismatch).not.toHaveBeenCalled();
+});
+
+test('it rejects a token the daemon refuses as unauthorized', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
+
+  const daemon = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map(),
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 0,
+        },
+      };
+    },
+  });
+
+  if (daemon.daemon.listenPort === null) {
+    throw new Error('the test daemon bound no TCP port');
+  }
+
+  expect(
+    bootRemoteDaemonClient(
+      buildMockRemoteDaemon({
+        name: 'box',
+        host: '127.0.0.1',
+        port: daemon.daemon.listenPort,
+        token: { kind: 'file', path: ctx.tokenFile },
+      }),
+      'atc/test-client',
+    ),
+  ).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: `daemon 'box' at 127.0.0.1:${daemon.daemon.listenPort} refused the token: daemon.hello over TCP needs a valid bearer token. The TUI did not fall back to the local daemon.`,
+  });
+});
+
+test('it rejects a daemon that takes the connection but never answers once the timeout passes', () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  const listener = startStubUnansweringListener();
+
+  expect(
+    bootRemoteDaemonClient(
+      buildMockRemoteDaemon({
+        name: 'box',
+        host: '127.0.0.1',
+        port: listener.port,
+        token: { kind: 'file', path: ctx.tokenFile },
+      }),
+      'atc/test-client',
+      { answerTimeoutMs: 50 },
+    ),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `cannot reach daemon 'box' at 127.0.0.1:${listener.port}: no handshake answer within 0.05s. The TUI did not fall back to the local daemon.`,
+  );
+});
+
+test('it rejects a token it cannot read before it connects', () => {
+  const ctx = setupTest();
+
+  expect(
+    bootRemoteDaemonClient(
+      buildMockRemoteDaemon({
+        name: 'box',
+        host: '127.0.0.1',
+        port: 7420,
+        token: { kind: 'file', path: ctx.tokenFile },
+      }),
+      'atc/test-client',
+    ),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `daemon 'box': cannot read its token file ${ctx.tokenFile} (ENOENT). The TUI did not fall back to the local daemon.`,
+  );
+});
+
+test('it waits for a daemon that drops the handshake, once asked to wait, until one answers', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  const closing = startStubRefusingListener();
+  const onWaitForDaemon = mock();
+
+  const daemon = buildMockRemoteDaemon({
+    name: 'box',
+    host: '127.0.0.1',
+    port: closing.port,
+    token: { kind: 'file', path: ctx.tokenFile },
+  });
+
+  const booted = bootRemoteDaemonClient(daemon, 'atc/test-client', {
+    clock: buildStubSkipClock(),
+    onWaitForDaemon: () => {
+      onWaitForDaemon();
+
+      // The daemon comes back on the same port once the client first waits.
+      closing.stop();
+
+      startStubLegacyDaemon({ hostname: '127.0.0.1', port: closing.port });
+    },
+  });
+
+  const boot = await booted;
+
+  onTestFinished(() => {
+    boot.client.stop();
+  });
+
+  expect(boot.socketPath).toBe(`127.0.0.1:${closing.port}`);
+  expect(onWaitForDaemon).toHaveBeenCalledOnce();
+});

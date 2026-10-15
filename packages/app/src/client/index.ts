@@ -42,6 +42,7 @@ if (host === null) {
 const bootDaemonClient = host.bootDaemon;
 const restartDaemonAt = host.restartDaemon;
 const logClientEvent = host.logEvent;
+const remoteDaemonName = host.daemonName;
 
 // The time and the timers every wait of this client runs on.
 const clock = systemClock;
@@ -122,6 +123,7 @@ function scheduleStatus() {
         stale: daemonStale,
         restarting: daemonRestarting,
         waiting: daemonWaiting,
+        daemonName: remoteDaemonName,
       });
     }
   }, 50);
@@ -955,9 +957,15 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
     const message = error instanceof Error ? error.message : String(error);
 
     // A daemon on another protocol that the user keeps in service cannot
-    // serve this client, so it leaves the way its first boot does.
-    if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
-      quit(1, message);
+    // serve this client, so it leaves the way its first boot does. A remote
+    // boot waits out an unreachable daemon itself, so any failure that
+    // reaches here, such as a refused token, is final, and the client
+    // leaves rather than keep showing a fleet it can no longer reach.
+    if (
+      (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
+      remoteDaemonName !== null
+    ) {
+      quit(1, `atc: ${message}`);
     }
 
     console.error(message);
@@ -974,6 +982,8 @@ function handleDaemonClose() {
   }
 }
 
+// A boot that fails leaves before the first frame, with its message alone:
+// the message holds the daemon and what to do, and a stack would bury it.
 const boot = await bootDaemonClient({
   clock,
   onProtocolMismatch: async (mismatch) => {
@@ -981,6 +991,16 @@ const boot = await bootDaemonClient({
 
     return restartedOnBoot;
   },
+}).catch((error: unknown) => {
+  stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
+
+  try {
+    process.stdin.setRawMode(false);
+  } catch {}
+
+  console.error(`atc: ${error instanceof Error ? error.message : String(error)}`);
+
+  return process.exit(1);
 });
 
 let client = boot.client;
