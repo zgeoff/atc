@@ -162,7 +162,11 @@ export function runTool(
         ['session.menu'],
       );
 
-      return buildObjectResult({ pressed: ok['pressed'], menu: ok['menu'] });
+      return buildObjectResult({
+        pressed: ok['pressed'],
+        menu: ok['menu'],
+        ...(ok['partial'] === true ? { partial: true } : {}),
+      });
     })
     .with('atc_terminal_read', async () => {
       const ok = await caller.sendRequest('session.screen', { session: args['session'] });

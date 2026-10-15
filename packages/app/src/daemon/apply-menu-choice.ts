@@ -23,6 +23,7 @@ export type MenuChoice =
 export interface MenuChoiceResult {
   readonly pressed: 'enter' | 'escape';
   readonly menu: MenuView | null;
+  readonly partial?: true;
 }
 
 /**
@@ -37,7 +38,9 @@ export interface MenuChoiceResult {
  * changed menu, a wrong label, or a cursor that never reaches the option
  * throws before Enter, so nothing is picked. Resolves with the key it
  * pressed last and the menu the screen shows once it settles, or null when
- * it shows none.
+ * it shows none. When the whole read of that menu fails, it resolves with
+ * the menu as the screen shows it after the read's arrow keys, and with
+ * `partial` set.
  */
 export async function applyMenuChoice(
   terminal: MenuTerminal,
@@ -64,7 +67,7 @@ export async function applyMenuChoice(
 
     const dismissed = await waitForSettledMenu(terminal, quiet.screen, waits);
 
-    return { pressed: 'escape', menu: await readSettledWholeMenu(terminal, dismissed, waits) };
+    return { pressed: 'escape', ...(await readSettledWholeMenu(terminal, dismissed, waits)) };
   }
 
   await runCursorWalk(terminal, menu, choice.option, waits);
@@ -89,30 +92,32 @@ export async function applyMenuChoice(
   // cursor move from the walk never counts as Enter's response.
   const settled = await waitForSettledMenu(terminal, last.screen, waits);
 
-  return { pressed: 'enter', menu: await readSettledWholeMenu(terminal, settled, waits) };
+  return { pressed: 'enter', ...(await readSettledWholeMenu(terminal, settled, waits)) };
 }
 
 // The menu a choice answers with: once the screen has settled on a menu, the
 // whole of it, so a new list that scrolls past the screen returns the token
 // that the next choice on it carries. The key has already gone through, so a
-// whole read that fails answers with the settled menu as the screen shows it
-// instead of a refusal.
+// whole read that fails answers with the menu as the screen shows it, marked
+// partial, instead of a refusal. That read can fail after its arrow keys
+// moved the cursor, so the screen is read again rather than trusting the
+// settled menu.
 async function readSettledWholeMenu(
   terminal: MenuTerminal,
   settled: MenuView | null,
   waits: MenuWaits,
-): Promise<MenuView | null> {
+): Promise<{ readonly menu: MenuView | null; readonly partial?: true }> {
   if (settled === null) {
-    return null;
+    return { menu: null };
   }
 
   try {
     const whole = await readWholeMenuView(terminal, waits);
 
-    return whole;
+    return { menu: whole };
   } catch (error) {
     if (error instanceof DaemonError) {
-      return settled;
+      return { menu: await readMenuView(terminal), partial: true };
     }
 
     throw error;
