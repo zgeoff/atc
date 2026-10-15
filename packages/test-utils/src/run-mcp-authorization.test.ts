@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/wire';
 import { createEnrollmentToken } from '../../app/src/mcp/create-enrollment-token';
 import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
-import { ReconnectingCaller } from '../../app/src/mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';
+import { TransportCaller } from '../../app/src/mcp/transport-caller';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
 import { buildStubAuthenticator } from './build-stub-authenticator';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -19,7 +19,7 @@ async function setupTest() {
   const tmp = setupTempDir('atc-run-mcp-authorization-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
 
-  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+  const caller = new TransportCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
   );
 

@@ -8,8 +8,8 @@ import { collectClients } from './mcp/collect-clients';
 import { collectPasskeys } from './mcp/collect-passkeys';
 import type { MCPAuthDatabase } from './mcp/mcp-auth-database';
 import { openMCPAuth } from './mcp/open-mcp-auth';
-import { ReconnectingCaller } from './mcp/reconnecting-caller';
 import { startMCPHTTPServer } from './mcp/start-mcp-http-server';
+import { TransportCaller } from './mcp/transport-caller';
 
 interface MCPHTTPFlags {
   readonly host: string | null;
@@ -111,7 +111,7 @@ export async function runMCPHTTPServer(
 
   // A remote connector has no inbox, so the server claims no session even
   // when it was started inside one.
-  const caller = new ReconnectingCaller(
+  const caller = new TransportCaller(
     boot.socketPath,
     build,
     (path) => DaemonClient.open(path),

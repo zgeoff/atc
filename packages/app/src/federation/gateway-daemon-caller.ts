@@ -3,39 +3,12 @@ import type { Clock } from '@atc/core';
 import type { DaemonFeature, Principal } from '@atc/protocol';
 import { KEYED_METHOD_FEATURES, PROCEDURE_TRAITS, parseDaemonFeatures } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
+import { DaemonTransport } from '@atc/protocol/wire/transport';
 import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
 import { GatewayError } from './gateway-error';
-import type { RegistryDaemon } from './types';
+import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from './types';
 
-/**
- * One open protocol connection to a daemon, as the caller drives it:
- * correlated requests, a callback for when the connection ends, and closing
- * it. A request that rejects after the callback fired got no response.
- */
-export interface GatewayChannel {
-  onClose: () => void;
-  readonly sendRequest: (
-    m: string,
-    p?: Readonly<Record<string, unknown>>,
-    as?: string,
-    asName?: string,
-  ) => Promise<Readonly<Record<string, unknown>>>;
-  readonly stop: () => void;
-}
-
-/**
- * What a daemon's handshake told the gateway: its build, its state
- * identity, the features it serves, and how long it keeps a completed
- * idempotency key, null when it announced none.
- */
-export interface DaemonHello {
-  readonly build: string;
-  readonly daemonID: string;
-  readonly features: ReadonlySet<DaemonFeature>;
-  readonly retentionMs: number | null;
-}
-
-interface DaemonCallerOptions {
+interface GatewayDaemonCallerOptions {
   readonly daemon: RegistryDaemon;
   readonly build: string;
 
@@ -57,20 +30,16 @@ interface OpenConnection {
   readonly hello: DaemonHello;
 }
 
-/**
- * Turns a request's params into the params one write of it sends, right
- * before that write.
- */
-export type ParamsPreparer = (
-  params: Readonly<Record<string, unknown>>,
-) => Readonly<Record<string, unknown>>;
+// A connection as a request reads it, which never replaces its callback.
+type SendingConnection = Readonly<{ channel: Readonly<GatewayChannel>; hello: DaemonHello }>;
 
 const CONNECT_TIMEOUT_MS = 10_000;
 const RESPONSE_TIMEOUT_MS = 30_000;
 
 /**
  * The gateway's caller for one named daemon: it dials the daemon's TCP
- * address with the daemon's bearer token, keeps one connection open, and
+ * address with the daemon's bearer token, keeps one connection open on an
+ * `on-demand` daemon transport, and
  * sends nothing to a daemon whose handshake returns another `daemonID`
  * than the registry pins. A failure before the request leaves is
  * `daemon_unavailable`, or `daemon_unauthorized` for a refused token. A
@@ -89,18 +58,19 @@ const RESPONSE_TIMEOUT_MS = 30_000;
  * that does not announce replay-only requests, which ends as
  * `outcome_unknown` with nothing sent.
  */
-export class DaemonCaller {
-  private readonly opts: DaemonCallerOptions;
+export class GatewayDaemonCaller {
+  private readonly opts: GatewayDaemonCallerOptions;
 
-  private connection: Promise<OpenConnection> | null = null;
+  private readonly transport: DaemonTransport<OpenConnection>;
 
-  // The channel of the connection later requests reuse, once it is open.
-  private current: GatewayChannel | null = null;
-
-  private readonly closed = new WeakSet<GatewayChannel>();
-
-  constructor(opts: DaemonCallerOptions) {
+  constructor(opts: GatewayDaemonCallerOptions) {
     this.opts = opts;
+
+    this.transport = new DaemonTransport({
+      reconnect: 'on-demand',
+      open: () => this.openTimedConnection(),
+      getChannel: (connection) => connection.channel,
+    });
   }
 
   async sendRequest(
@@ -115,7 +85,7 @@ export class DaemonCaller {
     const needed: readonly DaemonFeature[] =
       as === undefined ? required : [...required, 'request.principal', 'message.sender'];
 
-    const opened = await this.openConnection();
+    const opened = await this.transport.waitForConnection();
 
     const unserved = needed.find((feature) => !opened.hello.features.has(feature));
 
@@ -123,14 +93,7 @@ export class DaemonCaller {
       throw buildDaemonOutdatedError(this.opts.daemon.name, unserved);
     }
 
-    const first = await this.trySend(
-      opened.channel,
-      opened.hello.features,
-      m,
-      p,
-      as,
-      prepareParams,
-    );
+    const first = await this.trySend(opened, m, p, as, prepareParams);
 
     if (first.kind === 'answered') {
       return first.ok;
@@ -148,7 +111,7 @@ export class DaemonCaller {
     let fresh: OpenConnection;
 
     try {
-      fresh = await this.openConnection();
+      fresh = await this.transport.waitForConnection();
     } catch {
       throw this.buildOutcomeUnknown(m);
     }
@@ -172,7 +135,7 @@ export class DaemonCaller {
       throw this.buildOutcomeUnknown(m);
     }
 
-    const second = await this.trySend(fresh.channel, fresh.hello.features, m, p, as, (params) =>
+    const second = await this.trySend(fresh, m, p, as, (params) =>
       replays ? { ...prepareParams(params), replayOnly: true } : prepareParams(params),
     );
 
@@ -188,27 +151,15 @@ export class DaemonCaller {
    * when none is open.
    */
   async readHello(): Promise<DaemonHello> {
-    const opened = await this.openConnection();
+    const opened = await this.transport.waitForConnection();
 
     return opened.hello;
   }
 
-  async stop(): Promise<void> {
-    const current = this.connection;
+  stop(): Promise<void> {
+    this.transport.stop();
 
-    this.connection = null;
-
-    if (current === null) {
-      return;
-    }
-
-    try {
-      const opened = await current;
-
-      opened.channel.stop();
-    } catch {
-      // A connection that never opened has nothing to close.
-    }
+    return Promise.resolve();
   }
 
   // Sends one request, answering with the daemon's answer, or with `lost`
@@ -217,8 +168,7 @@ export class DaemonCaller {
   // the daemon never held or has dropped, and which ends as
   // `outcome_unknown`.
   private async trySend(
-    channel: Readonly<GatewayChannel>,
-    features: DaemonHello['features'],
+    connection: SendingConnection,
     m: string,
     p: Readonly<Record<string, unknown>>,
     as: Principal | undefined,
@@ -230,9 +180,10 @@ export class DaemonCaller {
     // Runs in the same synchronous step as the write below, after the
     // connection's handshake, so whatever it decides still holds when the
     // request leaves.
+    const channel = connection.channel;
     const sent = prepareParams(p);
 
-    if (sent['replayOnly'] === true && !features.has('idempotency.replayOnly')) {
+    if (sent['replayOnly'] === true && !connection.hello.features.has('idempotency.replayOnly')) {
       throw this.buildOutcomeUnknown(m);
     }
 
@@ -263,10 +214,10 @@ export class DaemonCaller {
 
     cancelTimeout();
 
+    // A response that may still arrive leaves its connection out of
+    // service, so later requests open a fresh one.
     if (raced === 'timeout') {
-      this.closed.add(channel);
-      this.resetCurrentConnection(channel);
-      channel.stop();
+      this.transport.stopConnection(connection);
 
       return { kind: 'lost' };
     }
@@ -275,7 +226,7 @@ export class DaemonCaller {
       return { kind: 'answered', ok: raced.ok };
     }
 
-    if (this.closed.has(channel)) {
+    if (this.transport.isLost(connection)) {
       return { kind: 'lost' };
     }
 
@@ -284,15 +235,6 @@ export class DaemonCaller {
     }
 
     throw raced.error;
-  }
-
-  // Stops later requests from reusing the channel's connection, which a
-  // timed-out request leaves with a response that may still arrive.
-  private resetCurrentConnection(channel: Readonly<GatewayChannel>): void {
-    if (this.current === channel) {
-      this.current = null;
-      this.connection = null;
-    }
   }
 
   private scheduleTimeout(onTimeout: () => void, ms: number): () => void {
@@ -307,30 +249,10 @@ export class DaemonCaller {
     );
   }
 
-  private openConnection(): Promise<OpenConnection> {
-    if (this.connection === null) {
-      const opening: Promise<OpenConnection> = this.openFreshConnection(
-        () => this.connection === opening,
-      );
-
-      this.connection = opening;
-    }
-
-    return this.connection;
-  }
-
-  // isCurrent returns true while this connection is the one later requests
-  // reuse: a connection that ends after a newer one replaced it leaves the
-  // newer one in place.
-  private async openFreshConnection(isCurrent: () => boolean): Promise<OpenConnection> {
+  // Connects and handshakes within the connect time, stopping a connection
+  // that opens after the time ran out, so a late open never leaks.
+  private async openTimedConnection(): Promise<OpenConnection> {
     const daemon = this.opts.daemon;
-
-    const resetConnection = () => {
-      if (isCurrent()) {
-        this.connection = null;
-      }
-    };
-
     const timeout = Promise.withResolvers<'timeout'>();
 
     const cancelTimeout = this.scheduleTimeout(() => {
@@ -339,8 +261,8 @@ export class DaemonCaller {
 
     let timedOut = false;
 
-    // Settles as a value either way, and stops a connection that opens
-    // after the timeout won, so a late open never leaks.
+    // Settles as a value either way, so an open that fails after the
+    // timeout won never goes unhandled.
     const handshaken = (async () => {
       try {
         const late = await this.openHandshaken();
@@ -372,22 +294,7 @@ export class DaemonCaller {
         throw raced.error;
       }
 
-      const opened = raced.opened;
-
-      opened.channel.onClose = () => {
-        this.closed.add(opened.channel);
-
-        resetConnection();
-      };
-
-      if (isCurrent()) {
-        this.current = opened.channel;
-      }
-
-      return opened;
-    } catch (error) {
-      resetConnection();
-      throw error;
+      return raced.opened;
     } finally {
       cancelTimeout();
     }

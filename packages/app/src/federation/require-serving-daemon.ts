@@ -1,7 +1,7 @@
 import type { DaemonFeature } from '@atc/protocol';
 import { buildDaemonOutdatedError } from './build-daemon-outdated-error';
-import type { DaemonCaller, DaemonHello } from './daemon-caller';
-import type { RegistryDaemon } from './types';
+import type { GatewayDaemonCaller } from './gateway-daemon-caller';
+import type { DaemonHello, RegistryDaemon } from './types';
 
 /**
  * The handshake of the daemon a call is about to reach, read from the
@@ -11,7 +11,7 @@ import type { RegistryDaemon } from './types';
  * whatever the daemon caller throws when the daemon cannot be reached.
  */
 export async function requireServingDaemon(
-  getCaller: (name: string) => DaemonCaller,
+  getCaller: (name: string) => GatewayDaemonCaller,
   daemon: RegistryDaemon,
   required: readonly DaemonFeature[],
 ): Promise<DaemonHello> {

@@ -3,6 +3,7 @@ import type { DaemonFeature, Principal } from '@atc/protocol';
 import { KEYED_METHOD_FEATURES, PROCEDURE_TRAITS, parseDaemonFeatures } from '@atc/protocol';
 import { readSessionEnv } from '@atc/protocol/session';
 import type { DaemonChannel } from '@atc/protocol/wire';
+import { DaemonTransport } from '@atc/protocol/wire/transport';
 import { requireDaemonFeatures } from './require-daemon-features';
 import type { FleetCaller } from './types';
 
@@ -13,10 +14,11 @@ interface DaemonConnection {
 }
 
 /**
- * A daemon caller that survives a daemon restart: once the connection ends,
- * the next request opens and handshakes a fresh one. A request that was in
- * flight when the connection ended is retried once on a fresh connection when
- * it is read-only, or when it is a spawn or a message the daemon takes under an
+ * A daemon caller that survives a daemon restart: its connection rides an
+ * `on-demand` daemon transport, so once the connection ends the next request
+ * opens and handshakes a fresh one. A request that was in flight when the
+ * connection ended is retried once on a fresh connection when it is
+ * read-only, or when it is a spawn or a message the daemon takes under an
  * idempotency key: the request keeps its key, minted here when the caller
  * passed none, so the daemon runs it at most once. Any other request fails,
  * because a spawn or a message must not run twice.
@@ -27,34 +29,25 @@ interface DaemonConnection {
  * takes, so the retry replays a request the daemon got and runs once one it
  * never got, which a replay-only retry would fail instead.
  */
-export class ReconnectingCaller implements FleetCaller {
-  private readonly socketPath: string;
-
-  private readonly build: string;
-
-  private readonly openChannel: (socketPath: string) => Promise<DaemonChannel>;
-
-  private client: Promise<DaemonConnection> | null = null;
-
-  private readonly closed = new WeakSet<DaemonChannel>();
-
-  // The session the handshake claims the caller runs inside, which takes
-  // the answer notices of the messages it sends; null claims none.
-  private readonly session: string | null;
+export class TransportCaller implements FleetCaller {
+  private readonly transport: DaemonTransport<DaemonConnection>;
 
   // The third argument connects to the daemon at a socket path; each
-  // channel it returns is handshaken here before a request rides it. The
-  // session defaults to the one the environment names.
+  // channel it returns is handshaken before a request rides it, claiming the
+  // session the caller runs inside, which takes the answer notices of the
+  // messages it sends; null claims none. The session defaults to the one
+  // the environment names.
   constructor(
     socketPath: string,
     build: string,
     openChannel: (socketPath: string) => Promise<DaemonChannel>,
     session: string | null = readSessionEnv(process.env).sessionID ?? null,
   ) {
-    this.socketPath = socketPath;
-    this.build = build;
-    this.openChannel = openChannel;
-    this.session = session;
+    this.transport = new DaemonTransport({
+      reconnect: 'on-demand',
+      open: () => openHandshaken(socketPath, build, openChannel, session),
+      getChannel: (connection) => connection.client,
+    });
   }
 
   // The required features are checked against each connection right before
@@ -66,7 +59,7 @@ export class ReconnectingCaller implements FleetCaller {
     required: readonly DaemonFeature[] = [],
     principal?: Principal,
   ): Promise<Readonly<Record<string, unknown>>> {
-    const opened = await this.openClient();
+    const opened = await this.transport.waitForConnection();
 
     requireDaemonFeatures(opened.features, required);
 
@@ -78,13 +71,13 @@ export class ReconnectingCaller implements FleetCaller {
       return await opened.client.sendRequest(m, params, principal?.id, principal?.name);
     } catch (error) {
       if (
-        !this.closed.has(opened.client) ||
+        !this.transport.isLost(opened) ||
         !(keyed || PROCEDURE_TRAITS.get(m)?.readOnly === true)
       ) {
         throw error;
       }
 
-      const fresh = await this.openClient();
+      const fresh = await this.transport.waitForConnection();
 
       // The fresh daemon has to take the key too, or the retry could run the
       // effect a second time.
@@ -99,81 +92,38 @@ export class ReconnectingCaller implements FleetCaller {
   // The features of the daemon the next request reaches, read from the
   // handshake of the connection it rides.
   async readFeatures(): Promise<ReadonlySet<DaemonFeature>> {
-    const opened = await this.openClient();
+    const opened = await this.transport.waitForConnection();
 
     return opened.features;
   }
 
-  async stop(): Promise<void> {
-    const current = this.client;
+  stop(): Promise<void> {
+    this.transport.stop();
 
-    this.client = null;
+    return Promise.resolve();
+  }
+}
 
-    if (current === null) {
-      return;
-    }
+// Opens a connection and handshakes it, closing one whose handshake fails.
+async function openHandshaken(
+  socketPath: string,
+  build: string,
+  openChannel: (socketPath: string) => Promise<DaemonChannel>,
+  session: string | null,
+): Promise<DaemonConnection> {
+  const client = await openChannel(socketPath);
 
-    try {
-      const opened = await current;
+  const options = session === null ? {} : { session };
+  let hello: Readonly<Record<string, unknown>>;
 
-      opened.client.stop();
-    } catch {
-      // A connection that never opened has nothing to close.
-    }
+  try {
+    hello = await client.sendHello(build, options);
+  } catch (error) {
+    client.stop();
+    throw error;
   }
 
-  private openClient(): Promise<DaemonConnection> {
-    if (this.client === null) {
-      const opening: Promise<DaemonConnection> = this.openFreshClient(
-        () => this.client === opening,
-      );
-
-      this.client = opening;
-    }
-
-    return this.client;
-  }
-
-  // isCurrent returns true while this connection is still the one later requests
-  // reuse: a connection that ends after a newer one replaced it must leave
-  // the newer one in place.
-  private async openFreshClient(isCurrent: () => boolean): Promise<DaemonConnection> {
-    const resetClient = () => {
-      if (isCurrent()) {
-        this.client = null;
-      }
-    };
-
-    let client: DaemonChannel;
-
-    try {
-      client = await this.openChannel(this.socketPath);
-    } catch (error) {
-      resetClient();
-      throw error;
-    }
-
-    client.onClose = () => {
-      this.closed.add(client);
-
-      resetClient();
-    };
-
-    let hello: Readonly<Record<string, unknown>>;
-
-    try {
-      const options = this.session === null ? {} : { session: this.session };
-
-      hello = await client.sendHello(this.build, options);
-    } catch (error) {
-      client.stop();
-
-      resetClient();
-      throw error;
-    }
-
-    return { client, features: parseDaemonFeatures(hello) };
-  }
+  return { client, features: parseDaemonFeatures(hello) };
 }
 
 // The request's params with its idempotency key, minting one when the caller

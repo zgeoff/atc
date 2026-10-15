@@ -5,7 +5,7 @@ import { decodeCursor, encodeCursor } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
-import type { DaemonCaller } from './daemon-caller';
+import type { GatewayDaemonCaller } from './gateway-daemon-caller';
 import { GatewayError } from './gateway-error';
 import { mergeEventPages } from './merge-event-pages';
 import type { MergeSource } from './merge-event-pages';
@@ -17,7 +17,7 @@ import { waitForOutcome } from './wait-for-outcome';
 
 interface FleetEventsDeps {
   readonly registry: GatewayRegistry;
-  readonly getCaller: (name: string) => DaemonCaller;
+  readonly getCaller: (name: string) => GatewayDaemonCaller;
 
   // How long each daemon may take to answer a read that does not wait.
   readonly timeoutMs: number;

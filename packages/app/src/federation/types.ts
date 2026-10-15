@@ -31,3 +31,39 @@ export interface GatewayRegistry {
  * across named daemons and offers the tools and inputs that pick one.
  */
 export type GatewayFeature = DaemonFeature | 'fleet.daemons';
+
+/**
+ * One open protocol connection to a daemon, as the caller drives it:
+ * correlated requests, a callback for when the connection ends, and closing
+ * it. A request that rejects after the callback fired got no response.
+ */
+export interface GatewayChannel {
+  onClose: () => void;
+  readonly sendRequest: (
+    m: string,
+    p?: Readonly<Record<string, unknown>>,
+    as?: string,
+    asName?: string,
+  ) => Promise<Readonly<Record<string, unknown>>>;
+  readonly stop: () => void;
+}
+
+/**
+ * What a daemon's handshake told the gateway: its build, its state
+ * identity, the features it serves, and how long it keeps a completed
+ * idempotency key, null when it announced none.
+ */
+export interface DaemonHello {
+  readonly build: string;
+  readonly daemonID: string;
+  readonly features: ReadonlySet<DaemonFeature>;
+  readonly retentionMs: number | null;
+}
+
+/**
+ * Turns a request's params into the params one write of it sends, right
+ * before that write.
+ */
+export type ParamsPreparer = (
+  params: Readonly<Record<string, unknown>>,
+) => Readonly<Record<string, unknown>>;
