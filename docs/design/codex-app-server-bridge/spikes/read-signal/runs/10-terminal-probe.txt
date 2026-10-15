@@ -1,0 +1,48 @@
+2	> thread/start  
+48	< result id=2 
+49	> turn/start m-h1 "Reply with the single word KIWI."
+49	< thread/started 
+54	< result id=3 turn=01a13f2d-5094-7670-ac81-ab7a130f201d inProgress
+100	< thread/status/changed thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+101	< turn/started 01a13f2d-5094-7670-ac81-ab7a130f201d inProgress
+1577	< rawResponseItem/completed message role=user _text","text":"Reply with the single word KIWI."}]
+1577	< item/started userMessage clientId=m-h1 text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+1580	< item/completed userMessage clientId=m-h1 text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+2988	< item/started agentMessage phase=final_answer
+3010	  (2 agentMessage deltas)
+3010	< item/completed agentMessage phase=final_answer text="KIWI"
+3011	< rawResponseItem/completed message role=assistant [{"type":"output_text","text":"KIWI"}]
+3097	< rawResponse/completed responseId=resp_06fb591071664d9e016ad0af728c1c8191b2ccebf177bfe9c7 input=23786
+3101	< thread/tokenUsage/updated {"totalTokens":23792,"inputTokens":23786,"cachedInputTokens":12288,"cacheWriteInputTokens"
+3106	< thread/status/changed thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+3106	< turn/completed 01a13f2d-5094-7670-ac81-ab7a130f201d completed
+6510	< thread/goal/cleared thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+15106	> turn/start m-h2 "Run the shell command `sleep 5` once, then reply with the single word LIME."
+15111	< result id=4 turn=01a13f2d-8b65-7700-bb8b-e4bf99080f34 inProgress
+15115	< thread/status/changed thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+15115	< turn/started 01a13f2d-8b65-7700-bb8b-e4bf99080f34 inProgress
+15199	< rawResponseItem/completed message role=user  5` once, then reply with the single word LIME."}]
+15199	< item/started userMessage clientId=m-h2 text="[{\"type\":\"text\",\"text\":\"Run the shell command `sleep 5` once"
+15202	< item/completed userMessage clientId=m-h2 text="[{\"type\":\"text\",\"text\":\"Run the shell command `sleep 5` once"
+15240	< thread/started 
+15242	< thread/status/changed thread=01a13f2d-8bce-7682-9d42-022b7ced4ce7
+17115	< item/started agentMessage phase=commentary
+17234	  (10 agentMessage deltas)
+17234	< item/completed agentMessage phase=commentary text="I’ll run `sleep 5` once."
+17235	< rawResponseItem/completed message role=assistant :"output_text","text":"I’ll run `sleep 5` once."}]
+17877	< rawResponseItem/completed custom_tool_call role= ""
+17946	< rawResponse/completed responseId=resp_06fb591071664d9e016ad0af802d30819194c2462cc587c177 input=23818
+18079	< item/started commandExecution
+18746	< thread/status/changed thread=01a13f2d-8bce-7682-9d42-022b7ced4ce7
+18753	< thread/name/updated thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+22981	< item/completed commandExecution
+22986	< rawResponseItem/completed custom_tool_call_output role= ""
+22989	< thread/tokenUsage/updated {"totalTokens":23862,"inputTokens":23818,"cachedInputTokens":23552,"cacheWriteInputTokens"
+24877	< item/started agentMessage phase=final_answer
+24911	  (2 agentMessage deltas)
+24911	< item/completed agentMessage phase=final_answer text="LIME"
+24913	< rawResponseItem/completed message role=assistant [{"type":"output_text","text":"LIME"}]
+24932	< rawResponse/completed responseId=resp_06fb591071664d9e016ad0af8804588191a4157e84e869ccb6 input=23885
+24937	< thread/tokenUsage/updated {"totalTokens":23891,"inputTokens":23885,"cachedInputTokens":23680,"cacheWriteInputTokens"
+24941	< thread/status/changed thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+24941	< turn/completed 01a13f2d-8b65-7700-bb8b-e4bf99080f34 completed

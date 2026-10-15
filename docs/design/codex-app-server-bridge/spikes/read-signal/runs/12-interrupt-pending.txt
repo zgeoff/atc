@@ -1,0 +1,33 @@
+1	> thread/start  
+46	< result id=2 
+47	> turn/start m-p1 "Write about 250 words on ocean tides. Do not use tools."
+47	< thread/started 
+51	< result id=3 turn=01a13f31-60b3-7e12-b2d2-3ded9f45c11a inProgress
+98	< thread/status/changed thread=01a13f31-6089-78a3-a974-2a52c8cc59e1
+99	< turn/started 01a13f31-60b3-7e12-b2d2-3ded9f45c11a inProgress
+1509	< rawResponseItem/completed message role=user out 250 words on ocean tides. Do not use tools."}]
+1509	< item/started userMessage clientId=m-p1 text="[{\"type\":\"text\",\"text\":\"Write about 250 words on ocean tides"
+1509	> turn/start m-p2 "Also end your reply with the single word QUINCE."
+1510	< result id=4 turn=01a13f31-60b3-7e12-b2d2-3ded9f45c11a inProgress
+1550	< item/completed userMessage clientId=m-p1 text="[{\"type\":\"text\",\"text\":\"Write about 250 words on ocean tides"
+2010	> turn/interrupt  
+2022	< result id=5 
+2022	< thread/status/changed thread=01a13f31-6089-78a3-a974-2a52c8cc59e1
+2022	< turn/completed 01a13f31-60b3-7e12-b2d2-3ded9f45c11a interrupted
+2022	> thread/turns/list  
+2026	< result id=6 
+4026	> turn/start m-p3 "Reply with the single word KIWI."
+4031	< result id=7 turn=01a13f31-703f-7260-bd82-1622b8488bd7 inProgress
+4035	< thread/status/changed thread=01a13f31-6089-78a3-a974-2a52c8cc59e1
+4035	< turn/started 01a13f31-703f-7260-bd82-1622b8488bd7 inProgress
+4060	< rawResponseItem/completed message role=user _text","text":"Reply with the single word KIWI."}]
+4060	< item/started userMessage clientId=m-p3 text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+4062	< item/completed userMessage clientId=m-p3 text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+6070	< item/started agentMessage phase=final_answer
+6073	  (2 agentMessage deltas)
+6073	< item/completed agentMessage phase=final_answer text="KIWI"
+6075	< rawResponseItem/completed message role=assistant [{"type":"output_text","text":"KIWI"}]
+6135	< rawResponse/completed responseId=resp_0c952311fd4e9347016ad0b07faeec8191a1d766e754b4694e input=23853
+6139	< thread/tokenUsage/updated {"totalTokens":23859,"inputTokens":23853,"cachedInputTokens":12288,"cacheWriteInputTokens"
+6143	< thread/status/changed thread=01a13f31-6089-78a3-a974-2a52c8cc59e1
+6144	< turn/completed 01a13f31-703f-7260-bd82-1622b8488bd7 completed

@@ -1,0 +1,4 @@
+03-steer-stream	turn=01a13f29-e6b7-7082-89ad-ee4a3164bbdf	completed	userMessage:m-s1 userMessage:m-s2 agentMessage:final_answer
+04-steer-command	turn=01a13f2a-4434-70b3-a408-4f47501768e3	completed	userMessage:m-c1 agentMessage:commentary userMessage:m-c2 commandExecution agentMessage:final_answer
+05-interrupt-command	turn=01a13f2a-be83-7ed0-b3d8-d0195f0c1282	interrupted	userMessage:m-i1 agentMessage:commentary userMessage:m-i2 commandExecution
+05-interrupt-stream	turn=01a13f2a-eb73-70a3-ad46-1311fabfab82	interrupted	userMessage:m-j1 userMessage:m-j2

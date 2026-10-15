@@ -1,0 +1,31 @@
+1	> thread/start  
+47	< result id=2 
+48	> turn/start m-i1 "Run the shell command `sleep 12` once, then reply with the single word DONE."
+48	< thread/started 
+53	< result id=3 turn=01a13f2a-be83-7ed0-b3d8-d0195f0c1282 inProgress
+99	< thread/status/changed thread=01a13f2a-be57-7e52-859c-921c24d25d38
+100	< turn/started 01a13f2a-be83-7ed0-b3d8-d0195f0c1282 inProgress
+676	< thread/status/changed thread=01a13f29-c11c-7da1-a7f4-0c0acdafcf2b
+677	< thread/closed thread=01a13f29-c11c-7da1-a7f4-0c0acdafcf2b
+1443	< rawResponseItem/completed message role=user 12` once, then reply with the single word DONE."}]
+1443	< item/started userMessage clientId=m-i1 text="[{\"type\":\"text\",\"text\":\"Run the shell command `sleep 12` onc"
+1446	< item/completed userMessage clientId=m-i1 text="[{\"type\":\"text\",\"text\":\"Run the shell command `sleep 12` onc"
+4989	< item/started agentMessage phase=commentary
+5101	  (10 agentMessage deltas)
+5101	< item/completed agentMessage phase=commentary text="I’ll run `sleep 12` once."
+5103	< rawResponseItem/completed message role=assistant "output_text","text":"I’ll run `sleep 12` once."}]
+5287	< rawResponseItem/completed custom_tool_call role= ""
+5375	< rawResponse/completed responseId=resp_028e04dc62f4646b016ad0aeca1bc48191b12b9802f32f24fc input=23797
+5476	< item/started commandExecution
+8477	> turn/start m-i2 "Also add the single word PLUM to your reply."
+8478	< result id=4 turn=01a13f2a-be83-7ed0-b3d8-d0195f0c1282 inProgress
+8481	< rawResponseItem/completed custom_tool_call_output role= ""
+8484	< thread/tokenUsage/updated {"totalTokens":23847,"inputTokens":23797,"cachedInputTokens":12288,"cacheWriteInputTokens"
+8486	< rawResponseItem/completed message role=user ":"Also add the single word PLUM to your reply."}]
+8486	< item/started userMessage clientId=m-i2 text="[{\"type\":\"text\",\"text\":\"Also add the single word PLUM to you"
+8489	< item/completed userMessage clientId=m-i2 text="[{\"type\":\"text\",\"text\":\"Also add the single word PLUM to you"
+9979	> turn/interrupt  
+9984	< thread/tokenUsage/updated {"totalTokens":23847,"inputTokens":23797,"cachedInputTokens":12288,"cacheWriteInputTokens"
+9990	< result id=5 
+9991	< thread/status/changed thread=01a13f2a-be57-7e52-859c-921c24d25d38
+9991	< turn/completed 01a13f2a-be83-7ed0-b3d8-d0195f0c1282 interrupted

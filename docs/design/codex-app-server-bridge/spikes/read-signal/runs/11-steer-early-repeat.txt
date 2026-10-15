@@ -1,0 +1,28 @@
+1	> thread/start  
+48	< result id=2 
+49	> turn/start m-e1 "Write about 250 words on ocean tides. Do not use tools."
+49	< thread/started 
+53	< result id=3 turn=01a13f2e-cc4b-7950-9e2a-b06ac3bc3c62 inProgress
+100	< thread/status/changed thread=01a13f2e-cc1f-7f91-ac5d-40cf345c995a
+101	< turn/started 01a13f2e-cc4b-7950-9e2a-b06ac3bc3c62 inProgress
+4360	< rawResponseItem/completed message role=user out 250 words on ocean tides. Do not use tools."}]
+4360	< item/started userMessage clientId=m-e1 text="[{\"type\":\"text\",\"text\":\"Write about 250 words on ocean tides"
+4360	> turn/start m-e2 "Also end your reply with the single word GUAVA."
+4361	< result id=4 turn=01a13f2e-cc4b-7950-9e2a-b06ac3bc3c62 inProgress
+4404	< item/completed userMessage clientId=m-e1 text="[{\"type\":\"text\",\"text\":\"Write about 250 words on ocean tides"
+5941	< rawResponse/completed responseId=resp_01f877b579d027dd016ad0afd69c4881919b03364f04beba76 input=23792
+5946	< thread/tokenUsage/updated {"totalTokens":23793,"inputTokens":23792,"cachedInputTokens":12288,"cacheWriteInputTokens"
+5949	< rawResponseItem/completed message role=user Also end your reply with the single word GUAVA."}]
+5949	< item/started userMessage clientId=m-e2 text="[{\"type\":\"text\",\"text\":\"Also end your reply with the single "
+5951	< item/completed userMessage clientId=m-e2 text="[{\"type\":\"text\",\"text\":\"Also end your reply with the single "
+7771	< item/started agentMessage phase=final_answer
+13806	  (218 agentMessage deltas)
+13806	< thread/status/changed thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+13806	< thread/closed thread=01a13f2d-5068-7251-bc2a-93f85b01ad2d
+16437	  (91 agentMessage deltas)
+16437	< item/completed agentMessage phase=final_answer text="m well beyond the predicted tide.\n\nGUAVA"
+16438	< rawResponseItem/completed message role=assistant g them well beyond the predicted tide.\n\nGUAVA"}]
+16496	< rawResponse/completed responseId=resp_01f877b579d027dd016ad0afd81874819181fc477e61bd93af input=23807
+16500	< thread/tokenUsage/updated {"totalTokens":24120,"inputTokens":23807,"cachedInputTokens":23552,"cacheWriteInputTokens"
+16505	< thread/status/changed thread=01a13f2e-cc1f-7f91-ac5d-40cf345c995a
+16505	< turn/completed 01a13f2e-cc4b-7950-9e2a-b06ac3bc3c62 completed
