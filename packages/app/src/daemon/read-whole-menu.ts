@@ -49,11 +49,6 @@ export async function readWholeMenu(
   return whole;
 }
 
-// The arrow keys one read has pressed so far.
-interface StepCount {
-  count: number;
-}
-
 // Moves the cursor up to the first option, down to the end of the list,
 // and back to where it started, gathering the list's rows on the way down.
 async function collectScrolledMenu(
@@ -61,13 +56,26 @@ async function collectScrolledMenu(
   start: ScreenMenu,
   waits: MenuWaits,
 ): Promise<ScreenMenu> {
-  const steps: StepCount = { count: 0 };
+  let steps = 0;
+
+  const sendStep = (from: ScreenMenu, key: string): Promise<ScreenMenu> => {
+    steps++;
+
+    if (steps > MAX_STEPS) {
+      throw new DaemonError('menu_busy', 'atc could not find the end of the menu list', {
+        menu: null,
+      });
+    }
+
+    return sendArrow(terminal, from, key, waits);
+  };
+
   const startList = splitScreenMenu(start).list.length;
   let now = start;
   let ups = 0;
 
   while (now.highlighted !== 0 || now.scroll?.above === true) {
-    now = await sendArrow(terminal, now, MENU_KEYS.up, steps, waits);
+    now = await sendStep(now, MENU_KEYS.up);
 
     ups++;
   }
@@ -84,7 +92,7 @@ async function collectScrolledMenu(
       break;
     }
 
-    now = await sendArrow(terminal, now, MENU_KEYS.down, steps, waits);
+    now = await sendStep(now, MENU_KEYS.down);
 
     const moved = splitScreenMenu(now).list;
 
@@ -118,7 +126,7 @@ async function collectScrolledMenu(
   while (at !== target) {
     const key = at < target ? MENU_KEYS.down : MENU_KEYS.up;
 
-    now = await sendArrow(terminal, now, key, steps, waits);
+    now = await sendStep(now, key);
 
     at += at < target ? 1 : -1;
   }
@@ -144,17 +152,8 @@ async function sendArrow(
   terminal: MenuTerminal,
   before: ScreenMenu,
   key: string,
-  steps: StepCount,
   waits: MenuWaits,
 ): Promise<ScreenMenu> {
-  steps.count++;
-
-  if (steps.count > MAX_STEPS) {
-    throw new DaemonError('menu_busy', 'atc could not find the end of the menu list', {
-      menu: null,
-    });
-  }
-
   sendMenuKey(terminal, key);
 
   const deadline = waits.clock.now() + waits.timing.moveMs;
