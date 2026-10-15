@@ -4,7 +4,7 @@ import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { StateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/testing';
-import { buildStubLog, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { HostDirClaims } from './host-dir-claims';
@@ -93,7 +93,7 @@ test('it kills the running harness of a failed spawn and drops the session from 
 
   await ctx.fleet.writeFleet();
 
-  await expect(ctx.rollback.removeFailedSpawn(toSessionID('s-failed'))).toResolve();
+  await expect(ctx.rollback.removeListedSpawn(toSessionID('s-failed'), null)).toResolve();
 
   expect(ctx.provider.harnesses[0]?.readExit()).toStrictEqual({ exitCode: 0 });
 
@@ -127,7 +127,7 @@ test('it leaves the list and the stored fleet as they are for a session it does 
 
   await ctx.fleet.writeFleet();
 
-  await expect(ctx.rollback.removeFailedSpawn(toSessionID('s-unknown'))).toResolve();
+  await expect(ctx.rollback.removeListedSpawn(toSessionID('s-unknown'), null)).toResolve();
 
   expect(ctx.provider.harnesses[0]?.readExit()).toBeNull();
 
@@ -137,7 +137,7 @@ test('it leaves the list and the stored fleet as they are for a session it does 
   expect(stored).toMatchObject([{ sessionID: 's-listed' }]);
 });
 
-test('it rejects and keeps the rollback unsettled when the killed harness never confirms its exit', async () => {
+test('it rejects, keeps the session listed, and keeps the rollback unsettled when the killed harness never confirms its exit', async () => {
   const ctx = await setupTest();
 
   const session = buildMockSession({
@@ -160,21 +160,78 @@ test('it rejects and keeps the rollback unsettled when the killed harness never 
 
   ctx.rollback.failedSpawnExitWaitMs = 1;
 
-  expect(ctx.rollback.removeFailedSpawn(toSessionID('s-stuck'))).rejects.toThrowWithMessage(
+  expect(ctx.rollback.removeListedSpawn(toSessionID('s-stuck'), null)).rejects.toThrowWithMessage(
     Error,
     'session s-stuck did not exit after its kill',
   );
 
-  // The settlement check runs once the rollback has ended, so it reads the
-  // recorded kill rather than the rollback still running.
-  await waitFor(() => {
-    expect(ctx.rollback.rollingBack.has(toSessionID('s-stuck'))).toBeFalse();
-  });
+  // The spawn's caller ends the rollback once its unwind stops, so the
+  // settlement check then reads the recorded kill.
+  ctx.rollback.rollingBack.delete(toSessionID('s-stuck'));
 
   const settled = await ctx.rollback.isRollbackSettled(toSessionID('s-stuck'));
 
   expect(ctx.rollback.unconfirmedKills.has(toSessionID('s-stuck'))).toBeTrue();
+  expect(ctx.registry.sessions).toStrictEqual([session]);
   expect(settled).toBeFalse();
+});
+
+test('it takes the whole host of a failed spawn that provisioned an auth attempt or owns a host it can destroy', async () => {
+  const ctx = await setupTest();
+
+  const destroyer = buildStubMemoryProvider({ capabilities: { destroy: true } });
+
+  const withAttempt = ctx.rollback.shouldTakeHost(
+    ctx.provider,
+    toSessionID('s-own'),
+    toSessionID('s-own'),
+    'local',
+    'attempt-7',
+  );
+
+  const ownHost = ctx.rollback.shouldTakeHost(
+    destroyer,
+    toSessionID('s-own'),
+    toSessionID('s-own'),
+    'local',
+    null,
+  );
+
+  expect(withAttempt).toBeTrue();
+  expect(ownHost).toBeTrue();
+});
+
+test("it keeps a parent's host, and an own host another session still uses, when a spawn fails", async () => {
+  const ctx = await setupTest();
+
+  const destroyer = buildStubMemoryProvider({ capabilities: { destroy: true } });
+
+  ctx.registry.sessions.push(
+    buildMockSession({
+      id: toSessionID('s-neighbour'),
+      hostKey: toSessionID('s-own'),
+      target: 'local',
+    }),
+  );
+
+  const parentHost = ctx.rollback.shouldTakeHost(
+    destroyer,
+    toSessionID('s-child'),
+    toSessionID('s-parent'),
+    'local',
+    null,
+  );
+
+  const usedHost = ctx.rollback.shouldTakeHost(
+    destroyer,
+    toSessionID('s-own'),
+    toSessionID('s-own'),
+    'local',
+    null,
+  );
+
+  expect(parentHost).toBeFalse();
+  expect(usedHost).toBeFalse();
 });
 
 test('it destroys the own host of a failed spawn when the provider can destroy hosts', async () => {

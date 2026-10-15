@@ -131,8 +131,6 @@ export class SessionManager {
 
   private readonly fleet: SessionFleetWriter;
 
-  private readonly claims: HostDirClaims;
-
   private readonly killer: SessionKiller;
 
   private readonly rollback: SpawnRollback;
@@ -211,7 +209,6 @@ export class SessionManager {
     this.store = store;
     this.registry = registry;
     this.fleet = fleet;
-    this.claims = claims;
     this.killer = killer;
     this.rollback = rollback;
     this.auth = auth;
@@ -371,6 +368,7 @@ export class SessionManager {
     requireInReach: () => void = () => {},
     autoDir = false,
     scope: DeclaredScope | null = null,
+    answer: ((s: Session) => void) | null = null,
   ): Promise<Session> {
     return this.spawner.spawn(
       cwd,
@@ -389,15 +387,8 @@ export class SessionManager {
       requireInReach,
       autoDir,
       scope,
+      answer,
     );
-  }
-
-  releaseWorkspace(id: SessionID): void {
-    this.claims.releaseWorkspace(id);
-  }
-
-  removeFailedSpawn(id: SessionID): Promise<void> {
-    return this.rollback.removeFailedSpawn(id);
   }
 
   kill(id: SessionID, stopOnly = false): Promise<'stopped' | 'unchanged' | 'removed'> {
