@@ -2934,6 +2934,93 @@ test('it refuses an adopt whose outdated harness ignores its kill, leaves the se
   expect(ctx.port.sessionRequests).toHaveLength(2);
 });
 
+test('it records an adopt whose outdated harness ignores its kill as stopped, so a restore after a daemon restart starts nothing', async () => {
+  const ctx = setupTest();
+  let judgeSelected = false;
+  let ignoresHangup = true;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+    ignoresHangup: () => ignoresHangup,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+
+      // The kill waits this long for an exit that never comes.
+      failedSpawnExitWaitMs: 100,
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  // The kill puts the imp to sleep with the harness kept inside it.
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  judgeSelected = true;
+  ignoresHangup = false;
+
+  await daemon.client.sendRequest('session.auth.rebind', { session: id });
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  expect(adopt).rejects.toMatchObject({ code: 'session_dead' });
+
+  await daemon.restart();
+  await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect(getRecord(got, 'session')).toMatchObject({
+    alive: false,
+    lifecycle: expect.objectContaining({ desired: 'stop' }),
+  });
+
+  expect(ctx.port.sessionRequests).toHaveLength(2);
+});
+
 test('it lists a running harness as pending a restart after a rebind and leaves it running', async () => {
   const ctx = setupTest();
   let judgeSelected = false;

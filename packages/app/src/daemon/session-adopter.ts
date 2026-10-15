@@ -360,12 +360,18 @@ export class SessionAdopter {
       }
     } finally {
       // Every path that starts no harness, a kill that throws included,
-      // leaves the session exited.
+      // leaves the session stopped, as a deliberate kill does, and writes
+      // that to the fleet before the adopt answers, so a restore after a
+      // daemon restart does not revive it.
       if (s.pty === null) {
         s.state = 'exited';
         s.lastMsg = 'killed';
+        s.desired = 'stop';
 
         this.callbacks.onEvent('state', s);
+
+        await this.fleet.tryWriteFleet(s.id);
+
         this.fleet.emitChange();
       }
     }
