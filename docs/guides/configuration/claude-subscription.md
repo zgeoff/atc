@@ -12,7 +12,7 @@ session's tools.
 2. Add the token to impd as a `custom` secret on `api.anthropic.com`, with the value on stdin:
 
    ```bash
-   imp secret add claude-setup-token --kind=custom --hosts=api.anthropic.com --header=authorization --scheme=bearer
+   impz secret add claude-setup-token --kind=custom --hosts=api.anthropic.com --header=authorization --scheme=bearer
    ```
 
 3. List the secret in the `--grantable` secrets of the target's impd token when you make the token.
@@ -83,7 +83,7 @@ The same `env` and `settings` load on a stock entry without `auth`, where nothin
 
 A revoked grant or an expired token gives `API Error: 401` inside the session, and Claude never
 falls back to another sign-in. To renew the token, run `claude setup-token` again and replace the
-secret with `imp secret add claude-setup-token --replace`.
+secret with `impz secret add claude-setup-token --replace`.
 
 ## Claude config bundle
 

@@ -101,7 +101,7 @@ place, and rewrites it on every change.
 atc replaces the file through a rename, so a reader never sees a half-written record. On an imp, atc
 hands the copy to impd, whose agent keeps it outside the imp's container and shows it there on a
 read-only mount
-([read-only files](https://github.com/zgeoff/imp/blob/main/docs/architecture/guest/agent.md#read-only-files)).
+([read-only files](https://github.com/zgeoff/impz/blob/main/docs/architecture/guest/agent.md#read-only-files)).
 An impd without read-only files, or an imp whose agent booted before them, has no such mount, so atc
 places the copy at `<guestDir>/records/<session>.json` through a command instead, owned by root and
 mode 0444. A harness that started with that copy keeps its path across a revive, because the revive

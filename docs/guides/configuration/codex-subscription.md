@@ -1,7 +1,7 @@
 # Codex subscription on imps
 
 `auth` on a Codex entry signs it in on an imp target with the ChatGPT sign-in that impd holds as an
-[oauth secret](https://github.com/zgeoff/imp/blob/main/docs/guides/connectors.md#oauth-secrets).
+[oauth secret](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#oauth-secrets).
 impd renews the access token from the refresh token and sets it on each request to `chatgpt.com`, so
 no token enters the imp. On the local target, Codex keeps the sign-in of your own Codex config. An
 imp target needs impd with oauth secrets; an older impd refuses the spawn with `auth_impd_too_old`.
@@ -12,7 +12,7 @@ The [brokered credentials guide](./brokered-credentials.md) covers the profiles 
 2. Add that refresh token to impd as an `oauth` secret on `chatgpt.com`, with the value on stdin:
 
    ```bash
-   jq -r .tokens.refresh_token ~/.codex/auth.json | imp secret add codex-chatgpt --kind oauth \
+   jq -r .tokens.refresh_token ~/.codex/auth.json | impz secret add codex-chatgpt --kind oauth \
      --hosts chatgpt.com --token-url https://auth.openai.com/oauth/token \
      --client-id app_EMoamEEZ73f0CkXaXp7hrann --token-format json
    ```
@@ -67,7 +67,7 @@ A spawn, resume, or adopt fails with `auth_signin_needed` before the imp is touc
 the secret as `pending` or `needs_login`, or when its ID token holds no ChatGPT account id. impd
 marks the secret `needs_login` when the token endpoint refuses the refresh token. To renew the
 sign-in, sign Codex in again on your machine and replace the secret with
-`imp secret add codex-chatgpt --kind oauth ... --replace`, fed with the new refresh token.
+`impz secret add codex-chatgpt --kind oauth ... --replace`, fed with the new refresh token.
 
 A Claude entry signs in the Codex CLI it runs as a tool, such as `codex review`, when its `auth`
 selects the same `oauth` profile beside its own:

@@ -16,7 +16,7 @@ key:
 1. Add the key to impd as a `custom` secret on `mcp.linear.app`, with the value on stdin:
 
    ```bash
-   imp secret add linear-imp-agents --kind=custom --hosts=mcp.linear.app --header=authorization --scheme=bearer
+   impz secret add linear-imp-agents --kind=custom --hosts=mcp.linear.app --header=authorization --scheme=bearer
    ```
 
 2. List the secret in the `--grantable` secrets of the target's impd token.
@@ -67,7 +67,7 @@ the key never enters the imp. To give a session's eval scripts the Jev key in `T
 1. Add the key to impd as a `custom` secret on `api.typesafe.ai`:
 
    ```bash
-   imp secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai
+   impz secret add jev-imp-agents --kind=custom --hosts=api.typesafe.ai
    ```
 
 2. List the secret in the `--grantable` secrets of the target's impd token.

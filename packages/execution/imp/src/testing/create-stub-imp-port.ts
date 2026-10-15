@@ -1009,7 +1009,7 @@ class StubImpPort implements ImpPort {
   }
 
   /**
-   * Adds a secret to impd, as `imp secret add` does, with its rules, and
+   * Adds a secret to impd, as `impz secret add` does, with its rules, and
    * the sign-in state impd lists for a secret of kind `oauth`.
    */
   createSecret(
@@ -1038,7 +1038,7 @@ class StubImpPort implements ImpPort {
   }
 
   /**
-   * Deletes a secret, as `imp secret rm` does, with every grant of it; a
+   * Deletes a secret, as `impz secret rm` does, with every grant of it; a
    * secret made again under the name is one no token's list covers.
    */
   removeSecret(name: string): void {
@@ -1061,7 +1061,7 @@ class StubImpPort implements ImpPort {
   }
 
   /**
-   * Puts an imp to sleep with force, as a person's `imp sleep` does: every
+   * Puts an imp to sleep with force, as a person's `impz sleep` does: every
    * lease ends and every connection is detached as lost.
    */
   suspendWithForce(name: string): void {

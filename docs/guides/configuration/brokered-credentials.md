@@ -51,7 +51,7 @@ A `github` profile gives a session HTTPS git and the GitHub API. It holds `secre
 `dependencies` only, so it takes no `env`, since impd's `github` kind sets the rules:
 `Authorization: Basic` for `x-access-token` on `github.com`, and a bearer `authorization` header on
 `api.github.com` and `uploads.github.com`. Add the secret with
-`imp secret add <secret> --kind github`, list it in the `--grantable` secrets of the target's impd
+`impz secret add <secret> --kind github`, list it in the `--grantable` secrets of the target's impd
 token when you make the token, and select the profile beside the model's:
 
 ```json
@@ -81,7 +81,7 @@ tool in the guest the endpoint of a service the broker authenticates, such as 1P
 the secret with its value on stdin:
 
 ```sh
-imp secret add op-connect --kind custom --hosts op-connect.geoff.cloud --header authorization --scheme bearer
+impz secret add op-connect --kind custom --hosts op-connect.geoff.cloud --header authorization --scheme bearer
 ```
 
 Then add a profile that sets the variables, and select it in an agent's `auth.profiles`:
