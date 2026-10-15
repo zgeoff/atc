@@ -60,7 +60,9 @@ test('it rejects a request on a connection that closed', async () => {
 
   await server.stop();
 
-  await waitFor(() => expect(closed).toBe(true));
+  await waitFor(() => {
+    expect(closed).toBe(true);
+  });
 
   expect(conn.isOpen).toBe(false);
   expect(conn.sendRequest('initialize', {})).rejects.toMatchObject({ code: -1 });

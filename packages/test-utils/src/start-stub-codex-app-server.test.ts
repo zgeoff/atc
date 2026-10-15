@@ -36,7 +36,9 @@ test('it completes a turn with the final reply after the message it carries', as
 
   ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 1 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 1 });
+  });
 
   ws.send(
     JSON.stringify({
@@ -50,7 +52,9 @@ test('it completes a turn with the final reply after the message it carries', as
     }),
   );
 
-  await waitFor(() => expect(received).toPartiallyContain({ method: 'turn/completed' }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ method: 'turn/completed' });
+  });
 
   expect(received).toPartiallyContain({
     method: 'turn/completed',
@@ -105,7 +109,9 @@ test('it adds a second message to the turn in progress', async () => {
     );
   }
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 3 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 3 });
+  });
 
   expect(received).toIncludeAllPartialMembers([
     { id: 2, result: { turn: { id: 'turn-2', status: 'inProgress', items: [] } } },
@@ -151,7 +157,9 @@ test('it completes a held turn before it answers a resume, when the scenario ask
 
   ws.send(JSON.stringify({ id: 3, method: 'thread/resume', params: { threadId: 'thread-1' } }));
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 3 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 3 });
+  });
 
   const completedAt = received.findIndex((m) => isRecord(m) && m['method'] === 'turn/completed');
   const resumedAt = received.findIndex((m) => isRecord(m) && m['id'] === 3);
@@ -184,7 +192,9 @@ test('it fails every history read from the connection the scenario names', async
   ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
   ws.send(JSON.stringify({ id: 2, method: 'thread/turns/list', params: { threadId: 'thread-1' } }));
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 2 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 2 });
+  });
 
   expect(received).toPartiallyContain({
     id: 2,
@@ -234,7 +244,9 @@ test('it lists turns newest first, a page at a time', async () => {
     }),
   );
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 4 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 4 });
+  });
 
   expect(received).toPartiallyContain({
     id: 4,
@@ -266,7 +278,9 @@ test('it refuses a request for a thread it does not hold', async () => {
 
   ws.send(JSON.stringify({ id: 1, method: 'thread/resume', params: { threadId: 'missing' } }));
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 1 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 1 });
+  });
 
   expect(received).toPartiallyContain({
     id: 1,
@@ -329,7 +343,9 @@ test('it records each request and hands it to the listener', async () => {
 
   ws.send(JSON.stringify({ id: 1, method: 'initialize', params: { clientInfo: {} } }));
 
-  await waitFor(() => expect(server.requests).toHaveLength(1));
+  await waitFor(() => {
+    expect(server.requests).toHaveLength(1);
+  });
 
   expect(server.requests).toStrictEqual([{ method: 'initialize', params: { clientInfo: {} } }]);
   expect(seen).toStrictEqual([{ method: 'initialize', params: { clientInfo: {} } }]);
@@ -373,7 +389,9 @@ test('it resolves a tool call with the result the client answers', async () => {
     }),
   );
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 2 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 2 });
+  });
 
   const result = await server.callTool('note', { text: 'halfway' });
 
@@ -417,7 +435,9 @@ test('it answers history reads on a connection before the one the scenario names
   ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
   ws.send(JSON.stringify({ id: 2, method: 'thread/turns/list', params: { threadId: 'thread-1' } }));
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 2 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 2 });
+  });
 
   expect(received).toPartiallyContain({ id: 2, result: { data: [], nextCursor: null } });
 });
@@ -454,7 +474,9 @@ test('it refuses every turn start when the scenario asks', async () => {
     }),
   );
 
-  await waitFor(() => expect(received).toPartiallyContain({ id: 2 }));
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 2 });
+  });
 
   expect(received).toPartiallyContain({
     id: 2,

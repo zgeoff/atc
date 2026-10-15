@@ -43,7 +43,9 @@ test('it delivers a queued message with turn/start and answers it with the turn 
   bridge.startDelivery();
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
-  await waitFor(() => expect(stub.statuses.get('m-1')).toBe('answered'));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
 
   expect(server.requests).toPartiallyContain({
     method: 'turn/start',
@@ -147,11 +149,11 @@ test('it keeps every stored message as it was and sends nothing when the history
 
   bridge.startDelivery();
 
-  await waitFor(() =>
+  await waitFor(() => {
     expect(server.requests.filter((r) => r.method === 'thread/turns/list').length).toBeGreaterThan(
       2,
-    ),
-  );
+    );
+  });
 
   expect([...stub.statuses]).toStrictEqual([
     ['m-accepted', 'delivered'],
@@ -195,8 +197,13 @@ test('it resends no accepted message when its turn completes while the connectio
   bridge.startDelivery();
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
-  await waitFor(() => expect(stub.statuses.get('m-1')).toBe('answered'));
-  await waitFor(() => expect(stub.attaches).toBe(2));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
+
+  await waitFor(() => {
+    expect(stub.attaches).toBe(2);
+  });
 
   expect(server.requests.filter((r) => r.method === 'turn/start')).toHaveLength(1);
 
@@ -229,7 +236,9 @@ test('it settles a message the server took before the daemon marked it, and send
   earlier.startDelivery();
   first.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
-  await waitFor(() => expect(first.statuses.get('m-1')).toBe('answered'));
+  await waitFor(() => {
+    expect(first.statuses.get('m-1')).toBe('answered');
+  });
 
   earlier.stop();
 
@@ -251,7 +260,9 @@ test('it settles a message the server took before the daemon marked it, and send
 
   bridge.startDelivery();
 
-  await waitFor(() => expect(stub.statuses.get('m-1')).toBe('answered'));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
 
   expect(server.requests.filter((r) => r.method === 'turn/start')).toHaveLength(1);
 
@@ -283,7 +294,9 @@ test('it leaves a delivered message that no stored turn holds unanswered as neve
 
   bridge.startDelivery();
 
-  await waitFor(() => expect(stub.statuses.get('m-lost')).toBe('unanswered'));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-lost')).toBe('unanswered');
+  });
 
   expect(stub.notes).toStrictEqual([
     { kind: 'unanswered', messages: ['m-lost'], reason: 'not_started' },
@@ -314,7 +327,9 @@ test('it records a note the model calls atc.note with', async () => {
   bridge.startDelivery();
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
-  await waitFor(() => expect(stub.statuses.get('m-1')).toBe('delivered'));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('delivered');
+  });
 
   const result = await server.callTool('note', { text: 'found the cause', label: 'decision' });
 
@@ -350,7 +365,9 @@ test('it answers a message the running turn carries through atc.answer', async (
   bridge.startDelivery();
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
-  await waitFor(() => expect(stub.statuses.get('m-1')).toBe('delivered'));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('delivered');
+  });
 
   const result = await server.callTool('answer', { message: 'm-1', text: 'it passes' });
 
@@ -385,7 +402,9 @@ test('it refuses an atc.answer for a message the running turn does not carry', a
   bridge.startDelivery();
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
 
-  await waitFor(() => expect(stub.statuses.get('m-1')).toBe('delivered'));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('delivered');
+  });
 
   const result = await server.callTool('answer', { message: 'm-other', text: 'it passes' });
 
@@ -424,7 +443,9 @@ test('it closes a connection that opens after the bridge stopped, and uses it fo
 
   expect(open).rejects.toMatchObject({ code: -1 });
 
-  await waitFor(() => expect(opened?.isOpen).toBe(false));
+  await waitFor(() => {
+    expect(opened?.isOpen).toBe(false);
+  });
 
   expect(server.requests).toStrictEqual([]);
 });
@@ -455,7 +476,9 @@ test('it leaves a message the App Server refuses unanswered and keeps the connec
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
   stub.queueMessage({ id: 'm-2', from: 'planner', text: 'and the lint' });
 
-  await waitFor(() => expect(stub.statuses.get('m-2')).toBe('unanswered'));
+  await waitFor(() => {
+    expect(stub.statuses.get('m-2')).toBe('unanswered');
+  });
 
   expect(stub.statuses.get('m-1')).toBe('unanswered');
 

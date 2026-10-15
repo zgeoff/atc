@@ -132,11 +132,11 @@ test('it keeps the stored message states when a history read fails during recove
     text: 'and the lint',
   });
 
-  await waitFor(() =>
+  await waitFor(() => {
     expect(
       ctx.readRequests().filter((r) => r.method === 'thread/turns/list').length,
-    ).toBeGreaterThan(1),
-  );
+    ).toBeGreaterThan(1);
+  });
 
   const first = await ctx.daemon.client.sendRequest('message.get', {
     message: accepted['message'],

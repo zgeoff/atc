@@ -19,7 +19,8 @@ function main(argv: readonly string[]): void {
     dir === undefined ||
     command !== 'app-server' ||
     flag !== '--listen' ||
-    !listen?.startsWith('unix://')
+    listen === undefined ||
+    !listen.startsWith('unix://')
   ) {
     console.error(`run-stub-codex-app-server: unexpected arguments ${argv.join(' ')}`);
     process.exit(2);

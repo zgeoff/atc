@@ -75,11 +75,11 @@ test('it starts the App Server again when it exits, and the bridge resumes its t
 
   process.kill(first);
 
-  await waitFor(() =>
+  await waitFor(() => {
     expect(readFileSync(join(ctx.dir, 'app-server-requests.jsonl'), 'utf8')).toInclude(
       '"method":"thread/resume"',
-    ),
-  );
+    );
+  });
 
   expect(readFileSync(join(ctx.dir, 'pids'), 'utf8').trim().split('\n')).toHaveLength(2);
 });
@@ -103,7 +103,9 @@ test('it rejects and leaves no socket when no App Server comes to listen', async
 
   expect(started).rejects.toMatchObject({ code: -1 });
 
-  await waitFor(() => expect(existsSync(join(ctx.bridgeDir, 'codex.sock'))).toBe(false));
+  await waitFor(() => {
+    expect(existsSync(join(ctx.bridgeDir, 'codex.sock'))).toBe(false);
+  });
 });
 
 test('it ends a server an earlier daemon left running for the session before it starts its own', async () => {
