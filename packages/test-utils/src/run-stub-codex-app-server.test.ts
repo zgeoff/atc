@@ -42,7 +42,14 @@ test('it serves with the scenario in the directory and logs each request there',
       new Promise<WebSocket>((resolve, reject) => {
         const opened = new WebSocket(`ws+unix://${socket}`);
 
-        opened.addEventListener('open', () => resolve(opened), { once: true });
+        opened.addEventListener(
+          'open',
+          () => {
+            resolve(opened);
+          },
+          { once: true },
+        );
+
         opened.addEventListener('error', reject, { once: true });
       }),
   );
@@ -52,7 +59,15 @@ test('it serves with the scenario in the directory and logs each request there',
   });
 
   const answered = new Promise<unknown>((resolve) => {
-    ws.addEventListener('message', (e) => resolve(JSON.parse(String(e.data))), { once: true });
+    ws.addEventListener(
+      'message',
+      (e) => {
+        const value: unknown = JSON.parse(String(e.data));
+
+        resolve(value);
+      },
+      { once: true },
+    );
   });
 
   ws.send(JSON.stringify({ id: 1, method: 'thread/turns/list', params: { threadId: 'missing' } }));

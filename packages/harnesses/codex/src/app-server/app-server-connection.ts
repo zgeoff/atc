@@ -28,7 +28,7 @@ const LINE_SCHEMA = z.looseObject({
 
 interface Waiting {
   readonly resolve: (result: unknown) => void;
-  readonly reject: (error: AppServerError) => void;
+  readonly reject: (error: Readonly<AppServerError>) => void;
 }
 
 /**
@@ -54,6 +54,7 @@ export class AppServerConnection {
 
   private closed = false;
 
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the connection owns the live socket
   private constructor(ws: WebSocket) {
     this.ws = ws;
 
@@ -81,11 +82,19 @@ export class AppServerConnection {
     const ws = new WebSocket(url);
 
     await new Promise<void>((resolve, reject) => {
-      ws.addEventListener('open', () => resolve(), { once: true });
+      ws.addEventListener(
+        'open',
+        () => {
+          resolve();
+        },
+        { once: true },
+      );
 
       ws.addEventListener(
         'error',
-        () => reject(new AppServerError(-1, `no App Server answered at ${url}`)),
+        () => {
+          reject(new AppServerError(-1, `no App Server answered at ${url}`));
+        },
         { once: true },
       );
     });

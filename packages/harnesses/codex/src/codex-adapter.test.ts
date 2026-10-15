@@ -854,3 +854,25 @@ test('it seeds no clone trust for an entry without auth', () => {
 
   expect(adapter.planGuestWorkspaceTrust('/work')).toBeNull();
 });
+
+test('it refuses a resume through the session picker on an App Server', () => {
+  const ctx = setupTest();
+
+  const adapter = new CodexAdapter(
+    getAgentEntry(parseConfig([CODEX_PLUGIN], { agents: { codex: { appServer: true } } }), 'codex'),
+  );
+
+  invariant(adapter.startMessageBridge);
+
+  expect(
+    adapter.startMessageBridge({
+      session: toSessionID('s-1'),
+      cwd: ctx.dir,
+      env: {},
+      withheldEnv: [],
+      options: { prompt: '', resume: true },
+      dir: join(ctx.dir, 'bridge'),
+      host: buildStubMessageBridgeHost().host,
+    }),
+  ).rejects.toMatchObject({ code: 'unsupported' });
+});

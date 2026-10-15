@@ -103,12 +103,7 @@ export class CodexAdapter implements AgentAdapter {
     this.takesMessages = entry.appServer === true;
 
     if (entry.appServer === true) {
-      this.startMessageBridge = (request) =>
-        startCodexAppServerBridge(request, {
-          bin: entry.bin,
-          planTerminal: (remote, thread) =>
-            this.planRemoteTerminal(request.options, remote, thread),
-        });
+      this.startMessageBridge = (request) => this.startAppServerBridge(request);
     }
 
     if (entry.auth !== undefined) {
@@ -149,6 +144,24 @@ export class CodexAdapter implements AgentAdapter {
         ...(opts.prompt === '' ? [] : [opts.prompt]),
       ],
     };
+  }
+
+  // The bridge owns the thread a terminal on its App Server joins, so a
+  // resume through Codex's own session picker, which picks the thread in
+  // the terminal, is refused rather than started as a new thread.
+  private async startAppServerBridge(request: MessageBridgeRequest): Promise<MessageBridge> {
+    if (request.options.resume === true) {
+      throw new DaemonError(
+        'unsupported',
+        `agent '${this.id}' runs on a Codex App Server, which resumes a session by its id and has no session picker`,
+        { agent: this.id },
+      );
+    }
+
+    return await startCodexAppServerBridge(request, {
+      bin: this.entry.bin,
+      planTerminal: (remote, thread) => this.planRemoteTerminal(request.options, remote, thread),
+    });
   }
 
   // A terminal on the session's own App Server resumes the thread the

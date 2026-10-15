@@ -11,7 +11,11 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { z } from 'zod';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
+
+// One line of the stand-in's request log.
+const REQUEST_LINE_SCHEMA = z.object({ method: z.string(), params: z.unknown() });
 
 // A daemon whose one agent is a Codex entry on an App Server, run by the
 // stand-in Codex CLI, which reads its scenario from the stub folder and
@@ -36,7 +40,7 @@ async function setupTest() {
       readFileSync(join(tmp.dir, 'app-server-requests.jsonl'), 'utf8')
         .trim()
         .split('\n')
-        .map((line): { method: string; params: Record<string, unknown> } => JSON.parse(line)),
+        .map((line) => REQUEST_LINE_SCHEMA.parse(JSON.parse(line))),
   };
 }
 

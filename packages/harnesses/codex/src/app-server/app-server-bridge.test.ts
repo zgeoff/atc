@@ -396,3 +396,35 @@ test('it refuses an atc.answer for a message the running turn does not carry', a
 
   expect(stub.notes).toStrictEqual([]);
 });
+
+test('it closes a connection that opens after the bridge stopped, and uses it for nothing', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, {});
+  const stub = buildStubMessageBridgeHost();
+  const opening = Promise.withResolvers<AppServerConnection>();
+  let opened: AppServerConnection | null = null;
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: () => opening.promise,
+    resumeThread: null,
+  });
+
+  const open = bridge.open();
+
+  bridge.stop();
+
+  opened = await ctx.openConnection();
+
+  opening.resolve(opened);
+
+  expect(open).rejects.toMatchObject({ code: -1 });
+
+  await waitFor(() => expect(opened?.isOpen).toBe(false));
+
+  expect(server.requests).toStrictEqual([]);
+});

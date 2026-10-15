@@ -11,6 +11,7 @@ import type {
   AppServerNotification,
   AppServerRequest,
 } from './app-server-connection';
+import { AppServerError } from './app-server-error';
 import { buildThreadStartParams } from './build-thread-start-params';
 import { NOTE_LABELS } from './note-labels';
 import { parseAppServerTurn } from './parse-app-server-turn';
@@ -161,6 +162,12 @@ export class AppServerBridge {
 
   private async openThread(isFirst: boolean): Promise<string> {
     const conn = await this.config.openConnection();
+
+    // A stop that landed while the connection opened leaves it unused.
+    if (this.stopped) {
+      conn.dispose();
+      throw new AppServerError(-1, 'the bridge stopped');
+    }
 
     this.conn = conn;
     this.ready = false;
@@ -313,6 +320,7 @@ export class AppServerBridge {
 
   // Pages back through the thread's turns until every unsettled message
   // has its turn or the history ends. A failed page rejects the whole read.
+  /* oxlint-disable prefer-readonly-parameter-types -- the read goes over the live connection */
   private async collectTurns(
     conn: AppServerConnection,
     unsettled: readonly UnsettledMessage[],
@@ -349,6 +357,8 @@ export class AppServerBridge {
 
     return turns;
   }
+
+  /* oxlint-enable prefer-readonly-parameter-types */
 
   private applyNotification(notification: AppServerNotification): void {
     if (!this.ready) {
@@ -524,6 +534,7 @@ export class AppServerBridge {
 
   // Serves a call to one of the bridge's own tools on its thread; every
   // other server request, approvals among them, is left to the terminal.
+  /* oxlint-disable prefer-readonly-parameter-types -- the answer goes over the live connection */
   private async answerToolCall(
     conn: AppServerConnection,
     request: AppServerRequest,
@@ -599,6 +610,8 @@ export class AppServerBridge {
       contentItems: [{ type: 'inputText', text: `Handed to atc as the answer to ${message}.` }],
     });
   }
+
+  /* oxlint-enable prefer-readonly-parameter-types */
 
   // Closes the connection and detaches the tap, so nothing is delivered
   // until a new connection recovers.

@@ -3,11 +3,11 @@ import { buildStubMessageBridgeHost } from './build-stub-message-bridge-host';
 
 test('it hands an attached tap one queued message and the next only after its ack', async () => {
   const stub = buildStubMessageBridgeHost();
-  const takeMessage = mock();
+  const takeMessage = mock<() => void>();
 
   stub.queueMessage({ id: 'm-1', from: 'planner', text: 'first' });
   stub.queueMessage({ id: 'm-2', from: 'planner', text: 'second' });
-  stub.host.attachTap({ takeMessage, takeNotice: mock(), close: mock() });
+  stub.host.attachTap({ takeMessage, takeNotice: mock<() => void>(), close: mock<() => void>() });
 
   expect(takeMessage).toHaveBeenCalledExactlyOnceWith({
     id: 'm-1',
@@ -23,7 +23,12 @@ test('it hands an attached tap one queued message and the next only after its ac
 
 test('it hands a detached tap nothing', () => {
   const stub = buildStubMessageBridgeHost();
-  const tap = { takeMessage: mock(), takeNotice: mock(), close: mock() };
+
+  const tap = {
+    takeMessage: mock<() => void>(),
+    takeNotice: mock<() => void>(),
+    close: mock<() => void>(),
+  };
 
   stub.host.attachTap(tap);
   stub.host.detachTap(tap);
@@ -74,7 +79,12 @@ test('it lists queued and delivered messages as unsettled', async () => {
 test('it counts attaches and records log lines', () => {
   const stub = buildStubMessageBridgeHost();
 
-  stub.host.attachTap({ takeMessage: mock(), takeNotice: mock(), close: mock() });
+  stub.host.attachTap({
+    takeMessage: mock<() => void>(),
+    takeNotice: mock<() => void>(),
+    close: mock<() => void>(),
+  });
+
   stub.host.log('one line');
 
   expect(stub.attaches).toBe(1);

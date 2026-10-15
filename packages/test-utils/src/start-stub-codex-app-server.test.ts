@@ -1,5 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubCodexAppServer } from './start-stub-codex-app-server';
 import { waitFor } from './wait-for';
@@ -124,7 +125,7 @@ test('it completes a held turn before it answers a resume, when the scenario ask
 
   const ws = new WebSocket(`ws+unix://${ctx.socket}`);
 
-  const received: { readonly id?: unknown; readonly method?: unknown }[] = [];
+  const received: unknown[] = [];
 
   onTestFinished(() => {
     ws.close();
@@ -152,8 +153,8 @@ test('it completes a held turn before it answers a resume, when the scenario ask
 
   await waitFor(() => expect(received).toPartiallyContain({ id: 3 }));
 
-  const completedAt = received.findIndex((m) => m.method === 'turn/completed');
-  const resumedAt = received.findIndex((m) => m.id === 3);
+  const completedAt = received.findIndex((m) => isRecord(m) && m['method'] === 'turn/completed');
+  const resumedAt = received.findIndex((m) => isRecord(m) && m['id'] === 3);
 
   expect(completedAt).toBeWithin(0, resumedAt);
 });
@@ -342,19 +343,19 @@ test('it resolves a tool call with the result the client answers', async () => {
 
   const ws = new WebSocket(`ws+unix://${ctx.socket}`);
 
-  const received: { readonly id?: unknown; readonly method?: unknown }[] = [];
+  const received: unknown[] = [];
 
   onTestFinished(() => {
     ws.close();
   });
 
   ws.addEventListener('message', (e) => {
-    const message = JSON.parse(String(e.data));
+    const message: unknown = JSON.parse(String(e.data));
 
     received.push(message);
 
-    if (message.method === 'item/tool/call') {
-      ws.send(JSON.stringify({ id: message.id, result: { success: true, contentItems: [] } }));
+    if (isRecord(message) && message['method'] === 'item/tool/call') {
+      ws.send(JSON.stringify({ id: message['id'], result: { success: true, contentItems: [] } }));
     }
   });
 

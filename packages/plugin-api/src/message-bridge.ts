@@ -9,7 +9,7 @@ import type { SpawnOptions, SpawnPlan } from './agent-adapter';
 export interface BridgedMessage {
   readonly id: string;
   readonly from: string;
-  readonly sender?: MessageSender;
+  readonly sender?: Readonly<MessageSender>;
   readonly text: string;
 }
 
