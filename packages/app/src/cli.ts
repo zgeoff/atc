@@ -2,8 +2,9 @@
 // `statusline` are the commands injected into wrangled sessions.
 import { resolve } from 'node:path';
 import { parseListenAddress } from '@atc/config/host';
+import type { HostServices } from '@atc/plugin-api';
 import { defineCommand, runMain } from 'citty';
-import { buildHostServices } from './build-host-services';
+import pkg from '../package.json';
 import { collectRedirectURIs } from './collect-redirect-uris';
 import { normalizeCLIArgs } from './normalize-cli-args';
 import { parsePort } from './parse-port';
@@ -20,13 +21,15 @@ const DAEMON_ARGS = {
   },
 } as const;
 
-// This process's host services, built once for every subcommand.
-const hostServices = buildHostServices();
+// This process's host services, built once, on first use. The reporters
+// never use them, so a hook or statusline command starts without loading
+// the modules behind them.
+let pendingHostServices: Promise<HostServices> | null = null;
 
 const main = defineCommand({
   meta: {
     name: 'atc',
-    version: hostServices.version,
+    version: pkg.version,
     description: 'Terminal control tower for coding-agent sessions',
   },
   default: 'tui',
@@ -48,6 +51,7 @@ const main = defineCommand({
         async run(ctx) {
           const lifecycle = await import('./build-lifecycle-host');
           const slot = await import('./client/tui-host-slot');
+          const hostServices = await resolveHostServices();
 
           const lifecycleHost = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -114,6 +118,7 @@ const main = defineCommand({
         async run(ctx) {
           const boot = await import('@atc/lifecycle');
           const lifecycle = await import('./build-lifecycle-host');
+          const hostServices = await resolveHostServices();
 
           const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -409,6 +414,7 @@ const main = defineCommand({
               async run() {
                 const id = await import('@atc/lifecycle');
                 const lifecycle = await import('./build-lifecycle-host');
+                const hostServices = await resolveHostServices();
 
                 await id.runDaemonID(lifecycle.buildLifecycleHost(process.env, hostServices));
               },
@@ -436,6 +442,7 @@ const main = defineCommand({
 
                 const restart = await import('@atc/lifecycle');
                 const lifecycle = await import('./build-lifecycle-host');
+                const hostServices = await resolveHostServices();
 
                 const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -465,6 +472,7 @@ const main = defineCommand({
 
                 const worker = await import('@atc/lifecycle');
                 const lifecycle = await import('./build-lifecycle-host');
+                const hostServices = await resolveHostServices();
 
                 const host = lifecycle.buildLifecycleHost(process.env, hostServices);
 
@@ -500,6 +508,7 @@ const main = defineCommand({
         },
         async run() {
           const hook = await import('@atc/harness-codex');
+          const hostServices = await resolveHostServices();
 
           hook.printCodexHookFile(hostServices.atcArgv);
         },
@@ -512,6 +521,7 @@ const main = defineCommand({
         },
         async run() {
           const hook = await import('@atc/harness-grok');
+          const hostServices = await resolveHostServices();
 
           hook.printGrokHookFile(hostServices.atcArgv);
         },
@@ -669,6 +679,20 @@ interface RestartFlags {
   readonly timeoutSeconds: number | null;
 }
 
+// This process's host services: the first call loads and builds them, and
+// every later call returns the same ones.
+function resolveHostServices(): Promise<HostServices> {
+  pendingHostServices ??= loadHostServices();
+
+  return pendingHostServices;
+}
+
+async function loadHostServices(): Promise<HostServices> {
+  const services = await import('./build-host-services');
+
+  return services.buildHostServices();
+}
+
 // Reads the flags the restart commands share, and stops the command on one
 // the replacement daemon would refuse after the old one is already gone.
 function parseRestartArgs(args: RestartArgs): RestartFlags {
@@ -700,6 +724,7 @@ async function runSessionCommand(action: 'rebind' | 'adopt', id: string): Promis
   const boot = await import('@atc/lifecycle');
   const lifecycle = await import('./build-lifecycle-host');
   const sessionAction = await import('./run-session-action');
+  const hostServices = await resolveHostServices();
 
   const booted = await boot.bootDaemonClient(
     lifecycle.buildLifecycleHost(process.env, hostServices),
@@ -739,6 +764,7 @@ async function runDaemon(listenArg: string | null, tokenFile: string | null): Pr
   const sourceOrder = await import('./sources/build-sources');
   const builtinSources = await import('./sources/collect-builtin-sources');
   const home = await import('@atc/config/host');
+  const hostServices = await resolveHostServices();
 
   // Test harnesses shrink the outbound queue to force overflow
   // deterministically; unset means the production default.
