@@ -1,7 +1,5 @@
 import { getSourceEntry } from './get-source-entry';
 
-const CLI_PATH = getSourceEntry('atc');
-
 /**
  * The script of a stand-in `grok` for the TUI suites. It prints
  * `FAKE_GROK_UP args: ` and its arguments at start and again on every
@@ -15,7 +13,7 @@ const CLI_PATH = getSourceEntry('atc');
  * waits before it reports.
  */
 export function buildStubTUIGrok(): string {
-  const report = `"${process.execPath}" "${CLI_PATH}" hook-report`;
+  const report = `"${process.execPath}" "${getSourceEntry('atc')}" hook-report`;
 
   return `#!/usr/bin/env bash
 ARGS="$*"

@@ -128,12 +128,12 @@ packages have one entry, `.`, at `src/index.ts`, and a package with a `src/testi
 own, and a package gets one only for a reason, never one entry per file. The reason is usually
 start-up time. A compiled entry point runs the top-level code of every module it re-exports, and a
 hook or statusline command starts once per event inside a session, so the reporters and the static
-imports of `cli.ts` load only light entries: core's `.`, which leaves its Zod field builders to
-`./schema`, protocol's `./session` and `./wire`, config's `./host` and `./claude-statusline`, and
-lifecycle's `./run-command`. The `.` entry of protocol, config, lifecycle, and store builds Zod
-schemas, the protocol contract, or the store, and re-exports the package's light entries, so a
-module off the reporters' path imports everything through `.`. The store's `./sqlite` entry gives
-the gateway its `mcp-auth.db` opener without the rest of the store. A module never imports its own
+imports of `cli.ts` load only the light entries that `scripts/check-reach.ts` lists. A package whose
+`.` entry builds Zod schemas, the protocol contract, or the store keeps the modules a reporter needs
+in a light entry, and its `.` entry re-exports that light entry, so a module off the reporters' path
+can import everything through `.`. Core's `.` entry is itself light: it leaves the Zod field
+builders, whose import loads Zod, to its `./schema` entry. The store's `./sqlite` entry gives the
+gateway its `mcp-auth.db` opener without the rest of the store. A module never imports its own
 package by name: imports inside a package stay relative. `@atc/test-utils` has one `.` entry, and
 the preload modules that `bunfig.toml` loads by path stay out of it, because they run top-level
 code.
