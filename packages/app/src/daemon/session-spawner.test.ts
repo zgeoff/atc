@@ -56,11 +56,12 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const stopMessageBridge = mock(() => Promise.resolve());
+  const onBoot = mock<() => void>();
 
   const callbacks: SessionCallbacks = {
     onOutput: mock<() => void>(),
     onChange: mock<() => void>(),
-    onBoot: mock<() => void>(),
+    onBoot,
     onRelay: mock<() => void>(),
     onEvent: mock<() => void>(),
     onProcessEnded: mock<() => void>(),
@@ -113,6 +114,7 @@ async function setupTest(config: SetupTestConfig) {
     store,
     callbacks,
     stopMessageBridge,
+    onBoot,
     registry,
     claims,
     rollback,
@@ -140,6 +142,59 @@ test('it lists a running session and starts its harness on the local target', as
   });
 
   expect(ctx.callbacks.onEvent).toHaveBeenCalledExactlyOnceWith('added', session);
+});
+
+test('it boots a session before output its harness writes at once can reach it', async () => {
+  const booted: number[] = [];
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        identity: 'local-pty:test',
+
+        // A harness's first read can land in the microtask after its start,
+        // so this records how many boots had run by then.
+        provider: buildStubMemoryProvider({
+          kind: 'local-pty',
+          onSpawn: () => {
+            queueMicrotask(() => {
+              booted.push(ctx.onBoot.mock.calls.length);
+            });
+          },
+        }),
+      }),
+    ],
+  });
+
+  await ctx.spawner.spawn(ctx.dir, 'work', '', 80, 24);
+
+  expect(booted).toStrictEqual([1]);
+});
+
+test('it kills the harness and unlists the session when booting it throws', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  ctx.onBoot.mockImplementation(() => {
+    throw new Error('the screen could not be built');
+  });
+
+  const spawned = ctx.spawner.spawn(ctx.dir, 'work', '', 80, 24);
+
+  await spawned.catch(() => null);
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(spawned).rejects.toThrowWithMessage(Error, 'the screen could not be built');
+  expect(provider.harnesses[0]?.readExit()).toStrictEqual({ exitCode: 0 });
+  expect(ctx.registry.sessions).toStrictEqual([]);
+  expect(stored).toStrictEqual([]);
 });
 
 test('it rejects a spawn of an agent no adapter is registered for', async () => {
@@ -349,7 +404,14 @@ test.each([
   ['reach', ['record', 'trust', 'workspace', 'host', 'claim'], 1, 0, false, 0],
   ['bridge', ['record', 'trust', 'workspace', 'host', 'claim'], 1, 0, false, 0],
   ['harness', ['bridge', 'record', 'trust', 'workspace', 'host', 'claim'], 1, 1, false, 0],
-  ['list', ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'], 1, 1, false, 1],
+  [
+    'harness-start',
+    ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
+    1,
+    1,
+    false,
+    1,
+  ],
   [
     'answer',
     ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],

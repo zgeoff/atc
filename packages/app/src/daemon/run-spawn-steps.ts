@@ -16,7 +16,6 @@ export type SpawnStepName =
   | 'reach'
   | 'bridge'
   | 'harness'
-  | 'list'
   | 'harness-start'
   | 'auth-ready'
   | 'answer';
