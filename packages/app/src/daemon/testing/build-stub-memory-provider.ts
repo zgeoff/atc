@@ -1,3 +1,5 @@
+import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type {
   CommandResult,
   CommandSpec,
@@ -36,6 +38,10 @@ interface StubMemoryProviderConfig {
   readonly prepareHost?: ExecutionProvider['prepareHost'];
   readonly suspendHost?: ExecutionProvider['suspendHost'];
   readonly destroyHost?: ExecutionProvider['destroyHost'];
+
+  // The clock behind each harness's wait for its exit; the wall clock when
+  // absent.
+  readonly clock?: Clock;
 }
 
 /**
@@ -133,7 +139,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
     },
     spawnHarness: (spec) => {
       config.onSpawn?.(spec);
-      const harness = buildStubMemoryHarness(spec);
+      const harness = buildStubMemoryHarness(spec, config.clock ?? systemClock);
 
       harnesses.push(harness);
 
@@ -167,7 +173,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
   };
 }
 
-function buildStubMemoryHarness(spec: HarnessSpec): StubMemoryHarness {
+function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarness {
   const dataListeners = new Set<(data: string) => void>();
   const exitListeners = new Set<(exit: HarnessExit) => void>();
   const exitWaiters = new Set<(exited: boolean) => void>();
@@ -256,16 +262,14 @@ function buildStubMemoryHarness(spec: HarnessSpec): StubMemoryHarness {
 
       const wait = Promise.withResolvers<boolean>();
 
-      const timer = setTimeout(() => {
+      const cancelTimeout = clock.schedule(() => {
         exitWaiters.delete(wait.resolve);
         wait.resolve(false);
       }, timeoutMs);
 
       exitWaiters.add(wait.resolve);
 
-      return wait.promise.finally(() => {
-        clearTimeout(timer);
-      });
+      return wait.promise.finally(cancelTimeout);
     },
     detach: () => {
       detached = true;

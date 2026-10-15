@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import type { HarnessExit } from '@atc/plugin-api';
+import { buildStubClock } from '@atc/test-utils';
 import { buildStubCredentialBroker } from './build-stub-credential-broker';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
@@ -215,7 +216,8 @@ test('it ends a force-killed harness with exit code 137', async () => {
 });
 
 test('it reports no exit for a harness that runs past the wait', async () => {
-  const provider = buildStubMemoryProvider();
+  const clock = buildStubClock(0);
+  const provider = buildStubMemoryProvider({ clock });
 
   const harness = provider.spawnHarness({
     session: 's-1',
@@ -228,8 +230,17 @@ test('it reports no exit for a harness that runs past the wait', async () => {
     rows: 24,
   });
 
-  const exited = await harness.waitForExit(1);
+  const wait = harness.waitForExit(1000);
 
+  clock.advance(999);
+
+  const pending = Bun.peek.status(wait);
+
+  clock.advance(1);
+
+  const exited = await wait;
+
+  expect(pending).toBe('pending');
   expect(exited).toBeFalse();
 });
 

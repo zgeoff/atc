@@ -183,7 +183,7 @@ export interface DaemonOptions {
   // before starting the headless run anyway.
   readonly ejectSettleMs?: number;
 
-  // Starts the eject settle timer; defaults to a real `setTimeout`.
+  // Starts the eject settle timer; the daemon's clock when unset.
   readonly scheduleEjectSettle?: SettleScheduler;
 
   // How long a failed spawn's rollback waits for the killed process to
@@ -388,6 +388,10 @@ const LOG_DRAIN_TIMEOUT_MS = 1000;
 // state lock before refusing to start.
 const LOCK_WAIT_MS = 2000;
 
+// How long a client-requested quit waits before it stops the daemon, so the
+// ok response to the quit request flushes before the sockets close under it.
+const QUIT_FLUSH_DELAY_MS = 80;
+
 /**
  * The daemon: owns the sessions, the client-protocol listener, and the
  * reporter listener. Protocol requests are NDJSON lines, one response per
@@ -526,7 +530,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const clients = new Set<DaemonConnection>();
 
-  const runHooks = makeHookRunner(opts.hooks ?? {});
+  const runHooks = makeHookRunner(opts.hooks ?? {}, { clock });
 
   // The session the process at the other end of a local socket runs in,
   // from the pid the kernel holds for it and the harness processes of the
@@ -905,10 +909,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return;
     }
 
-    clearTimeout(runtime.detectTimer);
+    runtime.cancelDetect?.();
 
-    runtime.detectTimer = setTimeout(() => {
-      runtime.detectTimer = undefined;
+    runtime.cancelDetect = clock.schedule(() => {
+      runtime.cancelDetect = undefined;
       void applyScreenJudgment(sessionID);
     }, 300);
   };
@@ -982,12 +986,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const scheduleResize = (sessionID: SessionID) => {
     const runtime = runtimes.get(sessionID);
 
-    if (runtime === undefined || runtime.resizeTimer !== undefined) {
+    if (runtime === undefined || runtime.cancelResize !== undefined) {
       return;
     }
 
-    runtime.resizeTimer = setTimeout(() => {
-      runtime.resizeTimer = undefined;
+    runtime.cancelResize = clock.schedule(() => {
+      runtime.cancelResize = undefined;
 
       applyEffectiveDims(sessionID);
     }, 50);
@@ -2084,15 +2088,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     updateSessionScope: (id, scope) => mgr.updateScope(id, scope),
     isCallerTree: (id, caller) => mgr.isCallerTree(id, caller),
     quitDaemon: () => {
-      // The ok response for the quit request must flush before the sockets
-      // close under it.
-      setTimeout(() => {
+      clock.schedule(() => {
         void (async () => {
           await stopDaemon?.();
 
           opts.onQuit?.();
         })();
-      }, 80);
+      }, QUIT_FLUSH_DELAY_MS);
     },
     killSession: async (id, stopOnly) => {
       const s = mgr.sessions.find((x) => x.id === id);
@@ -2211,7 +2213,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         sessionID: id,
         prompt,
         settleMs: opts.ejectSettleMs ?? 4000,
-        scheduleSettle: opts.scheduleEjectSettle,
+        scheduleSettle: opts.scheduleEjectSettle ?? clock.schedule,
         runtime,
         startHeadlessTurn: (sid, p) =>
           startHeadlessTurn(
@@ -2935,7 +2937,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     // A given log writes as it is called, so it has nothing to drain.
     listenerLog =
       opts.log === undefined
-        ? createNonBlockingLog(STDERR_FD)
+        ? createNonBlockingLog(STDERR_FD, clock)
         : { log: opts.log, drain: () => Promise.resolve() };
 
     try {

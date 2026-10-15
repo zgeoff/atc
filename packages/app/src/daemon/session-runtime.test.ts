@@ -1,4 +1,5 @@
-import { expect, jest, mock, onTestFinished, spyOn, test } from 'bun:test';
+import { expect, mock, onTestFinished, spyOn, test } from 'bun:test';
+import { buildStubClock } from '@atc/test-utils';
 import { ScreenModel } from './screen-model';
 import { SessionRuntime } from './session-runtime';
 
@@ -35,41 +36,37 @@ test('it stops its screen model on dispose', () => {
 });
 
 test('it clears its resize and detect timers on dispose so they never fire', () => {
-  jest.useFakeTimers();
-
-  onTestFinished(() => jest.useRealTimers());
+  const clock = buildStubClock(0);
 
   const runtime = new SessionRuntime();
 
   const resize = mock(() => {});
   const detect = mock(() => {});
 
-  runtime.resizeTimer = setTimeout(resize, 20);
-  runtime.detectTimer = setTimeout(detect, 20);
+  runtime.cancelResize = clock.schedule(resize, 20);
+  runtime.cancelDetect = clock.schedule(detect, 20);
 
   runtime.dispose();
-  jest.advanceTimersByTime(20);
+  clock.advance(20);
 
   expect(resize).not.toHaveBeenCalled();
   expect(detect).not.toHaveBeenCalled();
 });
 
 test('it leaves its resize and detect timers to fire when it stops only its headless run', () => {
-  jest.useFakeTimers();
-
-  onTestFinished(() => jest.useRealTimers());
+  const clock = buildStubClock(0);
 
   const runtime = new SessionRuntime();
 
   const resize = mock(() => {});
   const detect = mock(() => {});
 
-  runtime.resizeTimer = setTimeout(resize, 20);
-  runtime.detectTimer = setTimeout(detect, 20);
+  runtime.cancelResize = clock.schedule(resize, 20);
+  runtime.cancelDetect = clock.schedule(detect, 20);
   runtime.headlessRun = { stop: () => {} };
 
   runtime.stopHeadlessRun();
-  jest.advanceTimersByTime(20);
+  clock.advance(20);
 
   expect(resize).toHaveBeenCalledOnce();
   expect(detect).toHaveBeenCalledOnce();

@@ -1,5 +1,7 @@
 import { write } from 'node:fs';
 import { promisify } from 'node:util';
+import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 
 // The most bytes of lines that wait behind the write in flight; a line past
 // it is dropped and counted.
@@ -32,9 +34,9 @@ export interface NonBlockingLog {
  * process alive until the process calls exit. A process that shuts down
  * drains the log with a timeout and then exits: every queued line reaches a
  * reader that keeps reading, and an unread pipe holds the exit back no
- * longer than the timeout.
+ * longer than the timeout, which runs on the given clock.
  */
-export function createNonBlockingLog(fd: number): NonBlockingLog {
+export function createNonBlockingLog(fd: number, clock: Clock = systemClock): NonBlockingLog {
   let queue: string[] = [];
   let queuedBytes = 0;
   let dropped = 0;
@@ -139,11 +141,11 @@ export function createNonBlockingLog(fd: number): NonBlockingLog {
 
       idleWaiters.push(idle.resolve);
 
-      const timer = setTimeout(idle.resolve, timeoutMs);
+      const cancelTimeout = clock.schedule(idle.resolve, timeoutMs);
 
       await idle.promise;
 
-      clearTimeout(timer);
+      cancelTimeout();
     },
   };
 }
