@@ -404,6 +404,7 @@ test.each([
   ['reach', ['record', 'trust', 'workspace', 'host', 'claim'], 1, 0, false, 0],
   ['bridge', ['record', 'trust', 'workspace', 'host', 'claim'], 1, 0, false, 0],
   ['harness', ['bridge', 'record', 'trust', 'workspace', 'host', 'claim'], 1, 1, false, 0],
+  ['list', ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'], 1, 1, false, 1],
   [
     'harness-start',
     ['harness', 'bridge', 'record', 'trust', 'workspace', 'host', 'claim'],
@@ -459,6 +460,24 @@ test.each([
                       await undo(result, failure);
                     }
                   }),
+            runNow: (name, run, undo) =>
+              steps.runNow(
+                name,
+                () => {
+                  if (name === failing) {
+                    throw new Error(`the ${name} step refused`);
+                  }
+
+                  return run();
+                },
+                async (result, failure) => {
+                  if (undo !== undefined) {
+                    ran.push(name);
+
+                    await undo(result, failure);
+                  }
+                },
+              ),
           }),
         ),
     });

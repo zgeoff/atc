@@ -50,6 +50,48 @@ test("it undoes each finished step, last first, with the step's result and the f
   expect(undone).toStrictEqual(['host:host-7:true', 'claim:/work/claimed:true']);
 });
 
+test('it runs a step now in the same turn and undoes it with the steps before it', async () => {
+  const undone: string[] = [];
+  const order: string[] = [];
+
+  const spawned = runSpawnSteps(toSessionID('s-now'), async (steps) => {
+    await steps.run(
+      'bridge',
+      () => {},
+      () => {
+        undone.push('bridge');
+      },
+    );
+
+    queueMicrotask(() => {
+      order.push('microtask');
+    });
+
+    steps.runNow(
+      'harness',
+      () => {
+        order.push('harness');
+      },
+      () => {
+        undone.push('harness');
+      },
+    );
+
+    steps.runNow('list', () => {
+      order.push('list');
+      throw new Error('the session could not be listed');
+    });
+
+    return 'listed';
+  });
+
+  await spawned.catch(() => null);
+
+  expect(spawned).rejects.toThrowWithMessage(Error, 'the session could not be listed');
+  expect(order).toStrictEqual(['harness', 'list', 'microtask']);
+  expect(undone).toStrictEqual(['harness', 'bridge']);
+});
+
 test('it never undoes the step that failed', async () => {
   const undo = mock();
 

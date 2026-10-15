@@ -16,6 +16,7 @@ export type SpawnStepName =
   | 'reach'
   | 'bridge'
   | 'harness'
+  | 'list'
   | 'harness-start'
   | 'auth-ready'
   | 'answer';
@@ -25,6 +26,9 @@ export type SpawnStepName =
  * when given, takes back what the step did; it gets the step's result and
  * the failure that ended the spawn. A step that fails takes back its own
  * partial work before it throws, so only the steps before it are undone.
+ * `runNow` runs a synchronous step in the caller's turn and returns its
+ * result, so steps that must not let a microtask in between, such as
+ * starting a harness and booting its session, follow one another at once.
  */
 export interface SpawnSteps {
   readonly run: <T>(
@@ -32,6 +36,11 @@ export interface SpawnSteps {
     run: () => Promise<T> | T,
     undo?: (result: T, failure: unknown) => Promise<void> | void,
   ) => Promise<T>;
+  readonly runNow: <T>(
+    name: SpawnStepName,
+    run: () => T,
+    undo?: (result: T, failure: unknown) => Promise<void> | void,
+  ) => T;
 }
 
 /**
@@ -60,6 +69,15 @@ export async function runSpawnSteps<T>(
   const steps: SpawnSteps = {
     run: async (name, run, undo) => {
       const result = await run();
+
+      if (undo !== undefined) {
+        done.push({ name, undo: (failure) => undo(result, failure) });
+      }
+
+      return result;
+    },
+    runNow: (name, run, undo) => {
+      const result = run();
 
       if (undo !== undefined) {
         done.push({ name, undo: (failure) => undo(result, failure) });

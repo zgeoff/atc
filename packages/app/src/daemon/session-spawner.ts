@@ -295,8 +295,8 @@ export class SessionSpawner {
 
   // The spawn's steps, in order: claim the directory, ready the host, build
   // the workspace and check and trust it, publish the record, start the
-  // message bridge, start the harness and list the session, wait for the
-  // harness to start, and build the caller's answer. Each step that leaves
+  // message bridge and the harness, list the session, wait for the harness
+  // to start, and build the caller's answer. Each step that leaves
   // something behind gives its undo.
   private async runSpawn(steps: SpawnSteps, spawn: Readonly<SpawnRequest>): Promise<Session> {
     const adapter = spawn.adapter;
@@ -518,14 +518,14 @@ export class SessionSpawner {
       initialMsg = spawn.resume === false ? 'started' : 'adopting…';
     }
 
-    // The session lists and boots in the same turn its harness starts, since
-    // the harness's first output can arrive in the next microtask and is
-    // kept only once the session has booted. The undo kills the harness and
-    // takes the session out of the list and the fleet; a listing that
-    // throws takes that back before the step throws.
-    const session = await steps.run(
+    // The session registers as soon as its harness starts, so the undo
+    // kills the harness and takes the session out of the list and the
+    // fleet. The session lists and boots in the same turn, since the
+    // harness's first output can arrive in the next microtask and is kept
+    // only once the session has booted.
+    const session = steps.runNow(
       'harness',
-      async () => {
+      () => {
         const pty = provider.spawnHarness({
           session: id,
           host: hostKey,
@@ -579,27 +579,18 @@ export class SessionSpawner {
         this.registry.sessions.push(registered);
         this.harnesses.startingSpawns.set(id, readied);
 
-        try {
-          this.claims.releaseWorkspace(id);
-          void this.fleet.tryWriteFleet(id);
-          this.fleet.writeStatus();
-          this.callbacks.onEvent('added', registered);
-          this.callbacks.onBoot(registered, spawn.cols, spawn.rows);
-        } catch (error) {
-          await this.rollback.removeListedSpawn(id, readied.root).catch((cleanupError: unknown) => {
-            throw new EffectRemainsError(
-              `spawn of session ${id} failed and taking back its harness step failed too`,
-              { cause: cleanupError },
-            );
-          });
-
-          throw error;
-        }
-
         return registered;
       },
       () => this.rollback.removeListedSpawn(id, readied.root),
     );
+
+    steps.runNow('list', () => {
+      this.claims.releaseWorkspace(id);
+      void this.fleet.tryWriteFleet(session.id);
+      this.fleet.writeStatus();
+      this.callbacks.onEvent('added', session);
+      this.callbacks.onBoot(session, spawn.cols, spawn.rows);
+    });
 
     // A start impd refuses throws here, after the session listed, and the
     // unwind takes the session back with its binding. A shared host that
