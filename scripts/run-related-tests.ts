@@ -1,8 +1,12 @@
 // Runs the tests that sit beside the given files: a test file runs itself,
-// and a source file runs its sibling test file. Prints a line and exits 0
-// when none of the files has a test.
+// and a source file runs its sibling test file. The tests on the pre-push
+// skip list stay out, each with a printed line that holds its Linear issue.
+// Prints a line and exits 0 when none of the files has a test.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import type { TestSkip } from './load-test-skips';
+import { loadTestSkips } from './load-test-skips';
+import { planTestRuns } from './plan-test-runs';
 
 /**
  * Returns the test files related to the given paths, in order and without
@@ -31,30 +35,54 @@ export function collectRelatedTests(paths: readonly string[], cwd: string): stri
 }
 
 /**
- * Runs the repo's test script over the tests related to the given paths and
- * returns its exit code, or 0 after printing a note when there are none.
+ * Runs the repo's test script over the tests related to the given paths,
+ * leaving out the skipped tests, and returns the first failing run's exit
+ * code, or 0 after printing a note when there are no related tests. Every
+ * run goes ahead even when an earlier one fails.
  */
-export function runRelatedTests(paths: readonly string[], cwd: string): Promise<number> {
+export async function runRelatedTests(
+  paths: readonly string[],
+  cwd: string,
+  skips: readonly TestSkip[],
+): Promise<number> {
   const tests = collectRelatedTests(paths, cwd);
 
   if (tests.length === 0) {
     process.stdout.write('run-related-tests: no related tests\n');
 
-    return Promise.resolve(0);
+    return 0;
   }
 
-  const run = Bun.spawn(['bun', 'run', 'test', ...tests], {
-    cwd,
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
-  });
+  let exitCode = 0;
 
-  return run.exited;
+  for (const run of planTestRuns(tests, skips)) {
+    for (const skip of run.skips) {
+      process.stdout.write(
+        `run-related-tests: skips "${skip.test}" in ${skip.file} (${skip.issue})\n`,
+      );
+    }
+
+    const child = Bun.spawn(['bun', 'run', 'test', ...run.args], {
+      cwd,
+      stdin: 'inherit',
+      stdout: 'inherit',
+      stderr: 'inherit',
+    });
+
+    const runExitCode = await child.exited;
+
+    if (exitCode === 0) {
+      exitCode = runExitCode;
+    }
+  }
+
+  return exitCode;
 }
 
 if (import.meta.main) {
-  const exitCode = await runRelatedTests(process.argv.slice(2), process.cwd());
+  const skips = loadTestSkips(join(import.meta.dir, 'pre-push-test-skips.json'));
+
+  const exitCode = await runRelatedTests(process.argv.slice(2), process.cwd(), skips);
 
   process.exit(exitCode);
 }
