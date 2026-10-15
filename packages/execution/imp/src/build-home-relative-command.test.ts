@@ -64,6 +64,47 @@ test('it follows a parent step from where a symlink under the home leads, as a s
   expect(result.stdout).toBe(`${join(ctx.home, 'far')}\n`);
 });
 
+test('it runs a command with a relative directory named - in that directory under the home, not the previous one', async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, '-'));
+
+  const command = buildHomeRelativeCommand(['pwd', '-P'], '-');
+
+  const result = await runCommand(command.argv, {
+    cwd: command.cwd,
+    env: { HOME: ctx.home, PATH: process.env['PATH'] },
+  });
+
+  expect(result).toStrictEqual({
+    exitCode: 0,
+    signalCode: null,
+    stdout: `${join(ctx.home, '-')}\n`,
+    stderr: '',
+  });
+});
+
+test('it runs a command with a relative directory under the home when a CDPATH entry holds one of the same name', async () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.home, 'orchard'));
+  mkdirSync(join(ctx.home, 'elsewhere', 'orchard'), { recursive: true });
+
+  const command = buildHomeRelativeCommand(['pwd', '-P'], 'orchard');
+
+  const result = await runCommand(command.argv, {
+    cwd: command.cwd,
+    env: { HOME: ctx.home, PATH: process.env['PATH'], CDPATH: join(ctx.home, 'elsewhere') },
+  });
+
+  expect(result).toStrictEqual({
+    exitCode: 0,
+    signalCode: null,
+    stdout: `${join(ctx.home, 'orchard')}\n`,
+    stderr: '',
+  });
+});
+
 test('it fails a command whose relative directory is missing under the home, without running it', async () => {
   const ctx = setupTest();
   const command = buildHomeRelativeCommand(['sh', '-c', 'echo ran'], 'missing');

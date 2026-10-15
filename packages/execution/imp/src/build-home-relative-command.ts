@@ -1,8 +1,10 @@
 import { posix } from 'node:path';
 
 // Enters the directory given first from the home of the user it runs as,
-// then runs the rest of its arguments in its place.
-const ENTER_FROM_HOME_SCRIPT = 'cd && cd -P -- "$0" && exec "$@"';
+// then runs the rest of its arguments in its place. The directory goes to
+// cd behind `./`, so a directory named `-` is not the previous one and no
+// CDPATH entry stands in for it.
+const ENTER_FROM_HOME_SCRIPT = 'cd && cd -P -- "./$0" && exec "$@"';
 
 /**
  * A process for impd to start, whose relative working directory lies under
