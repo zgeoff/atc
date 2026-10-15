@@ -2899,6 +2899,15 @@ test('it refuses an adopt whose outdated harness ignores its kill, leaves the se
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
+  const [started] = ctx.port.sessionRequests;
+
+  invariant(started !== undefined);
+
+  // The harness prints its revision only after it ignores the hangup, so a
+  // kill sent before that output would end it.
+  await waitFor(() => {
+    expect(ctx.port.getEnd(started.name, started.session)).toBeGreaterThan(0);
+  });
 
   // The kill puts the imp to sleep with the harness kept inside it.
   await daemon.client.sendRequest('session.kill', { session: id });
@@ -2917,11 +2926,6 @@ test('it refuses an adopt whose outdated harness ignores its kill, leaves the se
   const again = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
   expect(again).rejects.toMatchObject({ code: 'no_such_session' });
-
-  const [started] = ctx.port.sessionRequests;
-
-  invariant(started !== undefined);
-
   expect(getRecord(got, 'session')).toMatchObject({ alive: false, lastMsg: 'killed' });
 
   expect(ctx.port.getProcessArgv(started.name, started.session)).toStrictEqual([
@@ -2994,6 +2998,15 @@ test('it records an adopt whose outdated harness ignores its kill as stopped, so
   });
 
   const id = String(getRecord(spawned, 'session')['id']);
+  const [started] = ctx.port.sessionRequests;
+
+  invariant(started !== undefined);
+
+  // The harness prints its revision only after it ignores the hangup, so a
+  // kill sent before that output would end it.
+  await waitFor(() => {
+    expect(ctx.port.getEnd(started.name, started.session)).toBeGreaterThan(0);
+  });
 
   // The kill puts the imp to sleep with the harness kept inside it.
   await daemon.client.sendRequest('session.kill', { session: id });
