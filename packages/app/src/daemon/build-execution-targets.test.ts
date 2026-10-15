@@ -91,7 +91,11 @@ test('it builds the identities a daemon stored before the providers moved into p
     { FIXTURE_IMP_TOKEN: 'fixture-token' },
   );
 
-  onTestFinished(() => Promise.all(built.targets.map((target) => target.provider?.dispose())));
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
 
   // fleet rows hold these identities, so no change to where a provider's
   // code lives may move them while the target config stays the same

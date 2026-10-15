@@ -571,7 +571,11 @@ test('it restores sessions stored before the providers moved into packages on th
     { FIXTURE_IMP_TOKEN: 'fixture-token' },
   );
 
-  onTestFinished(() => Promise.all(built.targets.map((target) => target.provider?.dispose())));
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
 
   const ctx = await setupTest({ targets: built.targets });
 
@@ -627,7 +631,11 @@ test('it refuses a stored session whose target holds other connection options th
     { FIXTURE_IMP_TOKEN: 'fixture-token' },
   );
 
-  onTestFinished(() => Promise.all(built.targets.map((target) => target.provider?.dispose())));
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
 
   const ctx = await setupTest({ targets: built.targets });
 
