@@ -374,13 +374,13 @@ test('it refuses a confined package in a mod, which only the mods config lints',
     .object({ diagnostics: z.array(z.looseObject({})) })
     .parse(JSON.parse(linted.stdout));
 
-  expect(report.diagnostics).toStrictEqual([
-    expect.objectContaining({
-      code: 'eslint(no-restricted-imports)',
-      filename: 'mods/bridge/hooks/register.ts',
-      help: '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
-    }),
-  ]);
+  expect(report.diagnostics).toHaveLength(1);
+
+  expect(report.diagnostics).toPartiallyContain({
+    code: 'eslint(no-restricted-imports)',
+    filename: 'mods/bridge/hooks/register.ts',
+    help: '@zgeoff/imp-client belongs to the files that scripts/package-confinement.ts lists.',
+  });
 });
 
 test('it refuses a require call, whose specifier the import rules do not read', async () => {
