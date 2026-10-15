@@ -3015,7 +3015,7 @@ test('it records an adopt whose outdated harness ignores its kill as stopped, so
 
   expect(getRecord(got, 'session')).toMatchObject({
     alive: false,
-    lifecycle: expect.objectContaining({ desired: 'stop' }),
+    lifecycle: { desired: 'stop' },
   });
 
   expect(ctx.port.sessionRequests).toHaveLength(2);
