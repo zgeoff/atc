@@ -80,7 +80,6 @@ interface SessionSpawnerDeps {
     | 'removeLocalTrust'
     | 'removeSpawnWorkspace'
     | 'rollingBack'
-    | 'shouldDestroyHost'
     | 'shouldTakeHost'
   >;
   readonly auth: Pick<
@@ -140,6 +139,14 @@ interface SpawnRequest {
   // Builds the caller's answer once the harness started, as the spawn's
   // last step, so a failure there unwinds the spawn too.
   readonly answer: ((s: Session) => void) | null;
+}
+
+// What the workspace's undo reads from the steps after it: the auth
+// attempt the host was set up with, and whether the workspace passed its
+// project-settings check and its trust.
+interface SpawnWorkspaceState {
+  readonly findAttemptID: () => string | null;
+  readonly isChecked: () => boolean;
 }
 
 /**
@@ -386,13 +393,19 @@ export class SessionSpawner {
     // Takes back trust a spawn accepted in the user's own agent config.
     let removeTrust: (() => Promise<void>) | null = null;
 
+    // Whether the workspace passed its project-settings check and its trust.
+    let checked = false;
+
     // The host stays readying until the record is published, so nothing
     // gives its lease back or puts it to sleep before the harness starts.
     const prepared = await this.harnesses.withHostReadying(hostKey, async () => {
       const built =
         materialize === null
           ? { materialized: null, root: null }
-          : await this.buildSpawnWorkspace(steps, spawn, materialize, setupHost, () => attemptID);
+          : await this.buildSpawnWorkspace(steps, spawn, materialize, setupHost, {
+              findAttemptID: () => attemptID,
+              isChecked: () => checked,
+            });
 
       const setup = await setupHost();
 
@@ -424,6 +437,8 @@ export class SessionSpawner {
           () => this.rollback.removeLocalTrust(removeTrust, id),
         );
       }
+
+      checked = true;
 
       const records = this.callbacks.getRecords();
       const recordDir = spawn.autoDir && root !== null ? root : cwd;
@@ -637,14 +652,16 @@ export class SessionSpawner {
 
   // Builds the spawn's workspace, setting its host up once the source
   // resolves, and returns the directory it created, null for one that runs
-  // as it stands. The workspace's undo removes that directory, unless the
-  // host's own undo destroys the host with it.
+  // as it stands. The workspace's undo removes that directory. When the
+  // host's own undo takes the host back, the directory goes with it: the
+  // undo skips a workspace that passed its checks, and removes one that
+  // failed them without stopping the unwind when the removal fails.
   private async buildSpawnWorkspace(
     steps: SpawnSteps,
     spawn: Readonly<SpawnRequest>,
     materialize: SpawnMaterializer,
     setupHost: () => Promise<unknown>,
-    findAttemptID: () => string | null,
+    state: SpawnWorkspaceState,
   ): Promise<{ readonly materialized: MaterializedSpawn | null; readonly root: string | null }> {
     const provider = spawn.provider;
     const id = spawn.id;
@@ -700,11 +717,23 @@ export class SessionSpawner {
       async (built) => {
         const root = landed;
 
-        const destroysHost =
-          findAttemptID() === null &&
-          this.rollback.shouldDestroyHost(provider, id, hostKey, target);
+        const takesHost = this.rollback.shouldTakeHost(
+          provider,
+          id,
+          hostKey,
+          target,
+          state.findAttemptID(),
+        );
 
-        if (built === null || root === null || destroysHost) {
+        if (built === null || root === null || (takesHost && state.isChecked())) {
+          return;
+        }
+
+        if (takesHost) {
+          await this.rollback
+            .removeSpawnWorkspace(provider, id, hostKey, target, root)
+            .catch(() => {});
+
           return;
         }
 

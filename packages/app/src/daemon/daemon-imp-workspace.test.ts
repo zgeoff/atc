@@ -1094,6 +1094,72 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
   expect(rows).toStrictEqual({ n: 0 });
 });
 
+test('it takes back the imp and binding of a brokered spawn whose start is refused, without removing its checkout first', async () => {
+  const ctx = await setupTest();
+
+  // The broker sign-in of `glm` needs impd's token to manage `atc-*` imps
+  // and grant `glm`, and impd to hold `glm`.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
+  const glmAdapter = buildStubBrokeredGatewayAdapter();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-workspace-daemon-',
+    options: () => ({
+      gitTransports: ['https', 'ssh', 'http', 'file'],
+      adapter: plainAdapter,
+      adapters: [plainAdapter, glmAdapter],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+    }),
+  });
+
+  // impd refuses the harness's start, and removing a checkout on the imp
+  // fails, so only taking back the imp clears what the spawn left there.
+  ctx.port.startBrokerFailure();
+  ctx.port.setCommandFailure('-mindepth');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.dir, 'box', 'ws'),
+    agent: 'glm',
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  await spawn.catch(() => null);
+
+  const db = new Database(daemon.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  const rows = db.query('select count(*) as n from runtime_auth_binding').get();
+
+  expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
+  expect(ctx.port.collectImpNames()).toStrictEqual([]);
+  expect(rows).toStrictEqual({ n: 0 });
+});
+
 test("it leaves a parent running on its host when a sub-session's workspace fails there", async () => {
   const ctx = await setupTest();
 
