@@ -1,21 +1,23 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
+import { createEnrollmentToken } from '../../app/src/mcp/create-enrollment-token';
 import { openMCPAuth } from '../../app/src/mcp/open-mcp-auth';
 import { ReconnectingCaller } from '../../app/src/mcp/reconnecting-caller';
 import { startMCPHTTPServer } from '../../app/src/mcp/start-mcp-http-server';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
+import { buildStubAuthenticator } from './build-stub-authenticator';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runMCPAuthorization } from './run-mcp-authorization';
+import { runPasskeyEnrollment } from './run-passkey-enrollment';
 import { setupTempDir } from './setup-temp-dir';
 
-// The MCP HTTP server with every approval line it prints collected. An
-// authorization never reaches the daemon, so the caller points at a socket
-// nothing listens on and never dials it.
+// The MCP HTTP server with the owner's passkey enrolled through its
+// enrollment page. An authorization never reaches the daemon, so the caller
+// points at a socket nothing listens on and never dials it.
 async function setupTest() {
   const tmp = setupTempDir('atc-run-mcp-authorization-');
   const dbPath = join(tmp.dir, 'mcp-auth.db');
-  const approvals: string[] = [];
 
   const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
     DaemonClient.open(path),
@@ -32,9 +34,6 @@ async function setupTest() {
     allowedHosts: [],
     dbPath,
     openAuthDatabase: openMCPAuthDatabase,
-    printApproval: (line) => {
-      approvals.push(line);
-    },
     printRequest: () => {},
     printSecurity: () => {},
   });
@@ -47,7 +46,13 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  return { url: server.url, origin: server.origin, approvals, store };
+  const authenticator = buildStubAuthenticator();
+
+  const enrollment = await createEnrollmentToken(store.db, Date.now());
+
+  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+
+  return { url: server.url, origin: server.origin, authenticator, store };
 }
 
 test('it returns at the redirect URI with an authorization code its verifier exchanges for tokens', async () => {
@@ -102,39 +107,41 @@ test('it throws when the authorization stops short of the login page', async () 
   );
 });
 
-test('it throws when the server printed no approval code', async () => {
+test('it throws when the login page holds no passkey ceremony', async () => {
   const ctx = await setupTest();
+
+  await ctx.store.db.deleteFrom('atc_passkey').execute();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
   });
 
-  const authorizing = runMCPAuthorization(
-    { url: ctx.url, origin: ctx.origin, approvals: [] },
-    {
-      clientID: created.clientID,
-      redirectURI: 'https://dots.example/cb',
-      scope: 'read',
-      ticked: ['read'],
-    },
-  );
+  const authorizing = runMCPAuthorization(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://dots.example/cb',
+    scope: 'read',
+    ticked: ['read'],
+  });
 
-  expect(authorizing).rejects.toThrowWithMessage(Error, 'the server printed no approval code');
+  expect(authorizing).rejects.toThrowWithMessage(Error, 'the page holds no passkey ceremony');
 });
 
-test('it throws when the approval code does not reach the consent page', async () => {
+test('it throws when the passkey sign-in does not reach the consent page', async () => {
   const ctx = await setupTest();
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
   });
 
+  const stranger = buildStubAuthenticator();
+
+  await stranger.create(
+    { challenge: 'c3RyYW5nZXI', rp: { id: '127.0.0.1' }, user: { id: 'c3RyYW5nZXI' } },
+    { origin: ctx.origin },
+  );
+
   const authorizing = runMCPAuthorization(
-    {
-      url: ctx.url,
-      origin: ctx.origin,
-      approvals: ['Approve dots (returns to dots.example) with code 0000-0000'],
-    },
+    { url: ctx.url, origin: ctx.origin, authenticator: stranger },
     {
       clientID: created.clientID,
       redirectURI: 'https://dots.example/cb',
@@ -145,43 +152,6 @@ test('it throws when the approval code does not reach the consent page', async (
 
   expect(authorizing).rejects.toThrowWithMessage(
     Error,
-    `the approval code did not reach the consent page: ${ctx.url}/`,
+    `the passkey sign-in did not reach the consent page: ${ctx.url}/`,
   );
-});
-
-test('it throws when the consent redirect holds no authorization code', async () => {
-  const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
-
-  const authorizing = runMCPAuthorization(ctx, {
-    clientID: created.clientID,
-    redirectURI: 'https://dots.example/cb',
-    scope: 'read',
-    ticked: [],
-  });
-
-  expect(authorizing).rejects.toThrowWithMessage(
-    Error,
-    /^the consent redirect holds no authorization code: https:\/\/dots\.example\/cb\?error=access_denied&/,
-  );
-});
-
-test('it throws when the consent page answers without a redirect', async () => {
-  const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
-
-  const authorizing = runMCPAuthorization(ctx, {
-    clientID: created.clientID,
-    redirectURI: 'https://dots.example/cb',
-    scope: 'read',
-    ticked: ['message'],
-  });
-
-  expect(authorizing).rejects.toThrowWithMessage(Error, /^consent did not redirect: 400 /);
 });

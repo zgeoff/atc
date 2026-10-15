@@ -109,6 +109,14 @@ export async function openMCPAuth(options: MCPAuthOptions) {
     db,
   );
 
+  await sql`create table if not exists atc_passkey (id text primary key not null, public_key text not null, counter integer not null, transports text not null, created_at text not null, last_used_at text)`.execute(
+    db,
+  );
+
+  await sql`create table if not exists atc_enrollment_token (token_hash text primary key not null, created_at text not null, expires_at text not null)`.execute(
+    db,
+  );
+
   // A resource served under an earlier public URL stays a valid token target
   // until its row goes.
   if (options.origin !== null) {

@@ -4,11 +4,13 @@ import type { Clock } from '@atc/core/system-clock';
 import { MAX_LINE } from '@atc/protocol/protocol';
 import { answerAuthorizeRequest } from './answer-authorize-request';
 import { answerConsentRequest } from './answer-consent-request';
+import { answerEnrollRequest } from './answer-enroll-request';
 import { answerLoginRequest } from './answer-login-request';
 import { answerMCPRequest } from './answer-mcp-request';
 import { ApprovalState } from './approval-state';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildPageResponse } from './build-page-response';
+import { EnrollmentState } from './enrollment-state';
 import { isLoopbackHost } from './is-loopback-host';
 import type { MCPAuthDatabase } from './mcp-auth-database';
 import { normalizePublicURL } from './normalize-public-url';
@@ -35,7 +37,6 @@ interface MCPHTTPServerOptions {
   // wires in for it.
   readonly dbPath: string;
   readonly openAuthDatabase: (path: string) => MCPAuthDatabase;
-  readonly printApproval: (line: string) => void;
 
   // Receives one line per request the server answers.
   readonly printRequest: (line: string) => void;
@@ -49,8 +50,8 @@ interface MCPHTTPServerOptions {
   // Serves `/healthz` and `/readyz` for an orchestrator's probes.
   readonly probes?: boolean;
 
-  // The time pending approvals, the limit on approval starts, and the
-  // routes' expiries run on; the system clock when unset.
+  // The time pending approvals, their challenges, the limit on approval
+  // starts, and the routes' expiries run on; the system clock when unset.
   readonly clock?: Clock;
 }
 
@@ -71,8 +72,9 @@ export interface MCPHTTPServer {
 
 /**
  * Serves atc's MCP tools over streamable HTTP at `/mcp` and `/`, with
- * better-auth as the OAuth 2.1 authorization server in the same process. Only
- * the routes a connector and the operator's browser need reach better-auth;
+ * better-auth as the OAuth 2.1 authorization server in the same process and
+ * the owner signing in with a passkey. Only
+ * the routes a connector and the owner's browser need reach better-auth;
  * every other path is a 404. Each answered request prints one line with its
  * method, path, JSON-RPC method and tool, status, duration, and MCP protocol
  * version, and never a body, query, credential, or address. A request whose Host header is not the server's own is
@@ -206,7 +208,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       resource: `${origin}/mcp`,
       store,
       approvals: new ApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
-      printApproval: options.printApproval,
+      enrollments: new EnrollmentState(() => clock.now()),
       security,
       clock,
     },
@@ -328,6 +330,9 @@ function toLogText(value: string, length: number): string {
   return value.replaceAll(/[\p{Cc}\p{Cf}\s]/gu, '').slice(0, length);
 }
 
+// The browser pages: passkey sign-in, passkey enrollment, and consent.
+const PAGE_PATHS: ReadonlySet<string> = new Set(['/login', '/enroll', '/consent']);
+
 // The better-auth routes a connector calls directly.
 const PASSED_THROUGH: ReadonlySet<string> = new Set(['POST /oauth2/revoke']);
 
@@ -388,7 +393,7 @@ async function answerHTTPRequest(
     return buildPageResponse(400, { message: pickErrorMessage(url.searchParams.get('error')) });
   }
 
-  const isPage = url.pathname === '/login' || url.pathname === '/consent';
+  const isPage = PAGE_PATHS.has(url.pathname);
 
   if (isPage && request.method === 'POST' && (requestOrigin === null || isForeignOrigin)) {
     ctx.security.record({
@@ -405,15 +410,21 @@ async function answerHTTPRequest(
   if (isPage && (request.method === 'GET' || request.method === 'POST')) {
     const body = request.method === 'POST' ? await request.text() : '';
 
-    return url.pathname === '/login'
-      ? answerLoginRequest(ctx, request.method, url, body, requester)
-      : answerConsentRequest(ctx, {
-          method: request.method,
-          url,
-          cookie: request.headers.get('cookie'),
-          body,
-          requester,
-        });
+    if (url.pathname === '/login') {
+      return answerLoginRequest(ctx, request.method, url, body, requester);
+    }
+
+    if (url.pathname === '/enroll') {
+      return answerEnrollRequest(ctx, request.method, url, body, requester);
+    }
+
+    return answerConsentRequest(ctx, {
+      method: request.method,
+      url,
+      cookie: request.headers.get('cookie'),
+      body,
+      requester,
+    });
   }
 
   if (MCP_PATHS.has(url.pathname)) {

@@ -6,7 +6,7 @@ test('it formats an event with every field as one prefixed JSON line', () => {
     {
       kind: 'owner_auth',
       outcome: 'failed',
-      reason: 'wrong_code',
+      reason: 'assertion_failed',
       path: '/login',
       requester: {
         socketAddress: '10.0.0.7',
@@ -21,7 +21,7 @@ test('it formats an event with every field as one prefixed JSON line', () => {
   );
 
   expect(line).toMatchInlineSnapshot(
-    `"atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"wrong_code","method":"approval_code","route":"/login","client":{"id":"client-1","name":"Claude"},"redirectHost":"claude.ai","correlationID":"6f1c2a4e-0000-4000-8000-000000000000","peer":{"address":"10.0.0.7","provenance":"socket"},"forwarded":{"address":"203.0.113.9","header":"cf-connecting-ip","provenance":"unverified"},"userAgent":{"summary":"Mozilla/5.0","provenance":"client"}}"`,
+    `"atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"assertion_failed","method":"passkey","route":"/login","client":{"id":"client-1","name":"Claude"},"redirectHost":"claude.ai","correlationID":"6f1c2a4e-0000-4000-8000-000000000000","peer":{"address":"10.0.0.7","provenance":"socket"},"forwarded":{"address":"203.0.113.9","header":"cf-connecting-ip","provenance":"unverified"},"userAgent":{"summary":"Mozilla/5.0","provenance":"client"}}"`,
   );
 });
 
@@ -129,4 +129,21 @@ test('it writes the line on one line whatever the client strings hold', () => {
   );
 
   expect(line).not.toMatch(new RegExp(`[\n\r${separators}]`, 'u'));
+});
+
+test('it marks a passkey enrollment with the enrollment token method', () => {
+  const line = formatSecurityEvent(
+    {
+      kind: 'owner_auth',
+      outcome: 'failed',
+      reason: 'invalid_token',
+      path: '/enroll',
+      requester: { socketAddress: null, connectingIP: null, userAgent: null },
+    },
+    Date.UTC(2026, 9, 14, 12, 0, 0),
+  );
+
+  expect(line).toBe(
+    'atc security {"v":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"invalid_token","method":"enrollment_token","route":"/enroll"}',
+  );
 });

@@ -21,7 +21,7 @@ interface ConsentRequest {
 /**
  * Answers `GET /consent` and `POST /consent`. Both refuse a request unless
  * its signed query is valid, its prompt no longer asks for a login, and its
- * owner session is the one an approval code signed in for this same request.
+ * owner session is the one a passkey signed in for this same request.
  * The page lists the scopes the client requested, with only `read` ticked to
  * start. The form goes to better-auth's consent endpoint with the ticked
  * scopes plus `offline_access`; better-auth refuses any scope the client did
@@ -159,8 +159,8 @@ export async function answerConsentRequest(
 
 // The owner session id and the request's correlation id when the request
 // may reach consent, else null. A query still asking for a login is one
-// better-auth signed for the login page, which the approval code never
-// carried past.
+// better-auth signed for the login page, which no passkey sign-in carried
+// past.
 async function verifyConsentRequest(
   ctx: HTTPServerContext,
   oauthQuery: string,

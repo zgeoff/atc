@@ -41,7 +41,7 @@ async function setupTest() {
   };
 }
 
-test('it serves MCP through the daemon it boots and says no client can connect yet', async () => {
+test('it serves MCP through the daemon it boots and says no client can connect and no passkey is enrolled yet', async () => {
   const ctx = await setupTest();
 
   const printed: string[] = [];
@@ -87,6 +87,7 @@ test('it serves MCP through the daemon it boots and says no client can connect y
   expect(printed).toStrictEqual([
     `atc mcp --http: serving http://127.0.0.1:${port}/mcp, listening on http://127.0.0.1:${port}`,
     'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
+    'No passkey is enrolled, so nobody can sign in yet. Enroll one with: atc passkeys enroll',
   ]);
 
   expect(served.status).toBe(401);
@@ -140,11 +141,70 @@ test('it prints no hint to add a client once one can connect', async () => {
   registerTestCleanup(stopServing);
 
   expect(printed.join('\n')).toMatch(
-    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+$/u,
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo passkey is enrolled, so nobody can sign in yet\. Enroll one with: atc passkeys enroll$/u,
   );
 });
 
-test('it prints the approval line to stdout alone and each sign-in security event to stderr', async () => {
+test('it prints no hint to enroll a passkey once one is enrolled', async () => {
+  const ctx = await setupTest();
+
+  const store = await openMCPAuth({
+    dbPath: ctx.dbPath,
+    openDatabase: openMCPAuthDatabase,
+    origin: null,
+  });
+
+  registerTestCleanup(() => store.close());
+
+  await store.db
+    .insertInto('atc_passkey')
+    .values({
+      id: 'cred-phone',
+      public_key: 'AQID',
+      counter: 0,
+      transports: '[]',
+      created_at: '2026-10-14T12:00:00.000Z',
+      last_used_at: null,
+    })
+    .execute();
+
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadConfig: () => ({ publicURL: null, host: '127.0.0.1', port: 8414, allowedHosts: [] }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  expect(printed.join('\n')).toMatch(
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo clients can connect yet\. Add one with: atc clients add <name> --redirect-uri <uri>$/u,
+  );
+});
+
+test('it prints nothing to stdout once it serves and each sign-in security event to stderr', async () => {
   const ctx = await setupTest();
 
   const store = await openMCPAuth({
@@ -197,6 +257,8 @@ test('it prints the approval line to stdout alone and each sign-in security even
 
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
+  const startup = [...printed];
+
   const authorize = new URL(`http://127.0.0.1:${port}/oauth2/authorize`);
 
   authorize.search = new URLSearchParams({
@@ -215,9 +277,7 @@ test('it prints the approval line to stdout alone and each sign-in security even
     headers: { host: 'rebound.example' },
   });
 
-  expect(printed).toIncludeAllMembers([expect.stringMatching(/^Approve Claude /u)]);
-  expect(printed).toSatisfyAll((line: string) => !line.startsWith('atc security '));
-  expect(errors).toSatisfyAll((line: string) => !line.includes('Approve'));
+  expect(printed).toStrictEqual(startup);
 
   expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
     expect.stringMatching(
@@ -267,7 +327,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
   expect(happened.slice(0, 2)).toStrictEqual(['SIGINT', 'SIGTERM']);
 
   expect(happened.slice(2).join('\n')).toMatch(
-    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo clients can connect yet\. Add one with: atc clients add <name> --redirect-uri <uri>$/u,
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo clients can connect yet\. Add one with: atc clients add <name> --redirect-uri <uri>\nNo passkey is enrolled, so nobody can sign in yet\. Enroll one with: atc passkeys enroll$/u,
   );
 });
 

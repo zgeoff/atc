@@ -3,27 +3,15 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { readJSONRecord } from '@atc/test-utils/read-json-record';
 import { collectClients } from '../mcp/collect-clients';
+import { collectPasskeys } from '../mcp/collect-passkeys';
 import { setupMCPHTTP } from './setup-mcp-http';
 
-test('it collects the approval line the server prints', async () => {
+test("it enrolls the owner's passkey on the authenticator it returns", async () => {
   const server = await setupMCPHTTP();
-  const clientID = await server.createClient('dots', ['https://dots.example/cb']);
+  const passkeys = await collectPasskeys(server.store.db);
 
-  const authorize = new URL(`${server.url}/oauth2/authorize`);
-
-  authorize.search = new URLSearchParams({
-    response_type: 'code',
-    client_id: clientID,
-    redirect_uri: 'https://dots.example/cb',
-    scope: 'read',
-    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
-    code_challenge_method: 'S256',
-  }).toString();
-
-  await fetch(authorize, { redirect: 'manual' });
-
-  expect(server.approvals).toIncludeSameMembers([
-    expect.stringMatching(/^Approve dots \(returns to dots\.example\) with code \w{4}-\w{4}/),
+  expect(passkeys).toStrictEqual([
+    { id: server.authenticator.credentialID, createdAt: expect.toBeString(), lastUsedAt: null },
   ]);
 });
 

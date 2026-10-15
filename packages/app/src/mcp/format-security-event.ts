@@ -18,7 +18,9 @@ export interface SuppressedSecurityEvent {
  * line by accident. Every string from the client has its control and format
  * characters dropped and its length cut, and the path becomes one of a fixed
  * set of routes, else `other`. A forwarded address is always marked
- * `unverified`, since anyone can send the header it comes from.
+ * `unverified`, since anyone can send the header it comes from. An
+ * `owner_auth` event's `method` is `passkey` for a sign-in and
+ * `enrollment_token` for a passkey enrollment.
  */
 export function formatSecurityEvent(
   event: SecurityEvent | SuppressedSecurityEvent,
@@ -36,7 +38,9 @@ export function formatSecurityEvent(
     ...head,
     outcome: event.outcome,
     ...('reason' in event && event.reason !== undefined ? { reason: event.reason } : {}),
-    ...(event.kind === 'owner_auth' ? { method: 'approval_code' } : {}),
+    ...(event.kind === 'owner_auth'
+      ? { method: event.path === '/enroll' ? 'enrollment_token' : 'passkey' }
+      : {}),
     route: ROUTES.has(event.path) ? event.path : 'other',
     ...(event.client === undefined
       ? {}
@@ -78,6 +82,7 @@ const ROUTES: ReadonlySet<string> = new Set([
   '/oauth2/token',
   '/oauth2/revoke',
   '/login',
+  '/enroll',
   '/consent',
   '/error',
   '/healthz',

@@ -90,11 +90,10 @@ when two `--state-dir` flags disagree, when a flag it does not know appears, or 
 separate value is missing or starts with `-`; write such a value as `--<flag>=<value>`.
 
 `/healthz` and `/readyz` return 200 for a request whose `Host` header is the public URL's host, and
-403 for any other host, so an orchestrator's probe sets that header. Approval lines go to stdout,
-and request lines and `atc security` sign-in events go to stderr, so you read the approval code in
-the gateway's log and point a log shipper at stderr alone
-([security events](../architecture/remote/oauth.md#security-events)). SIGTERM stops the gateway and
-exits 0.
+403 for any other host, so an orchestrator's probe sets that header. Request lines and
+`atc security` sign-in events go to stderr, and a log shipper matches the events by their prefix
+([security events](../architecture/remote/oauth.md#security-events)). No line holds a value that
+signs in. SIGTERM stops the gateway and exits 0.
 
 ## Clients
 
@@ -106,11 +105,21 @@ atc-gateway clients list --state-dir /var/lib/atc-gateway
 atc-gateway clients remove <client_id> --state-dir /var/lib/atc-gateway
 ```
 
-Approve each connection as the [remote MCP guide](./remote-mcp.md#approving-a-connection) describes,
-reading the code from the gateway's log.
+Enroll and manage your passkeys the same way, then approve each connection as the
+[remote MCP guide](./remote-mcp.md#approving-a-connection) describes:
+
+```bash
+atc-gateway passkeys enroll --state-dir /var/lib/atc-gateway
+atc-gateway passkeys list --state-dir /var/lib/atc-gateway
+atc-gateway passkeys remove <passkey_id> --state-dir /var/lib/atc-gateway
+atc-gateway passkeys enroll --reset --state-dir /var/lib/atc-gateway
+```
+
+Run these as the user that owns the state directory. `--reset` is the recovery after losing every
+passkey, as the [remote MCP guide](./remote-mcp.md#recovering-from-a-lost-passkey) describes.
 
 Give each grant to a connector, never to a session: approve a connection only for an app you
 connected yourself, such as a chat client, and never for a token an atc session asks for. Each grant
-needs your approval code in the terminal, so a session cannot get one by itself, and atc does not
+needs your passkey sign-in in a browser, so a session cannot get one by itself, and atc does not
 check this rule in code. A session that holds a connector's token acts with that connector's reach
 and sends messages under its name.

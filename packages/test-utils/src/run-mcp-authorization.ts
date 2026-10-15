@@ -1,9 +1,13 @@
 import { createHash } from 'node:crypto';
+import type { buildStubAuthenticator } from './build-stub-authenticator';
+import { runPasskeySignIn } from './run-passkey-sign-in';
 
 interface MCPAuthorizationServer {
   readonly url: string;
   readonly origin: string;
-  readonly approvals: readonly string[];
+
+  // The authenticator that holds the owner's enrolled passkey.
+  readonly authenticator: Pick<ReturnType<typeof buildStubAuthenticator>, 'get'>;
 }
 
 interface MCPAuthorizationRequest {
@@ -18,7 +22,7 @@ interface MCPAuthorizationRequest {
 }
 
 interface MCPAuthorization {
-  // The consent page the approval code sent the browser to.
+  // The consent page the passkey sign-in sent the browser to.
   readonly consent: URL;
 
   // Where the consent page sent the browser back to.
@@ -29,9 +33,9 @@ interface MCPAuthorization {
 
 /**
  * Drives one authorization through a running MCP HTTP server the way a
- * browser and the operator do: opens the authorization request with PKCE,
- * types the approval code the server printed into the login page, and ticks
- * the given scopes on the consent page. Each request starts with no cookies,
+ * browser and the owner do: opens the authorization request with PKCE,
+ * signs in on the login page with the authenticator's passkey for the
+ * challenge that page holds, and ticks the given scopes on the consent page. Each request starts with no cookies,
  * as a fresh browser would. Returns the consent page it passed, where the
  * browser landed, and what a token request needs, and throws when any step's
  * response lacks the value the next step depends on.
@@ -64,20 +68,7 @@ export async function runMCPAuthorization(
     throw new Error(`authorization did not reach the login page: ${login.href}`);
   }
 
-  const approvalCode = /code (?<code>\w{4}-\w{4})/.exec(server.approvals.at(-1) ?? '')?.groups?.[
-    'code'
-  ];
-
-  if (approvalCode === undefined) {
-    throw new Error('the server printed no approval code');
-  }
-
-  const signedIn = await fetch(`${server.url}/login`, {
-    method: 'POST',
-    redirect: 'manual',
-    headers: { origin: server.url, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ oauth_query: login.search.slice(1), code: approvalCode }),
-  });
+  const signedIn = await runPasskeySignIn(server, login);
 
   const consent = new URL(signedIn.headers.get('location') ?? '/', server.url);
 
@@ -87,7 +78,7 @@ export async function runMCPAuthorization(
     .join('; ');
 
   if (consent.pathname !== '/consent') {
-    throw new Error(`the approval code did not reach the consent page: ${consent.href}`);
+    throw new Error(`the passkey sign-in did not reach the consent page: ${consent.href}`);
   }
 
   const form = new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'approve' });

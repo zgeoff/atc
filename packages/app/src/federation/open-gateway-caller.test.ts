@@ -5,14 +5,17 @@ import { join } from 'node:path';
 import { isRecord } from '@atc/core/is-record';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter';
+import { buildStubAuthenticator } from '@atc/test-utils/build-stub-authenticator';
 import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { getRecord } from '@atc/test-utils/get-record';
 import { readJSONRecord } from '@atc/test-utils/read-json-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { runMCPAuthorization } from '@atc/test-utils/run-mcp-authorization';
+import { runPasskeyEnrollment } from '@atc/test-utils/run-passkey-enrollment';
 import { sendMCPRequest } from '@atc/test-utils/send-mcp-request';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/test-utils/wait-for';
+import { createEnrollmentToken } from '../mcp/create-enrollment-token';
 import { openMCPAuth } from '../mcp/open-mcp-auth';
 import { startMCPHTTPServer } from '../mcp/start-mcp-http-server';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
@@ -27,7 +30,7 @@ import { openGatewayCaller } from './open-gateway-caller';
  * from `cloud-token` and `pc-token` in `dir`, with a principals key that
  * lets the OAuth client `Claude` use the local target. `claudeID` is the
  * client id of `Claude`, and `claudeToken` an access token of it. `auth` is the authorization store, and
- * `approvals` collects the approval lines the server prints, so a test can
+ * `authenticator` holds the owner's enrolled passkey, so a test can
  * register and authorize a client of its own. `clock` runs every timer of
  * the gateway's daemon connections and fan-out waits, so none runs unless a
  * test advances it.
@@ -137,8 +140,6 @@ async function setupTest() {
 
   registerTestCleanup(() => gateway.stop());
 
-  const approvals: string[] = [];
-
   const server = await startMCPHTTPServer({
     caller: gateway.caller,
     build: 'atc-gateway/test',
@@ -148,9 +149,6 @@ async function setupTest() {
     allowedHosts: [],
     dbPath: authDBPath,
     openAuthDatabase: openMCPAuthDatabase,
-    printApproval: (line) => {
-      approvals.push(line);
-    },
     printRequest: () => {},
     printSecurity: () => {},
     probes: true,
@@ -158,8 +156,14 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
+  const authenticator = buildStubAuthenticator();
+
+  const enrollment = await createEnrollmentToken(auth.db, Date.now());
+
+  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+
   const authorized = await runMCPAuthorization(
-    { url: server.url, origin: server.origin, approvals },
+    { url: server.url, origin: server.origin, authenticator },
     {
       clientID: claude.clientID,
       redirectURI,
@@ -187,7 +191,7 @@ async function setupTest() {
     origin: server.origin,
     dir: tmp.dir,
     auth,
-    approvals,
+    authenticator,
     cloud,
     pc,
     cloudID,
@@ -490,7 +494,7 @@ test('it refuses a client no daemon lists as unauthorized', async () => {
   });
 
   const authorized = await runMCPAuthorization(
-    { url: ctx.url, origin: ctx.origin, approvals: ctx.approvals },
+    { url: ctx.url, origin: ctx.origin, authenticator: ctx.authenticator },
     {
       clientID: stranger.clientID,
       redirectURI: 'https://claude.ai/api/mcp/auth_callback',

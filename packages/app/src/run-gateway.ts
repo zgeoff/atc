@@ -93,19 +93,12 @@ export async function runGateway(
       openAuthDatabase: openMCPAuthDatabase,
       probes: true,
 
-      // The line carries a client's name, so control and format characters
-      // are dropped before it reaches the log.
-      printApproval: (line) => {
-        io.print(line.replaceAll(/[\p{Cc}\p{Cf}]/gu, ''));
-      },
-
-      // Request lines go to stderr, so stdout keeps the approval lines alone.
+      // Request lines go to stderr, beside the security events.
       printRequest: (line) => {
         io.printError(line);
       },
 
-      // Security events go to stderr too: a log shipper matches their
-      // `atc security ` prefix there and never reads stdout.
+      // A log shipper matches the `atc security ` prefix of these lines.
       printSecurity: (line) => {
         io.printError(line);
       },

@@ -64,7 +64,7 @@ test('it prints no suppressed event for a window that dropped nothing', () => {
     ctx.log.record({
       kind: 'owner_auth',
       outcome: 'failed',
-      reason: 'wrong_code',
+      reason: 'assertion_failed',
       path: '/login',
       requester: { socketAddress: null, connectingIP: null, userAgent: null },
     });
