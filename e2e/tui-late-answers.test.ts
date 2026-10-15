@@ -348,7 +348,7 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
   ctx.reset();
   ctx.write(url);
 
-  await ctx.waitFor(`> ${url}`);
+  await ctx.waitFor(ctx.formatInput(url));
 
   writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 

@@ -85,7 +85,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
   await ctx.waitFor('workspace_exists', 10_000);
 
-  expect(ctx.read()).toInclude(`> ${dest}-2`);
+  expect(ctx.read()).toInclude(ctx.formatInput(`${dest}-2`));
 
   ctx.reset();
   ctx.write(KEYS.enter);

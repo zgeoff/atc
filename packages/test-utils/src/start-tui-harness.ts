@@ -31,6 +31,11 @@ interface TUIHarnessOptions {
   readonly wait?: (ms: number) => Promise<void>;
 }
 
+// The width the client's terminal opens at. The picker box takes the
+// terminal less 4 columns, at most 90, and its input row holds the box less 8.
+const COLS = 110;
+const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
+
 /**
  * A fresh home for one run of the real `atc` client in a pseudo-terminal,
  * holding stand-in `claude` and `grok` binaries, which take scenario files
@@ -43,6 +48,10 @@ interface TUIHarnessOptions {
  * decides without drawing to a log: `countClientLogLines` returns how many
  * lines it holds, and `waitForClientLog` polls for a line written after
  * that many.
+ * `formatInput` returns a picker's input row holding the text given as the
+ * client draws it in the harness's terminal, which drops the head of a text
+ * too long for the row; a wait for typed text uses it, so a long temp root
+ * still matches.
  * `writeConfig` writes the home's config: the stand-in binaries and the git
  * transports the fixture repositories need, with the fields given laid over
  * them. `env` is the environment the client runs with, so a daemon started
@@ -127,12 +136,18 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
     env,
     writeConfig,
 
+    formatInput(text: string): string {
+      const shown = text.length <= INPUT_MAX ? text : `…${text.slice(-(INPUT_MAX - 1))}`;
+
+      return `> ${shown}`;
+    },
+
     boot(args: readonly string[] = []): IPty {
       capture?.dispose();
 
       const booted = spawn(process.execPath, [cliPath, ...args], {
         name: 'xterm-256color',
-        cols: 110,
+        cols: COLS,
         rows: 30,
 
         // The picker lists the client's own directory first, so a spawn

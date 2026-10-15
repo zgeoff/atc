@@ -132,7 +132,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   ctx.write(otherProject);
 
-  await ctx.waitFor(`> ${otherProject}`);
+  await ctx.waitFor(ctx.formatInput(otherProject));
 
   ctx.write(KEYS.enter);
 
