@@ -1,5 +1,37 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
+import { buildMockHostServices } from '@atc/test-utils/build-mock-host-services';
 import { buildConfigRevision } from './build-config-revision';
+import { buildExecutionTargets } from './build-execution-targets';
+
+test('it builds the revision a daemon reported before the providers moved into packages', () => {
+  const built = buildExecutionTargets(
+    [
+      { id: 'local', provider: 'local-pty', options: {} },
+      {
+        id: 'cloud',
+        provider: 'imp',
+        options: {
+          url: 'http://impd.example:7070',
+          tokenEnv: 'FIXTURE_IMP_TOKEN',
+          image: 'atc-base',
+        },
+      },
+    ],
+    buildMockHostServices({ version: '1.0.0' }),
+    { FIXTURE_IMP_TOKEN: 'fixture-token' },
+  );
+
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
+
+  // clients compare this revision across daemons and restarts, so no change
+  // to where a provider's code lives may move it while the config stays
+  // the same
+  expect(buildConfigRevision(built.targets, 'local', built.errors)).toBe('de9f7e4d5dd5c55e');
+});
 
 test('it builds a sixteen-digit hex revision', () => {
   expect(
