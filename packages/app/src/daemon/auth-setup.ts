@@ -104,6 +104,16 @@ export interface HarnessPlan extends SpawnPlan {
   readonly heldRevision: number | null;
 }
 
+/**
+ * What a rebind of a session's host did: the revision the binding holds
+ * now, and the sessions on the host whose harness launched under an older
+ * one and reads the new revision's settings only at its next launch.
+ */
+export interface AuthRebound {
+  readonly revision: number;
+  readonly restartPending: readonly SessionID[];
+}
+
 interface AuthSetupDeps {
   readonly registry: Pick<
     SessionRegistry,
@@ -641,9 +651,12 @@ export class AuthSetup {
 
   /**
    * Binds a session's host to its agent's current auth selection at the
-   * next revision, and returns that revision, or null for no such session.
+   * next revision, and returns that revision with every session on the host
+   * whose latest harness launched under an older one, or null for no such
+   * session. Each of those sessions shows that the new revision applies at
+   * its next launch, since a harness keeps the settings it launched with.
    */
-  async updateAuth(id: SessionID): Promise<number | null> {
+  async updateAuth(id: SessionID): Promise<AuthRebound | null> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
     if (s === undefined) {
@@ -675,7 +688,23 @@ export class AuthSetup {
       auth.binding,
     );
 
-    return revision;
+    this.harnesses.authRevisions.set(s.hostKey, revision);
+
+    const pending = this.registry.sessions.filter(
+      (other) => other.hostKey === s.hostKey && this.harnesses.isAuthOutdated(other),
+    );
+
+    for (const other of pending) {
+      other.lastMsg = formatAuthNotice(revision);
+
+      this.callbacks.onEvent('state', other);
+    }
+
+    if (pending.length > 0) {
+      this.fleet.emitChange();
+    }
+
+    return { revision, restartPending: pending.map((other) => other.id) };
   }
 
   requireAuthBinder(): RuntimeAuthBinder {

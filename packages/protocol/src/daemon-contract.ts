@@ -122,7 +122,7 @@ export const DAEMON_CONTRACT = {
       rebind: base
         .meta(OWNER)
         .input(P['session.auth.rebind'])
-        .output(z.object({ revision: z.number() })),
+        .output(z.object({ revision: z.number(), restartPending: STRINGS })),
     },
 
     // renameSkipped holds why a requested rename did not apply: 'agent_named'

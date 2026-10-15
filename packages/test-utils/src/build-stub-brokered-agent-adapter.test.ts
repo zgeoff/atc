@@ -32,6 +32,30 @@ test('it plans a guest spawn under a binding that prints the revision behind its
   });
 });
 
+test('it plans a guest spawn under a binding that ignores the hangup signal while asked to', () => {
+  const adapter = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    ignoresHangup: () => true,
+  });
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: '', resume: false },
+    {
+      atc: null,
+      dir: '/guest/sessions/s1',
+      auth: {
+        revision: 3,
+        env: { ANTHROPIC_AUTH_TOKEN: 'imp-broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  expect(plan).toHaveProperty('args', ['-c', `trap '' HUP; echo "revision 3"; exec sleep 30`]);
+});
+
 test('it plans a guest spawn without a binding that only sleeps', () => {
   const adapter = buildStubBrokeredAgentAdapter({
     id: 'glm',

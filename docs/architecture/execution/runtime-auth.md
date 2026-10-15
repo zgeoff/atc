@@ -66,7 +66,9 @@ runs the rebind's own steps, logs one line with the host, both revisions, and th
 removed, and plans its harness under the new revision. A rebind that fails leaves the host blocked
 at its old revision, and the next such launch takes back the grants the failed attempt added and
 tries it again. A harness already running on the host keeps the settings it launched with, and its
-session shows that the new revision applies at its next launch.
+session shows that the new revision applies at its next launch. A revive that finds its own harness
+still inside the host from an older revision ends that process and starts a fresh one, which resumes
+the conversation under the new revision's settings.
 
 ## Admission
 
@@ -88,11 +90,16 @@ reopens the host.
 
 Rebinding binds the host to its agent's current auth selection at the next revision. A rebind that
 fails removes only the grants it added, keeps the old revision, and blocks launches until a rebind
-succeeds. A harness that is running or suspended keeps the guest settings it launched with until it
-restarts, and only a harness launched after the rebind reads the new revision's settings. Both
-requests act on a host's credentials, so only the owner may send them. The owner rebinds with
-`atc session rebind <session_id>` or the `atc_session_auth_rebind` MCP tool. A rebind starts
-nothing, so the owner then starts the session with `atc session adopt <session_id>` or
+succeeds. A harness reads its guest settings once, at its launch, so a harness that launched under
+an older revision keeps that revision's settings. A rebind therefore returns the new revision with
+every session on the host whose harness launched under an older one, and each of those sessions
+shows that the new revision applies at its next launch. The rebind restarts none of them, since a
+restart ends the turn a running harness is in. On an imp, an adopt of a session whose harness sleeps
+inside the host ends that harness and starts a fresh one under the new revision, instead of
+attaching the process that holds the old settings. A running session takes the new settings after a
+stop and an adopt. Both requests act on a host's credentials, so only the owner may send them. The
+owner rebinds with `atc session rebind <session_id>` or the `atc_session_auth_rebind` MCP tool. A
+rebind starts nothing, so the owner then starts the session with `atc session adopt <session_id>` or
 `atc_session_adopt`.
 
 A launch whose agent takes no credential from the broker is refused while its host holds a binding

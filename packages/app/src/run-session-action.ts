@@ -31,7 +31,8 @@ const PROCESS_IO: SessionActionIO = {
  * Runs one `atc session` action against the daemon and prints one line on
  * its outcome. A rebind binds the session's host to its agent's current
  * auth selection and starts nothing, so its line holds the adopt command
- * that starts the session; an adopt starts the session's terminal at the
+ * that starts the session, and a second line lists the sessions whose
+ * harness keeps an older revision's settings until its next launch; an adopt starts the session's terminal at the
  * given size. A refusal prints the daemon's code and message to stderr.
  * Resolves to the exit code: 0 once the daemon answered ok, else 1.
  */
@@ -49,6 +50,14 @@ export async function runSessionAction(
       io.print(
         `rebound the host of session ${session} at revision ${String(ok['revision'])}; start it with: atc session adopt ${session}`,
       );
+
+      const pending = Array.isArray(ok['restartPending']) ? ok['restartPending'] : [];
+
+      if (pending.length > 0) {
+        io.print(
+          `these sessions keep an older revision's settings until their next launch: ${pending.map(String).join(', ')}; stop a running one, then atc session adopt <session_id>`,
+        );
+      }
     } else {
       await client.sendRequest('session.adopt', { session, cols: size.cols, rows: size.rows });
 

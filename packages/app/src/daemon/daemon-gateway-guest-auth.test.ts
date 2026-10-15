@@ -146,7 +146,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
   });
 });
 
-test('it revives a rebound session under the settings file of the next revision', async () => {
+test('it revives a suspended session after a rebind as a fresh guest process under the settings file of the next revision', async () => {
   const ctx = setupTest();
 
   ctx.port.setIdentity({
@@ -202,16 +202,20 @@ test('it revives a rebound session under the settings file of the next revision'
   await daemon.client.sendRequest('session.auth.rebind', { session: id });
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
+  // The adopt attaches the harness the imp kept asleep, which launched
+  // under the first revision, ends it, and starts a fresh one.
   await waitFor(() => {
-    expect(ctx.port.sessionRequests).toHaveLength(2);
+    expect(ctx.port.sessionRequests).toHaveLength(3);
   });
 
-  const [, revived] = ctx.port.sessionRequests;
+  const revived = ctx.port.sessionRequests.at(2);
 
   invariant(revived?.kind === 'start', 'expected the revived harness start');
 
-  expect(revived.argv).toContain(join(session, 'auth-r2', 'settings.json'));
-  expect(revived.argv).not.toContain(join(session, 'auth-r1', 'settings.json'));
+  const running = ctx.port.getProcessArgv(revived.name, revived.session);
+
+  expect(running).toContain(join(session, 'auth-r2', 'settings.json'));
+  expect(running).not.toContain(join(session, 'auth-r1', 'settings.json'));
 });
 
 test('it refuses to revive a revoked session and starts no harness under its old settings', async () => {

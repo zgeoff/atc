@@ -4,7 +4,10 @@ import { findAnswerSchema } from './find-answer-schema';
 test('it finds the output schema of a nested procedure', () => {
   const schema = findAnswerSchema('session.auth.rebind');
 
-  expect(schema?.safeParse({ revision: 3 }).data).toStrictEqual({ revision: 3 });
+  expect(schema?.safeParse({ revision: 3, restartPending: ['s1'] }).data).toStrictEqual({
+    revision: 3,
+    restartPending: ['s1'],
+  });
 });
 
 test('it finds the output schema that refuses an answer missing a field', () => {
