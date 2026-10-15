@@ -14,7 +14,9 @@ import { z } from 'zod';
 import { collectImports } from './collect-imports';
 
 async function main(): Promise<void> {
-  const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
+  // bun reports each importer at the path its links lead to, so the root
+  // takes that path too, or a root reached through a link matches no importer
+  const root = realpathSync(resolve(process.argv[2] ?? join(import.meta.dir, '..')));
   const providers = loadProviders(root);
   const registry = readFileSync(join(root, REGISTRY), 'utf8');
 
@@ -145,14 +147,12 @@ async function collectBundled(
   // linked package's inputs can arrive under its link in node_modules, so
   // each input counts at the path its link leads to; a stand-in holds no
   // provider code and counts as nothing
-  const realRoot = realpathSync(root);
-
   return Object.keys(build.metafile.inputs)
     .filter((input) => !input.startsWith(`${STAND_IN_NAMESPACE}:`))
     .map((input) => {
       const path = realpathSync(resolve(process.cwd(), input));
 
-      return relative(realRoot, path);
+      return relative(root, path);
     });
 }
 

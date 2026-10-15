@@ -94,6 +94,71 @@ test('it passes a bundle that reaches each provider only through the shipped lis
   });
 });
 
+test('it passes a bundle that reaches each provider only through the shipped list when the root is a link', async () => {
+  const ctx = await setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\nimport { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN, REMOTE_PLUGIN];\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/cli.ts'),
+    "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
+  );
+
+  const links = setupTempDir('check-bundle-link-');
+
+  symlinkSync(ctx.dir, join(links.dir, 'root'));
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-bundle.ts'),
+    join(links.dir, 'root'),
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout:
+      'check-bundle: atc keeps @atc/execution-local, @atc/execution-remote and bundles 5 inputs\ncheck-bundle: local-only atc keeps @atc/execution-local and bundles 3 inputs\ncheck-bundle: 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it fails a bundle that carries a provider the shipped list leaves out when the root is a link', async () => {
+  const ctx = await setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/plugins/shipped-execution-plugins.ts'),
+    "import { LOCAL_PLUGIN } from '@atc/execution-local/local-plugin';\n\nexport const SHIPPED_EXECUTION_PLUGINS = [LOCAL_PLUGIN];\n",
+  );
+
+  await Bun.write(
+    join(ctx.dir, 'packages/app/src/cli.ts'),
+    "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
+  );
+
+  const links = setupTempDir('check-bundle-link-');
+
+  symlinkSync(ctx.dir, join(links.dir, 'root'));
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-bundle.ts'),
+    join(links.dir, 'root'),
+  ]);
+
+  expect({ exitCode: checked.exitCode, stderr: checked.stderr }).toStrictEqual({
+    exitCode: 1,
+    stderr:
+      'unshipped provider: atc bundles packages/execution/remote/src/remote-plugin.ts (@atc/execution-remote)\nunshipped provider: atc bundles remote-sdk, which only @atc/execution-remote depends on\nunshipped provider: local-only atc bundles packages/execution/remote/src/remote-plugin.ts (@atc/execution-remote)\nunshipped provider: local-only atc bundles remote-sdk, which only @atc/execution-remote depends on\n',
+  });
+});
+
 test('it finds a provider outside the shipped list when it runs from a directory that holds the root', async () => {
   const ctx = await setupTest();
 
