@@ -9,6 +9,8 @@ import {
 import { z } from 'zod';
 import { AppServerBridge } from './app-server-bridge';
 import { AppServerConnection } from './app-server-connection';
+import type { AppServerNotification } from './app-server-connection';
+import { AppServerError } from './app-server-error';
 
 function setupTest() {
   const tmp = setupTempDir('atc-app-server-bridge-');
@@ -707,4 +709,112 @@ test('it changes nothing when the thread it is given is the one it serves', asyn
 
   expect(stub.attaches).toBe(1);
   expect(server.requests.map((r) => r.method)).not.toContain('thread/resume');
+});
+
+test('it sends a message the old thread took nowhere else when the terminal moves before the answer to its send', async () => {
+  const ctx = setupTest();
+  const taken = Promise.withResolvers<undefined>();
+  const answer = Promise.withResolvers<undefined>();
+
+  const server = startStubCodexAppServer(ctx.socket, { holdTurns: true }, (request) => {
+    if (request.method === 'turn/start') {
+      taken.resolve(undefined);
+    }
+  });
+
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  // The bridge sees the answer to its first turn/start, and every
+  // notification after it, only once the test lets them through, after the
+  // server took the message.
+  let held = false;
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: async () => {
+      const conn = await ctx.openConnection();
+
+      const sendRequest = conn.sendRequest.bind(conn);
+      let onNotification = conn.onNotification;
+
+      Object.defineProperty(conn, 'onNotification', {
+        get: () => (notification: AppServerNotification) => {
+          void (async () => {
+            if (held) {
+              await answer.promise;
+            }
+
+            onNotification(notification);
+          })();
+        },
+        set: (listener: (notification: AppServerNotification) => void) => {
+          onNotification = listener;
+        },
+      });
+
+      const dispose = conn.dispose.bind(conn);
+      let disposed = false;
+
+      conn.dispose = () => {
+        disposed = true;
+
+        dispose();
+      };
+
+      conn.sendRequest = async (method, params) => {
+        const pending = sendRequest(method, params);
+
+        if (method === 'turn/start' && !held) {
+          held = true;
+
+          await Promise.allSettled([pending, answer.promise]);
+
+          // An answer held past the connection's close never arrives.
+          if (disposed) {
+            throw new AppServerError(-1, 'the connection closed');
+          }
+        }
+
+        return pending;
+      };
+
+      return conn;
+    },
+    resumeThread: null,
+    retryMs: { first: 10, max: 50 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await taken.promise;
+
+  const moved = await startTerminalThread(ctx.socket);
+
+  bridge.updateThread(moved);
+  answer.resolve(undefined);
+
+  await waitFor(() => {
+    expect(stub.attaches).toBe(2);
+  });
+
+  expect(stub.statuses.get('m-1')).toBe('unanswered');
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'unanswered', messages: ['m-1'], reason: 'thread_switched' },
+  ]);
+
+  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+    { params: { threadId: 'thread-1', clientUserMessageId: 'm-1' } },
+  ]);
 });
