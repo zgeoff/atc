@@ -1,4 +1,4 @@
-export * from './agent-entry';
+export type * from './agent-entry';
 export * from './build-agent-entry-schema';
 export * from './claude-statusline';
 export * from './collect-agents';

@@ -1,5 +1,5 @@
 export * from './build-session-env';
-export * from './hook-event';
+export type * from './hook-event';
 export * from './normalize-hook-event';
 export * from './note-kinds';
 export * from './open-bridge-socket';

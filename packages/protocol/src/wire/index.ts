@@ -1,4 +1,4 @@
-export * from './daemon-channel';
+export type * from './daemon-channel';
 export * from './daemon-client';
 export * from './daemon-error';
 export * from './line-decoder';

@@ -1,7 +1,7 @@
 export * from './build-claude-plugin';
 export * from './claude-adapter';
-export * from './claude-adapter-options';
-export * from './claude-host-paths';
+export type * from './claude-adapter-options';
+export type * from './claude-host-paths';
 export * from './config/collect-claude-auth';
 export * from './config/collect-gateways';
 export * from './gateway/gateway-adapter';
