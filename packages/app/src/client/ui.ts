@@ -68,12 +68,21 @@ export interface StatusView {
   readonly stale: boolean;
   readonly restarting: boolean;
   readonly waiting?: boolean;
+
+  // The remote daemon from the config the client runs against, which the
+  // bar shows beside the name so a remote fleet never passes for the local
+  // one; absent or null for the local daemon.
+  readonly daemonName?: string | null;
 }
 
 export function drawStatusBar(view: StatusView) {
   const c = view.counts;
   const width = cols();
-  const left = ` atc ▏${view.focusedName ?? 'no session'} `;
+
+  const where =
+    view.daemonName === undefined || view.daemonName === null ? '' : `@${view.daemonName}`;
+
+  const left = ` atc${where} ▏${view.focusedName ?? 'no session'} `;
   const parts: string[] = [];
 
   if (c.needs_you > 0) {

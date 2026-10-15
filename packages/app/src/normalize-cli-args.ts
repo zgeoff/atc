@@ -3,10 +3,18 @@
  * parser sees it. A grant id can start with a dash, and the parser reads a
  * separate dash-led value as a group of short flags; an underscore among
  * them overwrites its positional list and crashes it. Inline, the value
- * stays the option's whatever it starts with.
+ * stays the option's whatever it starts with. A leading `--daemon` gets the
+ * `tui` subcommand in front of it, since the parser hands flags to a
+ * default subcommand only when the first argument is not a value it reads
+ * as a subcommand's name.
  */
 export function normalizeCLIArgs(args: readonly string[]): string[] {
   const normalized: string[] = [];
+  const [first] = args;
+
+  if (first === '--daemon' || first?.startsWith('--daemon=') === true) {
+    normalized.push('tui');
+  }
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];

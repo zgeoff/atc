@@ -136,6 +136,22 @@ on the new build, and 1 otherwise.
 A session that is mid-turn loses that turn.
 [Restarting the daemon](../architecture/daemon/restart.md) covers how the restart works.
 
+## Opening a remote daemon
+
+Run `atc --daemon <name>` to open the fleet of a daemon on another host instead of your local one.
+The name selects an entry in the config's [`daemons` key](./configuration.md#remote-daemons), which
+holds the daemon's address, the principal you act as, and where your token comes from. The status
+bar shows `atc@<name>` while you are on a remote daemon.
+
+The TUI connects to that daemon alone. It never starts, finds, or falls back to your local daemon,
+so when the remote daemon is unreachable, refuses your token, or speaks another protocol version,
+`atc` exits 1 with a message that holds the daemon's name, its address, and both builds and protocol
+versions for a mismatch. A connection that drops after the TUI opens shows `⟳ waiting for daemon`
+and reconnects when the daemon answers again.
+
+atc cannot restart a daemon on another host, so the TUI never offers `u` there: restart it on its
+own host. A principal may not restore the fleet, so `R` restores nothing on a remote daemon.
+
 ## Running the daemon under systemd
 
 `atc daemon` runs the daemon in the foreground. Install it as the `atc-daemon.service` user unit,

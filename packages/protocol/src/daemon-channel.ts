@@ -4,6 +4,10 @@ export interface HelloOptions {
 
   // the atc session the client runs inside, if any
   readonly session?: string | undefined;
+
+  // the principal the connection acts as, which a TCP listener's config
+  // must list
+  readonly principal?: string;
 }
 
 /**

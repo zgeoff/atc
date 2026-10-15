@@ -5,6 +5,9 @@ import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
 import { startStubClosingListener } from '@atc/test-utils/start-stub-closing-listener';
 import { startStubStalledListener } from '@atc/test-utils/start-stub-stalled-listener';
 import { startStubTCPDaemon } from '@atc/test-utils/start-stub-tcp-daemon';
+import { startStubUnansweringListener } from '@atc/test-utils/start-stub-unanswering-listener';
+import { waitFor } from '@atc/test-utils/wait-for';
+import { PROTOCOL_V } from '../protocol';
 import { DaemonClient } from './daemon-client';
 
 /**
@@ -40,6 +43,99 @@ test('it rejects a request sent after the daemon closed the connection', async (
   expect(client.sendRequest('daemon.ping')).rejects.toMatchObject({
     code: 'internal',
     message: 'connection closed',
+  });
+});
+
+test('it sends a request that gives no principal as the client principal', async () => {
+  const listener = startStubUnansweringListener();
+
+  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: listener.port });
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  client.principal = 'remote-tui';
+
+  // The listener never answers, so the request settles only when the
+  // client stops; settling it as a list keeps that rejection handled.
+  void Promise.allSettled([client.sendRequest('session.list')]);
+
+  const sent = await waitFor(() => {
+    const [line] = listener.received.join('').split('\n');
+
+    if (line === undefined || line === '') {
+      throw new Error('the listener has received no line yet');
+    }
+
+    return JSON.parse(line) as unknown;
+  });
+
+  expect(sent).toStrictEqual({ v: PROTOCOL_V, id: 1, m: 'session.list', as: 'remote-tui' });
+});
+
+test('it sends a request that gives its own principal as that principal', async () => {
+  const listener = startStubUnansweringListener();
+
+  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: listener.port });
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  client.principal = 'remote-tui';
+
+  // The listener never answers, so the request settles only when the
+  // client stops; settling it as a list keeps that rejection handled.
+  void Promise.allSettled([client.sendRequest('session.list', undefined, 'gateway')]);
+
+  const sent = await waitFor(() => {
+    const [line] = listener.received.join('').split('\n');
+
+    if (line === undefined || line === '') {
+      throw new Error('the listener has received no line yet');
+    }
+
+    return JSON.parse(line) as unknown;
+  });
+
+  expect(sent).toStrictEqual({ v: PROTOCOL_V, id: 1, m: 'session.list', as: 'gateway' });
+});
+
+test('it sends the principal a handshake gives among its params', async () => {
+  const listener = startStubUnansweringListener();
+
+  const client = await DaemonClient.open({ hostname: '127.0.0.1', port: listener.port });
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  // The listener never answers, so the handshake settles only when the
+  // client stops; settling it as a list keeps that rejection handled.
+  void Promise.allSettled([
+    client.sendHello('atc/test-client', { token: 'a'.repeat(32), principal: 'remote-tui' }),
+  ]);
+
+  const sent = await waitFor(() => {
+    const [line] = listener.received.join('').split('\n');
+
+    if (line === undefined || line === '') {
+      throw new Error('the listener has received no line yet');
+    }
+
+    return JSON.parse(line) as unknown;
+  });
+
+  expect(sent).toStrictEqual({
+    v: PROTOCOL_V,
+    id: 1,
+    m: 'daemon.hello',
+    p: {
+      client: 'atc/test-client',
+      auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+      principal: 'remote-tui',
+    },
   });
 });
 

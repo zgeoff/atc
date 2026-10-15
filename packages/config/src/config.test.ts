@@ -53,6 +53,8 @@ test('#parseConfig leaves every target unusable, local included, and grants no p
     principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -110,6 +112,8 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -180,6 +184,8 @@ test('#parseConfig leaves every target unusable and names the migrate command fo
     principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -284,6 +290,8 @@ test('#parseConfig reads the targets and default target a config sets', () => {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -328,8 +336,46 @@ test('#parseConfig reads the principals a config sets', () => {
     principals: new Map([['client-a', ['local']]]),
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
+  });
+});
+
+test('#parseConfig reads the daemons a config sets, expanding a token file under the home it is given', () => {
+  const config = parseConfig(
+    buildStubHarnessPlugins(),
+    {
+      daemons: {
+        box: {
+          address: '10.0.0.4:7420',
+          principal: 'laptop',
+          tokenFile: '~/.config/atc/box.token',
+        },
+        lab: { address: '10.0.0.5:7420', principal: 'laptop', token: 'not-a-real-token' },
+      },
+    },
+    '/home/a/.config/atc/config.json',
+    '/home/a',
+  );
+
+  expect(config).toMatchObject({
+    daemons: new Map([
+      [
+        'box',
+        {
+          name: 'box',
+          host: '10.0.0.4',
+          port: 7420,
+          token: { kind: 'file', path: '/home/a/.config/atc/box.token' },
+          principal: 'laptop',
+        },
+      ],
+    ]),
+    daemonErrors: [
+      'daemons.lab: a token never goes in the config; set tokenFile or tokenCommand instead',
+    ],
   });
 });
 
@@ -373,6 +419,8 @@ test('#parseConfig holds no targets and an error instead of throwing for a malfo
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -413,6 +461,8 @@ test('#parseConfig reads the config a first run writes back as the defaults, wit
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -455,6 +505,8 @@ test('#parseConfig gives a file with no agent keys at all the three built-in age
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -498,6 +550,8 @@ test('#parseConfig loads exactly the agents an agents map holds and records no o
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -534,6 +588,8 @@ test('#parseConfig keeps reporting claude as the default agent for an empty regi
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -564,6 +620,8 @@ test('#parseConfig leaves the registry empty with one error when agents is not a
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -612,6 +670,8 @@ test('#parseConfig refuses a config that sets agents beside an old agent key', (
     principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -672,6 +732,8 @@ test('#parseConfig restores the fleet on restart by default', () => {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -723,6 +785,8 @@ test('#parseConfig loads a config that still sets resumeInterruptedTurns and rep
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: ['resumeInterruptedTurns'],
   });
@@ -822,6 +886,8 @@ test('#loadConfig returns the defaults when the file is missing', () => {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -870,6 +936,8 @@ test('#loadConfig reads an existing file against the home it is given', () => {
     principals: null,
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -934,6 +1002,8 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
     principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });
@@ -986,6 +1056,8 @@ test('#loadConfig leaves every target unusable when the file is not valid JSON',
     principals: new Map(),
     principalErrors: [],
     workspaceErrors: [],
+    daemons: new Map(),
+    daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
   });

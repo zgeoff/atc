@@ -37,8 +37,9 @@ interface TUIHarnessOptions {
  * A fresh home for one run of the real `atc` client in a pseudo-terminal,
  * holding stand-in `claude` and `grok` binaries, which take scenario files
  * dropped into the home, and a config that points at them. `boot` starts
- * the client in the home, which starts its own daemon there; a later `boot`
- * starts a new client on the same home and stops capturing the old one.
+ * the client in the home with the arguments given, and a client given none
+ * starts its own daemon there; a later `boot` starts a new client on the
+ * same home and stops capturing the old one.
  * `read` returns every byte the client drew since the last `reset`, and
  * `waitFor` polls that capture for a needle. The client appends what it
  * decides without drawing to a log: `countClientLogLines` returns how many
@@ -127,10 +128,10 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
     env,
     writeConfig,
 
-    boot(): IPty {
+    boot(args: readonly string[] = []): IPty {
       capture?.dispose();
 
-      const booted = spawn(process.execPath, [cliPath], {
+      const booted = spawn(process.execPath, [cliPath, ...args], {
         name: 'xterm-256color',
         cols: 110,
         rows: 30,

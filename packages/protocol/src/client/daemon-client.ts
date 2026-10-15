@@ -26,6 +26,11 @@ export class DaemonClient implements DaemonChannel {
   // the request with the thrown message as an `internal` error.
   onAnswer: (method: string, ok: Readonly<Record<string, unknown>>) => void = () => {};
 
+  // The principal a request acts as when it gives none. A daemon serves a
+  // request over TCP only as a principal, so a client that reaches one over
+  // TCP sets it once its handshake has passed instead of on every request.
+  principal: string | undefined = undefined;
+
   private queue: OutboundQueue | null = null;
 
   private readonly lines = new LineDecoder();
@@ -77,7 +82,8 @@ export class DaemonClient implements DaemonChannel {
   }
 
   // A handshake with a token presents it as a bearer token, which a TCP
-  // listener requires. A client started inside an atc session gives that
+  // listener requires, and one with a principal makes the connection act as
+  // that principal, which the listener's config must list. A client started inside an atc session gives that
   // session, so the daemon never takes a change to the session's own record
   // from it.
   sendHello(build: string, options: HelloOptions = {}): Promise<Readonly<Record<string, unknown>>> {
@@ -88,12 +94,14 @@ export class DaemonClient implements DaemonChannel {
           ? { scheme: 'none' }
           : { scheme: 'bearer', token: options.token },
       ...(options.session === undefined ? {} : { session: options.session }),
+      ...(options.principal === undefined ? {} : { principal: options.principal }),
     });
   }
 
   // A request with a principal acts as that principal, within what the
   // connection may reach, and a name given beside it goes out as `asName`.
-  // A request the full outbound queue refuses never reaches the wire, so it
+  // A request that gives none acts as the client's own principal, when it
+  // has one. A request the full outbound queue refuses never reaches the wire, so it
   // rejects at once and the connection stays open for the requests already
   // queued.
   sendRequest(
@@ -106,6 +114,7 @@ export class DaemonClient implements DaemonChannel {
       return Promise.reject(new DaemonError('internal', this.closedReason));
     }
 
+    const principal = as ?? this.principal;
     const id = this.nextID++;
     const resolvers = Promise.withResolvers<Readonly<Record<string, unknown>>>();
 
@@ -119,8 +128,8 @@ export class DaemonClient implements DaemonChannel {
           id,
           m,
           ...(p === undefined ? {} : { p }),
-          ...(as === undefined ? {} : { as }),
-          ...(as === undefined || asName === undefined ? {} : { asName }),
+          ...(principal === undefined ? {} : { as: principal }),
+          ...(principal === undefined || asName === undefined ? {} : { asName }),
         }),
       );
 

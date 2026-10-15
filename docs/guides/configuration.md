@@ -30,6 +30,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 | `defaultTarget`         | unset            | The target a spawn without a target runs on.                                                                                                 |
 | `workspaces`            | see above        | Where workspaces come from and land. The [workspaces guide](./configuration/workspaces.md#git-transports) covers it.                         |
 | `restoreFleetOnRestart` | `true`           | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                      |
+| `daemons`               | unset            | Daemons on other hosts that `atc --daemon <name>` opens. The [remote daemons](#remote-daemons) section covers it.                            |
 
 ## Guides by task
 
@@ -74,6 +75,42 @@ Set `restoreFleetOnRestart` to `false` to leave the stored sessions out of the l
 
 A config that still sets `resumeInterruptedTurns` loads with a warning from `atc daemon`, and atc
 ignores the key. `atc config migrate` drops it.
+
+## Remote daemons
+
+The `daemons` key lists the daemons on other hosts that the TUI can open with `atc --daemon <name>`,
+keyed by a name of a lowercase letter followed by lowercase letters, digits, or hyphens:
+
+```json
+{
+  "daemons": {
+    "box": {
+      "address": "100.64.0.7:8415",
+      "principal": "laptop",
+      "tokenFile": "~/.config/atc/box-token"
+    },
+    "lab": {
+      "address": "lab.example.ts.net:8415",
+      "principal": "laptop",
+      "tokenCommand": ["op", "read", "op://atc/lab-daemon/token"]
+    }
+  }
+}
+```
+
+| Field          | Meaning                                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| `address`      | the `<host>:<port>` of the remote daemon's `--listen` listener, with an IPv6 host in brackets        |
+| `principal`    | the principal the TUI acts as, which the remote daemon's own `principals` key must list              |
+| `tokenFile`    | an absolute or `~` path to a file that holds one token from the remote daemon's token file           |
+| `tokenCommand` | a command, as an array run without a shell, that prints that token, such as a password manager's CLI |
+
+Set exactly one of `tokenFile` and `tokenCommand`. atc refuses an entry that holds the token itself
+under `token`, so the config file never holds a credential. The remote daemon serves a TCP request
+only as a principal its config lists, so the TUI sees the sessions on the targets that principal may
+use. [Principals](./configuration/principals.md) covers what a principal may do, and
+[the daemon listener](./gateway.md#the-daemon-listener) covers starting the remote daemon with a
+listener and a token file.
 
 ## Remote MCP
 

@@ -16,5 +16,6 @@ export function buildTUIHost(host: LifecycleHost): TUIHost {
     restartDaemon: (socketPath) => restartDaemonAtSocket(host, socketPath),
     logEvent: logClientEvent,
     listingCacheFile: host.paths.listingCacheFile,
+    daemonName: null,
   };
 }

@@ -137,6 +137,17 @@ test('it forgets what the client drew on reset', async () => {
   expect(ctx.tui.read()).not.toInclude('atc — control tower');
 });
 
+test('it passes the arguments a boot gives to the client', async () => {
+  const tui = startTUIHarness();
+
+  tui.boot(['--version']);
+
+  const exitCode = await tui.waitForExit();
+
+  expect(exitCode).toBe(0);
+  expect(tui.read()).toMatch(/\d+\.\d+\.\d+/u);
+});
+
 test('it writes the fake binaries and transports with the fields given laid over them', () => {
   const tui = startTUIHarness();
 

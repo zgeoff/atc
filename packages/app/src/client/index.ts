@@ -122,6 +122,7 @@ function scheduleStatus() {
         stale: daemonStale,
         restarting: daemonRestarting,
         waiting: daemonWaiting,
+        daemonName: host.daemonName,
       });
     }
   }, 50);
@@ -974,6 +975,8 @@ function handleDaemonClose() {
   }
 }
 
+// A boot that fails leaves before the first frame, with its message alone:
+// the message holds the daemon and what to do, and a stack would bury it.
 const boot = await bootDaemonClient({
   clock,
   onProtocolMismatch: async (mismatch) => {
@@ -981,6 +984,16 @@ const boot = await bootDaemonClient({
 
     return restartedOnBoot;
   },
+}).catch((error: unknown) => {
+  stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
+
+  try {
+    process.stdin.setRawMode(false);
+  } catch {}
+
+  console.error(`atc: ${error instanceof Error ? error.message : String(error)}`);
+
+  return process.exit(1);
 });
 
 let client = boot.client;

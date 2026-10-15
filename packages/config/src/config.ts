@@ -13,6 +13,8 @@ import { collectDirRoots } from './collect-dir-roots';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
 import { collectPrincipals } from './collect-principals';
+import { collectRemoteDaemons } from './collect-remote-daemons';
+import type { RemoteDaemon } from './collect-remote-daemons';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
 import { collectWorkspacesConfig } from './collect-workspaces-config';
@@ -66,6 +68,11 @@ export interface Config {
   // The workspace config problems, one line each.
   workspaceErrors: readonly string[];
 
+  // The daemons on other hosts the TUI may connect to by name, and the
+  // problems that left an entry out.
+  daemons: ReadonlyMap<string, RemoteDaemon>;
+  daemonErrors: readonly string[];
+
   // Whether the daemon restores the stored fleet by itself after a restart.
   restoreFleetOnRestart: boolean;
 
@@ -108,6 +115,8 @@ const DEFAULTS: Omit<Config, 'agents' | 'agentErrors' | 'defaultAgent'> = {
   principals: null,
   principalErrors: [],
   workspaceErrors: [],
+  daemons: new Map(),
+  daemonErrors: [],
   restoreFleetOnRestart: true,
   removedKeys: [],
 };
@@ -142,6 +151,7 @@ const CONFIG_SCHEMA = z.object({
   targets: z.unknown().optional(),
   defaultTarget: z.unknown().optional(),
   principals: z.unknown().optional(),
+  daemons: z.unknown().optional(),
   restoreFleetOnRestart: buildOptionalBoolean(),
 });
 
@@ -275,6 +285,8 @@ export function renderDefaultConfig(): string {
     principals: _principals,
     principalErrors: _principalErrors,
     workspaceErrors: _workspaceErrors,
+    daemons: _daemons,
+    daemonErrors: _daemonErrors,
     removedKeys: _removedKeys,
     workspaces,
     ...written
@@ -353,6 +365,7 @@ export function parseConfig(
   const hooks = collectHooks(parsed.data.hooks, home);
   const targets = collectTargets(parsed.data.targets, parsed.data.defaultTarget);
   const principals = collectPrincipals(parsed.data.principals);
+  const daemons = collectRemoteDaemons(parsed.data.daemons, home);
 
   const leader =
     (parsed.data.leader === undefined ? null : decodeLeader(parsed.data.leader)) ?? DEFAULTS.leader;
@@ -373,6 +386,8 @@ export function parseConfig(
     principals: principals.principals,
     principalErrors: principals.errors,
     workspaceErrors: workspaces.errors,
+    daemons: daemons.daemons,
+    daemonErrors: daemons.errors,
     restoreFleetOnRestart: parsed.data.restoreFleetOnRestart ?? DEFAULTS.restoreFleetOnRestart,
     removedKeys: REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key)),
   };
