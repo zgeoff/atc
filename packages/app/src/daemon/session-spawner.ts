@@ -434,18 +434,27 @@ export class SessionSpawner {
           records === null
             ? null
             : timer.withStep('record', () =>
-                records.createRecord(
-                  {
-                    session: id,
-                    target,
-                    provider,
-                    host: hostKey,
-                    dir: recordDir,
-                    workspace: built.materialized?.workspace ?? null,
-                    ...(built.materialized === null ? {} : { branch: built.materialized.branch }),
-                  },
-                  spawn.scope,
-                ),
+                records
+                  .createRecord(
+                    {
+                      session: id,
+                      target,
+                      provider,
+                      host: hostKey,
+                      dir: recordDir,
+                      workspace: built.materialized?.workspace ?? null,
+                      ...(built.materialized === null ? {} : { branch: built.materialized.branch }),
+                    },
+                    spawn.scope,
+                  )
+
+                  // A record stored before its copy failed to land is this
+                  // step's own partial work, so the step takes it back.
+                  .catch(async (error: unknown) => {
+                    await records.remove(id);
+
+                    throw error;
+                  }),
               ),
         async () => {
           await this.callbacks.getRecords()?.remove(id);

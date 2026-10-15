@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock, toSessionID } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
@@ -196,6 +196,41 @@ test('it rejects a spawn whose harness its provider cannot start and lists nothi
   const spawned = ctx.spawner.spawn(ctx.dir, 'work', '', 80, 24);
 
   expect(spawned).rejects.toThrowWithMessage(Error, 'harness refused');
+  expect(ctx.registry.sessions).toStrictEqual([]);
+});
+
+test('it drops the stored record of a spawn whose record copy fails to land', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  // A file where the copies' folder belongs fails the copy after the
+  // record is stored.
+  writeFileSync(ctx.recordsDir, 'in the way');
+
+  const spawned = ctx.spawner.spawn(
+    ctx.dir,
+    'work',
+    '',
+    80,
+    24,
+    false,
+    'auto',
+    'claude',
+    null,
+    {},
+    toSessionID('s-copy'),
+  );
+
+  await spawned.catch(() => null);
+
+  const stored = await ctx.store.findPublishedRecord(toSessionID('s-copy'));
+
+  expect(spawned).rejects.toThrow();
+  expect(stored).toBeNull();
   expect(ctx.registry.sessions).toStrictEqual([]);
 });
 
