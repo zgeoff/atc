@@ -139,6 +139,49 @@ test('it ends a server an earlier daemon left running for the session before it 
   await expect(orphan.exited).toResolve();
 });
 
+test('it kills a server an earlier daemon left running that ignores the stop signal', async () => {
+  const ctx = setupTest();
+  const bin = createStubAppServerCodex(ctx.dir);
+  const socket = join(ctx.bridgeDir, 'codex.sock');
+
+  // An earlier server that never exits on the stop signal.
+  const stubborn = createStubBin(
+    ctx.dir,
+    'stubborn-codex',
+    "#!/usr/bin/env bash\ntrap '' TERM\nwhile :; do sleep 0.05; done\n",
+  );
+
+  const orphan = Bun.spawn([stubborn, 'app-server', '--listen', `unix://${socket}`]);
+
+  onTestFinished(() => {
+    orphan.kill('SIGKILL');
+  });
+
+  mkdirSync(ctx.bridgeDir, { recursive: true });
+  writeFileSync(join(ctx.bridgeDir, 'app-server.pid'), String(orphan.pid));
+
+  const bridge = await startCodexAppServerBridge(
+    {
+      session: toSessionID('s-1'),
+      cwd: ctx.dir,
+      env: {},
+      withheldEnv: [],
+      options: { prompt: '', resume: false },
+      dir: ctx.bridgeDir,
+      host: buildStubMessageBridgeHost().host,
+    },
+    {
+      bin,
+      planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }),
+      stopGraceMs: 100,
+    },
+  );
+
+  onTestFinished(() => bridge.stop());
+
+  expect(orphan.signalCode).toBe('SIGKILL');
+});
+
 test('it leaves alone a process whose pid the system gave out again', async () => {
   const ctx = setupTest();
   const bin = createStubAppServerCodex(ctx.dir);

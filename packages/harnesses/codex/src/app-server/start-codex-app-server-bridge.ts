@@ -54,7 +54,7 @@ export async function startCodexAppServerBridge(
   let server: Subprocess | null = null;
   let stopped = false;
 
-  await killOrphanedServer(pidFile, listenArgs.join(' '));
+  await killOrphanedServer(pidFile, listenArgs.join(' '), launch.stopGraceMs ?? STOP_GRACE_MS);
 
   // Starts the server when none runs, then waits for it to listen.
   const openConnection = async (): Promise<AppServerConnection> => {
@@ -154,40 +154,73 @@ export async function startCodexAppServerBridge(
 // Ends the server an earlier daemon started for this session and never
 // stopped, as after a crash. The pid counts only while its process still
 // runs this session's server command, so a pid the system gave to another
-// process since is left alone.
-async function killOrphanedServer(pidFile: string, command: string): Promise<void> {
+// process since is left alone. A server that ignores the stop signal for
+// the grace period is killed outright, and one that outlives that too
+// fails the start, so no second server runs beside one atc lost track of.
+async function killOrphanedServer(
+  pidFile: string,
+  command: string,
+  graceMs: number,
+): Promise<void> {
   if (!existsSync(pidFile)) {
     return;
   }
 
   const pid = Number(readFileSync(pidFile, 'utf8').trim());
 
-  rmSync(pidFile, { force: true });
+  if (Number.isInteger(pid) && pid > 0) {
+    for (const signal of ['SIGTERM', 'SIGKILL'] as const) {
+      const args = await readProcessArgs(pid);
 
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return;
+      if (!args.includes(command)) {
+        break;
+      }
+
+      try {
+        process.kill(pid, signal);
+      } catch {
+        break;
+      }
+
+      const exited = await waitForExit(pid, graceMs);
+
+      if (exited) {
+        break;
+      }
+
+      if (signal === 'SIGKILL') {
+        throw new AppServerError(
+          -1,
+          `the App Server ${pid} an earlier daemon left running for this session did not exit`,
+        );
+      }
+    }
   }
 
+  rmSync(pidFile, { force: true });
+}
+
+// The command line a process runs, or an empty string once it is gone.
+function readProcessArgs(pid: number): Promise<string> {
   const ps = Bun.spawn(['ps', '-o', 'args=', '-p', String(pid)], { stderr: 'ignore' });
 
-  const args = await new Response(ps.stdout).text();
+  return new Response(ps.stdout).text();
+}
 
-  if (!args.includes(command)) {
-    return;
-  }
+// Resolves true once the process is gone, or false when it still runs
+// after the wait. Signal 0 checks that it exists without touching it.
+async function waitForExit(pid: number, waitMs: number): Promise<boolean> {
+  const attempts = Math.ceil(waitMs / LISTEN_POLL_MS);
 
-  try {
-    process.kill(pid);
-  } catch {
-    return;
-  }
-
-  // Signal 0 checks that the process still exists without touching it.
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; ; attempt += 1) {
     try {
       process.kill(pid, 0);
     } catch {
-      return;
+      return true;
+    }
+
+    if (attempt >= attempts) {
+      return false;
     }
 
     await Bun.sleep(LISTEN_POLL_MS);
