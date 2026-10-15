@@ -11,9 +11,10 @@ The answer: `rawResponse/completed` marks a read correctly while the thread stay
 cannot be the bridge's read mark. It exists only on a thread started with `experimentalRawEvents`,
 which the protocol documents as internal-only, and the thread loses the flag whenever it reloads,
 including after an App Server restart. The recommendation is to mark a message read at the first
-`agentMessage` or `reasoning` item that follows the message's `userMessage` item in the same turn.
-That rule needs no flag, and the thread's stored turns keep the same order, so recovery after a
-restart reaches the same verdict.
+`agentMessage` or `reasoning` item that starts after the message's `userMessage` item in the same
+turn, and to keep that mark in the daemon store. That rule needs no flag. The thread's stored turns
+drop a reply that Codex cut short, so after a restart they give the same verdict only for a message
+whose mark the bridge never saw.
 
 The [App Server bridge spike](https://github.com/zgeoff/atc/blob/55592c3/docs/design/codex-app-server-bridge/spikes/app-server/README.md)
 covers the bridge design this spike builds on.
@@ -119,10 +120,16 @@ the stored turn holds the command after `m-i2`, although the command started bef
 ### The stored turns
 
 `thread/turns/list` with `itemsView: "full"` keeps a steered message's `userMessage` item in its
-place among the turn's items ([`06-stored-turns.txt`](./runs/06-stored-turns.txt)). An
-`agentMessage` after it appears in both completed turns and in neither interrupted one, so recovery
-reaches the verdict the live rule gave. The default `summary` view leaves steered `userMessage`
-items out, so recovery must keep asking for `full`.
+place among the turn's items ([`06-stored-turns.txt`](./runs/06-stored-turns.txt)). For each
+steered message, an `agentMessage` after it appears in both completed turns and in neither
+interrupted one, which matches the live verdict. The default `summary` view leaves steered
+`userMessage` items out, so recovery must keep asking for `full`.
+
+The stored turns can still disagree with the live rule, because they hold only completed items. In
+`05-interrupt-stream`, the model streamed a reply to `m-j1` before the steer cut it short, so the
+live rule marks `m-j1` read. The stored turn holds no `agentMessage` at all, so a recovery that reads
+only the stored turns marks `m-j1` unread and delivers again a message whose reply the person
+interrupted. The stored turns therefore cannot replace a mark the bridge saw live.
 
 ### An interrupt before Codex adds the message
 
@@ -141,7 +148,8 @@ request did not include it. The model never saw `m-p2`, so by atc's rule it is d
 
 ## Recommendation
 
-Mark a Codex message read in the bridge at the first model item after its `userMessage` item, and
+Mark a Codex message read in the bridge at the first model item that starts after its `userMessage`
+item, and
 use that mark only where the interrupted or failed turn decides between two outcomes:
 
 - A message with a model item after its `userMessage` item stays unanswered with the turn's reason.
@@ -149,8 +157,14 @@ use that mark only where the interrupted or failed turn decides between two outc
   queued and is delivered again, as an unseen Claude message is.
 
 A completed turn needs no read mark: it ends with a model item after its last input, so its final
-reply answers every message it holds. Recovery applies the same rule to the stored turns. Two parts
-of the bridge change with it:
+reply answers every message it holds. The bridge writes each read mark to the daemon store when the
+model item starts, because the stored turns lose a cut-short reply. Recovery takes a message's
+stored read mark first, and applies the rule to the stored turns only for a message that has none,
+such as one whose mark the daemon never wrote before it stopped. Three parts of the bridge change
+with it:
+
+- The daemon store gains a read mark per delivered message, and the bridge host gains a call that
+  writes it.
 
 - The bridge matches a message to a turn by the `turn/start` result, so it holds `m-p2` in the
   interrupted turn and leaves it unanswered. The read mark must come from the `userMessage` item
