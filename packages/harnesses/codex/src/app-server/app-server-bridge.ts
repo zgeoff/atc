@@ -95,6 +95,10 @@ export class AppServerBridge {
 
   private readonly waitingNotifications: AppServerNotification[] = [];
 
+  // Tool calls a resumed thread replays before recovery restores the turn
+  // that carries each message; they are answered once recovery ends.
+  private readonly waitingToolCalls: AppServerRequest[] = [];
+
   // The turn that carries each message the bridge tracks, until it settles.
   private readonly carried = new Map<string, string>();
 
@@ -179,9 +183,17 @@ export class AppServerBridge {
     };
 
     conn.onRequest = (request) => {
-      if (conn === this.conn) {
-        void this.answerToolCall(conn, request);
+      if (conn !== this.conn) {
+        return;
       }
+
+      if (!this.ready) {
+        this.waitingToolCalls.push(request);
+
+        return;
+      }
+
+      void this.answerToolCall(conn, request);
     };
 
     conn.onClose = () => {
@@ -311,6 +323,10 @@ export class AppServerBridge {
 
     for (const notification of this.waitingNotifications.splice(0)) {
       this.applyNotification(notification);
+    }
+
+    for (const request of this.waitingToolCalls.splice(0)) {
+      void this.answerToolCall(conn, request);
     }
 
     if (!this.config.host.attachTap(this.tap)) {
@@ -652,6 +668,10 @@ export class AppServerBridge {
     // The next connection's recovery reads the stored turns, which hold
     // everything these held, and a stale reply here would outrank them.
     this.waitingNotifications.length = 0;
+
+    // A tool call waits on the connection that carried it, and that
+    // connection is gone.
+    this.waitingToolCalls.length = 0;
 
     this.config.host.detachTap(this.tap);
     conn?.dispose();

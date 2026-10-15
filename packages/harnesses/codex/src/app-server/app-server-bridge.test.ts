@@ -378,6 +378,74 @@ test('it answers a message the running turn carries through atc.answer', async (
   ]);
 });
 
+test('it answers an atc.answer that a resumed thread calls before its recovery ends', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { holdTurns: true });
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const before = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+  });
+
+  onTestFinished(() => {
+    before.stop();
+  });
+
+  await before.open();
+
+  before.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('delivered');
+  });
+
+  before.stop();
+
+  const recovery = Promise.withResolvers<undefined>();
+
+  const after = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: {
+      ...stub.host,
+      collectUnsettledMessages: async () => {
+        await recovery.promise;
+
+        return stub.host.collectUnsettledMessages();
+      },
+    },
+    openConnection: ctx.openConnection,
+    resumeThread: 'thread-1',
+  });
+
+  onTestFinished(() => {
+    after.stop();
+  });
+
+  await after.open();
+
+  after.startDelivery();
+
+  const answered = server.callTool('answer', { message: 'm-1', text: 'it passes' });
+
+  recovery.resolve(undefined);
+
+  const result = await answered;
+
+  expect(result).toMatchObject({ success: true });
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'answered', message: 'm-1', answer: 'it passes', turn: 'turn-2' },
+  ]);
+});
+
 test('it refuses an atc.answer for a message the running turn does not carry', async () => {
   const ctx = setupTest();
   const server = startStubCodexAppServer(ctx.socket, { holdTurns: true });
