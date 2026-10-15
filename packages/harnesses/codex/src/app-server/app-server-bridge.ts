@@ -130,6 +130,10 @@ export class AppServerBridge {
   // Ends the overload wait in progress early, so its send gives up.
   private endOverloadWait: (() => void) | undefined;
 
+  // The thread of the last move that waits in the send queue. While it
+  // waits, no send goes out, so nothing more reaches the thread it leaves.
+  private pendingThread: string | null = null;
+
   private overloadDelay: number;
 
   private readonly tap: MessageBridgeTap;
@@ -181,12 +185,16 @@ export class AppServerBridge {
    * the old thread, and the next one resumes the new thread and recovers
    * before it delivers. Each message a turn of the old thread still carries
    * ends unanswered, since no turn of the new thread will carry it. The
-   * thread the bridge already serves changes nothing.
+   * thread the bridge already serves changes nothing. Until the move runs,
+   * every send it waits behind leaves its item queued, so an item the
+   * server turns away as overloaded never goes to the old thread again.
    */
   updateThread(thread: string): void {
     // A send that waits out an overload holds the queue, so the move ends
-    // the wait rather than wait behind it.
-    if (thread !== this.threadID) {
+    // the wait rather than wait behind it. A send whose overload answer
+    // comes later finds the move pending and does not wait.
+    if (thread !== (this.pendingThread ?? this.threadID)) {
+      this.pendingThread = thread;
       this.endOverloadWait?.();
     }
 
@@ -508,6 +516,10 @@ export class AppServerBridge {
   }
 
   private async updateThreadNow(thread: string): Promise<void> {
+    if (thread === this.pendingThread) {
+      this.pendingThread = null;
+    }
+
     if (this.stopped || thread === this.threadID) {
       return;
     }
@@ -571,7 +583,7 @@ export class AppServerBridge {
   private async sendMessage(message: BridgedMessage): Promise<void> {
     const conn = this.conn;
 
-    if (conn === null || !this.ready) {
+    if (conn === null || !this.ready || this.pendingThread !== null) {
       return;
     }
 
@@ -643,7 +655,7 @@ export class AppServerBridge {
   private async sendNotice(notice: BridgedNotice): Promise<void> {
     const conn = this.conn;
 
-    if (conn === null || !this.ready) {
+    if (conn === null || !this.ready || this.pendingThread !== null) {
       return;
     }
 
@@ -708,9 +720,14 @@ export class AppServerBridge {
   // daemon hands over meanwhile queues behind it and the order holds.
   // Resolves true when the item should go again on the same connection.
   // A dropped connection, a stop or a thread move ends the wait with false,
-  // and the item stays queued for the next connection's tap.
+  // and the item stays queued for the next connection's tap. A move that
+  // is already pending skips the wait.
   // oxlint-disable-next-line prefer-readonly-parameter-types -- the wait belongs to the live connection
   private async waitOutOverload(conn: AppServerConnection): Promise<boolean> {
+    if (this.pendingThread !== null) {
+      return false;
+    }
+
     const delay = this.overloadDelay;
 
     this.overloadDelay = Math.min(delay * 2, this.config.retryMs?.max ?? 30_000);

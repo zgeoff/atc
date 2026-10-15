@@ -703,6 +703,92 @@ test('it moves to the thread the terminal shows without waiting out an overload'
   expect(stub.statuses.get('m-1')).toBe('queued');
 });
 
+test('it moves when the terminal moves while an overloaded send waits for its answer, and retries nothing on the old thread', async () => {
+  const ctx = setupTest();
+  const taken = Promise.withResolvers<undefined>();
+  const answer = Promise.withResolvers<undefined>();
+
+  const server = startStubCodexAppServer(
+    ctx.socket,
+    { overloadTurnStarts: 2, reply: 'the docs build' },
+    (request) => {
+      if (request.method === 'turn/start') {
+        taken.resolve(undefined);
+      }
+    },
+  );
+
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  // The bridge sees the overload answer to its first turn/start only once
+  // the test lets it through, after the terminal moved.
+  let held = false;
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: async () => {
+      const conn = await ctx.openConnection();
+
+      const sendRequest = conn.sendRequest.bind(conn);
+
+      conn.sendRequest = async (method, params) => {
+        const pending = sendRequest(method, params);
+
+        if (method === 'turn/start' && !held) {
+          held = true;
+
+          await Promise.allSettled([pending, answer.promise]);
+        }
+
+        return pending;
+      };
+
+      return conn;
+    },
+    resumeThread: null,
+    retryMs: { first: 10, max: 20 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'build the docs' });
+
+  await taken.promise;
+
+  stub.queueMessage({ id: 'm-2', from: 'planner', text: 'and the changelog' });
+
+  const moved = await startTerminalThread(ctx.socket);
+
+  bridge.updateThread(moved);
+  answer.resolve(undefined);
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-2')).toBe('answered');
+  });
+
+  expect(stub.statuses.get('m-1')).toBe('answered');
+
+  expect(server.requests.filter((r) => r.method === 'thread/resume')).toMatchObject([
+    { params: { threadId: moved } },
+  ]);
+
+  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+    { params: { threadId: 'thread-1', clientUserMessageId: 'm-1' } },
+    { params: { threadId: moved, clientUserMessageId: 'm-1' } },
+    { params: { threadId: moved, clientUserMessageId: 'm-1' } },
+    { params: { threadId: moved, clientUserMessageId: 'm-2' } },
+  ]);
+});
+
 test('it keeps a notice the overloaded App Server turns away queued and delivers it on a later send', async () => {
   const ctx = setupTest();
   const stub = buildStubMessageBridgeHost();
