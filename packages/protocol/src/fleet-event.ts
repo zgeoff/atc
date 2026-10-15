@@ -15,5 +15,3 @@ export const FLEET_EVENT_SCHEMA = z.object({
   message: z.string().optional(),
   label: z.string().optional(),
 });
-
-export type FleetEvent = z.output<typeof FLEET_EVENT_SCHEMA>;

@@ -27,5 +27,3 @@ export const MESSAGE_VIEW_SCHEMA = z.object({
   turn: z.string().nullable(),
   answeredWith: z.array(z.string()).readonly(),
 });
-
-export type MessageView = z.output<typeof MESSAGE_VIEW_SCHEMA>;

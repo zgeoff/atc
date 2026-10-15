@@ -179,7 +179,10 @@ const REPORTER_ENTRIES = [
 // package name: core whole, and the light entries of the packages whose
 // root entry builds schemas, the protocol contract, or the store. Every
 // other package, store among them, stays out of a reporter's reach.
-const REPORTER_FOLDERS: ReadonlyMap<string, readonly string[] | 'all'> = new Map([
+const REPORTER_FOLDERS: ReadonlyMap<string, readonly string[] | 'all'> = new Map<
+  string,
+  readonly string[] | 'all'
+>([
   ['core', 'all'],
   ['protocol', ['session', 'wire']],
   ['config', ['host', 'claude-statusline']],

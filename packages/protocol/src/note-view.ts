@@ -14,5 +14,3 @@ export const NOTE_VIEW_SCHEMA = z.object({
   text: z.string(),
   complete: z.boolean(),
 });
-
-export type NoteView = z.output<typeof NOTE_VIEW_SCHEMA>;

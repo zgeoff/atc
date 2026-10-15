@@ -15,7 +15,14 @@
       "entry": ["src/gateway.ts", "src/**/*.test.ts", "src/test-utils/run-listener-daemon.ts"],
       "project": ["src/**/*.ts"]
     },
+    "packages/*": {
+      "entry": ["src/**/*.test.ts"]
+    },
+    "packages/*/*": {
+      "entry": ["src/**/*.test.ts"]
+    },
     "packages/test-utils": {
+      "entry": ["src/**/*.test.ts", "src/run-stub-*.ts"],
       "ignoreDependencies": ["better-auth"]
     }
   },
