@@ -6,7 +6,7 @@ message-to-turn tracking. The bridge and the terminal (`codex --remote`) connect
 one Codex App Server and share one thread. The bridge binds the atc session id to the thread id in
 its own state and in the thread's developer instructions, so no part of the design reads identity
 from an inherited environment. Every result below comes from Codex CLI 0.162.0 on Linux, with the
-App Server's v2 protocol and `experimentalApi`, a scratch `CODEX_HOME`, and 16 short model turns.
+App Server's v2 protocol and `experimentalApi`, a scratch `CODEX_HOME`, and 17 short model turns.
 
 The recommendation: build the Codex bridge on App Server, with one App Server per atc session on a
 Unix socket, and the bridge inside the daemon.
@@ -65,8 +65,7 @@ inbox.
 
 The terminal and the bridge both control and observe the thread. A turn either client starts reaches
 the other as `turn/started`, its items and `turn/completed`, and the terminal renders a
-bridge-started turn and a steered message live, with the `<atc-message>` envelope visible. Neither
-client caused a duplicate turn in any run.
+bridge-started turn and a steered message live, with the `<atc-message>` envelope visible.
 
 The App Server also sends a client notifications for threads it never subscribed to. When the
 terminal submits its first prompt, Codex starts a second, internal thread that names the session,
@@ -119,9 +118,11 @@ item after a request that includes the recorded input.
 Each `agentMessage` item carries a `phase`: `commentary` for text such as "I'll run the command",
 and `final_answer` for the reply. The bridge takes the text of the last `agentMessage` of a
 completed turn as the answer to every message that turn recorded and the `atc.answer` tool did not
-answer. A completed turn ends with a model item after its last recorded input, as the boundary run
-shows, so the model has consumed every message the turn recorded. A turn that ends `interrupted` or
-`failed` leaves its messages unanswered, with the turn status as the reason.
+answer. When the model called `atc.answer` for a message and then replied with other text, the
+message kept the tool's answer. A completed turn ends with a model item after its last recorded
+input, as the boundary run shows, so the model has consumed every message the turn recorded. A turn
+that ends `interrupted` or `failed` leaves its messages unanswered, with the turn status as the
+reason.
 
 ### Progress notes
 

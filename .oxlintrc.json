@@ -222,5 +222,5 @@
       }
     }
   ],
-  "ignorePatterns": [".claude/**", "mods/**"]
+  "ignorePatterns": [".claude/**", "docs/design/**", "mods/**"]
 }
