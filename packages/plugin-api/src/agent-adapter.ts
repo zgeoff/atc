@@ -238,12 +238,13 @@ export interface ScreenMenu {
   // The index into `options` of the option the cursor is on.
   readonly highlighted: number;
 
-  // Present when the screen shows only part of a longer list: whether a
-  // mark beside the rows shows options above them, and options below them.
-  // The list is the options with a box when any option has one, and the
-  // items without a box after them stay on the screen as the list scrolls.
-  // Absent: the menu draws no such mark. A list hides its mark on the row
-  // the cursor is on, so a list the cursor has scrolled can show none.
+  // Present when the screen shows only part of a longer list, or may:
+  // whether a mark beside the rows shows options above them, and options
+  // below them. The list is the options with a box when any option has one,
+  // and the items without a box after them stay on the screen as the list
+  // scrolls. A list hides its mark on the row the cursor is on, so both
+  // false means the list fills its window with the cursor on a row that
+  // could hide a mark. Absent: the whole list is on the screen.
   readonly scroll?: ScreenMenuScroll;
 }
 
@@ -382,6 +383,8 @@ export interface AgentAdapter {
   // Escape dismisses it. In a list that scrolls, the screen shows one row
   // more only as the cursor moves past its edge, and the down arrow on the
   // last option moves the cursor to an item after the list or back to the
-  // first option. Absent: atc cannot read this agent's menus.
-  readonly findMenu?: (screen: string) => ScreenMenu | null;
+  // first option. `rows` is the terminal's height, which the screen text
+  // does not show once its trailing blank rows are trimmed. Absent: atc
+  // cannot read this agent's menus.
+  readonly findMenu?: (screen: string, rows?: number) => ScreenMenu | null;
 }

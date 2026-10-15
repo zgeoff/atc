@@ -725,7 +725,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // so a restarted session counts as gone.
   const buildMenuTerminal = (
     id: SessionID,
-    findMenu: (text: string) => ScreenMenu | null,
+    findMenu: (text: string, rows?: number) => ScreenMenu | null,
   ): MenuTerminal => {
     const runtime = getRuntime(id);
     const pty = mgr.sessions.find((x) => x.id === id)?.pty ?? null;
@@ -738,7 +738,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         const shown = await runtime.screen.renderText();
 
-        return findMenu(shown.text);
+        return findMenu(shown.text, shown.rows);
       },
       readLastOutputAt: () => runtime.lastOutputAt,
       write: (data) => {

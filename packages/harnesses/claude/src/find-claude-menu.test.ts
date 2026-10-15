@@ -115,6 +115,40 @@ test('it reads the rows of a scrolled list and its mark of options below', () =>
   });
 });
 
+test('it reads a full window with the cursor on its last row as a list that may scroll', () => {
+  const screen = [
+    '──────────────────────────────────────────────────────────────────────────────',
+    '  7 new MCP servers found in this project',
+    '',
+    '    [✔] kettle-notes',
+    '    [✔] orchard-search',
+    '    [✔] quarry-files',
+    '    [✔] lantern-docs',
+    '  ❯ [✔] meadow-index',
+    '       Enable selected',
+    ...Array.from({ length: 15 }, () => ''),
+  ].join('\n');
+
+  expect(findClaudeMenu(screen)?.scroll).toStrictEqual({ above: false, below: false });
+});
+
+test('it reads a full window with the cursor above its last row as the whole list', () => {
+  const screen = [
+    '──────────────────────────────────────────────────────────────────────────────',
+    '  5 new MCP servers found in this project',
+    '',
+    '    [✔] kettle-notes',
+    '    [✔] orchard-search',
+    '    [✔] quarry-files',
+    '  ❯ [✔] lantern-docs',
+    '    [✔] meadow-index',
+    '       Enable selected',
+    ...Array.from({ length: 15 }, () => ''),
+  ].join('\n');
+
+  expect(findClaudeMenu(screen)).not.toContainKey('scroll');
+});
+
 test('it reads both scroll marks of a list scrolled to its middle', () => {
   const screen = [
     '──────────────────────────────────────────────────────────────────────────────',

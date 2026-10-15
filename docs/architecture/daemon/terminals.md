@@ -113,14 +113,17 @@ terminal shows no more rows, because Claude Code caps the window at a fixed coun
 finds a mark reads the whole list with arrow keys. It waits for the screen to go quiet, as a choice
 does, moves the cursor up to the first option, then down one option at a time, and moves it back to
 where it started. The cursor's own row hides its mark, so the read finds the end of the list when
-the cursor passes the last option, onto the item after the list or back to the first option. The
-read holds the session's other input while it runs and never presses Enter or Escape.
+the cursor passes the last option, onto the item after the list or back to the first option. A list
+that fills its window with the cursor on its last row shows no mark at all, though options may sit
+below it, so the reader treats it as one that may scroll and the read walks it too. The read holds
+the session's other input while it runs and never presses Enter or Escape.
 
 The daemon keeps the whole menu for the session, and numbers each later read that shows part of it
 by the option's place in the whole list. A read or a choice made while the list sits scrolled
 therefore presses no key to learn the numbers. A read that finds no menu, or a menu that is not part
 of the kept one, drops it, and so does a new terminal for the session, so a list that closes and
-opens again is read afresh.
+opens again is read afresh. A choice drops it too before it presses Enter or Escape, because either
+key can open another list with the same text and the same rows in view.
 
 A menu read returns a token built from the whole menu's text, its labels, and its ticked boxes, and
 a choice carries that token. The cursor is left out of the token, so the choice's own arrow keys

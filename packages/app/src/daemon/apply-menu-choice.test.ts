@@ -333,6 +333,43 @@ test('it reads every option of a list longer than the screen shows, and puts the
   );
 });
 
+test('it reads every option of a long list whose cursor hides the mark of options below', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['7 new MCP servers found in this project'],
+        options: [
+          'kettle-notes',
+          'orchard-search',
+          'quarry-files',
+          'lantern-docs',
+          'meadow-index',
+          'willow-cache',
+          'harbor-queue',
+        ],
+        checked: [true, true, true, true, true, true, true],
+        submit: 'Enable selected',
+        cursor: 4,
+        window: 5,
+      },
+    ],
+  });
+
+  expect(shown.menu['options']).toStrictEqual([
+    { option: 1, label: 'kettle-notes', checked: true, highlighted: false },
+    { option: 2, label: 'orchard-search', checked: true, highlighted: false },
+    { option: 3, label: 'quarry-files', checked: true, highlighted: false },
+    { option: 4, label: 'lantern-docs', checked: true, highlighted: false },
+    { option: 5, label: 'meadow-index', checked: true, highlighted: true },
+    { option: 6, label: 'willow-cache', checked: true, highlighted: false },
+    { option: 7, label: 'harbor-queue', checked: true, highlighted: false },
+    { option: 8, label: 'Enable selected', checked: null, highlighted: false },
+  ]);
+});
+
 test('it reads a long list it has read whole before without pressing a key', async () => {
   const ctx = await setupTest();
 
@@ -509,6 +546,44 @@ test('it returns the whole of a long menu a choice opens, with a token the next 
   expect(ctx.readLog().at(-1)).toStrictEqual({
     enabled: ['kettle-notes', 'orchard-search', 'quarry-files', 'lantern-docs', 'meadow-index'],
   });
+});
+
+test('it reads afresh a long list that Enter opens with the same text and rows in view', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'plain',
+        text: ['Pick a colour'],
+        options: ['Amber', 'Teal', 'Plum', 'Coral', 'Slate'],
+        window: 3,
+      },
+      {
+        kind: 'plain',
+        text: ['Pick a colour'],
+        options: ['Amber', 'Teal', 'Plum', 'Ochre', 'Sage', 'Indigo'],
+        window: 3,
+      },
+    ],
+    pickOpensNext: true,
+  });
+
+  const chosen = await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 1,
+    label: 'Amber',
+  });
+
+  expect(getRecord(chosen, 'menu')['options']).toStrictEqual([
+    { option: 1, label: 'Amber', checked: null, highlighted: true },
+    { option: 2, label: 'Teal', checked: null, highlighted: false },
+    { option: 3, label: 'Plum', checked: null, highlighted: false },
+    { option: 4, label: 'Ochre', checked: null, highlighted: false },
+    { option: 5, label: 'Sage', checked: null, highlighted: false },
+    { option: 6, label: 'Indigo', checked: null, highlighted: false },
+  ]);
 });
 
 test('it reads afresh a long menu that opens again with the same text after closing', async () => {

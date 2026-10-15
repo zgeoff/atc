@@ -113,6 +113,63 @@ test('it answers session.screen whose session leaves the view during the read as
   expect(answered).toMatchObject({ err: { code: 'no_such_session' } });
 });
 
+test('it answers session.menu whose session leaves the view during the read as for a session that does not exist', async () => {
+  const entered = Promise.withResolvers<void>();
+  const menu = Promise.withResolvers<Awaited<ReturnType<DaemonContext['readSessionMenu']>>>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
+
+  const readSessionMenu = mock<DaemonContext['readSessionMenu']>(() => {
+    entered.resolve();
+
+    return menu.promise;
+  });
+
+  readSessionMenu.mockImplementationOnce(() => Promise.resolve('missing'));
+
+  const peer = buildStubPeerSocket();
+
+  const conn = new DaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession, readSessionMenu }),
+  );
+
+  // The connection acts as a principal, the caller whose reach the daemon
+  // checks on each answer.
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 1, m: 'daemon.hello', p: { client: 'atc/test', principal: 'narrow' } })}\n`,
+  );
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 2, m: 'session.menu', p: { session: 's-held' } })}\n`,
+  );
+
+  const missing = await peer.waitForAnswer(2);
+
+  conn.applyChunk(
+    `${JSON.stringify({ v: PROTOCOL_V, id: 3, m: 'session.menu', p: { session: 's-held' } })}\n`,
+  );
+
+  const held = peer.waitForAnswer(3);
+
+  await entered.promise;
+
+  canSeeSession.mockReturnValue(false);
+
+  menu.resolve({
+    text: 'Pick a colour',
+    options: [
+      { option: 1, label: 'Amber', checked: null, highlighted: true },
+      { option: 2, label: 'Teal', checked: null, highlighted: false },
+    ],
+    menuToken: 'colour-menu',
+  });
+
+  const answered = await held;
+
+  expect(answered).toStrictEqual(missing);
+  expect(answered).toMatchObject({ err: { code: 'no_such_session' } });
+});
+
 test('it answers session.read whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();
 

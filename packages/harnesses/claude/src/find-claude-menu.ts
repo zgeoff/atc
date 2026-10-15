@@ -7,6 +7,17 @@ const POINTER = '❯ ';
 const MORE_ABOVE = '↑ ';
 const MORE_BELOW = '↓ ';
 
+// Claude Code shows at most five options of a list at a time, and fewer on a
+// terminal too short for five below its dialog's eight rows of chrome, as
+// many as fit at one, two or three rows per option.
+const LIST_WINDOW = 5;
+const DIALOG_CHROME_ROWS = 8;
+const ROWS_PER_OPTION = [1, 2, 3];
+
+// A terminal tall enough for the full window at three rows per option, for
+// a caller that does not give the terminal's height.
+const TALL_ROWS = DIALOG_CHROME_ROWS + LIST_WINDOW * 3;
+
 // A dialog's top border, or the rule above and below the prompt box.
 const RULE = /^\s*[─━═╌]{8,}\s*$/;
 const NUMBERED = /^\d+\.\s+(?<label>.*)$/;
@@ -26,12 +37,14 @@ const MAX_TEXT_LINES = 24;
  * options (`1. Yes`), whose wrapped lines join the option above them, boxes
  * (`[✔] name`) with a plain item such as `Enable selected` among them, or
  * plain options, one per line. A list longer than its window marks its first
- * row with `↑` and its last with `↓` in the cursor's column. Its text is the
+ * row with `↑` and its last with `↓` in the cursor's column, except on the
+ * cursor's own row, so a list that fills its window with the cursor on its
+ * last row reads as one that may scroll, with neither mark. Its text is the
  * lines above the options up to the dialog's border. The prompt box, whose `❯` line sits straight under a
  * rule with the draft's lines down to the next rule, is no menu, and neither
  * is a single option.
  */
-export function findClaudeMenu(screen: string): ScreenMenu | null {
+export function findClaudeMenu(screen: string, height = TALL_ROWS): ScreenMenu | null {
   const lines = screen.split('\n');
   const at = lines.findLastIndex((line) => hasPointer(line));
 
@@ -65,7 +78,8 @@ export function findClaudeMenu(screen: string): ScreenMenu | null {
     return null;
   }
 
-  const scroll = findScroll(lines.slice(first, last + 1), column);
+  const scroll =
+    findScroll(lines.slice(first, last + 1), column) ?? findHiddenScroll(parsed, height);
 
   return {
     text: collectText(lines, first),
@@ -200,6 +214,23 @@ function findScroll(rows: readonly string[], column: number): ScreenMenuScroll |
   const below = marks.has(MORE_BELOW);
 
   return above || below ? { above, below } : null;
+}
+
+// Both marks absent when the list fills a window Claude Code could draw on
+// a screen this tall and the cursor sits on its last row, where it hides
+// the mark of options below; null for any other list without marks. The
+// list is the options with a box when any has one.
+function findHiddenScroll(parsed: ParsedOptions, height: number): ScreenMenuScroll | null {
+  const boxed = parsed.options.findLastIndex((option) => option.checked !== null);
+  const listed = boxed === -1 ? parsed.options.length : boxed + 1;
+
+  const windows = ROWS_PER_OPTION.map((perOption) =>
+    Math.min(LIST_WINDOW, Math.max(1, Math.floor((height - DIALOG_CHROME_ROWS) / perOption))),
+  );
+
+  return windows.includes(listed) && parsed.highlighted === listed - 1
+    ? { above: false, below: false }
+    : null;
 }
 
 // The lines above the options up to the nearest rule, without the blank

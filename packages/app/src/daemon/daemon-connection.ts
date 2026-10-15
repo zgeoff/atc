@@ -1356,11 +1356,13 @@ export class DaemonConnection {
     }
 
     // A read that scrolls a long list with arrow keys rejects with a
-    // DaemonError when the menu changes or ignores a key.
+    // DaemonError when the menu changes or ignores a key. The session can
+    // leave the caller's view while the read runs, so its view is checked
+    // again before the menu goes out.
     this.answerAsync(req.id, async () => {
       const menu = await ctx.readSessionMenu(id);
 
-      if (menu === 'missing') {
+      if (menu === 'missing' || !ctx.isSessionVisible(id)) {
         this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
       } else if (menu === 'no_screen') {
         this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);

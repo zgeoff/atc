@@ -58,9 +58,11 @@ export async function applyMenuChoice(
   const menu = requireMatchingMenu(quiet, choice);
 
   if ('key' in choice) {
+    const before = await readMenuBeforeKey(terminal, menu);
+
     sendMenuKey(terminal, MENU_KEYS.escape);
 
-    const dismissed = await waitForSettledMenu(terminal, menu, waits);
+    const dismissed = await waitForSettledMenu(terminal, before, waits);
 
     return { pressed: 'escape', menu: await readSettledWholeMenu(terminal, dismissed, waits) };
   }
@@ -81,13 +83,28 @@ export async function applyMenuChoice(
     );
   }
 
+  const before = await readMenuBeforeKey(terminal, committed);
+
   sendMenuKey(terminal, MENU_KEYS.enter);
 
   // The settled menu is measured against the screen just before Enter, so a
   // cursor move from the walk never counts as Enter's response.
-  const settled = await waitForSettledMenu(terminal, committed, waits);
+  const settled = await waitForSettledMenu(terminal, before, waits);
 
   return { pressed: 'enter', menu: await readSettledWholeMenu(terminal, settled, waits) };
+}
+
+// The screen just before Enter or Escape, as the screen alone shows it. Either
+// key can open another list that reads like the kept whole menu, with the
+// same text and the same rows in view, so the kept menu is dropped first and
+// the menu the key leaves is read afresh. A screen that shows no menu by
+// then measures the response against the menu the choice checked.
+async function readMenuBeforeKey(terminal: MenuTerminal, checked: MenuView): Promise<MenuView> {
+  terminal.recordWholeMenu(null);
+
+  const before = await readMenuView(terminal);
+
+  return before ?? checked;
 }
 
 // The menu a choice answers with: once the screen has settled on a menu, the
