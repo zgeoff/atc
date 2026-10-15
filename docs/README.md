@@ -73,6 +73,14 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 - [The gateway](architecture/remote/gateway.md) — the gateway binary, ids and routing across
   daemons, and lost answers
 
+## Design
+
+Designs for work that is not built yet, each with the spikes behind it.
+
+- [Codex App Server bridge spike](design/codex-app-server-bridge/spikes/app-server/README.md) — an
+  atc bridge for a stock Codex terminal through Codex App Server: findings, limits and the smallest
+  implementation plan
+
 ## Guides
 
 - [Installing atc](guides/install.md) — Homebrew, the install script and the environment atc takes
