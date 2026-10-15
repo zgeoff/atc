@@ -1,0 +1,29 @@
+import type { ScreenMenu } from '@atc/plugin-api';
+import { expandScreenMenu } from './expand-screen-menu';
+import type { MenuTerminal } from './menu-terminal';
+
+/**
+ * Reads the menu the session's screen shows without pressing a key, or null
+ * when it shows none. When the screen shows part of the whole menu atc last
+ * read through a scrolled list, it returns that whole menu with the
+ * screen's boxes and cursor, and keeps it for the next read; any other
+ * screen reads as it stands, with its scroll marks.
+ */
+export async function readKnownMenu(terminal: MenuTerminal): Promise<ScreenMenu | null> {
+  const shown = await terminal.readScreenMenu();
+
+  if (shown === null) {
+    return null;
+  }
+
+  const known = terminal.findWholeMenu();
+  const expanded = known === null ? null : expandScreenMenu(shown, known);
+
+  if (expanded === null) {
+    return shown;
+  }
+
+  terminal.recordWholeMenu(expanded);
+
+  return expanded;
+}

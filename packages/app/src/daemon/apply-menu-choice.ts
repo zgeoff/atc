@@ -2,9 +2,9 @@ import type { Clock } from '@atc/core';
 import type { MenuView } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildMenuView } from './build-menu-view';
-import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS, MENU_TIMING } from './menu-terminal';
 import type { MenuTerminal, MenuTiming, MenuWaits } from './menu-terminal';
+import { readKnownMenu } from './read-known-menu';
 import { readWholeMenu } from './read-whole-menu';
 import { sendMenuKey } from './send-menu-key';
 import { waitForMenuPoll } from './wait-for-menu-poll';
@@ -101,20 +101,9 @@ async function readWholeMenuView(
 // screen shows part of it, as a client reads it. It presses no key, so it
 // can poll the screen while the cursor moves.
 async function readMenuView(terminal: MenuTerminal): Promise<MenuView | null> {
-  const shown = await terminal.readScreenMenu();
+  const menu = await readKnownMenu(terminal);
 
-  if (shown === null) {
-    return null;
-  }
-
-  const known = terminal.findWholeMenu();
-  const expanded = known === null ? null : expandScreenMenu(shown, known);
-
-  if (expanded !== null) {
-    terminal.recordWholeMenu(expanded);
-  }
-
-  return buildMenuView(expanded ?? shown);
+  return menu === null ? null : buildMenuView(menu);
 }
 
 // The menu the screen shows, when its token is the choice's and, for an

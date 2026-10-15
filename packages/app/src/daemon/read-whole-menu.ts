@@ -3,6 +3,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS } from './menu-terminal';
 import type { MenuTerminal, MenuWaits } from './menu-terminal';
+import { readKnownMenu } from './read-known-menu';
 import { sendMenuKey } from './send-menu-key';
 import { splitScreenMenu } from './split-screen-menu';
 import { waitForMenuPoll } from './wait-for-menu-poll';
@@ -27,30 +28,17 @@ export async function readWholeMenu(
   terminal: MenuTerminal,
   waits: MenuWaits,
 ): Promise<ScreenMenu | null> {
-  const shown = await terminal.readScreenMenu();
+  const shown = await readKnownMenu(terminal);
 
-  if (shown === null) {
-    return null;
-  }
-
-  const known = terminal.findWholeMenu();
-  const expanded = known === null ? null : expandScreenMenu(shown, known);
-
-  if (expanded !== null) {
-    terminal.recordWholeMenu(expanded);
-
-    return expanded;
-  }
-
-  if (shown.scroll === undefined || !terminal.isLive()) {
+  if (shown?.scroll === undefined || !terminal.isLive()) {
     return shown;
   }
 
   await waitForMenuQuiet(terminal, waits);
 
-  const start = await terminal.readScreenMenu();
+  const start = await readKnownMenu(terminal);
 
-  if (start === null || start.scroll === undefined) {
+  if (start?.scroll === undefined) {
     return start;
   }
 

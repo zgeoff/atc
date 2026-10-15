@@ -101,6 +101,7 @@ import { mintSessionID } from './mint-session-id';
 import { parseNote } from './parse-note';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
+import { readKnownMenu } from './read-known-menu';
 import { readPeerPID } from './read-peer-pid';
 import { readWholeMenu } from './read-whole-menu';
 import { requireGitTransports } from './require-git-transports';
@@ -2294,24 +2295,20 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       const terminal = buildMenuTerminal(id, runtime, screen, findMenu);
 
-      const shown = await terminal.readScreenMenu();
-
-      if (shown === null) {
-        return null;
-      }
+      const known = await readKnownMenu(terminal);
 
       // A list that scrolls past the screen is read with arrow keys, so the
       // read holds the session's input queue as a choice does. A target that
-      // takes no input shows the list as its screen does.
+      // takes no input reads the list as its screen shows it.
+      if (known?.scroll === undefined || mgr.findExecutionRefusal(s, 'input') !== null) {
+        return known === null ? null : buildMenuView(known);
+      }
+
       const read = Promise.withResolvers<ScreenMenu | null>();
 
-      if (shown.scroll === undefined || mgr.findExecutionRefusal(s, 'input') !== null) {
-        read.resolve(readWholeMenu(terminal, waits));
-      } else {
-        runtime.input.schedule(async () => {
-          await readWholeMenu(terminal, waits).then(read.resolve, read.reject);
-        });
-      }
+      runtime.input.schedule(async () => {
+        await readWholeMenu(terminal, waits).then(read.resolve, read.reject);
+      });
 
       const whole = await read.promise;
 
