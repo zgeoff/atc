@@ -124,7 +124,6 @@ interface StubImp {
 const GUEST_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
 interface StubRelay {
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   readonly dataListeners: ((data: Uint8Array) => void)[];
   readonly closeListeners: (() => void)[];
   readonly endListeners: (() => void)[];
@@ -762,7 +761,6 @@ class StubImpPort implements ImpPort {
     return target;
   }
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   async runCommand(name: string, command: ImpCommand): Promise<ImpCommandResult> {
     this.calls.push(`exec.run ${name} ${command.argv.join(' ')}`);
 
@@ -2003,7 +2001,6 @@ function toSignal(name: string): NodeJS.Signals {
   return name === 'SIGKILL' || name === 'SIGTERM' || name === 'SIGINT' ? name : 'SIGHUP';
 }
 
-// oxlint-disable-next-line prefer-readonly-parameter-types -- byte arrays have no readonly form
 function mergeTail(ring: Uint8Array, data: Uint8Array, limit: number): Uint8Array {
   const joined = new Uint8Array(ring.length + data.length);
 

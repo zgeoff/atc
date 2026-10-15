@@ -111,7 +111,6 @@ export class SessionSpawner {
 
   private readonly callbacks: SessionSpawnerDeps['callbacks'];
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: SessionSpawnerDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;

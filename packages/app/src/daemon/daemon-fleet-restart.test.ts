@@ -1,4 +1,3 @@
-// oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, moved by the daemon split (GEO-401)
 import { expect, mock, test } from 'bun:test';
 import { chmod, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';

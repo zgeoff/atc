@@ -7,7 +7,6 @@ import { RefusalLog } from './refusal-log';
 
 // The slice of an accepted socket a protocol connection writes to and ends.
 interface ListenerSocket {
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket write takes a buffer with no readonly form
   readonly write: (data: Uint8Array) => number;
   readonly end: () => void;
 }
@@ -27,7 +26,6 @@ interface TCPListenerOptions {
   // releases it once the socket closes.
   readonly openConnection: (socket: ListenerSocket, peer: TCPPeer) => DaemonConnection;
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a connection is a live object the daemon releases
   readonly closeConnection: (connection: DaemonConnection) => void;
 
   // Where the listener start and each refusal are logged, one line at a

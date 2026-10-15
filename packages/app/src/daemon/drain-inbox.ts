@@ -27,7 +27,6 @@ export interface InboxSource {
  * is bound to the tap it found before the read: a tap another attach made
  * while the read waited gets nothing from it.
  */
-// oxlint-disable-next-line prefer-readonly-parameter-types -- the drain claims deliveries in the tap registry it is given
 export async function drainInbox(sessionID: SessionID, source: InboxSource): Promise<void> {
   const linkedOwner = source.findLinkedOwner(sessionID);
   const tap = source.taps.findTap(sessionID);
@@ -73,7 +72,6 @@ function sendInboxMessage(
   record: MessageRecord,
   tap: TapGeneration,
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a delivery claims the message in the registry
   taps: TapRegistry<TapClient>,
 ): boolean {
   if (!tap.linked && record.atcID !== sessionID) {
@@ -108,7 +106,6 @@ function sendInboxNotice(
   record: MessageRecord,
   tap: TapGeneration,
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a delivery claims the notice in the registry
   taps: TapRegistry<TapClient>,
 ): boolean {
   if (record.status !== 'answered' && record.status !== 'unanswered') {

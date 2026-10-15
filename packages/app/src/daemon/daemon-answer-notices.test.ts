@@ -1,4 +1,3 @@
-// oxlint-disable zgeoff/test-beside-module -- a daemon.ts topic test, beside the other daemon topic tests
 import { expect, mock, test } from 'bun:test';
 import { isRecord, toMessageID, toSessionID } from '@atc/core';
 import { ClaudeAdapter } from '@atc/harness-claude';

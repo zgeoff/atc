@@ -260,7 +260,6 @@ async function runTapConnection(
 // Sends every note the outbox holds, and returns the file behind each
 // request id it sent; a file that is no note is removed, since no answer
 // would ever clear it.
-// oxlint-disable-next-line prefer-readonly-parameter-types -- a socket is a live handle
 function sendOutboxNotes(socket: BridgeSocket, outbox: string): Map<string, string> {
   const sent = new Map<string, string>();
 

@@ -1661,7 +1661,7 @@ const OWNER_EPOCH = 1;
 // Rejects a write that touches a session another daemon owns, or one whose
 // stored epoch has moved past this daemon's: the write is stale.
 async function requireCurrentOwnership(
-  trx: Transaction<StateStoreSchema>, // oxlint-disable-line prefer-readonly-parameter-types -- a kysely transaction bound to a live connection; not meaningfully freezable
+  trx: Transaction<StateStoreSchema>,
   daemonID: DaemonID,
   sessionIDs: readonly SessionID[],
 ): Promise<void> {
@@ -1705,7 +1705,7 @@ function buildFleetFromLegacy(legacy: readonly LegacyFleetEntry[]): FleetEntry[]
 }
 
 function buildScopeMatch(
-  eb: ExpressionBuilder<StateStoreSchema, 'events'>, // oxlint-disable-line prefer-readonly-parameter-types -- a kysely expression builder bound to a live query; not meaningfully freezable
+  eb: ExpressionBuilder<StateStoreSchema, 'events'>,
   scope: EventScope | null,
 ): Expression<SqlBool> {
   if (scope === null) {
@@ -1781,7 +1781,7 @@ function buildTrailFields(
 }
 
 function buildOwnerFilter(
-  eb: ExpressionBuilder<StateStoreSchema, 'messages'>, // oxlint-disable-line prefer-readonly-parameter-types -- a kysely expression builder bound to a live query; not meaningfully freezable
+  eb: ExpressionBuilder<StateStoreSchema, 'messages'>,
   owner: MessageOwner,
 ): Expression<SqlBool> {
   const byAtcID = eb('atc_id', '=', owner.atcID);

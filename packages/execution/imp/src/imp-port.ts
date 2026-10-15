@@ -58,7 +58,6 @@ export interface ImpPort {
   ) => ImpSessionConnection;
 
   // Runs a command in the imp to its exit, without a terminal.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the command's input bytes have no readonly form
   readonly runCommand: (name: string, command: ImpCommand) => Promise<ImpCommandResult>;
 
   // Replaces a file the imp's processes see read-only, root included, and
@@ -272,7 +271,6 @@ export type ImpSessionRequest =
 export interface ImpSessionHandlers {
   readonly onStarted: (started: ImpSessionStarted) => void;
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- output bytes have no readonly form
   readonly onOutput: (data: Uint8Array) => void;
 }
 
@@ -315,7 +313,6 @@ export type ImpSessionOutcome =
 export interface ImpSessionConnection {
   readonly outcome: Promise<ImpSessionOutcome>;
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- input bytes have no readonly form
   readonly write: (data: Uint8Array) => void;
   readonly resize: (cols: number, rows: number) => void;
 
@@ -339,7 +336,6 @@ export interface ImpCommandResult {
 }
 
 export interface ImpRelayConnection {
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   readonly onData: (listener: (data: Uint8Array) => void) => void;
   readonly onClose: (listener: () => void) => void;
 
@@ -349,7 +345,6 @@ export interface ImpRelayConnection {
 
   // Sends bytes to the guest's end of the connection, and settles once the
   // relay has room for more.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- relayed bytes have no readonly form
   readonly write: (data: Uint8Array) => Promise<void>;
   readonly close: () => void;
 }

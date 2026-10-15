@@ -145,7 +145,6 @@ export class AuthSetup {
 
   private readonly callbacks: AuthSetupDeps['callbacks'];
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the modules it holds keep mutable session state
   constructor(deps: AuthSetupDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;
@@ -508,7 +507,6 @@ export class AuthSetup {
     target: string,
     dir: string,
 
-    // oxlint-disable-next-line prefer-readonly-parameter-types -- file bytes have no readonly form
     planned: GuestSpawnPlan['files'],
     timer: StepTimer,
   ): Promise<void> {

@@ -237,7 +237,6 @@ export class DaemonConnection {
 
   // Decodes with state kept across reads, so a multi-byte character split
   // between two reads decodes whole.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a socket read buffer has no readonly form
   decodeChunk(buf: Uint8Array): string {
     return this.lines.decodeText(buf);
   }

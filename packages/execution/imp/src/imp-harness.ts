@@ -154,7 +154,6 @@ export class ImpHarness implements HarnessHandle {
   // The terminal size the open connection's request asked for.
   private requestedSize: { cols: number; rows: number } = { cols: 0, rows: 0 };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- the host holds a live promise
   constructor(port: ImpPort, start: ImpSessionRequest, host: ImpHarnessHost) {
     this.port = port;
     this.host = host;
@@ -289,7 +288,6 @@ export class ImpHarness implements HarnessHandle {
     this.host.onDone();
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a promise is a live handle
   private async startWhenReady(ready: Promise<void>, start: ImpSessionRequest): Promise<void> {
     try {
       await ready;
@@ -538,7 +536,6 @@ export class ImpHarness implements HarnessHandle {
   // The mode bytes ahead of a fresh replay go to the screen uncounted; every
   // byte after them sits at an offset, and one below the high-water mark is
   // a repeat the daemon already has.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- output bytes have no readonly form
   private applyOutput(data: Uint8Array): void {
     let bytes = data;
 

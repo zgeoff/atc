@@ -2713,7 +2713,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     lock.dispose();
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- a connection is a live object the daemon releases
   const detachConnection = (connection: DaemonConnection) => {
     clients.delete(connection);
     ctx.detachClient(connection);

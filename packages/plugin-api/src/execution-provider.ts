@@ -62,7 +62,6 @@ export interface ExecutionProvider {
 
   // Unpacks a tar archive into a directory on a host, creating the directory
   // first. The daemon's own machine takes no host.
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive: (archive: Uint8Array, dir: string, host?: string) => Promise<void>;
 
   // Runs a command to completion and returns what it printed.

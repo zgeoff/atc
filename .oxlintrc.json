@@ -144,7 +144,37 @@
           { "from": "package", "name": "URL", "package": "bun-types" },
           // wraps a live better-auth instance and its database connection;
           // not meaningfully freezable
-          { "from": "file", "name": "HTTPServerContext" }
+          { "from": "file", "name": "HTTPServerContext" },
+          // bytes read from or written to a socket, a PTY, a file, or an
+          // archive: like Buffer, a byte array has no readonly form
+          { "from": "lib", "name": "Uint8Array" },
+          // a promise has no state a caller can change; it only settles
+          { "from": "lib", "name": "Promise" },
+          // a date as the imp client returns it; the rule finds no readonly
+          // form of its setters
+          { "from": "lib", "name": "Date" },
+          // a live socket or daemon connection: the holder writes to it and
+          // releases it, so it has no readonly form
+          { "from": "package", "name": "Socket", "package": "bun-types" },
+          { "from": "file", "name": "DaemonConnection" },
+          // the daemon's tap registry: a delivery claims a message or a
+          // notice in it in place
+          { "from": "file", "name": "TapRegistry" },
+          // kysely builders bound to a live connection or query; not
+          // meaningfully freezable
+          { "from": "package", "name": "Transaction", "package": "kysely" },
+          { "from": "package", "name": "ExpressionBuilder", "package": "kysely" },
+          // the dependencies each daemon session module takes: the modules
+          // they hold keep mutable session state
+          { "from": "file", "name": "AuthSetupDeps" },
+          { "from": "file", "name": "HostDirClaimsDeps" },
+          { "from": "file", "name": "SessionAdopterDeps" },
+          { "from": "file", "name": "SessionFleetWriterDeps" },
+          { "from": "file", "name": "SessionHarnessesDeps" },
+          { "from": "file", "name": "SessionKillerDeps" },
+          { "from": "file", "name": "SessionRestorerDeps" },
+          { "from": "file", "name": "SessionSpawnerDeps" },
+          { "from": "file", "name": "SpawnRollbackDeps" }
         ]
       }
     ],
@@ -219,6 +249,54 @@
             "message": "Use an async spawn: Bun.spawnSync can lose a child's exit and hang (oven-sh/bun#34069)."
           }
         ]
+      }
+    },
+    {
+      // the daemon.ts topic tests: the daemon split (GEO-401) moved each
+      // topic of daemon.ts into a test of its own, so no module shares its
+      // name; listed by file, so a new orphan test still fails the rule
+      "files": [
+        "packages/app/src/daemon/daemon-agent-kinds.test.ts",
+        "packages/app/src/daemon/daemon-agent-registry.test.ts",
+        "packages/app/src/daemon/daemon-agents.test.ts",
+        "packages/app/src/daemon/daemon-answer-notices.test.ts",
+        "packages/app/src/daemon/daemon-auth-gateway.test.ts",
+        "packages/app/src/daemon/daemon-codex-guest-auth.test.ts",
+        "packages/app/src/daemon/daemon-config-file.test.ts",
+        "packages/app/src/daemon/daemon-connection-reach.test.ts",
+        "packages/app/src/daemon/daemon-detector.test.ts",
+        "packages/app/src/daemon/daemon-event-sweep.test.ts",
+        "packages/app/src/daemon/daemon-events.test.ts",
+        "packages/app/src/daemon/daemon-fleet-restart.test.ts",
+        "packages/app/src/daemon/daemon-fleet.test.ts",
+        "packages/app/src/daemon/daemon-forget.test.ts",
+        "packages/app/src/daemon/daemon-gateway-guest-auth.test.ts",
+        "packages/app/src/daemon/daemon-gateway-workspace-trust.test.ts",
+        "packages/app/src/daemon/daemon-headless.test.ts",
+        "packages/app/src/daemon/daemon-hook-agent.test.ts",
+        "packages/app/src/daemon/daemon-idempotency.test.ts",
+        "packages/app/src/daemon/daemon-imp-bridge.test.ts",
+        "packages/app/src/daemon/daemon-imp-guest.test.ts",
+        "packages/app/src/daemon/daemon-imp-placement.test.ts",
+        "packages/app/src/daemon/daemon-imp-project-settings.test.ts",
+        "packages/app/src/daemon/daemon-imp-workspace.test.ts",
+        "packages/app/src/daemon/daemon-imp.test.ts",
+        "packages/app/src/daemon/daemon-last-used.test.ts",
+        "packages/app/src/daemon/daemon-local-workspace-trust.test.ts",
+        "packages/app/src/daemon/daemon-messages.test.ts",
+        "packages/app/src/daemon/daemon-permission-pending.test.ts",
+        "packages/app/src/daemon/daemon-principals.test.ts",
+        "packages/app/src/daemon/daemon-provider.test.ts",
+        "packages/app/src/daemon/daemon-resume-command.test.ts",
+        "packages/app/src/daemon/daemon-runtime-auth.test.ts",
+        "packages/app/src/daemon/daemon-session-record.test.ts",
+        "packages/app/src/daemon/daemon-sources.test.ts",
+        "packages/app/src/daemon/daemon-targets.test.ts",
+        "packages/app/src/daemon/daemon-tcp.test.ts",
+        "packages/app/src/daemon/daemon-workspace.test.ts"
+      ],
+      "rules": {
+        "zgeoff/test-beside-module": "off"
       }
     }
   ],

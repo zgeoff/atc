@@ -70,7 +70,6 @@ class StubDirProvider implements ExecutionProvider {
     return this.terminals.spawnHarness(spec);
   };
 
-  // oxlint-disable-next-line prefer-readonly-parameter-types -- archive bytes have no readonly form
   readonly transferArchive = async (archive: Uint8Array, dir: string): Promise<void> => {
     this.calls.push({ op: 'transfer', dir, bytes: archive.byteLength });
 
