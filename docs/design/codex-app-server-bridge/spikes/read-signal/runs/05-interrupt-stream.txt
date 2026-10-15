@@ -1,0 +1,24 @@
+1	> thread/start  
+50	< result id=2 
+51	> turn/start m-j1 "Write about 250 words on ocean tides. Do not use tools."
+51	< thread/started 
+55	< result id=3 turn=01a13f2a-eb73-70a3-ad46-1311fabfab82 inProgress
+98	< thread/status/changed thread=01a13f2a-eb46-78f1-8ba8-f0cbaee15a05
+99	< turn/started 01a13f2a-eb73-70a3-ad46-1311fabfab82 inProgress
+1570	< rawResponseItem/completed message role=user out 250 words on ocean tides. Do not use tools."}]
+1570	< item/started userMessage clientId=m-j1 text="[{\"type\":\"text\",\"text\":\"Write about 250 words on ocean tides"
+1572	< item/completed userMessage clientId=m-j1 text="[{\"type\":\"text\",\"text\":\"Write about 250 words on ocean tides"
+3609	< item/started agentMessage phase=final_answer
+4051	  (20 agentMessage deltas)
+4051	> turn/start m-j2 "Also end your reply with the single word FIG."
+4052	< result id=4 turn=01a13f2a-eb73-70a3-ad46-1311fabfab82 inProgress
+4142	  (8 agentMessage deltas)
+4142	< rawResponse/completed responseId=resp_0d2213eb6f7dbe9c016ad0aed5928481918a9d191745868820 input=18914
+4146	< thread/tokenUsage/updated {"totalTokens":18945,"inputTokens":18914,"cachedInputTokens":12288,"cacheWriteInputTokens"
+4149	< rawResponseItem/completed message role=user :"Also end your reply with the single word FIG."}]
+4149	< item/started userMessage clientId=m-j2 text="[{\"type\":\"text\",\"text\":\"Also end your reply with the single "
+4151	< item/completed userMessage clientId=m-j2 text="[{\"type\":\"text\",\"text\":\"Also end your reply with the single "
+4353	> turn/interrupt  
+4360	< result id=5 
+4360	< thread/status/changed thread=01a13f2a-eb46-78f1-8ba8-f0cbaee15a05
+4361	< turn/completed 01a13f2a-eb73-70a3-ad46-1311fabfab82 interrupted

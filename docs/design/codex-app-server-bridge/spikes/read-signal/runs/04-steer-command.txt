@@ -1,0 +1,37 @@
+1	> thread/start  
+49	< result id=2 
+50	> turn/start m-c1 "Run the shell command `sleep 12` once, then reply with the single word DONE."
+50	< thread/started 
+55	< result id=3 turn=01a13f2a-4434-70b3-a408-4f47501768e3 inProgress
+97	< thread/status/changed thread=01a13f2a-4406-7253-8572-83f325c959d0
+98	< turn/started 01a13f2a-4434-70b3-a408-4f47501768e3 inProgress
+1476	< rawResponseItem/completed message role=user 12` once, then reply with the single word DONE."}]
+1476	< item/started userMessage clientId=m-c1 text="[{\"type\":\"text\",\"text\":\"Run the shell command `sleep 12` onc"
+1479	< item/completed userMessage clientId=m-c1 text="[{\"type\":\"text\",\"text\":\"Run the shell command `sleep 12` onc"
+3429	< item/started agentMessage phase=commentary
+3535	  (10 agentMessage deltas)
+3535	< item/completed agentMessage phase=commentary text="I’ll run `sleep 12` once."
+3537	< rawResponseItem/completed message role=assistant "output_text","text":"I’ll run `sleep 12` once."}]
+4153	< rawResponseItem/completed custom_tool_call role= ""
+4225	< rawResponse/completed responseId=resp_0716aaa795ae0ffa016ad0aeaab13c8191b9bd5935a97d92b7 input=23797
+4357	< item/started commandExecution
+7357	> turn/start m-c2 "Also add the single word PEAR to your reply."
+7359	< result id=4 turn=01a13f2a-4434-70b3-a408-4f47501768e3 inProgress
+7361	< rawResponseItem/completed custom_tool_call_output role= ""
+7364	< thread/tokenUsage/updated {"totalTokens":23847,"inputTokens":23797,"cachedInputTokens":12288,"cacheWriteInputTokens"
+7367	< rawResponseItem/completed message role=user ":"Also add the single word PEAR to your reply."}]
+7367	< item/started userMessage clientId=m-c2 text="[{\"type\":\"text\",\"text\":\"Also add the single word PEAR to you"
+7369	< item/completed userMessage clientId=m-c2 text="[{\"type\":\"text\",\"text\":\"Also add the single word PEAR to you"
+9799	< rawResponseItem/completed function_call role= \"1\",\"yield_time_ms\":20000,\"max_tokens\":100}"
+9927	< rawResponse/completed responseId=resp_0716aaa795ae0ffa016ad0aeb0df48819195b8b3b8b7074849 input=23890
+16248	< item/completed commandExecution
+16250	< rawResponseItem/completed function_call_output role= ""
+16252	< thread/tokenUsage/updated {"totalTokens":23920,"inputTokens":23890,"cachedInputTokens":12288,"cacheWriteInputTokens"
+17591	< item/started agentMessage phase=final_answer
+17598	  (3 agentMessage deltas)
+17598	< item/completed agentMessage phase=final_answer text="DONE PEAR"
+17600	< rawResponseItem/completed message role=assistant [{"type":"output_text","text":"DONE PEAR"}]
+17659	< rawResponse/completed responseId=resp_0716aaa795ae0ffa016ad0aeb974ac8191a40ca8eca8bff989 input=23943
+17663	< thread/tokenUsage/updated {"totalTokens":23950,"inputTokens":23943,"cachedInputTokens":23680,"cacheWriteInputTokens"
+17668	< thread/status/changed thread=01a13f2a-4406-7253-8572-83f325c959d0
+17668	< turn/completed 01a13f2a-4434-70b3-a408-4f47501768e3 completed

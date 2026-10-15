@@ -1,0 +1,23 @@
+1	> thread/resume  
+46	< result id=2 
+47	< thread/goal/cleared thread=01a13f2c-6545-7552-a782-897ffde9793e
+2007	< thread/goal/cleared thread=01a13f2c-6545-7552-a782-897ffde9793e
+2054	< thread/status/changed thread=01a13f2c-6545-7552-a782-897ffde9793e
+2054	< turn/started 01a13f2c-808f-77b3-9d45-a07be69a71c8 inProgress
+2080	< rawResponseItem/completed message role=user _text","text":"Reply with the single word KIWI."}]
+2080	< item/started userMessage clientId=m-idle text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+2083	< item/completed userMessage clientId=m-idle text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+3041	< thread/status/changed thread=01a13f2a-4406-7253-8572-83f325c959d0
+3041	< thread/closed thread=01a13f2a-4406-7253-8572-83f325c959d0
+4091	< item/started agentMessage phase=final_answer
+4093	  (2 agentMessage deltas)
+4093	< item/completed agentMessage phase=final_answer text="KIWI"
+4094	< rawResponseItem/completed message role=assistant [{"type":"output_text","text":"KIWI"}]
+4178	< rawResponse/completed responseId=resp_0ddfd9880da13941016ad0af3bc8888191a0cf776b68b7469e input=23806
+4182	< thread/tokenUsage/updated {"totalTokens":23812,"inputTokens":23806,"cachedInputTokens":23552,"cacheWriteInputTokens"
+4186	< thread/status/changed thread=01a13f2c-6545-7552-a782-897ffde9793e
+4186	< turn/completed 01a13f2c-808f-77b3-9d45-a07be69a71c8 completed
+4600	< thread/status/changed thread=01a13f2a-be57-7e52-859c-921c24d25d38
+4600	< thread/closed thread=01a13f2a-be57-7e52-859c-921c24d25d38
+6153	< thread/status/changed thread=01a13f2a-eb46-78f1-8ba8-f0cbaee15a05
+6153	< thread/closed thread=01a13f2a-eb46-78f1-8ba8-f0cbaee15a05

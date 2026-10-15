@@ -80,6 +80,9 @@ Designs for work that is not built yet, each with the spikes behind it.
 - [Codex App Server queue spike](design/codex-app-server-bridge/spikes/server-queue/README.md) —
   whether the App Server's own queue can hold atc messages for Codex sessions, with the runs and a
   recommendation
+- [Codex read-signal spike](design/codex-app-server-bridge/spikes/read-signal/README.md) — whether
+  the Codex App Server bridge can tell that the model read a delivered message, with the runs and a
+  recommendation
 
 ## Guides
 

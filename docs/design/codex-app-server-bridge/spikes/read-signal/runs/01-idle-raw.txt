@@ -1,0 +1,18 @@
+2	> thread/start  
+56	< result id=2 
+56	> turn/start m-idle "Reply with the single word KIWI."
+56	< thread/started 
+61	< result id=3 turn=01a13f29-9c67-7870-aef9-48cf6de3ede1 inProgress
+108	< thread/status/changed thread=01a13f29-9c38-7080-95ee-8f51cf5496e9
+108	< turn/started 01a13f29-9c67-7870-aef9-48cf6de3ede1 inProgress
+1897	< rawResponseItem/completed message role=user _text","text":"Reply with the single word KIWI."}]
+1897	< item/started userMessage clientId=m-idle text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+1900	< item/completed userMessage clientId=m-idle text="[{\"type\":\"text\",\"text\":\"Reply with the single word KIWI.\",\"t"
+3919	< item/started agentMessage phase=final_answer
+3984	  (2 agentMessage deltas)
+3984	< item/completed agentMessage phase=final_answer text="KIWI"
+3986	< rawResponseItem/completed message role=assistant [{"type":"output_text","text":"KIWI"}]
+4116	< rawResponse/completed responseId=resp_048967765f14291e016ad0ae805a188191863a17f7a958b283 input=19898
+4120	< thread/tokenUsage/updated {"totalTokens":19904,"inputTokens":19898,"cachedInputTokens":12288,"cacheWriteInputTokens"
+4125	< thread/status/changed thread=01a13f29-9c38-7080-95ee-8f51cf5496e9
+4125	< turn/completed 01a13f29-9c67-7870-aef9-48cf6de3ede1 completed
