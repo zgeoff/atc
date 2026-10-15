@@ -9,6 +9,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { z } from 'zod';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 
 function setupTest() {
@@ -84,6 +85,50 @@ test('it starts the App Server again when it exits, and the bridge resumes its t
   expect(readFileSync(join(ctx.dir, 'pids'), 'utf8').trim().split('\n')).toHaveLength(2);
 });
 
+test('it starts the thread and a message sent right after the spawn on the model the spawn asked for', async () => {
+  const ctx = setupTest();
+  const bin = createStubAppServerCodex(ctx.dir);
+  const stub = buildStubMessageBridgeHost();
+
+  const bridge = await startCodexAppServerBridge(
+    {
+      session: toSessionID('s-1'),
+      cwd: ctx.dir,
+      env: {},
+      withheldEnv: [],
+      options: { prompt: '', resume: false, model: 'gpt-test-large' },
+      dir: ctx.bridgeDir,
+      host: stub.host,
+    },
+    { bin, planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }) },
+  );
+
+  onTestFinished(() => bridge.stop());
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
+
+  const requests = z.array(z.looseObject({ method: z.string(), params: z.unknown() })).parse(
+    readFileSync(join(ctx.dir, 'app-server-requests.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line): unknown => JSON.parse(line)),
+  );
+
+  expect(requests.find((r) => r.method === 'thread/start')?.params).toMatchObject({
+    model: 'gpt-test-large',
+  });
+
+  expect(requests.find((r) => r.method === 'turn/start')?.params).toMatchObject({
+    clientUserMessageId: 'm-1',
+    model: 'gpt-test-large',
+  });
+});
+
 test('it rejects and leaves no socket when no App Server comes to listen', async () => {
   const ctx = setupTest();
   const bin = createStubBin(ctx.dir, 'dead-codex', '#!/usr/bin/env bash\nexit 1\n');
@@ -144,17 +189,22 @@ test('it kills a server an earlier daemon left running that ignores the stop sig
   const bin = createStubAppServerCodex(ctx.dir);
   const socket = join(ctx.bridgeDir, 'codex.sock');
 
-  // An earlier server that never exits on the stop signal.
+  // An earlier server that never exits on the stop signal. It marks itself
+  // ready once it ignores the signal, so no stop reaches it before.
   const stubborn = createStubBin(
     ctx.dir,
     'stubborn-codex',
-    "#!/usr/bin/env bash\ntrap '' TERM\nwhile :; do sleep 0.05; done\n",
+    `#!/usr/bin/env bash\ntrap '' TERM\ntouch '${join(ctx.dir, 'stubborn-ready')}'\nwhile :; do sleep 0.05; done\n`,
   );
 
   const orphan = Bun.spawn([stubborn, 'app-server', '--listen', `unix://${socket}`]);
 
   onTestFinished(() => {
     orphan.kill('SIGKILL');
+  });
+
+  await waitFor(() => {
+    expect(existsSync(join(ctx.dir, 'stubborn-ready'))).toBe(true);
   });
 
   mkdirSync(ctx.bridgeDir, { recursive: true });

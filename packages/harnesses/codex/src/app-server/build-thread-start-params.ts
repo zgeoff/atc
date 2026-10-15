@@ -2,14 +2,16 @@ import { NOTE_LABELS } from './note-labels';
 
 /**
  * The `thread/start` parameters of a session's thread: the folder it works
- * in, the developer instructions that tell the model how atc messages
- * arrive, and the `atc` namespace of dynamic tools, `atc.note` and
- * `atc.answer`, whose calls reach the bridge. The tools and instructions
- * stay in the thread's rollout, so a resumed thread keeps them.
+ * in, the model the spawn asked for when it asked for one, the developer
+ * instructions that tell the model how atc messages arrive, and the `atc`
+ * namespace of dynamic tools, `atc.note` and `atc.answer`, whose calls
+ * reach the bridge. The tools and instructions stay in the thread's
+ * rollout, so a resumed thread keeps them.
  */
-export function buildThreadStartParams(session: string, cwd: string) {
+export function buildThreadStartParams(session: string, cwd: string, model?: string) {
   return {
     cwd,
+    ...(model === undefined ? {} : { model }),
     developerInstructions: buildInstructions(session),
     dynamicTools: [
       {

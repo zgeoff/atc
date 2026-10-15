@@ -486,6 +486,61 @@ test('it refuses every turn start when the scenario asks', async () => {
   expect(received).not.toPartiallyContain({ method: 'turn/started' });
 });
 
+test('it answers the first turn starts the scenario names as overloaded and takes the next', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { overloadTurnStarts: 1 });
+
+  onTestFinished(() => server.stop());
+
+  const ws = new WebSocket(`ws+unix://${ctx.socket}`);
+
+  const received: unknown[] = [];
+
+  onTestFinished(() => {
+    ws.close();
+  });
+
+  ws.addEventListener('message', (e) => {
+    received.push(JSON.parse(String(e.data)));
+  });
+
+  await new Promise((resolve) => {
+    ws.addEventListener('open', resolve, { once: true });
+  });
+
+  ws.send(JSON.stringify({ id: 1, method: 'thread/start', params: {} }));
+
+  ws.send(
+    JSON.stringify({
+      id: 2,
+      method: 'turn/start',
+      params: { threadId: 'thread-1', input: [{ type: 'text', text: 'one' }] },
+    }),
+  );
+
+  ws.send(
+    JSON.stringify({
+      id: 3,
+      method: 'turn/start',
+      params: { threadId: 'thread-1', input: [{ type: 'text', text: 'two' }] },
+    }),
+  );
+
+  await waitFor(() => {
+    expect(received).toPartiallyContain({ id: 3 });
+  });
+
+  expect(received).toPartiallyContain({
+    id: 2,
+    error: { code: -32_001, message: 'Server overloaded; retry later.' },
+  });
+
+  expect(received).toPartiallyContain({
+    id: 3,
+    result: { turn: { id: 'turn-2', status: 'completed', items: [] } },
+  });
+});
+
 test('it completes every held turn when the test asks', async () => {
   const ctx = setupTest();
   const server = startStubCodexAppServer(ctx.socket, { holdTurns: true, reply: 'done' });

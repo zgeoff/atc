@@ -25,8 +25,10 @@ import { renderAtcEnvelope } from './render-atc-envelope';
 /**
  * What one bridge works with: its atc session, the folder a new thread
  * works in, the daemon's side of the bridge, how it opens a connection to
- * the session's App Server, the thread a restored session resumes, and the
- * waits between reconnect attempts, which double from `first` up to `max`.
+ * the session's App Server, the thread a restored session resumes, the
+ * model the spawn asked for, if any, and the waits between reconnect
+ * attempts and between sends the server turns away as overloaded, which
+ * double from `first` up to `max`.
  */
 export interface AppServerBridgeConfig {
   readonly session: string;
@@ -34,6 +36,7 @@ export interface AppServerBridgeConfig {
   readonly host: MessageBridgeHost;
   readonly openConnection: () => Promise<AppServerConnection>;
   readonly resumeThread: string | null;
+  readonly model?: string;
   readonly retryMs?: { readonly first: number; readonly max: number };
 }
 
@@ -63,12 +66,23 @@ const TOOL_CALL_SCHEMA = z.looseObject({
 // so no stored turn mistakes it for a message of the session's own.
 const NOTICE_PREFIX = 'notice:';
 
+// The JSON-RPC error code a Codex App Server answers with when its queue
+// is full: the request was not taken, and the same request may succeed
+// later.
+const OVERLOADED_CODE = -32_001;
+
 /**
  * The daemon's bridge to one session's Codex App Server thread. It starts
  * or resumes the thread, and once delivery starts it sends each inbox
  * message with `turn/start`, with the message id as the client message id,
  * marks it delivered once the server takes it, and settles it when its
- * turn ends: answered with the turn's last reply, or unanswered. It serves
+ * turn ends: answered with the turn's last reply, or unanswered. A send the
+ * server turns away as overloaded leaves the message or notice queued, and
+ * the bridge sends it again after a wait that doubles with each refusal;
+ * later sends wait behind it, so the order holds.
+ * The thread and each turn run on the model the spawn asked for, so a
+ * message that arrives before the terminal applies that model still runs
+ * on it. It serves
  * the `atc.note` and `atc.answer` tool calls of its thread and answers no
  * other server request, so approvals stay with the terminal.
  *
@@ -113,12 +127,18 @@ export class AppServerBridge {
 
   private retryDelay: number;
 
+  // Ends the overload wait in progress early, so its send gives up.
+  private endOverloadWait: (() => void) | undefined;
+
+  private overloadDelay: number;
+
   private readonly tap: MessageBridgeTap;
 
   constructor(config: AppServerBridgeConfig) {
     this.config = config;
     this.threadID = config.resumeThread;
     this.retryDelay = config.retryMs?.first ?? 500;
+    this.overloadDelay = config.retryMs?.first ?? 500;
 
     this.tap = {
       takeMessage: (message) => {
@@ -164,6 +184,12 @@ export class AppServerBridge {
    * thread the bridge already serves changes nothing.
    */
   updateThread(thread: string): void {
+    // A send that waits out an overload holds the queue, so the move ends
+    // the wait rather than wait behind it.
+    if (thread !== this.threadID) {
+      this.endOverloadWait?.();
+    }
+
     this.scheduleSend(() => this.updateThreadNow(thread));
   }
 
@@ -224,7 +250,11 @@ export class AppServerBridge {
 
     if (this.threadID !== null) {
       try {
-        await conn.sendRequest('thread/resume', { threadId: this.threadID, excludeTurns: true });
+        await conn.sendRequest('thread/resume', {
+          threadId: this.threadID,
+          excludeTurns: true,
+          ...this.buildModelParams(),
+        });
 
         return this.threadID;
       } catch (error) {
@@ -238,7 +268,7 @@ export class AppServerBridge {
       }
     }
 
-    const params = buildThreadStartParams(this.config.session, this.config.cwd);
+    const params = buildThreadStartParams(this.config.session, this.config.cwd, this.config.model);
 
     const result = await conn.sendRequest('thread/start', params);
 
@@ -552,12 +582,27 @@ export class AppServerBridge {
         threadId: this.threadID,
         input: [{ type: 'text', text: renderAtcEnvelope(message), text_elements: [] }],
         clientUserMessageId: message.id,
+        ...this.buildModelParams(),
       });
 
       const started = TURN_RESULT_SCHEMA.parse(result);
 
       turnID = started.turn.id;
     } catch (error) {
+      if (isOverload(error)) {
+        this.config.host.log(
+          `codex app server: the App Server is overloaded; message ${message.id} stayed queued (${error.message})`,
+        );
+
+        const again = await this.waitOutOverload(conn);
+
+        if (again) {
+          await this.sendMessage(message);
+        }
+
+        return;
+      }
+
       // An error the server answered shows it refused the message, and a
       // resend would meet the same refusal, so the message ends unanswered.
       if (isRefusal(error)) {
@@ -586,6 +631,8 @@ export class AppServerBridge {
       return;
     }
 
+    this.overloadDelay = this.config.retryMs?.first ?? 500;
+
     if (!this.settledTurns.has(turnID)) {
       this.carried.set(message.id, turnID);
     }
@@ -605,8 +652,23 @@ export class AppServerBridge {
         threadId: this.threadID,
         input: [{ type: 'text', text: renderAtcAnswer(notice), text_elements: [] }],
         clientUserMessageId: `${NOTICE_PREFIX}${notice.id}`,
+        ...this.buildModelParams(),
       });
     } catch (error) {
+      if (isOverload(error)) {
+        this.config.host.log(
+          `codex app server: the App Server is overloaded; notice ${notice.id} stayed queued (${error.message})`,
+        );
+
+        const again = await this.waitOutOverload(conn);
+
+        if (again) {
+          await this.sendNotice(notice);
+        }
+
+        return;
+      }
+
       // A notice the server refused is taken all the same, so it holds up
       // no later item of the inbox.
       if (isRefusal(error)) {
@@ -631,7 +693,45 @@ export class AppServerBridge {
       return;
     }
 
+    this.overloadDelay = this.config.retryMs?.first ?? 500;
+
     await this.config.host.ackNotice(notice.id);
+  }
+
+  // The model field of a thread or turn request: the model the spawn asked
+  // for, or nothing, which leaves the model to the server.
+  private buildModelParams(): { model?: string } {
+    return this.config.model === undefined ? {} : { model: this.config.model };
+  }
+
+  // Waits out the overload inside the send in flight, so every item the
+  // daemon hands over meanwhile queues behind it and the order holds.
+  // Resolves true when the item should go again on the same connection.
+  // A dropped connection, a stop or a thread move ends the wait with false,
+  // and the item stays queued for the next connection's tap.
+  // oxlint-disable-next-line prefer-readonly-parameter-types -- the wait belongs to the live connection
+  private async waitOutOverload(conn: AppServerConnection): Promise<boolean> {
+    const delay = this.overloadDelay;
+
+    this.overloadDelay = Math.min(delay * 2, this.config.retryMs?.max ?? 30_000);
+
+    const wait = Promise.withResolvers<boolean>();
+
+    const timer = setTimeout(() => {
+      wait.resolve(false);
+    }, delay);
+
+    this.endOverloadWait = () => {
+      clearTimeout(timer);
+
+      wait.resolve(true);
+    };
+
+    const ended = await wait.promise;
+
+    this.endOverloadWait = undefined;
+
+    return !ended && conn === this.conn && !this.stopped;
   }
 
   // Serves a call to one of the bridge's own tools on its thread; every
@@ -722,6 +822,7 @@ export class AppServerBridge {
 
     this.conn = null;
     this.ready = false;
+    this.endOverloadWait?.();
 
     // The next connection's recovery reads the stored turns, which hold
     // everything these held, and a stale reply here would outrank them.
@@ -773,4 +874,9 @@ export class AppServerBridge {
 // as opposed to a connection that closed before an answer came.
 function isRefusal(error: unknown): error is AppServerError {
   return error instanceof AppServerError && error.code !== -1;
+}
+
+// Whether the server turned a request away because its queue was full.
+function isOverload(error: unknown): error is AppServerError {
+  return error instanceof AppServerError && error.code === OVERLOADED_CODE;
 }

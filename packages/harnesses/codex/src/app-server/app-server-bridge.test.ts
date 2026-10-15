@@ -561,6 +561,293 @@ test('it leaves a message the App Server refuses unanswered and keeps the connec
   expect(server.requests.filter((r) => r.method === 'initialize')).toHaveLength(1);
 });
 
+test('it keeps a message the overloaded App Server turns away queued and delivers it on a later send', async () => {
+  const ctx = setupTest();
+  const stub = buildStubMessageBridgeHost();
+  const statusesAtSend: (string | undefined)[] = [];
+
+  const server = startStubCodexAppServer(
+    ctx.socket,
+    { overloadTurnStarts: 2, reply: 'the build passes' },
+    (request) => {
+      if (request.method === 'turn/start') {
+        statusesAtSend.push(stub.statuses.get('m-1'));
+      }
+    },
+  );
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 20 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
+
+  expect(statusesAtSend).toStrictEqual(['queued', 'queued', 'queued']);
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'answered', messages: ['m-1'], answer: 'the build passes', turn: 'turn-2' },
+  ]);
+
+  expect(server.requests.filter((r) => r.method === 'initialize')).toHaveLength(1);
+});
+
+test('it sends a message the daemon hands over during an overload wait only after the overloaded one', async () => {
+  const ctx = setupTest();
+  const stub = buildStubMessageBridgeHost();
+  let queuedSecond = false;
+
+  // The daemon hands a new message over as soon as it is queued, even while
+  // the tap still holds the overloaded one.
+  const server = startStubCodexAppServer(ctx.socket, { overloadTurnStarts: 1 }, (request) => {
+    if (request.method === 'turn/start' && !queuedSecond) {
+      queuedSecond = true;
+
+      stub.queueMessage({ id: 'm-2', from: 'planner', text: 'and the lint' });
+    }
+  });
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 20 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-2')).toBe('answered');
+  });
+
+  expect(stub.statuses.get('m-1')).toBe('answered');
+
+  expect(server.requests.filter((r) => r.method === 'turn/start')).toMatchObject([
+    { params: { clientUserMessageId: 'm-1' } },
+    { params: { clientUserMessageId: 'm-1' } },
+    { params: { clientUserMessageId: 'm-2' } },
+  ]);
+});
+
+test('it moves to the thread the terminal shows without waiting out an overload', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { overloadTurnStarts: 1000 });
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 20 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(server.requests).toPartiallyContain({ method: 'turn/start' });
+  });
+
+  const moved = await startTerminalThread(ctx.socket);
+
+  bridge.updateThread(moved);
+
+  await waitFor(() => {
+    expect(server.requests.findLast((r) => r.method === 'turn/start')).toMatchObject({
+      params: { threadId: moved, clientUserMessageId: 'm-1' },
+    });
+  });
+
+  expect(server.requests.filter((r) => r.method === 'thread/resume')).toMatchObject([
+    { params: { threadId: moved } },
+  ]);
+
+  expect(stub.statuses.get('m-1')).toBe('queued');
+});
+
+test('it keeps a notice the overloaded App Server turns away queued and delivers it on a later send', async () => {
+  const ctx = setupTest();
+  const stub = buildStubMessageBridgeHost();
+  const statusesAtSend: (string | undefined)[] = [];
+
+  const server = startStubCodexAppServer(ctx.socket, { overloadTurnStarts: 2 }, (request) => {
+    if (request.method === 'turn/start') {
+      statusesAtSend.push(stub.noticeStatuses.get('m-0'));
+    }
+  });
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 20 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueNotice({ id: 'm-0', from: 'reviewer', status: 'answered', answer: 'looks fine' });
+
+  await waitFor(() => {
+    expect(stub.noticeStatuses.get('m-0')).toBe('delivered');
+  });
+
+  expect(statusesAtSend).toStrictEqual(['queued', 'queued', 'queued']);
+
+  expect(
+    server.requests.filter(
+      (r) => r.method === 'turn/start' && JSON.stringify(r.params).includes('"notice:m-0"'),
+    ),
+  ).toHaveLength(3);
+});
+
+test('it starts the thread and each turn on the model the spawn asked for', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, {});
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    model: 'gpt-test-large',
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
+
+  expect(server.requests.find((r) => r.method === 'thread/start')?.params).toMatchObject({
+    model: 'gpt-test-large',
+  });
+
+  expect(server.requests.find((r) => r.method === 'turn/start')?.params).toMatchObject({
+    clientUserMessageId: 'm-1',
+    model: 'gpt-test-large',
+  });
+});
+
+test('it resumes the thread it was given on the model the spawn asked for', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, {});
+
+  onTestFinished(() => server.stop());
+
+  const thread = await startTerminalThread(ctx.socket);
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: buildStubMessageBridgeHost().host,
+    openConnection: ctx.openConnection,
+    resumeThread: thread,
+    model: 'gpt-test-large',
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  expect(server.requests.find((r) => r.method === 'thread/resume')?.params).toMatchObject({
+    threadId: thread,
+    model: 'gpt-test-large',
+  });
+});
+
+test('it leaves the model to the server when the spawn asked for none', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, {});
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+
+  await waitFor(() => {
+    expect(stub.statuses.get('m-1')).toBe('answered');
+  });
+
+  expect(server.requests.filter((r) => JSON.stringify(r.params).includes('"model"'))).toStrictEqual(
+    [],
+  );
+});
+
 // Starts a thread on the stand-in from a client of its own, as the terminal
 // does when it opens a new conversation, and resolves with the thread's id.
 async function startTerminalThread(socket: string): Promise<string> {

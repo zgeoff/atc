@@ -117,9 +117,9 @@ any server that a crashed daemon left for the session.
 The bridge starts the thread before the terminal starts. A terminal cannot join a thread that has no
 rollout yet, and dynamic tools exist only on a new thread, so the bridge does both steps itself. It
 starts the thread with the `atc.note` and `atc.answer` tools and developer instructions that explain
-the `<atc-message>` envelope, then injects one developer item, which writes the rollout without a
-model turn. The thread id is the session's agent session id, so a restored session resumes the same
-thread, and the tools and instructions come back with the rollout.
+the `<atc-message>` envelope, on the model the spawn asked for, then injects one developer item,
+which writes the rollout without a model turn. The thread id is the session's agent session id, so a
+restored session resumes the same thread, and the tools and instructions come back with the rollout.
 
 The terminal can move to another thread, as when a person starts a new conversation or resumes an
 older one, and the bridge follows it so that a message reaches the conversation the terminal shows.
@@ -132,10 +132,14 @@ so a message there takes the turn's last reply as its answer.
 
 The bridge sends each message with `turn/start`, which opens a turn on an idle thread and joins the
 running turn otherwise. The request carries the message id as the client message id, and the bridge
-acks the message once the server takes it. When the turn completes, the turn's last reply answers
-every message the turn carried that `atc.answer` left without an answer. An interrupted or failed
-turn leaves them unanswered. The bridge answers only its own tool calls, so approvals stay with the
-terminal.
+acks the message once the server takes it. Each turn request holds the spawn's model, because a
+message can arrive before the terminal applies that model to the thread. A server that turns a
+message or a notice away as overloaded has taken nothing, so the item stays queued and the bridge
+sends it again after a wait that doubles with each refusal. Later sends wait behind it, because the
+daemon hands the bridge a newer message without waiting for the older one's ack. When the turn
+completes, the turn's last reply answers every message the turn carried that `atc.answer` left
+without an answer. An interrupted or failed turn leaves them unanswered. The bridge answers only its
+own tool calls, so approvals stay with the terminal.
 
 The App Server keeps no record of the client message ids it took, so a resent message runs twice. On
 every connection, the bridge therefore recovers before it sends anything. It reads the thread's
