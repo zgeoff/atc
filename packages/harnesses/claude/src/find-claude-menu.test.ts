@@ -77,6 +77,71 @@ test('it reads the cursor on the enable item of a box menu', () => {
   expect(findClaudeMenu(screen)?.highlighted).toBe(2);
 });
 
+test('it reads the rows of a scrolled list and its mark of options below', () => {
+  const screen = [
+    '──────────────────────────────────────────────────────────────────────────────',
+    '  8 new MCP servers found in this project',
+    '  Select any you wish to enable.',
+    '',
+    '  MCP servers may execute code or access system resources.',
+    '',
+    '  ❯ [✔] kettle-notes',
+    '    [✔] orchard-search',
+    '    [✔] quarry-files',
+    '    [✔] lantern-docs',
+    '  ↓ [✔] meadow-index',
+    '       Enable selected',
+    '',
+    ' Space to select · Esc to reject all',
+  ].join('\n');
+
+  expect(findClaudeMenu(screen)).toStrictEqual({
+    text: [
+      '8 new MCP servers found in this project',
+      'Select any you wish to enable.',
+      '',
+      'MCP servers may execute code or access system resources.',
+    ].join('\n'),
+    options: [
+      { label: 'kettle-notes', checked: true },
+      { label: 'orchard-search', checked: true },
+      { label: 'quarry-files', checked: true },
+      { label: 'lantern-docs', checked: true },
+      { label: 'meadow-index', checked: true },
+      { label: 'Enable selected', checked: null },
+    ],
+    highlighted: 0,
+    scroll: { above: false, below: true },
+  });
+});
+
+test('it reads both scroll marks of a list scrolled to its middle', () => {
+  const screen = [
+    '──────────────────────────────────────────────────────────────────────────────',
+    '  8 new MCP servers found in this project',
+    '',
+    '  ↑ [✔] orchard-search',
+    '    [✔] quarry-files',
+    '  ❯ [ ] lantern-docs',
+    '    [✔] meadow-index',
+    '  ↓ [✔] willow-cache',
+    '       Enable selected',
+  ].join('\n');
+
+  expect(findClaudeMenu(screen)).toMatchObject({
+    options: [
+      { label: 'orchard-search', checked: true },
+      { label: 'quarry-files', checked: true },
+      { label: 'lantern-docs', checked: false },
+      { label: 'meadow-index', checked: true },
+      { label: 'willow-cache', checked: true },
+      { label: 'Enable selected', checked: null },
+    ],
+    highlighted: 2,
+    scroll: { above: true, below: true },
+  });
+});
+
 test('it reads a numbered permission prompt and joins a wrapped option', () => {
   const screen = [
     '──────────────────────────────────────────────────────────────────────────────',

@@ -791,7 +791,7 @@ export class DaemonConnection {
         return;
       }
       case 'session.menu': {
-        await this.applySessionMenu(req, ctx);
+        this.applySessionMenu(req, ctx);
 
         return;
       }
@@ -1338,7 +1338,7 @@ export class DaemonConnection {
     this.sendInputResult(req, 'session.submit', sessionID, result);
   }
 
-  private async applySessionMenu(req: RequestMsg, ctx: DaemonContext): Promise<void> {
+  private applySessionMenu(req: RequestMsg, ctx: DaemonContext): void {
     const parsed = parseRequestParams('session.menu', req.p);
 
     if (!parsed.ok) {
@@ -1349,17 +1349,27 @@ export class DaemonConnection {
 
     const id = parsed.data.session;
 
-    const menu = await ctx.readSessionMenu(id);
-
-    if (menu === 'missing' || !ctx.isSessionVisible(id)) {
+    if (!ctx.isSessionVisible(id)) {
       this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
-    } else if (menu === 'no_screen') {
-      this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
-    } else if (menu === 'unsupported') {
-      this.sendErr(req.id, 'unsupported', `atc cannot read the menus in session '${id}'`);
-    } else {
-      this.sendOk(req.id, 'session.menu', { menu });
+
+      return;
     }
+
+    // A read that scrolls a long list with arrow keys rejects with a
+    // DaemonError when the menu changes or ignores a key.
+    this.answerAsync(req.id, async () => {
+      const menu = await ctx.readSessionMenu(id);
+
+      if (menu === 'missing') {
+        this.sendErr(req.id, 'no_such_session', `no session '${id}'`);
+      } else if (menu === 'no_screen') {
+        this.sendErr(req.id, 'session_dead', `session '${id}' has no captured screen`);
+      } else if (menu === 'unsupported') {
+        this.sendErr(req.id, 'unsupported', `atc cannot read the menus in session '${id}'`);
+      } else {
+        this.sendOk(req.id, 'session.menu', { menu });
+      }
+    });
   }
 
   // A choice whose menu, label, or cursor does not match the screen rejects

@@ -288,6 +288,181 @@ test('it confirms the boxes ticked when a choice picks the enable item', async (
   ]);
 });
 
+test('it reads every option of a list longer than the screen shows, and puts the cursor back', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['8 new MCP servers found in this project'],
+        options: [
+          'kettle-notes',
+          'orchard-search',
+          'quarry-files',
+          'lantern-docs',
+          'meadow-index',
+          'willow-cache',
+          'harbor-queue',
+          'ember-metrics',
+        ],
+        checked: [true, true, true, true, true, true, true, true],
+        submit: 'Enable selected',
+        window: 5,
+      },
+    ],
+  });
+
+  expect(shown.menu['options']).toStrictEqual([
+    { option: 1, label: 'kettle-notes', checked: true, highlighted: true },
+    { option: 2, label: 'orchard-search', checked: true, highlighted: false },
+    { option: 3, label: 'quarry-files', checked: true, highlighted: false },
+    { option: 4, label: 'lantern-docs', checked: true, highlighted: false },
+    { option: 5, label: 'meadow-index', checked: true, highlighted: false },
+    { option: 6, label: 'willow-cache', checked: true, highlighted: false },
+    { option: 7, label: 'harbor-queue', checked: true, highlighted: false },
+    { option: 8, label: 'ember-metrics', checked: true, highlighted: false },
+    { option: 9, label: 'Enable selected', checked: null, highlighted: false },
+  ]);
+
+  expect(ctx.readLog()).toStrictEqual([
+    ...Array.from({ length: 8 }, () => ({ key: 'down' })),
+    ...Array.from({ length: 8 }, () => ({ key: 'up' })),
+  ]);
+});
+
+test('it reads a long list it has read whole before without pressing a key', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['6 new MCP servers found in this project'],
+        options: [
+          'kettle-notes',
+          'orchard-search',
+          'quarry-files',
+          'lantern-docs',
+          'meadow-index',
+          'willow-cache',
+        ],
+        checked: [true, true, true, true, true, true],
+        submit: 'Enable selected',
+        window: 5,
+      },
+    ],
+  });
+
+  const keys = ctx.readLog().length;
+
+  const read = await ctx.daemon.client.sendRequest('session.menu', { session: shown.session });
+
+  expect(getRecord(read, 'menu')).toStrictEqual(shown.menu);
+  expect(ctx.readLog()).toHaveLength(keys);
+});
+
+test('it picks the last option of a list longer than the screen by its number and label', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['8 new MCP servers found in this project'],
+        options: [
+          'kettle-notes',
+          'orchard-search',
+          'quarry-files',
+          'lantern-docs',
+          'meadow-index',
+          'willow-cache',
+          'harbor-queue',
+          'ember-metrics',
+        ],
+        checked: [true, false, true, true, false, true, true, true],
+        submit: 'Enable selected',
+        window: 5,
+      },
+    ],
+  });
+
+  const chosen = await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 9,
+    label: 'Enable selected',
+  });
+
+  expect(chosen).toStrictEqual({ pressed: 'enter', menu: null });
+
+  expect(ctx.readLog().slice(-2)).toStrictEqual([
+    { key: 'enter' },
+    {
+      enabled: [
+        'kettle-notes',
+        'quarry-files',
+        'lantern-docs',
+        'willow-cache',
+        'harbor-queue',
+        'ember-metrics',
+      ],
+    },
+  ]);
+});
+
+test('it ticks a box below the screen and returns the whole list with its new token', async () => {
+  const ctx = await setupTest();
+
+  const shown = await ctx.spawnMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['7 new MCP servers found in this project'],
+        options: [
+          'kettle-notes',
+          'orchard-search',
+          'quarry-files',
+          'lantern-docs',
+          'meadow-index',
+          'willow-cache',
+          'harbor-queue',
+        ],
+        checked: [true, true, true, true, true, true, true],
+        submit: 'Enable selected',
+        window: 5,
+      },
+    ],
+  });
+
+  const chosen = await ctx.daemon.client.sendRequest('session.choose', {
+    session: shown.session,
+    menuToken: shown.menu['menuToken'],
+    option: 7,
+    label: 'harbor-queue',
+  });
+
+  expect(chosen).toStrictEqual({
+    pressed: 'enter',
+    menu: {
+      text: '7 new MCP servers found in this project',
+      options: [
+        { option: 1, label: 'kettle-notes', checked: true, highlighted: false },
+        { option: 2, label: 'orchard-search', checked: true, highlighted: false },
+        { option: 3, label: 'quarry-files', checked: true, highlighted: false },
+        { option: 4, label: 'lantern-docs', checked: true, highlighted: false },
+        { option: 5, label: 'meadow-index', checked: true, highlighted: false },
+        { option: 6, label: 'willow-cache', checked: true, highlighted: false },
+        { option: 7, label: 'harbor-queue', checked: false, highlighted: true },
+        { option: 8, label: 'Enable selected', checked: null, highlighted: false },
+      ],
+      menuToken: expect.toBeString(),
+    },
+  });
+
+  expect(getRecord(chosen, 'menu')['menuToken']).not.toBe(shown.menu['menuToken']);
+});
+
 test('it refuses a label that differs from the option and sends nothing', async () => {
   const ctx = await setupTest();
 

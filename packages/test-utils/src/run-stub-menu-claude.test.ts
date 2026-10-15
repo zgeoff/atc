@@ -130,6 +130,130 @@ test('it ticks a box on Enter and enables the ticked ones on the submit item', a
   });
 });
 
+test('it draws a window of a long list with a mark beside its last row', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['4 new MCP servers found in this project'],
+        options: ['kettle-notes', 'orchard-search', 'quarry-files', 'lantern-docs'],
+        checked: [true, true, true, true],
+        submit: 'Enable selected',
+        window: 2,
+      },
+    ],
+  });
+
+  expect(menu.output.text.replaceAll('\r', '')).toInclude(
+    '\n ❯ [✔] kettle-notes\n ↓ [✔] orchard-search\n       Enable selected\n',
+  );
+});
+
+test('it scrolls the window one row once the cursor moves past its last row', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['4 new MCP servers found in this project'],
+        options: ['kettle-notes', 'orchard-search', 'quarry-files', 'lantern-docs'],
+        checked: [true, true, true, true],
+        submit: 'Enable selected',
+        window: 2,
+      },
+    ],
+  });
+
+  menu.pty.write(KEYS.down);
+
+  await waitFor(() => {
+    expect(menu.output.text).toInclude('❯ [✔] orchard-search');
+  });
+
+  menu.output.text = '';
+
+  menu.pty.write(KEYS.down);
+
+  await waitFor(() => {
+    expect(menu.output.text.replaceAll('\r', '')).toInclude(
+      '\n ↑ [✔] orchard-search\n ❯ [✔] quarry-files\n       Enable selected\n',
+    );
+  });
+});
+
+test('it moves the cursor from the last option of a long box list to the submit item', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [
+      {
+        kind: 'boxes',
+        text: ['3 new MCP servers found in this project'],
+        options: ['kettle-notes', 'orchard-search', 'quarry-files'],
+        checked: [true, true, true],
+        submit: 'Enable selected',
+        cursor: 2,
+        window: 2,
+      },
+    ],
+  });
+
+  menu.output.text = '';
+
+  menu.pty.write(KEYS.down);
+
+  await waitFor(() => {
+    expect(menu.output.text.replaceAll('\r', '')).toInclude(
+      '\n ↑ [✔] orchard-search\n   [✔] quarry-files\n ❯     Enable selected\n',
+    );
+  });
+});
+
+test('it wraps the cursor of a long plain list from its last option to its first', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [
+      {
+        kind: 'plain',
+        text: ['Pick a colour'],
+        options: ['Amber', 'Teal', 'Plum'],
+        cursor: 2,
+        window: 2,
+      },
+    ],
+  });
+
+  menu.output.text = '';
+
+  menu.pty.write(KEYS.down);
+
+  await waitFor(() => {
+    expect(menu.output.text.replaceAll('\r', '')).toInclude('\n ❯ Amber\n ↓ Teal\n');
+  });
+});
+
+test('it wraps the cursor of a long plain list from its first option to its last', async () => {
+  const ctx = setupTest();
+
+  const menu = await ctx.startMenu({
+    menus: [
+      { kind: 'plain', text: ['Pick a colour'], options: ['Amber', 'Teal', 'Plum'], window: 2 },
+    ],
+  });
+
+  menu.output.text = '';
+
+  menu.pty.write(KEYS.up);
+
+  await waitFor(() => {
+    expect(menu.output.text.replaceAll('\r', '')).toInclude('\n ↑ Teal\n ❯ Plum\n');
+  });
+});
+
 test('it dismisses the menu on Escape', async () => {
   const ctx = setupTest();
 

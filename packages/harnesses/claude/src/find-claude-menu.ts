@@ -1,6 +1,11 @@
-import type { ScreenMenu, ScreenMenuOption } from '@atc/plugin-api';
+import type { ScreenMenu, ScreenMenuOption, ScreenMenuScroll } from '@atc/plugin-api';
 
 const POINTER = '❯ ';
+
+// The marks a list that shows only part of its options draws in the
+// cursor's column, beside its first row and its last.
+const MORE_ABOVE = '↑ ';
+const MORE_BELOW = '↓ ';
 
 // A dialog's top border, or the rule above and below the prompt box.
 const RULE = /^\s*[─━═╌]{8,}\s*$/;
@@ -20,8 +25,9 @@ const MAX_TEXT_LINES = 24;
  * `❯` cursor, with text after it and the lines beside it indented to the same column: numbered
  * options (`1. Yes`), whose wrapped lines join the option above them, boxes
  * (`[✔] name`) with a plain item such as `Enable selected` among them, or
- * plain options, one per line. Its text is the lines above the options up to
- * the dialog's border. The prompt box, whose `❯` line sits straight under a
+ * plain options, one per line. A list longer than its window marks its first
+ * row with `↑` and its last with `↓` in the cursor's column. Its text is the
+ * lines above the options up to the dialog's border. The prompt box, whose `❯` line sits straight under a
  * rule with the draft's lines down to the next rule, is no menu, and neither
  * is a single option.
  */
@@ -59,10 +65,13 @@ export function findClaudeMenu(screen: string): ScreenMenu | null {
     return null;
   }
 
+  const scroll = findScroll(lines.slice(first, last + 1), column);
+
   return {
     text: collectText(lines, first),
     options: parsed.options,
     highlighted: parsed.highlighted,
+    ...(scroll === null ? {} : { scroll }),
   };
 }
 
@@ -81,11 +90,16 @@ function isPointerLine(line: string): boolean {
 }
 
 // A line beside the cursor's: blank up to the cursor's column, two blank
-// columns where the cursor would be, then text.
+// columns or a scroll mark where the cursor would be, then text.
 function isOptionLine(line: string | undefined, column: number): boolean {
+  if (line === undefined || line.slice(0, column).trim() !== '') {
+    return false;
+  }
+
+  const mark = line.slice(column, column + POINTER.length);
+
   return (
-    line !== undefined &&
-    line.slice(0, column + POINTER.length).trim() === '' &&
+    (mark.trim() === '' || mark === MORE_ABOVE || mark === MORE_BELOW) &&
     line.slice(column + POINTER.length).trim() !== ''
   );
 }
@@ -176,6 +190,16 @@ function parseBoxOption(row: string): ScreenMenuOption {
 
 function parsePlainOption(row: string): ScreenMenuOption {
   return { label: row.trim().replace(CURRENT_MARK, ''), checked: null };
+}
+
+// Which scroll marks the option rows hold, or null when they hold none.
+function findScroll(rows: readonly string[], column: number): ScreenMenuScroll | null {
+  const marks = new Set(rows.map((row) => row.slice(column, column + POINTER.length)));
+
+  const above = marks.has(MORE_ABOVE);
+  const below = marks.has(MORE_BELOW);
+
+  return above || below ? { above, below } : null;
 }
 
 // The lines above the options up to the nearest rule, without the blank

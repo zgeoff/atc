@@ -145,6 +145,10 @@ export const DAEMON_CONTRACT = {
       .meta(READ)
       .input(P['session.screen'])
       .output(z.object({ text: z.string(), cols: z.number(), rows: z.number() })),
+
+    // A list longer than the screen is read with arrow keys that move the
+    // cursor and put it back, so the read picks nothing and stays safe to
+    // send again.
     menu: base
       .meta(READ)
       .input(P['session.menu'])

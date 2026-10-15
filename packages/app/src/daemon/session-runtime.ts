@@ -1,3 +1,4 @@
+import type { ScreenMenu } from '@atc/plugin-api';
 import type { Dims } from './attach-registry';
 import type { ScreenModel } from './screen-model';
 import { SessionInputQueue } from './session-input-queue';
@@ -23,6 +24,11 @@ export class SessionRuntime {
   // When the session's PTY last printed anything, by the daemon's clock; a
   // menu choice waits for the screen to go quiet before its first key.
   lastOutputAt = 0;
+
+  // The whole menu atc last read through a list that scrolls past the
+  // screen, so a later read of part of that list numbers its options the
+  // same way, or null before any.
+  wholeMenu: ScreenMenu | null = null;
 
   dims: Dims | null = null;
 

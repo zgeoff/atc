@@ -19,6 +19,7 @@ import type {
   MessageBridge,
   MessageBridgeHost,
   MessageBridgeTap,
+  ScreenMenu,
   SourceProvider,
 } from '@atc/plugin-api';
 import { EffectRemainsError, planTypedLineInput } from '@atc/plugin-api';
@@ -47,7 +48,7 @@ import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
 import { ANSWER_BYTE_CAP } from './answer-byte-cap';
 import { applyMenuChoice } from './apply-menu-choice';
-import type { MenuChoiceResult, MenuTiming } from './apply-menu-choice';
+import type { MenuChoiceResult } from './apply-menu-choice';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
 import { buildAnswerView } from './build-answer-view';
@@ -92,6 +93,8 @@ import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { materializeWorkspace } from './materialize-workspace';
+import { MENU_TIMING } from './menu-terminal';
+import type { MenuTerminal, MenuTiming } from './menu-terminal';
 import type { MessageCaller } from './message-caller';
 import { mintMessageID } from './mint-message-id';
 import { mintSessionID } from './mint-session-id';
@@ -99,6 +102,7 @@ import { parseNote } from './parse-note';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
 import { readPeerPID } from './read-peer-pid';
+import { readWholeMenu } from './read-whole-menu';
 import { requireGitTransports } from './require-git-transports';
 import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
@@ -711,6 +715,37 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     return runtime;
+  };
+
+  const waits = { clock, timing: opts.menuTiming ?? MENU_TIMING };
+
+  // The session's terminal as a menu read or choice drives it. The PTY it
+  // writes to is the one the session runs when the read or choice starts,
+  // so a restarted session counts as gone.
+  const buildMenuTerminal = (
+    id: SessionID,
+    runtime: SessionRuntime,
+    screen: ScreenModel,
+    findMenu: (text: string) => ScreenMenu | null,
+  ): MenuTerminal => {
+    const pty = mgr.sessions.find((x) => x.id === id)?.pty ?? null;
+
+    return {
+      readScreenMenu: async () => {
+        const shown = await screen.renderText();
+
+        return findMenu(shown.text);
+      },
+      readLastOutputAt: () => runtime.lastOutputAt,
+      write: (data) => {
+        pty?.write(data);
+      },
+      isLive: () => pty !== null && mgr.sessions.find((x) => x.id === id)?.pty === pty,
+      findWholeMenu: () => runtime.wholeMenu,
+      recordWholeMenu: (menu) => {
+        runtime.wholeMenu = menu;
+      },
+    };
   };
 
   const attachments = new AttachRegistry<OutputClient>();
@@ -2250,17 +2285,37 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
         return 'unsupported';
       }
 
-      const screen = runtimes.get(id)?.screen ?? null;
+      const runtime = runtimes.get(id);
+      const screen = runtime?.screen ?? null;
 
-      if (screen === null) {
+      if (runtime === undefined || screen === null) {
         return 'no_screen';
       }
 
-      const shown = await screen.renderText();
+      const terminal = buildMenuTerminal(id, runtime, screen, findMenu);
 
-      const menu = findMenu(shown.text);
+      const shown = await terminal.readScreenMenu();
 
-      return menu === null ? null : buildMenuView(menu);
+      if (shown === null) {
+        return null;
+      }
+
+      // A list that scrolls past the screen is read with arrow keys, so the
+      // read holds the session's input queue as a choice does. A target that
+      // takes no input shows the list as its screen does.
+      const read = Promise.withResolvers<ScreenMenu | null>();
+
+      if (shown.scroll === undefined || mgr.findExecutionRefusal(s, 'input') !== null) {
+        read.resolve(readWholeMenu(terminal, waits));
+      } else {
+        runtime.input.schedule(async () => {
+          await readWholeMenu(terminal, waits).then(read.resolve, read.reject);
+        });
+      }
+
+      const whole = await read.promise;
+
+      return whole === null ? null : buildMenuView(whole);
     },
     applySessionMenuChoice: (id, choice) => {
       const s = mgr.sessions.find((x) => x.id === id);
@@ -2284,29 +2339,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
       mgr.requireExecution(s, 'input');
 
-      const pty = s.pty;
-
-      const terminal = {
-        readMenu: async () => {
-          const shown = await screen.renderText();
-
-          const menu = findMenu(shown.text);
-
-          return menu === null ? null : buildMenuView(menu);
-        },
-        write: (data: string) => {
-          pty.write(data);
-        },
-        readLastOutputAt: () => runtime.lastOutputAt,
-        isLive: () => mgr.sessions.find((x) => x.id === id)?.pty === pty,
-      };
-
+      const terminal = buildMenuTerminal(id, runtime, screen, findMenu);
       const applied = Promise.withResolvers<MenuChoiceResult>();
 
       // The choice holds the session's input queue from its first read to
       // its last, so no other input lands between the keys it presses.
       runtime.input.schedule(async () => {
-        await applyMenuChoice(terminal, choice, clock, opts.menuTiming).then(
+        await applyMenuChoice(terminal, choice, clock, waits.timing).then(
           applied.resolve,
           applied.reject,
         );
