@@ -57,12 +57,20 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 
 | Script                        | Runs                                                                 |
 | ----------------------------- | -------------------------------------------------------------------- |
-| `bun run test:related`        | the tests beside the files you pass                                  |
+| `bun run test:related`        | the tests beside the files you pass, less the pre-push skip list     |
 | `bun run test:binary`         | the daemon suite against a compiled binary, with `ATC_BIN` set       |
 | `bun run test:gateway-binary` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
 | `bun run test:atc-bridge`     | `claude plugin validate` and `claude plugin test` on the mod         |
 | `bun run test:isolation`      | the suite in a canary home, failing when a test touches a real home  |
 | `bun run test:timings`        | the suite, rewriting the timings that balance the CI shards          |
+
+The pre-push hook runs `bun run test:related` over the files the branch changes. That script leaves
+out each test in `scripts/pre-push-test-skips.json` and prints the Linear issue of each one it
+leaves out. The list holds tests that fail on a developer host and pass in CI. Each entry holds the
+test file, the test's full name, and the Linear issue that tracks the failure, and the loader
+refuses an entry without an issue ID. CI runs `bun run test`, which ignores the list, so every
+listed test still runs there. When a test fails on your host and passes in CI, open an issue and add
+an entry rather than skipping the hook's test job, and remove the entry when the issue's fix lands.
 
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
 regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`

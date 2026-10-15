@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand, setupTempDir } from '@atc/test-utils';
-import { collectRelatedTests } from './run-related-tests';
+import { collectRelatedTests, runRelatedTests } from './run-related-tests';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -115,4 +115,62 @@ test('it exits with the failing code when the related test fails', async () => {
   );
 
   expect(run.exitCode).toBe(1);
+});
+
+test('it leaves out a listed test and runs the rest of its file', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(join(ctx.dir, 'package.json'), JSON.stringify({ scripts: { test: 'bun test' } }));
+
+  writeFileSync(
+    join(ctx.dir, 'src/a.test.ts'),
+    "import { expect, test } from 'bun:test';\nimport { writeFileSync } from 'node:fs';\n\ntest('it trims the hedge', () => {\n  expect(1 + 1).toBe(3);\n});\n\ntest('it rakes the leaves', () => {\n  writeFileSync('raked', '');\n});\n",
+  );
+
+  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.dir, [
+    { file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' },
+  ]);
+
+  expect(exitCode).toBe(0);
+  expect(existsSync(join(ctx.dir, 'raked'))).toBeTrue();
+});
+
+test('it runs a test whose name only starts with a listed name', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(join(ctx.dir, 'package.json'), JSON.stringify({ scripts: { test: 'bun test' } }));
+
+  writeFileSync(
+    join(ctx.dir, 'src/a.test.ts'),
+    "import { expect, test } from 'bun:test';\n\ntest('it trims the hedge twice', () => {\n  expect(1 + 1).toBe(3);\n});\n",
+  );
+
+  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.dir, [
+    { file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' },
+  ]);
+
+  expect(exitCode).toBe(1);
+});
+
+test('it runs every planned run and returns the failure of an earlier one', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(join(ctx.dir, 'package.json'), JSON.stringify({ scripts: { test: 'bun test' } }));
+
+  writeFileSync(
+    join(ctx.dir, 'src/a.test.ts'),
+    "import { expect, test } from 'bun:test';\n\ntest('it adds', () => {\n  expect(1 + 1).toBe(3);\n});\n",
+  );
+
+  writeFileSync(
+    join(ctx.dir, 'src/b.test.ts'),
+    "import { test } from 'bun:test';\nimport { writeFileSync } from 'node:fs';\n\ntest('it trims the hedge', () => {});\n\ntest('it rakes the leaves', () => {\n  writeFileSync('raked', '');\n});\n",
+  );
+
+  const exitCode = await runRelatedTests(['src/a.test.ts', 'src/b.test.ts'], ctx.dir, [
+    { file: 'src/b.test.ts', test: 'it trims the hedge', issue: 'GEO-18' },
+  ]);
+
+  expect(exitCode).toBe(1);
+  expect(existsSync(join(ctx.dir, 'raked'))).toBeTrue();
 });

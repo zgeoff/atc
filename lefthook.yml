@@ -47,6 +47,8 @@ pre-push:
       run: bun run lint:files {files}
     - name: typecheck
       run: bun run typecheck
+    # leaves out the tests in scripts/pre-push-test-skips.json, which fail on
+    # a developer host and pass in CI; CI runs them all
     - name: test
       files: bun run --silent files:branch
       glob: '*.ts'
