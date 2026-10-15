@@ -30,6 +30,7 @@ interface WireResult {
   turn?: Turn;
   turnId?: string;
   data?: Turn[];
+  nextCursor?: string | null;
 }
 
 interface WireMessage {
@@ -44,7 +45,7 @@ interface Pending {
   id: string;
   from: string;
   text: string;
-  status: 'queued' | 'sent' | 'consumed' | 'answered' | 'unanswered';
+  status: 'queued' | 'sent' | 'recorded' | 'consumed' | 'answered' | 'unanswered';
   turnID?: string;
   via?: string;
   answer?: string;
@@ -70,6 +71,9 @@ let activeTurnID: string | undefined;
 const lastAgentText = new Map<string, string>();
 
 let draining = false;
+
+const sending = new Set<string>();
+
 const instructions = `This thread is atc session ${atcSessionID}. Messages from other atc sessions arrive wrapped in <atc-message id=".." from=".."> tags. Answer one with the atc.answer tool when you want to answer it before your turn ends; otherwise your final reply of the turn becomes its answer. Call atc.note with a short progress note at each milestone.`;
 
 const dynamicTools = [
@@ -102,9 +106,9 @@ const dynamicTools = [
   },
 ];
 
-await openConnection();
+const resumed = await openConnection();
 
-if (threadArg) {
+if (resumed) {
   await reconcileMessages();
   await drainQueue();
 }
@@ -198,40 +202,53 @@ async function openConnection() {
 
       activeTurnID = turns.result?.data?.[0]?.id;
     }
-  } else {
-    const res = await sendRequest('thread/start', {
-      cwd: `${stateDir}/work`,
-      developerInstructions: instructions,
-      dynamicTools,
-    });
 
-    state.threadID = res.result?.thread?.id;
+    writeState();
+
+    console.log(JSON.stringify({ threadID: state.threadID, activeTurnID }));
+
+    return true;
   }
+
+  const res = await sendRequest('thread/start', {
+    cwd: `${stateDir}/work`,
+    developerInstructions: instructions,
+    dynamicTools,
+  });
+
+  state.threadID = res.result?.thread?.id;
+
+  // A new thread has no rollout until its first turn, and the terminal cannot resume a thread
+  // without one. One injected developer item writes the rollout with no model turn.
+  await sendRequest('thread/inject_items', {
+    threadId: state.threadID,
+    items: [
+      {
+        type: 'message',
+        role: 'developer',
+        content: [{ type: 'input_text', text: `atc bridge attached for session ${atcSessionID}.` }],
+      },
+    ],
+  });
 
   writeState();
 
   console.log(JSON.stringify({ threadID: state.threadID, activeTurnID }));
+
+  return false;
 }
 
 // After a reconnect, settle each open message from the thread's stored turns. The userMessage
 // item's clientId matches the message id, so a resend never duplicates a message the server took.
 async function reconcileMessages() {
-  const res = await sendRequest('thread/turns/list', {
-    threadId: state.threadID,
-    limit: 20,
-    itemsView: 'full',
-  });
-
-  const turns = res.result?.data ?? [];
+  const turns = await collectTurnsHoldingOpenMessages();
 
   for (const m of Object.values(state.messages)) {
     if (m.status === 'answered' || m.status === 'unanswered') {
       continue;
     }
 
-    const turn = turns.find((t) =>
-      t.items.some((i) => i.type === 'userMessage' && i.clientId === m.id),
-    );
+    const turn = turns.find((t) => t.items.some((i) => isMessageItem(i, m.id)));
 
     if (!turn) {
       Object.assign(m, { status: 'queued', turnID: undefined });
@@ -240,12 +257,21 @@ async function reconcileMessages() {
 
     m.turnID = turn.id;
 
+    const index = turn.items.findIndex((i) => isMessageItem(i, m.id));
+    const seen = turn.items.slice(index + 1).some((i) => i.type !== 'userMessage');
+    const agentTexts = turn.items.filter((i) => i.type === 'agentMessage').map((i) => i.text);
+
     if (turn.status === 'inProgress') {
-      m.status = 'consumed';
+      m.status = seen ? 'consumed' : 'recorded';
+
+      const last = agentTexts.at(-1);
+
+      if (last !== undefined) {
+        lastAgentText.set(turn.id, last);
+      }
+
       continue;
     }
-
-    const agentTexts = turn.items.filter((i) => i.type === 'agentMessage').map((i) => i.text);
 
     if (turn.status === 'completed') {
       Object.assign(m, {
@@ -259,6 +285,48 @@ async function reconcileMessages() {
   }
 
   writeState();
+}
+
+// Pages back through the thread's turns, newest first, until every open message has its turn or
+// the history ends, so a message the server took long ago is never mistaken for an unsent one.
+async function collectTurnsHoldingOpenMessages() {
+  const open = new Set(
+    Object.values(state.messages)
+      .filter((m) => m.status !== 'answered' && m.status !== 'unanswered')
+      .map((m) => m.id),
+  );
+
+  const turns: Turn[] = [];
+  let cursor: string | null | undefined;
+
+  while (open.size > 0) {
+    const res = await sendRequest('thread/turns/list', {
+      threadId: state.threadID,
+      limit: 20,
+      itemsView: 'full',
+      cursor,
+    });
+
+    const page = res.result?.data ?? [];
+
+    turns.push(...page);
+
+    for (const item of page.flatMap((t) => t.items)) {
+      open.delete(item.clientId ?? '');
+    }
+
+    cursor = res.result?.nextCursor;
+
+    if (!cursor) {
+      break;
+    }
+  }
+
+  return turns;
+}
+
+function isMessageItem(item: ThreadItem, messageID: string) {
+  return item.type === 'userMessage' && item.clientId === messageID;
 }
 
 function logEvent(dir: string, msg: WireMessage) {
@@ -327,7 +395,24 @@ function applyNotification(msg: WireMessage) {
     void drainQueue();
   }
 
-  if (msg.method !== 'item/completed' || !p.item || !p.turnId) {
+  if (!p.item || !p.turnId) {
+    return;
+  }
+
+  // A model item that starts after a recorded message is the spike's sign that the model read it.
+  // A response already streaming when the input was recorded can also start one, so the sign only
+  // labels why an interrupted turn left a message unanswered.
+  if (msg.method === 'item/started' && p.item.type !== 'userMessage') {
+    for (const m of Object.values(state.messages)) {
+      if (m.turnID === p.turnId && m.status === 'recorded') {
+        m.status = 'consumed';
+      }
+    }
+
+    writeState();
+  }
+
+  if (msg.method !== 'item/completed') {
     return;
   }
 
@@ -335,16 +420,10 @@ function applyNotification(msg: WireMessage) {
     lastAgentText.set(p.turnId, p.item.text ?? '');
   }
 
-  if (p.item.type === 'userMessage') {
-    const text = (p.item.content ?? []).map((c) => c.text ?? '').join('');
+  const m = p.item.type === 'userMessage' ? state.messages[p.item.clientId ?? ''] : undefined;
 
-    for (const match of text.matchAll(/<atc-message id="(?<id>[^"]+)"/g)) {
-      const m = state.messages[match.groups?.id ?? ''];
-
-      if (m && (m.status === 'sent' || m.status === 'queued')) {
-        Object.assign(m, { status: 'consumed', turnID: p.turnId });
-      }
-    }
+  if (m && (m.status === 'queued' || m.status === 'sent')) {
+    Object.assign(m, { status: 'recorded', turnID: p.turnId });
 
     writeState();
   }
@@ -356,13 +435,17 @@ function updateMessagesForTurn(turn: Turn) {
       continue;
     }
 
-    if (turn.status === 'completed' && m.status === 'consumed') {
+    const isInTurn = m.status === 'recorded' || m.status === 'consumed';
+
+    if (turn.status === 'completed' && isInTurn) {
       const answer = lastAgentText.get(turn.id) ?? '';
 
       Object.assign(m, { status: 'answered', via: 'final-reply', answer });
-    } else if (m.status === 'consumed') {
-      Object.assign(m, { status: 'unanswered', reason: turn.status });
-    } else {
+    } else if (isInTurn) {
+      const reason = m.status === 'recorded' ? `${turn.status}-unseen` : turn.status;
+
+      Object.assign(m, { status: 'unanswered', reason });
+    } else if (!sending.has(m.id)) {
       // Accepted but never recorded in the turn: send it again on the next turn.
       Object.assign(m, { status: 'queued', turnID: undefined });
     }
@@ -389,40 +472,42 @@ async function drainQueue() {
   }
 }
 
+// `turn/start` opens a turn on an idle thread and joins the active turn otherwise, returning the
+// turn that carries the message either way, so delivery needs no separate steer.
 async function sendMessage(m: Pending) {
-  const input = [{ type: 'text', text: buildEnvelope(m), text_elements: [] }];
-
-  if (activeTurnID) {
-    const steer = await sendRequest('turn/steer', {
-      threadId: state.threadID,
-      input,
-      clientUserMessageId: m.id,
-      expectedTurnId: activeTurnID,
-    });
-
-    if (!steer.error) {
-      Object.assign(m, { status: 'sent', turnID: steer.result?.turnId, via: 'steer' });
-
-      writeState();
-
-      return;
-    }
-  }
-
-  const res = await sendRequest('turn/start', {
-    threadId: state.threadID,
-    input,
-    clientUserMessageId: m.id,
-    effort: 'low',
-  });
-
-  if (res.error) {
+  if (sending.has(m.id) || m.status !== 'queued') {
     return;
   }
 
-  Object.assign(m, { status: 'sent', turnID: res.result?.turn?.id, via: 'start' });
+  sending.add(m.id);
 
-  writeState();
+  const turnBefore = activeTurnID;
+
+  try {
+    const res = await sendRequest('turn/start', {
+      threadId: state.threadID,
+      input: [{ type: 'text', text: buildEnvelope(m), text_elements: [] }],
+      clientUserMessageId: m.id,
+      effort: 'low',
+    });
+
+    if (res.error) {
+      return;
+    }
+
+    // The userMessage item can arrive before this response, so only a message still queued
+    // moves to sent; a later state stays.
+    m.turnID ??= res.result?.turn?.id;
+    m.via = res.result?.turn?.id === turnBefore ? 'start-joined' : 'start';
+
+    if (m.status === 'queued') {
+      m.status = 'sent';
+    }
+
+    writeState();
+  } finally {
+    sending.delete(m.id);
+  }
 }
 
 function buildEnvelope(m: Pending) {

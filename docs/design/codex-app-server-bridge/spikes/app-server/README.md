@@ -6,7 +6,7 @@ message-to-turn tracking. The bridge and the terminal (`codex --remote`) connect
 one Codex App Server and share one thread. The bridge binds the atc session id to the thread id in
 its own state and in the thread's developer instructions, so no part of the design reads identity
 from an inherited environment. Every result below comes from Codex CLI 0.162.0 on Linux, with the
-App Server's v2 protocol and `experimentalApi`, a scratch `CODEX_HOME`, and 17 short model turns.
+App Server's v2 protocol and `experimentalApi`, a scratch `CODEX_HOME`, and 19 short model turns.
 
 The recommendation: build the Codex bridge on App Server, with one App Server per atc session on a
 Unix socket, and the bridge inside the daemon.
@@ -26,9 +26,9 @@ approval request to each subscriber, and the first client to answer a request wi
 ## Running the prototype
 
 [`bridge.ts`](./bridge.ts) is the prototype. It starts or resumes one thread, offers the `atc.note`
-and `atc.answer` dynamic tools, delivers messages, settles each one from its turn, and keeps its
-state in a JSON file so a restart can recover. A small HTTP control port stands in for the daemon's
-inbox.
+and `atc.answer` dynamic tools, delivers each message with `turn/start`, settles it from its turn,
+and keeps its state in a JSON file so a restart can recover. A small HTTP control port stands in for
+the daemon's inbox.
 
 1. Start an App Server with a scratch Codex home, so the run never touches the owner's `~/.codex`:
 
@@ -110,8 +110,9 @@ message's `userMessage` item had already completed.
 
 The `userMessage` item therefore shows that a message is recorded in the thread's history, not that
 the model read it. The first model item in the same turn that starts after it (`reasoning`,
-`agentMessage`, or a tool call) shows that the model consumed it, because the model only produces an
-item after a request that includes the recorded input.
+`agentMessage`, or a tool call) is the best sign of consumption the protocol gives. That sign is not
+proof: a response already streaming when the input arrives can start an item first, and no event
+marks which model request read an input. The sign only matters for an interrupted turn.
 
 ### Final replies
 
@@ -141,18 +142,17 @@ arrived before the final reply in every run. Three limits apply:
 ### Reconnect and duplicates
 
 The App Server does not deduplicate a retried message. Two `turn/start` requests with one
-`clientUserMessageId` produced two `userMessage` items in one turn. The bridge therefore never
-resends a message on its own memory: after a reconnect or a restart, it lists the thread's recent
-turns with full items, settles each open message from the turn whose `userMessage` item holds its
-id, and requeues only a message no turn holds. Two runs exercised this:
+`clientUserMessageId` produced two `userMessage` items in one turn. After a reconnect or a restart,
+the bridge therefore lists the thread's turns with full items, settles each open message from the
+turn whose `userMessage` item holds its id, and requeues only a message no turn holds:
 
-- The bridge was killed after it steered a message and before the turn ended. On restart, it found
-  the message in the completed turn and recorded the final reply as its answer, with no resend.
+- The bridge was killed after it sent a message and before the turn ended. On restart, it found the
+  message in the completed turn and recorded the final reply as its answer, with no resend.
 - A message was queued in the bridge's state but never sent. On restart, no turn held it, so the
   bridge sent it, and it was answered once.
 
 `thread/resume` on a loaded thread adds the connection as a subscriber and returns the thread's
-status. Events from the disconnected period are not replayed, which the turn listing covers.
+status. The App Server does not replay events from the disconnected period.
 
 ### Resume, compaction and restart
 
@@ -195,7 +195,8 @@ every message's id and outcome.
   appeared. Approvals conflict only when the bridge answers them, so the bridge leaves them to the
   terminal.
 - **Consumed against accepted:** the `userMessage` item with the message's `clientId` shows the
-  message is recorded. The first model item after it in the same turn shows the model consumed it.
+  message is recorded. The first model item after it in the same turn is the best available sign
+  that the model consumed it, and no event proves it.
 - **Pending messages across interruption, failure and reconnect:** keep each message's state in the
   daemon store, keyed by the atc message id, which the bridge sends as `clientUserMessageId`. After
   any reconnect, settle open messages from the thread's stored turns before sending anything,
@@ -232,8 +233,7 @@ submissions, because `turn/start` with stored-turn recovery covered every case t
    `codex app-server --listen unix://<session-dir>/codex.sock` with the session's environment, then
    starts the terminal as `codex --remote unix://<session-dir>/codex.sock` in the session's PTY, in
    place of the `--no-daemon` server the adapter starts. Bun's WebSocket client reaches that socket
-   as `ws+unix://<path>`, and Codex links the path to a socket under `/tmp/codex-daemon-<uid>/` that
-   it removes when the server stops.
+   as `ws+unix://<path>`.
 2. Thread binding: the daemon's bridge connects, calls `thread/start` with the `atc` dynamic tools
    and the bridge instructions, writes the rollout with one `thread/inject_items` request, and
    stores the session-to-thread binding before the terminal starts with `codex resume <thread-id>`.
