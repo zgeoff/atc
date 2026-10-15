@@ -211,3 +211,44 @@ test('it starts the terminal against the session App Server on the bridge thread
 
   expect(screen).toInclude('resume thread-1 --remote unix://');
 });
+
+test('it leaves each message the App Server refuses unanswered and goes on to the next', async () => {
+  const ctx = await setupTest();
+
+  writeFileSync(
+    join(ctx.stubDir, 'app-server-scenario.json'),
+    JSON.stringify({ rejectTurnStarts: true }),
+  );
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.dir,
+    agent: 'codex',
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getString(getRecord(spawned, 'session'), 'id');
+
+  const first = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'check the build',
+  });
+
+  const second = await ctx.daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'and the lint',
+  });
+
+  const read = await waitFor(async () => {
+    const got = await ctx.daemon.client.sendRequest('message.get', { message: second['message'] });
+
+    expect(got['status']).toBe('unanswered');
+
+    return got;
+  });
+
+  const earlier = await ctx.daemon.client.sendRequest('message.get', { message: first['message'] });
+
+  expect(read['unansweredReason']).toBe('error');
+  expect(earlier['status']).toBe('unanswered');
+});

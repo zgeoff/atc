@@ -11,8 +11,8 @@ type StubMessageStatus = 'queued' | 'delivered' | 'answered' | 'unanswered';
  * A stand-in for the daemon's side of a message bridge, holding one
  * session's messages in memory with the daemon's statuses. Like the
  * daemon, it hands an attached tap the oldest queued message it has not
- * handed that tap, one at a time, the next after the ack before it; an
- * answer or unanswered note settles only a queued or delivered message;
+ * handed that tap, one at a time, the next after the ack or note before
+ * it; an answer or unanswered note settles only a queued or delivered message;
  * and a note payload it cannot read is refused. `queueMessage` queues a
  * new message. `statuses` holds each message's status, `notes` each note
  * payload in order, `attaches` the count of taps attached, and `logs`
@@ -96,6 +96,8 @@ export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] 
       }
 
       notes.push(payload);
+
+      drain();
 
       return Promise.resolve(true);
     },

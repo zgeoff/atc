@@ -484,6 +484,22 @@ export class AppServerBridge {
 
       turnID = started.turn.id;
     } catch (error) {
+      // An error the server answered shows it refused the message, and a
+      // resend would meet the same refusal, so the message ends unanswered.
+      if (isRefusal(error)) {
+        this.config.host.log(
+          `codex app server: the App Server refused message ${message.id} (${error.message})`,
+        );
+
+        await this.config.host.applyNote({
+          kind: 'unanswered',
+          messages: [message.id],
+          reason: 'error',
+        });
+
+        return;
+      }
+
       this.config.host.log(
         `codex app server: message ${message.id} stayed queued (${String(error)})`,
       );
@@ -517,6 +533,18 @@ export class AppServerBridge {
         clientUserMessageId: `${NOTICE_PREFIX}${notice.id}`,
       });
     } catch (error) {
+      // A notice the server refused is taken all the same, so it holds up
+      // no later item of the inbox.
+      if (isRefusal(error)) {
+        this.config.host.log(
+          `codex app server: the App Server refused notice ${notice.id} (${error.message})`,
+        );
+
+        await this.config.host.ackNotice(notice.id);
+
+        return;
+      }
+
       this.config.host.log(
         `codex app server: notice ${notice.id} stayed queued (${String(error)})`,
       );
@@ -621,6 +649,10 @@ export class AppServerBridge {
     this.conn = null;
     this.ready = false;
 
+    // The next connection's recovery reads the stored turns, which hold
+    // everything these held, and a stale reply here would outrank them.
+    this.waitingNotifications.length = 0;
+
     this.config.host.detachTap(this.tap);
     conn?.dispose();
   }
@@ -657,4 +689,10 @@ export class AppServerBridge {
 
     await this.reconcileMessages();
   }
+}
+
+// Whether a request failed because the server answered it with an error,
+// as opposed to a connection that closed before an answer came.
+function isRefusal(error: unknown): error is AppServerError {
+  return error instanceof AppServerError && error.code !== -1;
 }

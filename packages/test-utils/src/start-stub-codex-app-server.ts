@@ -12,7 +12,8 @@ import { z } from 'zod';
  * `thread/resume`, with its notifications sent before the answer, as a turn
  * that ends while a client reconnects does. `failTurnsListFrom` answers
  * every `thread/turns/list` with an error on the connection of that number,
- * counted from one, and on every later one.
+ * counted from one, and on every later one. `rejectTurnStarts` answers
+ * every `turn/start` with an error and takes no message.
  */
 export const STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA = z.object({
   reply: z.string().optional(),
@@ -20,6 +21,7 @@ export const STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA = z.object({
   dropOnTurnStart: z.number().optional(),
   completeHeldTurnsOnResume: z.boolean().optional(),
   failTurnsListFrom: z.number().optional(),
+  rejectTurnStarts: z.boolean().optional(),
 });
 
 export type StubCodexAppServerScenario = Readonly<
@@ -251,6 +253,10 @@ export function startStubCodexAppServer(
           nextCursor: end < newestFirst.length ? String(end) : null,
         },
       };
+    }
+
+    if (method === 'turn/start' && scenario.rejectTurnStarts === true) {
+      return { error: { code: -32_602, message: 'input rejected' } };
     }
 
     if (method === 'turn/start') {

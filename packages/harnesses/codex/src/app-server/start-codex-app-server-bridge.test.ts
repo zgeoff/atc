@@ -167,3 +167,39 @@ test('it leaves alone a process whose pid the system gave out again', async () =
   expect(other.exitCode).toBeNull();
   expect(other.signalCode).toBeNull();
 });
+
+test('it kills a server that ignores the stop signal once the stop grace ends', async () => {
+  const ctx = setupTest();
+
+  // A server that never listens and ignores the stop signal, so the failed
+  // start must kill it outright.
+  const bin = createStubBin(
+    ctx.dir,
+    'stubborn-codex',
+    `#!/usr/bin/env bash\ntrap '' TERM\necho $$ > '${join(ctx.dir, 'pid')}'\nwhile :; do sleep 0.05; done\n`,
+  );
+
+  const started = startCodexAppServerBridge(
+    {
+      session: toSessionID('s-1'),
+      cwd: ctx.dir,
+      env: {},
+      withheldEnv: [],
+      options: { prompt: '', resume: false },
+      dir: ctx.bridgeDir,
+      host: buildStubMessageBridgeHost().host,
+    },
+    {
+      bin,
+      planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }),
+      listenTimeoutMs: 200,
+      stopGraceMs: 100,
+    },
+  );
+
+  await expect(started).rejects.toMatchObject({ code: -1 });
+
+  const pid = Number(readFileSync(join(ctx.dir, 'pid'), 'utf8').trim());
+
+  expect(() => process.kill(pid, 0)).toThrow();
+});

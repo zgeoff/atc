@@ -1361,6 +1361,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
         await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } });
 
+        // A message the bridge settled without an ack, as one the App
+        // Server refused, frees the tap for the next one.
+        void drainSessionInbox(sessionID);
+
         return true;
       },
       collectUnsettledMessages: async () => {
@@ -1401,7 +1405,15 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       host: buildMessageBridgeHost(launch.session),
     });
 
+    // A second launch of the session can start its bridge while this one
+    // started, so the bridge this one replaces stops here.
+    const replaced = messageBridges.get(launch.session);
+
     messageBridges.set(launch.session, bridge);
+
+    if (replaced !== undefined && replaced !== bridge) {
+      await replaced.stop();
+    }
 
     return bridge.plan;
   };

@@ -90,3 +90,16 @@ test('it counts attaches and records log lines', () => {
   expect(stub.attaches).toBe(1);
   expect(stub.logs).toStrictEqual(['one line']);
 });
+
+test('it hands the tap the next queued message once a note settles the one before', async () => {
+  const stub = buildStubMessageBridgeHost();
+  const takeMessage = mock<() => void>();
+
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'first' });
+  stub.queueMessage({ id: 'm-2', from: 'planner', text: 'second' });
+  stub.host.attachTap({ takeMessage, takeNotice: mock<() => void>(), close: mock<() => void>() });
+
+  await stub.host.applyNote({ kind: 'unanswered', messages: ['m-1'], reason: 'error' });
+
+  expect(takeMessage).toHaveBeenLastCalledWith({ id: 'm-2', from: 'planner', text: 'second' });
+});

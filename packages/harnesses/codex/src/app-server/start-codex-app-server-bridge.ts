@@ -10,17 +10,23 @@ import { AppServerError } from './app-server-error';
 /**
  * How a session's App Server starts: the Codex binary, the terminal plan
  * for the server's address and the thread, how long a new server gets to
- * listen, and the waits between reconnect attempts.
+ * listen, how long a stopping one gets to exit before it is killed, and the
+ * waits between reconnect attempts.
  */
 export interface CodexAppServerLaunch {
   readonly bin: string;
   readonly planTerminal: (remote: string, thread: string) => SpawnPlan;
   readonly listenTimeoutMs?: number;
+  readonly stopGraceMs?: number;
   readonly retryMs?: { readonly first: number; readonly max: number };
 }
 
 // How often a new server is tried while it comes up.
 const LISTEN_POLL_MS = 50;
+
+// How long a stopping server gets to exit before it is killed, unless the
+// launch sets its own.
+const STOP_GRACE_MS = 5000;
 
 /**
  * Starts the session's own Codex App Server on a Unix socket in the
@@ -108,7 +114,18 @@ export async function startCodexAppServerBridge(
     if (running !== null) {
       running.kill();
 
-      await running.exited;
+      // A server that ignores the stop signal is killed outright, so a
+      // session's end and the daemon's stop never wait on it.
+      const exited = await Promise.race([
+        running.exited,
+        Bun.sleep(launch.stopGraceMs ?? STOP_GRACE_MS),
+      ]);
+
+      if (exited === undefined) {
+        running.kill('SIGKILL');
+
+        await running.exited;
+      }
     }
 
     rmSync(socket, { force: true });

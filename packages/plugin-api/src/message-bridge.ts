@@ -27,7 +27,8 @@ export interface BridgedNotice {
 
 /**
  * Where the daemon hands a bridge its session's inbox. The daemon hands one
- * item at a time, and the next only after the bridge acks the one before.
+ * item at a time, and the next only after the bridge acks or settles the one
+ * before.
  * `close` runs when the daemon takes the tap away, as when the session is
  * removed.
  */

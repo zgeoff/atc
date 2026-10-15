@@ -428,3 +428,41 @@ test('it closes a connection that opens after the bridge stopped, and uses it fo
 
   expect(server.requests).toStrictEqual([]);
 });
+
+test('it leaves a message the App Server refuses unanswered and keeps the connection', async () => {
+  const ctx = setupTest();
+  const server = startStubCodexAppServer(ctx.socket, { rejectTurnStarts: true });
+  const stub = buildStubMessageBridgeHost();
+
+  onTestFinished(() => server.stop());
+
+  const bridge = new AppServerBridge({
+    session: 's-1',
+    cwd: '/work/repo',
+    host: stub.host,
+    openConnection: ctx.openConnection,
+    resumeThread: null,
+    retryMs: { first: 10, max: 20 },
+  });
+
+  onTestFinished(() => {
+    bridge.stop();
+  });
+
+  await bridge.open();
+
+  bridge.startDelivery();
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'check the build' });
+  stub.queueMessage({ id: 'm-2', from: 'planner', text: 'and the lint' });
+
+  await waitFor(() => expect(stub.statuses.get('m-2')).toBe('unanswered'));
+
+  expect(stub.statuses.get('m-1')).toBe('unanswered');
+
+  expect(stub.notes).toStrictEqual([
+    { kind: 'unanswered', messages: ['m-1'], reason: 'error' },
+    { kind: 'unanswered', messages: ['m-2'], reason: 'error' },
+  ]);
+
+  expect(server.requests.filter((r) => r.method === 'initialize')).toHaveLength(1);
+});
