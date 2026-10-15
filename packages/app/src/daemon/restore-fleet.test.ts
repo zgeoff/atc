@@ -6,7 +6,7 @@ import { ImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { buildStubHeldProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { buildTargetIdentity, StateStore } from '@atc/store';
+import { StateStore, buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry, createMigratedStateDB } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
