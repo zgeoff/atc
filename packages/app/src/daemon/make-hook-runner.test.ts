@@ -2,28 +2,27 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EventMsg } from '@atc/protocol/wire';
-import { buildStubTimeoutScheduler, setupTempDir } from '@atc/test-utils';
+import { buildStubClock, setupTempDir } from '@atc/test-utils';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookOutcome } from './make-hook-runner';
 
 // A temp directory for the hooks to write into, the outcomes of the hooks a
 // runner call started, which resolve once every one of them has ended, and
-// a scheduler that holds the kills the runner armed until the test runs
-// one in place of the timer.
+// a clock that holds the kills the runner armed until the test advances it.
 function setupTest() {
   const tmp = setupTempDir('atc-hook-runner-');
   const settled = Promise.withResolvers<readonly HookOutcome[]>();
-  const scheduler = buildStubTimeoutScheduler();
+  const clock = buildStubClock(0);
 
   return {
     dir: tmp.dir,
     settled: settled.promise,
-    scheduler,
+    clock,
     options: {
       onSettled: (_event: EventMsg, outcomes: readonly HookOutcome[]) => {
         settled.resolve(outcomes);
       },
-      scheduleKill: scheduler.schedule,
+      clock,
     },
   };
 }
@@ -143,11 +142,11 @@ test('it kills a hook that runs past its timeout', async () => {
 
   run({ v: 4, ev: 'SessionAttached' }, null);
 
-  ctx.scheduler.runTimer(500);
+  ctx.clock.advance(500);
 
   const outcomes = await ctx.settled;
 
-  expect(ctx.scheduler.collectDelays()).toStrictEqual([500]);
+  expect(ctx.clock.collectDelays()).toStrictEqual([500]);
   expect(outcomes).toStrictEqual([{ command, exitCode: null, signalCode: 'SIGTERM' }]);
 });
 
@@ -159,5 +158,5 @@ test('it arms the default timeout for a hook that sets none', async () => {
 
   await ctx.settled;
 
-  expect(ctx.scheduler.collectDelays()).toStrictEqual([10_000]);
+  expect(ctx.clock.collectDelays()).toStrictEqual([10_000]);
 });

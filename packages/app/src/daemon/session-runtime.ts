@@ -34,9 +34,11 @@ export class SessionRuntime {
 
   readonly input = new SessionInputQueue();
 
-  resizeTimer: ReturnType<typeof setTimeout> | undefined;
+  // Cancel the pending debounced resize and screen detection, each
+  // undefined while none waits.
+  cancelResize: (() => void) | undefined;
 
-  detectTimer: ReturnType<typeof setTimeout> | undefined;
+  cancelDetect: (() => void) | undefined;
 
   headlessRun: HeadlessRunHandle | null = null;
 
@@ -83,11 +85,10 @@ export class SessionRuntime {
   }
 
   dispose(): void {
-    clearTimeout(this.resizeTimer);
-    clearTimeout(this.detectTimer);
-
-    this.resizeTimer = undefined;
-    this.detectTimer = undefined;
+    this.cancelResize?.();
+    this.cancelDetect?.();
+    this.cancelResize = undefined;
+    this.cancelDetect = undefined;
     this.screen?.stop();
     this.screen = null;
 

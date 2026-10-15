@@ -1,4 +1,6 @@
 import type { HookEntry, HooksConfig } from '@atc/config';
+import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
 
 /**
@@ -31,11 +33,11 @@ interface HookRunnerOptions {
   readonly onSettled?: (event: EventMsg, outcomes: readonly HookOutcome[]) => void;
 
   /**
-   * Arms the kill of a run that outlives its timeout and returns the
-   * function that disarms it; a timer that never keeps the process alive
-   * when unset.
+   * The clock that arms the kill of a run that outlives its timeout; the
+   * wall clock when unset. The armed kill keeps the process alive no longer
+   * than the hook's own process does, since a run disarms it once it exits.
    */
-  readonly scheduleKill?: (kill: () => void, timeoutMs: number) => () => void;
+  readonly clock?: Clock;
 }
 
 /**
@@ -48,7 +50,7 @@ interface HookRunnerOptions {
  */
 export function makeHookRunner(hooks: HooksConfig, options: HookRunnerOptions = {}): RunHooks {
   const onSettled = options.onSettled ?? (() => {});
-  const scheduleKill = options.scheduleKill ?? scheduleUnrefKill;
+  const clock = options.clock ?? systemClock;
 
   return (event, scope) => {
     const matched = (hooks[event.ev] ?? []).filter(
@@ -61,19 +63,7 @@ export function makeHookRunner(hooks: HooksConfig, options: HookRunnerOptions = 
       return;
     }
 
-    void runHooks(matched, event, scheduleKill, onSettled);
-  };
-}
-
-// Unref'd so an in-flight hook never keeps the daemon process alive; a hook
-// orphaned by daemon exit is on its own.
-function scheduleUnrefKill(kill: () => void, timeoutMs: number): () => void {
-  const timer = setTimeout(kill, timeoutMs);
-
-  timer.unref();
-
-  return () => {
-    clearTimeout(timer);
+    void runHooks(matched, event, clock, onSettled);
   };
 }
 
@@ -96,21 +86,17 @@ function isUnderDir(candidate: string, dir: string): boolean {
 async function runHooks(
   entries: readonly HookEntry[],
   event: EventMsg,
-  scheduleKill: (kill: () => void, timeoutMs: number) => () => void,
+  clock: Clock,
   onSettled: (event: EventMsg, outcomes: readonly HookOutcome[]) => void,
 ): Promise<void> {
-  const outcomes = await Promise.all(entries.map((entry) => runHook(entry, event, scheduleKill)));
+  const outcomes = await Promise.all(entries.map((entry) => runHook(entry, event, clock)));
 
   onSettled(event, outcomes);
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-async function runHook(
-  entry: HookEntry,
-  event: EventMsg,
-  scheduleKill: (kill: () => void, timeoutMs: number) => () => void,
-): Promise<HookOutcome> {
+async function runHook(entry: HookEntry, event: EventMsg, clock: Clock): Promise<HookOutcome> {
   let proc: ReturnType<typeof Bun.spawn>;
 
   try {
@@ -126,7 +112,7 @@ async function runHook(
     return { command: entry.command, exitCode: null, signalCode: null };
   }
 
-  const disarm = scheduleKill(() => {
+  const disarm = clock.schedule(() => {
     proc.kill();
   }, entry.timeout ?? DEFAULT_TIMEOUT_MS);
 

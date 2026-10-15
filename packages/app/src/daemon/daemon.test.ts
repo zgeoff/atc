@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
@@ -893,6 +893,31 @@ test('it answers events.read with no events once waitMs passes without one', asy
   const answer = await read;
 
   expect(answer).toStrictEqual({ events: [], cursor: expect.any(String), more: false });
+});
+
+test('it stops only once the quit delay has passed after it answers daemon.quit', async () => {
+  const clock = buildStubClock(0);
+  const onQuit = mock(() => {});
+
+  const ctx = await startTestDaemon({
+    prefix: 'atc-daemon-',
+    options: () => ({ adapter: buildMockAgentAdapter(), clock, onQuit }),
+  });
+
+  const answer = await ctx.client.sendRequest('daemon.quit');
+
+  const pending = clock.collectPending();
+  const quitsBeforeDelay = onQuit.mock.calls.length;
+
+  clock.advance(80);
+
+  await waitFor(() => {
+    expect(onQuit).toHaveBeenCalledOnce();
+  });
+
+  expect(answer).toStrictEqual({});
+  expect(pending).toStrictEqual([80]);
+  expect(quitsBeforeDelay).toBe(0);
 });
 
 test('it answers daemon.hello with the same daemon id after a restart', async () => {

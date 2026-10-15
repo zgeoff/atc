@@ -1,3 +1,4 @@
+import { systemClock } from '@atc/core';
 import type { SessionID } from '@atc/core';
 import type { SessionRuntime } from './session-runtime';
 
@@ -14,7 +15,7 @@ interface EjectHandoffParams {
   readonly runtime: SessionRuntime;
   readonly startHeadlessTurn: (sessionID: SessionID, prompt: string) => boolean;
 
-  // Starts the settle timer; defaults to a real `setTimeout`.
+  // Starts the settle timer; the wall clock's timers when unset.
   readonly scheduleSettle?: SettleScheduler | undefined;
 }
 
@@ -26,7 +27,7 @@ interface EjectHandoffParams {
  */
 export function runEjectHandoff(params: EjectHandoffParams): void {
   const settled = Promise.withResolvers<void>();
-  const scheduleSettle = params.scheduleSettle ?? scheduleRealSettle;
+  const scheduleSettle = params.scheduleSettle ?? systemClock.schedule;
   const cancelSettle = scheduleSettle(settled.resolve, params.settleMs);
 
   params.runtime.pendingEject = settled.resolve;
@@ -40,12 +41,4 @@ export function runEjectHandoff(params: EjectHandoffParams): void {
 
     params.startHeadlessTurn(params.sessionID, params.prompt);
   })();
-}
-
-function scheduleRealSettle(onTimeout: () => void, ms: number): () => void {
-  const timer = setTimeout(onTimeout, ms);
-
-  return () => {
-    clearTimeout(timer);
-  };
 }
