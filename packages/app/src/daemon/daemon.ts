@@ -491,43 +491,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const configRevision = buildConfigRevision(targets, defaultTarget, targetErrors);
 
-  const mgr = new SessionManager(
-    opts.adapter,
-    store,
-    opts.statusPath,
-    opts.adapters ?? [],
-    targets,
-    targetErrors,
-  );
-
-  mgr.clock = clock;
-
-  if (opts.log !== undefined) {
-    mgr.log = opts.log;
-  }
-
-  if (opts.failedSpawnExitWaitMs !== undefined) {
-    mgr.failedSpawnExitWaitMs = opts.failedSpawnExitWaitMs;
-  }
-
-  const records = new PublishedRecords({
-    store,
-    daemonID: store.daemonID,
-    localDir: join(stateDir, 'records'),
-    ghBin: opts.ghBin ?? 'gh',
-    now: () => clock.now(),
-  });
-
-  mgr.records = records;
-
-  const authBinder = new RuntimeAuthBinder(store, () => clock.now());
-
-  mgr.authBinder = authBinder;
-
-  // Settled in the background, since it reaches impd: each binding a
-  // stopped daemon left mid-change stays blocked until it is settled.
-  void tryReconcileAuthBindings(authBinder, store, targetsByID, mgr.log);
-
   const clients = new Set<DaemonConnection>();
 
   const runHooks = makeHookRunner(opts.hooks ?? {}, { clock });
@@ -586,7 +549,29 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return s === undefined ? null : { cwd: s.cwd, repoRoot: s.repoRoot };
   };
 
-  const registry = new PermissionRegistry(undefined, clock);
+  const registry = new PermissionRegistry(
+    {
+      onRequested: (req) => {
+        emitEvent(
+          {
+            v: PROTOCOL_V,
+            ev: 'PermissionRequested',
+            request: req.id,
+            s: req.sessionID,
+            message: req.message,
+            respondable: req.respondable,
+          },
+          findHookScope(req.sessionID),
+        );
+      },
+      onResolved: (id, decision) => {
+        emitEvent({ v: PROTOCOL_V, ev: 'PermissionResolved', request: id, decision });
+      },
+    },
+    undefined,
+    clock,
+  );
+
   const eventSignal = new EventSignal(clock);
 
   // A trail write that fails never fails the message request or note behind it.
@@ -682,24 +667,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       record,
       answeredWith: await store.collectTurnSiblings(record),
     };
-  };
-
-  registry.onRequested = (req) => {
-    emitEvent(
-      {
-        v: PROTOCOL_V,
-        ev: 'PermissionRequested',
-        request: req.id,
-        s: req.sessionID,
-        message: req.message,
-        respondable: req.respondable,
-      },
-      findHookScope(req.sessionID),
-    );
-  };
-
-  registry.onResolved = (id, decision) => {
-    emitEvent({ v: PROTOCOL_V, ev: 'PermissionResolved', request: id, decision });
   };
 
   // One runtime per live session: its screen model, output sequence
@@ -1025,7 +992,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A spawned terminal starts on a fresh screen; a revived one keeps the
   // screen its session already had.
-  mgr.onBoot = (s, cols, rows) => {
+  const onBoot: SessionManager['onBoot'] = (s, cols, rows) => {
     endedProcesses.delete(s.id);
 
     const runtime = runtimes.get(s.id);
@@ -1042,7 +1009,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     messageBridges.get(s.id)?.startDelivery();
   };
 
-  mgr.onOutput = (s, data) => {
+  const onOutput: SessionManager['onOutput'] = (s, data) => {
     const runtime = runtimes.get(s.id);
 
     // The screen model consumes every byte continuously — background output
@@ -1154,13 +1121,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  mgr.onProcessEnded = (s) => {
+  const onProcessEnded: SessionManager['onProcessEnded'] = (s) => {
     endedProcesses.add(s.id);
     void stopMessageBridge(s.id);
     void updateEndedSessionMessages(s);
   };
 
-  mgr.onEvent = (kind, s) => {
+  const onEvent: SessionManager['onEvent'] = (kind, s) => {
     recordAttention(kind, s);
 
     if (kind === 'removed') {
@@ -1312,7 +1279,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // A remote harness reports through a socket that serves it alone, so a
   // line that names any other session is dropped.
-  mgr.onRelay = (binding, relay) => {
+  const onRelay: SessionManager['onRelay'] = (binding, relay) => {
     startSessionBridge(relay, binding, {
       findSession: (sessionID) => mgr.sessions.find((x) => x.id === sessionID),
       applyHookEvent,
@@ -1439,7 +1406,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     };
   };
 
-  mgr.startMessageBridge = async (launch) => {
+  const startMessageBridge: SessionManager['startMessageBridge'] = async (launch) => {
     if (launch.adapter.startMessageBridge === undefined) {
       return null;
     }
@@ -1469,7 +1436,53 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     return bridge.plan;
   };
 
-  mgr.stopMessageBridge = stopMessageBridge;
+  // The manager takes every callback above when it is built, so no session
+  // event arrives before its handler exists.
+  const mgr = new SessionManager(
+    opts.adapter,
+    store,
+    opts.statusPath,
+    opts.adapters ?? [],
+    targets,
+    targetErrors,
+    {
+      onBoot,
+      onOutput,
+      onProcessEnded,
+      onEvent,
+      onRelay,
+      startMessageBridge,
+      stopMessageBridge,
+    },
+  );
+
+  mgr.clock = clock;
+
+  if (opts.log !== undefined) {
+    mgr.log = opts.log;
+  }
+
+  if (opts.failedSpawnExitWaitMs !== undefined) {
+    mgr.failedSpawnExitWaitMs = opts.failedSpawnExitWaitMs;
+  }
+
+  const records = new PublishedRecords({
+    store,
+    daemonID: store.daemonID,
+    localDir: join(stateDir, 'records'),
+    ghBin: opts.ghBin ?? 'gh',
+    now: () => clock.now(),
+  });
+
+  mgr.records = records;
+
+  const authBinder = new RuntimeAuthBinder(store, () => clock.now());
+
+  mgr.authBinder = authBinder;
+
+  // Settled in the background, since it reaches impd: each binding a
+  // stopped daemon left mid-change stays blocked until it is settled.
+  void tryReconcileAuthBindings(authBinder, store, targetsByID, mgr.log);
 
   // A spawn with a workspace source materializes it once every refusal has
   // passed and its host is ready, and the session registers only once its

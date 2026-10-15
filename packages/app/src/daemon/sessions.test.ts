@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toAgentSessionID, toSessionID } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
@@ -13,6 +13,8 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import type { Session } from './session';
+import type { SessionEventKind } from './session-event-kind';
 import { SessionManager } from './sessions';
 
 // The fixed parts every session manager test shares: a real state store, a
@@ -763,4 +765,74 @@ test('it allows a second disposal', async () => {
   expect(() => {
     mgr[Symbol.dispose]();
   }).not.toThrow();
+});
+
+test('it gives the boot handler it was built with the first spawn on the harness start', async () => {
+  const ctx = await setupTest();
+
+  const onBoot = mock<(s: Session, cols: number, rows: number) => void>();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+    [],
+    { onBoot },
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  const s = await mgr.spawn(ctx.dir, 'lighthouse', '', 100, 30);
+
+  expect(onBoot).toHaveBeenCalledExactlyOnceWith(s, 100, 30);
+});
+
+test('it gives the event handler it was built with a session restored at daemon boot', async () => {
+  const ctx = await setupTest();
+
+  const onEvent = mock<(kind: SessionEventKind, s: Session) => void>();
+
+  const mgr = new SessionManager(
+    buildMockAgentAdapter(),
+    ctx.store,
+    ctx.statusPath,
+    [],
+    [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+    [],
+    { onEvent },
+  );
+
+  registerTestCleanup(() => {
+    mgr.detachAll();
+  });
+
+  const restored = mgr.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-harbor'),
+      name: 'harbor',
+      cwd: '/work/harbor',
+      agentSessionID: toAgentSessionID('c-harbor'),
+      agent: 'claude',
+    }),
+  );
+
+  expect(onEvent).toHaveBeenCalledExactlyOnceWith('added', restored);
 });

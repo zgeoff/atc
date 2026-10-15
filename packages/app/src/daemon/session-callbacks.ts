@@ -23,9 +23,10 @@ export interface MessageBridgeLaunch {
 
 /**
  * What the session modules call back into the daemon through: the events
- * a session raises, where a background failure is logged, and the
- * daemon-wide settings each module reads at the moment it acts, since the
- * daemon sets them after the modules are built.
+ * a session raises, which the daemon gives when the modules are built, where
+ * a background failure is logged, and the daemon-wide settings each module
+ * reads at the moment it acts, since the daemon sets them after the modules
+ * are built.
  */
 export interface SessionCallbacks {
   readonly onOutput: (s: Session, data: string) => void;

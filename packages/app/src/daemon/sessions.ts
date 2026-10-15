@@ -57,36 +57,55 @@ export type ResumeCommand =
   | { readonly refusal: 'unsupported'; readonly reason: string };
 
 /**
+ * The callbacks a manager takes when it is built. Each one left out does
+ * nothing, and a manager with no message bridge starts every session
+ * without one.
+ */
+type SessionManagerEvents = Partial<
+  Pick<
+    SessionCallbacks,
+    | 'onOutput'
+    | 'onChange'
+    | 'onBoot'
+    | 'onRelay'
+    | 'onEvent'
+    | 'onProcessEnded'
+    | 'startMessageBridge'
+    | 'stopMessageBridge'
+  >
+>;
+
+/**
  * The daemon's sessions, and every operation on them: it wires the session
- * modules together over one registry and one set of callbacks, and the
- * daemon sets its callbacks and settings after it is built.
+ * modules together over one registry and one set of callbacks. It takes its
+ * callbacks when it is built, so no session event arrives before its
+ * handler exists, and the daemon sets its settings after it is built.
  */
 export class SessionManager {
-  onOutput: (s: Session, data: string) => void = () => {};
+  readonly onOutput: (s: Session, data: string) => void;
 
-  onChange: () => void = () => {};
+  readonly onChange: () => void;
 
   // Called as a harness starts, before its first output can arrive, with
   // the terminal size it starts at.
-  onBoot: (s: Session, cols: number, rows: number) => void = () => {};
+  readonly onBoot: (s: Session, cols: number, rows: number) => void;
 
   // Takes each connection a harness's processes open through a provider's
   // own relay, with the binding of the harness start that opened it.
-  onRelay: (binding: BridgeBinding, relay: HarnessRelay) => void = () => {};
+  readonly onRelay: (binding: BridgeBinding, relay: HarnessRelay) => void;
 
-  onEvent: (kind: SessionEventKind, s: Session) => void = () => {};
+  readonly onEvent: (kind: SessionEventKind, s: Session) => void;
 
   // Called when a session's process is known to have ended: it exited or
   // it was killed. A host that lost the connection or went to sleep may
   // still run the process, so neither calls it.
-  onProcessEnded: (s: Session) => void = () => {};
+  readonly onProcessEnded: (s: Session) => void;
 
   // Starts the bridge that takes a local session's messages, when its agent
-  // has one; with none set, every session starts without one.
-  startMessageBridge: (launch: MessageBridgeLaunch) => Promise<SpawnPlan | null> = () =>
-    Promise.resolve(null);
+  // has one; with none given, every session starts without one.
+  readonly startMessageBridge: (launch: MessageBridgeLaunch) => Promise<SpawnPlan | null>;
 
-  stopMessageBridge: (session: SessionID) => Promise<void> = () => Promise.resolve();
+  readonly stopMessageBridge: (session: SessionID) => Promise<void>;
 
   // Where a background failure is reported, one line at a time: stderr,
   // like the daemon's other background failures.
@@ -143,30 +162,28 @@ export class SessionManager {
       },
     ],
     targetErrors: readonly TargetConfigError[] = [],
+    events: SessionManagerEvents = {},
   ) {
-    // Each module reads the daemon's callbacks and settings at the moment
-    // it acts, since the daemon sets them after the manager is built.
+    this.onOutput = events.onOutput ?? (() => {});
+    this.onChange = events.onChange ?? (() => {});
+    this.onBoot = events.onBoot ?? (() => {});
+    this.onRelay = events.onRelay ?? (() => {});
+    this.onEvent = events.onEvent ?? (() => {});
+    this.onProcessEnded = events.onProcessEnded ?? (() => {});
+    this.startMessageBridge = events.startMessageBridge ?? (() => Promise.resolve(null));
+    this.stopMessageBridge = events.stopMessageBridge ?? (() => Promise.resolve());
+
+    // Each module reads the daemon's settings at the moment it acts, since
+    // the daemon sets them after the manager is built.
     const callbacks: SessionCallbacks = {
-      onOutput: (s, data) => {
-        this.onOutput(s, data);
-      },
-      onChange: () => {
-        this.onChange();
-      },
-      onBoot: (s, cols, rows) => {
-        this.onBoot(s, cols, rows);
-      },
-      onRelay: (binding, relay) => {
-        this.onRelay(binding, relay);
-      },
-      onEvent: (kind, s) => {
-        this.onEvent(kind, s);
-      },
-      onProcessEnded: (s) => {
-        this.onProcessEnded(s);
-      },
-      startMessageBridge: (launch) => this.startMessageBridge(launch),
-      stopMessageBridge: (session) => this.stopMessageBridge(session),
+      onOutput: this.onOutput,
+      onChange: this.onChange,
+      onBoot: this.onBoot,
+      onRelay: this.onRelay,
+      onEvent: this.onEvent,
+      onProcessEnded: this.onProcessEnded,
+      startMessageBridge: this.startMessageBridge,
+      stopMessageBridge: this.stopMessageBridge,
       log: (line) => {
         this.log(line);
       },

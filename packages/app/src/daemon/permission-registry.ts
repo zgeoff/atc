@@ -11,6 +11,15 @@ export interface PermissionRequest {
 
 export type AnswerResult = 'ok' | 'already_answered' | 'unsupported' | 'unknown';
 
+/**
+ * What a registry calls as its requests open and resolve, given when it is
+ * built so that no request opens before both exist.
+ */
+export interface PermissionCallbacks {
+  readonly onRequested: (req: PermissionRequest) => void;
+  readonly onResolved: (id: string, decision: string) => void;
+}
+
 interface PendingRequest {
   readonly req: PermissionRequest;
   readonly cancelTimeout: () => void;
@@ -24,9 +33,7 @@ interface PendingRequest {
  * dismissed. Resolution always reaches the callbacks exactly once.
  */
 export class PermissionRegistry {
-  onRequested: (req: PermissionRequest) => void = () => {};
-
-  onResolved: (id: string, decision: string) => void = () => {};
+  private readonly callbacks: PermissionCallbacks;
 
   private readonly timeoutMs: number;
 
@@ -43,7 +50,8 @@ export class PermissionRegistry {
   private counter = 0;
 
   // The clock that times each request's timeout.
-  constructor(timeoutMs = 60_000, clock: Clock = systemClock) {
+  constructor(callbacks: PermissionCallbacks, timeoutMs = 60_000, clock: Clock = systemClock) {
+    this.callbacks = callbacks;
     this.timeoutMs = timeoutMs;
     this.clock = clock;
   }
@@ -57,7 +65,7 @@ export class PermissionRegistry {
     }, this.timeoutMs);
 
     this.pending.set(id, { req, cancelTimeout });
-    this.onRequested(req);
+    this.callbacks.onRequested(req);
 
     return req;
   }
@@ -108,6 +116,6 @@ export class PermissionRegistry {
     entry.cancelTimeout();
     this.pending.delete(id);
     this.resolved.set(id, entry.req.sessionID);
-    this.onResolved(id, decision);
+    this.callbacks.onResolved(id, decision);
   }
 }
