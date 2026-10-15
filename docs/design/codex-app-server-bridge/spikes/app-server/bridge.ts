@@ -1,7 +1,7 @@
 // Spike prototype: an external atc bridge for one Codex thread on App Server.
 // Usage: bun bridge.ts <ws-url> <atc-session-id> <state-dir> [thread-id] [ctl-port]
 // Control over HTTP on 127.0.0.1:<ctl-port>: POST /send {id,from,text}, /drop, /reconnect, /rpc, GET /.
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 interface ThreadItem {
   type: string;
@@ -56,6 +56,8 @@ const [url, atcSessionID, stateDir, threadArg, portArg] = process.argv.slice(2);
 const statePath = `${stateDir}/bridge-state.json`;
 const logPath = `${stateDir}/events.jsonl`;
 
+mkdirSync(`${stateDir}/work`, { recursive: true });
+
 const state: { threadID?: string; atcSessionID: string; messages: Record<string, Pending> } =
   existsSync(statePath)
     ? JSON.parse(readFileSync(statePath, 'utf8'))
@@ -64,7 +66,10 @@ const state: { threadID?: string; atcSessionID: string; messages: Record<string,
 let ws: WebSocket;
 let nextRequestID = 1;
 
-const waiting = new Map<number | string, (msg: WireMessage) => void>();
+const waiting = new Map<
+  number | string,
+  { socket: WebSocket; resolve: (msg: WireMessage) => void }
+>();
 
 let activeTurnID: string | undefined;
 
@@ -159,7 +164,20 @@ Bun.serve({
 });
 
 async function openConnection() {
-  ws = new WebSocket(url);
+  const socket = new WebSocket(url);
+
+  ws = socket;
+
+  // A request in flight when its socket closes has an unknown outcome. It settles as an error, so
+  // no caller waits forever, and the next connect reconciles from stored turns before any resend.
+  socket.addEventListener('close', () => {
+    for (const [id, entry] of waiting) {
+      if (entry.socket === socket) {
+        waiting.delete(id);
+        entry.resolve({ id, error: { code: -1, message: 'connection closed' } });
+      }
+    }
+  });
 
   ws.addEventListener('message', (ev) => {
     const msg: WireMessage = JSON.parse(String(ev.data));
@@ -171,7 +189,7 @@ async function openConnection() {
     } else if (msg.method) {
       answerServerRequest(msg);
     } else {
-      waiting.get(msg.id)?.(msg);
+      waiting.get(msg.id)?.resolve(msg);
       waiting.delete(msg.id);
     }
   });
@@ -523,9 +541,13 @@ function sendRequest(method: string, params: unknown): Promise<WireMessage> {
 
   logEvent('out', msg as WireMessage);
 
+  if (ws.readyState !== WebSocket.OPEN) {
+    return Promise.resolve({ id, error: { code: -1, message: 'not connected' } });
+  }
+
   ws.send(JSON.stringify(msg));
 
   return new Promise((resolve) => {
-    waiting.set(id, resolve);
+    waiting.set(id, { socket: ws, resolve });
   });
 }
