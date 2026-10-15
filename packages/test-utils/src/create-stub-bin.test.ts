@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubBin } from './create-stub-bin';
+import { registerTestCleanup } from './register-test-cleanup';
 import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
@@ -49,6 +50,28 @@ test('it replaces an existing file and makes it executable', async () => {
   writeFileSync(path, 'stale');
   chmodSync(path, 0o644);
   createStubBin(ctx.dir, 'codex', '#!/bin/sh\necho fresh\n');
+
+  const run = await runCommand([path]);
+
+  expect(run.stdout).toBe('fresh\n');
+});
+
+test('it replaces a file that a running process executes', async () => {
+  const ctx = setupTest();
+  const path = join(ctx.dir, 'agent');
+
+  // A running binary holds its file against writes, as a session that a
+  // test daemon's earlier boot started holds its agent.
+  copyFileSync(Bun.which('sleep') ?? '/bin/sleep', path);
+  chmodSync(path, 0o755);
+
+  const running = Bun.spawn([path, '30']);
+
+  registerTestCleanup(() => {
+    running.kill();
+  });
+
+  createStubBin(ctx.dir, 'agent', '#!/bin/sh\necho fresh\n');
 
   const run = await runCommand([path]);
 

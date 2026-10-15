@@ -4212,7 +4212,24 @@ test('it shows a running harness on the host that its auth revision applies at t
 
   const childID = String(getRecord(child, 'session')['id']);
 
+  const childStart = ctx.port.sessionRequests.find(
+    (request) => request.kind === 'start' && request.env['ATC_SESSION_ID'] === childID,
+  );
+
+  invariant(childStart?.kind === 'start', 'the sub-session sent no start request');
+
+  const childSocket = childStart.env['ATC_SOCKET'];
+
+  invariant(childSocket !== undefined, 'the sub-session started without a hook socket');
+
   await daemon.client.sendRequest('session.kill', { session: childID });
+
+  // A kill answers before the harness's process ends, and a revive before
+  // that end would attach to the dying process. The hook socket goes once
+  // the end has run.
+  await waitFor(() => {
+    expect(existsSync(childSocket)).toBeFalse();
+  });
 
   judgeSelected = true;
 
@@ -4397,7 +4414,24 @@ test('it shows a harness restored after a daemon restart that its auth revision 
 
   const childID = String(getRecord(child, 'session')['id']);
 
+  const childStart = ctx.port.sessionRequests.find(
+    (request) => request.kind === 'start' && request.env['ATC_SESSION_ID'] === childID,
+  );
+
+  invariant(childStart?.kind === 'start', 'the sub-session sent no start request');
+
+  const childSocket = childStart.env['ATC_SOCKET'];
+
+  invariant(childSocket !== undefined, 'the sub-session started without a hook socket');
+
   await daemon.client.sendRequest('session.kill', { session: childID });
+
+  // A kill answers before the harness's process ends, and a revive before
+  // that end would attach to the dying process. The hook socket goes once
+  // the end has run.
+  await waitFor(() => {
+    expect(existsSync(childSocket)).toBeFalse();
+  });
 
   judgeSelected = true;
 
