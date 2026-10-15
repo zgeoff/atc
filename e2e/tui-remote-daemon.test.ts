@@ -68,7 +68,10 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
   await ctx.tui.waitFor('┌ sessions ');
   await ctx.tui.waitFor('on-the-box');
 
-  expect(ctx.tui.read()).toInclude(' atc@box ▏');
+  // The client draws the status bar on a 50 ms timer after it draws the
+  // list, so the list can show before the daemon's name does.
+  await ctx.tui.waitFor(' atc@box ▏');
+
   expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
 });
 
