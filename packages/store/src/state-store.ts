@@ -122,6 +122,23 @@ export interface StoredNote {
 }
 
 /**
+ * One message answer as the trail holds it. An answer recorded before the
+ * trail kept whole answers has only its preview, so its text is that
+ * preview and `complete` is false.
+ */
+export interface StoredAnswer {
+  readonly id: number;
+
+  // Epoch ms the message was answered.
+  readonly at: number;
+  readonly atcID: SessionID;
+  readonly agentSessionID: AgentSessionID | null;
+  readonly message: MessageID;
+  readonly text: string;
+  readonly complete: boolean;
+}
+
+/**
  * Daemon state in one SQLite store: the restorable fleet, the event trail
  * (hook events, message status changes, and notes) that events.read and
  * lastActivityAt read, the spawn-directory
@@ -512,6 +529,7 @@ export class StateStore {
         detail: entry.detail,
         note_id: entry.kind === 'note' ? (entry.noteID ?? null) : null,
         note_text: entry.kind === 'note' ? entry.text : null,
+        answer_text: entry.kind === 'message-answered' ? entry.text : null,
       })
       .onConflict((oc) => oc.column('note_id').doNothing())
       .executeTakeFirst();
@@ -560,6 +578,32 @@ export class StateStore {
       label: row.message ?? '',
       text: row.note_text ?? row.detail ?? '',
       complete: row.note_text !== null,
+    };
+  }
+
+  // A row that is not an answered message, or that lies outside the scope,
+  // misses as a row the trail never held does.
+  async findAnswer(id: number, scope: EventScope | null = null): Promise<StoredAnswer | null> {
+    const row = await this.db
+      .selectFrom('events')
+      .select(['id', 'ts', 'atc_id', 'session_id', 'message', 'detail', 'answer_text'])
+      .where('id', '=', id)
+      .where('kind', '=', 'message-answered')
+      .where((eb) => buildScopeMatch(eb, scope))
+      .executeTakeFirst();
+
+    if (row === undefined || row.message === null) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      at: Date.parse(row.ts),
+      atcID: toSessionID(row.atc_id),
+      agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
+      message: toMessageID(row.message),
+      text: row.answer_text ?? row.detail ?? '',
+      complete: row.answer_text !== null,
     };
   }
 

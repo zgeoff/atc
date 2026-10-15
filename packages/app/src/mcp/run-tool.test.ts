@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '@atc/core/is-record';
 import { toSessionID } from '@atc/core/to-session-id';
 import { DaemonClient } from '@atc/protocol/client/daemon-client';
 import { DAEMON_FEATURES } from '@atc/protocol/daemon-features';
@@ -10,8 +11,11 @@ import { buildMockAgentAdapter } from '@atc/test-utils/build-mock-agent-adapter'
 import { getRecord } from '@atc/test-utils/get-record';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/test-utils/setup-temp-dir';
+import { spawnNamedSession } from '@atc/test-utils/spawn-named-session';
 import { startStubLegacyDaemon } from '@atc/test-utils/start-stub-legacy-daemon';
+import { waitFor } from '@atc/test-utils/wait-for';
 import { $ } from 'bun';
+import invariant from 'tiny-invariant';
 import { buildPayloadHash } from '../daemon/build-payload-hash';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
@@ -106,7 +110,7 @@ test('it forwards an events session filter to the daemon', async () => {
     {
       m: 'events.read',
       p: { waitMs: 1000, session: 's1' },
-      required: ['vocabulary.note', 'events.session', 'note.get'],
+      required: ['vocabulary.note', 'events.session', 'note.get', 'answer.get'],
     },
   ]);
 });
@@ -134,7 +138,11 @@ test('it reads the whole text of each note of an events page by default', async 
   );
 
   expect(caller.requests).toStrictEqual([
-    { m: 'events.read', p: { cursor: 'c0' }, required: ['vocabulary.note', 'note.get'] },
+    {
+      m: 'events.read',
+      p: { cursor: 'c0' },
+      required: ['vocabulary.note', 'note.get', 'answer.get'],
+    },
     { m: 'note.get', p: { note: 'c1' }, required: ['note.get'] },
   ]);
 
@@ -246,6 +254,157 @@ test('it reads a note by the handle of its event before stripping it', async () 
     m: 'note.get',
     p: { note: 'h1' },
     required: ['note.get'],
+  });
+});
+
+test("it returns a message's whole answer on its answered event by default", async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const answer = 'The importer skips empty rows. '.repeat(40);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'does the importer skip empty rows?',
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer },
+  });
+
+  const read = await waitFor(async () => {
+    const tool = await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+
+    expect(JSON.stringify(tool.structured)).toInclude('message-answered');
+
+    return tool;
+  });
+
+  expect(read.structured?.['events']).toPartiallyContain({
+    kind: 'message-answered',
+    message: sent['message'],
+    detail: `${answer.slice(0, 599)}…`,
+    text: answer,
+    complete: true,
+  });
+});
+
+test('it returns the answer preview on an answered event when the call asks for previews only', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const answer = 'The importer skips empty rows. '.repeat(40);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'does the importer skip empty rows?',
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer },
+  });
+
+  const read = await waitFor(async () => {
+    const tool = await runTool(
+      caller,
+      'atc_events_read',
+      { previewOnly: true },
+      { callerSessionID: null },
+    );
+
+    expect(JSON.stringify(tool.structured)).toInclude('message-answered');
+
+    return tool;
+  });
+
+  const events = read.structured?.['events'];
+
+  invariant(Array.isArray(events), 'no events');
+
+  const answered: unknown = events.find(
+    (e: unknown) => isRecord(e) && e['kind'] === 'message-answered',
+  );
+
+  expect(answered).toStrictEqual({
+    cursor: expect.toBeString(),
+    at: expect.toBeNumber(),
+    session: id,
+    name: 'one',
+    kind: 'message-answered',
+    message: sent['message'],
+    detail: `${answer.slice(0, 599)}…`,
+  });
+});
+
+test('it reads an answer by the handle of its event and strips the handle', async () => {
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      request.m === 'events.read'
+        ? {
+            events: [
+              {
+                cursor: 'c1',
+                at: 1,
+                session: 's1',
+                name: null,
+                kind: 'message-answered',
+                message: 'm-1',
+                detail: 'yes',
+                answer: 'handle-1',
+              },
+            ],
+            cursor: 'c1',
+            more: false,
+          }
+        : { text: 'yes, every row', complete: true },
+  });
+
+  const read = await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+
+  expect(caller.requests.at(-1)).toStrictEqual({
+    m: 'answer.get',
+    p: { answer: 'handle-1' },
+    required: ['answer.get'],
+  });
+
+  expect(read.structured).toStrictEqual({
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        name: null,
+        kind: 'message-answered',
+        message: 'm-1',
+        detail: 'yes',
+        text: 'yes, every row',
+        complete: true,
+      },
+    ],
+    cursor: 'c1',
+    more: false,
   });
 });
 
@@ -900,6 +1059,44 @@ test('it refuses a choice without a menu token and sends nothing', () => {
 
   expect(chosen).rejects.toMatchObject({ code: 'bad_args' });
   expect(caller.requests).toStrictEqual([]);
+});
+
+test('it refuses a full events read unsent when the daemon predates answer reads', () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'answer.get'),
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const read = runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+
+  expect(read).rejects.toThrow(/^daemon_outdated: .*atc_events_read's full answers/);
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello']);
+});
+
+test('it reads previews from a daemon that predates answer reads', async () => {
+  const tmp = setupTempDir('atc-run-tool-');
+
+  const legacy = startStubLegacyDaemon(join(tmp.dir, 'daemon.sock'), {
+    features: DAEMON_FEATURES.filter((feature) => feature !== 'answer.get'),
+    replies: { 'events.read': { events: [], cursor: 'c1', more: false } },
+  });
+
+  const caller = new ReconnectingCaller(join(tmp.dir, 'daemon.sock'), 'atc/test-build', (path) =>
+    DaemonClient.open(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  await runTool(caller, 'atc_events_read', { previewOnly: true }, { callerSessionID: null });
+
+  expect(legacy.requests.map((req) => req.m)).toStrictEqual(['daemon.hello', 'events.read']);
 });
 
 test('it refuses a menu read unsent when the daemon predates menus', () => {

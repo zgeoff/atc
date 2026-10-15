@@ -2659,6 +2659,89 @@ test('it refuses the cursor of an event that is not a note as an unknown note', 
   });
 });
 
+test("it returns a message's whole answer by the cursor of its answered event", async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  const answer = 'The parser keeps tabs. '.repeat(40);
+
+  const sent = await daemon.client.sendRequest('session.message', {
+    session: id,
+    text: 'does the parser keep tabs?',
+  });
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'answered', message: sent['message'], answer },
+  });
+
+  const event = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('events.read', {});
+
+    invariant(Array.isArray(read['events']), 'no events');
+
+    const answered: unknown = read['events'].find(
+      (e: unknown) => isRecord(e) && e['kind'] === 'message-answered',
+    );
+
+    invariant(isRecord(answered), 'no answered event yet');
+
+    return answered;
+  });
+
+  const got = await daemon.client.sendRequest('answer.get', { answer: event['cursor'] });
+
+  expect(event['detail']).toBe(`${answer.slice(0, 599)}…`);
+
+  expect(got).toStrictEqual({
+    answer: event['cursor'],
+    at: event['at'],
+    session: id,
+    name: 'one',
+    message: sent['message'],
+    text: answer,
+    complete: true,
+  });
+});
+
+test('it refuses the cursor of an event that is not an answered message as an unknown answer', async () => {
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({ takesMessages: true }),
+    }),
+  });
+
+  const id = await spawnNamedSession((m, p) => daemon.client.sendRequest(m, p), 'one', daemon.dir);
+
+  await daemon.sendHookLines({
+    atcId: id,
+    event: 'Note',
+    payload: { kind: 'note', label: 'progress', text: 'halfway through the parser' },
+  });
+
+  // The note is the trail's only event.
+  const event = await waitFor(async () => {
+    const read = await daemon.client.sendRequest('events.read', {});
+
+    invariant(Array.isArray(read['events']) && isRecord(read['events'][0]), 'no event yet');
+
+    return read['events'][0];
+  });
+
+  expect(
+    daemon.client.sendRequest('answer.get', { answer: event['cursor'] }),
+  ).rejects.toMatchObject({
+    code: 'bad_args',
+    message: `no answer '${String(event['cursor'])}'`,
+  });
+});
+
 test('it leaves a note from an unknown session out of the trail', async () => {
   const daemon = await startTestDaemon({
     options: () => ({

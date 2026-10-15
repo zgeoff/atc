@@ -1773,7 +1773,7 @@ test('it lists the fleet tools', async () => {
               "openWorldHint": false,
               "readOnlyHint": true,
             },
-            "description": "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. To wait on one message, use atc_message_get; for a session's conversation itself, use atc_transcript_read. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered, message-unanswered, with the message id), answer notice events under the sending session (notice-queued, notice-delivered, with the message id) and notes (note, with its label and full text, cut at 64 KiB). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more never counts the older ones. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character note previews. atc deletes events older than 30 days, except the newest event of each session. A partial read says so: complete false or textError on a note, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
+            "description": "Read the fleet's event feed: the one call to catch up on session state changes, the notes sessions send, and the progress of messages you sent, oldest first. To wait on one message, use atc_message_get; for a session's conversation itself, use atc_transcript_read. It holds session events (started, prompt-submitted, needs-input, turn-done, ended), message events (message-queued, message-delivered, message-answered with the full answer, cut at 64 KiB, message-unanswered, each with the message id), answer notice events under the sending session (notice-queued, notice-delivered, with the message id) and notes (note, with its label and full text, cut at 64 KiB). Pass the returned cursor on the next call; more true means the page stopped early, so read again at once. Without a cursor it returns the latest events, and more never counts the older ones. waitMs holds the call until an event arrives, up to 30000; use it instead of polling. session limits the read to one session; previewOnly true returns 600-character previews of notes and answers instead. atc deletes events older than 30 days, except the newest event of each session. A partial read says so: complete false or textError on a note or an answer, and, under the gateway, unavailable, started or truncated, with their meanings in the output schema.",
             "inputSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
@@ -1789,7 +1789,7 @@ test('it lists the fleet tools', async () => {
                   "type": "integer",
                 },
                 "previewOnly": {
-                  "description": "true returns each note as its 600-character preview instead of its full text; defaults to false",
+                  "description": "true returns each note and each answer as its 600-character preview instead of its full text; defaults to false",
                   "type": "boolean",
                 },
                 "session": {
@@ -1820,7 +1820,7 @@ test('it lists the fleet tools', async () => {
                         "type": "number",
                       },
                       "complete": {
-                        "description": "false: atc kept only this note's preview, and text holds it. A note cut at 64 KiB reads true",
+                        "description": "false: atc kept only the preview of this note or answer, and text holds it. A text cut at 64 KiB reads true",
                         "type": "boolean",
                       },
                       "cursor": {
@@ -1828,7 +1828,7 @@ test('it lists the fleet tools', async () => {
                         "type": "string",
                       },
                       "detail": {
-                        "description": "the event's detail, at most 600 characters; for a note, its preview; null when the event has none",
+                        "description": "the event's detail, at most 600 characters; for a note or a message-answered event, the preview of its text or answer; null when the event has none",
                         "type": [
                           "string",
                           "null",
@@ -1858,11 +1858,11 @@ test('it lists the fleet tools', async () => {
                         "type": "string",
                       },
                       "text": {
-                        "description": "on a note, the text atc stored, cut at 64 KiB; absent with previewOnly or textError",
+                        "description": "on a note, the text atc stored; on a message-answered event, the answer atc stored; each cut at 64 KiB; absent with previewOnly or textError",
                         "type": "string",
                       },
                       "textError": {
-                        "description": "the note's text did not load: its read failed, or the 10 seconds every note read on the page shares ran out; detail holds the preview",
+                        "description": "the text of the note or answer did not load: its read failed, or the 10 seconds every text read on the page shares ran out; detail holds the preview",
                         "type": "string",
                       },
                     },

@@ -129,6 +129,7 @@ src/daemon/attach-registry.ts	daemon	sessions	packages/daemon/src/sessions/attac
 src/daemon/broker-auth-host.ts	plugin-api		packages/plugin-api/src/credential-broker.ts	rewritten as the CredentialBroker capability in atc types (decision taken 1)
 src/daemon/broker-authority-error.ts	daemon	auth	packages/daemon/src/auth/broker-authority-error.ts	
 src/daemon/build-agent-list.ts	daemon	sessions	packages/daemon/src/sessions/build-agent-list.ts	
+src/daemon/build-answer-view.ts	daemon	sessions	packages/daemon/src/sessions/build-answer-view.ts	
 src/daemon/build-auth-binding.ts	daemon	auth	packages/daemon/src/auth/build-auth-binding.ts	
 src/daemon/build-config-revision.ts	daemon	fleet	packages/daemon/src/fleet/build-config-revision.ts	
 src/daemon/build-default-workspace-dir.ts	daemon	workspace	packages/daemon/src/workspace/build-default-workspace-dir.ts	
@@ -309,7 +310,7 @@ src/mcp/parse-idempotency-key.ts	mcp	tools	packages/mcp/src/tools/parse-idempote
 src/mcp/passkey-script.ts	mcp	auth	packages/mcp/src/auth/passkey-script.ts	
 src/mcp/pick-error-message.ts	mcp	tools	packages/mcp/src/tools/pick-error-message.ts	
 src/mcp/pick-protocol-version.ts	mcp	tools	packages/mcp/src/tools/pick-protocol-version.ts	
-src/mcp/read-note-texts.ts	mcp	tools	packages/mcp/src/tools/read-note-texts.ts	
+src/mcp/read-event-texts.ts	mcp	tools	packages/mcp/src/tools/read-event-texts.ts	
 src/mcp/reconnecting-caller.ts	mcp	tools	packages/mcp/src/tools/reconnecting-caller.ts	
 src/mcp/remove-client.ts	mcp	auth	packages/mcp/src/auth/remove-client.ts	
 src/mcp/remove-passkey.ts	mcp	auth	packages/mcp/src/auth/remove-passkey.ts	
@@ -341,6 +342,7 @@ src/parse-worker-pid.ts	lifecycle		packages/lifecycle/src/parse-worker-pid.ts
 src/passkeys.ts	mcp	entry	packages/mcp/src/entry/passkeys.ts	
 src/protocol/adapter-event.ts	protocol		packages/protocol/src/adapter-event.ts	
 src/protocol/agent-list.ts	protocol		packages/protocol/src/agent-list.ts	new in ticket 4
+src/protocol/answer-view.ts	protocol		packages/protocol/src/answer-view.ts	
 src/protocol/build-session-env.ts	protocol		packages/protocol/src/build-session-env.ts	new in ticket 4
 src/protocol/control-character.ts	protocol		packages/protocol/src/control-character.ts	
 src/protocol/count-session-states.ts	protocol		packages/protocol/src/count-session-states.ts	

@@ -110,8 +110,9 @@ read that waits returns as soon as the status becomes answered or unanswered.
 A caller reads a message's status, answer and turn by its id, and can hold the read open until the
 status moves. Message ids and statuses live in `atc.db`, so a caller whose wait ended, or whose
 connection dropped, reads again with the same id. A caller with no inbox, such as an MCP client
-outside atc or a remote connector, learns the outcome this way only. A sending session gets it
-pushed as well, as [delivering answers](#delivering-answers) describes.
+outside atc or a remote connector, learns the outcome this way, or from the event trail, which keeps
+each whole answer on the message's answered event ([events](./events.md#the-event-trail)). A sending
+session gets it pushed as well, as [delivering answers](#delivering-answers) describes.
 
 ### The end of a process
 

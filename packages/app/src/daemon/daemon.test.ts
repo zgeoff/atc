@@ -76,6 +76,7 @@ test('it answers daemon.hello with the build, limits, and features', async () =>
       'session.forget.preconditions',
       'session.submit',
       'note.get',
+      'answer.get',
       'sources',
       'git.probe',
       'transport.tcp',

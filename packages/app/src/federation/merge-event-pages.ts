@@ -72,9 +72,10 @@ const EVENT_RULES: ReadonlyMap<string, IDRule> = new Map(
  * that started at its newest event, or at its latest events after such a
  * gap, is listed under `started`, and under `truncated` too when older
  * events precede the latest page and went unread. A note event also
- * holds `note`, its daemon-qualified handle for `note.get`. Every event's
- * ids are rewritten for its daemon, and its `cursor` is the gateway cursor
- * that resumes right after it.
+ * holds `note`, its daemon-qualified handle for `note.get`, and a
+ * message-answered event holds `answer`, its handle for `answer.get`.
+ * Every event's ids are rewritten for its daemon, and its `cursor` is the
+ * gateway cursor that resumes right after it.
  */
 export function mergeEventPages(
   sources: readonly MergeSource[],
@@ -146,12 +147,12 @@ export function mergeEventPages(
     }
 
     const rewritten = buildRuledValue(event, EVENT_RULES, daemon);
-    const handle = findNoteHandle(event, daemon);
+    const handle = findTextHandle(event, daemon);
 
     events.push({
       ...(isRecord(rewritten) ? rewritten : event),
       cursor: encodeGatewayCursor(filter, parts),
-      ...(handle === null ? {} : { note: handle }),
+      ...handle,
     });
   }
 
@@ -171,16 +172,30 @@ export function mergeEventPages(
   };
 }
 
-// A note event's handle for `note.get`: the daemon's own cursor of the
-// event, which the daemon reads a note by, under the daemon's name and
-// incarnation, kept apart from the merged feed cursor that replaces it.
-function findNoteHandle(
+// A note event's handle for `note.get`, or a message-answered event's
+// handle for `answer.get`: the daemon's own cursor of the event, which the
+// daemon reads the text by, under the daemon's name and incarnation, kept
+// apart from the merged feed cursor that replaces it. Any other event
+// gets none.
+function findTextHandle(
   event: Readonly<Record<string, unknown>>,
   daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,
-): string | null {
+): Readonly<Record<string, string>> {
   const raw = event['cursor'];
 
-  return event['kind'] === 'note' && typeof raw === 'string' ? buildGatewayID(daemon, raw) : null;
+  if (typeof raw !== 'string') {
+    return {};
+  }
+
+  if (event['kind'] === 'note') {
+    return { note: buildGatewayID(daemon, raw) };
+  }
+
+  if (event['kind'] === 'message-answered') {
+    return { answer: buildGatewayID(daemon, raw) };
+  }
+
+  return {};
 }
 
 // The queue whose next event goes out next: the one with the earliest

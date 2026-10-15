@@ -48,6 +48,7 @@ test('it marks only the procedures that change nothing as read-only', () => {
     'events.subscribe',
     'message.get',
     'note.get',
+    'answer.get',
   ]);
 });
 

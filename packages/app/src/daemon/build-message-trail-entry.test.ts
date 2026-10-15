@@ -50,7 +50,7 @@ test('it builds a delivered entry stamped with the delivery time', () => {
   });
 });
 
-test('it builds an answered entry stamped with the answer time and an answer preview', () => {
+test('it builds an answered entry stamped with the answer time, an answer preview and the whole answer', () => {
   const entry = buildMessageTrailEntry(
     toSessionID('s1'),
     toAgentSessionID('c1'),
@@ -61,7 +61,7 @@ test('it builds an answered entry stamped with the answer time and an answer pre
       sentAt: 1000,
       deliveredAt: 2000,
       answeredAt: 3000,
-      answer: 'done',
+      answer: 'r'.repeat(700),
     }),
   );
 
@@ -71,7 +71,8 @@ test('it builds an answered entry stamped with the answer time and an answer pre
     agentSessionID: toAgentSessionID('c1'),
     kind: 'message-answered',
     message: toMessageID('m-1'),
-    detail: 'done',
+    detail: `${'r'.repeat(599)}…`,
+    text: 'r'.repeat(700),
   });
 });
 

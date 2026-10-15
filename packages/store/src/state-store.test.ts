@@ -1102,6 +1102,7 @@ test('it runs every migration once on the first open of a legacy database', asyn
     '031_rebuild_fleet_without_unique_agent_session_id',
     '032_add_messages_answer_notice',
     '033_add_messages_sender_kind',
+    '034_add_events_answer_text',
   ]);
 });
 
@@ -1151,7 +1152,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     .all()
     .map((row) => row.timestamp);
 
-  expect(stamps).toStrictEqual(Array.from({ length: 33 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 34 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
@@ -2972,6 +2973,110 @@ test('it finds the preview of a note recorded without its whole text', async () 
   });
 });
 
+test('it finds the whole answer of a message-answered entry by its trail id', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('c1'),
+    kind: 'message-answered',
+    message: toMessageID('m-1'),
+    detail: 'the preview',
+    text: 'the preview and the rest of the answer',
+  });
+
+  const [event] = await ctx.store.collectLatestEvents(1);
+
+  invariant(event !== undefined, 'no event');
+
+  const answer = await ctx.store.findAnswer(event.id);
+
+  expect(answer).toStrictEqual({
+    id: event.id,
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('c1'),
+    message: toMessageID('m-1'),
+    text: 'the preview and the rest of the answer',
+    complete: true,
+  });
+});
+
+test('it finds no answer at the trail id of an entry that is not an answered message', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordTrailEntry({
+    at: 1000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    kind: 'message-delivered',
+    message: toMessageID('m-1'),
+    detail: 'hello',
+  });
+
+  const [event] = await ctx.store.collectLatestEvents(1);
+
+  invariant(event !== undefined, 'no event');
+
+  const answer = await ctx.store.findAnswer(event.id);
+
+  expect(answer).toBeNull();
+});
+
+test('it adds an empty answer text to the answered rows of a database from before the column', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.stop();
+
+  const older = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    older.close();
+  });
+
+  older.run('ALTER TABLE events DROP COLUMN answer_text');
+
+  older.run(
+    "INSERT INTO events (ts, atc_id, event, message, kind, detail) VALUES ('1970-01-01T00:00:02.000Z', 's1', 'SessionMessage', 'm-1', 'message-answered', 'the old preview')",
+  );
+
+  older.run("DELETE FROM kysely_migration WHERE name = '034_add_events_answer_text'");
+  older.close();
+
+  const upgraded = await StateStore.open(ctx.dbPath);
+
+  registerTestCleanup(() => upgraded.stop());
+
+  const reader = new Database(ctx.dbPath, { readonly: true });
+
+  registerTestCleanup(() => {
+    reader.close();
+  });
+
+  const rows = reader
+    .query<{ id: number; answer_text: string | null }, []>('SELECT id, answer_text FROM events')
+    .all();
+
+  const [row] = rows;
+
+  invariant(row !== undefined, 'no row');
+
+  const answer = await upgraded.findAnswer(row.id);
+
+  expect(rows).toStrictEqual([{ id: row.id, answer_text: null }]);
+
+  expect(answer).toStrictEqual({
+    id: row.id,
+    at: 2000,
+    atcID: toSessionID('s1'),
+    agentSessionID: null,
+    message: toMessageID('m-1'),
+    text: 'the old preview',
+    complete: false,
+  });
+});
+
 test('it reads the trail in order across hook events and message entries', async () => {
   const ctx = await setupTest();
 
@@ -4459,7 +4564,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
     .query<{ name: string }, []>('SELECT name FROM kysely_migration ORDER BY name')
     .all()
     .map((row) => row.name)
-    .slice(-9, -6);
+    .slice(-10, -7);
 
   const fleet = await upgraded.loadFleet();
   const dirs = await upgraded.collectSpawnDirs();

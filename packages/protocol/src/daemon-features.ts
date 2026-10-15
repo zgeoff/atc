@@ -70,6 +70,10 @@ export const DAEMON_FEATURES = [
   // `note.get` exists.
   'note.get',
 
+  // `answer.get` exists, and the trail holds the whole answer of a message
+  // answered since.
+  'answer.get',
+
   // `sources.list` and `sources.interpret` exist, and `agents.list` returns
   // `sources`.
   'sources',

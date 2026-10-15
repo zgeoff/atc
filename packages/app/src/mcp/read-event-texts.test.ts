@@ -4,12 +4,12 @@ import { buildStubClock } from '@atc/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/test-utils/register-test-cleanup';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
-import { readNoteTexts } from './read-note-texts';
+import { readEventTexts } from './read-event-texts';
 import { ReconnectingCaller } from './reconnecting-caller';
 
 // A daemon that holds no note and a caller connected to it.
 async function setupTest() {
-  const daemon = await startTestDaemon({ prefix: 'atc-read-note-texts-' });
+  const daemon = await startTestDaemon({ prefix: 'atc-read-event-texts-' });
 
   const caller = new ReconnectingCaller(daemon.socketPath, daemon.build, (path) =>
     DaemonClient.open(path),
@@ -30,7 +30,7 @@ test('it adds the whole text of each note to its event and passes the rest of th
     answer: (request) => texts[String(request.p?.['note'])] ?? {},
   });
 
-  const page = await readNoteTexts(caller, {
+  const page = await readEventTexts(caller, {
     events: [
       {
         cursor: 'c1',
@@ -111,7 +111,7 @@ test('it stops the page before the first note whose text would carry it past 64 
     answer: (request) => ({ text: texts[String(request.p?.['note'])], complete: true }),
   });
 
-  const page = await readNoteTexts(caller, {
+  const page = await readEventTexts(caller, {
     events: [
       { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'note', detail: 'a', label: 'l' },
       { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'note', detail: 'b', label: 'l' },
@@ -160,10 +160,224 @@ test('it stops the page before the first note whose text would carry it past 64 
   ]);
 });
 
+test('it adds the whole answer of each message-answered event, read by its handle when it holds one', async () => {
+  const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    c1: { text: 'the lexer keeps tabs', complete: true },
+    'pc.0a1b2c3d.c3': { text: 'an old preview', complete: false },
+  };
+
+  const caller = buildStubFleetCaller({
+    answer: (request) => answers[String(request.p?.['answer'])] ?? {},
+  });
+
+  const page = await readEventTexts(caller, {
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        name: null,
+        kind: 'message-answered',
+        message: 'm-1',
+        detail: 'the lexer',
+      },
+      {
+        cursor: 'c2',
+        at: 2,
+        session: 's1',
+        name: null,
+        kind: 'message-delivered',
+        message: 'm-2',
+        detail: 'and the parser?',
+      },
+      {
+        cursor: 'c3',
+        at: 3,
+        session: 's2',
+        name: 'two',
+        kind: 'message-answered',
+        message: 'm-3',
+        detail: 'an old preview',
+        answer: 'pc.0a1b2c3d.c3',
+      },
+    ],
+    cursor: 'c3',
+    more: false,
+  });
+
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        name: null,
+        kind: 'message-answered',
+        message: 'm-1',
+        detail: 'the lexer',
+        text: 'the lexer keeps tabs',
+        complete: true,
+      },
+      {
+        cursor: 'c2',
+        at: 2,
+        session: 's1',
+        name: null,
+        kind: 'message-delivered',
+        message: 'm-2',
+        detail: 'and the parser?',
+      },
+      {
+        cursor: 'c3',
+        at: 3,
+        session: 's2',
+        name: 'two',
+        kind: 'message-answered',
+        message: 'm-3',
+        detail: 'an old preview',
+        answer: 'pc.0a1b2c3d.c3',
+        text: 'an old preview',
+        complete: false,
+      },
+    ],
+    cursor: 'c3',
+    more: false,
+  });
+
+  expect(caller.requests).toStrictEqual([
+    { m: 'answer.get', p: { answer: 'c1' }, required: ['answer.get'] },
+    { m: 'answer.get', p: { answer: 'pc.0a1b2c3d.c3' }, required: ['answer.get'] },
+  ]);
+});
+
+test('it stops the page before the first answer whose text would carry it past 64 KiB', async () => {
+  const answers: Readonly<Record<string, string>> = {
+    c1: 'a'.repeat(40_000),
+    c2: 'b'.repeat(25_536),
+    c4: 'c',
+  };
+
+  const caller = buildStubFleetCaller({
+    answer: (request) => ({ text: answers[String(request.p?.['answer'])], complete: true }),
+  });
+
+  const page = await readEventTexts(caller, {
+    events: [
+      { cursor: 'c1', at: 1, session: 's1', kind: 'message-answered', message: 'm-1', detail: 'a' },
+      { cursor: 'c2', at: 2, session: 's2', kind: 'message-answered', message: 'm-2', detail: 'b' },
+      { cursor: 'c3', at: 3, session: 's2', kind: 'turn-done', detail: null },
+      { cursor: 'c4', at: 4, session: 's1', kind: 'message-answered', message: 'm-3', detail: 'c' },
+      { cursor: 'c5', at: 5, session: 's1', kind: 'turn-done', detail: null },
+    ],
+    cursor: 'c5',
+    more: false,
+  });
+
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        kind: 'message-answered',
+        message: 'm-1',
+        detail: 'a',
+        text: 'a'.repeat(40_000),
+        complete: true,
+      },
+      {
+        cursor: 'c2',
+        at: 2,
+        session: 's2',
+        kind: 'message-answered',
+        message: 'm-2',
+        detail: 'b',
+        text: 'b'.repeat(25_536),
+        complete: true,
+      },
+      { cursor: 'c3', at: 3, session: 's2', kind: 'turn-done', detail: null },
+    ],
+    cursor: 'c3',
+    more: true,
+  });
+});
+
+test('it counts note texts and answers against one 64 KiB budget', async () => {
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      request.m === 'note.get'
+        ? { text: 'n'.repeat(40_000), complete: true }
+        : { text: 'a'.repeat(30_000), complete: true },
+  });
+
+  const page = await readEventTexts(caller, {
+    events: [
+      { cursor: 'c1', at: 1, session: 's1', kind: 'note', label: 'l', detail: 'n' },
+      { cursor: 'c2', at: 2, session: 's1', kind: 'message-answered', message: 'm-1', detail: 'a' },
+    ],
+    cursor: 'c2',
+    more: false,
+  });
+
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        kind: 'note',
+        label: 'l',
+        detail: 'n',
+        text: 'n'.repeat(40_000),
+        complete: true,
+      },
+    ],
+    cursor: 'c1',
+    more: true,
+  });
+});
+
+test('it keeps an answered event whose answer read fails with its preview and the refusal', async () => {
+  const ctx = await setupTest();
+
+  const page = await readEventTexts(ctx.caller, {
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        name: null,
+        kind: 'message-answered',
+        message: 'm-1',
+        detail: 'gone',
+      },
+    ],
+    cursor: 'c1',
+    more: false,
+  });
+
+  expect(page).toStrictEqual({
+    events: [
+      {
+        cursor: 'c1',
+        at: 1,
+        session: 's1',
+        name: null,
+        kind: 'message-answered',
+        message: 'm-1',
+        detail: 'gone',
+        textError: "bad_args: no answer 'c1'",
+      },
+    ],
+    cursor: 'c1',
+    more: false,
+  });
+});
+
 test('it keeps a note whose text read fails with its preview and the refusal', async () => {
   const ctx = await setupTest();
 
-  const page = await readNoteTexts(ctx.caller, {
+  const page = await readEventTexts(ctx.caller, {
     events: [
       {
         cursor: 'c1',
@@ -204,7 +418,7 @@ test('it gives a note whose text read outlasts the deadline a timeout and stops 
     answer: () => Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
   });
 
-  const reading = readNoteTexts(
+  const reading = readEventTexts(
     caller,
     {
       events: [
@@ -253,7 +467,7 @@ test('it gives a note whose text read outlasts the deadline a timeout and stops 
         kind: 'note',
         detail: 'slow',
         label: 'l',
-        textError: 'timeout: the note text did not arrive within 100 ms',
+        textError: 'timeout: the text did not arrive within 100 ms',
       },
       { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'turn-done', detail: null },
     ],
@@ -267,7 +481,7 @@ test('it keeps a note text that arrives just inside the deadline', () => {
   const held = Promise.withResolvers<Readonly<Record<string, unknown>>>();
   const caller = buildStubFleetCaller({ answer: () => held.promise });
 
-  const reading = readNoteTexts(
+  const reading = readEventTexts(
     caller,
     {
       events: [
