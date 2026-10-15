@@ -32,7 +32,8 @@ const STOP_GRACE_MS = 5000;
  * Starts the session's own Codex App Server on a Unix socket in the
  * session's folder, with the session's environment, so the hooks and tools
  * the server runs report as the session. Then it opens the bridge and the
- * thread, and returns the plan that starts the terminal on that thread.
+ * thread on the model the spawn asked for, and returns the plan that
+ * starts the terminal on that thread.
  * A server that exits is started again on the bridge's next connection,
  * and the terminal rejoins it by itself. A server an earlier daemon left
  * running on the socket is ended first. The stop ends the bridge, then the
@@ -99,6 +100,7 @@ export async function startCodexAppServerBridge(
     host: request.host,
     openConnection,
     resumeThread,
+    ...(request.options.model === undefined ? {} : { model: request.options.model }),
     ...(launch.retryMs === undefined ? {} : { retryMs: launch.retryMs }),
   });
 

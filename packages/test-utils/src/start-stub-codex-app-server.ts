@@ -14,6 +14,9 @@ import { z } from 'zod';
  * every `thread/turns/list` with an error on the connection of that number,
  * counted from one, and on every later one. `rejectTurnStarts` answers
  * every `turn/start` with an error and takes no message.
+ * `overloadTurnStarts` answers that many of the first `turn/start`
+ * requests with the overload error -32_001 and takes nothing from them, as
+ * Codex does when its queue is full.
  */
 export const STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA = z.object({
   reply: z.string().optional(),
@@ -22,6 +25,7 @@ export const STUB_CODEX_APP_SERVER_SCENARIO_SCHEMA = z.object({
   completeHeldTurnsOnResume: z.boolean().optional(),
   failTurnsListFrom: z.number().optional(),
   rejectTurnStarts: z.boolean().optional(),
+  overloadTurnStarts: z.number().optional(),
 });
 
 export type StubCodexAppServerScenario = Readonly<
@@ -115,6 +119,7 @@ export function startStubCodexAppServer(
   let opened = 0;
   let counter = 0;
   let turnStarts = 0;
+  let overloads = 0;
 
   const mintID = (prefix: string) => {
     counter += 1;
@@ -259,6 +264,12 @@ export function startStubCodexAppServer(
 
     if (method === 'turn/start' && scenario.rejectTurnStarts === true) {
       return { error: { code: -32_602, message: 'input rejected' } };
+    }
+
+    if (method === 'turn/start' && overloads < (scenario.overloadTurnStarts ?? 0)) {
+      overloads += 1;
+
+      return { error: { code: -32_001, message: 'Server overloaded; retry later.' } };
     }
 
     if (method === 'turn/start') {

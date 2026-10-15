@@ -1,5 +1,6 @@
 import type {
   BridgedMessage,
+  BridgedNotice,
   MessageBridgeHost,
   MessageBridgeTap,
   UnsettledMessage,
@@ -9,18 +10,22 @@ type StubMessageStatus = 'queued' | 'delivered' | 'answered' | 'unanswered';
 
 /**
  * A stand-in for the daemon's side of a message bridge, holding one
- * session's messages in memory with the daemon's statuses. Like the
- * daemon, it hands an attached tap the oldest queued message it has not
- * handed that tap, one at a time, the next after the ack or note before
- * it; an answer or unanswered note settles only a queued or delivered message;
- * and a note payload it cannot read is refused. `queueMessage` queues a
- * new message. `statuses` holds each message's status, `notes` each note
- * payload in order, `attaches` the count of taps attached, and `logs`
- * each log line.
+ * session's messages and answer notices in memory with the daemon's
+ * statuses. Like the daemon, it hands an attached tap the oldest queued
+ * notice, then the oldest queued message, it has not handed that tap, one
+ * at a time, the next after the ack or note before it; an item a detached
+ * tap never acked waits for the next tap; an answer or unanswered note
+ * settles only a queued or delivered message; and a note payload it
+ * cannot read is refused. `queueMessage` queues a new message and
+ * `queueNotice` a new notice. `statuses` holds each message's status,
+ * `noticeStatuses` each notice's, `notes` each note payload in order,
+ * `attaches` the count of taps attached, and `logs` each log line.
  */
 export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] = []) {
   const statuses = new Map<string, StubMessageStatus>(initial.map((m) => [m.id, m.status]));
   const texts = new Map<string, BridgedMessage>();
+  const notices = new Map<string, BridgedNotice>();
+  const noticeStatuses = new Map<string, 'queued' | 'delivered'>();
 
   const notes: Readonly<Record<string, unknown>>[] = [];
   const logs: string[] = [];
@@ -34,6 +39,20 @@ export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] 
     const current = tap;
 
     if (current === null) {
+      return;
+    }
+
+    const notice = [...noticeStatuses].find(
+      ([id, status]) => status === 'queued' && !handed.has(`notice:${id}`),
+    );
+
+    if (notice !== undefined) {
+      handed.add(`notice:${notice[0]}`);
+
+      current.takeNotice(
+        notices.get(notice[0]) ?? { id: notice[0], from: 'stub', status: 'answered' },
+      );
+
       return;
     }
 
@@ -83,7 +102,15 @@ export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] 
 
       return Promise.resolve();
     },
-    ackNotice: () => Promise.resolve(),
+    ackNotice: (id) => {
+      if (noticeStatuses.get(id) === 'queued') {
+        noticeStatuses.set(id, 'delivered');
+      }
+
+      drain();
+
+      return Promise.resolve();
+    },
     applyNote: (payload) => {
       const ids = Array.isArray(payload['messages']) ? payload['messages'] : [payload['message']];
 
@@ -118,6 +145,7 @@ export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] 
   return {
     host,
     statuses,
+    noticeStatuses,
     notes,
     logs,
     get attaches() {
@@ -126,6 +154,12 @@ export function buildStubMessageBridgeHost(initial: readonly UnsettledMessage[] 
     queueMessage: (message: BridgedMessage) => {
       statuses.set(message.id, 'queued');
       texts.set(message.id, message);
+
+      drain();
+    },
+    queueNotice: (notice: BridgedNotice) => {
+      noticeStatuses.set(notice.id, 'queued');
+      notices.set(notice.id, notice);
 
       drain();
     },

@@ -21,6 +21,65 @@ test('it hands an attached tap one queued message and the next only after its ac
   expect(stub.statuses.get('m-1')).toBe('delivered');
 });
 
+test('it hands an attached tap a queued notice before a queued message, and the message after its ack', async () => {
+  const stub = buildStubMessageBridgeHost();
+  const takeMessage = mock<() => void>();
+  const takeNotice = mock<() => void>();
+
+  stub.queueMessage({ id: 'm-1', from: 'planner', text: 'first' });
+  stub.queueNotice({ id: 'm-0', from: 'reviewer', status: 'answered', answer: 'looks fine' });
+  stub.host.attachTap({ takeMessage, takeNotice, close: mock<() => void>() });
+
+  expect(takeNotice).toHaveBeenCalledExactlyOnceWith({
+    id: 'm-0',
+    from: 'reviewer',
+    status: 'answered',
+    answer: 'looks fine',
+  });
+
+  expect(takeMessage).not.toHaveBeenCalled();
+
+  await stub.host.ackNotice('m-0');
+
+  expect(takeMessage).toHaveBeenCalledExactlyOnceWith({
+    id: 'm-1',
+    from: 'planner',
+    text: 'first',
+  });
+
+  expect(stub.noticeStatuses.get('m-0')).toBe('delivered');
+});
+
+test('it hands a notice the last tap never acked to the next tap', () => {
+  const stub = buildStubMessageBridgeHost();
+
+  const first = {
+    takeMessage: mock<() => void>(),
+    takeNotice: mock<() => void>(),
+    close: mock<() => void>(),
+  };
+
+  const second = {
+    takeMessage: mock<() => void>(),
+    takeNotice: mock<() => void>(),
+    close: mock<() => void>(),
+  };
+
+  stub.host.attachTap(first);
+  stub.queueNotice({ id: 'm-0', from: 'reviewer', status: 'unanswered', reason: 'error' });
+  stub.host.detachTap(first);
+  stub.host.attachTap(second);
+
+  expect(second.takeNotice).toHaveBeenCalledExactlyOnceWith({
+    id: 'm-0',
+    from: 'reviewer',
+    status: 'unanswered',
+    reason: 'error',
+  });
+
+  expect(stub.noticeStatuses.get('m-0')).toBe('queued');
+});
+
 test('it hands a detached tap nothing', () => {
   const stub = buildStubMessageBridgeHost();
 
