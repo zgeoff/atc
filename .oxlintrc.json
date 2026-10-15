@@ -160,8 +160,6 @@
           // the daemon's tap registry: a delivery claims a message or a
           // notice in it in place
           { "from": "file", "name": "TapRegistry" },
-          // a test's live TUI harness, which the helpers type keys into
-          { "from": "file", "name": "TUIHarness" },
           // kysely builders bound to a live connection or query; not
           // meaningfully freezable
           { "from": "package", "name": "Transaction", "package": "kysely" },
