@@ -60,7 +60,8 @@ const GUIDE_SECTION = {
     'kind="session" is another atc session, from holds its name and session="..." its id;',
     'kind="local" is a program on the user\'s machine outside every session, such as a scheduled job or a helper tool, and from holds the name it gives itself; it is not the user\'s own word;',
     'kind="owner" is the user\'s own atc client.',
-    'Your final reply in the turn that handles a message is stored as its answer when the turn ends, and reaches a sending session as a notice.',
+    "Answer each <atc-message> with the answer tool, giving its id and your answer to that sender; atc stores the text as the message's answer, and it reaches a sending session as a notice.",
+    'Your final reply goes to the user at this terminal, not to a sender: only a message you leave without an answer takes the final reply of its turn as its answer.',
     '<atc-answer id="..." from="..." status="..."> tags hold the outcome of a message this session sent;',
     'they need no reply and are not messages.',
     'While you work on a message that takes more than a quick answer, call the note tool at each milestone:',
@@ -71,12 +72,15 @@ const GUIDE_SECTION = {
 
 const NOTE_TOOL = 'mcp__atc-bridge__note';
 const NOTE_LABELS = ['progress', 'blocked', 'decision'] as const;
+const ANSWER_TOOL = 'mcp__atc-bridge__answer';
 
 /**
  * Delivers the atc inbox of the session named by ATC_SESSION_ID into the
- * conversation and serves the note tool. When a turn ends, it reports the
- * turn's final reply, with the turn's id, as the answer to every message the
- * turn carried; a turn that ends without an answer is reported as unanswered
+ * conversation and serves the note and answer tools. The answer tool reports
+ * its text as the answer to one message the running turn carries, at once.
+ * When a turn ends, it reports the turn's final reply, with the turn's id, as
+ * the answer to every message the turn carried that the answer tool left
+ * without one; a turn that ends without an answer is reported as unanswered
  * for those messages, with the cause. It also delivers the answer notices of
  * messages this session sent, which no turn reports on. Outside atc it changes
  * nothing.
@@ -104,7 +108,7 @@ export const register: Register = (on) => {
       await $.tool.register({
         name: 'note',
         description:
-          "Add a short note to atc's event feed while you keep working, so a reader of the feed sees progress before your final reply. Use it at milestones: when you find the cause, start a change, get blocked or need a decision. It does not answer a message or reach its sender directly. Your final reply goes out by itself, so do not repeat it here. The result shows only that the note was handed to atc, not that it reached the event feed or a reader.",
+          "Add a short note to atc's event feed while you keep working, so a reader of the feed sees progress before your final reply. Use it at milestones: when you find the cause, start a change, get blocked or need a decision. It does not answer a message or reach its sender: the answer tool does that. Do not repeat an answer or your final reply here. The result shows only that the note was handed to atc, not that it reached the event feed or a reader.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -120,6 +124,27 @@ export const register: Register = (on) => {
             },
           },
           required: ['text'],
+        },
+      });
+
+      await $.tool.register({
+        name: 'answer',
+        description:
+          "Answer one <atc-message> with your own text before your turn ends: atc stores the text as that message's answer, and a sending session gets it as an <atc-answer> notice. Call it once for each message the turn carries; your final reply then goes to the user at this terminal, and only a message you leave without an answer takes the final reply as its answer. Use note instead for progress that answers nothing. The result shows only that the answer was handed to atc, not that atc stored it or that the sender read it. It refuses an id that the running turn does not carry, a message that already has an answer, and empty text; a refused call changes nothing, so one message takes one answer.",
+        inputSchema: {
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+              description: 'The id attribute of the <atc-message> tag to answer.',
+            },
+            text: {
+              type: 'string',
+              description:
+                "The answer's text, for the sender; atc refuses empty text and cuts text over 64 KiB.",
+            },
+          },
+          required: ['message', 'text'],
         },
       });
     } catch (error) {
@@ -207,7 +232,71 @@ export const register: Register = (on) => {
 
     return { result: 'Handed to atc for its event feed.' };
   });
+
+  on('tool.call', { tool: ANSWER_TOOL }, async ($, e) => {
+    const messageID = typeof e['message'] === 'string' ? e['message'].trim() : '';
+    const text = typeof e['text'] === 'string' ? e['text'] : '';
+
+    if (text.trim() === '') {
+      return { deny: 'answer needs non-empty text' };
+    }
+
+    const turnID = state.runningTurnID;
+    const carried = turnID === null ? undefined : state.carried.get(turnID);
+    const msg = carried?.find((x) => x.id === messageID);
+
+    if (carried === undefined || msg === undefined) {
+      return {
+        deny: `answer takes the id of an <atc-message> the running turn carries that has no answer yet, not "${messageID}"`,
+      };
+    }
+
+    // The message leaves the turn before the call, so a second answer for it
+    // is refused and the turn's final reply never answers it.
+    removeCarriedMessage(carried, msg);
+
+    state.unseen.delete(msg.id);
+
+    const failure = await tryRunAnswer($, msg.id, text);
+
+    if (failure !== null) {
+      // A turn that ended during the call no longer reports the message, so
+      // the failed answer settles it instead of leaving it delivered.
+      if (state.carried.get(turnID ?? '') === carried) {
+        carried.push(msg);
+      } else {
+        scheduleUnansweredReport($, state, [msg.id], 'error', turnID);
+      }
+
+      return { deny: `atc did not take the answer: ${failure}` };
+    }
+
+    return { result: `Handed to atc as the answer to ${msg.id}.` };
+  });
 };
+
+function removeCarriedMessage(carried: TapMessage[], msg: TapMessage): void {
+  carried.splice(carried.indexOf(msg), 1);
+}
+
+// Why atc did not take the answer, or null once it did: a run that throws
+// and a run that exits nonzero both fail.
+async function tryRunAnswer(
+  $: EngineInterface,
+  messageID: string,
+  text: string,
+): Promise<string | null> {
+  try {
+    const ran = await $.process.run([...ATC_CLI, 'answer', '--message', messageID], {
+      stdin: text,
+      timeoutMs: 5000,
+    });
+
+    return ran.exitCode === 0 ? null : `atc exited with ${String(ran.exitCode)}`;
+  } catch (error) {
+    return String(error);
+  }
+}
 
 function isNoteLabel(value: string): value is (typeof NOTE_LABELS)[number] {
   return (NOTE_LABELS as readonly string[]).includes(value);
