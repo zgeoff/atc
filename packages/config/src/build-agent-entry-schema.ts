@@ -135,6 +135,7 @@ const FIELD_CHECKS: ReadonlyMap<string, FieldCheck> = new Map([
     'settings',
     { schema: z.record(z.string(), z.unknown()), problem: 'settings must be an object' },
   ],
+  ['appServer', { schema: z.boolean(), problem: 'appServer must be true or false' }],
 ]);
 
 // The problem with one field's value, or null.
@@ -171,6 +172,7 @@ function buildEntry(
   const settings = raw['settings'];
   const baseURL = raw['baseURL'];
   const apiKeyHelper = raw['apiKeyHelper'];
+  const appServer = raw['appServer'];
   const markSource = typeof mark === 'string' ? mark : id;
   const defaultLabel = id === spec.kind ? spec.defaultLabel : id;
 
@@ -185,5 +187,6 @@ function buildEntry(
     ...(isRecord(settings) ? { settings } : {}),
     ...(typeof baseURL === 'string' ? { baseURL } : {}),
     ...(typeof apiKeyHelper === 'string' ? { apiKeyHelper } : {}),
+    ...(typeof appServer === 'boolean' ? { appServer } : {}),
   };
 }

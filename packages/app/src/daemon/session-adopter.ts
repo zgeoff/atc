@@ -205,6 +205,47 @@ export class SessionAdopter {
       return null;
     }
 
+    // A local agent that takes its messages through a bridge in the daemon
+    // starts the bridge first, on the thread the session resumes, and its
+    // terminal starts against it. A change that lands while the bridge
+    // starts stops it again.
+    if (!provider.remote) {
+      const bridged = await this.callbacks.startMessageBridge({
+        adapter,
+        session: s.id,
+        cwd: s.cwd,
+        env: {
+          ...plan.env,
+          ...buildSessionEnv({
+            sessionID: s.id,
+            socket: socketPath,
+            ...(recordPath === null ? {} : { sessionRecord: recordPath }),
+          }),
+        },
+        withheldEnv: s.withheldEnv,
+        options: {
+          prompt: '',
+          resume,
+          ...(s.model === undefined ? {} : { model: s.model }),
+          ...(s.effort === undefined ? {} : { effort: s.effort }),
+        },
+      });
+
+      if (
+        !canProceed() ||
+        s.pty !== null ||
+        !this.registry.sessions.includes(s) ||
+        this.rollback.rollingBack.has(id) ||
+        this.rollback.unconfirmedKills.has(id)
+      ) {
+        await this.callbacks.stopMessageBridge(s.id);
+
+        return null;
+      }
+
+      plan = bridged === null ? plan : { ...plan, bin: bridged.bin, args: bridged.args };
+    }
+
     const launch: HarnessLaunch = { provider, plan, recordPath, cols, rows };
     let pty = this.startHarness(s, launch);
 

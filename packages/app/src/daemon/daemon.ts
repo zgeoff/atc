@@ -14,7 +14,13 @@ import type { AgentID, Clock, MessageID, SessionID } from '@atc/core';
 import { ansi, isRecord, systemClock, toMessageID, truncateToBytes } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
-import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
+import type {
+  AgentAdapter,
+  MessageBridge,
+  MessageBridgeHost,
+  MessageBridgeTap,
+  SourceProvider,
+} from '@atc/plugin-api';
 import { EffectRemainsError, planTypedLineInput } from '@atc/plugin-api';
 import type {
   AdapterEvent,
@@ -45,6 +51,7 @@ import type { MenuChoiceResult, MenuTiming } from './apply-menu-choice';
 import { AttachRegistry } from './attach-registry';
 import { buildAgentList } from './build-agent-list';
 import { buildAnswerView } from './build-answer-view';
+import { buildBridgeTapClient } from './build-bridge-tap-client';
 import { buildConfigRevision } from './build-config-revision';
 import { buildDefaultWorkspaceDir } from './build-default-workspace-dir';
 import type { ExecutionTarget } from './build-execution-targets';
@@ -987,6 +994,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     runtime.resetBoot({ cols, rows });
 
     runtime.screen ??= new ScreenModel(cols, rows);
+
+    // A bridge delivers only once its session lists and its terminal boots.
+    messageBridges.get(s.id)?.startDelivery();
   };
 
   mgr.onOutput = (s, data) => {
@@ -1103,6 +1113,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   mgr.onProcessEnded = (s) => {
     endedProcesses.add(s.id);
+    void stopMessageBridge(s.id);
     void updateEndedSessionMessages(s);
   };
 
@@ -1111,6 +1122,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     if (kind === 'removed') {
       endedProcesses.delete(s.id);
+      void stopMessageBridge(s.id);
       void updateEndedSessionMessages(s);
     }
 
@@ -1271,6 +1283,130 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       },
     });
   };
+
+  // The bridges in the daemon that take local sessions' messages, one per
+  // session whose agent has one, from the launch that starts it until the
+  // session's process ends.
+  const messageBridges = new Map<SessionID, MessageBridge>();
+
+  const stopMessageBridge = async (sessionID: SessionID) => {
+    const bridge = messageBridges.get(sessionID);
+
+    messageBridges.delete(sessionID);
+
+    await bridge?.stop();
+  };
+
+  // The daemon's side of one session's bridge. Its tap takes the inbox as an
+  // `atc tap` does, and its acks and notes land as the tap's and the
+  // reporter's do, for this session alone.
+  const buildMessageBridgeHost = (sessionID: SessionID): MessageBridgeHost => {
+    const bridgeClients = new Map<MessageBridgeTap, TapClient>();
+
+    const findOwner = () => {
+      const s = mgr.sessions.find((x) => x.id === sessionID);
+
+      return s === undefined ? null : buildMessageOwner(s);
+    };
+
+    return {
+      attachTap: (tap) => {
+        const client = buildBridgeTapClient(tap);
+
+        bridgeClients.set(tap, client);
+
+        return ctx.attachTap(client, sessionID, null, true) === 'ok';
+      },
+      detachTap: (tap) => {
+        const client = bridgeClients.get(tap);
+
+        bridgeClients.delete(tap);
+
+        if (client !== undefined) {
+          taps.detachAll(client);
+        }
+      },
+      ackMessage: async (id) => {
+        const owner = findOwner();
+
+        if (owner === null) {
+          return;
+        }
+
+        const delivered = await store.updateMessageDelivered(toMessageID(id), owner, clock.now());
+
+        if (delivered !== null) {
+          await recordMessageStatus(sessionID, delivered);
+        }
+
+        void drainSessionInbox(sessionID);
+      },
+      ackNotice: async (id) => {
+        const delivered = await store.updateNoticeDelivered(
+          toMessageID(id),
+          sessionID,
+          clock.now(),
+        );
+
+        if (delivered !== null) {
+          await recordNoticeStatus(delivered, 'notice-delivered');
+        }
+
+        void drainSessionInbox(sessionID);
+      },
+      applyNote: async (payload) => {
+        if (parseNote(payload) === null) {
+          return false;
+        }
+
+        await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } });
+
+        return true;
+      },
+      collectUnsettledMessages: async () => {
+        const owner = findOwner();
+
+        if (owner === null) {
+          return [];
+        }
+
+        const unsettled = await store.collectUnsettledMessages(owner);
+
+        return unsettled.flatMap((record) =>
+          record.status === 'queued' || record.status === 'delivered'
+            ? [{ id: record.id, status: record.status }]
+            : [],
+        );
+      },
+      log: (line) => {
+        mgr.log(line);
+      },
+    };
+  };
+
+  mgr.startMessageBridge = async (launch) => {
+    if (launch.adapter.startMessageBridge === undefined) {
+      return null;
+    }
+
+    await stopMessageBridge(launch.session);
+
+    const bridge = await launch.adapter.startMessageBridge({
+      session: launch.session,
+      cwd: launch.cwd,
+      env: launch.env,
+      withheldEnv: launch.withheldEnv,
+      options: launch.options,
+      dir: join(stateDir, 'sessions', launch.session, 'codex'),
+      host: buildMessageBridgeHost(launch.session),
+    });
+
+    messageBridges.set(launch.session, bridge);
+
+    return bridge.plan;
+  };
+
+  mgr.stopMessageBridge = stopMessageBridge;
 
   // A spawn with a workspace source materializes it once every refusal has
   // passed and its host is ready, and the session registers only once its
@@ -2696,6 +2832,11 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     runtimes.clear();
+
+    // A bridge's App Server runs beside the daemon, not under a session's
+    // terminal, so it ends with the daemon.
+    await Promise.all([...messageBridges.keys()].map((id) => stopMessageBridge(id)));
+
     eventSignal.dispose();
 
     await store.stop();

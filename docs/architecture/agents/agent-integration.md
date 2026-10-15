@@ -100,5 +100,38 @@ impd's broker on an imp instead gets a Codex home of its own in its guest folder
 file that holds no credential and the hook entries, which it runs without the trust step. Codex
 session names come from its session index.
 
-Neither Grok nor Codex has a message tap, a transcript reader or a headless runner, so the daemon
-refuses a message, a transcript read and an eject for their sessions.
+Neither Grok nor Codex has a transcript reader or a headless runner, so the daemon refuses a
+transcript read and an eject for their sessions. Grok has no message tap either, and nor does a
+Codex session without an App Server, so the daemon refuses a message for them.
+
+## Codex on an App Server
+
+A Codex entry with an App Server takes messages through a bridge inside the daemon, in place of a
+mod. Codex has no mod API, but its App Server lets two clients share one thread: the stock terminal,
+started with `--remote`, and the daemon's bridge. Each local session runs an App Server of its own
+on a Unix socket in the daemon's state folder, started with the session's environment. The server
+runs the session's hooks and tools, so each one reports as its own session. The server is a child of
+the daemon, so the daemon ends it with the session's process and with its own stop, and a start ends
+any server that a crashed daemon left for the session.
+
+The bridge starts the thread before the terminal starts. A terminal cannot join a thread that has no
+rollout yet, and dynamic tools exist only on a new thread, so the bridge does both steps itself. It
+starts the thread with the `atc.note` and `atc.answer` tools and developer instructions that explain
+the `<atc-message>` envelope, then injects one developer item, which writes the rollout without a
+model turn. The thread id is the session's agent session id, so a restored session resumes the same
+thread, and the tools and instructions come back with the rollout.
+
+The bridge sends each message with `turn/start`, which opens a turn on an idle thread and joins the
+running turn otherwise. The request carries the message id as the client message id, and the bridge
+acks the message once the server takes it. When the turn completes, the turn's last reply answers
+every message the turn carried that `atc.answer` left without an answer. An interrupted or failed
+turn leaves them unanswered. The bridge answers only its own tool calls, so approvals stay with the
+terminal.
+
+The App Server keeps no record of the client message ids it took, so a resent message runs twice. On
+every connection, the bridge therefore recovers before it sends anything. It reads the thread's
+stored turns and settles each queued or delivered message from the turn that holds its id. A queued
+message that no turn holds stays queued, and a delivered one that no turn holds becomes unanswered
+as never started. A failed read changes no message: the bridge drops the connection and tries again
+later. Notifications that arrive during recovery wait until it ends, and the bridge's tap attaches
+only then, so a turn that completes while the connection is set up cannot cause a resend.

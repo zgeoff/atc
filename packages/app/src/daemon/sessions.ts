@@ -10,6 +10,7 @@ import type {
   HarnessRelay,
   HookPlan,
   SpawnOverrides,
+  SpawnPlan,
 } from '@atc/plugin-api';
 import type {
   AdapterEvent,
@@ -35,7 +36,7 @@ import type { PublishedRecords } from './published-records';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
 import type { Session } from './session';
 import { SessionAdopter } from './session-adopter';
-import type { SessionCallbacks } from './session-callbacks';
+import type { MessageBridgeLaunch, SessionCallbacks } from './session-callbacks';
 import type { SessionChanges } from './session-changes';
 import type { SessionEventKind } from './session-event-kind';
 import { SessionFleetWriter } from './session-fleet-writer';
@@ -79,6 +80,13 @@ export class SessionManager {
   // it was killed. A host that lost the connection or went to sleep may
   // still run the process, so neither calls it.
   onProcessEnded: (s: Session) => void = () => {};
+
+  // Starts the bridge that takes a local session's messages, when its agent
+  // has one; with none set, every session starts without one.
+  startMessageBridge: (launch: MessageBridgeLaunch) => Promise<SpawnPlan | null> = () =>
+    Promise.resolve(null);
+
+  stopMessageBridge: (session: SessionID) => Promise<void> = () => Promise.resolve();
 
   // Where a background failure is reported, one line at a time: stderr,
   // like the daemon's other background failures.
@@ -157,6 +165,8 @@ export class SessionManager {
       onProcessEnded: (s) => {
         this.onProcessEnded(s);
       },
+      startMessageBridge: (launch) => this.startMessageBridge(launch),
+      stopMessageBridge: (session) => this.stopMessageBridge(session),
       log: (line) => {
         this.log(line);
       },

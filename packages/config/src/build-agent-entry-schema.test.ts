@@ -69,3 +69,25 @@ test('it shows the label of its kind for the id that is the kind, and the id for
   expect(own.data?.entry.label).toBe('Grok');
   expect(other.data?.entry.label).toBe('fast');
 });
+
+test('it carries appServer onto the entry', () => {
+  const schema = buildAgentEntrySchema(
+    { kind: 'codex', fields: ['appServer'], defaultLabel: 'Codex' },
+    { authProfiles: new Map(), entryID: 'codex', foreignFields: new Set() },
+  );
+
+  expect(schema.safeParse({ appServer: true }).data?.entry.appServer).toBe(true);
+});
+
+test('it refuses an appServer that is not true or false', () => {
+  const schema = buildAgentEntrySchema(
+    { kind: 'codex', fields: ['appServer'], defaultLabel: 'Codex' },
+    { authProfiles: new Map(), entryID: 'codex', foreignFields: new Set() },
+  );
+
+  const result = schema.safeParse({ appServer: 'yes' });
+
+  expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
+    'appServer must be true or false',
+  ]);
+});

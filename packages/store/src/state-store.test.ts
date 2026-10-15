@@ -1988,6 +1988,41 @@ test('it finds pending messages by agent session id under a new atc id', async (
   expect(pending).toStrictEqual([record]);
 });
 
+test('it lists queued and delivered messages as unsettled, oldest first', async () => {
+  const ctx = await setupTest();
+
+  const delivered = buildMockMessageRecord({
+    id: toMessageID('m-delivered'),
+    atcID: toSessionID('s1'),
+    sentAt: 1000,
+  });
+
+  const queued = buildMockMessageRecord({
+    id: toMessageID('m-queued'),
+    atcID: toSessionID('s1'),
+    sentAt: 1001,
+  });
+
+  const answered = buildMockMessageRecord({
+    id: toMessageID('m-answered'),
+    atcID: toSessionID('s1'),
+    sentAt: 1002,
+  });
+
+  await ctx.store.writeMessage(delivered);
+  await ctx.store.writeMessage(queued);
+  await ctx.store.writeMessage(answered);
+  await ctx.store.updateMessageDelivered(delivered.id, { atcID: toSessionID('s1') }, 2000);
+  await ctx.store.updateMessagesAnswered([answered.id], { atcID: toSessionID('s1') }, 'ok', 2000);
+
+  const unsettled = await ctx.store.collectUnsettledMessages({ atcID: toSessionID('s1') });
+
+  expect(unsettled).toStrictEqual([
+    { ...delivered, status: 'delivered', deliveredAt: 2000 },
+    queued,
+  ]);
+});
+
 test('it moves a queued message to delivered', async () => {
   const ctx = await setupTest();
 

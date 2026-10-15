@@ -261,6 +261,7 @@
         "packages/app/src/daemon/daemon-agents.test.ts",
         "packages/app/src/daemon/daemon-answer-notices.test.ts",
         "packages/app/src/daemon/daemon-auth-gateway.test.ts",
+        "packages/app/src/daemon/daemon-codex-app-server.test.ts",
         "packages/app/src/daemon/daemon-codex-guest-auth.test.ts",
         "packages/app/src/daemon/daemon-config-file.test.ts",
         "packages/app/src/daemon/daemon-connection-reach.test.ts",

@@ -1,10 +1,25 @@
-import type { Clock } from '@atc/core';
-import type { HarnessRelay } from '@atc/plugin-api';
+import type { Clock, SessionID } from '@atc/core';
+import type { AgentAdapter, HarnessRelay, SpawnOptions, SpawnPlan } from '@atc/plugin-api';
 import type { BridgeBinding } from './is-binding-current';
 import type { PublishedRecords } from './published-records';
 import type { RuntimeAuthBinder } from './runtime-auth-binder';
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
+
+/**
+ * A launch on the daemon's machine whose agent may take its messages
+ * through a bridge in the daemon: the agent, the session, the folder its
+ * terminal starts in, the variables it starts with on top of the daemon's
+ * own and the names it goes without, and the spawn's choices.
+ */
+export interface MessageBridgeLaunch {
+  readonly adapter: AgentAdapter;
+  readonly session: SessionID;
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+  readonly withheldEnv: readonly string[];
+  readonly options: SpawnOptions;
+}
 
 /**
  * What the session modules call back into the daemon through: the events
@@ -28,6 +43,15 @@ export interface SessionCallbacks {
   // Called when a session's process is known to have ended: it exited or
   // it was killed.
   readonly onProcessEnded: (s: Session) => void;
+
+  // Starts the bridge that takes a local session's messages, when its agent
+  // has one, and resolves with the plan that starts the terminal against
+  // it; null when the agent has none.
+  readonly startMessageBridge: (launch: MessageBridgeLaunch) => Promise<SpawnPlan | null>;
+
+  // Stops the session's bridge, if it has one, for a launch that failed
+  // after the bridge started.
+  readonly stopMessageBridge: (session: SessionID) => Promise<void>;
 
   // Where a background failure is reported, one line at a time.
   readonly log: (line: string) => void;

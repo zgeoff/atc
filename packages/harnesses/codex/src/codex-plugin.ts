@@ -5,7 +5,7 @@ import { CodexAdapter } from './codex-adapter';
 import { readCodexEntry } from './config/read-codex-entry';
 
 // The fields a Codex entry sets beside the ones every entry takes.
-const CODEX_FIELDS = ['auth'];
+const CODEX_FIELDS = ['auth', 'appServer'];
 
 /**
  * The Codex harness plugin.
