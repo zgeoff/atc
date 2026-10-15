@@ -72,6 +72,61 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
   expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
 });
 
+test('it exits with the refusal when a reconnect to the remote daemon is refused its token', async () => {
+  const ctx = setupTest();
+
+  const remote = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.dir, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([['laptop', ['local']]]),
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.dir, 'gateway-token'),
+          failureDelayMs: 0,
+        },
+      };
+    },
+  });
+
+  if (remote.daemon.listenPort === null) {
+    throw new Error('the remote daemon bound no TCP port');
+  }
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  ctx.tui.writeConfig({
+    daemons: {
+      box: {
+        address: `127.0.0.1:${remote.daemon.listenPort}`,
+        principal: 'laptop',
+        tokenFile: ctx.tokenFile,
+      },
+    },
+  });
+
+  ctx.tui.boot(['--daemon', 'box']);
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  // The daemon drops the token the client holds, which closes its
+  // connection, so the client's reconnect presents a token it refuses.
+  writeFileSync(join(remote.dir, 'gateway-token'), `${'b'.repeat(32)}\n`);
+
+  remote.daemon.refreshTokens();
+
+  const exitCode = await ctx.tui.waitForExit();
+
+  expect(exitCode).toBe(1);
+
+  expect(ctx.tui.read()).toInclude(
+    `atc: daemon 'box' at 127.0.0.1:${remote.daemon.listenPort} refused the token: daemon.hello over TCP needs a valid bearer token. The TUI did not fall back to the local daemon.`,
+  );
+});
+
 test('it exits with the daemon and its address when the remote daemon is unreachable, starting no local daemon', async () => {
   const ctx = setupTest();
 

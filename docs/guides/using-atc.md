@@ -147,7 +147,8 @@ The TUI connects to that daemon alone. It never starts, finds, or falls back to 
 so when the remote daemon is unreachable, refuses your token, or speaks another protocol version,
 `atc` exits 1 with a message that holds the daemon's name, its address, and both builds and protocol
 versions for a mismatch. A connection that drops after the TUI opens shows `⟳ waiting for daemon`
-and reconnects when the daemon answers again.
+and reconnects when the daemon answers again. A reconnect that the daemon refuses, such as one with
+a token it no longer holds, exits 1 with the refusal.
 
 atc cannot restart a daemon on another host, so the TUI never offers `u` there: restart it on its
 own host. A principal may not restore the fleet, so `R` restores nothing on a remote daemon.

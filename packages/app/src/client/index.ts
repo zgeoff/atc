@@ -957,9 +957,15 @@ const reconnectDaemonOnce = makeSingleFlight(async () => {
     const message = error instanceof Error ? error.message : String(error);
 
     // A daemon on another protocol that the user keeps in service cannot
-    // serve this client, so it leaves the way its first boot does.
-    if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
-      quit(1, message);
+    // serve this client, so it leaves the way its first boot does. A remote
+    // boot waits out an unreachable daemon itself, so any failure that
+    // reaches here, such as a refused token, is final, and the client
+    // leaves rather than keep showing a fleet it can no longer reach.
+    if (
+      (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
+      remoteDaemonName !== null
+    ) {
+      quit(1, `atc: ${message}`);
     }
 
     console.error(message);
