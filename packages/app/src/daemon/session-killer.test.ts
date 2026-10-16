@@ -54,7 +54,9 @@ async function setupTest(config: SetupConfig) {
     callbacks,
   });
 
-  const killer = new SessionKiller({ registry, fleet, callbacks });
+  const restarts = { stopRestart: () => Promise.resolve(false) };
+
+  const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
 
   return { store, registry, killer, callbacks };
 }

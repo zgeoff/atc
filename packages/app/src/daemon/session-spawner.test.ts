@@ -92,7 +92,10 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const claims = new HostDirClaims({ registry });
-  const killer = new SessionKiller({ registry, fleet, callbacks });
+
+  const restarts = { stopRestart: () => Promise.resolve(false) };
+
+  const killer = new SessionKiller({ registry, fleet, callbacks, restarts });
   const harnesses = new SessionHarnesses({ registry, fleet, killer, callbacks });
   const rollback = new SpawnRollback({ registry, fleet, claims, harnesses, callbacks });
   const auth = new AuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });

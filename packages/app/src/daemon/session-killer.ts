@@ -2,6 +2,7 @@ import type { SessionID } from '@atc/core';
 import type { ExecutionCapability } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { Session } from './session';
+import type { SessionAdopter } from './session-adopter';
 import type { SessionCallbacks } from './session-callbacks';
 import type { SessionFleetWriter } from './session-fleet-writer';
 import type { SessionRegistry } from './session-registry';
@@ -16,6 +17,7 @@ interface SessionKillerDeps {
     SessionCallbacks,
     'onEvent' | 'onProcessEnded' | 'log' | 'getAuthBinder'
   >;
+  readonly restarts: Pick<SessionAdopter, 'stopRestart'>;
 }
 
 /**
@@ -30,10 +32,13 @@ export class SessionKiller {
 
   private readonly callbacks: SessionKillerDeps['callbacks'];
 
+  private readonly restarts: SessionKillerDeps['restarts'];
+
   constructor(deps: SessionKillerDeps) {
     this.registry = deps.registry;
     this.fleet = deps.fleet;
     this.callbacks = deps.callbacks;
+    this.restarts = deps.restarts;
   }
 
   // A kill's response is the caller's cue that the session is safely
@@ -47,8 +52,10 @@ export class SessionKiller {
   // forgotten by a kill: forgetting it destroys the host, which takes a
   // confirmed forget. The set is taken before the first await, so a
   // sub-session spawned while the kill waits on a host is not part of it.
-  // With stopOnly, a session that is not live is left as it is: nothing
-  // changes and nothing is removed. Answers what the kill did.
+  // A session whose revive waits on the kill of its outdated harness counts
+  // as live: the revive starts no fresh harness and leaves it stopped. With
+  // stopOnly, a session that is not live is left as it is: nothing changes
+  // and nothing is removed. Answers what the kill did.
   async kill(id: SessionID, stopOnly = false): Promise<'stopped' | 'unchanged' | 'removed'> {
     const s = this.registry.sessions.find((x) => x.id === id);
 
@@ -58,9 +65,17 @@ export class SessionKiller {
 
     const children = this.registry.collectChildren(id);
 
+    const restartStopped = await this.restarts.stopRestart(id);
+
     if (s.pty) {
       await this.stopHarness(s);
 
+      for (const child of children) {
+        if (this.registry.sessions.includes(child) && child.parent === id) {
+          await this.tryStopHarness(child);
+        }
+      }
+    } else if (restartStopped) {
       for (const child of children) {
         if (this.registry.sessions.includes(child) && child.parent === id) {
           await this.tryStopHarness(child);

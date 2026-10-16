@@ -1070,6 +1070,21 @@ class StubImpPort implements ImpPort {
   }
 
   /**
+   * Ends a session's process with a signal it cannot ignore, as a person's
+   * `kill -9` inside the imp does, so its exit reaches its connection.
+   */
+  killProcess(name: string, session: string): void {
+    const proc = this.getImp(name).sessions.get(session);
+
+    if (proc === undefined) {
+      throw new Error(`no session ${session} on imp ${name}`);
+    }
+
+    tryKill(proc.pty, 'SIGCONT');
+    tryKill(proc.pty, 'SIGKILL');
+  }
+
+  /**
    * Boots an imp cold for the given cause: every process ends without a
    * delivered exit, and every connection is detached as lost.
    */

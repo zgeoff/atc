@@ -3033,6 +3033,115 @@ test('it records an adopt whose outdated harness ignores its kill as stopped, so
   expect(ctx.port.sessionRequests).toHaveLength(2);
 });
 
+test('it leaves a session stopped and starts no fresh harness when a stop lands while an adopt waits on its outdated harness', async () => {
+  const ctx = setupTest();
+  let judgeSelected = false;
+
+  const glm = buildStubBrokeredAgentAdapter({
+    id: 'glm',
+    brokerRequired: true,
+    isSelected: () => true,
+    isJudgeSelected: () => judgeSelected,
+    ignoresHangup: () => !judgeSelected,
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local-pty:test',
+          provider: new LocalPTYProvider(),
+        },
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+
+      // The kill waits long enough for the stop and the test's own kill to
+      // land inside it.
+      failedSpawnExitWaitMs: 10_000,
+    }),
+  });
+
+  // The token may grant glm and judge, and impd holds glm for api.z.ai and
+  // judge for judge.example.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'judge'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('judge', 'custom', [
+    { host: 'judge.example', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.dir,
+    agent: 'glm',
+    target: 'box',
+    resume: 'a1',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const [started] = ctx.port.sessionRequests;
+
+  invariant(started !== undefined);
+
+  // The harness prints its revision only after it ignores the hangup, so a
+  // kill sent before that output would end it.
+  await waitFor(() => {
+    expect(ctx.port.getEnd(started.name, started.session)).toBeGreaterThan(0);
+  });
+
+  // The kill puts the imp to sleep with the harness kept inside it.
+  await daemon.client.sendRequest('session.kill', { session: id });
+
+  judgeSelected = true;
+
+  await daemon.client.sendRequest('session.auth.rebind', { session: id });
+
+  const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
+
+  // The adopt attached the outdated harness and now waits on its kill.
+  await waitFor(async () => {
+    expect(ctx.port.sessionRequests).toHaveLength(2);
+
+    const waiting = await daemon.client.sendRequest('session.get', { session: id });
+
+    expect(getRecord(waiting, 'session')).toMatchObject({ alive: false, lastMsg: 'revived' });
+  });
+
+  const stop = daemon.client.sendRequest('session.kill', { session: id, stopOnly: true });
+
+  // The harness ignores the hangup, so the kill wait lasts until the test
+  // ends it. The stop has no mark to wait on, and one that reached the
+  // daemon after the end would find a fresh harness and fail the test.
+  await Bun.sleep(100);
+
+  ctx.port.killProcess(started.name, started.session);
+
+  const stopped = await stop;
+
+  expect(adopt).rejects.toMatchObject({ code: 'no_such_session' });
+
+  const got = await daemon.client.sendRequest('session.get', { session: id });
+
+  expect(stopped).toStrictEqual({ stopped: true });
+  expect(getRecord(got, 'session')).toMatchObject({ alive: false, lastMsg: 'killed' });
+  expect(ctx.port.sessionRequests).toHaveLength(2);
+});
+
 test('it lists a running harness as pending a restart after a rebind and leaves it running', async () => {
   const ctx = setupTest();
   let judgeSelected = false;
