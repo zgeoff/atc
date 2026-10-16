@@ -15,8 +15,8 @@ import {
 } from '@atc/test-utils';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { buildMockExecutionTarget } from '../packages/app/src/test-utils/build-mock-execution-target';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 /**
  * A git fixture whose work clone the sessions run in, and a daemon whose

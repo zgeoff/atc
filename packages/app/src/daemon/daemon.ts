@@ -10,26 +10,21 @@ import {
 } from '@atc/config';
 import { formatListenRefusal, isAllowedListenHost } from '@atc/config/host';
 import type { AgentID, Clock, SessionID } from '@atc/core';
-import { ansi, systemClock } from '@atc/core';
+import { systemClock } from '@atc/core';
 import { LocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock, findDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
-import type { AgentAdapter, ScreenMenu, SourceProvider } from '@atc/plugin-api';
-import { planTypedLineInput } from '@atc/plugin-api';
-import type { SessionDescriptor, SessionState } from '@atc/protocol';
-import { DaemonError, MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
+import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
+import type { SessionState } from '@atc/protocol';
+import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { StateStore, buildTargetIdentity } from '@atc/store';
-import { applyMenuChoice } from './apply-menu-choice';
-import type { MenuChoiceResult } from './apply-menu-choice';
-import { AttachRegistry } from './attach-registry';
 import type { ExecutionTarget } from './build-execution-targets';
-import { buildMenuView } from './build-menu-view';
 import { buildSessionEvent } from './build-session-event';
 import { buildTargetAccess } from './build-target-access';
 import { createNonBlockingLog } from './create-non-blocking-log';
 import type { NonBlockingLog } from './create-non-blocking-log';
 import { DaemonConnection } from './daemon-connection';
-import type { DaemonContext, OutputClient, TapClient } from './daemon-context';
+import type { DaemonContext, TapClient } from './daemon-context';
 import { emitInboxClosed } from './emit-inbox-closed';
 import { EventSignal } from './event-signal';
 import { EventTrail } from './event-trail';
@@ -38,25 +33,25 @@ import { HookIntake } from './hook-intake';
 import { startHookServer } from './hooks';
 import { IdempotencyLedger } from './idempotency-ledger';
 import { isTreeInReach } from './is-tree-in-reach';
-import { loadTranscriptPage } from './load-transcript-page';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookScope } from './make-hook-runner';
 import { MENU_TIMING } from './menu-terminal';
-import type { MenuTerminal, MenuTiming } from './menu-terminal';
+import type { MenuTiming } from './menu-terminal';
 import { MessageBridges } from './message-bridges';
 import { MessageService } from './message-service';
 import { PermissionRegistry } from './permission-registry';
 import { PublishedRecords } from './published-records';
-import { readKnownMenu } from './read-known-menu';
 import { readPeerPID } from './read-peer-pid';
-import { readWholeMenu } from './read-whole-menu';
 import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
-import { runEjectHandoff } from './run-eject-handoff';
 import type { SettleScheduler } from './run-eject-handoff';
 import { RuntimeAuthBinder } from './runtime-auth-binder';
 import { ScreenModel } from './screen-model';
 import type { Session } from './session';
+import { SessionHandoff } from './session-handoff';
+import { SessionInput } from './session-input';
+import { SessionOutput } from './session-output';
+import { SessionReads } from './session-reads';
 import { SessionRuntime } from './session-runtime';
 import { SessionManager } from './sessions';
 import { SpawnCatalog } from './spawn-catalog';
@@ -68,7 +63,6 @@ import { startTCPListener } from './start-tcp-listener';
 import type { TCPListener } from './start-tcp-listener';
 import { TapRegistry } from './tap-registry';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
-import { writeLineSteps } from './write-line-steps';
 
 export interface DaemonOptions {
   readonly socketPath: string;
@@ -510,52 +504,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
 
-  // A session the manager holds has had its runtime since it was announced.
-  const getRuntime = (sessionID: SessionID): SessionRuntime => {
-    const runtime = runtimes.get(sessionID);
-
-    if (runtime === undefined) {
-      throw new Error(`session '${sessionID}' has no runtime`);
-    }
-
-    return runtime;
-  };
-
-  const waits = { clock, timing: opts.menuTiming ?? MENU_TIMING };
-
-  // The session's terminal as a menu read or choice drives it. The PTY it
-  // writes to is the one the session runs when the read or choice starts,
-  // so a restarted session counts as gone.
-  const buildMenuTerminal = (
-    id: SessionID,
-    findMenu: (text: string, rows?: number) => ScreenMenu | null,
-  ): MenuTerminal => {
-    const runtime = getRuntime(id);
-    const pty = mgr.sessions.find((x) => x.id === id)?.pty ?? null;
-
-    return {
-      readScreenMenu: async () => {
-        if (runtime.screen === null) {
-          return null;
-        }
-
-        const shown = await runtime.screen.renderText();
-
-        return findMenu(shown.text, shown.rows);
-      },
-      readLastOutputAt: () => runtime.lastOutputAt,
-      write: (data) => {
-        pty?.write(data);
-      },
-      isLive: () => pty !== null && mgr.sessions.find((x) => x.id === id)?.pty === pty,
-      findWholeMenu: () => runtime.wholeMenu,
-      recordWholeMenu: (menu) => {
-        runtime.wholeMenu = menu;
-      },
-    };
-  };
-
-  const attachments = new AttachRegistry<OutputClient>();
   const taps = new TapRegistry<TapClient>();
 
   // The screen tier of the detector stack: once a session's output has
@@ -585,86 +533,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       runtime.cancelDetect = undefined;
       void applyScreenJudgment(sessionID);
     }, 300);
-  };
-
-  // Replay is the serialized screen sent as ordinary output events: the
-  // client cannot tell replay from live and does not need to. A clear leads
-  // so a stale or desynced client screen resets first.
-  const sendReplay = async (sessionID: SessionID, client: OutputClient) => {
-    const runtime = runtimes.get(sessionID);
-
-    if (runtime === undefined || runtime.screen === null) {
-      return;
-    }
-
-    const replay = `${ansi.clear}${await runtime.screen.renderReplay()}`;
-    const seq = runtime.seq;
-
-    for (let i = 0; i < replay.length; i += MAX_CHUNK) {
-      const chunk = replay.slice(i, i + MAX_CHUNK);
-
-      client.sendOutput(
-        sessionID,
-        { v: PROTOCOL_V, ev: 'SessionOutput', s: sessionID, seq, d: chunk },
-        chunk.length,
-      );
-    }
-  };
-
-  const applyEffectiveDims = (sessionID: SessionID) => {
-    const dims = attachments.findEffectiveDims(sessionID);
-
-    if (dims === null) {
-      return;
-    }
-
-    const runtime = runtimes.get(sessionID);
-    const prev = runtime?.dims ?? null;
-
-    if (prev !== null && prev.cols === dims.cols && prev.rows === dims.rows) {
-      return;
-    }
-
-    const s = mgr.sessions.find((x) => x.id === sessionID);
-
-    // A host that cannot resize keeps its terminal at the size it started
-    // with; the screen model still follows the clients.
-    if (s !== undefined && (mgr.findProvider(s)?.capabilities.resize ?? false)) {
-      s.pty?.resize(dims.cols, dims.rows);
-    }
-
-    runtime?.screen?.updateDims(dims.cols, dims.rows);
-
-    if (runtime !== undefined) {
-      runtime.dims = dims;
-    }
-
-    emitEvent(
-      {
-        v: PROTOCOL_V,
-        ev: 'SessionResized',
-        s: sessionID,
-        cols: dims.cols,
-        rows: dims.rows,
-      },
-      findHookScope(sessionID),
-    );
-  };
-
-  // Debounced so two clients resizing in opposite directions cannot produce
-  // a SIGWINCH storm; a no-op effective size never reaches the PTY.
-  const scheduleResize = (sessionID: SessionID) => {
-    const runtime = runtimes.get(sessionID);
-
-    if (runtime === undefined || runtime.cancelResize !== undefined) {
-      return;
-    }
-
-    runtime.cancelResize = clock.schedule(() => {
-      runtime.cancelResize = undefined;
-
-      applyEffectiveDims(sessionID);
-    }, 50);
   };
 
   const applyScreenJudgment = async (sessionID: SessionID) => {
@@ -710,57 +578,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     // A bridge delivers only once its session lists and its terminal boots.
     bridges.startDelivery(s.id);
-  };
-
-  const onOutput: SessionManager['onOutput'] = (s, data) => {
-    const runtime = runtimes.get(s.id);
-
-    // The screen model consumes every byte continuously — background output
-    // is consumed, not discarded.
-    runtime?.screen?.record(data);
-    scheduleDetect(s.id);
-
-    if (runtime !== undefined) {
-      runtime.lastOutputAt = clock.now();
-    }
-
-    const conns = attachments.collectClients(s.id);
-
-    if (conns.length === 0) {
-      return;
-    }
-
-    let seq = runtime?.seq ?? 0;
-
-    for (let i = 0; i < data.length; i += MAX_CHUNK) {
-      const chunk = data.slice(i, i + MAX_CHUNK);
-
-      seq++;
-
-      const event: EventMsg = { v: PROTOCOL_V, ev: 'SessionOutput', s: s.id, seq, d: chunk };
-
-      for (const conn of conns) {
-        conn.sendOutput(s.id, event, chunk.length);
-      }
-    }
-
-    if (runtime !== undefined) {
-      runtime.seq = seq;
-    }
-  };
-
-  // A detach can outlive its session — a kill removes the session before the
-  // client's connection closes — and a gone session already broadcast
-  // SessionRemoved, so a descriptor miss emits nothing.
-  const emitSessionDetached = (sessionID: SessionID) => {
-    const session = mgr.collectDescriptors().find((x) => x.id === sessionID);
-
-    if (session !== undefined) {
-      emitEvent(
-        { v: PROTOCOL_V, ev: 'SessionDetached', session },
-        { cwd: session.cwd, repoRoot: session.repoRoot },
-      );
-    }
   };
 
   // Permission requests are synthesized from attention transitions: entering
@@ -816,7 +633,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
 
     if (kind === 'removed') {
-      attachments.removeSession(s.id);
+      output.removeSession(s.id);
 
       emitInboxClosed(taps.removeSession(s.id), s.id, 'removed');
       runtimes.get(s.id)?.dispose();
@@ -843,7 +660,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     targetErrors,
     {
       onBoot,
-      onOutput,
+      onOutput: (s, data) => {
+        output.recordOutput(s, data);
+      },
       onProcessEnded,
       onEvent,
       onRelay: (binding, relay) => {
@@ -935,6 +754,48 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   });
 
   const trail = new EventTrail({ mgr, store, clock, eventSignal });
+
+  const output = new SessionOutput({
+    mgr,
+    clock,
+    findRuntime,
+    emitEvent,
+    findHookScope,
+    scheduleDetect,
+  });
+
+  const startTurn = (sessionID: SessionID, prompt: string) =>
+    startHeadlessTurn(
+      mgr,
+      findRuntime,
+      sessionID,
+      prompt,
+      (turnSessionID, ev) => {
+        hooks.recordHeadlessTurnEvent(turnSessionID, ev);
+      },
+      opts.reporterSocketPath,
+    );
+
+  const input = new SessionInput({
+    mgr,
+    clock,
+    findRuntime,
+    menuTiming: opts.menuTiming ?? MENU_TIMING,
+    startHeadlessTurn: startTurn,
+  });
+
+  const handoff = new SessionHandoff({
+    mgr,
+    findRuntime,
+    ejectSettleMs: opts.ejectSettleMs ?? 4000,
+    scheduleEjectSettle: opts.scheduleEjectSettle ?? clock.schedule,
+    startHeadlessTurn: startTurn,
+    scheduleResize: (sessionID) => {
+      output.scheduleResize(sessionID);
+    },
+  });
+
+  const reads = new SessionReads({ mgr, store, records });
 
   const reporter = startHookServer((e) => {
     hooks.applyHookEvent(e);
@@ -1193,91 +1054,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     },
     revokeSessionAuth: (id) => mgr.revokeAuth(id),
     updateSessionAuth: (id) => mgr.updateAuth(id),
-    ejectSession: (id, prompt) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      const adapter = mgr.findAdapter(s.agent);
-
-      if (adapter === null || adapter.headlessRunner === null) {
-        return 'unsupported';
-      }
-
-      if (!hasResumableTranscript(mgr, id)) {
-        return 'no_transcript';
-      }
-
-      mgr.requireExecution(s, 'kill');
-      mgr.requireExecution(s, 'headless');
-
-      const yanked = mgr.yankHeadless(id);
-
-      if (yanked === null) {
-        return 'missing';
-      }
-
-      const runtime = runtimes.get(id);
-
-      if (runtime === undefined) {
-        return 'missing';
-      }
-
-      runEjectHandoff({
-        sessionID: id,
-        prompt,
-        settleMs: opts.ejectSettleMs ?? 4000,
-        scheduleSettle: opts.scheduleEjectSettle ?? clock.schedule,
-        runtime,
-        startHeadlessTurn: (sid, p) =>
-          startHeadlessTurn(
-            mgr,
-            findRuntime,
-            sid,
-            p,
-            (turnSessionID, ev) => {
-              hooks.recordHeadlessTurnEvent(turnSessionID, ev);
-            },
-            opts.reporterSocketPath,
-          ),
-      });
-
-      return 'ok';
-    },
-    adoptSession: async (id, cols, rows, access) => {
-      if (!hasResumableTranscript(mgr, id)) {
-        return 'no_transcript';
-      }
-
-      const listed = mgr.sessions.find((s) => s.id === id);
-
-      // Refused before the headless run stops, so a refusal leaves it as
-      // it was.
-      if (listed !== undefined) {
-        mgr.requireAgentTarget(listed.agent, listed.target);
-      }
-
-      const runtime = runtimes.get(id);
-
-      runtime?.stopHeadlessRun();
-
-      const adopted = await mgr.adoptTerminal(
-        id,
-        cols,
-        rows,
-        () => access === null || isTreeInReach(mgr.sessions, id, access),
-      );
-
-      if (adopted === null) {
-        return 'missing';
-      }
-
-      scheduleResize(id);
-
-      return 'ok';
-    },
+    ejectSession: (id, prompt) => handoff.yankSession(id, prompt),
+    adoptSession: (id, cols, rows, access) => handoff.adoptSession(id, cols, rows, access),
     ackSession: (id) => {
       if (!mgr.sessions.some((s) => s.id === id)) {
         return false;
@@ -1289,327 +1067,27 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     },
     buildResumeCommand: (id) => mgr.buildResumeCommand(id),
 
-    // A killed session keeps its last screen until a second kill removes
-    // it, so a reader can still see what the agent printed before it died.
-    readSessionScreen: (id) => {
-      if (!mgr.sessions.some((x) => x.id === id)) {
-        return Promise.resolve('missing');
-      }
-
-      const screen = runtimes.get(id)?.screen ?? null;
-
-      return screen === null ? Promise.resolve('no_screen') : screen.renderText();
-    },
-    readSessionMenu: async (id) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      const findMenu = mgr.findAdapter(s.agent)?.findMenu;
-
-      if (findMenu === undefined) {
-        return 'unsupported';
-      }
-
-      const runtime = runtimes.get(id);
-      const screen = runtime?.screen ?? null;
-
-      if (runtime === undefined || screen === null) {
-        return 'no_screen';
-      }
-
-      const terminal = buildMenuTerminal(id, findMenu);
-
-      const known = await readKnownMenu(terminal);
-
-      // A list that scrolls past the screen is read with arrow keys, so the
-      // read holds the session's input queue as a choice does. A target that
-      // takes no input reads the list as its screen shows it.
-      if (known?.scroll === undefined || mgr.findExecutionRefusal(s, 'input') !== null) {
-        return known === null ? null : buildMenuView(known);
-      }
-
-      const read = Promise.withResolvers<ScreenMenu | null>();
-
-      runtime.input.schedule(async () => {
-        await readWholeMenu(terminal, waits).then(read.resolve, read.reject);
-      });
-
-      const whole = await read.promise;
-
-      return whole === null ? null : buildMenuView(whole);
-    },
-    applySessionMenuChoice: (id, choice) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      if (s === undefined) {
-        return Promise.resolve('missing');
-      }
-
-      const findMenu = mgr.findAdapter(s.agent)?.findMenu;
-
-      if (findMenu === undefined) {
-        return Promise.resolve('unsupported');
-      }
-
-      const runtime = getRuntime(id);
-      const screen = runtime.screen;
-
-      if (s.kind === 'headless' || s.pty === null || screen === null) {
-        return Promise.resolve('dead');
-      }
-
-      mgr.requireExecution(s, 'input');
-
-      const terminal = buildMenuTerminal(id, findMenu);
-      const applied = Promise.withResolvers<MenuChoiceResult>();
-
-      // The choice holds the session's input queue from its first read to
-      // its last, so no other input lands between the keys it presses.
-      runtime.input.schedule(async () => {
-        await applyMenuChoice(terminal, choice, clock, waits.timing).then(
-          applied.resolve,
-          applied.reject,
-        );
-      });
-
-      return applied.promise;
-    },
+    readSessionScreen: (id) => input.readSessionScreen(id),
+    readSessionMenu: (id) => input.readSessionMenu(id),
+    applySessionMenuChoice: (id, choice) => input.applySessionMenuChoice(id, choice),
     answerPermission: (request, decision) => registry.answer(request, decision),
-    attachSession: (client, sessionID, dims) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      if (s.pty === null) {
-        return 'dead';
-      }
-
-      mgr.requireExecution(s, 'attach');
-      attachments.attach(sessionID, client, dims);
-      mgr.attach(sessionID);
-
-      // The PTY and screen model take the new effective size before the
-      // replay renders, so the repaint arrives at the attaching terminal's
-      // own dims instead of the previous attachment's — a replay at stale
-      // dims paints vertically misaligned and the agent's resize repaint
-      // only redraws its live region, never the rows above it.
-      applyEffectiveDims(sessionID);
-      void sendReplay(sessionID, client);
-      const attached = getDescriptor(mgr, sessionID);
-
-      emitEvent(
-        { v: PROTOCOL_V, ev: 'SessionAttached', session: attached },
-        { cwd: attached.cwd, repoRoot: attached.repoRoot },
-      );
-
-      return 'ok';
-    },
+    attachSession: (client, sessionID, dims) => output.attachSession(client, sessionID, dims),
     detachSession: (client, sessionID) => {
-      if (!attachments.detach(sessionID, client)) {
-        return;
-      }
-
-      scheduleResize(sessionID);
-      emitSessionDetached(sessionID);
+      output.detachSession(client, sessionID);
     },
     detachClient: (client) => {
-      for (const sessionID of attachments.detachAll(client)) {
-        scheduleResize(sessionID);
-        emitSessionDetached(sessionID);
-      }
+      output.detachClient(client);
     },
-    writeSessionInput: (sessionID, data) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      // A headless turn runs only through the session's own target, never
-      // anywhere else, and a dead session takes no input.
-      if (s.kind === 'headless') {
-        mgr.requireExecution(s, 'headless');
-
-        if (s.state === 'exited') {
-          return 'dead';
-        }
-
-        if ((runtimes.get(sessionID)?.headlessRun ?? null) !== null) {
-          return 'busy';
-        }
-
-        return startHeadlessTurn(
-          mgr,
-          findRuntime,
-          sessionID,
-          data.trimEnd(),
-          (turnSessionID, ev) => {
-            hooks.recordHeadlessTurnEvent(turnSessionID, ev);
-          },
-          opts.reporterSocketPath,
-        )
-          ? 'ok'
-          : 'dead';
-      }
-
-      if (s.pty === null) {
-        return 'dead';
-      }
-
-      mgr.requireExecution(s, 'input');
-
-      const pty = s.pty;
-      const runtime = getRuntime(sessionID);
-
-      // Input from outside a menu read or choice can open another list that
-      // reads like the kept whole menu, so the kept menu is dropped.
-      runtime.wholeMenu = null;
-
-      // Input goes out at once unless a line is still being typed into the
-      // session, and then waits behind it.
-      runtime.input.schedule(() => {
-        pty.write(data);
-      });
-
-      return 'ok';
-    },
-    writeSessionLine: (sessionID, text) => {
-      const s = mgr.sessions.find((x) => x.id === sessionID);
-
-      // A headless turn takes the line as its prompt, and a missing or dead
-      // session refuses a line as it refuses raw input.
-      if (s === undefined || s.kind === 'headless' || s.pty === null) {
-        return Promise.resolve(ctx.writeSessionInput(sessionID, text));
-      }
-
-      mgr.requireExecution(s, 'input');
-
-      // Typed text would confirm the prompt's highlighted option. Attaching
-      // or a screen judgment changes the state while the prompt stays open,
-      // so only the flag decides.
-      if (s.permissionPending === true) {
-        return Promise.resolve('permission_pending');
-      }
-
-      const runtime = getRuntime(sessionID);
-      const bracketedPaste = runtime.screen?.hasBracketedPaste() ?? false;
-
-      // A typed line can open another list that reads like the kept whole
-      // menu, so the kept menu is dropped.
-      runtime.wholeMenu = null;
-
-      const adapter = mgr.findAdapter(s.agent);
-      const steps = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
-      const pty = s.pty;
-
-      const terminal = {
-        write: (data: string) => {
-          pty.write(data);
-        },
-        isLive: () => mgr.sessions.find((x) => x.id === sessionID)?.pty === pty,
-      };
-
-      const typed = Promise.withResolvers<'ok' | 'dead'>();
-
-      // The writes before the line's first pause go out in the tick the
-      // request arrives in, and the session's input queue holds any other
-      // input until the last write, so none lands between the text and its
-      // submit key. A session whose terminal ends or is replaced mid-line
-      // gets none of the rest.
-      runtime.input.schedule(() => {
-        const result = writeLineSteps(steps, terminal, (ms) => Bun.sleep(ms));
-
-        typed.resolve(result);
-
-        return result;
-      });
-
-      return typed.promise;
-    },
-    resizeSession: (client, sessionID, dims) => {
-      if (!attachments.updateDims(sessionID, client, dims)) {
-        return false;
-      }
-
-      scheduleResize(sessionID);
-
-      return true;
-    },
-    resyncClient: sendReplay,
+    writeSessionInput: (sessionID, data) => input.writeSessionInput(sessionID, data),
+    writeSessionLine: (sessionID, text) => input.writeSessionLine(sessionID, text),
+    resizeSession: (client, sessionID, dims) => output.updateSessionDims(client, sessionID, dims),
+    resyncClient: (sessionID, client) => output.sendReplay(sessionID, client),
     ...(opts.queueBytes === undefined ? {} : { queueBytes: opts.queueBytes }),
-    getEffectiveDims: (sessionID) =>
-      attachments.findEffectiveDims(sessionID) ??
-      runtimes.get(sessionID)?.dims ?? { cols: 80, rows: 24 },
+    getEffectiveDims: (sessionID) => output.getEffectiveDims(sessionID),
     restoreFleet: runFleetRestore,
     writeStateBackup: (path) => store.writeBackup(path),
-    readSessionRecord: async (id, access) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      // Every session-derived field is taken before the await: a kill or a
-      // hook may change the session meanwhile.
-      const session = getDescriptor(mgr, id);
-      const prompt = s.prompt ?? null;
-      const pending = s.state === 'needs_you' ? { message: s.lastMsg } : null;
-      const result = s.result ?? null;
-      const createdAt = s.createdAt;
-
-      // The agent session id links rows from before atc ids stayed stable,
-      // unless a session on another target resumed the same agent session,
-      // whose rows it would match too. Under an access it links nothing: a
-      // session that shared it may be gone, its rows still in the trail.
-      const shared = mgr.sessions.some(
-        (x) =>
-          x.agentSessionID === s.agentSessionID &&
-          (x.target !== s.target || x.targetIdentity !== s.targetIdentity),
-      );
-
-      const linked = access !== null || shared ? undefined : s.agentSessionID;
-
-      const lastEventAt = await store.loadLastActivityAt(s.id, linked);
-      const sessionRecord = await records.findRecord(s.id);
-
-      return {
-        session,
-        prompt,
-        lastActivityAt: lastEventAt ?? createdAt,
-        pending,
-        result,
-        sessionRecord,
-      };
-    },
-    loadSessionTranscript: async (id, from, limit) => {
-      const s = mgr.sessions.find((x) => x.id === id);
-
-      if (s === undefined) {
-        return 'missing';
-      }
-
-      const parseLine = mgr.findAdapter(s.agent)?.parseTranscriptLine;
-
-      if (parseLine === undefined) {
-        return 'unsupported';
-      }
-
-      const path = s.transcriptPath ?? '';
-
-      if (path === '') {
-        return { path, page: { rows: [], offset: 0, more: false } };
-      }
-
-      // A page stays far under the protocol's 1 MiB line cap.
-      const page = await loadTranscriptPage({ path, from, limit, maxBytes: 262_144, parseLine });
-
-      return { path, page };
-    },
+    readSessionRecord: (id, access) => reads.readSessionRecord(id, access),
+    loadSessionTranscript: (id, from, limit) => reads.loadSessionTranscript(id, from, limit),
     readEvents: (afterID, limit, waitMs, sessionID, access) =>
       trail.readEvents(afterID, limit, waitMs, sessionID, access),
     readNote: (id, access) => trail.readNote(id, access),
@@ -1909,41 +1387,6 @@ function buildBindRefusal(listen: ListenOptions, error: unknown): Error {
   return Object.assign(new Error(`atc daemon: --listen cannot bind ${address} (${reason})`), {
     code: 'listen_refused',
   });
-}
-
-function hasResumableTranscript(mgr: SessionManager, id: SessionID): boolean {
-  const s = mgr.sessions.find((x) => x.id === id);
-
-  if (s === undefined) {
-    return false;
-  }
-
-  const adapter = mgr.findAdapter(s.agent);
-
-  if (adapter === null) {
-    return false;
-  }
-
-  // A remote session's transcript lives in its host, out of the daemon's
-  // reach, so the agent's session id alone makes it resumable.
-  if (mgr.findProvider(s)?.remote === true) {
-    return s.agentSessionID !== undefined;
-  }
-
-  return adapter.canResume({
-    ...(s.agentSessionID === undefined ? {} : { agentSessionID: s.agentSessionID }),
-    ...(s.transcriptSource === undefined ? {} : { transcriptSource: s.transcriptSource }),
-  });
-}
-
-function getDescriptor(mgr: SessionManager, id: SessionID): SessionDescriptor {
-  const d = mgr.collectDescriptors().find((x) => x.id === id);
-
-  if (d === undefined) {
-    throw new Error(`descriptor for unknown session ${id}`);
-  }
-
-  return d;
 }
 
 // A sweep that fails leaves the keys for the next one.

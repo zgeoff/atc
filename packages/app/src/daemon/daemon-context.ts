@@ -62,7 +62,7 @@ export interface SpawnParams {
   readonly autoDir: boolean;
 }
 
-interface SessionRecord {
+export interface SessionRecord {
   readonly session: SessionDescriptor;
   readonly prompt: string | null;
   readonly lastActivityAt: number;
@@ -95,7 +95,7 @@ interface ForgetRefusals {
 
 // A transcript page with the file it came from, so a cursor into a replaced
 // transcript is distinguishable from one into a grown transcript.
-interface SessionTranscriptRead {
+export interface SessionTranscriptRead {
   readonly path: string;
   readonly page: TranscriptPage;
 }

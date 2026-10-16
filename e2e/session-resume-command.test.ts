@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { buildStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildMockAgentAdapter, getRecord } from '@atc/test-utils';
-import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it answers the adapter command for a session on the daemon machine', async () => {
   const daemon = await startTestDaemon({

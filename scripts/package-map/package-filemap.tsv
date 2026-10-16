@@ -771,3 +771,9 @@ packages/app/src/daemon/hook-intake.ts	daemon	sessions	packages/daemon/src/sessi
 packages/app/src/daemon/message-bridges.ts	daemon	sessions	packages/daemon/src/sessions/message-bridges.ts	
 packages/app/src/daemon/start-event-sweep.ts	daemon	transport	packages/daemon/src/transport/start-event-sweep.ts	
 packages/app/src/daemon/testing/build-stub-message-bridges.ts	daemon	testing	packages/daemon/src/testing/build-stub-message-bridges.ts	
+packages/app/src/daemon/get-descriptor.ts	daemon	sessions	packages/daemon/src/sessions/get-descriptor.ts	
+packages/app/src/daemon/has-resumable-transcript.ts	daemon	sessions	packages/daemon/src/sessions/has-resumable-transcript.ts	
+packages/app/src/daemon/session-handoff.ts	daemon	sessions	packages/daemon/src/sessions/session-handoff.ts	
+packages/app/src/daemon/session-input.ts	daemon	sessions	packages/daemon/src/sessions/session-input.ts	
+packages/app/src/daemon/session-output.ts	daemon	sessions	packages/daemon/src/sessions/session-output.ts	
+packages/app/src/daemon/session-reads.ts	daemon	sessions	packages/daemon/src/sessions/session-reads.ts	
