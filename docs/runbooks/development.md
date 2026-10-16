@@ -30,6 +30,9 @@ lint (`bun run lint:shell`) runs shellcheck and `shfmt -d` over the tracked shel
 shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are synced from another
 repo.
 
+A squash merge makes the PR title the commit subject, so the `PR Title` workflow runs commitlint on
+the title each time a PR opens, changes its title, or takes a push.
+
 ## Running from source
 
 A source build must never talk to the daemon your installed release runs, because the two can speak
