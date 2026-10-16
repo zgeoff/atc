@@ -18,7 +18,12 @@ daemon. The helper always exits 0 and drops the report when no daemon answers, b
 reporter must never break the session it reports on. Each hook command carries the agent id of the
 session's entry. A harness nested inside a session inherits the session's environment but not its
 command line, so the daemon drops a report whose agent id differs from the session's, and a nested
-agent never reports as the session it runs in.
+agent never reports as the session it runs in. A nested run of the session's own agent carries the
+same agent id, so the helper sends nothing for a hook whose process a Codex tool started, marked by
+the thread variable Codex sets on each tool process. atc strips that variable from every session it
+starts, so a session's own hooks never carry it. Without this, a nested `codex exec` would report a
+session start, and the Codex adapter would follow the nested thread and read every later hook of the
+session's own thread as a heartbeat ([Codex on an App Server](#codex-on-an-app-server)).
 
 The agent's start report carries its agent session id, which is what makes a session restorable
 before the owner has typed anything ([fleet and restore](../daemon/fleet-and-restore.md)).

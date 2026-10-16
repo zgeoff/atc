@@ -1,6 +1,6 @@
 /**
- * The process environment with any enclosing Claude or Grok session
- * scrubbed out. A child that inherits those variables behaves as part of
+ * The process environment with any enclosing Claude, Codex, or Grok
+ * session scrubbed out. A child that inherits those variables behaves as part of
  * the parent session — Claude transcripts nest, and Grok joins the
  * parent's in-process dashboard — which breaks resume and isolation.
  *
@@ -49,11 +49,17 @@ const GROK_PARENT_KEYS = new Set([
   'GROK_INSIDE_BWRAP',
 ]);
 
+// What Codex sets on each process a tool of a Codex thread starts. The hook
+// reporter reads the thread key as the mark of a harness nested in a
+// session, so a session atc starts must never carry it.
+const CODEX_PARENT_KEYS = new Set(['CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_TOOL_CALL_ID']);
+
 function isParentSessionKey(key: string): boolean {
   return (
     key === 'CLAUDECODE' ||
     key.startsWith('CLAUDE_CODE_') ||
     key.startsWith('CODEX_SANDBOX') ||
+    CODEX_PARENT_KEYS.has(key) ||
     GROK_PARENT_KEYS.has(key)
   );
 }

@@ -52,7 +52,9 @@ nested or not. Run `atc codex-hooks` or `atc grok-hooks` again and replace the i
 give those sessions the same protection.
 
 The agent flag cannot separate a nested harness of the session's own agent, such as `codex exec`
-inside a Codex session: both report as `codex`. A nested `claude` reports nothing, because atc's
-Claude hooks exist only in the settings file atc passes to the sessions it starts. To keep a nested
-harness of the same agent from reporting, start it with `ATC_SESSION_ID` and `ATC_SOCKET` removed
-from its environment.
+inside a Codex session: both report as `codex`. The reporter separates them instead. Codex sets
+`CODEX_THREAD_ID` on each process its tools start, and atc removes it from the sessions it starts,
+so a hook that sees it belongs to a harness a Codex tool started, and the reporter sends nothing for
+it. A nested `claude` reports nothing, because atc's Claude hooks exist only in the settings file
+atc passes to the sessions it starts. To keep any other nested harness of the same agent from
+reporting, start it with `ATC_SESSION_ID` and `ATC_SOCKET` removed from its environment.
