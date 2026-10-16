@@ -128,28 +128,26 @@ for map in package-stagemap package-testmap; do
   sed -i '\#^src/test-utils/build-stub-targets\(\.test\)\?\.ts	#d' "$MAPS/${map}.tsv"
 done
 
-# The two helpers that start a daemon on the local pseudo-terminal provider
-# stay in the app's test-utils, since the daemon package may not load that
-# provider: their package is app, and their paths keep the wave 6 path.
-for helper in start-test-daemon run-listener-daemon; do
-  for map in package-filemap package-stagemap package-testmap; do
-    awk -F'\t' -v OFS='\t' -v helper="$helper" '
-      NR == 1 {
-        for (i = 1; i <= NF; i++) {
-          if ($i ~ /^(path_wave[78]|target)$/) path[i] = 1
-          if ($i ~ /^(package|final|module_package|placed_in|wave[78])$/) pkg[i] = 1
-          if ($i == "folder") at_folder = i
-        }
+# The helper that starts a daemon on the local pseudo-terminal provider
+# stays in the app's test-utils, since the daemon package may not load that
+# provider: its package is app, and its paths keep the wave 6 path.
+for map in package-filemap package-stagemap package-testmap; do
+  awk -F'\t' -v OFS='\t' '
+    NR == 1 {
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^(path_wave[78]|target)$/) path[i] = 1
+        if ($i ~ /^(package|final|module_package|placed_in|wave[78])$/) pkg[i] = 1
+        if ($i == "folder") at_folder = i
       }
-      NR > 1 && $1 ~ ("^src/test-utils/" helper "(\\.test)?\\.ts$") {
-        for (i in path) sub("packages/daemon/src/testing/", "packages/app/src/test-utils/", $i)
-        for (i in pkg) if ($i == "daemon") $i = "app"
-        if (at_folder) $at_folder = "test-utils"
-      }
-      { print }
-    ' "$MAPS/${map}.tsv" > "$MAPS/${map}.tsv.tmp"
-    mv "$MAPS/${map}.tsv.tmp" "$MAPS/${map}.tsv"
-  done
+    }
+    NR > 1 && $1 ~ /^src\/test-utils\/start-test-daemon(\.test)?\.ts$/ {
+      for (i in path) sub("packages/daemon/src/testing/", "packages/app/src/test-utils/", $i)
+      for (i in pkg) if ($i == "daemon") $i = "app"
+      if (at_folder) $at_folder = "test-utils"
+    }
+    { print }
+  ' "$MAPS/${map}.tsv" > "$MAPS/${map}.tsv.tmp"
+  mv "$MAPS/${map}.tsv.tmp" "$MAPS/${map}.tsv"
 done
 
 # runGH moves from the GitHub source to plugin-api at wave 6: its package

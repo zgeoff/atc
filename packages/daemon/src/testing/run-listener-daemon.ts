@@ -1,11 +1,11 @@
 import { join } from 'node:path';
-import { startDaemon } from '@atc/daemon';
 import { buildMockAgentAdapter } from '@atc/test-utils';
-import { buildLocalTarget } from './build-local-target';
+import { startDaemon } from '../daemon';
 
 /**
  * Runs a daemon with a TCP listener on a kernel-chosen loopback port, its
  * state under `ATC_TEST_DIR` and its token file at `gateway-token` there.
+ * It has no execution target, so it serves the protocol and spawns nothing.
  * The listener logs through its own stderr writer, delays no handshake, and
  * logs every refusal on a line of its own. It prints the port it bound once
  * it listens, and SIGTERM stops it.
@@ -17,7 +17,7 @@ async function main() {
     socketPath: join(dir, 'daemon.sock'),
     reporterSocketPath: join(dir, 'reporter.sock'),
     build: 'atc/test-build',
-    targets: [buildLocalTarget()],
+    targets: [],
     adapter: buildMockAgentAdapter({
       takesMessages: true,
       planHookEvents: () => ({ events: [{ kind: 'prompt-submitted' }] }),

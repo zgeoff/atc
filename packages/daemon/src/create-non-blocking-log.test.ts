@@ -42,7 +42,7 @@ async function setupTest() {
   });
 
   const proc = Bun.spawn(
-    [process.execPath, join(import.meta.dir, '..', 'test-utils', 'run-listener-daemon.ts')],
+    [process.execPath, join(import.meta.dir, 'testing', 'run-listener-daemon.ts')],
     {
       env: { ATC_TEST_DIR: tmp.dir, HOME: tmp.dir },
       stdout: 'pipe',
