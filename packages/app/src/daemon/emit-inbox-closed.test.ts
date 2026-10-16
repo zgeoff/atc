@@ -1,10 +1,11 @@
 import { expect, mock, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import type { TapClient } from './daemon-context';
 import { emitInboxClosed } from './emit-inbox-closed';
 
 test('it tells the tap why its inbox closed', () => {
-  const tap = { sendEvent: mock() };
+  const tap = { sendEvent: mock<TapClient['sendEvent']>() };
 
   emitInboxClosed(tap, toSessionID('s-1'), 'removed');
 

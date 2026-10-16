@@ -177,7 +177,8 @@
           { "from": "file", "name": "SpawnRollbackDeps" },
           { "from": "file", "name": "SpawnCatalogDeps" },
           { "from": "file", "name": "SpawnReplayDeps" },
-          { "from": "file", "name": "SpawnServiceDeps" }
+          { "from": "file", "name": "SpawnServiceDeps" },
+          { "from": "file", "name": "MessageServiceDeps" }
         ]
       }
     ],
