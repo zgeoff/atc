@@ -177,7 +177,8 @@
           { "from": "file", "name": "SpawnRollbackDeps" },
           { "from": "file", "name": "SpawnCatalogDeps" },
           { "from": "file", "name": "SpawnReplayDeps" },
-          { "from": "file", "name": "SpawnServiceDeps" }
+          { "from": "file", "name": "SpawnServiceDeps" },
+          { "from": "file", "name": "MessageServiceDeps" }
         ]
       }
     ],
@@ -262,7 +263,6 @@
       // topic of daemon.ts into a test of its own, so no module shares its
       // name; listed by file, so a new orphan test still fails the rule
       "files": [
-        "packages/app/src/daemon/daemon-answer-notices.test.ts",
         "packages/app/src/daemon/daemon-auth-gateway.test.ts",
         "packages/app/src/daemon/daemon-codex-app-server.test.ts",
         "packages/app/src/daemon/daemon-config-file.test.ts",
@@ -276,7 +276,6 @@
         "packages/app/src/daemon/daemon-headless.test.ts",
         "packages/app/src/daemon/daemon-hook-agent.test.ts",
         "packages/app/src/daemon/daemon-imp-bridge.test.ts",
-        "packages/app/src/daemon/daemon-messages.test.ts",
         "packages/app/src/daemon/daemon-permission-pending.test.ts",
         "packages/app/src/daemon/daemon-principals.test.ts",
         "packages/app/src/daemon/daemon-resume-command.test.ts",

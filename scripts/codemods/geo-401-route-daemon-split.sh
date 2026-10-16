@@ -32,6 +32,8 @@ TESTS=(
   '16a daemon-sources spawn-sources'
   '16a daemon-targets spawn-targets'
   '16a daemon-workspace spawn-workspace'
+  '16b daemon-answer-notices message-answer-notices'
+  '16b daemon-messages message-delivery'
 )
 
 # ticket, module under packages/app/src/daemon, daemon folder
@@ -39,6 +41,10 @@ MODULES=(
   '16a spawn-catalog sources'
   '16a spawn-replay sessions'
   '16a spawn-service sessions'
+  '16b build-message-owner sessions'
+  '16b emit-inbox-closed sessions'
+  '16b message-refused-error sessions'
+  '16b message-service sessions'
 )
 
 APP=packages/app/src/daemon
