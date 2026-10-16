@@ -4,9 +4,9 @@ description:
   Testing rules for zgeoff repos — the three package regimes, flat behavioural tests, a setupTest
   with onTestFinished cleanup, inline data and tested factories, strict assertions and inline
   snapshots, controlled time, condition waits, real filesystems and transports, and the narrow cases
-  for module mocks. References cover real databases, React and TanStack clients, HTTP mocking with
-  MSW, observability, Claude Code mod checks, and native Go and NixOS conventions. Load when
-  designing, writing, or reviewing tests.
+  for module mocks. References cover real databases, HTTP mocking with MSW, observability, and
+  Claude Code mod checks, and, in a repo that uses them, React and TanStack clients and native Go
+  and NixOS conventions. Load when designing, writing, or reviewing tests.
 ---
 
 # Testing
@@ -34,21 +34,20 @@ around the rule.
 ## Languages and runners
 
 Apply the behavioral principles across languages. The syntax, matchers, hooks, and file conventions
-in this file describe Bun tests. For Go, read [Go testing](./references/go.md); for Nix evaluation
-and VM tests, read [NixOS testing](./references/nixos.md). Those mappings preserve isolation,
-explicit scenarios, independent expectations, real boundaries, and meaningful failures through the
-native runner's mechanisms.
+in this file describe Bun tests. A reference for another runner maps them to that runner's
+mechanisms, and keeps isolation, explicit scenarios, independent expectations, real boundaries, and
+meaningful failures. A repo receives only the references for the runners it uses.
 
 ## Regimes
 
 Each package falls into one regime, chosen by the furthest edge its code reaches. The regime decides
 which reference to open beside this file.
 
-| Regime        | The package                                       | The edge it tests against                           | Reference                                                                  |
-| ------------- | ------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
-| Pure          | A library or CLI with no service or database edge | Return values, temp directories, the spawned binary | none                                                                       |
-| HTTP-mocked   | A client of a remote service, or a web app        | MSW handlers over an in-memory store                | [HTTP mocking](./references/http.md), [frontend](./references/frontend.md) |
-| Real database | A service, app, or library that owns a schema     | The real engine, isolated per test                  | [database](./references/database.md)                                       |
+| Regime        | The package                                       | The edge it tests against                           | Reference                            |
+| ------------- | ------------------------------------------------- | --------------------------------------------------- | ------------------------------------ |
+| Pure          | A library or CLI with no service or database edge | Return values, temp directories, the spawned binary | none                                 |
+| HTTP-mocked   | A client of a remote service, or a web app        | MSW handlers over an in-memory store                | [HTTP mocking](./references/http.md) |
+| Real database | A service, app, or library that owns a schema     | The real engine, isolated per test                  | [database](./references/database.md) |
 
 Code that records metrics, spans, error reports, or structured logs follows
 [observability](./references/observability.md) in any regime. A Claude Code mod's hooks follow
@@ -567,8 +566,7 @@ with values, and test the I/O edge against the real boundary.
 
 A CLI, SDK, or server-side client of a service in the same repo tests against the real application
 wiring, with isolated data and stand-ins at host boundaries the runtime cannot run. A child process
-reaches that application through a real listener. Frontend component tests keep the MSW boundary in
-[frontend testing](./references/frontend.md), with the real SDK and RPC serialization.
+reaches that application through a real listener.
 
 Use a tested real network stand-in where interception cannot exercise the contract: certificate
 verification, TLS or tunnel behavior, Unix sockets whose native options interception loses, or
