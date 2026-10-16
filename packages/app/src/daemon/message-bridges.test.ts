@@ -2,6 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { toMessageID } from '@atc/core';
 import type { SessionID } from '@atc/core';
+import type { HookEvent } from '@atc/protocol/session';
 import { StateStore } from '@atc/store';
 import { buildMockMessageRecord, createMigratedStateDB } from '@atc/store/testing';
 import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
@@ -85,7 +86,7 @@ async function setupTest() {
     tapGraceMs: 15_000,
   });
 
-  const applyNote = mock();
+  const applyNote = mock<(e: HookEvent) => Promise<void>>(() => Promise.resolve());
 
   const bridges = new MessageBridges({
     mgr,

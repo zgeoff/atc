@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { toSessionID } from '@atc/core';
+import type { MessageBridgeHost } from '@atc/plugin-api';
 import { buildStubMessageBridges } from './build-stub-message-bridges';
 
 test('it records each start and answers with a bridge on the stub binary', async () => {
@@ -13,13 +14,13 @@ test('it records each start and answers with a bridge on the stub binary', async
     options: { prompt: '', resume: false },
     dir: '/state/sessions/s-1/codex',
     host: {
-      attachTap: mock(),
-      detachTap: mock(),
-      ackMessage: mock(),
-      ackNotice: mock(),
-      applyNote: mock(),
-      collectUnsettledMessages: mock(),
-      log: mock(),
+      attachTap: mock<MessageBridgeHost['attachTap']>(),
+      detachTap: mock<MessageBridgeHost['detachTap']>(),
+      ackMessage: mock<MessageBridgeHost['ackMessage']>(),
+      ackNotice: mock<MessageBridgeHost['ackNotice']>(),
+      applyNote: mock<MessageBridgeHost['applyNote']>(),
+      collectUnsettledMessages: mock<MessageBridgeHost['collectUnsettledMessages']>(),
+      log: mock<MessageBridgeHost['log']>(),
     },
   };
 
@@ -41,13 +42,13 @@ test('it records what the daemon asks of a bridge', async () => {
     options: { prompt: '', resume: false },
     dir: '/state/sessions/s-1/codex',
     host: {
-      attachTap: mock(),
-      detachTap: mock(),
-      ackMessage: mock(),
-      ackNotice: mock(),
-      applyNote: mock(),
-      collectUnsettledMessages: mock(),
-      log: mock(),
+      attachTap: mock<MessageBridgeHost['attachTap']>(),
+      detachTap: mock<MessageBridgeHost['detachTap']>(),
+      ackMessage: mock<MessageBridgeHost['ackMessage']>(),
+      ackNotice: mock<MessageBridgeHost['ackNotice']>(),
+      applyNote: mock<MessageBridgeHost['applyNote']>(),
+      collectUnsettledMessages: mock<MessageBridgeHost['collectUnsettledMessages']>(),
+      log: mock<MessageBridgeHost['log']>(),
     },
   });
 

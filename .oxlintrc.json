@@ -178,7 +178,11 @@
           { "from": "file", "name": "SpawnCatalogDeps" },
           { "from": "file", "name": "SpawnReplayDeps" },
           { "from": "file", "name": "SpawnServiceDeps" },
-          { "from": "file", "name": "MessageServiceDeps" }
+          { "from": "file", "name": "MessageServiceDeps" },
+          { "from": "file", "name": "EventSweepDeps" },
+          { "from": "file", "name": "EventTrailDeps" },
+          { "from": "file", "name": "HookIntakeDeps" },
+          { "from": "file", "name": "MessageBridgesDeps" }
         ]
       }
     ],

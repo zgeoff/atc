@@ -104,9 +104,9 @@ async function setupTest(config: SetupTestConfig) {
     tapGraceMs: 15_000,
   });
 
-  const updateBridgeThread = mock();
-  const onNoteIgnored = mock();
-  const onLastUsedUnchanged = mock();
+  const updateBridgeThread = mock<(sessionID: SessionID, agentSessionID: string) => void>();
+  const onNoteIgnored = mock<(sessionID: string, kind: string) => void>();
+  const onLastUsedUnchanged = mock<(sessionID: SessionID) => void>();
 
   const hooks = new HookIntake({
     mgr,
@@ -170,7 +170,7 @@ test('it drops a hook line from a harness nested inside the session', async () =
   ctx.hooks.applyHookEvent({ atcId: s.id, event: 'PreToolUse', payload: {}, agent: 'grok' });
 
   expect(ctx.adapter.hookReads).toHaveLength(1);
-  expect(ctx.lines).toPartiallyContain(expect.stringContaining('atc hook event=dropped'));
+  expect(ctx.lines).toSatisfyAny((line: string) => line.startsWith('atc hook event=dropped'));
 });
 
 test('it writes the last-used agent when a spawned session reports its start', async () => {
