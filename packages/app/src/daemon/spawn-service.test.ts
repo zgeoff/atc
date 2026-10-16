@@ -105,10 +105,8 @@ test('it spawns a session on the target given and answers with its descriptor', 
     null,
   );
 
-  expect(answer).toStrictEqual({
-    session: expect.objectContaining({ name: 'builder', cwd: ctx.dir, agent: 'claude' }),
-  });
-
+  expect(answer).toMatchObject({ session: { name: 'builder', cwd: ctx.dir, agent: 'claude' } });
+  expect(answer).not.toContainKey('warnings');
   expect(provider.harnesses).toHaveLength(1);
 });
 

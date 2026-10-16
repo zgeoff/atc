@@ -174,7 +174,10 @@
           { "from": "file", "name": "SessionKillerDeps" },
           { "from": "file", "name": "SessionRestorerDeps" },
           { "from": "file", "name": "SessionSpawnerDeps" },
-          { "from": "file", "name": "SpawnRollbackDeps" }
+          { "from": "file", "name": "SpawnRollbackDeps" },
+          { "from": "file", "name": "SpawnCatalogDeps" },
+          { "from": "file", "name": "SpawnReplayDeps" },
+          { "from": "file", "name": "SpawnServiceDeps" }
         ]
       }
     ],
