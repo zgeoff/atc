@@ -456,6 +456,39 @@ test('it fails on manifest entries that are not workspace or catalog references'
   });
 });
 
+test('it fails on a range in the root catalog or the root devDependencies', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.dir, 'package.json'),
+    JSON.stringify({
+      name: 'root',
+      workspaces: {
+        packages: ['packages/*'],
+        catalog: { knip: '^6.24.0', oxfmt: '~0.57.0', oxlint: '1.73.0' },
+      },
+      devDependencies: { knip: 'catalog:', oxfmt: 'catalog:', oxlint: '^1.73.0' },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.dir,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 1 packages, 0 files, 3 findings\n',
+    stderr:
+      'manifest entry: package.json devDependencies has oxlint at ^1.73.0, not catalog:\ncatalog range: package.json catalog has knip at ^6.24.0, not an exact version\ncatalog range: package.json catalog has oxfmt at ~0.57.0, not an exact version\n',
+  });
+});
+
 test('it fails on a dependency outside the package row', async () => {
   const ctx = setupTest();
 
