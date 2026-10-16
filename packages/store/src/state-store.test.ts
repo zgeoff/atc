@@ -5366,6 +5366,22 @@ test('it refuses a backup onto its own database through a symlinked directory', 
   });
 });
 
+test('it refuses a backup onto the file its database path links to', async () => {
+  const tmp = setupTempDir('atc-store-linked-');
+  const realPath = join(tmp.dir, 'live.db');
+  const linkPath = join(tmp.dir, 'state.db');
+
+  await createMigratedStateDB(realPath);
+
+  symlinkSync(realPath, linkPath);
+
+  const store = await StateStore.open(linkPath);
+
+  registerTestCleanup(() => store.stop());
+
+  expect(store.writeBackup(`${realPath}-wal`)).rejects.toMatchObject({ code: 'bad_args' });
+});
+
 test('it removes its staging file when the backup cannot reach its path', async () => {
   const ctx = await setupTest();
 
@@ -5382,7 +5398,9 @@ test('it writes a consistent backup while another connection commits writes', as
 
   const seed = new Database(ctx.dbPath);
 
-  registerTestCleanup(() => seed.close());
+  registerTestCleanup(() => {
+    seed.close();
+  });
 
   seed.run('CREATE TABLE probe (generation INTEGER NOT NULL, slot INTEGER NOT NULL)');
   seed.run('CREATE TABLE probe_head (generation INTEGER NOT NULL)');
@@ -5449,7 +5467,9 @@ test('it writes a consistent backup while another connection commits writes', as
 
   const backup = new Database(backupPath, { readonly: true });
 
-  registerTestCleanup(() => backup.close());
+  registerTestCleanup(() => {
+    backup.close();
+  });
 
   const integrity = backup.query<{ integrity_check: string }, []>('PRAGMA integrity_check').get();
   const head = backup.query<{ generation: number }, []>('SELECT generation FROM probe_head').get();

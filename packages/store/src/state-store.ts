@@ -1463,7 +1463,9 @@ export class StateStore {
   // log files is refused with `bad_args` before anything is written, since
   // replacing a file SQLite holds open loses every later write.
   async writeBackup(path: string): Promise<number> {
-    const live = resolveRealFilePath(this.dbPath);
+    // The database file resolves in full, since SQLite opens the file a
+    // link points to and names its log files after that path.
+    const live = realpathSync(this.dbPath);
 
     if (
       [live, `${live}-wal`, `${live}-shm`, `${live}-journal`].includes(resolveRealFilePath(path))
