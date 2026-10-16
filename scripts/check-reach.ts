@@ -3,12 +3,13 @@
 // however indirectly and type-only imports included, may belong to a package
 // outside its allowance: core, protocol, config, gateway, mcp, reporters,
 // store's sqlite folder for the mcp-auth.db opener, and the app's gateway
-// modules. The package map gives each file its final package, so a file is
-// held to the rule whether it still sits in packages/app/src or in its
-// package; a file the gateway reaches with no row in the map is a finding, so
-// the map stays complete. A second step bundles the entry with
-// `bun build --metafile` and holds every bundled source file to the same
-// rule, which catches a reach the source walk cannot read.
+// modules. A file's package is the package whose directory holds it, as
+// scripts/package-rules.ts lists them, so a new file needs no entry of its
+// own. An app module counts only when the gateway's list of app modules holds
+// it or its folder, and a file in no package directory is a finding. A second
+// step bundles the entry with `bun build --metafile` and holds every bundled
+// source file to the same rule, which catches a reach the source walk cannot
+// read.
 //
 // A second rule holds the reporters to their start-up time. A hook or
 // statusline command starts once per event inside a session, and a compiled
@@ -31,7 +32,6 @@ import { PACKAGE_RULES } from './package-rules';
 
 async function main(): Promise<void> {
   const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
-  const map = loadPackageMap(root);
 
   const known = new Set(collectSourceFiles(root, 'packages'));
 
@@ -47,12 +47,12 @@ async function main(): Promise<void> {
   const bundled = await collectBundled(root, ENTRY);
 
   const findings = [
-    ...[...reached.files].toSorted().flatMap((file) => checkFile(map, 'reaches', file)),
+    ...[...reached.files].toSorted().flatMap((file) => checkFile('reaches', file)),
     ...reached.unresolved,
     ...bundled
       .filter((file) => known.has(file))
       .toSorted()
-      .flatMap((file) => checkFile(map, 'bundles', file)),
+      .flatMap((file) => checkFile('bundles', file)),
     ...checkReporters(root, known, exports),
   ];
 
@@ -81,86 +81,69 @@ const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
   'reporters',
 ]);
 
-// The app modules behind the atc-gateway binary's own commands, as the
-// package map's source paths. Every other app module, cli.ts and the atc
-// subcommand modules among them, is out of the gateway's reach.
-const GATEWAY_APP_MODULES: ReadonlySet<string> = new Set([
-  'src/gateway.ts',
-  'src/run-gateway-cli.ts',
-  'src/run-gateway.ts',
-  'src/open-mcp-auth-database.ts',
-  'src/parse-gateway-state-dir.ts',
-  'src/parse-port.ts',
-  'src/collect-redirect-uris.ts',
-]);
+// The app modules behind the atc-gateway binary's own commands, as paths
+// under the app's src/: a path that ends in `/` holds every file in that
+// folder. Every other app module, cli.ts and the atc subcommand modules among
+// them, is out of the gateway's reach.
+const GATEWAY_APP_MODULES: readonly string[] = [
+  'gateway.ts',
+  'run-gateway-cli.ts',
+  'run-gateway.ts',
+  'open-mcp-auth-database.ts',
+  'parse-gateway-state-dir.ts',
+  'parse-port.ts',
+  'collect-redirect-uris.ts',
+  'clients.ts',
+  'passkeys.ts',
+  'shared/grant-scope.ts',
+  'shared/normalize-client-name.ts',
+  'mcp/',
+  'federation/',
+];
 
-interface MapRow {
-  readonly source: string;
-  readonly pkg: string;
-  readonly folder: string;
-}
+function checkFile(verb: string, file: string): string[] {
+  const owner = findPackage(file);
 
-const MAP_DIR = 'scripts/package-map';
-
-/**
- * Every path a file has in any wave of the stage map, keyed to the file's
- * row. A file that a later ticket deletes or retires takes the package it
- * sits in until then.
- */
-function loadPackageMap(root: string): Map<string, MapRow> {
-  const folders = new Map(
-    readTable(join(root, MAP_DIR, 'package-filemap.tsv')).map((row) => [
-      row['source'] ?? '',
-      row['folder'] ?? '',
-    ]),
-  );
-
-  const interimText = readFileSync(join(root, MAP_DIR, 'interim.json'), 'utf8');
-  const interim = z.record(z.string(), z.string()).parse(JSON.parse(interimText));
-
-  const map = new Map<string, MapRow>();
-
-  for (const row of readTable(join(root, MAP_DIR, 'package-stagemap.tsv'))) {
-    const source = row['source'] ?? '';
-    const final = row['final'] ?? '';
-    const pkg = final.startsWith('(') ? (interim[source] ?? final) : final;
-
-    const paths = Object.entries(row)
-      .filter(([column]) => column.startsWith('path_wave'))
-      .map(([, path]) => path);
-
-    for (const path of new Set([source, ...paths])) {
-      map.set(path, { source, pkg, folder: folders.get(source) ?? '' });
-    }
-  }
-
-  return map;
-}
-
-function readTable(path: string): Record<string, string>[] {
-  const [header = '', ...lines] = readFileSync(path, 'utf8').trimEnd().split('\n');
-  const columns = header.split('\t');
-
-  return lines.map((line) => {
-    const cells = line.split('\t');
-
-    return Object.fromEntries(columns.map((column, i) => [column, cells[i] ?? '']));
-  });
-}
-
-function checkFile(map: ReadonlyMap<string, MapRow>, verb: string, file: string): string[] {
-  const row = map.get(file);
-
-  if (row === undefined) {
-    return [`unmapped module: ${ENTRY} ${verb} ${file}, which has no row in the package map`];
+  if (owner === undefined) {
+    return [
+      `unowned module: ${ENTRY} ${verb} ${file}, which sits in no package directory that scripts/package-rules.ts lists`,
+    ];
   }
 
   const allowed =
-    ALLOWED_PACKAGES.has(row.pkg) ||
-    (row.pkg === 'store' && row.folder === 'sqlite') ||
-    (row.pkg === 'app' && GATEWAY_APP_MODULES.has(row.source));
+    ALLOWED_PACKAGES.has(owner.name) ||
+    (owner.name === 'store' && owner.path.startsWith('src/sqlite/')) ||
+    (owner.name === 'app' &&
+      GATEWAY_APP_MODULES.some((module) => isWithin(owner.path, `src/${module}`)));
 
-  return allowed ? [] : [`unreachable module: ${ENTRY} ${verb} ${file} (${row.pkg})`];
+  return allowed ? [] : [`unreachable module: ${ENTRY} ${verb} ${file} (${owner.name})`];
+}
+
+interface Owner {
+  readonly name: string;
+  readonly path: string;
+}
+
+/**
+ * The package whose directory holds the file, and the file's path inside
+ * that directory. Undefined when no package directory holds the file.
+ */
+function findPackage(file: string): Owner | undefined {
+  const rule = PACKAGE_RULES.find((candidate) => file.startsWith(`${candidate.dir}/`));
+
+  if (rule === undefined) {
+    return undefined;
+  }
+
+  return { name: rule.name, path: file.slice(rule.dir.length + 1) };
+}
+
+/**
+ * Whether the path is the module, or sits inside it when the module is a
+ * folder ending in `/`.
+ */
+function isWithin(path: string, module: string): boolean {
+  return module.endsWith('/') ? path.startsWith(module) : path === module;
 }
 
 const APP_SOURCE = 'packages/app/src';
@@ -247,14 +230,14 @@ function isReporterLoadable(file: string): boolean {
     return true;
   }
 
-  const rule = PACKAGE_RULES.find((candidate) => file.startsWith(`${candidate.dir}/src/`));
+  const owner = findPackage(file);
 
-  if (rule === undefined) {
+  if (owner === undefined || !owner.path.startsWith('src/')) {
     return false;
   }
 
-  const folders = REPORTER_FOLDERS.get(rule.name) ?? [];
-  const path = file.slice(`${rule.dir}/src/`.length);
+  const folders = REPORTER_FOLDERS.get(owner.name) ?? [];
+  const path = owner.path.slice('src/'.length);
 
   if ('except' in folders) {
     return !folders.except.some((folder) => path.startsWith(`${folder}/`));
