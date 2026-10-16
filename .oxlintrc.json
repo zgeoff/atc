@@ -188,7 +188,9 @@
           { "from": "file", "name": "SessionHandoffDeps" },
           { "from": "file", "name": "SessionInputDeps" },
           { "from": "file", "name": "SessionOutputDeps" },
-          { "from": "file", "name": "SessionReadsDeps" }
+          { "from": "file", "name": "SessionReadsDeps" },
+          { "from": "file", "name": "PermissionPromptsDeps" },
+          { "from": "file", "name": "ScreenDetectionDeps" }
         ]
       }
     ],
@@ -276,7 +278,6 @@
         "packages/app/src/daemon/daemon-auth-gateway.test.ts",
         "packages/app/src/daemon/daemon-config-file.test.ts",
         "packages/app/src/daemon/daemon-connection-reach.test.ts",
-        "packages/app/src/daemon/daemon-detector.test.ts",
         "packages/app/src/daemon/daemon-fleet-restart.test.ts",
         "packages/app/src/daemon/daemon-fleet.test.ts",
         "packages/app/src/daemon/daemon-forget.test.ts",
